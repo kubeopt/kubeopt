@@ -1387,7 +1387,7 @@ body {
 
 .bg-light {
     --bs-bg-opacity: 1;
-    background-color: rgb(89 137 75) !important;
+    background-color: #10ad78 !important;
 }
 
 /* ===== RESPONSIVE DESIGN ===== */
