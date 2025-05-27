@@ -1,0 +1,8 @@
+Flask
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn
+azure-identity
+azure-mgmt-costmanagement
