@@ -227,14 +227,14 @@ function animateMetric(metric, delay) {
 }
 
 function formatValue(v, fmt) {
-  const n = parseFloat(v) || 0;
-  switch(fmt) {
-    case 'currency':         return '$' + n.toLocaleString(undefined,{minimumFractionDigits:0});
-    case 'currency-monthly': return '$' + n.toLocaleString(undefined,{minimumFractionDigits:0}) + '/mo';
-    case 'percentage':       return n.toFixed(1) + '%';
-    case 'number':           return Math.round(n).toString();
-    default:                 return n.toLocaleString();
-  }
+    const n = parseFloat(v) || 0;
+    switch(fmt) {
+        case 'currency':         return '$' + n.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});
+        case 'currency-monthly': return '$' + n.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}) + '/mo';
+        case 'percentage':       return n.toFixed(1) + '%';
+        case 'number':           return Math.round(n).toString();
+        default:                 return n.toLocaleString();
+    }
 }
 
 function calculateScore(d) {
@@ -274,45 +274,70 @@ function updateDataSourceIndicator(d) {
 
 // ——— Unified Chart Builder ———
 function createAllCharts(data) {
-  console.log('🎨 Creating all charts...');
-  try {
-    destroyAllCharts();
+    console.log('🎨 Creating all charts...');
+    try {
+        destroyAllCharts();
 
-    // detect real vs sample
-    const md = data.metadata||{};
-    const realFlag = md.is_real_data===true || md.force_real_data===true;
-    const costNum = parseFloat(md.total_cost_verification?.replace(/[^0-9.]/g,'')||'0');
-    const finalReal = realFlag || costNum > 100;
+        // detect real vs sample
+        const md = data.metadata||{};
+        const realFlag = md.is_real_data===true || md.force_real_data===true;
+        const costNum = parseFloat(md.total_cost_verification?.replace(/[^0-9.]/g,'')||'0');
+        const finalReal = realFlag || costNum > 100;
 
-    console.log('Data type:', finalReal ? 'Real' : 'Sample');
+        console.log('Data type:', finalReal ? 'Real' : 'Sample');
+        console.log('Creating charts with data:', data);
 
-    if (data.costBreakdown?.values?.length) {
-      createCostBreakdownChart(data.costBreakdown, finalReal);
+        if (data.costBreakdown?.values?.length) {
+            console.log('Creating cost breakdown chart with data:', data.costBreakdown);
+            createCostBreakdownChart(data.costBreakdown, finalReal);
+        }
+        if (data.hpaComparison) {
+            console.log('Creating HPA comparison chart');
+            createHPAComparisonChart(data.hpaComparison, finalReal);
+        }
+        if (data.nodeUtilization) {
+            console.log('Creating node utilization chart');
+            createNodeUtilizationChart(data.nodeUtilization, finalReal);
+        }
+        if (data.savingsBreakdown) {
+            console.log('Creating savings breakdown chart');
+            createSavingsBreakdownChart(data.savingsBreakdown, finalReal);
+        }
+        if (data.trendData) {
+            console.log('Creating main trend chart');
+            createMainTrendChart(data.trendData, finalReal);
+        }
+        if (data.insights) {
+            updateInsights(data.insights);
+        }
+        // NEW: Pod cost charts
+        if (data.podCostBreakdown) {
+            console.log('Creating namespace cost chart');
+            createNamespaceCostChart(data.podCostBreakdown);
+            document.getElementById('pod-cost-section').style.display = 'block';
+        }
+        
+        if (data.workloadCosts) {
+            console.log('Creating workload cost chart');
+            createWorkloadCostChart(data.workloadCosts);
+        }
+        
+        if (data.namespaceDistribution || data.workloadCosts) {
+            updatePodCostMetrics(data);
+        }
+        console.log('✅ All charts created');
+    } catch (err) {
+        console.error('❌ Error building charts', err);
+        showChartError('Failed to render charts: ' + err.message);
     }
-    if (data.hpaComparison) {
-      createHPAComparisonChart(data.hpaComparison, finalReal);
-    }
-    if (data.nodeUtilization) {
-      createNodeUtilizationChart(data.nodeUtilization, finalReal);
-    }
-    if (data.savingsBreakdown) {
-      createSavingsBreakdownChart(data.savingsBreakdown, finalReal);
-    }
-    if (data.trendData) {
-      createMainTrendChart(data.trendData, finalReal);
-    }
-    if (data.insights) {
-      updateInsights(data.insights);
-    }
-    console.log('✅ All charts created');
-  } catch (err) {
-    console.error('❌ Error building charts', err);
-    showChartError('Failed to render charts: ' + err.message);
-  }
 }
 
 function destroyAllCharts() {
-  const chartIds = ['mainTrendChart','costBreakdownChart','hpaComparisonChart','nodeUtilizationChart','savingsBreakdownChart','savingsProjectionChart'];
+  const chartIds = [
+        'mainTrendChart', 'costBreakdownChart', 'hpaComparisonChart', 
+        'nodeUtilizationChart', 'savingsBreakdownChart', 'savingsProjectionChart',
+        'namespaceCostChart', 'workloadCostChart'
+    ];
   chartIds.forEach(id => {
     const canvas = document.getElementById(id);
     if (canvas && chartInstances[id]) {
@@ -326,59 +351,78 @@ function destroyAllCharts() {
 // ——— CHART FUNCTIONS ———
 
 function createCostBreakdownChart(data, isRealData) {
-  console.log('📊 Creating cost breakdown chart');
-  const canvas = document.getElementById('costBreakdownChart');
-  if (!canvas) {
-    console.warn('Cost breakdown canvas not found');
-    return;
-  }
-
-  const ctx = canvas.getContext('2d');
-  const colors = getChartColors();
-
-  const config = {
-    type: 'doughnut',
-    data: {
-      labels: data.labels || [],
-      datasets: [{
-        data: data.values || [],
-        backgroundColor: [
-          '#3498db', '#e74c3c', '#f39c12', '#2ecc71',
-          '#9b59b6', '#1abc9c', '#95a5a6'
-        ],
-        borderWidth: 2,
-        borderColor: colors.backgroundColor,
-        hoverOffset: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'bottom',
-          labels: {
-            color: colors.textColor,
-            padding: 15,
-            usePointStyle: true
-          }
-        },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              const value = context.parsed;
-              const total = context.dataset.data.reduce((a, b) => a + b, 0);
-              const percentage = ((value / total) * 100).toFixed(1);
-              return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
-            }
-          }
-        }
-      }
+    console.log('📊 Creating cost breakdown chart with data:', data);
+    const canvas = document.getElementById('costBreakdownChart');
+    if (!canvas) {
+        console.warn('Cost breakdown canvas not found');
+        return;
     }
-  };
 
-  chartInstances['costBreakdownChart'] = new Chart(ctx, config);
-  console.log('✅ Cost breakdown chart created');
+    const ctx = canvas.getContext('2d');
+    const colors = getChartColors();
+
+    // Ensure we have valid data
+    const labels = data.labels || [];
+    const values = data.values || [];
+    
+    console.log('Cost breakdown labels:', labels);
+    console.log('Cost breakdown values:', values);
+
+    // Filter out zero values and corresponding labels
+    const filteredData = labels.map((label, index) => ({
+        label: label,
+        value: values[index] || 0
+    })).filter(item => item.value > 0);
+
+    if (filteredData.length === 0) {
+        console.warn('No valid cost data to display');
+        canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No cost data available</div>';
+        return;
+    }
+
+    const config = {
+        type: 'doughnut',
+        data: {
+            labels: filteredData.map(item => item.label),
+            datasets: [{
+                data: filteredData.map(item => item.value),
+                backgroundColor: [
+                    '#3498db', '#e74c3c', '#f39c12', '#2ecc71',
+                    '#9b59b6', '#1abc9c', '#95a5a6'
+                ],
+                borderWidth: 2,
+                borderColor: colors.backgroundColor,
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: colors.textColor,
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    chartInstances['costBreakdownChart'] = new Chart(ctx, config);
+    console.log('✅ Cost breakdown chart created');
 }
 
 function createMainTrendChart(data, isRealData) {
@@ -677,7 +721,7 @@ function showChartError(msg) {
 //   t.className = `toast toast-${type}`;
 //   t.innerHTML = `<div class="toast-content">${msg}</div>`;
 //   t.style.cssText = `
-//     position: fixed; top: 20px; right: 20px; z-index: 10000;
+//     position: ; top: 20px; right: 20px; z-index: 10000;
 //     padding: 15px 25px; border-radius: 10px; color: white;
 //     font-weight: 600; max-width: 400px; animation: slideIn 0.3s ease;
 //     background: ${type === 'success' ? 'linear-gradient(135deg, #11998e, #38ef7d)' : 'linear-gradient(135deg, #ff416c, #ff4757)'};
@@ -971,7 +1015,7 @@ function displayImplementationPlan(planData) {
 //                         <i class="fas fa-shield-alt me-1"></i>${phase.risk || 'Unknown'} Risk
 //                     </span>
 //                     <span class="badge bg-success">
-//                         <i class="fas fa-dollar-sign me-1"></i>${(phase.savings || 0).toFixed(2)}/month
+//                         <i class="fas fa-dollar-sign me-1"></i>${(phase.savings || 0).to(2)}/month
 //                     </span>
 //                 </div>
 //             </div>
@@ -1532,6 +1576,36 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // NEW: Handle pod analysis checkbox
+    const podAnalysisCheckbox = document.getElementById('enable_pod_analysis');
+    if (podAnalysisCheckbox) {
+        podAnalysisCheckbox.addEventListener('change', function() {
+            const isChecked = this.checked;
+            console.log('Pod analysis checkbox changed:', isChecked);
+            
+            // Show/hide info about pod analysis
+            const podInfo = document.querySelector('.pod-analysis-info');
+            if (podInfo) {
+                podInfo.style.display = isChecked ? 'block' : 'none';
+            }
+            
+            // Update form hint
+            const formHint = this.parentElement.querySelector('.form-hint');
+            if (formHint) {
+                if (isChecked) {
+                    formHint.textContent = 'Analyze costs at namespace and workload level (adds 30-60 seconds)';
+                    formHint.classList.add('text-info');
+                } else {
+                    formHint.textContent = 'Enable for detailed pod-level cost insights';
+                    formHint.classList.remove('text-info');
+                }
+            }
+        });
+        
+        // Trigger initial state
+        podAnalysisCheckbox.dispatchEvent(new Event('change'));
+    }
 });
 
 /////// END ////
@@ -1961,8 +2035,265 @@ function copyToClipboard(text) {
   }
 }
 
-// Debug
+function createNamespaceCostChart(data) {
+    console.log('📊 Creating namespace cost chart with data:', data);
+    const canvas = document.getElementById('namespaceCostChart');
+    if (!canvas || !data || !data.labels || data.labels.length === 0) {
+        console.warn('Namespace cost chart data not available or empty');
+        // Hide the pod cost section if no data
+        const podSection = document.getElementById('pod-cost-section');
+        if (podSection) {
+            podSection.style.display = 'none';
+        }
+        return;
+    }
 
+    const ctx = canvas.getContext('2d');
+    const colors = getChartColors();
+
+    // Generate colors for namespaces
+    const namespaceColors = [
+        '#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6',
+        '#1abc9c', '#95a5a6', '#34495e', '#e67e22', '#16a085'
+    ];
+
+    const config = {
+        type: 'doughnut',
+        data: {
+            labels: data.labels || [],
+            datasets: [{
+                data: data.values || [],
+                backgroundColor: namespaceColors,
+                borderWidth: 2,
+                borderColor: colors.backgroundColor,
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        color: colors.textColor,
+                        padding: 15,
+                        usePointStyle: true,
+                        generateLabels: function(chart) {
+                            const data = chart.data;
+                            if (data.labels.length && data.datasets.length) {
+                                return data.labels.map((label, i) => {
+                                    const value = data.datasets[0].data[i];
+                                    const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((value / total) * 100).to(1) : 0;
+                                    return {
+                                        text: `${label}: $${value.toLocaleString()} (${percentage}%)`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        index: i
+                                    };
+                                });
+                            }
+                            return [];
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).to(1) : 0;
+                            return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    chartInstances['namespaceCostChart'] = new Chart(ctx, config);
+    
+    // Update analysis badge
+    const badge = document.getElementById('pod-analysis-badge');
+    if (badge) {
+        badge.textContent = `${data.analysis_method || 'Unknown'} - ${data.accuracy_level || 'Unknown'} Accuracy`;
+        badge.className = `badge ${getAccuracyBadgeClass(data.accuracy_level)}`;
+    }
+    
+    console.log('✅ Namespace cost chart created');
+}
+
+function createWorkloadCostChart(data) {
+    console.log('📊 Creating workload cost chart with data:', data);
+    const canvas = document.getElementById('workloadCostChart');
+    if (!canvas || !data) {
+        console.warn('Workload cost chart data not available');
+        return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    const colors = getChartColors();
+
+    // Color code by workload type
+    const typeColors = {
+        'Deployment': '#3498db',
+        'StatefulSet': '#e74c3c', 
+        'DaemonSet': '#2ecc71',
+        'ReplicaSet': '#f39c12',
+        'Job': '#9b59b6',
+        'CronJob': '#1abc9c'
+    };
+
+    const backgroundColors = data.types.map(type => typeColors[type] || '#95a5a6');
+
+    const config = {
+        type: 'bar', // CHANGED: from 'horizontalBar' to 'bar'
+        data: {
+            labels: data.workloads.map(w => w.split('/')[1] || w), // Show only workload name
+            datasets: [{
+                label: 'Monthly Cost',
+                data: data.costs || [],
+                backgroundColor: backgroundColors,
+                borderColor: backgroundColors,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y', // ADDED: This makes it horizontal in Chart.js v3+
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(context) {
+                            const index = context[0].dataIndex;
+                            return `${data.types[index]}: ${data.workloads[index]}`;
+                        },
+                        label: function(context) {
+                            const index = context.dataIndex;
+                            return [
+                                `Cost: $${context.parsed.x.toLocaleString()}/month`,
+                                `Namespace: ${data.namespaces[index]}`,
+                                `Replicas: ${data.replicas[index]}`
+                            ];
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        color: colors.textColor,
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    },
+                    grid: { color: colors.gridColor }
+                },
+                y: {
+                    ticks: { 
+                        color: colors.textColor,
+                        maxTicksLimit: 15
+                    },
+                    grid: { color: colors.gridColor }
+                }
+            }
+        }
+    };
+
+    chartInstances['workloadCostChart'] = new Chart(ctx, config);
+    console.log('✅ Workload cost chart created');
+}
+
+function getAccuracyBadgeClass(accuracy) {
+    switch (accuracy?.toLowerCase()) {
+        case 'very high': return 'bg-success';
+        case 'high': return 'bg-info';
+        case 'good': return 'bg-warning';
+        case 'basic': return 'bg-secondary';
+        default: return 'bg-secondary';
+    }
+}
+
+function updatePodCostMetrics(data) {
+    console.log('📊 Updating pod cost metrics with data:', data);
+    
+    if (!data) {
+        console.warn('No data provided to updatePodCostMetrics');
+        return;
+    }
+    
+    // Calculate top namespace cost
+    let topNamespaceCost = 0;
+    if (data.namespaceDistribution && data.namespaceDistribution.costs) {
+        topNamespaceCost = Math.max(...data.namespaceDistribution.costs);
+    } else if (data.podCostBreakdown && data.podCostBreakdown.values) {
+        topNamespaceCost = Math.max(...data.podCostBreakdown.values);
+    }
+    
+    // Get namespace count
+    let namespaceCount = 0;
+    if (data.namespaceDistribution && data.namespaceDistribution.namespaces) {
+        namespaceCount = data.namespaceDistribution.namespaces.length;
+    } else if (data.podCostBreakdown && data.podCostBreakdown.labels) {
+        namespaceCount = data.podCostBreakdown.labels.length;
+    }
+    
+    // Get workload count
+    let workloadCount = 0;
+    if (data.workloadCosts && data.workloadCosts.workloads) {
+        workloadCount = data.workloadCosts.workloads.length;
+    }
+    
+    // Get analysis accuracy
+    let accuracy = 'Unknown';
+    if (data.podCostBreakdown && data.podCostBreakdown.accuracy_level) {
+        accuracy = data.podCostBreakdown.accuracy_level;
+    }
+    
+    console.log(`Updating metrics: topCost=${topNamespaceCost}, namespaces=${namespaceCount}, workloads=${workloadCount}, accuracy=${accuracy}`);
+    
+    // Update the metrics
+    const updates = [
+        { sel: '#top-namespace-cost', val: topNamespaceCost, fmt: 'currency' },
+        { sel: '#total-namespaces', val: namespaceCount, fmt: 'number' },
+        { sel: '#total-workloads', val: workloadCount, fmt: 'number' },
+        { sel: '#analysis-accuracy', val: accuracy, fmt: 'text' }
+    ];
+    
+    updates.forEach(update => {
+        const element = document.querySelector(update.sel);
+        if (element) {
+            let displayValue;
+            if (update.fmt === 'currency') {
+                displayValue = '$' + (update.val || 0).toLocaleString();
+            } else if (update.fmt === 'number') {
+                displayValue = (update.val || 0).toString();
+            } else {
+                displayValue = update.val || 'Unknown';
+            }
+            
+            element.textContent = displayValue;
+            console.log(`Updated ${update.sel} to: ${displayValue}`);
+        } else {
+            console.warn(`Element not found: ${update.sel}`);
+        }
+    });
+    
+    // Show the pod cost section if we have data
+    if (topNamespaceCost > 0 || namespaceCount > 0) {
+        const podSection = document.getElementById('pod-cost-section');
+        if (podSection) {
+            podSection.style.display = 'block';
+            console.log('Pod cost section made visible');
+        }
+    }
+}
+
+// Debug
 function testImplementationAPI() {
   console.log('🧪 Testing implementation API directly...');
 

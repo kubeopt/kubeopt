@@ -119,6 +119,17 @@
                                     </select>
                                     <div class="form-hint">Select the time period for cost analysis</div>
                                 </div>
+                                <div class="form-group">
+    <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="enable_pod_analysis" name="enable_pod_analysis" checked>
+        <label class="form-check-label" for="enable_pod_analysis">
+            <i class="fas fa-layer-group me-2"></i>Enable Deep Pod Cost Analysis
+        </label>
+        <div class="form-hint">
+            Analyze costs at namespace and workload level (adds 30-60 seconds)
+        </div>
+    </div>
+</div>
                             </div>
 
                             <div class="form-actions">
@@ -307,6 +318,7 @@
                 </div>
             </div>
         </div>
+        
 
         <!-- Cost dashboards -->
         <div class="row mb-4">
@@ -358,6 +370,68 @@
                 </div>
             </div>
         </div>
+
+        <!-- Pod Cost Analysis Section -->
+<div class="row mb-4" id="pod-cost-section">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-layer-group me-2"></i>Deep Cost Analysis
+                    </h5>
+                    <div id="pod-analysis-badge" class="badge bg-success">
+                        Container Level Analysis
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-lg-6">
+                        <h6><i class="fas fa-chart-pie me-2"></i>Cost by Namespace</h6>
+                        <div class="chart-container">
+                            <canvas id="namespaceCostChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <h6><i class="fas fa-chart-bar me-2"></i>Top Workloads</h6>
+                        <div class="chart-container">
+                            <canvas id="workloadCostChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Cost Analysis Summary -->
+                <div class="row mt-4">
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-value" id="top-namespace-cost">$0</div>
+                            <div class="metric-label">Top Namespace Cost</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-value" id="total-namespaces">0</div>
+                            <div class="metric-label">Namespaces Analyzed</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-value" id="total-workloads">0</div>
+                            <div class="metric-label">Workloads Found</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="metric-card">
+                            <div class="metric-value" id="analysis-accuracy">High</div>
+                            <div class="metric-label">Analysis Accuracy</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
         <div class="row mb-4">
             <div class="col-lg-8">
@@ -434,7 +508,7 @@
         </div>
     </div>
 
-<!-- Implementation Tab - FIXED -->
+<!-- Implementation Tab -  -->
 <div class="tab-pane fade" id="implementation" role="tabpanel">
     <div id="implementation-plan-container">
         <div class="loading-spinner">
@@ -514,11 +588,11 @@
                     
         //             <div class="summary-stats">
         //                 <div class="stat-card">
-        //                     <div class="stat-value">$${(summary.monthly_savings || 0).toFixed(2)}</div>
+        //                     <div class="stat-value">$${(summary.monthly_savings || 0).to(2)}</div>
         //                     <div class="stat-label">Monthly Savings</div>
         //                 </div>
         //                 <div class="stat-card">
-        //                     <div class="stat-value">$${(summary.annual_savings || 0).toFixed(2)}</div>
+        //                     <div class="stat-value">$${(summary.annual_savings || 0).to(2)}</div>
         //                     <div class="stat-label">Annual Savings</div>
         //                 </div>
         //                 <div class="stat-card">

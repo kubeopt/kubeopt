@@ -1608,3 +1608,8 @@ body {
     0% { transform: translateY(-100%); opacity: 0; }
     100% { transform: translateY(0); opacity: 1; }
 }
+
+.form-check-input:checked {
+    background-color: #1dd268;
+    border-color: #0dfd9d;
+}
