@@ -17,6 +17,7 @@ import logging
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from datetime import datetime, timedelta, timezone
 from implementation_generator import AKSImplementationGenerator
+from pod_cost_analyzer import get_enhanced_pod_cost_breakdown
 
 # Initialize the generator
 implementation_generator = AKSImplementationGenerator()
@@ -998,13 +999,13 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
         # Create a comprehensive cost query
         cost_query = {
             "type": "ActualCost",
-            "timeframe": "Custom",  # Explicitly use custom timeframe
+            "timeframe": "Custom",
             "timePeriod": {
                 "from": start_date_str,
                 "to": end_date_str
             },
             "dataset": {
-                "granularity": "Daily",  # Changed from None to Daily to get daily breakdown
+                "granularity": "Daily",
                 "aggregation": {
                     "totalCost": {
                         "name": "PreTaxCost",
@@ -1012,18 +1013,10 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
                     }
                 },
                 "grouping": [
-                    {
-                        "type": "Dimension",
-                        "name": "ResourceType"
-                    },
-                    {
-                        "type": "Dimension",
-                        "name": "ResourceGroupName"
-                    },
-                    {
-                        "type": "Dimension", 
-                        "name": "ServiceName"
-                    }
+                    {"type": "Dimension", "name": "ResourceType"},
+                    {"type": "Dimension", "name": "ResourceGroupName"},
+                    {"type": "Dimension", "name": "ServiceName"},
+                    {"type": "Dimension", "name": "ResourceId"}  # Use ResourceId instead of ResourceName
                 ],
                 "filter": {
                     "or": [
@@ -1031,35 +1024,19 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
                             "dimensions": {
                                 "name": "ResourceGroupName",
                                 "operator": "In",
-                                "values": [
-                                    resource_group
-                                ]
+                                "values": [resource_group, node_resource_group]
                             }
                         },
                         {
                             "dimensions": {
-                                "name": "ResourceGroupName",
+                                "name": "ServiceName",
                                 "operator": "In",
                                 "values": [
-                                    node_resource_group
-                                ]
-                            }
-                        },
-                        {
-                            "tags": {
-                                "name": "kubernetes-cluster",
-                                "operator": "In",
-                                "values": [
-                                    cluster_name
-                                ]
-                            }
-                        },
-                        {
-                            "tags": {
-                                "name": "aks-managed-cluster",
-                                "operator": "In",
-                                "values": [
-                                    cluster_name
+                                    "Azure Kubernetes Service",
+                                    "Virtual Machines", 
+                                    "Storage",
+                                    "Virtual Network",
+                                    "Load Balancer"
                                 ]
                             }
                         }
@@ -1171,7 +1148,7 @@ def debug_implementation():
 
 # THE MAIN ANALYSIS FUNCTION
 def run_analysis(resource_group, cluster_name, days=30):
-    """run_analysis function - NO SAMPLE DATA FALLBACK"""
+    """run_analysis function"""
     logger.info(f"Running analysis for {resource_group}/{cluster_name} (last {days} days)")
 
     global analysis_results
@@ -1287,6 +1264,42 @@ def run_analysis(resource_group, cluster_name, days=30):
             analysis_results['cpu_gap'] = 45.0  # Default
             analysis_results['memory_gap'] = 25.0  # Default
         
+        # NEW: Add pod cost analysis
+        enable_pod_analysis = True  # This will come from form checkbox
+        
+        if enable_pod_analysis and node_cost > 0:
+            logger.info("🔍 Starting pod cost analysis...")
+            pod_cost_data = get_enhanced_pod_cost_breakdown(
+                resource_group, cluster_name, node_cost
+            )
+            
+            if pod_cost_data:
+                analysis_results['pod_cost_analysis'] = pod_cost_data
+                analysis_results['has_pod_costs'] = True
+                
+                # Extract key metrics
+                if pod_cost_data.get('namespace_costs'):
+                    analysis_results['namespace_costs'] = pod_cost_data['namespace_costs']
+                    analysis_results['top_namespace'] = max(
+                        pod_cost_data['namespace_costs'].items(), 
+                        key=lambda x: x[1]
+                    )
+                
+                if pod_cost_data.get('workload_costs'):
+                    analysis_results['workload_costs'] = pod_cost_data['workload_costs']
+                    analysis_results['top_workload'] = max(
+                        pod_cost_data['workload_costs'].items(),
+                        key=lambda x: x[1]['cost']
+                    )
+                
+                logger.info(f"✅ Pod analysis completed - {pod_cost_data.get('analysis_method', 'unknown')} method")
+                logger.info(f"📊 Accuracy: {pod_cost_data.get('accuracy_level', 'unknown')}")
+            else:
+                analysis_results['has_pod_costs'] = False
+                logger.warning("⚠️ Pod cost analysis not available")
+        else:
+            analysis_results['has_pod_costs'] = False
+
         # FINAL VERIFICATION LOG
         logger.info(f"🎉 ANALYSIS COMPLETED SUCCESSFULLY:")
         logger.info(f"   - Data Type: REAL AZURE DATA ONLY")
@@ -1315,38 +1328,91 @@ def run_analysis(resource_group, cluster_name, days=30):
     
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    """Process the analysis form - NO SAMPLE DATA FALLBACK"""
+    """Enhanced analyze route with pod cost analysis"""
     resource_group = request.form.get('resource_group')
     cluster_name = request.form.get('cluster_name')
     days = int(request.form.get('days', 30))
+    enable_pod_analysis = request.form.get('enable_pod_analysis') == 'on'  # NEW
 
     if not resource_group or not cluster_name:
         flash('Resource group and cluster name are required', 'error')
         return redirect(url_for('unified_dashboard'))
 
     try:
-        # Run the analysis
-        result = run_analysis(resource_group, cluster_name, days)
-        logger.info(f"Analysis result: {result}")
-
+        # Run the enhanced analysis
+        result = run_enhanced_analysis(resource_group, cluster_name, days, enable_pod_analysis)
+        
         if result['status'] == 'success':
             total_savings = analysis_results.get('total_savings', 0)
             savings_pct = analysis_results.get('savings_percentage', 0)
             total_cost = analysis_results.get('total_cost', 0)
             
-            success_message = f'🎉 Analysis completed with REAL Azure data! Found ${total_savings:.2f}/month savings opportunity ({savings_pct:.1f}% optimization potential) from ${total_cost:.2f} total cost'
-            flash(success_message, 'success')
+            # Enhanced success message
+            success_msg = f'🎉 Analysis completed with REAL Azure data! Found ${total_savings:.2f}/month savings opportunity ({savings_pct:.1f}% optimization potential) from ${total_cost:.2f} total cost'
+            
+            if analysis_results.get('has_pod_costs'):
+                pod_analysis = analysis_results.get('pod_cost_analysis', {})
+                accuracy = pod_analysis.get('accuracy_level', 'Unknown')
+                method = pod_analysis.get('analysis_method', 'unknown')
+                success_msg += f' | Pod Analysis: {accuracy} accuracy using {method} method'
+            
+            flash(success_msg, 'success')
         else:
-            # Analysis failed - show clear error
             error_message = result.get('message', 'Analysis failed for unknown reason')
             flash(f'❌ Analysis failed: {error_message}', 'error')
 
         return redirect(url_for('unified_dashboard'))
 
     except Exception as e:
-        logger.error(f"Error in analyze route: {e}")
+        logger.error(f"Error in enhanced analyze route: {e}")
         flash(f'❌ Analysis failed: {str(e)}', 'error')
         return redirect(url_for('unified_dashboard'))
+    
+def run_enhanced_analysis(resource_group, cluster_name, days, enable_pod_analysis):
+    """Enhanced analysis function with pod cost analysis"""
+    logger.info(f"Running enhanced analysis - Pod analysis: {enable_pod_analysis}")
+    
+    # Run existing analysis
+    result = run_analysis(resource_group, cluster_name, days)
+    
+    # Add pod analysis if enabled and successful
+    if enable_pod_analysis and result.get('status') == 'success':
+        node_cost = analysis_results.get('node_cost', 0)
+        if node_cost > 0:
+            logger.info("🔍 Starting pod cost analysis...")
+            pod_cost_data = get_enhanced_pod_cost_breakdown(
+                resource_group, cluster_name, node_cost
+            )
+            
+            if pod_cost_data:
+                analysis_results['pod_cost_analysis'] = pod_cost_data
+                analysis_results['has_pod_costs'] = True
+                
+                # Extract key metrics for display
+                if pod_cost_data.get('namespace_costs'):
+                    analysis_results['namespace_costs'] = pod_cost_data['namespace_costs']
+                    top_ns = max(pod_cost_data['namespace_costs'].items(), key=lambda x: x[1])
+                    analysis_results['top_namespace'] = {'name': top_ns[0], 'cost': top_ns[1]}
+                
+                if pod_cost_data.get('workload_costs'):
+                    analysis_results['workload_costs'] = pod_cost_data['workload_costs']
+                    top_wl = max(pod_cost_data['workload_costs'].items(), key=lambda x: x[1]['cost'])
+                    analysis_results['top_workload'] = {
+                        'name': top_wl[0], 
+                        'cost': top_wl[1]['cost'],
+                        'type': top_wl[1]['type']
+                    }
+                
+                logger.info(f"✅ Pod analysis: {pod_cost_data.get('analysis_method')} - {pod_cost_data.get('accuracy_level')}")
+            else:
+                analysis_results['has_pod_costs'] = False
+                logger.warning("⚠️ Pod cost analysis failed")
+        else:
+            analysis_results['has_pod_costs'] = False
+            logger.warning("⚠️ No node cost to analyze")
+    
+    return result
+
 
 # Make sure your sample route is the ONLY way to get sample data:
 # @app.route('/sample')
@@ -1379,49 +1445,240 @@ def analyze():
 #         return redirect(url_for('unified_dashboard'))    
     
 def verify_cost_accuracy(cost_df, resource_group):
-    """Verify the accuracy of cost data by comparing with resource group total"""
+    """Verify the accuracy of cost data by comparing with resource group total using Azure REST API"""
     try:
-        # Get total resource group cost directly for verification
-        verify_cmd = f"""
-        az cost management query \
-          --scope "subscriptions/$(az account show --query id -o tsv)/resourceGroups/{resource_group}" \
-          --type ActualCost \
-          --timeframe MonthToDate \
-          --query "properties.rows[0][0]" \
-          -o tsv
-        """
+        logger.info(f"Verifying cost accuracy for resource group: {resource_group}")
         
-        verify_result = subprocess.run(verify_cmd, shell=True, check=True, capture_output=True, text=True)
-        resource_group_total = float(verify_result.stdout.strip())
+        # Get subscription ID
+        sub_cmd = "az account show --query id -o tsv"
+        sub_result = subprocess.run(sub_cmd, shell=True, check=True, capture_output=True, text=True)
+        subscription_id = sub_result.stdout.strip()
         
-        # Compare our calculated total with the resource group total
-        our_total = cost_df['Cost'].sum()
-        
-        logger.info(f"Verification - Our total: ${our_total:.2f}, Resource group total: ${resource_group_total:.2f}")
-        
-        # If our total is less than 50% of resource group total, we might be missing costs
-        if our_total < resource_group_total * 0.5:
-            logger.warning(f"Cost data may be incomplete. Our calculation: ${our_total:.2f}, Resource group: ${resource_group_total:.2f}")
-            # Add a flag to the results
-            cost_df.attrs['potentially_incomplete'] = True
-            cost_df.attrs['resource_group_total'] = resource_group_total
-        else:
+        if not subscription_id:
+            logger.error("Failed to retrieve subscription ID for cost verification")
             cost_df.attrs['potentially_incomplete'] = False
+            return cost_df
         
-        return cost_df
+        # Calculate date range for current month
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        start_of_month = now.replace(day=1).strftime("%Y-%m-%d")
+        end_date = now.strftime("%Y-%m-%d")
+        
+        # Create verification query for resource group total
+        verification_query = {
+            "type": "ActualCost",
+            "timeframe": "Custom",
+            "timePeriod": {
+                "from": start_of_month,
+                "to": end_date
+            },
+            "dataset": {
+                "granularity": "None",  # Get total only
+                "aggregation": {
+                    "totalCost": {
+                        "name": "PreTaxCost",
+                        "function": "Sum"
+                    }
+                },
+                "filter": {
+                    "dimensions": {
+                        "name": "ResourceGroupName",
+                        "operator": "In",
+                        "values": [resource_group]
+                    }
+                }
+            }
+        }
+        
+        # Save verification query to temp file
+        verify_query_file = f'verify_cost_query_{int(time.time())}.json'
+        
+        try:
+            with open(verify_query_file, 'w', encoding='utf-8') as f:
+                json.dump(verification_query, f, indent=2)
+            
+            logger.info(f"Created verification query file: {verify_query_file}")
+            
+            # Execute the verification API call
+            verify_api_cmd = f"""
+            az rest --method POST \
+            --uri "https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.CostManagement/query?api-version=2023-11-01" \
+            --body @{verify_query_file} \
+            --output json
+            """
+            
+            logger.info("Executing cost verification API query")
+            verify_api_result = subprocess.run(
+                verify_api_cmd, 
+                shell=True, 
+                check=True, 
+                capture_output=True, 
+                text=True,
+                timeout=30  # Add timeout for verification
+            )
+            
+            # Parse verification result
+            try:
+                verify_data = json.loads(verify_api_result.stdout)
+                logger.info("Successfully parsed verification API response")
+            except json.JSONDecodeError as je:
+                logger.error(f"Failed to parse verification API response as JSON: {je}")
+                logger.warning("Cost verification skipped due to JSON parsing error")
+                cost_df.attrs['potentially_incomplete'] = False
+                return cost_df
+            
+            # Extract total cost from verification response
+            resource_group_total = 0.0
+            if ('properties' in verify_data and 
+                'rows' in verify_data['properties'] and 
+                len(verify_data['properties']['rows']) > 0):
+                
+                # Get the first row, first column (total cost)
+                resource_group_total = float(verify_data['properties']['rows'][0][0] or 0)
+                logger.info(f"Resource group total cost from API: ${resource_group_total:.2f}")
+            else:
+                logger.warning("No cost data returned from verification API")
+                cost_df.attrs['potentially_incomplete'] = False
+                return cost_df
+            
+            # Compare our calculated total with the resource group total
+            our_total = cost_df['Cost'].sum()
+            
+            logger.info(f"Cost Verification Results:")
+            logger.info(f"  - Our calculated total: ${our_total:.2f}")
+            logger.info(f"  - Resource group API total: ${resource_group_total:.2f}")
+            
+            # Calculate accuracy percentage
+            if resource_group_total > 0:
+                accuracy_pct = (our_total / resource_group_total) * 100
+                logger.info(f"  - Cost capture accuracy: {accuracy_pct:.1f}%")
+                
+                # If our total is less than 70% of resource group total, flag as potentially incomplete
+                if our_total < resource_group_total * 0.7:
+                    logger.warning(f"Cost data may be incomplete. Captured {accuracy_pct:.1f}% of expected costs")
+                    cost_df.attrs['potentially_incomplete'] = True
+                    cost_df.attrs['resource_group_total'] = resource_group_total
+                    cost_df.attrs['accuracy_percentage'] = accuracy_pct
+                else:
+                    logger.info(f"Cost data appears complete. Captured {accuracy_pct:.1f}% of expected costs")
+                    cost_df.attrs['potentially_incomplete'] = False
+                    cost_df.attrs['accuracy_percentage'] = accuracy_pct
+            else:
+                logger.warning("Resource group total is 0, cannot verify accuracy")
+                cost_df.attrs['potentially_incomplete'] = False
+            
+            # Add verification metadata
+            cost_df.attrs['verification_completed'] = True
+            cost_df.attrs['verification_timestamp'] = datetime.now().isoformat()
+            cost_df.attrs['resource_group_total'] = resource_group_total
+            
+            return cost_df
+            
+        finally:
+            # Clean up verification query file
+            try:
+                if os.path.exists(verify_query_file):
+                    os.remove(verify_query_file)
+                    logger.debug(f"Cleaned up verification query file: {verify_query_file}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to remove verification query file: {cleanup_error}")
     
     except subprocess.CalledProcessError as e:
-        logger.error(f"Command failed when verifying cost: {e}")
-        logger.error(f"STDERR: {e.stderr}")
-        logger.warning("Skipping cost verification due to command failure")
-        return cost_df  # Return unmodified in case of error
+        logger.error(f"Azure API command failed during cost verification: {e}")
+        if hasattr(e, 'stderr') and e.stderr:
+            logger.error(f"Verification API STDERR: {e.stderr}")
+        logger.warning("Skipping cost verification due to API command failure")
+        cost_df.attrs['potentially_incomplete'] = False
+        cost_df.attrs['verification_completed'] = False
+        return cost_df
+        
+    except subprocess.TimeoutExpired:
+        logger.error("Cost verification API call timed out")
+        logger.warning("Skipping cost verification due to timeout")
+        cost_df.attrs['potentially_incomplete'] = False
+        cost_df.attrs['verification_completed'] = False
+        return cost_df
+        
     except Exception as e:
-        logger.error(f"Error verifying cost accuracy: {e}")
-        logger.warning("Cost verification skipped, using unverified data")
-        return cost_df  # Return unmodified in case of error
+        logger.error(f"Unexpected error during cost verification: {e}")
+        logger.warning("Cost verification skipped due to unexpected error")
+        cost_df.attrs['potentially_incomplete'] = False
+        cost_df.attrs['verification_completed'] = False
+        return cost_df
 
 
+# BONUS: Enhanced logging function to show verification results
+def log_cost_details(cost_df):
+    """Log detailed breakdown of costs for debugging - ENHANCED VERSION"""
+    logger.info("=== Cost Breakdown ===")
+    
+    # Log by category
+    if 'Category' in cost_df.columns:
+        logger.info("--- By Category ---")
+        for category in cost_df['Category'].unique():
+            category_cost = cost_df[cost_df['Category'] == category]['Cost'].sum()
+            logger.info(f"  {category}: ${category_cost:.2f}")
+    
+    # Log by resource type
+    if 'ResourceType' in cost_df.columns:
+        logger.info("--- By Resource Type ---")
+        resource_types = cost_df.groupby('ResourceType')['Cost'].sum().reset_index()
+        for _, row in resource_types.iterrows():
+            logger.info(f"  {row['ResourceType']}: ${row['Cost']:.2f}")
+    
+    # Log total
+    total_cost = cost_df['Cost'].sum()
+    logger.info(f"Total Cost: ${total_cost:.2f}")
+    
+    # Log verification results if available
+    if hasattr(cost_df, 'attrs'):
+        if cost_df.attrs.get('verification_completed'):
+            logger.info("--- Verification Results ---")
+            accuracy = cost_df.attrs.get('accuracy_percentage', 0)
+            rg_total = cost_df.attrs.get('resource_group_total', 0)
+            potentially_incomplete = cost_df.attrs.get('potentially_incomplete', False)
+            
+            logger.info(f"  Resource Group Total: ${rg_total:.2f}")
+            logger.info(f"  Accuracy: {accuracy:.1f}%")
+            logger.info(f"  Potentially Incomplete: {potentially_incomplete}")
+        else:
+            logger.info("--- Verification Status ---")
+            logger.info("  Cost verification was not completed")
 
+
+# OPTIONAL: Function to get a simplified cost summary for the main resource group
+def get_simplified_cost_verification(resource_group):
+    """Get a quick cost summary for verification purposes"""
+    try:
+        logger.info(f"Getting simplified cost verification for: {resource_group}")
+        
+        # Get subscription ID
+        sub_cmd = "az account show --query id -o tsv"
+        sub_result = subprocess.run(sub_cmd, shell=True, check=True, capture_output=True, text=True)
+        subscription_id = sub_result.stdout.strip()
+        
+        # Simple query to get month-to-date costs
+        simple_cmd = f"""
+        az rest --method POST \
+        --uri "https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.CostManagement/query?api-version=2023-11-01" \
+        --body '{{"type": "ActualCost", "timeframe": "MonthToDate", "dataset": {{"granularity": "None", "aggregation": {{"totalCost": {{"name": "PreTaxCost", "function": "Sum"}}}}, "filter": {{"dimensions": {{"name": "ResourceGroupName", "operator": "In", "values": ["{resource_group}"]}}}}}}}'
+        """
+        
+        result = subprocess.run(simple_cmd, shell=True, check=True, capture_output=True, text=True, timeout=15)
+        data = json.loads(result.stdout)
+        
+        if ('properties' in data and 'rows' in data['properties'] and len(data['properties']['rows']) > 0):
+            total_cost = float(data['properties']['rows'][0][0] or 0)
+            logger.info(f"Quick verification: ${total_cost:.2f} for {resource_group}")
+            return total_cost
+        else:
+            logger.warning("No cost data in quick verification")
+            return 0.0
+            
+    except Exception as e:
+        logger.error(f"Quick cost verification failed: {e}")
+        return 0.0
 
 def analyze_cluster_autoscaling_vs_hpa(metrics_data):
     """Analyze whether cluster autoscaling or HPA would be more effective"""
@@ -1502,7 +1759,7 @@ def analyze_cluster_autoscaling_vs_hpa(metrics_data):
 # generate_insights function to create insights to load the dasboard
 
 def generate_insights(analysis_results):
-    """Generate dynamic insights based on actual analysis results"""
+    """Enhanced insights generator with pod cost analysis - DIRECT REPLACEMENT"""
     if not analysis_results:
         return {
             'cost_breakdown': 'No analysis data available. Please run an analysis first.',
@@ -1560,6 +1817,74 @@ def generate_insights(analysis_results):
     else:
         insights['savings_summary'] = f"💡 <strong>STEADY IMPROVEMENTS:</strong> Save <strong>${annual_savings:.2f}/year</strong> ({savings_percentage:.1f}% optimization) with these targeted enhancements. Every dollar saved compounds over time!"
     
+    # =====================================
+    # NEW: POD COST ANALYSIS INSIGHTS
+    # =====================================
+    
+    # Add pod cost insights if available
+    if analysis_results.get('has_pod_costs'):
+        pod_analysis = analysis_results.get('pod_cost_analysis', {})
+        
+        # Namespace insight
+        if analysis_results.get('top_namespace'):
+            top_ns = analysis_results['top_namespace']
+            ns_cost_pct = (top_ns['cost'] / node_cost) * 100 if node_cost > 0 else 0
+            
+            if ns_cost_pct > 50:
+                insights['namespace_analysis'] = f"🎯 <strong>MAJOR FINDING:</strong> Namespace '<strong>{top_ns['name']}</strong>' consumes <strong>${top_ns['cost']:.2f} ({ns_cost_pct:.1f}%)</strong> of your node costs! This is your #1 optimization target for workload-level savings."
+            elif ns_cost_pct > 25:
+                insights['namespace_analysis'] = f"⚠️ <strong>HIGH USAGE:</strong> Namespace '<strong>{top_ns['name']}</strong>' uses <strong>${top_ns['cost']:.2f} ({ns_cost_pct:.1f}%)</strong> of node costs. Consider workload optimization in this namespace for targeted savings."
+            else:
+                insights['namespace_analysis'] = f"✅ <strong>BALANCED DISTRIBUTION:</strong> Top namespace '<strong>{top_ns['name']}</strong>' uses <strong>${top_ns['cost']:.2f} ({ns_cost_pct:.1f}%)</strong> - well-distributed resource usage indicates good workload balance."
+        
+        # Workload insight
+        if analysis_results.get('top_workload'):
+            top_wl = analysis_results['top_workload']
+            wl_cost_pct = (top_wl['cost'] / node_cost) * 100 if node_cost > 0 else 0
+            
+            if wl_cost_pct > 25:
+                insights['workload_analysis'] = f"🚀 <strong>TOP COST DRIVER:</strong> {top_wl['type']} '<strong>{top_wl['name']}</strong>' costs <strong>${top_wl['cost']:.2f}/month ({wl_cost_pct:.1f}% of node costs)</strong>. Focus optimization efforts here for maximum ROI!"
+            elif wl_cost_pct > 15:
+                insights['workload_analysis'] = f"📊 <strong>SIGNIFICANT WORKLOAD:</strong> {top_wl['type']} '<strong>{top_wl['name']}</strong>' costs <strong>${top_wl['cost']:.2f}/month ({wl_cost_pct:.1f}%)</strong>. Good candidate for resource right-sizing and optimization."
+            else:
+                insights['workload_analysis'] = f"✅ <strong>DISTRIBUTED WORKLOADS:</strong> Top workload {top_wl['type']} '<strong>{top_wl['name']}</strong>' costs <strong>${top_wl['cost']:.2f}/month ({wl_cost_pct:.1f}%)</strong> - costs are well-distributed across workloads."
+        
+        # Analysis quality insight
+        accuracy = pod_analysis.get('accuracy_level', 'Unknown')
+        method = pod_analysis.get('analysis_method', 'unknown')
+        analyzed_count = pod_analysis.get('total_containers_analyzed', 0) or pod_analysis.get('total_pods_analyzed', 0)
+        
+        if accuracy == 'Very High':
+            insights['analysis_quality'] = f"🔬 <strong>EXCELLENT DATA QUALITY:</strong> Analyzed <strong>{analyzed_count} containers</strong> using {method} method with <strong>Very High accuracy</strong>. Cost allocations based on real container resource usage provide precise optimization targets."
+        elif accuracy == 'High':
+            insights['analysis_quality'] = f"📊 <strong>GOOD DATA QUALITY:</strong> Analyzed <strong>{analyzed_count} pods</strong> using {method} method with <strong>High accuracy</strong>. Reliable cost distribution based on resource specifications enables targeted optimizations."
+        elif accuracy == 'Good':
+            insights['analysis_quality'] = f"📋 <strong>SOLID ANALYSIS:</strong> Analyzed <strong>{analyzed_count} pods</strong> using {method} method with <strong>Good accuracy</strong>. Pod count-based distribution provides useful cost insights for planning."
+        else:
+            insights['analysis_quality'] = f"📝 <strong>BASIC ANALYSIS:</strong> Using {method} method with <strong>{accuracy} accuracy</strong>. Consider enabling detailed monitoring (kubectl top pods) for higher-precision cost allocation."
+        
+        # Namespace distribution insight
+        if analysis_results.get('namespace_costs'):
+            namespace_count = len(analysis_results['namespace_costs'])
+            avg_ns_cost = node_cost / namespace_count if namespace_count > 0 else 0
+            
+            high_cost_namespaces = [
+                name for name, cost in analysis_results['namespace_costs'].items() 
+                if cost > avg_ns_cost * 1.5
+            ]
+            
+            if len(high_cost_namespaces) >= 3:
+                insights['cost_distribution'] = f"⚖️ <strong>COST CONCENTRATION:</strong> {len(high_cost_namespaces)} of {namespace_count} namespaces consume above-average resources. Focus optimization on: <strong>{', '.join(high_cost_namespaces[:3])}</strong>."
+            elif len(high_cost_namespaces) == 1:
+                insights['cost_distribution'] = f"🎯 <strong>SINGLE HOTSPOT:</strong> Namespace <strong>{high_cost_namespaces[0]}</strong> is your primary cost driver. Optimizing this one namespace could yield significant savings."
+            else:
+                insights['cost_distribution'] = f"✅ <strong>BALANCED COSTS:</strong> Resources are evenly distributed across {namespace_count} namespaces (avg: ${avg_ns_cost:.2f}/namespace). No single namespace dominates costs."
+    
+    else:
+        # If pod analysis wasn't enabled or failed, add a recommendation
+        if analysis_results.get('node_cost', 0) > 100:  # Only suggest if significant node costs
+            insights['pod_analysis_recommendation'] = f"💡 <strong>ENHANCEMENT OPPORTUNITY:</strong> Enable Deep Pod Cost Analysis to get workload-level insights. With ${node_cost:.2f} in node costs, you could identify specific namespaces and deployments consuming the most resources."
+    
     return insights
 
 
@@ -1594,9 +1919,9 @@ logger.info(f"Real data verification - Is sample data: {analysis_results.get('is
 # Chart data route to work with unified dashboard
 @app.route('/api/chart-data')
 def chart_data():
-    """API endpoint to provide chart data in JSON format"""
+    """API endpoint to provide chart data in JSON format - POD COST """
     try:
-        logger.info("Chart data API called -  VERSION")
+        logger.info("Chart data API called - POD COST  VERSION")
         
         # Check if we have valid analysis results
         if not analysis_results or analysis_results.get('total_cost', 0) == 0:
@@ -1607,27 +1932,34 @@ def chart_data():
             }), 200
 
         # Force real data detection
-        total_cost = analysis_results.get('total_cost', None)
-        has_real_data = total_cost is not None
+        total_cost = analysis_results.get('total_cost', 0)
+        has_real_data = total_cost is not None and total_cost > 0
         
         logger.info(f": total_cost=${total_cost}, has_real_data={has_real_data}")
+
+        def ensure_float(val):
+            """Convert any numeric type to native Python float"""
+            try:
+                return float(val) if val is not None else 0.0
+            except (TypeError, ValueError):
+                return 0.0
 
         response_data = {
             'status': 'success',
             'metrics': {
-                'total_cost': float(total_cost),
-                'total_savings': float(analysis_results.get('total_savings', 0)),
-                'hpa_savings': float(analysis_results.get('hpa_savings', 0)),
-                'right_sizing_savings': float(analysis_results.get('right_sizing_savings', 0)),
-                'storage_savings': float(analysis_results.get('storage_savings', 0)),
-                'savings_percentage': float(analysis_results.get('savings_percentage', 0)),
-                'annual_savings': float(analysis_results.get('annual_savings', 0)),
-                'hpa_reduction': float(analysis_results.get('hpa_reduction', 0)),
-                'cpu_gap': float(analysis_results.get('cpu_gap', 0)),
-                'memory_gap': float(analysis_results.get('memory_gap', 0))
+                'total_cost': ensure_float(total_cost),
+                'total_savings': ensure_float(analysis_results.get('total_savings', 0)),
+                'hpa_savings': ensure_float(analysis_results.get('hpa_savings', 0)),
+                'right_sizing_savings': ensure_float(analysis_results.get('right_sizing_savings', 0)),
+                'storage_savings': ensure_float(analysis_results.get('storage_savings', 0)),
+                'savings_percentage': ensure_float(analysis_results.get('savings_percentage', 0)),
+                'annual_savings': ensure_float(analysis_results.get('annual_savings', 0)),
+                'hpa_reduction': ensure_float(analysis_results.get('hpa_reduction', 0)),
+                'cpu_gap': ensure_float(analysis_results.get('cpu_gap', 0)),
+                'memory_gap': ensure_float(analysis_results.get('memory_gap', 0))
             },
             
-            # DIRECT data using analysis_results - NO HELPER FUNCTIONS
+            # Cost breakdown
             'costBreakdown': {
                 'labels': [
                     'Networking',
@@ -1639,13 +1971,13 @@ def chart_data():
                     'Other'
                 ],
                 'values': [
-                    float(analysis_results.get('networking_cost', 0)),
-                    float(analysis_results.get('node_cost', 0)),
-                    float(analysis_results.get('control_plane_cost', 0)),
-                    float(analysis_results.get('storage_cost', 0)),
-                    float(analysis_results.get('key_vault_cost', 0)),
-                    float(analysis_results.get('registry_cost', 0)),
-                    float(analysis_results.get('other_cost', 0))
+                    ensure_float(analysis_results.get('networking_cost', 0)),
+                    ensure_float(analysis_results.get('node_cost', 0)),
+                    ensure_float(analysis_results.get('control_plane_cost', 0)),
+                    ensure_float(analysis_results.get('storage_cost', 0)),
+                    ensure_float(analysis_results.get('key_vault_cost', 0)),
+                    ensure_float(analysis_results.get('registry_cost', 0)),
+                    ensure_float(analysis_results.get('other_cost', 0))
                 ]
             },
             
@@ -1655,44 +1987,25 @@ def chart_data():
                 'memoryReplicas': [4, 6, 9, 6, 4]
             },
             
-            'nodeUtilization': {
-                'nodes': ['node-1'] if not analysis_results.get('node_metrics') else [node.get('name', f'node-{i}') for i, node in enumerate(analysis_results['node_metrics'])],
-                'cpuRequest': [80] if not analysis_results.get('node_metrics') else [node.get('cpu_request_pct', 80) for node in analysis_results['node_metrics']],
-                'cpuActual': [35] if not analysis_results.get('node_metrics') else [node.get('cpu_usage_pct', 35) for node in analysis_results['node_metrics']],
-                'memoryRequest': [85] if not analysis_results.get('node_metrics') else [node.get('memory_request_pct', 85) for node in analysis_results['node_metrics']],
-                'memoryActual': [60] if not analysis_results.get('node_metrics') else [node.get('memory_usage_pct', 60) for node in analysis_results['node_metrics']]
-            },
+            'nodeUtilization': generate_node_utilization_data(),
             
             'savingsBreakdown': {
                 'categories': ['Memory-based HPA', 'Right-sizing', 'Storage Optimization'],
                 'values': [
-                    float(analysis_results.get('hpa_savings', 0)),
-                    float(analysis_results.get('right_sizing_savings', 0)),
-                    float(analysis_results.get('storage_savings', 0))
+                    ensure_float(analysis_results.get('hpa_savings', 0)),
+                    ensure_float(analysis_results.get('right_sizing_savings', 0)),
+                    ensure_float(analysis_results.get('storage_savings', 0))
                 ]
             },
             
-            'trendData': {
-                'labels': ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-                'datasets': [
-                    {
-                        'name': 'Current Cost', 
-                        'data': [total_cost * 0.92, total_cost * 0.96, total_cost * 0.98, total_cost]
-                    },
-                    {
-                        'name': 'Optimized Cost', 
-                        'data': [total_cost * 0.92, total_cost * 0.88, total_cost * 0.82, total_cost - analysis_results.get('total_savings', 0)]
-                    }
-                ]
-            },
+            'trendData': generate_trend_data(total_cost, analysis_results.get('total_savings', 0)),
             
             'insights': generate_insights(analysis_results),
             
-            # FORCE metadata to always be present
             'metadata': {
-                'is_real_data': bool(has_real_data),           # Convert to Python bool
-                'is_sample_data': bool(not has_real_data),     # Convert to Python bool  
-                'force_real_data': bool(has_real_data),        # Convert to Python bool
+                'is_real_data': bool(has_real_data),
+                'is_sample_data': bool(not has_real_data),
+                'force_real_data': bool(has_real_data),
                 'data_source': 'Azure Live Data' if has_real_data else 'Sample Data',
                 'cost_data_source': 'Azure Cost Management API',
                 'total_cost_verification': f"${total_cost:.2f}",
@@ -1702,18 +2015,203 @@ def chart_data():
             }
         }
 
-        #  LOGGING
-        logger.info(f"Sending metadata = {response_data['metadata']}")
-        logger.info(f"Cost breakdown values = {response_data['costBreakdown']['values']}")
+        # : Better pod cost data handling
+        logger.info(f"Checking pod costs: has_pod_costs={analysis_results.get('has_pod_costs', False)}")
         
+        if analysis_results.get('has_pod_costs') and analysis_results.get('pod_cost_analysis'):
+            logger.info("Adding pod cost data to response")
+            
+            # Add pod cost breakdown
+            pod_data = generate_pod_cost_data()
+            if pod_data:
+                response_data['podCostBreakdown'] = pod_data
+                logger.info(f"Pod cost breakdown added: {len(pod_data.get('labels', []))} namespaces")
+            
+            # Add namespace distribution
+            namespace_data = generate_namespace_data()
+            if namespace_data:
+                response_data['namespaceDistribution'] = namespace_data
+                logger.info(f"Namespace distribution added: {len(namespace_data.get('namespaces', []))} namespaces")
+            
+            # Add workload costs
+            workload_data = generate_workload_data()
+            if workload_data:
+                response_data['workloadCosts'] = workload_data
+                logger.info(f"Workload costs added: {len(workload_data.get('workloads', []))} workloads")
+        else:
+            logger.warning("No pod cost data available - analysis may not have been run with pod analysis enabled")
+
+        logger.info(f"Final response keys: {list(response_data.keys())}")
         return jsonify(response_data)
 
     except Exception as e:
-        logger.error(f" ERROR in chart_data API: {e}")
+        logger.error(f"ERROR in chart_data API: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({
             'status': 'error',
             'message': f'Error generating chart data: {str(e)}'
         }), 500
+
+def generate_node_utilization_data():
+    """Generate node utilization data"""
+    if analysis_results.get('node_metrics'):
+        return {
+            'nodes': [node.get('name', f'node-{i}') for i, node in enumerate(analysis_results['node_metrics'])],
+            'cpuRequest': [float(node.get('cpu_request_pct', 80)) for node in analysis_results['node_metrics']],
+            'cpuActual': [float(node.get('cpu_usage_pct', 35)) for node in analysis_results['node_metrics']],
+            'memoryRequest': [float(node.get('memory_request_pct', 85)) for node in analysis_results['node_metrics']],
+            'memoryActual': [float(node.get('memory_usage_pct', 60)) for node in analysis_results['node_metrics']]
+        }
+    else:
+        return {
+            'nodes': ['node-1'],
+            'cpuRequest': [80.0],
+            'cpuActual': [35.0],
+            'memoryRequest': [85.0],
+            'memoryActual': [60.0]
+        }
+
+
+def generate_trend_data(total_cost, total_savings):
+    """Generate trend data for the main chart"""
+    return {
+        'labels': ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+        'datasets': [
+            {
+                'name': 'Current Cost', 
+                'data': [
+                    float(total_cost * 0.92), 
+                    float(total_cost * 0.96), 
+                    float(total_cost * 0.98), 
+                    float(total_cost)
+                ]
+            },
+            {
+                'name': 'Optimized Cost', 
+                'data': [
+                    float(total_cost * 0.92), 
+                    float(total_cost * 0.88), 
+                    float(total_cost * 0.82), 
+                    float(total_cost - total_savings)
+                ]
+            }
+        ]
+    }
+
+
+def generate_pod_cost_data():
+    """Generate pod cost chart data -  VERSION"""
+    try:
+        if not analysis_results.get('has_pod_costs'):
+            logger.warning("No pod costs flag set")
+            return None
+        
+        pod_analysis = analysis_results.get('pod_cost_analysis', {})
+        if not pod_analysis:
+            logger.warning("No pod_cost_analysis data")
+            return None
+            
+        namespace_costs = pod_analysis.get('namespace_costs', {})
+        if not namespace_costs:
+            logger.warning("No namespace_costs in pod analysis")
+            return None
+        
+        logger.info(f"Found namespace costs: {namespace_costs}")
+        
+        # Sort by cost, get top 10
+        sorted_namespaces = sorted(namespace_costs.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        if not sorted_namespaces:
+            logger.warning("No sorted namespaces")
+            return None
+        
+        result = {
+            'labels': [ns[0] for ns in sorted_namespaces],
+            'values': [float(ns[1]) for ns in sorted_namespaces],
+            'analysis_method': pod_analysis.get('analysis_method', 'unknown'),
+            'accuracy_level': pod_analysis.get('accuracy_level', 'unknown'),
+            'total_analyzed': int(pod_analysis.get('total_containers_analyzed', 0) or pod_analysis.get('total_pods_analyzed', 0))
+        }
+        
+        logger.info(f"Generated pod cost data: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error generating pod cost data: {e}")
+        return None
+
+def generate_namespace_data():
+    """Generate namespace distribution data -  VERSION"""
+    try:
+        namespace_costs = analysis_results.get('namespace_costs')
+        if not namespace_costs:
+            # Try to get from pod_cost_analysis
+            pod_analysis = analysis_results.get('pod_cost_analysis', {})
+            namespace_costs = pod_analysis.get('namespace_costs', {})
+        
+        if not namespace_costs:
+            logger.warning("No namespace costs found")
+            return None
+        
+        total_cost = sum(namespace_costs.values())
+        if total_cost == 0:
+            logger.warning("Total namespace cost is 0")
+            return None
+        
+        result = {
+            'namespaces': list(namespace_costs.keys()),
+            'costs': [float(cost) for cost in namespace_costs.values()],
+            'percentages': [float(cost/total_cost*100) for cost in namespace_costs.values()],
+            'total_cost': float(total_cost)
+        }
+        
+        logger.info(f"Generated namespace data: {len(result['namespaces'])} namespaces, total: ${total_cost:.2f}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error generating namespace data: {e}")
+        return None
+
+
+def generate_workload_data():
+    """Generate workload cost data -  VERSION"""
+    try:
+        workload_costs = analysis_results.get('workload_costs')
+        if not workload_costs:
+            # Try to get from pod_cost_analysis
+            pod_analysis = analysis_results.get('pod_cost_analysis', {})
+            workload_costs = pod_analysis.get('workload_costs', {})
+        
+        if not workload_costs:
+            logger.warning("No workload costs found")
+            return None
+        
+        # Get top 15 workloads by cost
+        sorted_workloads = sorted(
+            workload_costs.items(), 
+            key=lambda x: x[1].get('cost', 0) if isinstance(x[1], dict) else 0, 
+            reverse=True
+        )[:15]
+        
+        if not sorted_workloads:
+            logger.warning("No sorted workloads")
+            return None
+        
+        result = {
+            'workloads': [w[0] for w in sorted_workloads],
+            'costs': [float(w[1].get('cost', 0) if isinstance(w[1], dict) else 0) for w in sorted_workloads],
+            'types': [str(w[1].get('type', 'Unknown') if isinstance(w[1], dict) else 'Unknown') for w in sorted_workloads],
+            'namespaces': [str(w[1].get('namespace', 'Unknown') if isinstance(w[1], dict) else 'Unknown') for w in sorted_workloads],
+            'replicas': [int(w[1].get('replicas', 1) if isinstance(w[1], dict) else 1) for w in sorted_workloads]
+        }
+        
+        logger.info(f"Generated workload data: {len(result['workloads'])} workloads")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error generating workload data: {e}")
+        return None
 
 
 # Main application entry point
