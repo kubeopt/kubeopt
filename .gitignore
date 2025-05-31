@@ -1,3 +1,4 @@
 *.log
 *.pyc
 *.txt
+static/.DS_Store
