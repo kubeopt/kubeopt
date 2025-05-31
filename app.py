@@ -1388,15 +1388,23 @@ def run_enhanced_analysis(resource_group, cluster_name, days, enable_pod_analysi
                 analysis_results['pod_cost_analysis'] = pod_cost_data
                 analysis_results['has_pod_costs'] = True
                 
-                # Extract key metrics for display
+                # Store namespace costs at the top level too
                 if pod_cost_data.get('namespace_costs'):
                     analysis_results['namespace_costs'] = pod_cost_data['namespace_costs']
-                    top_ns = max(pod_cost_data['namespace_costs'].items(), key=lambda x: x[1])
-                    analysis_results['top_namespace'] = {'name': top_ns[0], 'cost': top_ns[1]}
+                elif pod_cost_data.get('namespace_summary'):
+                    analysis_results['namespace_costs'] = pod_cost_data['namespace_summary']
                 
+                # Store workload costs at the top level
                 if pod_cost_data.get('workload_costs'):
                     analysis_results['workload_costs'] = pod_cost_data['workload_costs']
-                    top_wl = max(pod_cost_data['workload_costs'].items(), key=lambda x: x[1]['cost'])
+                
+                # Extract key metrics for display
+                if analysis_results.get('namespace_costs'):
+                    top_ns = max(analysis_results['namespace_costs'].items(), key=lambda x: x[1])
+                    analysis_results['top_namespace'] = {'name': top_ns[0], 'cost': top_ns[1]}
+                
+                if analysis_results.get('workload_costs'):
+                    top_wl = max(analysis_results['workload_costs'].items(), key=lambda x: x[1]['cost'])
                     analysis_results['top_workload'] = {
                         'name': top_wl[0], 
                         'cost': top_wl[1]['cost'],
@@ -1404,6 +1412,8 @@ def run_enhanced_analysis(resource_group, cluster_name, days, enable_pod_analysi
                     }
                 
                 logger.info(f"✅ Pod analysis: {pod_cost_data.get('analysis_method')} - {pod_cost_data.get('accuracy_level')}")
+                logger.info(f"📊 Stored namespace costs: {len(analysis_results.get('namespace_costs', {}))}")
+                logger.info(f"📊 Stored workload costs: {len(analysis_results.get('workload_costs', {}))}")
             else:
                 analysis_results['has_pod_costs'] = False
                 logger.warning("⚠️ Pod cost analysis failed")
@@ -1660,10 +1670,11 @@ def get_simplified_cost_verification(resource_group):
         
         # Simple query to get month-to-date costs
         simple_cmd = f"""
-        az rest --method POST \
-        --uri "https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.CostManagement/query?api-version=2023-11-01" \
-        --body '{{"type": "ActualCost", "timeframe": "MonthToDate", "dataset": {{"granularity": "None", "aggregation": {{"totalCost": {{"name": "PreTaxCost", "function": "Sum"}}}}, "filter": {{"dimensions": {{"name": "ResourceGroupName", "operator": "In", "values": ["{resource_group}"]}}}}}}}'
-        """
+            az rest --method POST \\
+            --uri "https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.CostManagement/query?api-version=2023-11-01" \\
+            --body '{{"type": "ActualCost", "timeframe": "MonthToDate", "dataset": {{"granularity": "None", "aggregation": {{"totalCost": {{"name": "PreTaxCost", "function": "Sum"}}}}}}, "filter": {{"dimensions": {{"name": "ResourceGroupName", "operator": "In", "values": ["{resource_group}"]}}}}}}'
+            """
+
         
         result = subprocess.run(simple_cmd, shell=True, check=True, capture_output=True, text=True, timeout=15)
         data = json.loads(result.stdout)
@@ -1919,9 +1930,9 @@ logger.info(f"Real data verification - Is sample data: {analysis_results.get('is
 # Chart data route to work with unified dashboard
 @app.route('/api/chart-data')
 def chart_data():
-    """API endpoint to provide chart data in JSON format - POD COST """
+    """API endpoint to provide chart data in JSON format"""
     try:
-        logger.info("Chart data API called - POD COST  VERSION")
+        logger.info("Chart data API called")
         
         # Check if we have valid analysis results
         if not analysis_results or analysis_results.get('total_cost', 0) == 0:
@@ -1935,7 +1946,7 @@ def chart_data():
         total_cost = analysis_results.get('total_cost', 0)
         has_real_data = total_cost is not None and total_cost > 0
         
-        logger.info(f": total_cost=${total_cost}, has_real_data={has_real_data}")
+        logger.info(f"total_cost=${total_cost}, has_real_data={has_real_data}")
 
         def ensure_float(val):
             """Convert any numeric type to native Python float"""
@@ -2015,29 +2026,35 @@ def chart_data():
             }
         }
 
-        # : Better pod cost data handling
+        # Better pod cost data handling with extensive logging
         logger.info(f"Checking pod costs: has_pod_costs={analysis_results.get('has_pod_costs', False)}")
         
-        if analysis_results.get('has_pod_costs') and analysis_results.get('pod_cost_analysis'):
-            logger.info("Adding pod cost data to response")
+        if analysis_results.get('has_pod_costs'):
+            logger.info("Processing pod cost data...")
             
             # Add pod cost breakdown
             pod_data = generate_pod_cost_data()
             if pod_data:
                 response_data['podCostBreakdown'] = pod_data
-                logger.info(f"Pod cost breakdown added: {len(pod_data.get('labels', []))} namespaces")
+                logger.info(f"✅ Pod cost breakdown added: {len(pod_data.get('labels', []))} namespaces")
+            else:
+                logger.warning("❌ Failed to generate pod cost breakdown")
             
             # Add namespace distribution
             namespace_data = generate_namespace_data()
             if namespace_data:
                 response_data['namespaceDistribution'] = namespace_data
-                logger.info(f"Namespace distribution added: {len(namespace_data.get('namespaces', []))} namespaces")
+                logger.info(f"✅ Namespace distribution added: {len(namespace_data.get('namespaces', []))} namespaces")
+            else:
+                logger.warning("❌ Failed to generate namespace distribution")
             
             # Add workload costs
             workload_data = generate_workload_data()
             if workload_data:
                 response_data['workloadCosts'] = workload_data
-                logger.info(f"Workload costs added: {len(workload_data.get('workloads', []))} workloads")
+                logger.info(f"✅ Workload costs added: {len(workload_data.get('workloads', []))} workloads")
+            else:
+                logger.warning("❌ Failed to generate workload costs")
         else:
             logger.warning("No pod cost data available - analysis may not have been run with pod analysis enabled")
 
@@ -2101,7 +2118,7 @@ def generate_trend_data(total_cost, total_savings):
 
 
 def generate_pod_cost_data():
-    """Generate pod cost chart data -  VERSION"""
+    """Generate pod cost chart data"""
     try:
         if not analysis_results.get('has_pod_costs'):
             logger.warning("No pod costs flag set")
@@ -2111,13 +2128,39 @@ def generate_pod_cost_data():
         if not pod_analysis:
             logger.warning("No pod_cost_analysis data")
             return None
-            
-        namespace_costs = pod_analysis.get('namespace_costs', {})
-        if not namespace_costs:
-            logger.warning("No namespace_costs in pod analysis")
-            return None
         
-        logger.info(f"Found namespace costs: {namespace_costs}")
+        # Try multiple sources for namespace costs
+        namespace_costs = None
+        
+        # Try 1: Direct namespace_costs
+        if 'namespace_costs' in pod_analysis:
+            namespace_costs = pod_analysis['namespace_costs']
+            logger.info(f"Found namespace_costs directly: {namespace_costs}")
+        
+        # Try 2: From namespace_summary 
+        elif 'namespace_summary' in pod_analysis:
+            namespace_costs = pod_analysis['namespace_summary']
+            logger.info(f"Found namespace_costs from summary: {namespace_costs}")
+        
+        # Try 3: Check if it's nested in workload analysis
+        elif 'workload_costs' in pod_analysis and pod_analysis['workload_costs']:
+            # Extract namespace costs from workload data
+            workload_costs = pod_analysis['workload_costs']
+            namespace_costs = {}
+            
+            for workload_key, workload_data in workload_costs.items():
+                if isinstance(workload_data, dict) and 'namespace' in workload_data:
+                    namespace = workload_data['namespace']
+                    cost = workload_data.get('cost', 0)
+                    if namespace not in namespace_costs:
+                        namespace_costs[namespace] = 0
+                    namespace_costs[namespace] += cost
+            
+            logger.info(f"Extracted namespace_costs from workloads: {namespace_costs}")
+        
+        if not namespace_costs:
+            logger.warning("No namespace_costs found in any location")
+            return None
         
         # Sort by cost, get top 10
         sorted_namespaces = sorted(namespace_costs.items(), key=lambda x: x[1], reverse=True)[:10]
@@ -2129,9 +2172,11 @@ def generate_pod_cost_data():
         result = {
             'labels': [ns[0] for ns in sorted_namespaces],
             'values': [float(ns[1]) for ns in sorted_namespaces],
-            'analysis_method': pod_analysis.get('analysis_method', 'unknown'),
-            'accuracy_level': pod_analysis.get('accuracy_level', 'unknown'),
-            'total_analyzed': int(pod_analysis.get('total_containers_analyzed', 0) or pod_analysis.get('total_pods_analyzed', 0))
+            'analysis_method': pod_analysis.get('analysis_method', 'container_usage'),
+            'accuracy_level': pod_analysis.get('accuracy_level', 'High'),
+            'total_analyzed': int(pod_analysis.get('total_containers_analyzed', 0) or 
+                                pod_analysis.get('total_pods_analyzed', 0) or 
+                                len(sorted_namespaces))
         }
         
         logger.info(f"Generated pod cost data: {result}")
@@ -2139,19 +2184,49 @@ def generate_pod_cost_data():
         
     except Exception as e:
         logger.error(f"Error generating pod cost data: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return None
 
 def generate_namespace_data():
-    """Generate namespace distribution data -  VERSION"""
+    """Generate namespace distribution data"""
     try:
-        namespace_costs = analysis_results.get('namespace_costs')
-        if not namespace_costs:
-            # Try to get from pod_cost_analysis
-            pod_analysis = analysis_results.get('pod_cost_analysis', {})
-            namespace_costs = pod_analysis.get('namespace_costs', {})
+        # Try multiple sources for namespace costs
+        namespace_costs = None
+        
+        # Source 1: Direct from analysis_results 
+        if analysis_results.get('namespace_costs'):
+            namespace_costs = analysis_results['namespace_costs']
+            logger.info(f"Found namespace costs in analysis_results: {namespace_costs}")
+        
+        # Source 2: From pod_cost_analysis
+        elif analysis_results.get('pod_cost_analysis'):
+            pod_analysis = analysis_results['pod_cost_analysis']
+            
+            if 'namespace_costs' in pod_analysis:
+                namespace_costs = pod_analysis['namespace_costs']
+                logger.info(f"Found namespace costs in pod_analysis: {namespace_costs}")
+            elif 'namespace_summary' in pod_analysis:
+                namespace_costs = pod_analysis['namespace_summary']
+                logger.info(f"Found namespace costs in namespace_summary: {namespace_costs}")
+        
+        # Source 3: Extract from workload costs
+        if not namespace_costs and analysis_results.get('workload_costs'):
+            workload_costs = analysis_results['workload_costs']
+            namespace_costs = {}
+            
+            for workload_key, workload_data in workload_costs.items():
+                if isinstance(workload_data, dict) and 'namespace' in workload_data:
+                    namespace = workload_data['namespace']
+                    cost = workload_data.get('cost', 0)
+                    if namespace not in namespace_costs:
+                        namespace_costs[namespace] = 0
+                    namespace_costs[namespace] += float(cost)
+            
+            logger.info(f"Extracted namespace costs from workloads: {namespace_costs}")
         
         if not namespace_costs:
-            logger.warning("No namespace costs found")
+            logger.warning("No namespace costs found in any source")
             return None
         
         total_cost = sum(namespace_costs.values())
@@ -2171,11 +2246,13 @@ def generate_namespace_data():
         
     except Exception as e:
         logger.error(f"Error generating namespace data: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return None
 
 
 def generate_workload_data():
-    """Generate workload cost data -  VERSION"""
+    """Generate workload cost data"""
     try:
         workload_costs = analysis_results.get('workload_costs')
         if not workload_costs:

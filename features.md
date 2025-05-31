@@ -52,7 +52,7 @@
 
 Here are some truly novel “blue-ocean” features you could bake into your tool—things you won’t find (at least not yet) in off-the-shelf AKS or FinOps platforms:
 
---- Future Features ---
+# **Future Features**
 
 ## 1. **AI-Driven GitOps Cost Remediation**
 
