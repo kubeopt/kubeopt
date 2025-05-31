@@ -444,7 +444,7 @@ class PodCostAnalyzer:
 
 
 class WorkloadCostAnalyzer:
-    """Enhanced workload analyzer using YAML-to-JSON conversion"""
+    """Enhanced workload analyzer"""
 
     def __init__(self, resource_group: str, cluster_name: str):
         self.resource_group = resource_group
@@ -460,8 +460,8 @@ class WorkloadCostAnalyzer:
         return self.pod_analyzer._safe_kubectl_yaml_command(kubectl_cmd, timeout)
 
     def analyze_workload_costs(self, total_node_cost: float) -> Optional[Dict]:
-        """Analyze workload costs using YAML conversion"""
-        logger.info("🚀 Starting YAML-FIXED workload cost analysis...")
+        """Analyze workload costs"""
+        logger.info("🚀 Starting workload cost analysis...")
         
         try:
             # Get workload information using YAML method
@@ -469,33 +469,49 @@ class WorkloadCostAnalyzer:
             statefulsets = self._get_workloads('statefulset')
             daemonsets = self._get_workloads('daemonset')
 
-            # Get pod cost data
+            # Get pod cost data FIRST
             pod_analysis = self.pod_analyzer.analyze_pod_costs(total_node_cost)
             if not pod_analysis:
+                logger.warning("No pod analysis data available")
                 return None
 
-            # Map pods to workloads
-            all_workloads = deployments + statefulsets + daemonsets
-            workload_costs = self._map_pods_to_workloads(all_workloads, pod_analysis)
+            # CRITICAL FIX: Ensure namespace_costs is available
+            namespace_costs = pod_analysis.get('namespace_costs', {})
 
-            return {
+            # Map pods to workloads 
+            all_workloads = deployments + statefulsets + daemonsets
+            workload_costs = self._map_pods_to_workloads(all_workloads, {'namespace_costs': namespace_costs})
+
+            # Comprehensive data structure
+            result = {
                 'workload_costs': workload_costs,
+                'namespace_costs': namespace_costs,
+                'namespace_summary': namespace_costs,
                 'deployments_count': len(deployments),
                 'statefulsets_count': len(statefulsets),
                 'daemonsets_count': len(daemonsets),
-                'namespace_summary': pod_analysis.get('namespace_costs', {}),
-                'analysis_method': pod_analysis.get('analysis_method', 'unknown'),
-                'accuracy_level': pod_analysis.get('accuracy_level', 'unknown')
+                'analysis_method': pod_analysis.get('analysis_method', 'workload_mapping'),
+                'accuracy_level': pod_analysis.get('accuracy_level', 'High'),
+                'total_pods_analyzed': pod_analysis.get('total_pods_analyzed', len(all_workloads)),
+                'total_namespaces': len(namespace_costs)
             }
 
+            logger.info(f"✅ Workload analysis complete: {len(workload_costs)} workloads, {len(namespace_costs)} namespaces")
+            logger.info(f"📊 Namespace costs: {list(namespace_costs.keys())}")
+            
+            return result
+
         except Exception as e:
-            logger.error(f"❌ YAML-FIXED Workload analysis error: {e}")
+            logger.error(f"❌ Workload analysis error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
 
+
     def _get_workloads(self, workload_type: str) -> List[Dict]:
-        """Get workload information using YAML conversion - FIXED"""
+        """Get workload information using YAML conversion"""
         try:
-            # CRITICAL FIX: Ensure correct resource type pluralization
+            # Resource type mapping
             resource_types_map = {
                 'deployment': 'deployments',
                 'statefulset': 'statefulsets', 
@@ -537,18 +553,23 @@ class WorkloadCostAnalyzer:
                             'replicas': replicas
                         })
                         
-            logger.info(f"Found {len(workloads)} {workload_type}s via YAML")
+            logger.info(f"Found {len(workloads)} {workload_type}s")
             return workloads
 
         except Exception as e:
-            logger.warning(f"⚠️ Could not get {workload_type}s via YAML: {e}")
+            logger.warning(f"⚠️ Could not get {workload_type}s: {e}")
             return []
 
     def _map_pods_to_workloads(self, workloads: List[Dict], pod_analysis: Dict) -> Dict:
-        """Map pod costs to workloads"""
+        """Map pod costs to workloads with enhanced logic"""
         workload_costs = {}
         namespace_costs = pod_analysis.get('namespace_costs', {})
+        
+        if not namespace_costs:
+            logger.warning("No namespace costs available for workload mapping")
+            return {}
 
+        # Group workloads by namespace
         namespace_workloads = {}
         for workload in workloads:
             namespace = workload['namespace']
@@ -556,21 +577,29 @@ class WorkloadCostAnalyzer:
                 namespace_workloads[namespace] = []
             namespace_workloads[namespace].append(workload)
 
+        # Distribute costs within each namespace
         for namespace, ns_workloads in namespace_workloads.items():
             namespace_cost = namespace_costs.get(namespace, 0)
-            if len(ns_workloads) > 0:
-                cost_per_workload = namespace_cost / len(ns_workloads)
+            
+            if len(ns_workloads) > 0 and namespace_cost > 0:
+                # Weight by replicas if available
+                total_replicas = sum(w.get('replicas', 1) for w in ns_workloads)
                 
                 for workload in ns_workloads:
+                    replicas = workload.get('replicas', 1)
+                    replica_weight = replicas / total_replicas if total_replicas > 0 else 1.0 / len(ns_workloads)
+                    workload_cost = namespace_cost * replica_weight
+                    
                     workload_key = f"{namespace}/{workload['name']}"
                     workload_costs[workload_key] = {
-                        'cost': cost_per_workload,
+                        'cost': max(workload_cost, 0.01),
                         'type': workload['type'],
                         'namespace': namespace,
                         'name': workload['name'],
-                        'replicas': workload['replicas']
+                        'replicas': replicas
                     }
 
+        logger.info(f"Mapped {len(workload_costs)} workloads to costs")
         return workload_costs
 
 

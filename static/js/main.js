@@ -412,7 +412,8 @@ function createCostBreakdownChart(data, isRealData) {
                         label: function(context) {
                             const value = context.parsed;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            // FIXED: Proper number conversion and method call
+                            const percentage = total > 0 ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
                             return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
                         }
                     }
@@ -2085,7 +2086,8 @@ function createNamespaceCostChart(data) {
                                 return data.labels.map((label, i) => {
                                     const value = data.datasets[0].data[i];
                                     const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
-                                    const percentage = total > 0 ? ((value / total) * 100).to(1) : 0;
+                                    // FIXED: Proper number conversion and method call
+                                    const percentage = total > 0 ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
                                     return {
                                         text: `${label}: $${value.toLocaleString()} (${percentage}%)`,
                                         fillStyle: data.datasets[0].backgroundColor[i],
@@ -2102,7 +2104,8 @@ function createNamespaceCostChart(data) {
                         label: function(context) {
                             const value = context.parsed;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = total > 0 ? ((value / total) * 100).to(1) : 0;
+                            // FIXED: Proper number conversion and method call
+                            const percentage = total > 0 ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
                             return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
                         }
                     }
