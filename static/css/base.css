@@ -1613,3 +1613,244 @@ body {
     background-color: #1dd268;
     border-color: #0dfd9d;
 }
+
+/* ===================== ENHANCEMENTS: CARDS & SHADOWS ===================== */
+.card,
+.metric-card,
+.metric-block,
+.metric-summary-card,
+.phase-card {
+    box-shadow: 0 4px 30px rgba(16, 185, 129, 0.12), 0 1.5px 10px rgba(0,0,0,0.03);
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(5px);
+    transition: box-shadow 0.23s cubic-bezier(.57,1.49,.56,1), transform 0.18s;
+}
+
+[data-theme="dark"] .card,
+[data-theme="dark"] .metric-card,
+[data-theme="dark"] .metric-block,
+[data-theme="dark"] .metric-summary-card,
+[data-theme="dark"] .phase-card {
+    background: rgba(30,41,59,0.90) !important;
+    color: var(--dark-text-primary) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.30);
+}
+
+/* On hover, cards gently lift and glow */
+.card:hover, .metric-card:hover, .metric-block:hover, .phase-card:hover {
+    box-shadow: 0 12px 40px rgba(16,185,129,0.18), 0 2px 24px rgba(0,0,0,0.08);
+    transform: translateY(-4px) scale(1.014);
+}
+
+/* ===================== ENHANCEMENTS: BUTTONS ===================== */
+.btn, .enhanced-btn, button {
+    box-shadow: 0 2px 16px rgba(5,150,105,0.08);
+    font-family: inherit;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    outline: none;
+    border: none;
+    transition: background 0.17s, box-shadow 0.17s, transform 0.15s;
+    will-change: background, transform;
+}
+
+.btn:focus, .enhanced-btn:focus {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* Add ripple on click */
+.btn:active, .enhanced-btn:active {
+    transform: scale(0.97);
+    box-shadow: 0 0 0 3px var(--accent-color);
+}
+
+.btn-primary, .enhanced-btn {
+    background: var(--primary-gradient) !important;
+    color: #fff !important;
+    border: none !important;
+}
+.btn-primary:hover, .enhanced-btn:hover {
+    background: var(--accent-gradient) !important;
+}
+
+.btn-success, .btn-warning, .btn-danger {
+    color: #fff !important;
+}
+.btn-success:hover { background: var(--success-gradient) !important; }
+.btn-warning:hover { background: var(--warning-gradient) !important; }
+.btn-danger:hover  { background: var(--danger-gradient) !important; }
+
+.btn-outline-primary, .btn-outline-primary:focus {
+    background: transparent !important;
+    border: 2px solid var(--primary-color) !important;
+    color: var(--primary-color) !important;
+}
+.btn-outline-primary:hover {
+    background: var(--primary-gradient) !important;
+    color: #fff !important;
+    border: 2px solid var(--primary-color) !important;
+}
+
+.btn-loading:after, .enhanced-btn.loading .spinner {
+    border-top: 2px solid #fff !important;
+}
+
+.theme-toggle {
+    border: 2px solid var(--primary-color) !important;
+    background: var(--bg-secondary) !important;
+}
+.theme-toggle:hover { background: var(--accent-gradient) !important; color: #fff !important; }
+
+/* ===================== ENHANCEMENTS: METRIC NUMBERS & EFFECTS ===================== */
+/* Animate metric values on load (slide up/fade) */
+.metric-value, .stat-value {
+    animation: metric-fadeup 0.8s cubic-bezier(.23,1.09,.41,1.08);
+}
+@keyframes metric-fadeup {
+    from { opacity: 0; transform: translateY(18px) scale(0.94);}
+    to { opacity: 1; transform: none;}
+}
+
+.metric-card::before,
+.metric-block::before,
+.metric-summary-card::before {
+    filter: blur(1px) opacity(0.35);
+}
+
+/* ===================== ENHANCEMENTS: TABS, NAVBAR, AND MENUS ===================== */
+.navbar {
+    box-shadow: 0 2px 18px rgba(16,185,129,0.09), 0 1.5px 10px rgba(0,0,0,0.02);
+    background: rgba(255,255,255,0.98);
+}
+[data-theme="dark"] .navbar {
+    background: rgba(30,41,59,0.98);
+}
+
+.nav-tabs .nav-link.active, .nav-tabs .nav-link:hover {
+    box-shadow: 0 2px 10px rgba(16,185,129,0.09) !important;
+    transform: translateY(-1.5px) scale(1.01);
+    font-weight: 600;
+}
+
+/* ===================== ENHANCEMENTS: CHART CONTAINER & TOASTS ===================== */
+.chart-container {
+    box-shadow: 0 3px 22px rgba(13, 148, 136, 0.07);
+    background: rgba(255,255,255,0.93);
+    transition: box-shadow 0.2s, background 0.2s;
+}
+[data-theme="dark"] .chart-container {
+    background: rgba(26, 32, 44, 0.93);
+}
+
+.toast, .toast-success, .toast-error {
+    box-shadow: 0 6px 26px rgba(16,185,129,0.12);
+    border-radius: 14px;
+    font-size: 1.05em;
+}
+
+/* Add a tiny close button in toasts for accessibility (optional) */
+.toast::after {
+    content: '✕';
+    font-size: 1.25em;
+    position: absolute;
+    top: 7px; right: 14px;
+    opacity: 0.22;
+    cursor: pointer;
+    pointer-events: all;
+    transition: opacity 0.18s;
+}
+.toast:hover::after { opacity: 0.6; }
+
+/* ===================== ENHANCEMENTS: FORMS & INPUTS ===================== */
+.enhanced-input, .enhanced-select, .form-control, .form-select {
+    font-family: inherit;
+    border: 2px solid var(--border-color);
+    background: rgba(255,255,255,0.81);
+    color: var(--text-primary);
+    box-shadow: 0 0.5px 5px rgba(16,185,129,0.06);
+    outline: none;
+    transition: border-color 0.17s, background 0.17s;
+}
+.enhanced-input:focus, .enhanced-select:focus,
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-color);
+    background: #fff;
+    box-shadow: 0 0 0 0.18rem rgba(5,150,105,0.15);
+}
+
+[data-theme="dark"] .enhanced-input,
+[data-theme="dark"] .enhanced-select,
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select {
+    background: rgba(30,41,59,0.93);
+    color: var(--dark-text-primary);
+}
+
+/* Slightly larger, rounded checkbox */
+.form-check-input {
+    border-radius: 6px;
+    width: 22px;
+    height: 22px;
+    accent-color: var(--primary-color);
+}
+
+/* ===================== ENHANCEMENTS: MOBILE & RESPONSIVE ===================== */
+@media (max-width: 700px) {
+    .card, .card-body, .metric-card, .phase-card, .main-container, .chart-container, .plan-summary {
+        border-radius: 1em !important;
+        padding: 1em !important;
+    }
+    .navbar {
+        flex-direction: column;
+        height: auto;
+        padding: 1.2em 0.6em;
+    }
+    .navbar-brand { font-size: 1.05em; }
+    .btn, .enhanced-btn { font-size: 0.98em; padding: 0.5em 1.4em; }
+    .metric-card, .metric-block, .metric-summary-card, .phase-card { margin-bottom: 1em; }
+}
+
+/* ===================== ENHANCEMENTS: GENERAL POLISH ===================== */
+/* Font smoothing and cleaner look */
+html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+body {
+    scroll-behavior: smooth;
+    letter-spacing: 0.01em;
+}
+
+hr.section-divider {
+    opacity: 0.13;
+}
+
+::-webkit-scrollbar-thumb {
+    box-shadow: 0 1.5px 7px rgba(16,185,129,0.11);
+}
+
+.insight-box, .saving-box {
+    border-radius: 16px;
+    box-shadow: 0 2px 18px rgba(16,185,129,0.07);
+}
+
+[data-theme="dark"] .insight-box, [data-theme="dark"] .saving-box {
+    background: rgba(13, 253, 181, 0.07);
+    border-color: rgba(13,110,253,0.14);
+}
+
+/* Improve accessibility */
+*:focus-visible {
+    outline: 2.5px solid var(--primary-color);
+    outline-offset: 1.5px;
+}
+
+/* Nice micro-interaction for links */
+a, .nav-link {
+    transition: color 0.17s, text-shadow 0.16s;
+}
+a:hover, .nav-link:hover {
+    color: var(--accent-color) !important;
+    text-shadow: 0 1.5px 5px rgba(16,185,129,0.09);
+}
