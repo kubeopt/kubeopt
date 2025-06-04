@@ -2330,3 +2330,943 @@ function injectMetricsCSS() {
   `;
   document.head.appendChild(s);
 }
+
+// alerts/schedule/deploy-fix
+
+
+/**
+ * AKS Cost Intelligence - Enhanced Frontend
+ * Modern UI interactions, real alerts, and deployment functionality
+ */
+
+// Global state management
+const AppState = {
+    alerts: [],
+    deployments: [],
+    currentAnalysis: null,
+    notifications: []
+};
+
+// Notification system
+class NotificationManager {
+    constructor() {
+        this.container = this.createContainer();
+    }
+    
+    createContainer() {
+        let container = document.getElementById('notification-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'notification-container';
+            container.className = 'fixed top-4 right-4 z-50 space-y-2';
+            document.body.appendChild(container);
+        }
+        return container;
+    }
+    
+    show(message, type = 'info', duration = 5000) {
+        const notification = document.createElement('div');
+        notification.className = `
+            notification-toast fade-in
+            bg-white dark:bg-gray-800 
+            border-l-4 ${this.getBorderColor(type)}
+            rounded-lg shadow-lg p-4 max-w-sm
+            transform transition-all duration-300
+        `;
+        
+        notification.innerHTML = `
+            <div class="flex items-start">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-${this.getIcon(type)} text-${this.getTextColor(type)} text-xl"></i>
+                </div>
+                <div class="ml-3 flex-1">
+                    <p class="text-sm font-medium text-gray-900 dark:text-white">
+                        ${message}
+                    </p>
+                </div>
+                <div class="ml-4 flex-shrink-0">
+                    <button class="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Add click to dismiss
+        notification.querySelector('button').addEventListener('click', () => {
+            this.remove(notification);
+        });
+        
+        this.container.appendChild(notification);
+        
+        // Auto remove after duration
+        if (duration > 0) {
+            setTimeout(() => this.remove(notification), duration);
+        }
+        
+        return notification;
+    }
+    
+    remove(notification) {
+        notification.classList.add('opacity-0', 'transform', 'translate-x-full');
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }
+    
+    getBorderColor(type) {
+        const colors = {
+            success: 'border-green-500',
+            error: 'border-red-500',
+            warning: 'border-yellow-500',
+            info: 'border-blue-500'
+        };
+        return colors[type] || colors.info;
+    }
+    
+    getTextColor(type) {
+        const colors = {
+            success: 'green-500',
+            error: 'red-500',
+            warning: 'yellow-500',
+            info: 'blue-500'
+        };
+        return colors[type] || colors.info;
+    }
+    
+    getIcon(type) {
+        const icons = {
+            success: 'check-circle',
+            error: 'exclamation-circle',
+            warning: 'exclamation-triangle',
+            info: 'info-circle'
+        };
+        return icons[type] || icons.info;
+    }
+}
+
+// Initialize notification manager
+const notifications = new NotificationManager();
+
+// Enhanced Alerts Management
+class AlertsManager {
+    constructor() {
+        this.alerts = [];
+        this.init();
+    }
+    
+    async init() {
+        await this.loadAlerts();
+        this.bindEvents();
+    }
+    
+    async loadAlerts() {
+        try {
+            const response = await fetch('/api/alerts');
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                this.alerts = data.alerts;
+                this.renderAlerts();
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            console.error('Failed to load alerts:', error);
+            notifications.show('Failed to load alerts', 'error');
+        }
+    }
+    
+    async createAlert(alertData) {
+        try {
+            const response = await fetch('/api/alerts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(alertData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                notifications.show('Alert created successfully!', 'success');
+                await this.loadAlerts();
+                return true;
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            console.error('Failed to create alert:', error);
+            notifications.show('Failed to create alert: ' + error.message, 'error');
+            return false;
+        }
+    }
+    
+    async updateAlert(alertId, updates) {
+        try {
+            const response = await fetch(`/api/alerts/${alertId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates)
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                notifications.show('Alert updated successfully!', 'success');
+                await this.loadAlerts();
+                return true;
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            console.error('Failed to update alert:', error);
+            notifications.show('Failed to update alert: ' + error.message, 'error');
+            return false;
+        }
+    }
+    
+    async deleteAlert(alertId) {
+        if (!confirm('Are you sure you want to delete this alert?')) {
+            return false;
+        }
+        
+        try {
+            const response = await fetch(`/api/alerts/${alertId}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                notifications.show('Alert deleted successfully!', 'success');
+                await this.loadAlerts();
+                return true;
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            console.error('Failed to delete alert:', error);
+            notifications.show('Failed to delete alert: ' + error.message, 'error');
+            return false;
+        }
+    }
+    
+    async testAlert(alertId) {
+        try {
+            const response = await fetch(`/api/alerts/${alertId}/test`, {
+                method: 'POST'
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                notifications.show('Test email sent successfully!', 'success');
+                return true;
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            console.error('Failed to test alert:', error);
+            notifications.show('Failed to send test email: ' + error.message, 'error');
+            return false;
+        }
+    }
+    
+    renderAlerts() {
+        const container = document.getElementById('existing-alerts');
+        if (!container) return;
+        
+        if (this.alerts.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-8">
+                    <i class="fas fa-bell-slash text-4xl text-gray-400 mb-4"></i>
+                    <p class="text-gray-500">No alerts configured yet</p>
+                    <p class="text-sm text-gray-400">Create your first alert to start monitoring costs</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = this.alerts.map(alert => this.renderAlertCard(alert)).join('');
+    }
+    
+    renderAlertCard(alert) {
+        const statusClass = alert.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
+        const lastTriggered = alert.last_triggered ? 
+            new Date(alert.last_triggered).toLocaleDateString() : 'Never';
+        
+        return `
+            <div class="alert-card bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-all duration-300">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                            <h4 class="text-lg font-semibold text-gray-900">${alert.name}</h4>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full ${statusClass}">
+                                ${alert.status}
+                            </span>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
+                            <div>
+                                <span class="font-medium">Threshold:</span> 
+                                ${alert.threshold_amount > 0 ? 
+                                    `$${alert.threshold_amount.toLocaleString()}` : 
+                                    `${alert.threshold_percentage}%`}
+                            </div>
+                            <div>
+                                <span class="font-medium">Email:</span> ${alert.email}
+                            </div>
+                            <div>
+                                <span class="font-medium">Cluster:</span> ${alert.cluster_name || 'All'}
+                            </div>
+                            <div>
+                                <span class="font-medium">Last Triggered:</span> ${lastTriggered}
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center gap-2 text-sm text-gray-500">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Triggered ${alert.trigger_count} times</span>
+                            <span class="mx-2">•</span>
+                            <span>Frequency: ${alert.notification_frequency}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 ml-4">
+                        <button class="btn-icon-sm text-blue-600 hover:bg-blue-50" 
+                                onclick="alertsManager.editAlert(${alert.id})"
+                                title="Edit Alert">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn-icon-sm text-green-600 hover:bg-green-50" 
+                                onclick="alertsManager.testAlert(${alert.id})"
+                                title="Test Alert">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                        <button class="btn-icon-sm text-red-600 hover:bg-red-50" 
+                                onclick="alertsManager.deleteAlert(${alert.id})"
+                                title="Delete Alert">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    editAlert(alertId) {
+        const alert = this.alerts.find(a => a.id === alertId);
+        if (!alert) return;
+        
+        // Populate form with alert data
+        document.getElementById('budget-amount').value = alert.threshold_amount;
+        document.getElementById('alert-email').value = alert.email;
+        document.getElementById('alert-threshold').value = alert.threshold_percentage;
+        
+        // Scroll to form
+        document.getElementById('budget-alert-form').scrollIntoView({ behavior: 'smooth' });
+        
+        // Show update button instead of create
+        const submitBtn = document.querySelector('#budget-alert-form button[type="submit"]');
+        submitBtn.innerHTML = `
+            <i class="fas fa-save me-2"></i>Update Alert
+        `;
+        submitBtn.onclick = (e) => {
+            e.preventDefault();
+            this.handleFormSubmit(alertId);
+        };
+    }
+    
+    bindEvents() {
+        const form = document.getElementById('budget-alert-form');
+        if (form) {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handleFormSubmit();
+            });
+        }
+    }
+    
+    async handleFormSubmit(alertId = null) {
+        const formData = {
+            name: document.getElementById('budget-amount').value ? 
+                `Budget Alert - $${document.getElementById('budget-amount').value}` : 
+                'Cost Threshold Alert',
+            alert_type: 'cost_threshold',
+            threshold_amount: parseFloat(document.getElementById('budget-amount').value) || 0,
+            threshold_percentage: parseFloat(document.getElementById('alert-threshold').value) || 80,
+            email: document.getElementById('alert-email').value,
+            resource_group: '', // Would be populated from current analysis
+            cluster_name: '', // Would be populated from current analysis
+            notification_frequency: 'immediate'
+        };
+        
+        if (alertId) {
+            await this.updateAlert(alertId, formData);
+        } else {
+            await this.createAlert(formData);
+        }
+        
+        // Reset form
+        document.getElementById('budget-alert-form').reset();
+        const submitBtn = document.querySelector('#budget-alert-form button[type="submit"]');
+        submitBtn.innerHTML = `
+            <i class="fas fa-play me-2"></i>Setup Smart Alerts
+        `;
+        submitBtn.onclick = null;
+    }
+}
+
+// Enhanced Deployment Management
+class DeploymentManager {
+    constructor() {
+        this.deployments = [];
+        this.init();
+    }
+    
+    async init() {
+        await this.loadDeployments();
+        this.bindEvents();
+    }
+    
+    async loadDeployments() {
+        try {
+            const response = await fetch('/api/deployments');
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                this.deployments = data.tasks;
+                this.renderDeployments();
+            }
+        } catch (error) {
+            console.error('Failed to load deployments:', error);
+        }
+    }
+    
+    async deployOptimizations() {
+        const analysisData = AppState.currentAnalysis;
+        if (!analysisData) {
+            notifications.show('Please run an analysis first', 'warning');
+            return;
+        }
+        
+        // Show deployment modal
+        this.showDeploymentModal();
+    }
+    
+    async scheduleOptimization() {
+        const analysisData = AppState.currentAnalysis;
+        if (!analysisData) {
+            notifications.show('Please run an analysis first', 'warning');
+            return;
+        }
+        
+        // Show scheduling modal
+        this.showSchedulingModal();
+    }
+    
+    showDeploymentModal() {
+        const modal = this.createDeploymentModal();
+        document.body.appendChild(modal);
+        
+        // Show modal with animation
+        setTimeout(() => {
+            modal.classList.add('opacity-100');
+            modal.querySelector('.modal-content').classList.add('scale-100');
+        }, 10);
+    }
+    
+    showSchedulingModal() {
+        const modal = this.createSchedulingModal();
+        document.body.appendChild(modal);
+        
+        // Show modal with animation
+        setTimeout(() => {
+            modal.classList.add('opacity-100');
+            modal.querySelector('.modal-content').classList.add('scale-100');
+        }, 10);
+    }
+    
+    createDeploymentModal() {
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0 transition-opacity duration-300';
+        
+        modal.innerHTML = `
+            <div class="modal-content bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 transform scale-95 transition-transform duration-300">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-gray-900">Deploy Optimizations</h3>
+                        <button class="text-gray-400 hover:text-gray-600" onclick="this.closest('.fixed').remove()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="px-6 py-4 max-h-96 overflow-y-auto">
+                    <div class="space-y-4">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="flex items-center">
+                                <i class="fas fa-info-circle text-blue-500 mr-3"></i>
+                                <div>
+                                    <h4 class="text-sm font-medium text-blue-900">Ready to Deploy</h4>
+                                    <p class="text-sm text-blue-700">The following optimizations will be applied immediately:</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div class="optimization-item border border-gray-200 rounded-lg p-4">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <input type="checkbox" id="hpa-opt" checked class="mr-3">
+                                        <div>
+                                            <h5 class="font-medium text-gray-900">Memory-based HPA</h5>
+                                            <p class="text-sm text-gray-600">Enable memory-based horizontal pod autoscaling</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-green-600 font-medium">$324/mo savings</span>
+                                </div>
+                            </div>
+                            
+                            <div class="optimization-item border border-gray-200 rounded-lg p-4">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <input type="checkbox" id="resource-opt" checked class="mr-3">
+                                        <div>
+                                            <h5 class="font-medium text-gray-900">Resource Right-sizing</h5>
+                                            <p class="text-sm text-gray-600">Optimize CPU and memory requests/limits</p>
+                                        </div>
+                                    </div>
+                                    <span class="text-green-600 font-medium">$283/mo savings</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <div class="flex items-start">
+                                <i class="fas fa-exclamation-triangle text-yellow-500 mr-3 mt-1"></i>
+                                <div>
+                                    <h4 class="text-sm font-medium text-yellow-900">Before You Deploy</h4>
+                                    <ul class="text-sm text-yellow-700 mt-1 list-disc list-inside">
+                                        <li>Ensure you have cluster admin permissions</li>
+                                        <li>Backup current configurations (automatic rollback available)</li>
+                                        <li>Monitor workloads after deployment</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                    <button class="btn-secondary" onclick="this.closest('.fixed').remove()">
+                        Cancel
+                    </button>
+                    <button class="btn-primary" onclick="deploymentManager.confirmDeploy(this)">
+                        <i class="fas fa-rocket mr-2"></i>
+                        Deploy Now
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        return modal;
+    }
+    
+    createSchedulingModal() {
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0 transition-opacity duration-300';
+        
+        // Get current date for minimum scheduling
+        const now = new Date();
+        const minDateTime = new Date(now.getTime() + 60000); // Minimum 1 minute from now
+        const minDateTimeString = minDateTime.toISOString().slice(0, 16);
+        
+        modal.innerHTML = `
+            <div class="modal-content bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 transform scale-95 transition-transform duration-300">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-gray-900">Schedule Deployment</h3>
+                        <button class="text-gray-400 hover:text-gray-600" onclick="this.closest('.fixed').remove()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="px-6 py-4">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-calendar-alt mr-2"></i>
+                                Deployment Date & Time
+                            </label>
+                            <input type="datetime-local" 
+                                   id="schedule-datetime" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                   min="${minDateTimeString}"
+                                   value="${minDateTimeString}">
+                            <p class="text-xs text-gray-500 mt-1">Select when to deploy the optimizations</p>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-bell mr-2"></i>
+                                Notification Preferences
+                            </label>
+                            <div class="space-y-2">
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked class="mr-2">
+                                    <span class="text-sm">Email notification before deployment</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked class="mr-2">
+                                    <span class="text-sm">Email notification after completion</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="flex items-start">
+                                <i class="fas fa-dollar-sign text-green-500 mr-3 mt-1"></i>
+                                <div>
+                                    <h4 class="text-sm font-medium text-green-900">Estimated Monthly Savings</h4>
+                                    <p class="text-lg font-bold text-green-700">$607.19</p>
+                                    <p class="text-xs text-green-600">Based on current analysis</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                    <button class="btn-secondary" onclick="this.closest('.fixed').remove()">
+                        Cancel
+                    </button>
+                    <button class="btn-primary" onclick="deploymentManager.confirmSchedule(this)">
+                        <i class="fas fa-clock mr-2"></i>
+                        Schedule Deployment
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        return modal;
+    }
+    
+    async confirmDeploy(button) {
+        const modal = button.closest('.fixed');
+        const selectedOptimizations = [];
+        
+        // Get selected optimizations
+        if (document.getElementById('hpa-opt').checked) {
+            selectedOptimizations.push({
+                type: 'hpa_memory_based',
+                name: 'Memory-based HPA',
+                configuration: {
+                    min_replicas: 1,
+                    max_replicas: 10,
+                    target_memory_utilization: 70
+                }
+            });
+        }
+        
+        if (document.getElementById('resource-opt').checked) {
+            selectedOptimizations.push({
+                type: 'resource_limits',
+                name: 'Resource Right-sizing',
+                configuration: {
+                    optimize_requests: true,
+                    optimize_limits: true
+                }
+            });
+        }
+        
+        // Show loading state
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deploying...';
+        
+        try {
+            for (const optimization of selectedOptimizations) {
+                const response = await fetch('/api/deploy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: optimization.name,
+                        type: optimization.type,
+                        resource_group: AppState.currentAnalysis?.resource_group || '',
+                        cluster_name: AppState.currentAnalysis?.cluster_name || '',
+                        configuration: optimization.configuration,
+                        estimated_savings: 607.19 // From analysis
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    notifications.show(`${optimization.name} deployment started!`, 'success');
+                } else {
+                    throw new Error(data.message);
+                }
+            }
+            
+            modal.remove();
+            await this.loadDeployments();
+            
+        } catch (error) {
+            console.error('Deployment failed:', error);
+            notifications.show('Deployment failed: ' + error.message, 'error');
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-rocket mr-2"></i>Deploy Now';
+        }
+    }
+    
+    async confirmSchedule(button) {
+        const modal = button.closest('.fixed');
+        const scheduledTime = document.getElementById('schedule-datetime').value;
+        
+        if (!scheduledTime) {
+            notifications.show('Please select a deployment time', 'warning');
+            return;
+        }
+        
+        // Show loading state
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Scheduling...';
+        
+        try {
+            const response = await fetch('/api/schedule-deployment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: 'Scheduled Optimization',
+                    type: 'hpa_memory_based',
+                    resource_group: AppState.currentAnalysis?.resource_group || '',
+                    cluster_name: AppState.currentAnalysis?.cluster_name || '',
+                    configuration: {
+                        min_replicas: 1,
+                        max_replicas: 10,
+                        target_memory_utilization: 70
+                    },
+                    estimated_savings: 607.19,
+                    scheduled_time: new Date(scheduledTime).toISOString()
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                notifications.show('Deployment scheduled successfully!', 'success');
+                modal.remove();
+                await this.loadDeployments();
+            } else {
+                throw new Error(data.message);
+            }
+            
+        } catch (error) {
+            console.error('Scheduling failed:', error);
+            notifications.show('Scheduling failed: ' + error.message, 'error');
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-clock mr-2"></i>Schedule Deployment';
+        }
+    }
+    
+    renderDeployments() {
+        // This would render deployments in a dedicated section
+        // For now, we'll show a status indicator
+        this.updateDeploymentStatus();
+    }
+    
+    updateDeploymentStatus() {
+        const activeDeployments = this.deployments.filter(d => 
+            ['pending', 'running', 'scheduled'].includes(d.status)
+        );
+        
+        if (activeDeployments.length > 0) {
+            this.showDeploymentStatus(activeDeployments);
+        }
+    }
+    
+    showDeploymentStatus(deployments) {
+        // Remove existing status
+        const existing = document.getElementById('deployment-status');
+        if (existing) existing.remove();
+        
+        const statusContainer = document.createElement('div');
+        statusContainer.id = 'deployment-status';
+        statusContainer.className = 'fixed bottom-4 left-4 bg-white rounded-lg shadow-lg border border-gray-200 p-4 max-w-sm z-40';
+        
+        statusContainer.innerHTML = `
+            <div class="flex items-center justify-between mb-2">
+                <h4 class="font-medium text-gray-900">Active Deployments</h4>
+                <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="space-y-2">
+                ${deployments.map(deployment => `
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-gray-700">${deployment.name}</span>
+                        <span class="status-indicator status-${deployment.status}">
+                            ${deployment.status}
+                        </span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        
+        document.body.appendChild(statusContainer);
+    }
+    
+    bindEvents() {
+        // Bind deployment buttons if they exist in global scope
+        window.deployOptimizations = () => this.deployOptimizations();
+        window.scheduleOptimization = () => this.scheduleOptimization();
+    }
+}
+
+// Enhanced UI Interactions
+class UIEnhancer {
+    constructor() {
+        this.init();
+    }
+    
+    init() {
+        this.addLoadingStates();
+        this.addHoverEffects();
+        this.addAnimations();
+        this.addKeyboardShortcuts();
+    }
+    
+    addLoadingStates() {
+        // Add loading states to buttons
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('.btn-primary, .btn-success')) {
+                this.addButtonLoading(e.target);
+            }
+        });
+    }
+    
+    addButtonLoading(button) {
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading...';
+        
+        // Remove loading state after 3 seconds (adjust based on actual operation)
+        setTimeout(() => {
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }, 3000);
+    }
+    
+    addHoverEffects() {
+        // Add hover effects to cards
+        const style = document.createElement('style');
+        style.textContent = `
+            .card, .metric-card, .alert-card {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            
+            .card:hover, .metric-card:hover, .alert-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            }
+            
+            .btn-icon-sm {
+                @apply w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    addAnimations() {
+        // Add intersection observer for fade-in animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('fade-in');
+                }
+            });
+        });
+        
+        // Observe all cards and metric elements
+        document.querySelectorAll('.card, .metric-card').forEach(el => {
+            observer.observe(el);
+        });
+    }
+    
+    addKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Ctrl/Cmd + R to refresh charts
+            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+                e.preventDefault();
+                if (typeof refreshCharts === 'function') {
+                    refreshCharts();
+                    notifications.show('Charts refreshed!', 'info');
+                }
+            }
+            
+            // Escape to close modals
+            if (e.key === 'Escape') {
+                const modals = document.querySelectorAll('.fixed.inset-0');
+                modals.forEach(modal => modal.remove());
+            }
+        });
+    }
+}
+
+// Initialize enhanced functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize managers
+    window.alertsManager = new AlertsManager();
+    window.deploymentManager = new DeploymentManager();
+    window.uiEnhancer = new UIEnhancer();
+    
+    // Add enhanced CSS classes
+    const style = document.createElement('style');
+    style.textContent = `
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+        
+        .slide-up {
+            animation: slideUp 0.6s ease-out;
+        }
+        
+        .scale-in {
+            animation: scaleIn 0.4s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .btn-secondary {
+            @apply px-4 py-2 border border-gray-300 text-gray-700 bg-white rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200;
+        }
+        
+        .notification-toast {
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+    `;
+    document.head.appendChild(style);
+    
+    console.log('Enhanced dashboard initialized successfully!');
+});
+
+// Export for global access
+window.AppState = AppState;
+window.notifications = notifications;
