@@ -227,13 +227,21 @@ function animateMetric(metric, delay) {
 }
 
 function formatValue(v, fmt) {
+    // SAFE number conversion
     const n = parseFloat(v) || 0;
+    if (isNaN(n)) return '0';
+    
     switch(fmt) {
-        case 'currency':         return '$' + n.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});
-        case 'currency-monthly': return '$' + n.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}) + '/mo';
-        case 'percentage':       return n.toFixed(1) + '%';
-        case 'number':           return Math.round(n).toString();
-        default:                 return n.toLocaleString();
+        case 'currency':         
+            return '$' + Math.round(n).toLocaleString();
+        case 'currency-monthly': 
+            return '$' + Math.round(n).toLocaleString() + '/mo';
+        case 'percentage':       
+            return n.toFixed(1) + '%';
+        case 'number':           
+            return Math.round(n).toString();
+        default:                 
+            return Math.round(n).toLocaleString();
     }
 }
 
@@ -275,59 +283,102 @@ function updateDataSourceIndicator(d) {
 // ——— Unified Chart Builder ———
 function createAllCharts(data) {
     console.log('🎨 Creating all charts...');
+    console.log('📊 Received data keys:', Object.keys(data));
+    
     try {
         destroyAllCharts();
 
         // detect real vs sample
-        const md = data.metadata||{};
-        const realFlag = md.is_real_data===true || md.force_real_data===true;
-        const costNum = parseFloat(md.total_cost_verification?.replace(/[^0-9.]/g,'')||'0');
+        const md = data.metadata || {};
+        const realFlag = md.is_real_data === true || md.force_real_data === true;
+        const costNum = parseFloat(md.total_cost_verification?.replace(/[^0-9.]/g, '') || '0');
         const finalReal = realFlag || costNum > 100;
 
         console.log('Data type:', finalReal ? 'Real' : 'Sample');
-        console.log('Creating charts with data:', data);
 
+        // 1. Cost Breakdown Chart
         if (data.costBreakdown?.values?.length) {
-            console.log('Creating cost breakdown chart with data:', data.costBreakdown);
+            console.log('✅ Creating cost breakdown chart');
             createCostBreakdownChart(data.costBreakdown, finalReal);
+        } else {
+            console.log('❌ Skipping cost breakdown chart - no data');
         }
+        
+        // 2. HPA Comparison Chart
         if (data.hpaComparison) {
-            console.log('Creating HPA comparison chart');
+            console.log('✅ Creating HPA comparison chart');
             createHPAComparisonChart(data.hpaComparison, finalReal);
+        } else {
+            console.log('❌ Skipping HPA comparison chart - no data');
         }
+        
+        // 3. Node Utilization Chart
         if (data.nodeUtilization) {
-            console.log('Creating node utilization chart');
+            console.log('✅ Creating node utilization chart');
             createNodeUtilizationChart(data.nodeUtilization, finalReal);
+        } else {
+            console.log('❌ Skipping node utilization chart - no data');
         }
+        
+        // 4. Savings Breakdown Chart
         if (data.savingsBreakdown) {
-            console.log('Creating savings breakdown chart');
+            console.log('✅ Creating savings breakdown chart');
             createSavingsBreakdownChart(data.savingsBreakdown, finalReal);
+        } else {
+            console.log('❌ Skipping savings breakdown chart - no data');
         }
-        if (data.trendData) {
-            console.log('Creating main trend chart');
+        
+        // 5. MAIN TREND CHART - Always create with fallback
+        console.log('🔍 Checking trend data:', !!data.trendData);
+        if (data.trendData && data.trendData.labels && data.trendData.datasets) {
+            console.log('✅ Creating main trend chart with real data');
             createMainTrendChart(data.trendData, finalReal);
+        } else {
+            console.log('❌ Skipping main trend chart- no data');
         }
+        
+        // 6. Pod Cost Analysis Charts
+        if (data.podCostBreakdown && data.podCostBreakdown.labels && data.podCostBreakdown.values) {
+            console.log('✅ Creating namespace cost chart');
+            createNamespaceCostChart(data.podCostBreakdown);
+            
+            // Show pod cost section
+            const podSection = document.getElementById('pod-cost-section');
+            if (podSection) {
+                podSection.style.display = 'block';
+            }
+        } else {
+            console.log('❌ Skipping namespace cost chart - no pod data');
+        }
+        
+        // 7. WORKLOAD COST CHART - Enhanced with fallback
+        console.log('🔍 Checking workload data:', !!data.workloadCosts);
+        if (data.workloadCosts && data.workloadCosts.workloads && data.workloadCosts.workloads.length > 0) {
+            console.log('✅ Creating workload cost chart with real data');
+            createWorkloadCostChart(data.workloadCosts);
+        } else if (data.podCostBreakdown && data.podCostBreakdown.labels) {
+            console.log('❌ Skipping workload cost chart - no data');
+        } else {
+            console.log('❌ Skipping workload cost chart - no data');
+        }
+        
+        // 8. Update insights
         if (data.insights) {
+            console.log('✅ Updating insights');
             updateInsights(data.insights);
         }
-        // NEW: Pod cost charts
-        if (data.podCostBreakdown) {
-            console.log('Creating namespace cost chart');
-            createNamespaceCostChart(data.podCostBreakdown);
-            document.getElementById('pod-cost-section').style.display = 'block';
-        }
         
-        if (data.workloadCosts) {
-            console.log('Creating workload cost chart');
-            createWorkloadCostChart(data.workloadCosts);
-        }
-        
-        if (data.namespaceDistribution || data.workloadCosts) {
+        // 9. Update pod cost metrics
+        if (data.namespaceDistribution || data.workloadCosts || data.podCostBreakdown) {
+            console.log('✅ Updating pod cost metrics');
             updatePodCostMetrics(data);
         }
-        console.log('✅ All charts created');
+        
+        console.log('✅ All charts creation process completed');
+        
     } catch (err) {
-        console.error('❌ Error building charts', err);
+        console.error('❌ Error building charts:', err);
+        console.error('❌ Stack trace:', err.stack);
         showChartError('Failed to render charts: ' + err.message);
     }
 }
@@ -413,7 +464,7 @@ function createCostBreakdownChart(data, isRealData) {
                             const value = context.parsed;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
                             // FIXED: Proper number conversion and method call
-                            const percentage = total > 0 ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                             return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
                         }
                     }
@@ -2087,7 +2138,7 @@ function createNamespaceCostChart(data) {
                                     const value = data.datasets[0].data[i];
                                     const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
                                     // FIXED: Proper number conversion and method call
-                                    const percentage = total > 0 ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                                     return {
                                         text: `${label}: $${value.toLocaleString()} (${percentage}%)`,
                                         fillStyle: data.datasets[0].backgroundColor[i],
@@ -2105,7 +2156,7 @@ function createNamespaceCostChart(data) {
                             const value = context.parsed;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
                             // FIXED: Proper number conversion and method call
-                            const percentage = total > 0 ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                             return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
                         }
                     }
