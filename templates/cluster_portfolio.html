@@ -18,7 +18,7 @@
         <div class="col-lg-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
-                    <div class="h2 text-success mb-2">${{ portfolio_summary.total_potential_savings|round(2) if portfolio_summary.total_potential_savings else 0 }}</div>
+                    <div class="h2 text-primary mb-2">${{ portfolio_summary.total_potential_savings|round(2) if portfolio_summary.total_potential_savings else 0 }}</div>
                     <div class="text-muted">Potential Savings</div>
                 </div>
             </div>
@@ -71,9 +71,7 @@
                     
                     <div class="card-body position-relative">
                         <!-- Status Indicator -->
-                        <div class="cluster-status" 
-                             style="position: absolute; top: 10px; right: 10px; width: 12px; height: 12px; border-radius: 50%; 
-                                    background-color: {% if cluster.last_analyzed %}{% if cluster.last_savings > 100 %}#ffc107{% else %}#28a745{% endif %}{% else %}#6c757d{% endif %};"></div>
+                        <div class="cluster-status"></div>
                         
                         <!-- Environment Badge -->
                         <div style="position: absolute; top: 10px; left: 10px;">
