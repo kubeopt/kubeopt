@@ -5,712 +5,642 @@
 {% block content %}
 
 {% if cluster %}
-<!-- Cluster Context Header -->
-<div class="bg-light border-bottom py-3 mb-4">
+<!-- Clean Cluster Context Header -->
+<div class="cluster-context-header">
     <div class="container">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <a href="/" class="btn btn-outline-primary btn-sm me-3">
+        <div class="d-flex align-items-center justify-content-between w-100 flex-wrap">
+            <div class="d-flex align-items-center gap-3">
+                <a href="/" class="btn btn-outline-secondary btn-sm">
                     <i class="fas fa-arrow-left me-2"></i>Back to Portfolio
                 </a>
-                <span class="h4 mb-0">
-                    <i class="fas fa-dharmachakra me-2 text-primary"></i>
-                    {{ cluster.name }}
-                </span>
-                <span class="badge {% if cluster.environment == 'production' %}bg-danger{% elif cluster.environment == 'staging' %}bg-warning{% elif cluster.environment == 'development' %}bg-info{% else %}bg-secondary{% endif %} ms-2">
-                    {{ cluster.environment.upper() if cluster.environment else 'UNKNOWN' }}
-                </span>
-                {% if cluster.region %}
-                <span class="text-muted ms-2">• {{ cluster.region }}</span>
-                {% endif %}
-            </div>
-            <div class="col-md-4 text-end">
-                <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-secondary" onclick="compareWithOtherClusters()">
-                        <i class="fas fa-balance-scale me-1"></i>Compare
-                    </button>
-                    <button class="btn btn-outline-info" onclick="cloneClusterSettings()">
-                        <i class="fas fa-copy me-1"></i>Clone
-                    </button>
-                    <button class="btn btn-outline-primary" onclick="exportClusterReport()">
-                        <i class="fas fa-download me-1"></i>Export
-                    </button>
+                <div class="cluster-info">
+                    <h4 class="mb-0">
+                        <i class="fas fa-dharmachakra me-2 text-primary"></i>
+                        {{ cluster.name }}
+                    </h4>
+                    <div class="d-flex align-items-center gap-2 mt-1">
+                        <span class="badge {% if cluster.environment == 'production' %}bg-danger{% elif cluster.environment == 'staging' %}bg-warning{% elif cluster.environment == 'development' %}bg-info{% else %}bg-secondary{% endif %}">
+                            {{ cluster.environment.upper() if cluster.environment else 'UNKNOWN' }}
+                        </span>
+                        {% if cluster.region %}
+                        <span class="text-muted">{{ cluster.region }}</span>
+                        {% endif %}
+                    </div>
                 </div>
+            </div>
+            
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" onclick="compareWithOtherClusters()">
+                    <i class="fas fa-balance-scale me-1"></i>Compare
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="cloneClusterSettings()">
+                    <i class="fas fa-copy me-1"></i>Clone
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="exportClusterReport()">
+                    <i class="fas fa-download me-1"></i>Export
+                </button>
             </div>
         </div>
         
         {% if cluster.description %}
-        <div class="row mt-2">
-            <div class="col-12">
-                <small class="text-muted">{{ cluster.description }}</small>
-            </div>
+        <div class="mt-2">
+            <small class="text-muted">{{ cluster.description }}</small>
         </div>
         {% endif %}
     </div>
 </div>
 {% else %}
-<!-- No Cluster Context - Show Portfolio Link -->
-<div class="bg-light border-bottom py-2 mb-4">
-    <div class="container">
-        <div class="row align-items-center">
-            <div class="col-12 text-center">
-                <a href="/" class="btn btn-outline-primary btn-sm">
-                    <i class="fas fa-th me-2"></i>View All Clusters
-                </a>
-                <span class="text-muted ms-2">You're viewing the general dashboard</span>
-            </div>
-        </div>
+<!-- No Cluster Context -->
+<div class="cluster-context-header">
+    <div class="container text-center">
+        <a href="/" class="btn btn-outline-primary btn-sm">
+            <i class="fas fa-th me-2"></i>View All Clusters
+        </a>
+        <span class="text-muted ms-2">General dashboard view</span>
     </div>
 </div>
 {% endif %}
 
-<!-- Unified Header with Quick Controls -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card" style="background: var(--fresh-gradient); border: none;">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-lg-6">
-                        <h2 class="text-white mb-2">
-                            <i class="fas fa-dharmachakra me-2"></i>
-                            {% if cluster %}{{ cluster.name }} - Cost Analysis{% else %}AKS Cost Intelligence Platform{% endif %}
-                        </h2>
-                        <p class="text-white opacity-90 mb-0">
-                            {% if cluster %}Detailed cost optimization analysis for this cluster{% else %}Real-time cost optimization analysis with AI-powered insights{% endif %}
-                        </p>
-                    </div>
+<!-- Clean Header -->
+<div class="container mt-4 mb-4">
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="fas fa-dharmachakra me-2"></i>
+                        {% if cluster %}{{ cluster.name }} Analysis{% else %}AKS Cost Intelligence{% endif %}
+                    </h2>
+                    <p class="mb-0 opacity-90">
+                        {% if cluster %}Cost optimization analysis for this cluster{% else %}Intelligent cloud cost optimization platform{% endif %}
+                    </p>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Tab Navigation -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body py-2">
-                <ul class="nav nav-pills justify-content-center" id="main-tabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link {% if active_tab == 'analysis' %}active{% elif not active_tab %}active{% endif %}" id="analysis-tab" data-bs-toggle="pill" data-bs-target="#analysis" type="button" role="tab">
-                            <i class="fas fa-search me-2"></i>Run Analysis
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link {% if active_tab == 'dashboard' %}active{% endif %}" id="dashboard-tab" data-bs-toggle="pill" data-bs-target="#dashboard" type="button" role="tab">
-                            <i class="fas fa-chart-line me-2"></i>Analytics Dashboard
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link {% if active_tab == 'implementation' %}active{% endif %}" id="implementation-tab" data-bs-toggle="pill" data-bs-target="#implementation" type="button" role="tab">
-                            <i class="fas fa-rocket me-2"></i>Implementation
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link {% if active_tab == 'alerts' %}active{% endif %}" id="alerts-tab" data-bs-toggle="pill" data-bs-target="#alerts" type="button" role="tab">
-                            <i class="fas fa-bell me-2"></i>Alerts
-                        </button>
-                    </li>
-                </ul>
-            </div>
+<!-- Clean Tab Navigation -->
+<div class="container mb-4">
+    <div class="card">
+        <div class="card-body py-3">
+            <ul class="nav nav-pills justify-content-center" id="main-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if active_tab == 'analysis' %}active{% elif not active_tab %}active{% endif %}" 
+                            id="analysis-tab" data-bs-toggle="pill" data-bs-target="#analysis" type="button" role="tab">
+                        <i class="fas fa-search me-2"></i>Analysis
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if active_tab == 'dashboard' %}active{% endif %}" 
+                            id="dashboard-tab" data-bs-toggle="pill" data-bs-target="#dashboard" type="button" role="tab">
+                        <i class="fas fa-chart-line me-2"></i>Dashboard
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if active_tab == 'implementation' %}active{% endif %}" 
+                            id="implementation-tab" data-bs-toggle="pill" data-bs-target="#implementation" type="button" role="tab">
+                        <i class="fas fa-rocket me-2"></i>Implementation
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if active_tab == 'alerts' %}active{% endif %}" 
+                            id="alerts-tab" data-bs-toggle="pill" data-bs-target="#alerts" type="button" role="tab">
+                        <i class="fas fa-bell me-2"></i>Alerts
+                    </button>
+                </li>
+            </ul>
         </div>
     </div>
 </div>
 
 <!-- Tab Content -->
-<div class="tab-content" id="main-tab-content">
+<div class="container">
+    <div class="tab-content" id="main-tab-content">
 
-    <!-- Analysis Tab -->
-    <div class="tab-pane fade {% if active_tab == 'analysis' or not active_tab %}show active{% endif %}" id="analysis" role="tabpanel">
-        <div class="row">
-            <!-- Analysis Form -->
-            <div class="col-lg-8">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-search me-2"></i>
-                            Cost Optimization Analysis
-                            {% if cluster %}<span class="text-muted"> - {{ cluster.name }}</span>{% endif %}
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <form id="analysisForm" action="/analyze" method="POST" class="needs-validation enhanced-form" novalidate>
-                            {% if cluster %}
-                            <input type="hidden" name="redirect_to_cluster" value="true">
-                            {% endif %}
-                            
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label for="resource_group" class="form-label">
-                                        <i class="fas fa-folder-open me-2"></i>Resource Group
-                                        <span class="required">*</span>
-                                    </label>
-                                    <input type="text"
-                                           class="form-control {% if cluster %}bg-light{% endif %}"
-                                           id="resource_group"
-                                           name="resource_group"
-                                           placeholder="e.g., rg-dpl-mad-uat-ne2-2"
-                                           value="{{ cluster.resource_group if cluster else request.form.get('resource_group', '') }}"
-                                           {% if cluster %}readonly{% endif %}
-                                           required>
-                                    <div class="form-hint">{% if cluster %}Pre-filled from cluster context{% else %}Enter your Azure resource group name{% endif %}</div>
-                                </div>
+        <!-- Analysis Tab -->
+        <div class="tab-pane fade {% if active_tab == 'analysis' or not active_tab %}show active{% endif %}" id="analysis" role="tabpanel">
+            <div class="row">
+                <!-- Analysis Form -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-search me-2"></i>
+                                Cost Optimization Analysis
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="analysisForm" action="/analyze" method="POST" class="enhanced-form needs-validation" novalidate>
+                                {% if cluster %}
+                                <input type="hidden" name="redirect_to_cluster" value="true">
+                                {% endif %}
+                                
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="resource_group" class="form-label">
+                                            <i class="fas fa-folder-open me-2"></i>Resource Group
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="text"
+                                               class="form-control"
+                                               id="resource_group"
+                                               name="resource_group"
+                                               placeholder="e.g., rg-production-eastus"
+                                               value="{{ cluster.resource_group if cluster else request.form.get('resource_group', '') }}"
+                                               {% if cluster %}readonly{% endif %}
+                                               required>
+                                        <div class="form-hint">
+                                            {% if cluster %}Pre-filled from cluster context{% else %}Enter your Azure resource group name{% endif %}
+                                        </div>
+                                    </div>
 
-                                <div class="form-group">
-                                    <label for="cluster_name" class="form-label">
-                                        <i class="fas fa-dharmachakra me-2"></i>AKS Cluster Name
-                                        <span class="required">*</span>
-                                    </label>
-                                    <input type="text"
-                                           class="form-control {% if cluster %}bg-light{% endif %}"
-                                           id="cluster_name"
-                                           name="cluster_name"
-                                           placeholder="e.g., aks-dpl-mad-uat-ne2-1"
-                                           value="{{ cluster.name if cluster else request.form.get('cluster_name', '') }}"
-                                           {% if cluster %}readonly{% endif %}
-                                           required>
-                                    <div class="form-hint">{% if cluster %}Pre-filled from cluster context{% else %}Enter your AKS cluster name{% endif %}</div>
-                                </div>
+                                    <div class="form-group">
+                                        <label for="cluster_name" class="form-label">
+                                            <i class="fas fa-dharmachakra me-2"></i>Cluster Name
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="text"
+                                               class="form-control"
+                                               id="cluster_name"
+                                               name="cluster_name"
+                                               placeholder="e.g., aks-production-eastus"
+                                               value="{{ cluster.name if cluster else request.form.get('cluster_name', '') }}"
+                                               {% if cluster %}readonly{% endif %}
+                                               required>
+                                        <div class="form-hint">
+                                            {% if cluster %}Pre-filled from cluster context{% else %}Enter your AKS cluster name{% endif %}
+                                        </div>
+                                    </div>
 
-                                <div class="form-group">
-                                    <label for="days" class="form-label">
-                                        <i class="fas fa-calendar-alt me-2"></i>Analysis Period
-                                    </label>
-                                    <select class="form-select enhanced-select" id="days" name="days">
-                                        <option value="7">Last 7 days</option>
-                                        <option value="30" selected>Last 30 days</option>
-                                        <option value="90">Last 90 days</option>
-                                    </select>
-                                    <div class="form-hint">Select the time period for cost analysis</div>
+                                    <div class="form-group">
+                                        <label for="days" class="form-label">
+                                            <i class="fas fa-calendar-alt me-2"></i>Analysis Period
+                                        </label>
+                                        <select class="form-select" id="days" name="days">
+                                            <option value="7">Last 7 days</option>
+                                            <option value="30" selected>Last 30 days</option>
+                                            <option value="90">Last 90 days</option>
+                                        </select>
+                                        <div class="form-hint">Select time period for analysis</div>
+                                    </div>
                                 </div>
                                 
                                 <div class="form-group">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="enable_pod_analysis" name="enable_pod_analysis" checked>
                                         <label class="form-check-label" for="enable_pod_analysis">
-                                            <i class="fas fa-layer-group me-2"></i>Enable Deep Pod Cost Analysis
+                                            <strong>Enable Deep Pod Analysis</strong>
                                         </label>
                                         <div class="form-hint">
                                             Analyze costs at namespace and workload level (adds 30-60 seconds)
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div class="form-actions">
-                                <button type="submit" class="btn btn-primary enhanced-btn" id="analyzeBtn">
-                                    <span class="btn-content">
-                                        <i class="fas fa-play me-2"></i>
-                                        <span class="btn-text">{% if cluster %}Analyze {{ cluster.name }}{% else %}Run Analysis{% endif %}</span>
-                                    </span>
-                                    <div class="loading-spinner">
-                                        <div class="spinner"></div>
-                                        <span class="loading-text">Analyzing...</span>
-                                    </div>
-                                </button>
-
-                                <div class="analysis-progress" id="analysisProgress">
-                                    <div class="progress-bar">
-                                        <div class="progress-fill" id="progressFill"></div>
-                                    </div>
-                                    <div class="progress-text" id="progressText">Initializing analysis...</div>
-                                </div>
-                            </div>
-                            <div class="optimization-indicator"></div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Quick Info Sidebar -->
-            <div class="col-lg-4">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-lightbulb me-2"></i>What We Analyze
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        {% if cluster and cluster.last_analyzed %}
-                        <div class="alert alert-info">
-                            <h6><i class="fas fa-info-circle me-2"></i>Previous Analysis</h6>
-                            <p class="mb-1">Last Cost: <strong>${{ cluster.last_cost|round(2) if cluster.last_cost else 0 }}</strong></p>
-                            <p class="mb-0">Potential Savings: <strong>${{ cluster.last_savings|round(2) if cluster.last_savings else 0 }}</strong></p>
-                        </div>
-                        {% endif %}
-                        
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="me-3">
-                                <i class="fas fa-memory text-primary" style="font-size: 1.5rem;"></i>
-                            </div>
-                            <div>
-                                <h6 class="mb-1">Memory-based HPA</h6>
-                                <small class="text-muted">Optimize replica scaling</small>
-                            </div>
-                        </div>
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="me-3">
-                                <i class="fas fa-microchip text-warning" style="font-size: 1.5rem;"></i>
-                            </div>
-                            <div>
-                                <h6 class="mb-1">Resource Right-sizing</h6>
-                                <small class="text-muted">Eliminate over-provisioning</small>
-                            </div>
-                        </div>
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="me-3">
-                                <i class="fas fa-hdd text-success" style="font-size: 1.5rem;"></i>
-                            </div>
-                            <div>
-                                <h6 class="mb-1">Storage Optimization</h6>
-                                <small class="text-muted">Optimize disk usage patterns</small>
-                            </div>
-                        </div>
-
-                        <div class="saving-box mt-4">
-                            <h6>Expected Results</h6>
-                            <div class="row text-center">
-                                <div class="col-6">
-                                    <div class="metric-value" style="font-size: 1.5rem;">30-75%</div>
-                                    <div class="metric-label">Cost Reduction</div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="metric-value" style="font-size: 1.5rem;">&lt; 5min</div>
-                                    <div class="metric-label">Analysis Time</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Dashboard Tab -->
-    <div class="tab-pane fade {% if active_tab == 'dashboard' %}show active{% endif %}" id="dashboard" role="tabpanel">
-        <!-- Real-time Metrics -->
-        <div class="row mb-4" id="metrics-row">
-            <div class="col-lg-3 col-md-6">
-                <div class="metric-card">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <div class="text-muted small">CURRENT COST</div>
-                            <div class="metric-value" id="current-cost">$1,364.90</div>
-                            <div class="text-success small">
-                                <i class="fas fa-arrow-down me-1"></i>
-                                <span id="cost-trend">-5.2%</span>
-                            </div>
-                        </div>
-                        <div class="metric-icon">
-                            <i class="fas fa-dollar-sign text-primary"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-6">
-                <div class="metric-card">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <div class="text-muted small">POTENTIAL SAVINGS</div>
-                            <div class="metric-value" id="potential-savings">$607.19</div>
-                            <div class="text-success small">
-                                <i class="fas fa-piggy-bank me-1"></i>
-                                <span id="savings-percentage">30.8%</span>
-                            </div>
-                        </div>
-                        <div class="metric-icon">
-                            <i class="fas fa-coins text-success"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-6">
-                <div class="metric-card">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <div class="text-muted small">HPA EFFICIENCY</div>
-                            <div class="metric-value" id="hpa-efficiency">43.6%</div>
-                            <div class="text-info small">
-                                <i class="fas fa-memory me-1"></i>
-                                <span>Memory-based</span>
-                            </div>
-                        </div>
-                        <div class="metric-icon">
-                            <i class="fas fa-expand-arrows-alt text-info"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-6">
-                <div class="metric-card">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <div class="text-muted small">OPTIMIZATION SCORE</div>
-                            <div class="metric-value" id="optimization-score">78</div>
-                            <div class="text-success small">
-                                <i class="fas fa-star me-1"></i>
-                                <span>Good</span>
-                            </div>
-                        </div>
-                        <div class="metric-icon">
-                            <i class="fas fa-gauge text-warning"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Charts Section -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5>Cost Analysis Results{% if cluster %} - {{ cluster.name }}{% endif %}</h5>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-sm btn-outline-primary" onclick="refreshCharts()">
-                                    <i class="fas fa-sync-alt me-1"></i>Refresh
-                                </button>
-                                <button class="btn btn-sm btn-success" onclick="exportReport()">
-                                    <i class="fas fa-download me-1"></i>Export
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container" style="height: 400px;">
-                            <canvas id="mainTrendChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Cost dashboards -->
-        <div class="row mb-4">
-            <div class="col-lg-6">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-chart-pie me-2"></i>Cost Distribution
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="costBreakdownChart"></canvas>
-                        </div>
-                        <div class="insight-box mt-3" id="cost-insight-box">
-                            <h6><i class="fas fa-lightbulb me-2"></i>Key Insight</h6>
-                            <p class="mb-0" id="cost-insight">
-                                <span class="loading-text">
-                                    <i class="fas fa-spinner fa-spin me-2"></i>
-                                    Analyzing cost distribution...
-                                </span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-6">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-chart-line me-2"></i>HPA Optimization Impact
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="hpaComparisonChart"></canvas>
-                        </div>
-                        <div class="insight-box mt-3" id="hpa-insight-box">
-                            <h6><i class="fas fa-rocket me-2"></i>Optimization Potential</h6>
-                            <p class="mb-0" id="hpa-insight">
-                                <span class="loading-text">
-                                    <i class="fas fa-spinner fa-spin me-2"></i>
-                                    Calculating HPA optimization potential...
-                                </span>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Pod Cost Analysis Section -->
-        <div class="row mb-4" id="pod-cost-section">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">
-                                <i class="fas fa-layer-group me-2"></i>Deep Cost Analysis
-                            </h5>
-                            <div id="pod-analysis-badge" class="badge bg-success">
-                                Container Level Analysis
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-lg-6">
-                                <h6><i class="fas fa-chart-pie me-2"></i>Cost by Namespace</h6>
-                                <div class="chart-container">
-                                    <canvas id="namespaceCostChart"></canvas>
-                                </div>
-                            </div>
-                            <div class="col-lg-6">
-                                <h6><i class="fas fa-chart-bar me-2"></i>Top Workloads</h6>
-                                <div class="chart-container">
-                                    <canvas id="workloadCostChart"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Cost Analysis Summary -->
-                        <div class="row mt-4">
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-value" id="top-namespace-cost">$0</div>
-                                    <div class="metric-label">Top Namespace Cost</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-value" id="total-namespaces">0</div>
-                                    <div class="metric-label">Namespaces Analyzed</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-value" id="total-workloads">0</div>
-                                    <div class="metric-label">Workloads Found</div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="metric-card">
-                                    <div class="metric-value" id="analysis-accuracy">High</div>
-                                    <div class="metric-label">Analysis Accuracy</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row mb-4">
-            <div class="col-lg-8">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-server me-2"></i>Node Resource Utilization
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="nodeUtilizationChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-4">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-bullseye me-2"></i>Savings Breakdown
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="savingsBreakdownChart"></canvas>
-                        </div>
-                        <div class="row mt-3 text-center">
-                            <div class="col-12">
-                                <div class="metric-value text-success" id="monthly-savings">$607</div>
-                                <div class="metric-label">Monthly Target</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Insights Section -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-lightbulb me-2"></i>Analysis Insights
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div id="insights-container">
-                            <!-- Insights will be dynamically generated here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Implementation Tab -->
-    <div class="tab-pane fade {% if active_tab == 'implementation' %}show active{% endif %}" id="implementation" role="tabpanel">
-        <div id="implementation-plan-container">
-            <div class="loading-spinner">
-                <div class="spinner"></div>
-                <p>Analyzing your cluster to generate personalized implementation recommendations...</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Alerts Tab -->
-    <div class="tab-pane fade {% if active_tab == 'alerts' %}show active{% endif %}" id="alerts" role="tabpanel">
-        <div class="row">
-            <div class="col-lg-8">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fas fa-bell me-2"></i>Smart Budget Monitoring{% if cluster %} - {{ cluster.name }}{% endif %}
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="mb-4">
-                            Set up intelligent budget alerts to monitor your {% if cluster %}{{ cluster.name }} {% endif %}AKS spending and get notified
-                            before you exceed your monthly budget threshold.
-                        </p>
-
-                        <form id="budget-alert-form">
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="budget-amount" class="form-label">
-                                            <i class="fas fa-dollar-sign me-1"></i>Monthly Budget
-                                        </label>
-                                        <div class="input-group">
-                                            <span class="input-group-text">$</span>
-                                            <input type="number" class="form-control" id="budget-amount"
-                                                   required min="1" placeholder="5000">
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary btn-lg enhanced-btn" id="analyzeBtn">
+                                        <span class="btn-content">
+                                            <i class="fas fa-play me-2"></i>
+                                            <span class="btn-text">Start Analysis</span>
+                                        </span>
+                                        <div class="loading-spinner">
+                                            <div class="spinner"></div>
+                                            <span class="loading-text">Analyzing...</span>
                                         </div>
+                                    </button>
+
+                                    <div class="analysis-progress" id="analysisProgress">
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" id="progressFill"></div>
+                                        </div>
+                                        <div class="progress-text" id="progressText">Initializing analysis...</div>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="alert-email" class="form-label">
-                                            <i class="fas fa-at me-1"></i>Alert Email
-                                        </label>
-                                        <input type="email" class="form-control" id="alert-email"
-                                               required placeholder="devops@company.com">
-                                    </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Sidebar -->
+                <div class="col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-lightbulb me-2"></i>Analysis Overview
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            {% if cluster and cluster.last_analyzed %}
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle me-2"></i>Previous Analysis</h6>
+                                <p class="mb-1">Last Cost: <strong>${{ cluster.last_cost|round(2) if cluster.last_cost else 0 }}</strong></p>
+                                <p class="mb-0">Potential Savings: <strong>${{ cluster.last_savings|round(2) if cluster.last_savings else 0 }}</strong></p>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="me-3">
+                                    <i class="fas fa-memory text-primary" style="font-size: 1.5rem;"></i>
                                 </div>
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="alert-threshold" class="form-label">
-                                            <i class="fas fa-percentage me-1"></i>Threshold
-                                        </label>
-                                        <select class="form-select" id="alert-threshold">
-                                            <option value="75">75% - Early Warning</option>
-                                            <option value="80" selected>80% - Recommended</option>
-                                            <option value="90">90% - Critical</option>
-                                            <option value="100">100% - Emergency</option>
-                                        </select>
-                                    </div>
+                                <div>
+                                    <h6 class="mb-1">Memory-based HPA</h6>
+                                    <small class="text-muted">Optimize replica scaling</small>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="me-3">
+                                    <i class="fas fa-microchip text-warning" style="font-size: 1.5rem;"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-1">Resource Right-sizing</h6>
+                                    <small class="text-muted">Eliminate over-provisioning</small>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="me-3">
+                                    <i class="fas fa-hdd text-success" style="font-size: 1.5rem;"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-1">Storage Optimization</h6>
+                                    <small class="text-muted">Optimize disk usage</small>
                                 </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">Alert Types</label>
+                            <div class="saving-box mt-4">
+                                <h6>Expected Results</h6>
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <div class="metric-value" style="font-size: 1.5rem;">30-75%</div>
+                                        <div class="metric-label">Cost Reduction</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="metric-value" style="font-size: 1.5rem;">&lt; 5min</div>
+                                        <div class="metric-label">Analysis Time</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div class="tab-pane fade {% if active_tab == 'dashboard' %}show active{% endif %}" id="dashboard" role="tabpanel">
+            <!-- Metrics Row -->
+            <div class="row mb-4" id="metrics-row">
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="metric-value" id="current-cost">--</div>
+                        <div class="metric-label">Current Monthly Cost</div>
+                        <div class="text-muted small mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <span id="cost-trend">Run analysis to view</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-piggy-bank"></i>
+                        </div>
+                        <div class="metric-value text-success" id="potential-savings">--</div>
+                        <div class="metric-label">Potential Savings</div>
+                        <div class="text-muted small mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <span id="savings-percentage">Run analysis to view</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                        </div>
+                        <div class="metric-value text-info" id="hpa-efficiency">--</div>
+                        <div class="metric-label">HPA Efficiency</div>
+                        <div class="text-muted small mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <span>Run analysis to view</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="metric-card">
+                        <div class="metric-icon">
+                            <i class="fas fa-star"></i>
+                        </div>
+                        <div class="metric-value text-warning" id="optimization-score">--</div>
+                        <div class="metric-label">Optimization Score</div>
+                        <div class="text-muted small mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <span>Run analysis to view</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Cost Analysis Results{% if cluster %} - {{ cluster.name }}{% endif %}</h5>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="refreshCharts()">
+                                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                                    </button>
+                                    <button class="btn btn-outline-primary btn-sm" onclick="exportReport()">
+                                        <i class="fas fa-download me-1"></i>Export
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container" style="height: 400px;">
+                                <canvas id="mainTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Cost dashboards -->
+            <div class="row mb-4">
+                <div class="col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-chart-pie me-2"></i>Cost Distribution
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="costBreakdownChart"></canvas>
+                            </div>
+                            <div class="insight-box mt-3" id="cost-insight-box">
+                                <h6><i class="fas fa-lightbulb me-2"></i>Key Insight</h6>
+                                <p class="mb-0" id="cost-insight">
+                                    <span class="loading-text">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>
+                                        Analyzing cost distribution...
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-chart-line me-2"></i>HPA Optimization Impact
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="hpaComparisonChart"></canvas>
+                            </div>
+                            <div class="insight-box mt-3" id="hpa-insight-box">
+                                <h6><i class="fas fa-rocket me-2"></i>Optimization Potential</h6>
+                                <p class="mb-0" id="hpa-insight">
+                                    <span class="loading-text">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>
+                                        Calculating HPA optimization potential...
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pod Cost Analysis Section -->
+            <div class="row mb-4" id="pod-cost-section">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-layer-group me-2"></i>Deep Cost Analysis
+                                </h5>
+                                <div id="pod-analysis-badge" class="badge bg-success">
+                                    Container Level Analysis
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-lg-6">
+                                    <h6><i class="fas fa-chart-pie me-2"></i>Cost by Namespace</h6>
+                                    <div class="chart-container">
+                                        <canvas id="namespaceCostChart"></canvas>
+                                    </div>
+                                </div>
+                                <div class="col-lg-6">
+                                    <h6><i class="fas fa-chart-bar me-2"></i>Top Workloads</h6>
+                                    <div class="chart-container">
+                                        <canvas id="workloadCostChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Cost Analysis Summary -->
+                            <div class="row mt-4">
+                                <div class="col-md-3">
+                                    <div class="metric-card">
+                                        <div class="metric-value" id="top-namespace-cost">$0</div>
+                                        <div class="metric-label">Top Namespace Cost</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-card">
+                                        <div class="metric-value" id="total-namespaces">0</div>
+                                        <div class="metric-label">Namespaces Analyzed</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-card">
+                                        <div class="metric-value" id="total-workloads">0</div>
+                                        <div class="metric-label">Workloads Found</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="metric-card">
+                                        <div class="metric-value" id="analysis-accuracy">High</div>
+                                        <div class="metric-label">Analysis Accuracy</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-lg-8">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-server me-2"></i>Node Resource Utilization
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="nodeUtilizationChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-bullseye me-2"></i>Savings Breakdown
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="savingsBreakdownChart"></canvas>
+                            </div>
+                            <div class="row mt-3 text-center">
+                                <div class="col-12">
+                                    <div class="metric-value text-success" id="monthly-savings">$607</div>
+                                    <div class="metric-label">Monthly Target</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Insights Section -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-lightbulb me-2"></i>Analysis Insights
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="insights-container">
+                                <!-- Insights will be dynamically generated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Implementation Tab -->
+        <div class="tab-pane fade {% if active_tab == 'implementation' %}show active{% endif %}" id="implementation" role="tabpanel">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-rocket me-2"></i>Implementation Guide
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center py-5">
+                        <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Implementation Plan</h5>
+                        <p class="text-muted">Run analysis first to generate personalized implementation recommendations</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts Tab -->
+        <div class="tab-pane fade {% if active_tab == 'alerts' %}show active{% endif %}" id="alerts" role="tabpanel">
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-bell me-2"></i>Budget Monitoring
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-4">
+                                Set up intelligent budget alerts to monitor your AKS spending and get notified
+                                before you exceed your monthly budget threshold.
+                            </p>
+
+                            <form id="budget-alert-form">
                                 <div class="row">
                                     <div class="col-md-4">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="cost-alerts" checked>
-                                            <label class="form-check-label" for="cost-alerts">
-                                                Cost Threshold Alerts
+                                        <div class="form-group">
+                                            <label for="budget-amount" class="form-label">
+                                                <i class="fas fa-dollar-sign me-1"></i>Monthly Budget
                                             </label>
+                                            <div class="input-group">
+                                                <span class="input-group-text">$</span>
+                                                <input type="number" class="form-control" id="budget-amount"
+                                                       required min="1" placeholder="5000">
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="col-md-4">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="performance-alerts">
-                                            <label class="form-check-label" for="performance-alerts">
-                                                Performance Alerts
+                                        <div class="form-group">
+                                            <label for="alert-email" class="form-label">
+                                                <i class="fas fa-at me-1"></i>Alert Email
                                             </label>
+                                            <input type="email" class="form-control" id="alert-email"
+                                                   required placeholder="admin@company.com">
                                         </div>
                                     </div>
                                     <div class="col-md-4">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" id="optimization-alerts">
-                                            <label class="form-check-label" for="optimization-alerts">
-                                                Optimization Opportunities
+                                        <div class="form-group">
+                                            <label for="alert-threshold" class="form-label">
+                                                <i class="fas fa-percentage me-1"></i>Threshold
                                             </label>
+                                            <select class="form-select" id="alert-threshold">
+                                                <option value="75">75% - Early Warning</option>
+                                                <option value="80" selected>80% - Recommended</option>
+                                                <option value="90">90% - Critical</option>
+                                                <option value="100">100% - Emergency</option>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                             <button type="submit" class="btn btn-primary enhanced-btn" id="alertsBtn">
-                                    <span class="btn-content">
-                                        <i class="fas fa-play me-2"></i>
-                                        <span class="btn-text">Setup Smart Alerts</span>
-                                    </span>
-                                </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-4">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-info-circle me-2"></i>Alert Guidelines
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="insight-box mb-3">
-                            <h6><i class="fas fa-lightbulb me-2"></i>Pro Tip</h6>
-                            <p class="mb-0">
-                                Set your alert threshold to 75% to get early warnings and have time
-                                to implement optimizations before budget overrun.
-                            </p>
-                        </div>
-
-                        <div class="saving-box">
-                            <h6>Current Status</h6>
-                            <div class="row text-center">
-                                <div class="col-12">
-                                    <div class="metric-value text-success" style="font-size: 1.3rem;">✓</div>
-                                    <div class="metric-label">Monitoring Active</div>
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-bell me-2"></i>Setup Alerts
+                                    </button>
                                 </div>
-                            </div>
+                            </form>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Existing Alerts -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fas fa-list me-2"></i>Active Alerts
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div id="existing-alerts">
-                            <div class="alert alert-light d-flex justify-content-between align-items-center">
-                                <div>
-                                    <strong>Cost Threshold Alert</strong><br>
-                                    <small class="text-muted">Trigger at $1,500/month • admin@company.com</small>
-                                </div>
-                                <div>
-                                    <span class="badge bg-success me-2">Active</span>
-                                    <button class="btn btn-sm btn-outline-danger">Remove</button>
-                                </div>
+                <div class="col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>Alert Guidelines
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="insight-box">
+                                <h6><i class="fas fa-lightbulb me-2"></i>Pro Tip</h6>
+                                <p class="mb-0">
+                                    Set your alert threshold to 75% to get early warnings and have time
+                                    to implement optimizations before budget overrun.
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -720,53 +650,67 @@
     </div>
 </div>
 
-<!-- Action Panel - Always Visible -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-lg-8">
-                        <h5 class="mb-1">Ready to optimize your {% if cluster %}{{ cluster.name }} cluster{% else %}AKS cluster{% endif %}?</h5>
-                        <p class="text-muted mb-0">
-                            Based on analysis, potential savings of <strong id="action-savings">$607.19/month</strong> identified.
-                        </p>
-                    </div>
-                    <div class="col-lg-4 text-lg-end">
-                        <div class="d-flex gap-2 justify-content-lg-end flex-wrap">
-                            <button class="btn btn-success" onclick="deployOptimizations()">
-                                <i class="fas fa-rocket me-2"></i>Deploy Now
-                            </button>
-                            <button class="btn btn-outline-primary" onclick="scheduleOptimization()">
-                                <i class="fas fa-calendar me-2"></i>Schedule
-                            </button>
-                        </div>
+<!-- Action Panel -->
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <h5 class="mb-1">Ready to optimize your {% if cluster %}{{ cluster.name }} cluster{% else %}AKS cluster{% endif %}?</h5>
+                    <p class="text-muted mb-0">
+                        <span id="action-description">Run analysis to discover potential cost savings and optimization opportunities.</span>
+                        <span id="savings-summary" class="d-none">Based on analysis, potential savings of <strong id="action-savings">$607.19/month</strong> identified.</span>
+                    </p>
+                </div>
+                <div class="col-lg-4 text-lg-end">
+                    <div class="d-flex gap-2 justify-content-lg-end">
+                        <button class="btn btn-success" id="deployBtn" onclick="deployOptimizations()" disabled>
+                            <i class="fas fa-rocket me-2"></i>Deploy
+                        </button>
+                        <button class="btn btn-outline-primary" id="scheduleBtn" onclick="scheduleOptimization()" disabled>
+                            <i class="fas fa-calendar me-2"></i>Schedule
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-<!-- <script>
-{% if cluster %}
-function compareWithOtherClusters() {
-    alert('Cross-cluster comparison coming soon! This will show how {{ cluster.name }} compares to your other clusters.');
-}
-
-function cloneClusterSettings() {
-    alert('Clone cluster settings coming soon! This will help you create similar clusters with the same configuration.');
-}
-
-function exportClusterReport() {
-    alert('Export cluster report coming soon! This will generate a comprehensive PDF report for {{ cluster.name }}.');
-}
-{% endif %}
-</script> -->
 
 {% endblock %}
 
 {% block scripts %}
-<!-- app's main JS -->
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-{% endblock %}
+<script>
+
+
+// Placeholder functions
+function compareWithOtherClusters() {
+    alert('Cross-cluster comparison feature coming soon!');
+}
+
+function cloneClusterSettings() {
+    alert('Clone cluster settings feature coming soon!');
+}
+
+function exportClusterReport() {
+    alert('Export report feature coming soon!');
+}
+
+function refreshCharts() {
+    alert('Chart refresh feature coming soon!');
+}
+
+function exportReport() {
+    alert('Export feature coming soon!');
+}
+
+function deployOptimizations() {
+    alert('Deploy optimizations feature coming soon!');
+}
+
+function scheduleOptimization() {
+    alert('Schedule optimization feature coming soon!');
+}
+</script>
+{% endblock %} 
