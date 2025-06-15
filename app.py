@@ -11,6 +11,8 @@ memory-based HPA implementation and generalizable metrics collection.
 
 import os
 import json
+import sqlite3
+from typing import Dict, List, Optional
 import pandas as pd
 import numpy as np
 import time
@@ -25,6 +27,51 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from datetime import datetime, timedelta, timezone
 from implementation_generator import AKSImplementationGenerator
 from pod_cost_analyzer import get_enhanced_pod_cost_breakdown
+from cluster_database import EnhancedClusterManager, migrate_from_json
+
+enhanced_cluster_manager = EnhancedClusterManager()
+analysis_status_tracker = {}
+
+def enhance_database_schema():
+        """Add analysis status tracking to database"""
+        try:
+            with sqlite3.connect(enhanced_cluster_manager.db_path) as conn:
+                # Add analysis status columns if they don't exist
+                conn.execute('''
+                    ALTER TABLE clusters ADD COLUMN analysis_status TEXT DEFAULT 'pending'
+                ''')
+                conn.execute('''
+                    ALTER TABLE clusters ADD COLUMN analysis_progress INTEGER DEFAULT 0
+                ''')
+                conn.execute('''
+                    ALTER TABLE clusters ADD COLUMN analysis_message TEXT DEFAULT ''
+                ''')
+                conn.execute('''
+                    ALTER TABLE clusters ADD COLUMN analysis_started_at TIMESTAMP NULL
+                ''')
+                conn.commit()
+                logger.info("✅ Enhanced database schema for analysis tracking")
+        except sqlite3.OperationalError:
+            # Columns already exist
+            pass
+        except Exception as e:
+            logger.error(f"❌ Database schema enhancement failed: {e}")
+
+#
+enhance_database_schema()
+
+def initialize_database():
+    """Initialize database and migrate from JSON if exists"""
+    try:
+        # Check if old clusters.json exists and migrate
+        if os.path.exists('clusters.json'):
+            logger.info("🔄 Migrating from JSON to SQLite database")
+            migrate_from_json('clusters.json', enhanced_cluster_manager)
+        
+        logger.info("✅ Database initialization completed")
+        
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}")
 
 # Configure logging
 logging.basicConfig(
@@ -44,6 +91,11 @@ implementation_generator = AKSImplementationGenerator()
 
 # Global variable to store analysis results
 analysis_results = {}
+
+# =============================
+# Multi cluster view
+# =============================
+
 
 # ============================================================================
 # UTILITY FUNCTIONS
@@ -1013,9 +1065,9 @@ def generate_namespace_data():
         logger.error(f"Error generating namespace data: {e}")
         return None
 
-# Replace your generate_workload_data_enhanced() function in app.py
+# workload data function
 
-def generate_workload_data_enhanced():
+def generate_workload_data():
     """Generate workload cost data with realistic distribution"""
     try:
         workload_costs = analysis_results.get('workload_costs')
@@ -1328,12 +1380,360 @@ def chart_data_consistent():
         }), 500
 
 # ============================================================================
+# CONFIGURATION AND STARTUP ENHANCEMENTS
+# ============================================================================
+
+def load_cluster_configurations():
+    """Load cluster configurations from file on startup"""
+    try:
+        if os.path.exists('clusters.json'):
+            with open('clusters.json', 'r') as f:
+                clusters_data = json.load(f)
+                for cluster_data in clusters_data:
+                    cluster_manager.add_cluster(cluster_data)
+            logger.info(f"Loaded {len(clusters_data)} cluster configurations")
+    except Exception as e:
+        logger.warning(f"Could not load cluster configurations: {e}")
+
+def save_cluster_configurations():
+    """Save cluster configurations to file"""
+    try:
+        clusters_data = list(cluster_manager.clusters.values())
+        with open('clusters.json', 'w') as f:
+            json.dump(clusters_data, f, indent=2)
+        logger.info(f"Saved {len(clusters_data)} cluster configurations")
+    except Exception as e:
+        logger.warning(f"Could not save cluster configurations: {e}")
+
+# Add to application startup
+# Replace the deprecated decorator with this approach
+first_request_done = False
+
+@app.before_request
+def initialize_multi_cluster():
+    """Initialize multi-cluster functionality"""
+    global first_request_done
+    if not first_request_done:
+        load_cluster_configurations()
+        logger.info("Multi-cluster functionality initialized")
+        first_request_done = True
+
+
+# ============================
+#
+# ============================
+
+
+def run_background_analysis(cluster_id: str, resource_group: str, cluster_name: str):
+    """Run analysis in background thread with progress tracking"""
+    try:
+        logger.info(f"🔄 Background analysis started for {cluster_id}")
+        
+        # Progress tracking function
+        def update_progress(progress: int, message: str):
+            update_cluster_analysis_status(cluster_id, 'analyzing', progress, message)
+            analysis_status_tracker[cluster_id] = {
+                'status': 'analyzing',
+                'progress': progress,
+                'message': message,
+                'timestamp': datetime.now().isoformat()
+            }
+        
+        # Simulate analysis steps with progress updates
+        update_progress(10, 'Connecting to Azure...')
+        time.sleep(2)
+        
+        update_progress(25, 'Fetching cost data...')
+        time.sleep(3)
+        
+        update_progress(45, 'Analyzing cluster metrics...')
+        time.sleep(2)
+        
+        update_progress(65, 'Calculating optimization opportunities...')
+        
+        # Run actual analysis
+        result = run_consistent_analysis(
+            resource_group, 
+            cluster_name, 
+            days=30, 
+            enable_pod_analysis=True
+        )
+        
+        update_progress(85, 'Generating insights...')
+        time.sleep(1)
+        
+        if result['status'] == 'success':
+            # Store results in database
+            enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_results)
+            
+            # Update status to completed
+            update_cluster_analysis_status(
+                cluster_id, 
+                'completed', 
+                100, 
+                f'Analysis completed! Found ${analysis_results.get("total_savings", 0):.0f}/month savings potential'
+            )
+            
+            analysis_status_tracker[cluster_id] = {
+                'status': 'completed',
+                'progress': 100,
+                'message': 'Analysis completed successfully',
+                'timestamp': datetime.now().isoformat(),
+                'results': {
+                    'total_cost': analysis_results.get('total_cost', 0),
+                    'total_savings': analysis_results.get('total_savings', 0),
+                    'confidence': analysis_results.get('analysis_confidence', 0)
+                }
+            }
+            
+            logger.info(f"✅ Background analysis completed for {cluster_id}")
+            
+        else:
+            error_message = result.get('message', 'Analysis failed')
+            update_cluster_analysis_status(cluster_id, 'failed', 0, error_message)
+            
+            analysis_status_tracker[cluster_id] = {
+                'status': 'failed',
+                'progress': 0,
+                'message': error_message,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            logger.error(f"❌ Background analysis failed for {cluster_id}: {error_message}")
+            
+    except Exception as e:
+        error_message = f'Analysis error: {str(e)}'
+        logger.error(f"❌ Background analysis exception for {cluster_id}: {e}")
+        
+        update_cluster_analysis_status(cluster_id, 'failed', 0, error_message)
+        analysis_status_tracker[cluster_id] = {
+            'status': 'failed',
+            'progress': 0,
+            'message': error_message,
+            'timestamp': datetime.now().isoformat()
+        }
+
+def update_cluster_analysis_status(cluster_id: str, status: str, progress: int, message: str):
+    """Update cluster analysis status in database"""
+    try:
+        with sqlite3.connect(enhanced_cluster_manager.db_path) as conn:
+            if status == 'analyzing':
+                # First time - set started timestamp
+                if progress <= 10:
+                    conn.execute('''
+                        UPDATE clusters 
+                        SET analysis_status = ?, analysis_progress = ?, analysis_message = ?, 
+                            analysis_started_at = ?
+                        WHERE id = ?
+                    ''', (status, progress, message, datetime.now().isoformat(), cluster_id))
+                else:
+                    # Update progress only
+                    conn.execute('''
+                        UPDATE clusters 
+                        SET analysis_status = ?, analysis_progress = ?, analysis_message = ?
+                        WHERE id = ?
+                    ''', (status, progress, message, cluster_id))
+            else:
+                # Completed or failed
+                conn.execute('''
+                    UPDATE clusters 
+                    SET analysis_status = ?, analysis_progress = ?, analysis_message = ?
+                    WHERE id = ?
+                ''', (status, progress, message, cluster_id))
+            
+            conn.commit()
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to update analysis status: {e}")
+
+@app.route('/api/clusters/<cluster_id>/analysis-status', methods=['GET'])
+def get_cluster_analysis_status(cluster_id: str):
+    """Get real-time analysis status for a cluster"""
+    try:
+        # Check in-memory tracker first (for active analyses)
+        if cluster_id in analysis_status_tracker:
+            return jsonify({
+                'status': 'success',
+                'cluster_id': cluster_id,
+                **analysis_status_tracker[cluster_id]
+            })
+        
+        # Check database for stored status
+        with sqlite3.connect(enhanced_cluster_manager.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute('''
+                SELECT analysis_status, analysis_progress, analysis_message, 
+                       last_cost, last_savings, last_analyzed
+                FROM clusters 
+                WHERE id = ?
+            ''', (cluster_id,))
+            
+            row = cursor.fetchone()
+            if row:
+                return jsonify({
+                    'status': 'success',
+                    'cluster_id': cluster_id,
+                    'status': row['analysis_status'] or 'pending',
+                    'progress': row['analysis_progress'] or 0,
+                    'message': row['analysis_message'] or 'Ready for analysis',
+                    'last_cost': row['last_cost'],
+                    'last_savings': row['last_savings'],
+                    'last_analyzed': row['last_analyzed']
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Cluster not found'
+                }), 404
+                
+    except Exception as e:
+        logger.error(f"❌ Error getting analysis status: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/analysis-status/batch', methods=['POST'])
+def get_batch_analysis_status():
+    """Get analysis status for multiple clusters"""
+    try:
+        request_data = request.get_json() or {}
+        cluster_ids = request_data.get('cluster_ids', [])
+        
+        if not cluster_ids:
+            return jsonify({
+                'status': 'error',
+                'message': 'No cluster IDs provided'
+            }), 400
+        
+        statuses = []
+        
+        for cluster_id in cluster_ids:
+            # Check in-memory tracker first
+            if cluster_id in analysis_status_tracker:
+                statuses.append({
+                    'cluster_id': cluster_id,
+                    **analysis_status_tracker[cluster_id]
+                })
+            else:
+                # Check database
+                with sqlite3.connect(enhanced_cluster_manager.db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.execute('''
+                        SELECT analysis_status, analysis_progress, analysis_message
+                        FROM clusters WHERE id = ?
+                    ''', (cluster_id,))
+                    
+                    row = cursor.fetchone()
+                    if row:
+                        statuses.append({
+                            'cluster_id': cluster_id,
+                            'status': row['analysis_status'] or 'pending',
+                            'progress': row['analysis_progress'] or 0,
+                            'message': row['analysis_message'] or 'Ready for analysis'
+                        })
+        
+        return jsonify({
+            'status': 'success',
+            'statuses': statuses
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting batch analysis status: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/clusters/overview', methods=['GET'])
+def get_clusters_overview():
+    """Get portfolio overview with analysis status counts"""
+    try:
+        with sqlite3.connect(enhanced_cluster_manager.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            
+            # Get overview counts
+            cursor = conn.execute('''
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN analysis_status = 'analyzing' THEN 1 ELSE 0 END) as analyzing,
+                    SUM(CASE WHEN analysis_status = 'completed' THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN analysis_status = 'failed' THEN 1 ELSE 0 END) as failed,
+                    SUM(CASE WHEN analysis_status = 'pending' OR analysis_status IS NULL THEN 1 ELSE 0 END) as pending
+                FROM clusters 
+                WHERE status = 'active'
+            ''')
+            
+            row = cursor.fetchone()
+            overview = dict(row) if row else {}
+            
+            return jsonify({
+                'status': 'success',
+                'overview': overview
+            })
+            
+    except Exception as e:
+        logger.error(f"❌ Error getting clusters overview: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+# Add graceful shutdown handler
+import atexit
+atexit.register(save_cluster_configurations)
+
+# ============================================================================
 # FLASK ROUTES
 # ============================================================================
 
 @app.route('/')
+@app.route('/clusters')
+def cluster_portfolio():
+    """Enhanced multi-cluster portfolio management page with SQLite backend"""
+    try:
+        logger.info("🏠 Loading enhanced cluster portfolio page")
+        
+        clusters = enhanced_cluster_manager.list_clusters()
+        portfolio_summary = enhanced_cluster_manager.get_portfolio_summary()
+        
+        # Add analysis status for each cluster
+        for cluster in clusters:
+            cluster['has_analysis'] = cluster.get('last_analyzed') is not None
+            cluster['analysis_age_days'] = 0
+            
+            if cluster.get('last_analyzed'):
+                try:
+                    last_analyzed = datetime.fromisoformat(cluster['last_analyzed'].replace('Z', '+00:00'))
+                    cluster['analysis_age_days'] = (datetime.now() - last_analyzed.replace(tzinfo=None)).days
+                except:
+                    cluster['analysis_age_days'] = 999
+        
+        logger.info(f"📊 Enhanced Portfolio: {len(clusters)} clusters, ${portfolio_summary.get('total_monthly_cost', 0):.2f} total cost")
+        
+        return render_template('cluster_portfolio.html', 
+                             clusters=clusters,
+                             portfolio_summary=portfolio_summary)
+                             
+    except Exception as e:
+        logger.error(f"❌ Error loading enhanced portfolio: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        
+        return render_template('cluster_portfolio.html', 
+                             clusters=[],
+                             portfolio_summary={
+                                'total_clusters': 0, 
+                                'total_monthly_cost': 0, 
+                                'total_potential_savings': 0, 
+                                'average_optimization_pct': 0, 
+                                'environments': [],
+                                'last_updated': datetime.now().isoformat()
+                             },
+                             error_message="Failed to load cluster portfolio")
+
+@app.route('/dashboard')
 def unified_dashboard():
-    """Render the unified dashboard"""
+    """Original unified dashboard - now for backward compatibility"""
     current_results = analysis_results if analysis_results.get('total_cost', 0) > 0 else {}
     has_analysis_data = bool(current_results.get('total_cost', 0) > 0)
     
@@ -1342,29 +1742,316 @@ def unified_dashboard():
         'has_analysis_data': has_analysis_data,
         'timestamp': datetime.now().strftime('%B %d, %Y %H:%M:%S'),
         'is_sample_data': current_results.get('is_sample_data', False),
-        'data_source': current_results.get('data_source', 'No analysis run yet')
+        'data_source': current_results.get('data_source', 'No analysis run yet'),
+        'cluster_context': None  # Indicates this is not cluster-specific
     }
     
     return render_template('unified_dashboard.html', **context)
 
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    """Main analyze route"""
-    resource_group = request.form.get('resource_group')
-    cluster_name = request.form.get('cluster_name')
-    days = int(request.form.get('days', 30))
-    enable_pod_analysis = request.form.get('enable_pod_analysis') == 'on'
-
-    if not resource_group or not cluster_name:
-        flash('Resource group and cluster name are required', 'error')
-        return redirect(url_for('unified_dashboard'))
-
+@app.route('/api/clusters', methods=['POST'])
+def api_add_cluster_with_auto_analysis():
+    """Enhanced API to add cluster with automatic analysis"""
     try:
+        logger.info("📥 Received enhanced cluster add request with auto-analysis")
+        
+        cluster_config = request.get_json()
+        if not cluster_config:
+            return jsonify({
+                'status': 'error',
+                'message': 'No data provided'
+            }), 400
+        
+        # Validate required fields
+        required_fields = ['cluster_name', 'resource_group']
+        missing_fields = [field for field in required_fields if not cluster_config.get(field)]
+        
+        if missing_fields:
+            return jsonify({
+                'status': 'error',
+                'message': f'Missing required fields: {", ".join(missing_fields)}'
+            }), 400
+        
+        # Add cluster to database
+        cluster_id = enhanced_cluster_manager.add_cluster(cluster_config)
+        
+        # Check if auto-analysis is requested (default: True)
+        auto_analyze = cluster_config.get('auto_analyze', True)
+        
+        if auto_analyze:
+            logger.info(f"🚀 Starting automatic analysis for cluster: {cluster_id}")
+            
+            # Update cluster status to 'analyzing'
+            update_cluster_analysis_status(cluster_id, 'analyzing', 0, 'Starting automatic analysis...')
+            
+            # Start analysis in background thread
+            analysis_thread = threading.Thread(
+                target=run_background_analysis,
+                args=(cluster_id, cluster_config['resource_group'], cluster_config['cluster_name']),
+                daemon=True
+            )
+            analysis_thread.start()
+            
+            return jsonify({
+                'status': 'success',
+                'message': f'Cluster added successfully! Analysis is starting automatically.',
+                'cluster_id': cluster_id,
+                'auto_analysis': True,
+                'analysis_status': 'analyzing'
+            })
+        else:
+            return jsonify({
+                'status': 'success',
+                'message': 'Cluster added successfully',
+                'cluster_id': cluster_id,
+                'auto_analysis': False
+            })
+        
+    except Exception as e:
+        logger.error(f"❌ Error adding cluster with auto-analysis: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to add cluster: {str(e)}'
+        }), 500
+
+
+@app.route('/api/clusters', methods=['GET'])
+def api_list_clusters():
+    """API to list all clusters with their analysis status"""
+    try:
+        clusters = enhanced_cluster_manager.list_clusters()
+        portfolio_summary = enhanced_cluster_manager.get_portfolio_summary()
+        
+        return jsonify({
+            'status': 'success',
+            'clusters': clusters,
+            'portfolio_summary': portfolio_summary,
+            'total_clusters': len(clusters)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error listing clusters: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/cluster/<cluster_id>')
+def single_cluster_dashboard(cluster_id: str):
+    """Enhanced single cluster dashboard with SQLite backend"""
+    try:
+        cluster = enhanced_cluster_manager.get_cluster(cluster_id)
+        
+        if not cluster:
+            flash(f'Cluster {cluster_id} not found', 'error')
+            return redirect(url_for('cluster_portfolio'))
+        
+        # Get latest analysis results from database
+        cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+        
+        # Set global analysis_results for backward compatibility
+        global analysis_results
+        if cached_analysis:
+            analysis_results = cached_analysis
+            logger.info(f"📊 Loaded cached analysis for {cluster_id}: ${cached_analysis.get('total_cost', 0):.2f}")
+        else:
+            analysis_results = {}
+            logger.info(f"ℹ️ No cached analysis found for {cluster_id}")
+        
+        # Get analysis history
+        analysis_history = enhanced_cluster_manager.get_analysis_history(cluster_id, limit=5)
+        
+        context = {
+            'cluster': cluster,
+            'results': cached_analysis or {},
+            'has_analysis_data': bool(cached_analysis and cached_analysis.get('total_cost', 0) > 0),
+            'cluster_context': cluster,
+            'analysis_history': analysis_history,
+            'timestamp': datetime.now().strftime('%B %d, %Y %H:%M:%S')
+        }
+        
+        return render_template('unified_dashboard.html', **context)
+        
+    except Exception as e:
+        logger.error(f"❌ Error loading cluster dashboard {cluster_id}: {e}")
+        flash(f'Error loading cluster dashboard: {str(e)}', 'error')
+        return redirect(url_for('cluster_portfolio'))
+
+@app.route('/cluster/<cluster_id>/analyze', methods=['GET', 'POST'])
+def cluster_analyze_endpoint(cluster_id: str):
+    """Enhanced cluster analysis endpoint with SQLite integration"""
+    try:
+        cluster = enhanced_cluster_manager.get_cluster(cluster_id)
+        
+        if not cluster:
+            if request.method == 'POST':
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Cluster {cluster_id} not found'
+                }), 404
+            else:
+                flash(f'Cluster {cluster_id} not found', 'error')
+                return redirect(url_for('cluster_portfolio'))
+        
+        if request.method == 'POST':
+            # Handle API analysis request
+            try:
+                request_data = request.get_json() or {}
+                days = request_data.get('days', 30)
+                enable_pod_analysis = request_data.get('enable_pod_analysis', True)
+                
+                logger.info(f"🔍 Starting enhanced analysis for cluster {cluster_id}")
+                
+                # Run analysis
+                result = run_consistent_analysis(
+                    cluster['resource_group'], 
+                    cluster['name'], 
+                    days, 
+                    enable_pod_analysis
+                )
+                
+                if result['status'] == 'success':
+                    # Store results in database
+                    enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_results)
+                    
+                    monthly_cost = analysis_results.get('total_cost', 0)
+                    monthly_savings = analysis_results.get('total_savings', 0)
+                    confidence = analysis_results.get('analysis_confidence', 0)
+                    
+                    logger.info(f"✅ Enhanced analysis completed for {cluster_id}: ${monthly_cost:.2f} cost, ${monthly_savings:.2f} savings")
+                    
+                    return jsonify({
+                        'status': 'success',
+                        'message': 'Analysis completed successfully',
+                        'results': {
+                            'total_cost': monthly_cost,
+                            'total_savings': monthly_savings,
+                            'confidence': confidence,
+                            'cluster_id': cluster_id
+                        }
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': result.get('message', 'Analysis failed')
+                    }), 500
+                    
+            except Exception as e:
+                logger.error(f"❌ Enhanced analysis failed for {cluster_id}: {e}")
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+        
+        else:
+            # Handle GET request - show analysis page
+            return render_template('unified_dashboard.html',
+                                 cluster=cluster,
+                                 active_tab='analysis',
+                                 pre_populate=True,
+                                 cluster_context=cluster)
+                                 
+    except Exception as e:
+        logger.error(f"❌ Error in cluster analyze endpoint: {e}")
+        if request.method == 'POST':
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+        else:
+            flash(f'Error: {str(e)}', 'error')
+            return redirect(url_for('cluster_portfolio'))
+
+@app.route('/cluster/<cluster_id>/remove', methods=['DELETE', 'POST'])
+def remove_cluster_route(cluster_id: str):
+    """Enhanced route to remove a cluster with SQLite backend"""
+    try:
+        cluster = enhanced_cluster_manager.get_cluster(cluster_id)
+        
+        if not cluster:
+            if request.method == 'DELETE':
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Cluster not found'
+                }), 404
+            else:
+                flash('Cluster not found', 'error')
+                return redirect(url_for('cluster_portfolio'))
+        
+        cluster_name = cluster['name']
+        
+        # Remove cluster and all analysis data
+        success = enhanced_cluster_manager.remove_cluster(cluster_id)
+        
+        if success:
+            logger.info(f"✅ Successfully removed cluster {cluster_id}")
+            
+            if request.method == 'DELETE':
+                return jsonify({
+                    'status': 'success',
+                    'message': f'Cluster {cluster_name} removed successfully'
+                })
+            else:
+                flash(f'Cluster {cluster_name} removed successfully', 'success')
+        else:
+            if request.method == 'DELETE':
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to remove cluster'
+                }), 500
+            else:
+                flash('Failed to remove cluster', 'error')
+        
+    except Exception as e:
+        logger.error(f"❌ Error removing cluster {cluster_id}: {e}")
+        if request.method == 'DELETE':
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+        else:
+            flash(f'Error removing cluster: {str(e)}', 'error')
+    
+    return redirect(url_for('cluster_portfolio'))
+
+@app.route('/analyze', methods=['POST'])
+def enhanced_analyze():
+    """Enhanced analyze route with multi-cluster SQLite support"""
+    try:
+        resource_group = request.form.get('resource_group')
+        cluster_name = request.form.get('cluster_name')
+        days = int(request.form.get('days', 30))
+        enable_pod_analysis = request.form.get('enable_pod_analysis') == 'on'
+        redirect_to_cluster = request.form.get('redirect_to_cluster', 'false') == 'true'
+
+        if not resource_group or not cluster_name:
+            flash('Resource group and cluster name are required', 'error')
+            return redirect(url_for('cluster_portfolio'))
+
+        # Check if this cluster is already managed
+        cluster_id = f"{resource_group}_{cluster_name}"
+        existing_cluster = enhanced_cluster_manager.get_cluster(cluster_id)
+        
+        if not existing_cluster:
+            # Auto-add cluster if not exists
+            cluster_config = {
+                'cluster_name': cluster_name,
+                'resource_group': resource_group,
+                'environment': 'unknown',
+                'region': 'Unknown',
+                'description': f'Auto-added from analysis request on {datetime.now().strftime("%Y-%m-%d %H:%M")}'
+            }
+            cluster_id = enhanced_cluster_manager.add_cluster(cluster_config)
+            logger.info(f"🆕 Auto-added cluster {cluster_id} for analysis")
+        
+        # Run analysis
         result = run_consistent_analysis(
             resource_group, cluster_name, days, enable_pod_analysis
         )
         
         if result['status'] == 'success':
+            # Update cluster with results
+            enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_results)
+            
             monthly_cost = analysis_results.get('total_cost', 0)
             monthly_savings = analysis_results.get('total_savings', 0)
             confidence = analysis_results.get('analysis_confidence', 0)
@@ -1376,16 +2063,23 @@ def analyze():
             )
             
             flash(success_msg, 'success')
+            
+            # Redirect logic
+            if redirect_to_cluster or existing_cluster:
+                return redirect(url_for('single_cluster_dashboard', cluster_id=cluster_id))
+            else:
+                return redirect(url_for('cluster_portfolio'))
         else:
             error_message = result.get('message', 'Unknown error')
             flash(f'❌ Analysis failed: {error_message}', 'error')
-
-        return redirect(url_for('unified_dashboard'))
+            return redirect(url_for('cluster_portfolio'))
 
     except Exception as e:
-        logger.error(f"❌ Analyze route failed: {e}")
+        logger.error(f"❌ Enhanced analyze route failed: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         flash(f'❌ Analysis failed: {str(e)}', 'error')
-        return redirect(url_for('unified_dashboard'))
+        return redirect(url_for('cluster_portfolio'))
+
 
 @app.route('/api/chart-data')
 def chart_data():
@@ -1440,14 +2134,128 @@ def debug_analysis():
     })
 
 # ============================================================================
+# DATABASE MAINTENANCE ROUTES
+# ============================================================================
+
+@app.route('/api/maintenance/cleanup', methods=['POST'])
+def api_cleanup_database():
+    """API endpoint to cleanup old analysis data"""
+    try:
+        days_to_keep = request.json.get('days_to_keep', 90) if request.is_json else 90
+        
+        enhanced_cluster_manager.cleanup_old_analyses(days_to_keep)
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Cleaned up analysis data older than {days_to_keep} days'
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Database cleanup failed: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/clusters/<cluster_id>/history')
+def api_cluster_analysis_history(cluster_id: str):
+    """API to get analysis history for a cluster"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        history = enhanced_cluster_manager.get_analysis_history(cluster_id, limit)
+        
+        return jsonify({
+            'status': 'success',
+            'cluster_id': cluster_id,
+            'history': history,
+            'total_analyses': len(history)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting analysis history: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+# ============================================================================
+# TEMPLATE HELPERS FOR MULTI-CLUSTER SUPPORT
+# ============================================================================
+
+@app.template_filter('environment_badge_class')
+def environment_badge_class(environment):
+    """Get CSS class for environment badge"""
+    env_classes = {
+        'production': 'bg-danger',
+        'staging': 'bg-warning',
+        'development': 'bg-info',
+        'testing': 'bg-secondary'
+    }
+    return env_classes.get(environment.lower(), 'bg-secondary')
+
+@app.template_filter('status_indicator_class')
+def status_indicator_class(cluster):
+    """Get CSS class for cluster status indicator"""
+    last_analyzed = cluster.get('last_analyzed')
+    savings = cluster.get('last_savings', 0)
+    
+    if not last_analyzed:
+        return 'error'
+    elif savings > 100:
+        return 'warning'
+    else:
+        return 'healthy'
+
+@app.template_filter('format_currency')
+def format_currency(amount):
+    """Format currency with appropriate precision"""
+    if amount >= 1000:
+        return f"${amount:,.0f}"
+    else:
+        return f"${amount:.2f}"
+
+@app.template_filter('time_ago')
+def time_ago(timestamp_str):
+    """Convert timestamp to human-readable time ago"""
+    if not timestamp_str:
+        return 'Never'
+    
+    try:
+        timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        diff = datetime.now() - timestamp.replace(tzinfo=None)
+        
+        if diff.days > 0:
+            return f"{diff.days} days ago"
+        elif diff.seconds > 3600:
+            hours = diff.seconds // 3600
+            return f"{hours} hours ago"
+        else:
+            minutes = diff.seconds // 60
+            return f"{minutes} minutes ago"
+    except:
+        return 'Unknown'
+
+# ============================================================================
 # APPLICATION STARTUP
 # ============================================================================
 
 if __name__ == "__main__":
-    # Start background data updates
-    bg_thread = add_auto_update_feature()
-    
-    # Run the application
-    logger.info("Starting AKS Cost Optimization Tool at http://127.0.0.1:5000/")
-    logger.info("Press Ctrl+C to exit")
-    app.run(debug=True, use_reloader=False)
+    try:
+        # Initialize database first
+        initialize_database()
+        
+        # Start background data updates
+        bg_thread = add_auto_update_feature()
+        
+        # Run the application
+        logger.info("🚀 Starting Enhanced AKS Cost Optimization")
+        logger.info("📊 Multi-cluster portfolio management enabled")
+        logger.info("🌐 Server running at http://127.0.0.1:5000/")
+        logger.info("💡 Press Ctrl+C to exit")
+        
+        app.run(debug=True, use_reloader=False)
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to start application: {e}")
+        raise

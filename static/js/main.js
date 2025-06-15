@@ -1,12 +1,243 @@
-// Global chart instances tracker
-let chartInstances = {};
+/**
+ * ============================================================================
+ * AKS COST INTELLIGENCE - MAIN DASHBOARD JAVASCRIPT
+ * ============================================================================
+ * Comprehensive cost optimization dashboard for Azure Kubernetes Service
+ * Author: AKS Cost Intelligence Team
+ * Version: 2.0.0
+ * ============================================================================
+ */
 
-// Form validation function
-function validateAnalysisForm() {
-    const resourceGroup = document.getElementById('resource_group').value.trim();
-    const clusterName = document.getElementById('cluster_name').value.trim();
+// ============================================================================
+// GLOBAL VARIABLES & CONFIGURATION
+// ============================================================================
+
+const AppConfig = {
+    API_BASE_URL: '/api',
+    CHART_REFRESH_INTERVAL: 30000, // 30 seconds
+    NOTIFICATION_DURATION: 5000,   // 5 seconds
+    MIN_VALIDATION_LENGTH: 3
+};
+
+const AppState = {
+    chartInstances: {},
+    analysisCompleted: false,
+    currentAnalysis: null,
+    alerts: [],
+    deployments: [],
+    notifications: []
+};
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Formats numeric values based on specified format type
+ */
+function formatValue(value, format) {
+    const num = parseFloat(value) || 0;
+    if (isNaN(num)) return '0';
     
-    // Clear any existing validation styles
+    switch(format) {
+        case 'currency':
+            return '$' + Math.round(num).toLocaleString();
+        case 'currency-monthly':
+            return '$' + Math.round(num).toLocaleString() + '/mo';
+        case 'percentage':
+            return num.toFixed(1) + '%';
+        case 'number':
+            return Math.round(num).toString();
+        default:
+            return Math.round(num).toLocaleString();
+    }
+}
+
+/**
+ * Gets chart color scheme based on current theme
+ */
+function getChartColors() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    return {
+        textColor: isDark ? '#f7fafc' : '#2d3748',
+        gridColor: isDark ? '#4a5568' : '#e2e8f0',
+        backgroundColor: isDark ? '#2d3748' : '#ffffff'
+    };
+}
+
+/**
+ * Calculates optimization score based on metrics
+ */
+function calculateOptimizationScore(metrics) {
+    const savingsPercentage = metrics.savings_percentage || 0;
+    const hpaReduction = metrics.hpa_reduction || 0;
+    const cpuGap = metrics.cpu_gap || 0;
+    const memoryGap = metrics.memory_gap || 0;
+    
+    const savingsScore = Math.min(100, savingsPercentage * 2);
+    const efficiencyScore = Math.min(100, hpaReduction * 1.5);
+    const utilizationScore = Math.max(0, 100 - (cpuGap + memoryGap) / 2);
+    
+    return Math.round(savingsScore * 0.4 + efficiencyScore * 0.3 + utilizationScore * 0.3);
+}
+
+/**
+ * Debounce function to limit API calls
+ */
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+/**
+ * Copy text to clipboard with fallback support
+ */
+function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification('Copied to clipboard!', 'success');
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            showNotification('Failed to copy to clipboard', 'error');
+        });
+    } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showNotification('Copied to clipboard!', 'success');
+        } catch (err) {
+            console.error('Failed to copy:', err);
+            showNotification('Failed to copy to clipboard', 'error');
+        }
+        document.body.removeChild(textArea);
+    }
+}
+
+// Export utility functions immediately
+window.copyToClipboard = copyToClipboard;
+
+// ============================================================================
+// NOTIFICATION SYSTEM
+// ============================================================================
+
+/**
+ * Enhanced notification manager for user feedback
+ */
+class NotificationManager {
+    constructor() {
+        this.container = this.createContainer();
+    }
+    
+    createContainer() {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'toast-container position-fixed top-0 end-0 p-3';
+            container.style.zIndex = '9999';
+            document.body.appendChild(container);
+        }
+        return container;
+    }
+    
+    show(message, type = 'info', duration = AppConfig.NOTIFICATION_DURATION) {
+        const toastElement = document.createElement('div');
+        toastElement.className = `toast align-items-center text-white bg-${this.getBootstrapColor(type)} border-0`;
+        toastElement.setAttribute('role', 'alert');
+        toastElement.setAttribute('aria-live', 'assertive');
+        toastElement.setAttribute('aria-atomic', 'true');
+        
+        toastElement.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="fas fa-${this.getIcon(type)} me-2"></i>
+                    ${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" 
+                        data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        `;
+        
+        this.container.appendChild(toastElement);
+        
+        if (window.bootstrap && bootstrap.Toast) {
+            const toast = new bootstrap.Toast(toastElement, {
+                autohide: duration > 0,
+                delay: duration
+            });
+            toast.show();
+            
+            toastElement.addEventListener('hidden.bs.toast', () => {
+                if (toastElement.parentNode) {
+                    toastElement.parentNode.removeChild(toastElement);
+                }
+            });
+        }
+    }
+    
+    getBootstrapColor(type) {
+        const colors = {
+            'success': 'success',
+            'error': 'danger',
+            'warning': 'warning',
+            'info': 'primary'
+        };
+        return colors[type] || 'primary';
+    }
+    
+    getIcon(type) {
+        const icons = {
+            'success': 'check-circle',
+            'error': 'exclamation-circle',
+            'warning': 'exclamation-triangle',
+            'info': 'info-circle'
+        };
+        return icons[type] || 'info-circle';
+    }
+}
+
+// Initialize notification manager
+const notificationManager = new NotificationManager();
+
+/**
+ * Global notification function for backward compatibility
+ */
+function showNotification(message, type = 'info', duration = AppConfig.NOTIFICATION_DURATION) {
+    notificationManager.show(message, type, duration);
+}
+
+// Alias for existing code compatibility
+const showToast = showNotification;
+
+// Export notification functions immediately
+window.showNotification = showNotification;
+window.showToast = showToast;
+
+// ============================================================================
+// FORM VALIDATION
+// ============================================================================
+
+/**
+ * Validates analysis form inputs
+ */
+function validateAnalysisForm() {
+    const resourceGroup = document.getElementById('resource_group')?.value.trim();
+    const clusterName = document.getElementById('cluster_name')?.value.trim();
+    
+    if (!resourceGroup || !clusterName) return false;
+    
+    // Clear previous validation styles
     document.querySelectorAll('.form-control').forEach(input => {
         input.classList.remove('is-invalid', 'is-valid');
     });
@@ -14,419 +245,550 @@ function validateAnalysisForm() {
     let isValid = true;
     
     // Validate Resource Group
-    if (!resourceGroup) {
-        document.getElementById('resource_group').classList.add('is-invalid');
-        // showToast('❌ Please enter a Resource Group name', 'error');
-        isValid = false;
-    } else if (resourceGroup.length < 3) {
-        document.getElementById('resource_group').classList.add('is-invalid');
-        showToast('❌ Resource Group name must be at least 3 characters', 'error');
-        isValid = false;
-    } else {
-        document.getElementById('resource_group').classList.add('is-valid');
+    const rgInput = document.getElementById('resource_group');
+    if (rgInput) {
+        if (resourceGroup.length < AppConfig.MIN_VALIDATION_LENGTH) {
+            rgInput.classList.add('is-invalid');
+            showNotification('Resource Group name must be at least 3 characters', 'error');
+            isValid = false;
+        } else {
+            rgInput.classList.add('is-valid');
+        }
     }
     
     // Validate Cluster Name
-    if (!clusterName) {
-        document.getElementById('cluster_name').classList.add('is-invalid');
-        // showToast('❌ Please enter an AKS Cluster name', 'error');
-        isValid = false;
-    } else if (clusterName.length < 3) {
-        document.getElementById('cluster_name').classList.add('is-invalid');
-        showToast('❌ Cluster name must be at least 3 characters', 'error');
-        isValid = false;
-    } else {
-        document.getElementById('cluster_name').classList.add('is-valid');
+    const cnInput = document.getElementById('cluster_name');
+    if (cnInput) {
+        if (clusterName.length < AppConfig.MIN_VALIDATION_LENGTH) {
+            cnInput.classList.add('is-invalid');
+            showNotification('Cluster name must be at least 3 characters', 'error');
+            isValid = false;
+        } else {
+            cnInput.classList.add('is-valid');
+        }
     }
     
     return isValid;
 }
 
-
-// ——— Consolidated DOMContentLoaded Handler ———
-
-
-// ——— Form Submission Flow ———
-// function handleAnalysisSubmit(e) {
-//   e.preventDefault();
-//   console.log('Form submitted');
-//   const btn = document.getElementById('analyzeBtn');
-//   const progress = document.getElementById('analysisProgress');
-//   const fill = document.getElementById('progressFill');
-//   const text = document.getElementById('progressText');
-//   btn.classList.add('loading'); btn.disabled = true;
-//   progress.classList.add('visible');
-
-//   const steps = [
-//     { pct:10, txt:'Connecting to Azure...' },
-//     { pct:25, txt:'Fetching cost data...' },
-//     { pct:45, txt:'Analyzing cluster metrics...' },
-//     { pct:65, txt:'Calculating optimization opportunities...' },
-//     { pct:85, txt:'Generating insights...' },
-//     { pct:95, txt:'Finalizing analysis...' }
-//   ];
-//   let idx = 0;
-//   (function advance() {
-//     if (idx < steps.length) {
-//       fill.style.width = steps[idx].pct + '%';
-//       text.textContent = steps[idx].txt;
-//       idx++;
-//       setTimeout(advance, 800);
-//     }
-//   })();
-
-//   fetch('/analyze', { method:'POST', body:new FormData(e.target) })
-//     .then(r => { if(!r.ok) throw new Error(r.statusText); return r.text(); })
-//     .then(() => {
-//       fill.style.width = '100%';
-//       text.textContent = 'Analysis completed successfully!';
-//       setTimeout(() => {
-//         showToast('🎉 Analysis completed! Found significant optimization opportunities.', 'success');
-//         setTimeout(() => { switchToTab('#dashboard'); resetForm(); initializeCharts(); }, 1500);
-//       }, 1000);
-//     })
-//     .catch(err => {
-//       console.error(err);
-//       showToast('❌ Analysis failed: ' + err.message, 'error');
-//       resetForm();
-//     });
-
-//   function resetForm() {
-//     btn.classList.remove('loading'); btn.disabled = false;
-//     progress.classList.remove('visible');
-//     fill.style.width = '0%'; text.textContent = 'Initializing analysis...';
-//     idx = 0;
-//   }
-// }
-
-// ——— Tab Switch Handler ———
-function onTabSwitch(e) {
-    const tgt = e.target.getAttribute('data-bs-target');
-    console.log('Tab switched to:', tgt);
+/**
+ * Sets up real-time input validation
+ */
+function setupInputValidation() {
+    const resourceGroupInput = document.getElementById('resource_group');
+    const clusterNameInput = document.getElementById('cluster_name');
     
-    // Hide all tab content first
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-        pane.classList.remove('show', 'active');
-    });
-    
-    // Show the target tab
-    const targetPane = document.querySelector(tgt);
-    if (targetPane) {
-        setTimeout(() => {
-            targetPane.classList.add('show', 'active');
-            
-            if (tgt === '#dashboard') {
-                initializeCharts();
-            } else if (tgt === '#implementation') {
-                // Always try to load implementation plan when tab is clicked
-                loadImplementationPlan();
-            } else if (tgt === '#alerts') {
-                console.log('Alerts tab activated');
+    if (resourceGroupInput) {
+        resourceGroupInput.addEventListener('input', function() {
+            if (this.value.trim().length >= AppConfig.MIN_VALIDATION_LENGTH) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-valid');
+                if (this.value.trim().length > 0) {
+                    this.classList.add('is-invalid');
+                }
             }
-        }, 100);
+        });
+    }
+    
+    if (clusterNameInput) {
+        clusterNameInput.addEventListener('input', function() {
+            if (this.value.trim().length >= AppConfig.MIN_VALIDATION_LENGTH) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-valid');
+                if (this.value.trim().length > 0) {
+                    this.classList.add('is-invalid');
+                }
+            }
+        });
     }
 }
 
-// Also update the loadImplementationPlan function to check for cached data
-function loadImplementationPlan() {
-    const container = document.getElementById('implementation-plan-container');
+// ============================================================================
+// CLUSTER MANAGEMENT
+// ============================================================================
+
+/**
+ * Handles add cluster form submission
+ */
+function handleAddClusterSubmission(event) {
+    event.preventDefault();
+    console.log('📝 Form submission started');
+    
+    const formData = new FormData(event.target);
+    const clusterData = {
+        cluster_name: formData.get('cluster_name'),
+        resource_group: formData.get('resource_group'),
+        environment: formData.get('environment') || 'development',
+        region: formData.get('region') || '',
+        description: formData.get('description') || ''
+    };
+    
+    console.log('📋 Cluster data:', clusterData);
+    
+    // Validate required fields
+    if (!clusterData.cluster_name || !clusterData.resource_group) {
+        showNotification('Cluster name and resource group are required', 'error');
+        return;
+    }
+    
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    if (!submitBtn) {
+        console.error('❌ Submit button not found');
+        return;
+    }
     
     // Show loading state
-    container.innerHTML = `
-        <div class="text-center py-5">
-            <div class="spinner-border text-primary mb-3" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="text-muted">Analyzing your cluster to generate personalized implementation recommendations...</p>
-        </div>
-    `;
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding...';
+    submitBtn.disabled = true;
+    
+    console.log('📤 Sending API request...');
+    
+    // Make API call
+    fetch(`${AppConfig.API_BASE_URL}/clusters`, {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(clusterData)
+    })
+    .then(response => {
+        console.log('📡 API response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('✅ API success:', data);
+        showNotification('Cluster added successfully!', 'success');
+        
+        // Close modal if exists
+        const modalElement = document.getElementById('addClusterModal');
+        if (modalElement && window.bootstrap) {
+            const modal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
+            modal.hide();
+        }
+        
+        // Reset form and reload
+        event.target.reset();
+        setTimeout(() => window.location.reload(), 1000);
+    })
+    .catch(error => {
+        console.error('❌ Error:', error);
+        showNotification('Error adding cluster: ' + error.message, 'error');
+    })
+    .finally(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
 
-    fetch('/api/implementation-plan')
+/**
+ * Selects a cluster and navigates to its detail page
+ */
+function selectCluster(clusterId) {
+    console.log('🎯 Selecting cluster:', clusterId);
+    window.location.href = `/cluster/${clusterId}`;
+}
+
+/**
+ * Analyzes a specific cluster
+ */
+function analyzeCluster(clusterId) {
+    if (event) event.stopPropagation();
+    console.log('🔍 Analyzing cluster:', clusterId);
+    
+    const button = event.target.closest('button');
+    if (button) {
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+        button.disabled = true;
+    }
+    
+    fetch(`/cluster/${clusterId}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 30, enable_pod_analysis: true })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('Analysis completed successfully!', 'success');
+            setTimeout(() => window.location.href = `/cluster/${clusterId}`, 1000);
+        } else {
+            throw new Error(data.message || 'Analysis failed');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Analysis error:', error);
+        showNotification('Analysis failed: ' + error.message, 'error');
+    })
+    .finally(() => {
+        if (button) {
+            button.innerHTML = '<i class="fas fa-play me-1"></i>Analyze Now';
+            button.disabled = false;
+        }
+    });
+}
+
+/**
+ * Removes a cluster after confirmation
+ */
+function removeCluster(clusterId) {
+    if (event) event.stopPropagation();
+    
+    if (!confirm('Are you sure you want to remove this cluster? This will delete all analysis data.')) {
+        return;
+    }
+    
+    console.log('🗑️ Removing cluster:', clusterId);
+    
+    fetch(`/cluster/${clusterId}/remove`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification('Cluster removed successfully!', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            throw new Error(data.message || 'Failed to remove cluster');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Remove error:', error);
+        showNotification('Failed to remove cluster: ' + error.message, 'error');
+    });
+}
+
+// Export cluster management functions immediately
+window.selectCluster = selectCluster;
+window.analyzeCluster = analyzeCluster;
+window.removeCluster = removeCluster;
+
+// ============================================================================
+// ANALYSIS MANAGEMENT
+// ============================================================================
+
+/**
+ * Handles analysis form submission with progress tracking
+ */
+function handleAnalysisSubmit(event) {
+    event.preventDefault();
+    
+    if (!validateAnalysisForm()) return;
+    
+    console.log('📊 Form submitted for analysis');
+    const btn = document.getElementById('analyzeBtn');
+    const progress = document.getElementById('analysisProgress');
+    const fill = document.getElementById('progressFill');
+    const text = document.getElementById('progressText');
+    
+    // Set loading state
+    if (btn) {
+        btn.classList.add('loading');
+        btn.disabled = true;
+    }
+    if (progress) progress.classList.add('visible');
+
+    // Progress steps
+    const progressSteps = [
+        { percentage: 10, text: 'Connecting to Azure...' },
+        { percentage: 25, text: 'Fetching cost data...' },
+        { percentage: 45, text: 'Analyzing cluster metrics...' },
+        { percentage: 65, text: 'Calculating optimization opportunities...' },
+        { percentage: 85, text: 'Generating insights...' },
+        { percentage: 95, text: 'Finalizing analysis...' }
+    ];
+    
+    let stepIndex = 0;
+    function advanceProgress() {
+        if (stepIndex < progressSteps.length && fill && text) {
+            const step = progressSteps[stepIndex];
+            fill.style.width = step.percentage + '%';
+            text.textContent = step.text;
+            stepIndex++;
+            setTimeout(advanceProgress, 800);
+        }
+    }
+    advanceProgress();
+
+    // Submit analysis
+    fetch('/analyze', { 
+        method: 'POST', 
+        body: new FormData(event.target) 
+    })
+    .then(response => {
+        if (!response.ok) throw new Error(response.statusText);
+        return response.text();
+    })
+    .then(() => {
+        if (fill) fill.style.width = '100%';
+        if (text) text.textContent = 'Analysis completed successfully!';
+        
+        AppState.analysisCompleted = true;
+        
+        setTimeout(() => {
+            showNotification('Analysis completed! Found significant optimization opportunities.', 'success');
+            setTimeout(() => {
+                switchToTab('#dashboard');
+                resetAnalysisForm();
+                initializeCharts();
+            }, 1500);
+        }, 1000);
+    })
+    .catch(error => {
+        console.error('❌ Analysis failed:', error);
+        showNotification('Analysis failed: ' + error.message, 'error');
+        resetAnalysisForm();
+    });
+
+    function resetAnalysisForm() {
+        if (btn) {
+            btn.classList.remove('loading');
+            btn.disabled = false;
+        }
+        if (progress) progress.classList.remove('visible');
+        if (fill) fill.style.width = '0%';
+        if (text) text.textContent = 'Initializing analysis...';
+        stepIndex = 0;
+    }
+}
+
+// ============================================================================
+// CHART MANAGEMENT
+// ============================================================================
+
+/**
+ * Initializes all dashboard charts
+ */
+function initializeCharts() {
+    console.log('📊 Initializing charts...');
+    
+    fetch(`${AppConfig.API_BASE_URL}/chart-data`)
         .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             return response.json();
         })
-        .then(planData => {
-            // Mark that we've successfully loaded data
-            if (planData && planData.phases && planData.phases.length > 0) {
-                analysisCompleted = true;
+        .then(data => {
+            console.log('📈 Chart data received:', data);
+            if (data.status !== 'success') {
+                throw new Error(data.message || 'Unexpected response');
             }
-            displayImplementationPlan(planData);
-            updateQuickStats(planData);
+            
+            // Update metrics if available
+            if (data.metrics) updateDashboardMetrics(data.metrics);
+            
+            // Create all charts
+            createAllCharts(data);
+            console.log('✅ Charts initialized successfully');
         })
         .catch(error => {
-            console.error('Implementation plan loading error:', error);
-            displayError(error.message);
+            console.error('❌ Chart init error:', error);
+            showChartError('Unable to load chart data: ' + error.message);
         });
 }
 
-// ——— Main Chart Init ———
-function initializeCharts() {
-  console.log('🚀 Initializing charts...');
-  fetch('/api/chart-data')
-    .then(r => {
-      if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
-      return r.json();
-    })
-    .then(data => {
-      console.log('📊 Chart data received:', data);
-      if (data.status !== 'success') {
-        throw new Error(data.message || 'Unexpected response');
-      }
-      // 1) Update metric cards & badges
-      if (data.metrics) updateDashboardMetrics(data.metrics);
-      // 2) Build all charts
-      createAllCharts(data);
-      console.log('✅ Charts initialized successfully');
-    })
-    .catch(err => {
-      console.error('❌ Chart init error:', err);
-      showChartError('Unable to load chart data: ' + err.message);
+// Export chart functions immediately
+window.initializeCharts = initializeCharts;
+
+/**
+ * Updates dashboard metrics with animation
+ */
+function updateDashboardMetrics(metrics) {
+    console.log('📊 Updating metrics:', metrics);
+    
+    const metricUpdates = [
+        { selectors: ['#current-cost'], value: metrics.total_cost, format: 'currency' },
+        { selectors: ['#potential-savings'], value: metrics.total_savings, format: 'currency' },
+        { selectors: ['#hpa-efficiency'], value: metrics.hpa_reduction, format: 'percentage' },
+        { selectors: ['#optimization-score'], value: calculateOptimizationScore(metrics), format: 'number' },
+        { selectors: ['#savings-percentage'], value: metrics.savings_percentage, format: 'percentage' },
+        { selectors: ['#annual-savings'], value: metrics.annual_savings, format: 'currency' }
+    ];
+    
+    metricUpdates.forEach((metric, index) => {
+        animateMetricUpdate(metric, index * 100);
+    });
+    
+    updateCostTrend(metrics);
+    updateDataSourceIndicator(metrics);
+}
+
+/**
+ * Animates metric value updates
+ */
+function animateMetricUpdate(metric, delay) {
+    let element = null;
+    
+    // Find the first matching element
+    for (const selector of metric.selectors) {
+        element = document.querySelector(selector);
+        if (element) break;
+    }
+    
+    if (!element) return;
+
+    setTimeout(() => {
+        element.style.transition = 'all 0.3s';
+        element.style.opacity = '0.5';
+        element.style.transform = 'scale(0.9)';
+        
+        setTimeout(() => {
+            const formattedValue = formatValue(metric.value, metric.format);
+            element.textContent = formattedValue;
+            element.style.opacity = '1';
+            element.style.transform = 'scale(1)';
+            
+            // Add update indicator
+            element.classList.add('metric-updated');
+            setTimeout(() => element.classList.remove('metric-updated'), 2000);
+        }, 300);
+    }, delay);
+}
+
+/**
+ * Updates cost trend indicator
+ */
+function updateCostTrend(metrics) {
+    document.querySelectorAll('#cost-trend').forEach(element => {
+        const percentage = metrics.savings_percentage || 0;
+        if (percentage > 20) {
+            element.innerHTML = '<i class="fas fa-arrow-down text-success"></i> High Savings Potential';
+        } else if (percentage > 10) {
+            element.innerHTML = '<i class="fas fa-arrow-down text-warning"></i> Moderate Savings';
+        } else {
+            element.innerHTML = '<i class="fas fa-minus text-info"></i> Limited Optimization';
+        }
     });
 }
 
-// ——— Dashboard Metrics Updater ———
-function updateDashboardMetrics(d) {
-  console.log('📊 Updating metrics:', d);
-  const updates = [
-    { sel:['#current-cost'],       val:d.total_cost,        fmt:'currency' },
-    { sel:['#potential-savings'],  val:d.total_savings,     fmt:'currency' },
-    { sel:['#hpa-efficiency'],     val:d.hpa_reduction,     fmt:'percentage' },
-    { sel:['#optimization-score'], val:calculateScore(d),   fmt:'number' },
-    { sel:['#savings-percentage'], val:d.savings_percentage,fmt:'percentage' },
-    { sel:['#annual-savings'],     val:d.annual_savings,    fmt:'currency' },
-    { sel:['#monthly-savings'],    val:d.total_savings,     fmt:'currency' },
-    { sel:['#action-savings'],     val:d.total_savings,     fmt:'currency-monthly' }
-  ];
-  updates.forEach((m,i) => animateMetric(m, i * 100));
-  updateCostTrend(d);
-  updateDataSourceIndicator(d);
-}
-
-function animateMetric(metric, delay) {
-  let el = null;
-  for (const s of metric.sel) {
-    el = document.querySelector(s);
-    if (el) break;
-  }
-  if (!el) return;
-
-  setTimeout(() => {
-    el.style.transition = 'all 0.3s'; el.style.opacity = '0.5'; el.style.transform = 'scale(0.9)';
-    setTimeout(() => {
-      const val = formatValue(metric.val, metric.fmt);
-      if (el.closest('.metric-card')) el.textContent = val;
-      else el.innerHTML = `<span class="metric-value-main">${val}</span><span class="metric-updated-indicator">●</span>`;
-      el.classList.add('metric-updated');
-      el.style.opacity='1'; el.style.transform='scale(1)';
-      setTimeout(() => { el.style.background='rgba(40,167,69,0.1)'; setTimeout(()=>{ el.style.background=''; el.classList.remove('metric-updated'); },1000); },300);
-    },300);
-  }, delay);
-}
-
-function formatValue(v, fmt) {
-    // SAFE number conversion
-    const n = parseFloat(v) || 0;
-    if (isNaN(n)) return '0';
+/**
+ * Updates data source indicator
+ */
+function updateDataSourceIndicator(metrics) {
+    const isRealData = !metrics.is_sample_data;
+    let indicator = document.querySelector('#data-source-indicator');
     
-    switch(fmt) {
-        case 'currency':         
-            return '$' + Math.round(n).toLocaleString();
-        case 'currency-monthly': 
-            return '$' + Math.round(n).toLocaleString() + '/mo';
-        case 'percentage':       
-            return n.toFixed(1) + '%';
-        case 'number':           
-            return Math.round(n).toString();
-        default:                 
-            return Math.round(n).toLocaleString();
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'data-source-indicator';
+        indicator.className = 'data-source-indicator';
+        (document.querySelector('#dashboard') || document.body).appendChild(indicator);
     }
+    
+    indicator.innerHTML = `
+        <div class="data-source-badge ${isRealData ? 'real-data' : 'sample-data'}">
+            <i class="fas fa-${isRealData ? 'cloud' : 'flask'}"></i>
+            <span>${isRealData ? 'Live Azure Data' : 'Demo Mode'}</span>
+            <small>${metrics.data_source || ''}</small>
+        </div>
+    `;
 }
 
-function calculateScore(d) {
-  const s_pct = d.savings_percentage||0, h = d.hpa_reduction||0, cpu = d.cpu_gap||0, mem=d.memory_gap||0;
-  const s_sc = Math.min(100, s_pct*2), e_sc = Math.min(100, h*1.5), u_sc = Math.max(0, 100 - (cpu+mem)/2);
-  return Math.round(s_sc*0.4 + e_sc*0.3 + u_sc*0.3);
-}
-
-// ——— Cost Trend Indicator ———
-function updateCostTrend(d) {
-  document.querySelectorAll('#cost-trend').forEach(el => {
-    const pct = d.savings_percentage||0;
-    if (pct > 20) el.innerHTML = '<i class="fas fa-arrow-down text-success"></i> High Savings Potential';
-    else if (pct > 10) el.innerHTML = '<i class="fas fa-arrow-down text-warning"></i> Moderate Savings';
-    else el.innerHTML = '<i class="fas fa-minus text-info"></i> Limited Optimization';
-  });
-}
-
-// ——— Data Source Badge ———
-function updateDataSourceIndicator(d) {
-  const isReal = !d.is_sample_data;
-  let ind = document.querySelector('#data-source-indicator');
-  if (!ind) {
-    ind = document.createElement('div');
-    ind.id = 'data-source-indicator';
-    ind.className = 'data-source-indicator';
-    (document.querySelector('#dashboard')||document.body).appendChild(ind);
-  }
-  ind.innerHTML = `
-    <div class="data-source-badge ${isReal?'real-data':'sample-data'}">
-      <i class="fas fa-${isReal?'cloud':'flask'}"></i>
-      <span>${isReal?'Live Azure Data':'Demo Mode'}</span>
-      <small>${d.data_source||''}</small>
-    </div>
-  `;
-}
-
-// ——— Unified Chart Builder ———
+/**
+ * Creates all charts from provided data
+ */
 function createAllCharts(data) {
     console.log('🎨 Creating all charts...');
-    console.log('📊 Received data keys:', Object.keys(data));
     
     try {
         destroyAllCharts();
+        
+        const metadata = data.metadata || {};
+        const isRealData = metadata.is_real_data === true || 
+                          metadata.force_real_data === true ||
+                          parseFloat(metadata.total_cost_verification?.replace(/[^0-9.]/g, '') || '0') > 100;
 
-        // detect real vs sample
-        const md = data.metadata || {};
-        const realFlag = md.is_real_data === true || md.force_real_data === true;
-        const costNum = parseFloat(md.total_cost_verification?.replace(/[^0-9.]/g, '') || '0');
-        const finalReal = realFlag || costNum > 100;
-
-        console.log('Data type:', finalReal ? 'Real' : 'Sample');
-
-        // 1. Cost Breakdown Chart
+        // Create individual charts
         if (data.costBreakdown?.values?.length) {
-            console.log('✅ Creating cost breakdown chart');
-            createCostBreakdownChart(data.costBreakdown, finalReal);
-        } else {
-            console.log('❌ Skipping cost breakdown chart - no data');
+            createCostBreakdownChart(data.costBreakdown, isRealData);
         }
         
-        // 2. HPA Comparison Chart
         if (data.hpaComparison) {
-            console.log('✅ Creating HPA comparison chart');
-            createHPAComparisonChart(data.hpaComparison, finalReal);
-        } else {
-            console.log('❌ Skipping HPA comparison chart - no data');
+            createHPAComparisonChart(data.hpaComparison, isRealData);
         }
         
-        // 3. Node Utilization Chart
         if (data.nodeUtilization) {
-            console.log('✅ Creating node utilization chart');
-            createNodeUtilizationChart(data.nodeUtilization, finalReal);
-        } else {
-            console.log('❌ Skipping node utilization chart - no data');
+            createNodeUtilizationChart(data.nodeUtilization, isRealData);
         }
         
-        // 4. Savings Breakdown Chart
         if (data.savingsBreakdown) {
-            console.log('✅ Creating savings breakdown chart');
-            createSavingsBreakdownChart(data.savingsBreakdown, finalReal);
-        } else {
-            console.log('❌ Skipping savings breakdown chart - no data');
+            createSavingsBreakdownChart(data.savingsBreakdown, isRealData);
         }
         
-        // 5. MAIN TREND CHART - Always create with fallback
-        console.log('🔍 Checking trend data:', !!data.trendData);
-        if (data.trendData && data.trendData.labels && data.trendData.datasets) {
-            console.log('✅ Creating main trend chart with real data');
-            createMainTrendChart(data.trendData, finalReal);
-        } else {
-            console.log('❌ Skipping main trend chart- no data');
+        if (data.trendData?.labels && data.trendData?.datasets) {
+            createMainTrendChart(data.trendData, isRealData);
         }
         
-        // 6. Pod Cost Analysis Charts
-        if (data.podCostBreakdown && data.podCostBreakdown.labels && data.podCostBreakdown.values) {
-            console.log('✅ Creating namespace cost chart');
+        if (data.podCostBreakdown?.labels?.length) {
             createNamespaceCostChart(data.podCostBreakdown);
-            
-            // Show pod cost section
             const podSection = document.getElementById('pod-cost-section');
-            if (podSection) {
-                podSection.style.display = 'block';
-            }
-        } else {
-            console.log('❌ Skipping namespace cost chart - no pod data');
+            if (podSection) podSection.style.display = 'block';
         }
         
-        // 7. WORKLOAD COST CHART - Enhanced with fallback
-        console.log('🔍 Checking workload data:', !!data.workloadCosts);
-        if (data.workloadCosts && data.workloadCosts.workloads && data.workloadCosts.workloads.length > 0) {
-            console.log('✅ Creating workload cost chart with real data');
+        if (data.workloadCosts?.workloads?.length > 0) {
             createWorkloadCostChart(data.workloadCosts);
-        } else if (data.podCostBreakdown && data.podCostBreakdown.labels) {
-            console.log('❌ Skipping workload cost chart - no data');
-        } else {
-            console.log('❌ Skipping workload cost chart - no data');
         }
         
-        // 8. Update insights
         if (data.insights) {
-            console.log('✅ Updating insights');
             updateInsights(data.insights);
         }
         
-        // 9. Update pod cost metrics
+        // Update pod cost metrics if available
         if (data.namespaceDistribution || data.workloadCosts || data.podCostBreakdown) {
-            console.log('✅ Updating pod cost metrics');
             updatePodCostMetrics(data);
         }
         
-        console.log('✅ All charts creation process completed');
+        console.log('✅ All charts creation completed');
         
-    } catch (err) {
-        console.error('❌ Error building charts:', err);
-        console.error('❌ Stack trace:', err.stack);
-        showChartError('Failed to render charts: ' + err.message);
+    } catch (error) {
+        console.error('❌ Error building charts:', error);
+        showChartError('Failed to render charts: ' + error.message);
     }
 }
 
+/**
+ * Destroys all existing chart instances
+ */
 function destroyAllCharts() {
-  const chartIds = [
+    const chartIds = [
         'mainTrendChart', 'costBreakdownChart', 'hpaComparisonChart', 
         'nodeUtilizationChart', 'savingsBreakdownChart', 'savingsProjectionChart',
         'namespaceCostChart', 'workloadCostChart'
     ];
-  chartIds.forEach(id => {
-    const canvas = document.getElementById(id);
-    if (canvas && chartInstances[id]) {
-      chartInstances[id].destroy();
-      delete chartInstances[id];
-      console.log(`Destroyed chart: ${id}`);
-    }
-  });
+    
+    chartIds.forEach(id => {
+        const canvas = document.getElementById(id);
+        if (canvas && AppState.chartInstances[id]) {
+            AppState.chartInstances[id].destroy();
+            delete AppState.chartInstances[id];
+        }
+    });
 }
 
-// ——— CHART FUNCTIONS ———
-
+/**
+ * Creates cost breakdown chart
+ */
 function createCostBreakdownChart(data, isRealData) {
-    console.log('📊 Creating cost breakdown chart with data:', data);
     const canvas = document.getElementById('costBreakdownChart');
-    if (!canvas) {
-        console.warn('Cost breakdown canvas not found');
-        return;
-    }
+    if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     const colors = getChartColors();
-
-    // Ensure we have valid data
-    const labels = data.labels || [];
-    const values = data.values || [];
     
-    console.log('Cost breakdown labels:', labels);
-    console.log('Cost breakdown values:', values);
-
-    // Filter out zero values and corresponding labels
-    const filteredData = labels.map((label, index) => ({
+    const filteredData = data.labels.map((label, index) => ({
         label: label,
-        value: values[index] || 0
+        value: data.values[index] || 0
     })).filter(item => item.value > 0);
 
     if (filteredData.length === 0) {
-        console.warn('No valid cost data to display');
         canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No cost data available</div>';
         return;
     }
@@ -437,10 +799,7 @@ function createCostBreakdownChart(data, isRealData) {
             labels: filteredData.map(item => item.label),
             datasets: [{
                 data: filteredData.map(item => item.value),
-                backgroundColor: [
-                    '#3498db', '#e74c3c', '#f39c12', '#2ecc71',
-                    '#9b59b6', '#1abc9c', '#95a5a6'
-                ],
+                backgroundColor: ['#3498db', '#e74c3c', '#f39c12', '#2ecc71', '#9b59b6', '#1abc9c', '#95a5a6'],
                 borderWidth: 2,
                 borderColor: colors.backgroundColor,
                 hoverOffset: 4
@@ -463,7 +822,6 @@ function createCostBreakdownChart(data, isRealData) {
                         label: function(context) {
                             const value = context.parsed;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            // FIXED: Proper number conversion and method call
                             const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                             return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
                         }
@@ -473,1637 +831,267 @@ function createCostBreakdownChart(data, isRealData) {
         }
     };
 
-    chartInstances['costBreakdownChart'] = new Chart(ctx, config);
-    console.log('✅ Cost breakdown chart created');
+    AppState.chartInstances['costBreakdownChart'] = new Chart(ctx, config);
 }
 
+/**
+ * Creates main trend chart
+ */
 function createMainTrendChart(data, isRealData) {
-  console.log('📈 Creating main trend chart');
-  const canvas = document.getElementById('mainTrendChart');
-  if (!canvas) {
-    console.warn('Main trend canvas not found');
-    return;
-  }
+    const canvas = document.getElementById('mainTrendChart');
+    if (!canvas) return;
 
-  const ctx = canvas.getContext('2d');
-  const colors = getChartColors();
+    const ctx = canvas.getContext('2d');
+    const colors = getChartColors();
 
-  const datasets = (data.datasets || []).map((dataset, index) => ({
-    label: dataset.name,
-    data: dataset.data,
-    borderColor: index === 0 ? '#e74c3c' : '#2ecc71',
-    backgroundColor: index === 0 ? 'rgba(231, 76, 60, 0.1)' : 'rgba(46, 204, 113, 0.1)',
-    borderWidth: 3,
-    fill: true,
-    tension: 0.4
-  }));
+    const datasets = (data.datasets || []).map((dataset, index) => ({
+        label: dataset.name,
+        data: dataset.data,
+        borderColor: index === 0 ? '#e74c3c' : '#2ecc71',
+        backgroundColor: index === 0 ? 'rgba(231, 76, 60, 0.1)' : 'rgba(46, 204, 113, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4
+    }));
 
-  const config = {
-    type: 'line',
-    data: {
-      labels: data.labels || [],
-      datasets: datasets
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          labels: { color: colors.textColor }
+    const config = {
+        type: 'line',
+        data: {
+            labels: data.labels || [],
+            datasets: datasets
         },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              return `${context.dataset.label}: $${context.parsed.y.toLocaleString()}`;
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: colors.textColor } },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: $${context.parsed.y.toLocaleString()}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: colors.textColor },
+                    grid: { color: colors.gridColor }
+                },
+                y: {
+                    ticks: {
+                        color: colors.textColor,
+                        callback: function(value) {
+                            return '$' + value.toLocaleString();
+                        }
+                    },
+                    grid: { color: colors.gridColor }
+                }
             }
-          }
         }
-      },
-      scales: {
-        x: {
-          ticks: { color: colors.textColor },
-          grid: { color: colors.gridColor }
-        },
-        y: {
-          ticks: {
-            color: colors.textColor,
-            callback: function(value) {
-              return '$' + value.toLocaleString();
-            }
-          },
-          grid: { color: colors.gridColor }
-        }
-      }
-    }
-  };
+    };
 
-  chartInstances['mainTrendChart'] = new Chart(ctx, config);
-  console.log('✅ Main trend chart created');
+    AppState.chartInstances['mainTrendChart'] = new Chart(ctx, config);
 }
 
+/**
+ * Creates HPA comparison chart
+ */
 function createHPAComparisonChart(data, isRealData) {
-  console.log('📊 Creating HPA comparison chart');
-  const canvas = document.getElementById('hpaComparisonChart');
-  if (!canvas) {
-    console.warn('HPA comparison canvas not found');
-    return;
-  }
+    const canvas = document.getElementById('hpaComparisonChart');
+    if (!canvas) return;
 
-  const ctx = canvas.getContext('2d');
-  const colors = getChartColors();
+    const ctx = canvas.getContext('2d');
+    const colors = getChartColors();
 
-  const config = {
-    type: 'bar',
-    data: {
-      labels: data.timePoints || [],
-      datasets: [
-        {
-          label: 'CPU-based HPA',
-          data: data.cpuReplicas || [],
-          backgroundColor: 'rgba(231, 76, 60, 0.7)',
-          borderColor: '#e74c3c',
-          borderWidth: 2
+    const config = {
+        type: 'bar',
+        data: {
+            labels: data.timePoints || [],
+            datasets: [
+                {
+                    label: 'CPU-based HPA',
+                    data: data.cpuReplicas || [],
+                    backgroundColor: 'rgba(231, 76, 60, 0.7)',
+                    borderColor: '#e74c3c',
+                    borderWidth: 2
+                },
+                {
+                    label: 'Memory-based HPA',
+                    data: data.memoryReplicas || [],
+                    backgroundColor: 'rgba(46, 204, 113, 0.7)',
+                    borderColor: '#2ecc71',
+                    borderWidth: 2
+                }
+            ]
         },
-        {
-          label: 'Memory-based HPA',
-          data: data.memoryReplicas || [],
-          backgroundColor: 'rgba(46, 204, 113, 0.7)',
-          borderColor: '#2ecc71',
-          borderWidth: 2
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: colors.textColor } }
+            },
+            scales: {
+                x: {
+                    ticks: { color: colors.textColor },
+                    grid: { color: colors.gridColor }
+                },
+                y: {
+                    ticks: { color: colors.textColor },
+                    grid: { color: colors.gridColor },
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Replica Count',
+                        color: colors.textColor
+                    }
+                }
+            }
         }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          labels: { color: colors.textColor }
-        }
-      },
-      scales: {
-        x: {
-          ticks: { color: colors.textColor },
-          grid: { color: colors.gridColor }
-        },
-        y: {
-          ticks: { color: colors.textColor },
-          grid: { color: colors.gridColor },
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: 'Replica Count',
-            color: colors.textColor
-          }
-        }
-      }
-    }
-  };
+    };
 
-  chartInstances['hpaComparisonChart'] = new Chart(ctx, config);
-  console.log('✅ HPA comparison chart created');
+    AppState.chartInstances['hpaComparisonChart'] = new Chart(ctx, config);
 }
 
+/**
+ * Creates node utilization chart
+ */
 function createNodeUtilizationChart(data, isRealData) {
-  console.log('🖥️ Creating node utilization chart');
-  const canvas = document.getElementById('nodeUtilizationChart');
-  if (!canvas) {
-    console.warn('Node utilization canvas not found');
-    return;
-  }
+    const canvas = document.getElementById('nodeUtilizationChart');
+    if (!canvas) return;
 
-  const ctx = canvas.getContext('2d');
-  const colors = getChartColors();
+    const ctx = canvas.getContext('2d');
+    const colors = getChartColors();
 
-  const config = {
-    type: 'bar',
-    data: {
-      labels: data.nodes || [],
-      datasets: [
-        {
-          label: 'CPU Request',
-          data: data.cpuRequest || [],
-          backgroundColor: 'rgba(52, 152, 219, 0.3)',
-          borderColor: '#3498db',
-          borderWidth: 2
+    const config = {
+        type: 'bar',
+        data: {
+            labels: data.nodes || [],
+            datasets: [
+                {
+                    label: 'CPU Request',
+                    data: data.cpuRequest || [],
+                    backgroundColor: 'rgba(52, 152, 219, 0.3)',
+                    borderColor: '#3498db',
+                    borderWidth: 2
+                },
+                {
+                    label: 'CPU Actual',
+                    data: data.cpuActual || [],
+                    backgroundColor: 'rgba(231, 76, 60, 0.7)',
+                    borderColor: '#e74c3c',
+                    borderWidth: 2
+                },
+                {
+                    label: 'Memory Request',
+                    data: data.memoryRequest || [],
+                    backgroundColor: 'rgba(155, 89, 182, 0.3)',
+                    borderColor: '#9b59b6',
+                    borderWidth: 2
+                },
+                {
+                    label: 'Memory Actual',
+                    data: data.memoryActual || [],
+                    backgroundColor: 'rgba(46, 204, 113, 0.7)',
+                    borderColor: '#2ecc71',
+                    borderWidth: 2
+                }
+            ]
         },
-        {
-          label: 'CPU Actual',
-          data: data.cpuActual || [],
-          backgroundColor: 'rgba(231, 76, 60, 0.7)',
-          borderColor: '#e74c3c',
-          borderWidth: 2
-        },
-        {
-          label: 'Memory Request',
-          data: data.memoryRequest || [],
-          backgroundColor: 'rgba(155, 89, 182, 0.3)',
-          borderColor: '#9b59b6',
-          borderWidth: 2
-        },
-        {
-          label: 'Memory Actual',
-          data: data.memoryActual || [],
-          backgroundColor: 'rgba(46, 204, 113, 0.7)',
-          borderColor: '#2ecc71',
-          borderWidth: 2
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          labels: { color: colors.textColor }
-        }
-      },
-      scales: {
-        x: {
-          ticks: { color: colors.textColor },
-          grid: { color: colors.gridColor }
-        },
-        y: {
-          ticks: {
-            color: colors.textColor,
-            callback: function(value) {
-              return value + '%';
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: colors.textColor } }
+            },
+            scales: {
+                x: {
+                    ticks: { color: colors.textColor },
+                    grid: { color: colors.gridColor }
+                },
+                y: {
+                    ticks: {
+                        color: colors.textColor,
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    grid: { color: colors.gridColor },
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'Utilization %',
+                        color: colors.textColor
+                    }
+                }
             }
-          },
-          grid: { color: colors.gridColor },
-          max: 100,
-          title: {
-            display: true,
-            text: 'Utilization %',
-            color: colors.textColor
-          }
         }
-      }
-    }
-  };
+    };
 
-  chartInstances['nodeUtilizationChart'] = new Chart(ctx, config);
-  console.log('✅ Node utilization chart created');
+    AppState.chartInstances['nodeUtilizationChart'] = new Chart(ctx, config);
 }
 
+/**
+ * Creates savings breakdown chart
+ */
 function createSavingsBreakdownChart(data, isRealData) {
-  console.log('💰 Creating savings breakdown chart');
-  const canvas = document.getElementById('savingsBreakdownChart');
-  if (!canvas) {
-    console.warn('Savings breakdown canvas not found');
-    return;
-  }
+    const canvas = document.getElementById('savingsBreakdownChart');
+    if (!canvas) return;
 
-  const ctx = canvas.getContext('2d');
-  const colors = getChartColors();
+    const ctx = canvas.getContext('2d');
+    const colors = getChartColors();
 
-  const config = {
-    type: 'pie',
-    data: {
-      labels: data.categories || [],
-      datasets: [{
-        data: data.values || [],
-        backgroundColor: ['#3498db', '#e74c3c', '#2ecc71'],
-        borderWidth: 2,
-        borderColor: colors.backgroundColor
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'bottom',
-          labels: {
-            color: colors.textColor,
-            padding: 10,
-            usePointStyle: true
-          }
+    const config = {
+        type: 'pie',
+        data: {
+            labels: data.categories || [],
+            datasets: [{
+                data: data.values || [],
+                backgroundColor: ['#3498db', '#e74c3c', '#2ecc71'],
+                borderWidth: 2,
+                borderColor: colors.backgroundColor
+            }]
         },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              return `${context.label}: $${context.parsed.toLocaleString()}`;
-            }
-          }
-        }
-      }
-    }
-  };
-
-  chartInstances['savingsBreakdownChart'] = new Chart(ctx, config);
-  console.log('✅ Savings breakdown chart created');
-}
-
-// ——— Insights Updater ———
-function updateInsights(ins) {
-  console.log('💡 Updating insights');
-  const out = [];
-  for (const [k,v] of Object.entries(ins)) {
-    const title = k.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
-    out.push(`<div class="insight-item mb-3"><h6>${title}</h6><p>${v}</p></div>`);
-  }
-  const container = document.querySelector('#insights-container');
-  if (container) {
-    container.innerHTML = out.join('');
-  }
-}
-
-// ——— Error & Toast Utilities ———
-function showChartError(msg) {
-  console.error('Chart error:', msg);
-  ['costBreakdownChart','hpaComparisonChart','nodeUtilizationChart','savingsBreakdownChart','savingsProjectionChart']
-    .forEach(id => {
-      const c = document.getElementById(id);
-      if (!c) return;
-      c.parentElement.innerHTML = `
-        <div class="text-center text-muted p-4">
-          <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
-          <p>${msg}</p>
-          <button class="btn btn-outline-primary btn-sm" onclick="initializeCharts()">
-            <i class="fas fa-redo me-1"></i>Retry
-          </button>
-        </div>
-      `;
-    });
-}
-
-// function showToast(msg, type) {
-//   const t = document.createElement('div');
-//   t.className = `toast toast-${type}`;
-//   t.innerHTML = `<div class="toast-content">${msg}</div>`;
-//   t.style.cssText = `
-//     position: ; top: 20px; right: 20px; z-index: 10000;
-//     padding: 15px 25px; border-radius: 10px; color: white;
-//     font-weight: 600; max-width: 400px; animation: slideIn 0.3s ease;
-//     background: ${type === 'success' ? 'linear-gradient(135deg, #11998e, #38ef7d)' : 'linear-gradient(135deg, #ff416c, #ff4757)'};
-//   `;
-//   document.body.appendChild(t);
-//   setTimeout(()=>t.remove(),5000);
-// }
-
-// ——— Utility Functions ———
-function switchToTab(sel) {
-  const btn = document.querySelector(`[data-bs-target="${sel}"]`);
-  if (btn) btn.click();
-}
-
-function getChartColors() {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  return {
-    textColor: isDark ? '#f7fafc' : '#2d3748',
-    gridColor: isDark ? '#4a5568' : '#e2e8f0',
-    backgroundColor: isDark ? '#2d3748' : '#ffffff'
-  };
-}
-
-// ——— Action Functions ———
-function refreshCharts() {
-  showToast('Refreshing charts...', 'success');
-  initializeCharts();
-}
-
-function exportReport() {
-  showToast('Export feature coming soon!', 'success');
-}
-
-function deployOptimizations() {
-  showToast('Deploy feature coming soon!', 'success');
-}
-
-function scheduleOptimization() {
-  showToast('Schedule feature coming soon!', 'success');
-}
-
-// Implementation Plan
-// function loadImplementationPlan() {
-//   console.log('🚀 Loading dynamic implementation plan...');
-//   const container = document.getElementById('recommendations-container');
-//   if (!container) {
-//     console.error('❌ recommendations-container not found!');
-//     return;
-//   }
-
-//   // Show loading state
-//   container.innerHTML = `
-//     <div class="text-center mt-4 mb-4">
-//       <div class="spinner-border text-primary" role="status">
-//         <span class="visually-hidden">Loading...</span>
-//       </div>
-//       <p class="mt-3">Analyzing your cluster to generate personalized implementation recommendations...</p>
-//     </div>
-//   `;
-
-//   // Fetch dynamic implementation plan from your existing API
-//   fetch('/api/implementation-plan')
-//     .then(response => {
-//       console.log('📡 API Response status:', response.status);
-//       if (!response.ok) {
-//         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-//       }
-//       return response.json();
-//     })
-//     .then(data => {
-//       console.log('📋 Implementation plan received:', data);
-
-//       // Handle different response statuses from your API
-//       if (data.status === 'no_analysis') {
-//         console.log('⚠️ No analysis available');
-//         showNoAnalysisMessage(container);
-//         return;
-//       }
-
-//       if (data.status === 'error') {
-//         console.log('❌ Implementation plan error:', data.summary?.message);
-//         showImplementationError(container, data.summary?.message || 'Unknown error occurred');
-//         return;
-//       }
-
-//       // Update the summary with real data from your API structure
-//       console.log('📊 Updating summary with:', data.summary);
-//       updateImplementationSummary(data.summary);
-
-//       // Render the dynamic phases using your API structure
-//       console.log('🏗️ Rendering phases:', data.phases);
-//       renderImplementationPhases(container, data);
-
-//       // Update monitoring plan if available
-//       if (data.monitoring_plan) {
-//         console.log('📈 Updating monitoring plan');
-//         updateMonitoringPlan(data.monitoring_plan);
-//       }
-
-//       console.log('✅ Implementation plan rendered successfully');
-//     })
-//     .catch(error => {
-//       console.error('❌ Error loading implementation plan:', error);
-//       showImplementationError(container, error.message);
-//     });
-// }
-
-// Enhanced Implementation Plan JavaScript Functions
-// This replaces your existing loadImplementationPlan and displayImplementationPlan functions
-
-
-// start
-// function loadImplementationPlan() {
-//     const container = document.getElementById('implementation-plan-container');
-    
-//     // Show loading state
-//     container.innerHTML = `
-//         <div class="text-center py-5">
-//             <div class="spinner-border text-primary mb-3" role="status">
-//                 <span class="visually-hidden">Loading...</span>
-//             </div>
-//             <p class="text-muted">Analyzing your cluster to generate personalized implementation recommendations...</p>
-//         </div>
-//     `;
-
-//     fetch('/api/implementation-plan')
-//         .then(response => {
-//             if (!response.ok) {
-//                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-//             }
-//             return response.json();
-//         })
-//         .then(planData => {
-//             displayImplementationPlan(planData);
-//             updateQuickStats(planData);
-//         })
-//         .catch(error => {
-//             console.error('Implementation plan loading error:', error);
-//             displayError(error.message);
-//         });
-// }
-
-function displayError(message) {
-    const container = document.getElementById('implementation-plan-container');
-    container.innerHTML = `
-        <div class="alert alert-danger" role="alert">
-            <h4 class="alert-heading">
-                <i class="fas fa-exclamation-triangle"></i> Error Loading Implementation Plan
-            </h4>
-            <p class="mb-3">${message}</p>
-            <hr>
-            <div class="d-flex gap-2">
-                <button class="btn btn-outline-danger btn-sm" onclick="loadImplementationPlan()">
-                    <i class="fas fa-redo"></i> Retry
-                </button>
-                <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
-                    <i class="fas fa-refresh"></i> Refresh Page
-                </button>
-            </div>
-        </div>
-    `;
-}
-
-function displayImplementationPlan(planData) {
-    const container = document.getElementById('implementation-plan-container');
-    
-    if (!planData || !planData.phases || planData.phases.length === 0) {
-        container.innerHTML = `
-            <div class="text-center py-5">
-                <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
-                <h4 class="text-muted">No Implementation Plan Available</h4>
-                <p class="text-muted">Run an analysis first to generate your implementation plan</p>
-                <button class="btn btn-primary" onclick="window.location.href='#analysis'">
-                    <i class="fas fa-chart-bar"></i> Run Analysis
-                </button>
-            </div>
-        `;
-        return;
-    }
-
-    const summary = planData.summary || {};
-    
-    // In displayImplementationPlan function, update the summary section
-    let html = `
-        <div class="card border-0 shadow-lg mb-4" style="background: var(--fresh-gradient);">
-            <div class="card-body text-white">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <h3 class="card-title mb-3">
-                            <i class="fas fa-rocket me-2"></i>Implementation Plan Summary
-                        </h3>
-                        <div class="mb-3">
-                            <strong>Cluster:</strong> ${summary.cluster_name || 'N/A'} 
-                            <span class="mx-2">•</span>
-                            <strong>Resource Group:</strong> ${summary.resource_group || 'N/A'}
-                        </div>
-                        <p class="mb-0 opacity-90">
-                            This ${summary.total_weeks || 0}-week implementation plan will optimize your AKS cluster 
-                            through ${summary.total_phases || 0} carefully planned phases.
-                        </p>
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <div class="badge fs-6 px-3 py-2" style="background: rgba(255,255,255,0.2);">
-                            <i class="fas fa-shield-alt me-1"></i>
-                            ${summary.risk_level || 'Unknown'} Risk
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="row g-3 mt-3">
-                    <div class="col-6 col-md-3">
-                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
-                            <div class="h4 mb-1 text-white">$${(summary.monthly_savings || 0).toFixed(2)}</div>
-                            <small class="opacity-90">Monthly Savings</small>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
-                            <div class="h4 mb-1 text-white">$${(summary.annual_savings || 0).toFixed(2)}</div>
-                            <small class="opacity-90">Annual Savings</small>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
-                            <div class="h4 mb-1 text-white">${summary.total_weeks || 0}</div>
-                            <small class="opacity-90">Total Weeks</small>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
-                            <div class="h4 mb-1 text-white">${(summary.complexity_score || 0).toFixed(1)}/10</div>
-                            <small class="opacity-90">Complexity</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Render each phase
-    planData.phases.forEach((phase, idx) => {
-        html += renderPhaseCard(phase, idx + 1);
-    });
-
-    // Add additional sections
-    if (planData.monitoring_plan) {
-        html += renderMonitoringSection(planData.monitoring_plan);
-    }
-
-    if (planData.governance_plan) {
-        html += renderGovernanceSection(planData.governance_plan);
-    }
-
-    if (planData.success_metrics) {
-        html += renderSuccessMetricsSection(planData.success_metrics);
-    }
-
-    if (planData.contingency_plans) {
-        html += renderContingencySection(planData.contingency_plans);
-    }
-
-    container.innerHTML = html;
-}
-
-// function renderPhaseCard(phase, phaseNumber) {
-//     const riskColor = getRiskColor(phase.risk);
-//     const phaseColors = [
-//         'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-//         'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-//         'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-//         'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-//         'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)'
-//     ];
-    
-//     return `
-//         <div class="card border-0 shadow-sm mb-4">
-//             <div class="card-header border-0 text-white position-relative" 
-//                  style="background: ${phaseColors[(phaseNumber - 1) % phaseColors.length]};">
-//                 <div class="position-absolute top-0 end-0 translate-middle">
-//                     <div class="badge bg-white text-primary fs-5 rounded-circle p-2" 
-//                          style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-//                         ${phaseNumber}
-//                     </div>
-//                 </div>
-//                 <h5 class="card-title mb-3">${phase.title || `Phase ${phaseNumber}`}</h5>
-//                 <div class="d-flex flex-wrap gap-2">
-//                     <span class="badge bg-white bg-opacity-25">
-//                         <i class="fas fa-clock me-1"></i>${phase.weeks || (phase.duration ? phase.duration + ' weeks' : 'TBD')}
-//                     </span>
-//                     <span class="badge bg-white bg-opacity-25">
-//                         <i class="fas fa-shield-alt me-1"></i>${phase.risk || 'Unknown'} Risk
-//                     </span>
-//                     <span class="badge bg-success">
-//                         <i class="fas fa-dollar-sign me-1"></i>${(phase.savings || 0).to(2)}/month
-//                     </span>
-//                 </div>
-//             </div>
-            
-//             <div class="card-body">
-//                 ${phase.description ? `
-//                     <div class="alert alert-light border-start border-4 border-info mb-4">
-//                         <i class="fas fa-info-circle me-2 text-info"></i>
-//                         ${phase.description}
-//                     </div>
-//                 ` : ''}
-                
-//                 ${renderTasksSection(phase.tasks)}
-                
-//                 <div class="row mt-4">
-//                     ${phase.validation ? `
-//                         <div class="col-md-6">
-//                             ${renderValidationSection(phase.validation)}
-//                         </div>
-//                     ` : ''}
-//                     ${phase.rollback_plan ? `
-//                         <div class="col-md-6">
-//                             ${renderRollbackSection(phase.rollback_plan)}
-//                         </div>
-//                     ` : ''}
-//                 </div>
-//             </div>
-//         </div>
-//     `;
-// }
-
-function renderTasksSection(tasks) {
-    if (!tasks || tasks.length === 0) return '';
-    
-    let html = `
-        <h6 class="mb-3"><i class="fas fa-list-check me-2"></i>Implementation Tasks</h6>
-        <div class="accordion" id="tasks-accordion-${Date.now()}">
-    `;
-    
-    tasks.forEach((task, idx) => {
-        const accordionId = `task-${Date.now()}-${idx}`;
-        
-        if (typeof task === 'string') {
-            html += `
-                <div class="accordion-item border">
-                    <h2 class="accordion-header">
-                        <button class="accordion-button collapsed" type="button" 
-                                data-bs-toggle="collapse" data-bs-target="#${accordionId}">
-                            <i class="fas fa-cog me-2"></i>Task ${idx + 1}
-                        </button>
-                    </h2>
-                    <div id="${accordionId}" class="accordion-collapse collapse">
-                        <div class="accordion-body">
-                            <p class="mb-0">${task}</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-        } else if (typeof task === 'object') {
-            html += `
-                <div class="accordion-item border">
-                    <h2 class="accordion-header">
-                        <button class="accordion-button collapsed" type="button" 
-                                data-bs-toggle="collapse" data-bs-target="#${accordionId}">
-                            <i class="fas fa-cog me-2"></i>${task.task || `Task ${idx + 1}`}
-                        </button>
-                    </h2>
-                    <div id="${accordionId}" class="accordion-collapse collapse">
-                        <div class="accordion-body">
-                            ${task.description ? `<p class="text-muted mb-3">${task.description}</p>` : ''}
-                            
-                            ${task.command ? `
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Command:</label>
-                                    <div class="bg-dark text-light p-3 rounded font-monospace">
-                                        <code>${task.command}</code>
-                                        <button class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-2" 
-                                                onclick="copyToClipboard('${task.command.replace(/'/g, "\\'")}')">
-                                            <i class="fas fa-copy"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            ` : ''}
-                            
-                            ${task.template ? `
-                                <div class="mb-3">
-                                    <label class="form-label fw-bold">Template:</label>
-                                    <div class="bg-light p-3 rounded">
-                                        <pre class="mb-0 font-monospace small">${escapeHtml(task.template)}</pre>
-                                        <button class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-2" 
-                                                onclick="copyToClipboard(\`${task.template.replace(/`/g, '\\`')}\`)">
-                                            <i class="fas fa-copy"></i> Copy
-                                        </button>
-                                    </div>
-                                </div>
-                            ` : ''}
-                            
-                            ${task.expected_outcome ? `
-                                <div class="alert">
-                                    <i class="fas fa-bullseye me-2"></i>
-                                    <strong>Expected Outcome:</strong> ${task.expected_outcome}
-                                </div>
-                            ` : ''}
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-    });
-    
-    html += `</div>`;
-    return html;
-}
-
-function renderValidationSection(validation) {
-    if (!validation || validation.length === 0) return '';
-    
-    return `
-        <div class="card border-success">
-            <div class="card-header bg-success bg-opacity-10 border-success">
-                <h6 class="mb-0 text-success">
-                    <i class="fas fa-check-circle me-2"></i>Validation Steps
-                </h6>
-            </div>
-            <div class="card-body">
-                <ul class="list-group list-group-flush">
-                    ${validation.map(step => `
-                        <li class="list-group-item border-0 px-0 py-2">
-                            <i class="fas fa-check text-success me-2"></i>${step}
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>
-        </div>
-    `;
-}
-
-function renderRollbackSection(rollbackPlan) {
-    if (!rollbackPlan || typeof rollbackPlan !== 'object') return '';
-    
-    return `
-        <div class="card border-warning">
-            <div class="card-header bg-warning bg-opacity-10 border-warning">
-                <h6 class="mb-0 text-warning-emphasis">
-                    <i class="fas fa-undo me-2"></i>Rollback Plan
-                </h6>
-            </div>
-            <div class="card-body">
-                ${rollbackPlan.trigger_conditions ? `
-                    <div class="mb-3">
-                        <strong class="text-danger">Trigger Conditions:</strong>
-                        <ul class="mt-2">
-                            ${rollbackPlan.trigger_conditions.map(condition => `
-                                <li class="text-danger">${condition}</li>
-                            `).join('')}
-                        </ul>
-                    </div>
-                ` : ''}
-                
-                ${rollbackPlan.rollback_steps ? `
-                    <div class="mb-3">
-                        <strong>Rollback Steps:</strong>
-                        <ol class="mt-2">
-                            ${rollbackPlan.rollback_steps.map(step => `<li>${step}</li>`).join('')}
-                        </ol>
-                    </div>
-                ` : ''}
-                
-                ${rollbackPlan.recovery_time ? `
-                    <div class="alert alert-info mb-0">
-                        <i class="fas fa-clock me-2"></i>
-                        <strong>Expected Recovery Time:</strong> ${rollbackPlan.recovery_time}
-                    </div>
-                ` : ''}
-            </div>
-        </div>
-    `;
-}
-
-function renderMonitoringSection(monitoringPlan) {
-    return `
-        <div class="card border-0 shadow-sm mt-5">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0">
-                    <i class="fas fa-chart-line me-2"></i>Ongoing Monitoring & Optimization
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-4">
-                    ${monitoringPlan.daily_checks ? `
-                        <div class="col-md-6">
-                            <h6 class="text-success">
-                                <i class="fas fa-calendar-day me-2"></i>Daily Monitoring
-                            </h6>
-                            <ul class="list-group list-group-flush">
-                                ${monitoringPlan.daily_checks.map(check => `
-                                    <li class="list-group-item border-0 px-0">${check}</li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${monitoringPlan.weekly_reviews ? `
-                        <div class="col-md-6">
-                            <h6 class="text-primary">
-                                <i class="fas fa-calendar-week me-2"></i>Weekly Reviews
-                            </h6>
-                            <ul class="list-group list-group-flush">
-                                ${monitoringPlan.weekly_reviews.map(review => `
-                                    <li class="list-group-item border-0 px-0">${review}</li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${monitoringPlan.monthly_assessments ? `
-                        <div class="col-md-6">
-                            <h6 class="text-warning">
-                                <i class="fas fa-calendar-alt me-2"></i>Monthly Assessments
-                            </h6>
-                            <ul class="list-group list-group-flush">
-                                ${monitoringPlan.monthly_assessments.map(assessment => `
-                                    <li class="list-group-item border-0 px-0">${assessment}</li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${monitoringPlan.automated_alerts ? `
-                        <div class="col-md-6">
-                            <h6 class="text-danger">
-                                <i class="fas fa-exclamation-triangle me-2"></i>Automated Alerts
-                            </h6>
-                            <ul class="list-group list-group-flush">
-                                ${monitoringPlan.automated_alerts.map(alert => `
-                                    <li class="list-group-item border-0 px-0">${alert}</li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function renderGovernanceSection(governancePlan) {
-    return `
-        <div class="card border-0 shadow-sm mt-4">
-            <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">
-                    <i class="fas fa-shield-alt me-2"></i>Governance & Control Framework
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-4">
-                    ${governancePlan.resource_policies ? `
-                        <div class="col-md-4">
-                            <h6 class="text-primary">
-                                <i class="fas fa-cogs me-2"></i>Resource Policies
-                            </h6>
-                            <ul class="list-group list-group-flush">
-                                ${governancePlan.resource_policies.map(policy => `
-                                    <li class="list-group-item border-0 px-0">${policy}</li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${governancePlan.cost_controls ? `
-                        <div class="col-md-4">
-                            <h6 class="text-success">
-                                <i class="fas fa-dollar-sign me-2"></i>Cost Controls
-                            </h6>
-                            <ul class="list-group list-group-flush">
-                                ${governancePlan.cost_controls.map(control => `
-                                    <li class="list-group-item border-0 px-0">${control}</li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                    
-                    ${governancePlan.operational_procedures ? `
-                        <div class="col-md-4">
-                            <h6 class="text-warning">
-                                <i class="fas fa-clipboard-list me-2"></i>Operational Procedures
-                            </h6>
-                            <ul class="list-group list-group-flush">
-                                ${governancePlan.operational_procedures.map(procedure => `
-                                    <li class="list-group-item border-0 px-0">${procedure}</li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function renderSuccessMetricsSection(successMetrics) {
-    return `
-        <div class="card border-0 shadow-sm mt-4">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0">
-                    <i class="fas fa-bullseye me-2"></i>Success Metrics & KPIs
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    ${Object.entries(successMetrics).map(([categoryKey, categoryData]) => {
-                        if (!categoryData || typeof categoryData !== 'object') return '';
-                        return `
-                        <div class="col-md-4">
-                            <div class="metric-summary-card">
-                                <h6 class="text-info mb-3">
-                                    <i class="fas fa-${getCategoryIcon(categoryKey)} me-2"></i>
-                                    ${formatCategoryName(categoryKey)}
-                                </h6>
-                                ${Object.entries(categoryData).slice(0, 3).map(([key, value]) => `
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <span class="small text-muted">${formatMetricName(key)}</span>
-                                        <span class="fw-bold text-primary">${value}</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// Add these helper functions
-function getCategoryIcon(category) {
-    const icons = {
-        'cost_metrics': 'dollar-sign',
-        'performance_metrics': 'tachometer-alt',
-        'operational_metrics': 'cogs'
-    };
-    return icons[category] || 'chart-bar';
-}
-
-function formatCategoryName(name) {
-    return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-}
-
-function formatMetricName(name) {
-    return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-}
-
-function renderContingencySection(contingencyPlans) {
-    return `
-        <div class="card border-0 shadow-sm mt-4">
-            <div class="card-header bg-warning text-dark">
-                <h5 class="mb-0">
-                    <i class="fas fa-exclamation-triangle me-2"></i>Contingency Plans
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row g-4">
-                    ${Object.entries(contingencyPlans).map(([key, plan]) => `
-                        <div class="col-md-4">
-                            <div class="card h-100 border-warning">
-                                <div class="card-header bg-warning bg-opacity-10">
-                                    <h6 class="mb-0 text-capitalize">
-                                        ${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                                    </h6>
-                                </div>
-                                <div class="card-body">
-                                    <p class="small text-muted mb-2">
-                                        <strong>Scenario:</strong> ${plan.scenario}
-                                    </p>
-                                    <p class="small mb-2">
-                                        <strong>Alternative:</strong> ${plan.alternative}
-                                    </p>
-                                    <div class="alert alert-warning alert-sm mb-0">
-                                        <strong>Impact:</strong> ${plan.impact}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function updateQuickStats(planData) {
-    const summary = planData.summary || {};
-    
-    // Update quick stats if elements exist
-    const elements = {
-        'total-phases-stat': summary.total_phases || 0,
-        'total-weeks-stat': summary.total_weeks || 0,
-        'monthly-savings-stat': `${(summary.monthly_savings || 0).toFixed(2)}`,
-        'risk-level-stat': summary.risk_level || 'Unknown',
-        'annual-savings-impl': `${(summary.annual_savings || 0).toFixed(2)}`
-    };
-
-    Object.entries(elements).forEach(([id, value]) => {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = value;
-        }
-    });
-
-    // Show quick stats section
-    const quickStatsSection = document.getElementById('implementation-quick-stats');
-    if (quickStatsSection) {
-        quickStatsSection.style.display = 'block';
-    }
-
-    // Show implementation tracker
-    const tracker = document.getElementById('implementation-tracker');
-    if (tracker) {
-        tracker.style.display = 'block';
-    }
-}
-
-// Utility functions
-function getRiskColor(risk) {
-    const riskColors = {
-        'low': '#28a745',
-        'medium': '#ffc107',
-        'high': '#dc3545'
-    };
-    return riskColors[(risk || 'unknown').toLowerCase()] || '#6c757d';
-}
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-//remove once tested
-// function copyToClipboard(text) {
-//     navigator.clipboard.writeText(text).then(() => {
-//         // Show success toast or notification
-//         showToast('Copied to clipboard!', 'success');
-//     }).catch(err => {
-//         console.error('Failed to copy: ', err);
-//         showToast('Failed to copy to clipboard', 'error');
-//     });
-// }
-
-function showToast(message, type = 'info') {
-    // Create and show bootstrap toast
-    const toastHtml = `
-        <div class="toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0" 
-             role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="d-flex">
-                <div class="toast-body">
-                    <i class="fas fa-${type === 'success' ? 'check' : 'exclamation-triangle'} me-2"></i>
-                    ${message}
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" 
-                        data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        </div>
-    `;
-    
-    let toastContainer = document.getElementById('toast-container');
-    if (!toastContainer) {
-        toastContainer = document.createElement('div');
-        toastContainer.id = 'toast-container';
-        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
-        toastContainer.style.zIndex = '1080';
-        document.body.appendChild(toastContainer);
-    }
-    
-    toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-    const toastElement = toastContainer.lastElementChild;
-    const toast = new bootstrap.Toast(toastElement);
-    toast.show();
-    
-    // Remove toast element after it's hidden
-    toastElement.addEventListener('hidden.bs.toast', () => {
-        toastElement.remove();
-    });
-}
-
-// Event listeners
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('Dashboard initializing…');
-
-  // ——— Inject CSS ———
-  injectMetricsCSS();
-
-  // ——— Form Submission ———
-  const form = document.getElementById('analysisForm');
-  if (form) {
-    form.addEventListener('submit', handleAnalysisSubmit);
-  }
-
-  // ——— Bootstrap Tab Switching ———
-  document.querySelectorAll('[data-bs-toggle="tab"]').forEach(btn => {
-    btn.addEventListener('shown.bs.tab', onTabSwitch);
-  });
-
-  // ——— Auto-init Charts if Dashboard Already Active ———
-  if (document.querySelector('#dashboard')?.classList.contains('active')) {
-    setTimeout(initializeCharts, 500);
-  }
-
-  // ——— Alerts Tab Fix ———
-  const alertTab = document.getElementById('alerts-tab');
-  if (alertTab) {
-    alertTab.addEventListener('click', function(e) {
-      console.log('Alert tab clicked');
-      new bootstrap.Tab(alertTab).show();
-    });
-  }
-
-  // ——— Implementation Tab Loader ———
-  const implementationTab = document.getElementById('implementation-tab');
-  if (implementationTab) {
-    implementationTab.addEventListener('click', loadImplementationPlan);
-  }
-  // If the implementation pane is already active on load, fire it immediately
-  if (document.getElementById('implementation')?.classList.contains('active')) {
-    loadImplementationPlan();
-  }
-
-  //
-  // Add input event listeners for real-time validation
-    const resourceGroupInput = document.getElementById('resource_group');
-    const clusterNameInput = document.getElementById('cluster_name');
-    
-    if (resourceGroupInput) {
-        resourceGroupInput.addEventListener('input', function() {
-            if (this.value.trim().length >= 3) {
-                this.classList.remove('is-invalid');
-                this.classList.add('is-valid');
-            } else {
-                this.classList.remove('is-valid');
-                if (this.value.trim().length > 0) {
-                    this.classList.add('is-invalid');
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: colors.textColor,
+                        padding: 10,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.label}: $${context.parsed.toLocaleString()}`;
+                        }
+                    }
                 }
             }
-        });
-    }
-    
-    if (clusterNameInput) {
-        clusterNameInput.addEventListener('input', function() {
-            if (this.value.trim().length >= 3) {
-                this.classList.remove('is-invalid');
-                this.classList.add('is-valid');
-            } else {
-                this.classList.remove('is-valid');
-                if (this.value.trim().length > 0) {
-                    this.classList.add('is-invalid');
-                }
-            }
-        });
-    }
+        }
+    };
 
-    // NEW: Handle pod analysis checkbox
-    const podAnalysisCheckbox = document.getElementById('enable_pod_analysis');
-    if (podAnalysisCheckbox) {
-        podAnalysisCheckbox.addEventListener('change', function() {
-            const isChecked = this.checked;
-            console.log('Pod analysis checkbox changed:', isChecked);
-            
-            // Show/hide info about pod analysis
-            const podInfo = document.querySelector('.pod-analysis-info');
-            if (podInfo) {
-                podInfo.style.display = isChecked ? 'block' : 'none';
-            }
-            
-            // Update form hint
-            const formHint = this.parentElement.querySelector('.form-hint');
-            if (formHint) {
-                if (isChecked) {
-                    formHint.textContent = 'Analyze costs at namespace and workload level (adds 30-60 seconds)';
-                    formHint.classList.add('text-info');
-                } else {
-                    formHint.textContent = 'Enable for detailed pod-level cost insights';
-                    formHint.classList.remove('text-info');
-                }
-            }
-        });
-        
-        // Trigger initial state
-        podAnalysisCheckbox.dispatchEvent(new Event('change'));
-    }
-});
-
-/////// END ////
-
-let analysisCompleted = false;
-
-// Update the handleAnalysisSubmit function
-function handleAnalysisSubmit(e) {
-  e.preventDefault();
-  
-  // Validate form first
-  if (!validateAnalysisForm()) {
-    return; // Stop submission if validation fails
-  }
-  console.log('Form submitted');
-  const btn = document.getElementById('analyzeBtn');
-  const progress = document.getElementById('analysisProgress');
-  const fill = document.getElementById('progressFill');
-  const text = document.getElementById('progressText');
-  btn.classList.add('loading'); 
-  btn.disabled = true;
-  progress.classList.add('visible');
-
-  const steps = [
-    { pct:10, txt:'Connecting to Azure...' },
-    { pct:25, txt:'Fetching cost data...' },
-    { pct:45, txt:'Analyzing cluster metrics...' },
-    { pct:65, txt:'Calculating optimization opportunities...' },
-    { pct:85, txt:'Generating insights...' },
-    { pct:95, txt:'Finalizing analysis...' }
-  ];
-  let idx = 0;
-  (function advance() {
-    if (idx < steps.length) {
-      fill.style.width = steps[idx].pct + '%';
-      text.textContent = steps[idx].txt;
-      idx++;
-      setTimeout(advance, 800);
-    }
-  })();
-
-  fetch('/analyze', { method:'POST', body:new FormData(e.target) })
-    .then(r => { if(!r.ok) throw new Error(r.statusText); return r.text(); })
-    .then(() => {
-      fill.style.width = '100%';
-      text.textContent = 'Analysis completed successfully!';
-      analysisCompleted = true; // Set analysis state
-      setTimeout(() => {
-        showToast('🎉 Analysis completed! Found significant optimization opportunities.', 'success');
-        setTimeout(() => { 
-          switchToTab('#dashboard'); 
-          resetForm(); 
-          initializeCharts(); 
-        }, 1500);
-      }, 1000);
-    })
-    .catch(err => {
-      console.error(err);
-      showToast('❌ Analysis failed: ' + err.message, 'error');
-      resetForm();
-    });
-
-  function resetForm() {
-    btn.classList.remove('loading'); 
-    btn.disabled = false;
-    progress.classList.remove('visible');
-    fill.style.width = '0%'; 
-    text.textContent = 'Initializing analysis...';
-    idx = 0;
-  }
+    AppState.chartInstances['savingsBreakdownChart'] = new Chart(ctx, config);
 }
 
-function updateImplementationSummary(summary) {
-  console.log('📊 Updating summary with data:', summary);
-
-  // Update the annual savings in the summary box
-  const annualSavingsElement = document.getElementById('annual-savings-impl');
-  if (annualSavingsElement) {
-    if (summary && summary.annual_savings) {
-      annualSavingsElement.textContent = `$${summary.annual_savings.toLocaleString()}`;
-      console.log('✅ Updated annual savings to:', summary.annual_savings);
-    } else {
-      console.log('⚠️ No annual_savings in summary:', summary);
-    }
-  } else {
-    console.log('⚠️ annual-savings-impl element not found');
-  }
-
-  // Update quick stats if they exist
-  const totalPhasesElement = document.getElementById('total-phases-stat');
-  if (totalPhasesElement) {
-    totalPhasesElement.textContent = summary?.total_phases || 0;
-  }
-
-  const totalWeeksElement = document.getElementById('total-weeks-stat');
-  if (totalWeeksElement) {
-    totalWeeksElement.textContent = `${summary?.total_weeks || 0} weeks`;
-  }
-
-  const monthlySavingsElement = document.getElementById('monthly-savings-stat');
-  if (monthlySavingsElement) {
-    monthlySavingsElement.textContent = `$${(summary?.monthly_savings || 0).toLocaleString()}`;
-  }
-
-  const riskLevelElement = document.getElementById('risk-level-stat');
-  if (riskLevelElement) {
-    riskLevelElement.textContent = summary?.risk_level || 'Unknown';
-  }
-
-  // Show the quick stats row if it exists
-  const quickStatsRow = document.getElementById('implementation-quick-stats');
-  if (quickStatsRow) {
-    quickStatsRow.style.display = 'flex';
-  }
-}
-
-// THE MISSING FUNCTION - This is what was causing the issue!
-function renderImplementationPhases(container, data) {
-  console.log('🏗️ Starting to render implementation phases');
-  const { phases, summary, monitoring_plan, success_metrics } = data;
-
-  if (!phases || phases.length === 0) {
-    console.log('⚠️ No phases found, showing no optimization message');
-    container.innerHTML = `
-      <div class="text-center mt-4 mb-4">
-        <div class="alert alert-info">
-          <h5><i class="fas fa-info-circle me-2"></i>No Major Optimizations Needed</h5>
-          <p>Your cluster is already well-optimized! Only minor improvements were identified.</p>
-          <p><strong>Current Status:</strong> ${summary?.message || 'Analysis complete'}</p>
-        </div>
-      </div>
-    `;
-    return;
-  }
-
-  console.log(`🏗️ Rendering ${phases.length} phases`);
-
-  let html = `
-    <div class="row mb-4">
-      <div class="col-12">
-        <div class="card bg-primary text-white">
-          <div class="card-body">
-            <div class="row text-center">
-              <div class="col-md-3">
-                <h3 class="mb-1">${summary.total_phases}</h3>
-                <small>Implementation Phases</small>
-              </div>
-              <div class="col-md-3">
-                <h3 class="mb-1">${summary.total_weeks}</h3>
-                <small>Total Weeks</small>
-              </div>
-              <div class="col-md-3">
-                <h3 class="mb-1">$${summary.monthly_savings.toLocaleString()}</h3>
-                <small>Monthly Savings</small>
-              </div>
-              <div class="col-md-3">
-                <h3 class="mb-1">${summary.risk_level}</h3>
-                <small>Overall Risk</small>
-              </div>
-            </div>
-            ${summary.resource_group && summary.cluster_name ? `
-            <div class="row mt-3">
-              <div class="col-12 text-center">
-                <small><i class="fas fa-server me-1"></i> ${summary.resource_group} / ${summary.cluster_name}</small>
-                ${summary.success_probability ? `<span class="ms-3"><i class="fas fa-chart-line me-1"></i> ${summary.success_probability} Success Rate</span>` : ''}
-              </div>
-            </div>
-            ` : ''}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Render each phase
-  phases.forEach((phase, index) => {
-    console.log(`🏗️ Rendering phase ${index + 1}:`, phase.title);
-    html += renderPhaseCard(phase, index);
-  });
-
-  // Add success metrics if available
-  if (success_metrics && Object.keys(success_metrics).length > 0) {
-    console.log('🎯 Adding success metrics');
-    html += renderSuccessMetrics(success_metrics);
-  }
-
-  console.log('🏗️ Setting innerHTML for container');
-  container.innerHTML = html;
-  console.log('✅ Implementation phases rendered successfully');
-}
-
-function renderPhaseCard(phase, index) {
-  const riskColorClass = getRiskColorClass(phase.risk);
-  const phaseNumber = phase.phase || (index + 1);
-
-  let html = `
-    <div class="row mb-4">
-      <div class="col-12">
-        <div class="card border-0 shadow">
-          <div class="card-header ${riskColorClass} text-white">
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-              <h6 class="mb-0">
-                <i class="fas fa-${getPhaseIcon(phase.title)} me-2"></i>
-                Phase ${phaseNumber}: ${phase.title}
-              </h6>
-              <div class="d-flex gap-2 flex-wrap">
-                <span class="badge bg-light text-dark">${phase.weeks}</span>
-                <span class="badge bg-light text-dark">$${phase.savings.toLocaleString()}/month</span>
-                <span class="badge bg-light text-dark">${phase.risk} Risk</span>
-              </div>
-            </div>
-          </div>
-          <div class="card-body">
-            <p class="lead mb-4">${phase.description}</p>
-
-            <div class="row">
-              <div class="col-lg-8">
-                <h6><i class="fas fa-tasks me-2"></i>Implementation Tasks</h6>
-                <div class="accordion accordion-flush" id="phase${phaseNumber}Tasks">
-  `;
-
-  // Render tasks
-  if (phase.tasks && phase.tasks.length > 0) {
-    phase.tasks.forEach((task, taskIndex) => {
-      const taskId = `task${phaseNumber}_${taskIndex}`;
-      html += `
-        <div class="accordion-item">
-          <h2 class="accordion-header" id="heading_${taskId}">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_${taskId}" aria-expanded="false">
-              <div class="w-100">
-                <strong>${task.task}</strong>
-                ${task.time_estimate ? `<small class="text-muted d-block">Estimated time: ${task.time_estimate}</small>` : ''}
-              </div>
-            </button>
-          </h2>
-          <div id="collapse_${taskId}" class="accordion-collapse collapse" data-bs-parent="#phase${phaseNumber}Tasks">
-            <div class="accordion-body">
-              <p><strong>Description:</strong> ${task.description}</p>
-              ${task.command ? `
-              <div class="mb-3">
-                <strong>Command:</strong>
-                <div class="bg-light text-light p-3 rounded mt-2 position-relative">
-                  <code>${task.command}</code>
-                  <button class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-2" onclick="copyToClipboard('${task.command.replace(/'/g, "\\'")}')">
-                    <i class="fas fa-copy"></i>
-                  </button>
-                </div>
-              </div>
-              ` : ''}
-              ${task.template ? `
-              <div class="mb-3">
-                <strong>YAML Template:</strong>
-                <div class="bg-light border rounded mt-2 position-relative" style="max-height: 300px; overflow-y: auto;">
-                  <pre class="p-3 mb-0"><code>${task.template}</code></pre>
-                  <button class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-2" onclick="copyToClipboard(\`${task.template.replace(/`/g, '\\`')}\`)">
-                    <i class="fas fa-copy"></i>
-                  </button>
-                </div>
-              </div>
-              ` : ''}
-              <div class="alert">
-                <strong>Expected Outcome:</strong> ${task.expected_outcome}
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    });
-  }
-
-  html += `
-                </div>
-              </div>
-              <div class="col-lg-4">
-                <h6><i class="fas fa-check-circle me-2"></i>Validation Steps</h6>
-                <ul class="list-group list-group-flush">
-  `;
-
-  // Render validation steps
-  if (phase.validation && phase.validation.length > 0) {
-    phase.validation.forEach(step => {
-      html += `<li class="list-group-item px-0 border-0"><i class="fas fa-check text-success me-2"></i>${step}</li>`;
-    });
-  }
-
-  html += `
-                </ul>
-
-                <div class="mt-4">
-                  <h6><i class="fas fa-info-circle me-2"></i>Phase Summary</h6>
-                  <div class="card bg-light">
-                    <div class="card-body p-3">
-                      <div class="row text-center">
-                        <div class="col-6">
-                          <strong class="text-success">$${phase.savings.toLocaleString()}</strong>
-                          <small class="d-block text-muted">Monthly Savings</small>
-                        </div>
-                        <div class="col-6">
-                          <strong class="text-primary">${phase.duration} weeks</strong>
-                          <small class="d-block text-muted">Duration</small>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  return html;
-}
-
-function updateMonitoringPlan(monitoringPlan) {
-  console.log('📈 Updating monitoring plan:', monitoringPlan);
-  if (!monitoringPlan || Object.keys(monitoringPlan).length === 0) return;
-
-  // Find the monitoring section and update it
-  const monitoringSection = document.querySelector('#monitoring-section .card-body');
-  if (monitoringSection) {
-    let html = '<div class="row">';
-
-    if (monitoringPlan.daily_checks && monitoringPlan.daily_checks.length > 0) {
-      html += `
-        <div class="col-md-6">
-          <h6><i class="fas fa-calendar-day me-2"></i>Daily Monitoring</h6>
-          <ul class="list-group list-group-flush">
-      `;
-      monitoringPlan.daily_checks.forEach(check => {
-        html += `<li class="list-group-item px-0">${check}</li>`;
-      });
-      html += '</ul></div>';
-    }
-
-    if (monitoringPlan.weekly_reviews && monitoringPlan.weekly_reviews.length > 0) {
-      html += `
-        <div class="col-md-6">
-          <h6><i class="fas fa-calendar-week me-2"></i>Weekly Reviews</h6>
-          <ul class="list-group list-group-flush">
-      `;
-      monitoringPlan.weekly_reviews.forEach(review => {
-        html += `<li class="list-group-item px-0">${review}</li>`;
-      });
-      html += '</ul></div>';
-    }
-
-    html += '</div>';
-    monitoringSection.innerHTML = html;
-    console.log('✅ Monitoring plan updated');
-  } else {
-    console.log('⚠️ Monitoring section not found');
-  }
-}
-
-function showNoAnalysisMessage(container) {
-  container.innerHTML = `
-    <div class="text-center mt-4 mb-4">
-      <div class="alert alert-warning">
-        <h4><i class="fas fa-exclamation-triangle me-2"></i>No Analysis Available</h4>
-        <p>Please run a cost analysis first to generate your personalized implementation plan.</p>
-        <button class="btn btn-primary" onclick="switchToTab('#analysis')">
-          <i class="fas fa-search me-2"></i>Run Analysis
-        </button>
-      </div>
-    </div>
-  `;
-}
-
-function showImplementationError(container, message) {
-  container.innerHTML = `
-    <div class="text-center mt-4 mb-4">
-      <div class="alert alert-danger">
-        <h4><i class="fas fa-exclamation-circle me-2"></i>Error Loading Implementation Plan</h4>
-        <p>${message}</p>
-        <button class="btn btn-outline-primary" onclick="loadImplementationPlan()">
-          <i class="fas fa-redo me-2"></i>Retry
-        </button>
-      </div>
-    </div>
-  `;
-}
-
-// Helper functions
-function getRiskColorClass(risk) {
-  switch (risk?.toLowerCase()) {
-    case 'high': return 'bg-danger';
-    case 'medium': return 'bg-warning';
-    case 'low': return 'bg-success';
-    default: return 'bg-primary';
-  }
-}
-
-function getPhaseIcon(title) {
-  const titleLower = title.toLowerCase();
-  if (titleLower.includes('resource') || titleLower.includes('right-sizing')) return 'cog';
-  if (titleLower.includes('hpa') || titleLower.includes('scaling')) return 'expand-arrows-alt';
-  if (titleLower.includes('storage')) return 'hdd';
-  if (titleLower.includes('optimization')) return 'bullseye';
-  return 'rocket';
-}
-
-function copyToClipboard(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(() => {
-      showToast('Copied to clipboard!', 'success');
-    }).catch(err => {
-      console.error('Failed to copy:', err);
-      showToast('Failed to copy to clipboard', 'error');
-    });
-  } else {
-    // Fallback for older browsers
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    document.body.appendChild(textArea);
-    textArea.select();
-    try {
-      document.execCommand('copy');
-      showToast('Copied to clipboard!', 'success');
-    } catch (err) {
-      console.error('Failed to copy:', err);
-      showToast('Failed to copy to clipboard', 'error');
-    }
-    document.body.removeChild(textArea);
-  }
-}
-
+/**
+ * Creates namespace cost chart
+ */
 function createNamespaceCostChart(data) {
-    console.log('📊 Creating namespace cost chart with data:', data);
     const canvas = document.getElementById('namespaceCostChart');
-    if (!canvas || !data || !data.labels || data.labels.length === 0) {
-        console.warn('Namespace cost chart data not available or empty');
-        // Hide the pod cost section if no data
+    if (!canvas || !data?.labels?.length) {
         const podSection = document.getElementById('pod-cost-section');
-        if (podSection) {
-            podSection.style.display = 'none';
-        }
+        if (podSection) podSection.style.display = 'none';
         return;
     }
 
     const ctx = canvas.getContext('2d');
     const colors = getChartColors();
 
-    // Generate colors for namespaces
     const namespaceColors = [
         '#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6',
         '#1abc9c', '#95a5a6', '#34495e', '#e67e22', '#16a085'
@@ -2137,7 +1125,6 @@ function createNamespaceCostChart(data) {
                                 return data.labels.map((label, i) => {
                                     const value = data.datasets[0].data[i];
                                     const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
-                                    // FIXED: Proper number conversion and method call
                                     const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                                     return {
                                         text: `${label}: $${value.toLocaleString()} (${percentage}%)`,
@@ -2155,7 +1142,6 @@ function createNamespaceCostChart(data) {
                         label: function(context) {
                             const value = context.parsed;
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            // FIXED: Proper number conversion and method call
                             const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                             return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
                         }
@@ -2165,7 +1151,7 @@ function createNamespaceCostChart(data) {
         }
     };
 
-    chartInstances['namespaceCostChart'] = new Chart(ctx, config);
+    AppState.chartInstances['namespaceCostChart'] = new Chart(ctx, config);
     
     // Update analysis badge
     const badge = document.getElementById('pod-analysis-badge');
@@ -2177,18 +1163,16 @@ function createNamespaceCostChart(data) {
     console.log('✅ Namespace cost chart created');
 }
 
+/**
+ * Creates workload cost chart
+ */
 function createWorkloadCostChart(data) {
-    console.log('📊 Creating workload cost chart with data:', data);
     const canvas = document.getElementById('workloadCostChart');
-    if (!canvas || !data) {
-        console.warn('Workload cost chart data not available');
-        return;
-    }
+    if (!canvas || !data) return;
 
     const ctx = canvas.getContext('2d');
     const colors = getChartColors();
 
-    // Color code by workload type
     const typeColors = {
         'Deployment': '#3498db',
         'StatefulSet': '#e74c3c', 
@@ -2201,9 +1185,9 @@ function createWorkloadCostChart(data) {
     const backgroundColors = data.types.map(type => typeColors[type] || '#95a5a6');
 
     const config = {
-        type: 'bar', // CHANGED: from 'horizontalBar' to 'bar'
+        type: 'bar',
         data: {
-            labels: data.workloads.map(w => w.split('/')[1] || w), // Show only workload name
+            labels: data.workloads.map(w => w.split('/')[1] || w),
             datasets: [{
                 label: 'Monthly Cost',
                 data: data.costs || [],
@@ -2215,11 +1199,9 @@ function createWorkloadCostChart(data) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            indexAxis: 'y', // ADDED: This makes it horizontal in Chart.js v3+
+            indexAxis: 'y',
             plugins: {
-                legend: {
-                    display: false
-                },
+                legend: { display: false },
                 tooltip: {
                     callbacks: {
                         title: function(context) {
@@ -2258,20 +1240,27 @@ function createWorkloadCostChart(data) {
         }
     };
 
-    chartInstances['workloadCostChart'] = new Chart(ctx, config);
-    console.log('✅ Workload cost chart created');
+    AppState.chartInstances['workloadCostChart'] = new Chart(ctx, config);
 }
 
-function getAccuracyBadgeClass(accuracy) {
-    switch (accuracy?.toLowerCase()) {
-        case 'very high': return 'bg-success';
-        case 'high': return 'bg-info';
-        case 'good': return 'bg-warning';
-        case 'basic': return 'bg-secondary';
-        default: return 'bg-secondary';
-    }
+/**
+ * Updates insights section
+ */
+function updateInsights(insights) {
+    const container = document.querySelector('#insights-container');
+    if (!container) return;
+    
+    const insightElements = Object.entries(insights).map(([key, value]) => {
+        const title = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        return `<div class="insight-item mb-3"><h6>${title}</h6><p>${value}</p></div>`;
+    });
+    
+    container.innerHTML = insightElements.join('');
 }
 
+/**
+ * Updates pod cost metrics in the dashboard
+ */
 function updatePodCostMetrics(data) {
     console.log('📊 Updating pod cost metrics with data:', data);
     
@@ -2347,977 +1336,2427 @@ function updatePodCostMetrics(data) {
     }
 }
 
-// Debug
-function testImplementationAPI() {
-  console.log('🧪 Testing implementation API directly...');
-
-  fetch('/api/implementation-plan')
-    .then(response => response.json())
-    .then(data => {
-      console.log('🧪 Test result:', data);
-      console.log('🧪 Phases:', data.phases);
-      console.log('🧪 Summary:', data.summary);
-    })
-    .catch(error => {
-      console.error('🧪 Test error:', error);
+/**
+ * Shows chart error message with retry option
+ */
+function showChartError(message) {
+    console.error('Chart error:', message);
+    
+    const chartIds = ['costBreakdownChart', 'hpaComparisonChart', 'nodeUtilizationChart', 'savingsBreakdownChart'];
+    chartIds.forEach(id => {
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        
+        canvas.parentElement.innerHTML = `
+            <div class="text-center text-muted p-4">
+                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                <p>${message}</p>
+                <button class="btn btn-outline-primary btn-sm" onclick="initializeCharts()">
+                    <i class="fas fa-redo me-1"></i>Retry
+                </button>
+            </div>
+        `;
     });
 }
 
-// ——— CSS Injection ———
-function injectMetricsCSS() {
-  if (document.getElementById('metrics-update-css')) return;
-  const s = document.createElement('style');
-  s.id = 'metrics-update-css';
-  s.textContent = `
-    .metric-updated { position: relative; }
-    .metric-updated-indicator { position: absolute; top:-2px; right:-2px; animation:pulse 2s infinite; }
-    @keyframes pulse {0%,100%{opacity:1;}50%{opacity:0.5;}}
-    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-    .data-source-indicator { position: fixed; top:90px; right:20px; z-index:1000; }
-    .data-source-badge { background:rgba(255,255,255,0.95); border-radius:20px; padding:8px 16px; display:flex; align-items:center; gap:5px; box-shadow:0 2px 10px rgba(0,0,0,0.1); }
-    .data-source-badge.real-data { border:1px solid #28a745; color:#28a745; }
-    .data-source-badge.sample-data { border:1px solid #ffc107; color:#856404; background:rgba(255,193,7,0.1); }
-    [data-theme="dark"] .data-source-badge { background:rgba(45,55,72,0.95); color:#f7fafc; }
-  `;
-  document.head.appendChild(s);
-}
-
-// alerts/schedule/deploy-fix
-
+// ============================================================================
+// IMPLEMENTATION PLAN MANAGEMENT
+// ============================================================================
 
 /**
- * AKS Cost Intelligence - Enhanced Frontend
- * Modern UI interactions, real alerts, and deployment functionality
+ * Loads and displays implementation plan
  */
-
-// Global state management
-const AppState = {
-    alerts: [],
-    deployments: [],
-    currentAnalysis: null,
-    notifications: []
-};
-
-// Notification system
-class NotificationManager {
-    constructor() {
-        this.container = this.createContainer();
+function loadImplementationPlan() {
+    console.log('📋 Loading implementation plan...');
+    
+    const container = document.getElementById('implementation-plan-container');
+    if (!container) {
+        console.warn('Implementation plan container not found');
+        return;
     }
     
-    createContainer() {
-        let container = document.getElementById('notification-container');
-        if (!container) {
-            container = document.createElement('div');
-            container.id = 'notification-container';
-            container.className = 'fixed top-4 right-4 z-50 space-y-2';
-            document.body.appendChild(container);
-        }
-        return container;
-    }
-    
-    show(message, type = 'info', duration = 5000) {
-        const notification = document.createElement('div');
-        notification.className = `
-            notification-toast fade-in
-            bg-white dark:bg-gray-800 
-            border-l-4 ${this.getBorderColor(type)}
-            rounded-lg shadow-lg p-4 max-w-sm
-            transform transition-all duration-300
-        `;
-        
-        notification.innerHTML = `
-            <div class="flex items-start">
-                <div class="flex-shrink-0">
-                    <i class="fas fa-${this.getIcon(type)} text-${this.getTextColor(type)} text-xl"></i>
-                </div>
-                <div class="ml-3 flex-1">
-                    <p class="text-sm font-medium text-gray-900 dark:text-white">
-                        ${message}
-                    </p>
-                </div>
-                <div class="ml-4 flex-shrink-0">
-                    <button class="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
+    // Show loading state
+    container.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
             </div>
-        `;
-        
-        // Add click to dismiss
-        notification.querySelector('button').addEventListener('click', () => {
-            this.remove(notification);
+            <p class="mt-3 text-muted">Loading implementation plan...</p>
+        </div>
+    `;
+    
+    fetch(`${AppConfig.API_BASE_URL}/implementation-plan`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                displayImplementationPlan(data);
+            } else {
+                throw new Error(data.message || 'Failed to load implementation plan');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Failed to load implementation plan:', error);
+            displayImplementationPlanError(container, error.message);
         });
-        
-        this.container.appendChild(notification);
-        
-        // Auto remove after duration
-        if (duration > 0) {
-            setTimeout(() => this.remove(notification), duration);
-        }
-        
-        return notification;
-    }
-    
-    remove(notification) {
-        notification.classList.add('opacity-0', 'transform', 'translate-x-full');
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-            }
-        }, 300);
-    }
-    
-    getBorderColor(type) {
-        const colors = {
-            success: 'border-green-500',
-            error: 'border-red-500',
-            warning: 'border-yellow-500',
-            info: 'border-blue-500'
-        };
-        return colors[type] || colors.info;
-    }
-    
-    getTextColor(type) {
-        const colors = {
-            success: 'green-500',
-            error: 'red-500',
-            warning: 'yellow-500',
-            info: 'blue-500'
-        };
-        return colors[type] || colors.info;
-    }
-    
-    getIcon(type) {
-        const icons = {
-            success: 'check-circle',
-            error: 'exclamation-circle',
-            warning: 'exclamation-triangle',
-            info: 'info-circle'
-        };
-        return icons[type] || icons.info;
-    }
 }
 
-// Initialize notification manager
-const notifications = new NotificationManager();
+// Export implementation plan functions immediately
+window.loadImplementationPlan = loadImplementationPlan;
 
-// Enhanced Alerts Management
-class AlertsManager {
-    constructor() {
-        this.alerts = [];
-        this.init();
-    }
+/**
+ * Displays implementation plan content
+ */
+function displayImplementationPlan(planData) {
+    const container = document.getElementById('implementation-plan-container');
     
-    async init() {
-        await this.loadAlerts();
-        this.bindEvents();
-    }
-    
-    async loadAlerts() {
-        try {
-            const response = await fetch('/api/alerts');
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                this.alerts = data.alerts;
-                this.renderAlerts();
-            } else {
-                throw new Error(data.message);
-            }
-        } catch (error) {
-            console.error('Failed to load alerts:', error);
-            notifications.show('Failed to load alerts', 'error');
-        }
-    }
-    
-    async createAlert(alertData) {
-        try {
-            const response = await fetch('/api/alerts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(alertData)
-            });
-            
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                notifications.show('Alert created successfully!', 'success');
-                await this.loadAlerts();
-                return true;
-            } else {
-                throw new Error(data.message);
-            }
-        } catch (error) {
-            console.error('Failed to create alert:', error);
-            notifications.show('Failed to create alert: ' + error.message, 'error');
-            return false;
-        }
-    }
-    
-    async updateAlert(alertId, updates) {
-        try {
-            const response = await fetch(`/api/alerts/${alertId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates)
-            });
-            
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                notifications.show('Alert updated successfully!', 'success');
-                await this.loadAlerts();
-                return true;
-            } else {
-                throw new Error(data.message);
-            }
-        } catch (error) {
-            console.error('Failed to update alert:', error);
-            notifications.show('Failed to update alert: ' + error.message, 'error');
-            return false;
-        }
-    }
-    
-    async deleteAlert(alertId) {
-        if (!confirm('Are you sure you want to delete this alert?')) {
-            return false;
-        }
-        
-        try {
-            const response = await fetch(`/api/alerts/${alertId}`, {
-                method: 'DELETE'
-            });
-            
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                notifications.show('Alert deleted successfully!', 'success');
-                await this.loadAlerts();
-                return true;
-            } else {
-                throw new Error(data.message);
-            }
-        } catch (error) {
-            console.error('Failed to delete alert:', error);
-            notifications.show('Failed to delete alert: ' + error.message, 'error');
-            return false;
-        }
-    }
-    
-    async testAlert(alertId) {
-        try {
-            const response = await fetch(`/api/alerts/${alertId}/test`, {
-                method: 'POST'
-            });
-            
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                notifications.show('Test email sent successfully!', 'success');
-                return true;
-            } else {
-                throw new Error(data.message);
-            }
-        } catch (error) {
-            console.error('Failed to test alert:', error);
-            notifications.show('Failed to send test email: ' + error.message, 'error');
-            return false;
-        }
-    }
-    
-    renderAlerts() {
-        const container = document.getElementById('existing-alerts');
-        if (!container) return;
-        
-        if (this.alerts.length === 0) {
-            container.innerHTML = `
-                <div class="text-center py-8">
-                    <i class="fas fa-bell-slash text-4xl text-gray-400 mb-4"></i>
-                    <p class="text-gray-500">No alerts configured yet</p>
-                    <p class="text-sm text-gray-400">Create your first alert to start monitoring costs</p>
-                </div>
-            `;
-            return;
-        }
-        
-        container.innerHTML = this.alerts.map(alert => this.renderAlertCard(alert)).join('');
-    }
-    
-    renderAlertCard(alert) {
-        const statusClass = alert.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
-        const lastTriggered = alert.last_triggered ? 
-            new Date(alert.last_triggered).toLocaleDateString() : 'Never';
-        
-        return `
-            <div class="alert-card bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-all duration-300">
-                <div class="flex items-start justify-between">
-                    <div class="flex-1">
-                        <div class="flex items-center gap-3 mb-2">
-                            <h4 class="text-lg font-semibold text-gray-900">${alert.name}</h4>
-                            <span class="px-2 py-1 text-xs font-medium rounded-full ${statusClass}">
-                                ${alert.status}
-                            </span>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
-                            <div>
-                                <span class="font-medium">Threshold:</span> 
-                                ${alert.threshold_amount > 0 ? 
-                                    `$${alert.threshold_amount.toLocaleString()}` : 
-                                    `${alert.threshold_percentage}%`}
-                            </div>
-                            <div>
-                                <span class="font-medium">Email:</span> ${alert.email}
-                            </div>
-                            <div>
-                                <span class="font-medium">Cluster:</span> ${alert.cluster_name || 'All'}
-                            </div>
-                            <div>
-                                <span class="font-medium">Last Triggered:</span> ${lastTriggered}
-                            </div>
-                        </div>
-                        
-                        <div class="flex items-center gap-2 text-sm text-gray-500">
-                            <i class="fas fa-chart-line"></i>
-                            <span>Triggered ${alert.trigger_count} times</span>
-                            <span class="mx-2">•</span>
-                            <span>Frequency: ${alert.notification_frequency}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="flex items-center gap-2 ml-4">
-                        <button class="btn-icon-sm text-blue-600 hover:bg-blue-50" 
-                                onclick="alertsManager.editAlert(${alert.id})"
-                                title="Edit Alert">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-icon-sm text-green-600 hover:bg-green-50" 
-                                onclick="alertsManager.testAlert(${alert.id})"
-                                title="Test Alert">
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
-                        <button class="btn-icon-sm text-red-600 hover:bg-red-50" 
-                                onclick="alertsManager.deleteAlert(${alert.id})"
-                                title="Delete Alert">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    editAlert(alertId) {
-        const alert = this.alerts.find(a => a.id === alertId);
-        if (!alert) return;
-        
-        // Populate form with alert data
-        document.getElementById('budget-amount').value = alert.threshold_amount;
-        document.getElementById('alert-email').value = alert.email;
-        document.getElementById('alert-threshold').value = alert.threshold_percentage;
-        
-        // Scroll to form
-        document.getElementById('budget-alert-form').scrollIntoView({ behavior: 'smooth' });
-        
-        // Show update button instead of create
-        const submitBtn = document.querySelector('#budget-alert-form button[type="submit"]');
-        submitBtn.innerHTML = `
-            <i class="fas fa-save me-2"></i>Update Alert
-        `;
-        submitBtn.onclick = (e) => {
-            e.preventDefault();
-            this.handleFormSubmit(alertId);
-        };
-    }
-    
-    bindEvents() {
-        const form = document.getElementById('budget-alert-form');
-        if (form) {
-            form.addEventListener('submit', (e) => {
-                e.preventDefault();
-                this.handleFormSubmit();
-            });
-        }
-    }
-    
-    async handleFormSubmit(alertId = null) {
-        const formData = {
-            name: document.getElementById('budget-amount').value ? 
-                `Budget Alert - $${document.getElementById('budget-amount').value}` : 
-                'Cost Threshold Alert',
-            alert_type: 'cost_threshold',
-            threshold_amount: parseFloat(document.getElementById('budget-amount').value) || 0,
-            threshold_percentage: parseFloat(document.getElementById('alert-threshold').value) || 80,
-            email: document.getElementById('alert-email').value,
-            resource_group: '', // Would be populated from current analysis
-            cluster_name: '', // Would be populated from current analysis
-            notification_frequency: 'immediate'
-        };
-        
-        if (alertId) {
-            await this.updateAlert(alertId, formData);
-        } else {
-            await this.createAlert(formData);
-        }
-        
-        // Reset form
-        document.getElementById('budget-alert-form').reset();
-        const submitBtn = document.querySelector('#budget-alert-form button[type="submit"]');
-        submitBtn.innerHTML = `
-            <i class="fas fa-play me-2"></i>Setup Smart Alerts
-        `;
-        submitBtn.onclick = null;
-    }
-}
-
-// Enhanced Deployment Management
-class DeploymentManager {
-    constructor() {
-        this.deployments = [];
-        this.init();
-    }
-    
-    async init() {
-        await this.loadDeployments();
-        this.bindEvents();
-    }
-    
-    async loadDeployments() {
-        try {
-            const response = await fetch('/api/deployments');
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                this.deployments = data.tasks;
-                this.renderDeployments();
-            }
-        } catch (error) {
-            console.error('Failed to load deployments:', error);
-        }
-    }
-    
-    async deployOptimizations() {
-        const analysisData = AppState.currentAnalysis;
-        if (!analysisData) {
-            notifications.show('Please run an analysis first', 'warning');
-            return;
-        }
-        
-        // Show deployment modal
-        this.showDeploymentModal();
-    }
-    
-    async scheduleOptimization() {
-        const analysisData = AppState.currentAnalysis;
-        if (!analysisData) {
-            notifications.show('Please run an analysis first', 'warning');
-            return;
-        }
-        
-        // Show scheduling modal
-        this.showSchedulingModal();
-    }
-    
-    showDeploymentModal() {
-        const modal = this.createDeploymentModal();
-        document.body.appendChild(modal);
-        
-        // Show modal with animation
-        setTimeout(() => {
-            modal.classList.add('opacity-100');
-            modal.querySelector('.modal-content').classList.add('scale-100');
-        }, 10);
-    }
-    
-    showSchedulingModal() {
-        const modal = this.createSchedulingModal();
-        document.body.appendChild(modal);
-        
-        // Show modal with animation
-        setTimeout(() => {
-            modal.classList.add('opacity-100');
-            modal.querySelector('.modal-content').classList.add('scale-100');
-        }, 10);
-    }
-    
-    createDeploymentModal() {
-        const modal = document.createElement('div');
-        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0 transition-opacity duration-300';
-        
-        modal.innerHTML = `
-            <div class="modal-content bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 transform scale-95 transition-transform duration-300">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-lg font-semibold text-gray-900">Deploy Optimizations</h3>
-                        <button class="text-gray-400 hover:text-gray-600" onclick="this.closest('.fixed').remove()">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="px-6 py-4 max-h-96 overflow-y-auto">
-                    <div class="space-y-4">
-                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <div class="flex items-center">
-                                <i class="fas fa-info-circle text-blue-500 mr-3"></i>
-                                <div>
-                                    <h4 class="text-sm font-medium text-blue-900">Ready to Deploy</h4>
-                                    <p class="text-sm text-blue-700">The following optimizations will be applied immediately:</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="space-y-3">
-                            <div class="optimization-item border border-gray-200 rounded-lg p-4">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center">
-                                        <input type="checkbox" id="hpa-opt" checked class="mr-3">
-                                        <div>
-                                            <h5 class="font-medium text-gray-900">Memory-based HPA</h5>
-                                            <p class="text-sm text-gray-600">Enable memory-based horizontal pod autoscaling</p>
-                                        </div>
-                                    </div>
-                                    <span class="text-green-600 font-medium">$324/mo savings</span>
-                                </div>
-                            </div>
-                            
-                            <div class="optimization-item border border-gray-200 rounded-lg p-4">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center">
-                                        <input type="checkbox" id="resource-opt" checked class="mr-3">
-                                        <div>
-                                            <h5 class="font-medium text-gray-900">Resource Right-sizing</h5>
-                                            <p class="text-sm text-gray-600">Optimize CPU and memory requests/limits</p>
-                                        </div>
-                                    </div>
-                                    <span class="text-green-600 font-medium">$283/mo savings</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                            <div class="flex items-start">
-                                <i class="fas fa-exclamation-triangle text-yellow-500 mr-3 mt-1"></i>
-                                <div>
-                                    <h4 class="text-sm font-medium text-yellow-900">Before You Deploy</h4>
-                                    <ul class="text-sm text-yellow-700 mt-1 list-disc list-inside">
-                                        <li>Ensure you have cluster admin permissions</li>
-                                        <li>Backup current configurations (automatic rollback available)</li>
-                                        <li>Monitor workloads after deployment</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
-                    <button class="btn-secondary" onclick="this.closest('.fixed').remove()">
-                        Cancel
-                    </button>
-                    <button class="btn-primary" onclick="deploymentManager.confirmDeploy(this)">
-                        <i class="fas fa-rocket mr-2"></i>
-                        Deploy Now
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        return modal;
-    }
-    
-    createSchedulingModal() {
-        const modal = document.createElement('div');
-        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0 transition-opacity duration-300';
-        
-        // Get current date for minimum scheduling
-        const now = new Date();
-        const minDateTime = new Date(now.getTime() + 60000); // Minimum 1 minute from now
-        const minDateTimeString = minDateTime.toISOString().slice(0, 16);
-        
-        modal.innerHTML = `
-            <div class="modal-content bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 transform scale-95 transition-transform duration-300">
-                <div class="px-6 py-4 border-b border-gray-200">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-lg font-semibold text-gray-900">Schedule Deployment</h3>
-                        <button class="text-gray-400 hover:text-gray-600" onclick="this.closest('.fixed').remove()">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="px-6 py-4">
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                <i class="fas fa-calendar-alt mr-2"></i>
-                                Deployment Date & Time
-                            </label>
-                            <input type="datetime-local" 
-                                   id="schedule-datetime" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                   min="${minDateTimeString}"
-                                   value="${minDateTimeString}">
-                            <p class="text-xs text-gray-500 mt-1">Select when to deploy the optimizations</p>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                <i class="fas fa-bell mr-2"></i>
-                                Notification Preferences
-                            </label>
-                            <div class="space-y-2">
-                                <label class="flex items-center">
-                                    <input type="checkbox" checked class="mr-2">
-                                    <span class="text-sm">Email notification before deployment</span>
-                                </label>
-                                <label class="flex items-center">
-                                    <input type="checkbox" checked class="mr-2">
-                                    <span class="text-sm">Email notification after completion</span>
-                                </label>
-                            </div>
-                        </div>
-                        
-                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-                            <div class="flex items-start">
-                                <i class="fas fa-dollar-sign text-green-500 mr-3 mt-1"></i>
-                                <div>
-                                    <h4 class="text-sm font-medium text-green-900">Estimated Monthly Savings</h4>
-                                    <p class="text-lg font-bold text-green-700">$607.19</p>
-                                    <p class="text-xs text-green-600">Based on current analysis</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
-                    <button class="btn-secondary" onclick="this.closest('.fixed').remove()">
-                        Cancel
-                    </button>
-                    <button class="btn-primary" onclick="deploymentManager.confirmSchedule(this)">
-                        <i class="fas fa-clock mr-2"></i>
-                        Schedule Deployment
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        return modal;
-    }
-    
-    async confirmDeploy(button) {
-        const modal = button.closest('.fixed');
-        const selectedOptimizations = [];
-        
-        // Get selected optimizations
-        if (document.getElementById('hpa-opt').checked) {
-            selectedOptimizations.push({
-                type: 'hpa_memory_based',
-                name: 'Memory-based HPA',
-                configuration: {
-                    min_replicas: 1,
-                    max_replicas: 10,
-                    target_memory_utilization: 70
-                }
-            });
-        }
-        
-        if (document.getElementById('resource-opt').checked) {
-            selectedOptimizations.push({
-                type: 'resource_limits',
-                name: 'Resource Right-sizing',
-                configuration: {
-                    optimize_requests: true,
-                    optimize_limits: true
-                }
-            });
-        }
-        
-        // Show loading state
-        button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deploying...';
-        
-        try {
-            for (const optimization of selectedOptimizations) {
-                const response = await fetch('/api/deploy', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: optimization.name,
-                        type: optimization.type,
-                        resource_group: AppState.currentAnalysis?.resource_group || '',
-                        cluster_name: AppState.currentAnalysis?.cluster_name || '',
-                        configuration: optimization.configuration,
-                        estimated_savings: 607.19 // From analysis
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    notifications.show(`${optimization.name} deployment started!`, 'success');
-                } else {
-                    throw new Error(data.message);
-                }
-            }
-            
-            modal.remove();
-            await this.loadDeployments();
-            
-        } catch (error) {
-            console.error('Deployment failed:', error);
-            notifications.show('Deployment failed: ' + error.message, 'error');
-            button.disabled = false;
-            button.innerHTML = '<i class="fas fa-rocket mr-2"></i>Deploy Now';
-        }
-    }
-    
-    async confirmSchedule(button) {
-        const modal = button.closest('.fixed');
-        const scheduledTime = document.getElementById('schedule-datetime').value;
-        
-        if (!scheduledTime) {
-            notifications.show('Please select a deployment time', 'warning');
-            return;
-        }
-        
-        // Show loading state
-        button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Scheduling...';
-        
-        try {
-            const response = await fetch('/api/schedule-deployment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: 'Scheduled Optimization',
-                    type: 'hpa_memory_based',
-                    resource_group: AppState.currentAnalysis?.resource_group || '',
-                    cluster_name: AppState.currentAnalysis?.cluster_name || '',
-                    configuration: {
-                        min_replicas: 1,
-                        max_replicas: 10,
-                        target_memory_utilization: 70
-                    },
-                    estimated_savings: 607.19,
-                    scheduled_time: new Date(scheduledTime).toISOString()
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                notifications.show('Deployment scheduled successfully!', 'success');
-                modal.remove();
-                await this.loadDeployments();
-            } else {
-                throw new Error(data.message);
-            }
-            
-        } catch (error) {
-            console.error('Scheduling failed:', error);
-            notifications.show('Scheduling failed: ' + error.message, 'error');
-            button.disabled = false;
-            button.innerHTML = '<i class="fas fa-clock mr-2"></i>Schedule Deployment';
-        }
-    }
-    
-    renderDeployments() {
-        // This would render deployments in a dedicated section
-        // For now, we'll show a status indicator
-        this.updateDeploymentStatus();
-    }
-    
-    updateDeploymentStatus() {
-        const activeDeployments = this.deployments.filter(d => 
-            ['pending', 'running', 'scheduled'].includes(d.status)
-        );
-        
-        if (activeDeployments.length > 0) {
-            this.showDeploymentStatus(activeDeployments);
-        }
-    }
-    
-    showDeploymentStatus(deployments) {
-        // Remove existing status
-        const existing = document.getElementById('deployment-status');
-        if (existing) existing.remove();
-        
-        const statusContainer = document.createElement('div');
-        statusContainer.id = 'deployment-status';
-        statusContainer.className = 'fixed bottom-4 left-4 bg-white rounded-lg shadow-lg border border-gray-200 p-4 max-w-sm z-40';
-        
-        statusContainer.innerHTML = `
-            <div class="flex items-center justify-between mb-2">
-                <h4 class="font-medium text-gray-900">Active Deployments</h4>
-                <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600">
-                    <i class="fas fa-times"></i>
+    if (!planData?.phases?.length) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">No Implementation Plan Available</h4>
+                <p class="text-muted">Run an analysis first to generate your implementation plan</p>
+                <button class="btn btn-primary" onclick="switchToTab('#analysis')">
+                    <i class="fas fa-chart-bar"></i> Run Analysis
                 </button>
             </div>
-            <div class="space-y-2">
-                ${deployments.map(deployment => `
-                    <div class="flex items-center justify-between text-sm">
-                        <span class="text-gray-700">${deployment.name}</span>
-                        <span class="status-indicator status-${deployment.status}">
-                            ${deployment.status}
-                        </span>
+        `;
+        return;
+    }
+
+    const summary = planData.summary || {};
+    
+    let html = `
+        <div class="card border-0 shadow-lg mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div class="card-body text-white">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h3 class="card-title mb-3">
+                            <i class="fas fa-rocket me-2"></i>Implementation Plan Summary
+                        </h3>
+                        <div class="mb-3">
+                            <strong>Cluster:</strong> ${summary.cluster_name || 'N/A'} 
+                            <span class="mx-2">•</span>
+                            <strong>Resource Group:</strong> ${summary.resource_group || 'N/A'}
+                        </div>
+                        <p class="mb-0 opacity-90">
+                            This ${summary.total_weeks || 0}-week implementation plan will optimize your AKS cluster 
+                            through ${summary.total_phases || 0} carefully planned phases.
+                        </p>
                     </div>
-                `).join('')}
+                    <div class="col-md-4 text-end">
+                        <div class="badge fs-6 px-3 py-2" style="background: rgba(255,255,255,0.2);">
+                            <i class="fas fa-shield-alt me-1"></i>
+                            ${summary.risk_level || 'Unknown'} Risk
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row g-3 mt-3">
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
+                            <div class="h4 mb-1 text-white">$${(summary.monthly_savings || 0).toLocaleString()}</div>
+                            <small class="opacity-90">Monthly Savings</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
+                            <div class="h4 mb-1 text-white">$${(summary.annual_savings || 0).toLocaleString()}</div>
+                            <small class="opacity-90">Annual Savings</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
+                            <div class="h4 mb-1 text-white">${summary.total_weeks || 0}</div>
+                            <small class="opacity-90">Total Weeks</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
+                            <div class="h4 mb-1 text-white">${(summary.complexity_score || 0).toFixed(1)}/10</div>
+                            <small class="opacity-90">Complexity</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Render phases
+    planData.phases.forEach((phase, index) => {
+        html += renderPhaseCard(phase, index + 1);
+    });
+
+    // Add additional sections if available
+    if (planData.monitoring_plan) {
+        html += renderMonitoringSection(planData.monitoring_plan);
+    }
+
+    if (planData.governance_plan) {
+        html += renderGovernanceSection(planData.governance_plan);
+    }
+
+    if (planData.success_metrics) {
+        html += renderSuccessMetricsSection(planData.success_metrics);
+    }
+
+    if (planData.contingency_plans) {
+        html += renderContingencySection(planData.contingency_plans);
+    }
+
+    container.innerHTML = html;
+}
+
+/**
+ * Renders individual phase card
+ */
+function renderPhaseCard(phase, phaseNumber) {
+    const riskColorClass = getRiskColorClass(phase.risk);
+    
+    return `
+        <div class="card border-0 shadow mb-4">
+            <div class="card-header ${riskColorClass} text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-${getPhaseIcon(phase.title)} me-2"></i>
+                        Phase ${phaseNumber}: ${phase.title}
+                    </h6>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-light text-dark">${phase.weeks || phase.duration} weeks</span>
+                        <span class="badge bg-light text-dark">$${(phase.savings || 0).toLocaleString()}/month</span>
+                        <span class="badge bg-light text-dark">${phase.risk} Risk</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="lead mb-4">${phase.description}</p>
+                
+                <div class="row">
+                    <div class="col-lg-8">
+                        <h6><i class="fas fa-tasks me-2"></i>Implementation Tasks</h6>
+                        ${renderTasksAccordion(phase.tasks, phaseNumber)}
+                    </div>
+                    <div class="col-lg-4">
+                        <h6><i class="fas fa-check-circle me-2"></i>Validation Steps</h6>
+                        ${renderValidationList(phase.validation)}
+                        
+                        <div class="mt-4">
+                            <h6><i class="fas fa-info-circle me-2"></i>Phase Summary</h6>
+                            <div class="card bg-light">
+                                <div class="card-body p-3">
+                                    <div class="row text-center">
+                                        <div class="col-6">
+                                            <strong class="text-success">$${(phase.savings || 0).toLocaleString()}</strong>
+                                            <small class="d-block text-muted">Monthly Savings</small>
+                                        </div>
+                                        <div class="col-6">
+                                            <strong class="text-primary">${phase.weeks || phase.duration} weeks</strong>
+                                            <small class="d-block text-muted">Duration</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Renders tasks accordion for a phase
+ */
+function renderTasksAccordion(tasks, phaseNumber) {
+    if (!tasks?.length) return '<p class="text-muted">No tasks defined</p>';
+    
+    return `
+        <div class="accordion accordion-flush" id="phase${phaseNumber}Tasks">
+            ${tasks.map((task, index) => {
+                const taskId = `task${phaseNumber}_${index}`;
+                return `
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#${taskId}">
+                                <strong>${task.task || `Task ${index + 1}`}</strong>
+                                ${task.time_estimate ? `<small class="text-muted ms-2">(${task.time_estimate})</small>` : ''}
+                            </button>
+                        </h2>
+                        <div id="${taskId}" class="accordion-collapse collapse" data-bs-parent="#phase${phaseNumber}Tasks">
+                            <div class="accordion-body">
+                                <p><strong>Description:</strong> ${task.description}</p>
+                                ${task.command ? `
+                                    <div class="mb-3">
+                                        <strong>Command:</strong>
+                                        <div class="bg-dark text-light p-3 rounded mt-2 position-relative">
+                                            <code>${task.command}</code>
+                                            <button class="btn btn-sm btn-outline-light position-absolute top-0 end-0 m-2" 
+                                                    onclick="copyToClipboard('${task.command.replace(/'/g, "\\'")}')">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                ${task.template ? `
+                                    <div class="mb-3">
+                                        <strong>YAML Template:</strong>
+                                        <div class="bg-light border rounded mt-2 position-relative" style="max-height: 300px; overflow-y: auto;">
+                                            <pre class="p-3 mb-0"><code>${escapeHtml(task.template)}</code></pre>
+                                            <button class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-2" 
+                                                    onclick="copyToClipboard(\`${task.template.replace(/`/g, '\\`')}\`)">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                <div class="alert alert-info">
+                                    <strong>Expected Outcome:</strong> ${task.expected_outcome}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+/**
+ * Renders validation steps list
+ */
+function renderValidationList(validationSteps) {
+    if (!validationSteps?.length) return '<p class="text-muted">No validation steps defined</p>';
+    
+    return `
+        <ul class="list-group list-group-flush">
+            ${validationSteps.map(step => `
+                <li class="list-group-item px-0 border-0">
+                    <i class="fas fa-check text-success me-2"></i>${step}
+                </li>
+            `).join('')}
+        </ul>
+    `;
+}
+
+/**
+ * Displays implementation plan error
+ */
+function displayImplementationPlanError(container, message) {
+    container.innerHTML = `
+        <div class="alert alert-danger" role="alert">
+            <h4 class="alert-heading">
+                <i class="fas fa-exclamation-triangle"></i> Error Loading Implementation Plan
+            </h4>
+            <p class="mb-3">${message}</p>
+            <hr>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-danger btn-sm" onclick="loadImplementationPlan()">
+                    <i class="fas fa-redo"></i> Retry
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+                    <i class="fas fa-refresh"></i> Refresh Page
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Helper functions for implementation plan
+ */
+function getRiskColorClass(risk) {
+    switch (risk?.toLowerCase()) {
+        case 'high': return 'bg-danger';
+        case 'medium': return 'bg-warning';
+        case 'low': return 'bg-success';
+        default: return 'bg-primary';
+    }
+}
+
+function getPhaseIcon(title) {
+    const titleLower = title.toLowerCase();
+    if (titleLower.includes('resource') || titleLower.includes('right-sizing')) return 'cog';
+    if (titleLower.includes('hpa') || titleLower.includes('scaling')) return 'expand-arrows-alt';
+    if (titleLower.includes('storage')) return 'hdd';
+    if (titleLower.includes('optimization')) return 'bullseye';
+    return 'rocket';
+}
+
+/**
+ * Updates implementation summary metrics
+ */
+function updateImplementationSummary(summary) {
+    console.log('📊 Updating summary with data:', summary);
+
+    // Update the annual savings in the summary box
+    const annualSavingsElement = document.getElementById('annual-savings-impl');
+    if (annualSavingsElement) {
+        if (summary && summary.annual_savings) {
+            annualSavingsElement.textContent = `${summary.annual_savings.toLocaleString()}`;
+            console.log('✅ Updated annual savings to:', summary.annual_savings);
+        } else {
+            console.log('⚠️ No annual_savings in summary:', summary);
+        }
+    } else {
+        console.log('⚠️ annual-savings-impl element not found');
+    }
+
+    // Update quick stats if they exist
+    const totalPhasesElement = document.getElementById('total-phases-stat');
+    if (totalPhasesElement) {
+        totalPhasesElement.textContent = summary?.total_phases || 0;
+    }
+
+    const totalWeeksElement = document.getElementById('total-weeks-stat');
+    if (totalWeeksElement) {
+        totalWeeksElement.textContent = `${summary?.total_weeks || 0} weeks`;
+    }
+
+    const monthlySavingsElement = document.getElementById('monthly-savings-stat');
+    if (monthlySavingsElement) {
+        monthlySavingsElement.textContent = `${(summary?.monthly_savings || 0).toLocaleString()}`;
+    }
+
+    const riskLevelElement = document.getElementById('risk-level-stat');
+    if (riskLevelElement) {
+        riskLevelElement.textContent = summary?.risk_level || 'Unknown';
+    }
+
+    // Show the quick stats row if it exists
+    const quickStatsRow = document.getElementById('implementation-quick-stats');
+    if (quickStatsRow) {
+        quickStatsRow.style.display = 'flex';
+    }
+}
+
+/**
+ * Renders implementation phases
+ */
+function renderImplementationPhases(container, data) {
+    console.log('🏗️ Starting to render implementation phases');
+    const { phases, summary, monitoring_plan, success_metrics } = data;
+
+    if (!phases || phases.length === 0) {
+        console.log('⚠️ No phases found, showing no optimization message');
+        container.innerHTML = `
+            <div class="text-center mt-4 mb-4">
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-info-circle me-2"></i>No Major Optimizations Needed</h5>
+                    <p>Your cluster is already well-optimized! Only minor improvements were identified.</p>
+                    <p><strong>Current Status:</strong> ${summary?.message || 'Analysis complete'}</p>
+                </div>
             </div>
         `;
-        
-        document.body.appendChild(statusContainer);
+        return;
     }
-    
-    bindEvents() {
-        // Bind deployment buttons if they exist in global scope
-        window.deployOptimizations = () => this.deployOptimizations();
-        window.scheduleOptimization = () => this.scheduleOptimization();
+
+    console.log(`🏗️ Rendering ${phases.length} phases`);
+
+    let html = `
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <h3 class="mb-1">${summary.total_phases}</h3>
+                                <small>Implementation Phases</small>
+                            </div>
+                            <div class="col-md-3">
+                                <h3 class="mb-1">${summary.total_weeks}</h3>
+                                <small>Total Weeks</small>
+                            </div>
+                            <div class="col-md-3">
+                                <h3 class="mb-1">${summary.monthly_savings.toLocaleString()}</h3>
+                                <small>Monthly Savings</small>
+                            </div>
+                            <div class="col-md-3">
+                                <h3 class="mb-1">${summary.risk_level}</h3>
+                                <small>Overall Risk</small>
+                            </div>
+                        </div>
+                        ${summary.resource_group && summary.cluster_name ? `
+                        <div class="row mt-3">
+                            <div class="col-12 text-center">
+                                <small><i class="fas fa-server me-1"></i> ${summary.resource_group} / ${summary.cluster_name}</small>
+                                ${summary.success_probability ? `<span class="ms-3"><i class="fas fa-chart-line me-1"></i> ${summary.success_probability} Success Rate</span>` : ''}
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Render each phase
+    phases.forEach((phase, index) => {
+        console.log(`🏗️ Rendering phase ${index + 1}:`, phase.title);
+        html += renderPhaseCard(phase, index);
+    });
+
+    // Add success metrics if available
+    if (success_metrics && Object.keys(success_metrics).length > 0) {
+        console.log('🎯 Adding success metrics');
+        html += renderSuccessMetrics(success_metrics);
     }
+
+    console.log('🏗️ Setting innerHTML for container');
+    container.innerHTML = html;
+    console.log('✅ Implementation phases rendered successfully');
 }
 
-// Enhanced UI Interactions
-class UIEnhancer {
-    constructor() {
-        this.init();
-    }
-    
-    init() {
-        this.addLoadingStates();
-        this.addHoverEffects();
-        this.addAnimations();
-        this.addKeyboardShortcuts();
-    }
-    
-    addLoadingStates() {
-        // Add loading states to buttons
-        document.addEventListener('click', (e) => {
-            if (e.target.matches('.btn-primary, .btn-success')) {
-                this.addButtonLoading(e.target);
-            }
-        });
-    }
-    
-    addButtonLoading(button) {
-        const originalText = button.innerHTML;
-        button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading...';
-        
-        // Remove loading state after 3 seconds (adjust based on actual operation)
-        setTimeout(() => {
-            button.disabled = false;
-            button.innerHTML = originalText;
-        }, 3000);
-    }
-    
-    addHoverEffects() {
-        // Add hover effects to cards
-        const style = document.createElement('style');
-        style.textContent = `
-            .card, .metric-card, .alert-card {
-                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            }
-            
-            .card:hover, .metric-card:hover, .alert-card:hover {
-                transform: translateY(-4px);
-                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            }
-            
-            .btn-icon-sm {
-                @apply w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-200;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    addAnimations() {
-        // Add intersection observer for fade-in animations
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('fade-in');
-                }
+/**
+ * Renders success metrics section
+ */
+function renderSuccessMetrics(successMetrics) {
+    return `
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-bullseye me-2"></i>Success Metrics & KPIs
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    ${Object.entries(successMetrics).map(([categoryKey, categoryData]) => {
+                        if (!categoryData || typeof categoryData !== 'object') return '';
+                        return `
+                        <div class="col-md-4">
+                            <div class="metric-summary-card">
+                                <h6 class="text-info mb-3">
+                                    <i class="fas fa-${getCategoryIcon(categoryKey)} me-2"></i>
+                                    ${formatCategoryName(categoryKey)}
+                                </h6>
+                                ${Object.entries(categoryData).slice(0, 3).map(([key, value]) => `
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="small text-muted">${formatMetricName(key)}</span>
+                                        <span class="fw-bold text-primary">${value}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Helper functions for implementation plan categories
+ */
+function getCategoryIcon(category) {
+    const icons = {
+        'cost_metrics': 'dollar-sign',
+        'performance_metrics': 'tachometer-alt',
+        'operational_metrics': 'cogs'
+    };
+    return icons[category] || 'chart-bar';
+}
+
+function formatCategoryName(name) {
+    return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+function formatMetricName(name) {
+    return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+/**
+ * Updates monitoring plan section
+ */
+function updateMonitoringPlan(monitoringPlan) {
+    console.log('📈 Updating monitoring plan:', monitoringPlan);
+    if (!monitoringPlan || Object.keys(monitoringPlan).length === 0) return;
+
+    // Find the monitoring section and update it
+    const monitoringSection = document.querySelector('#monitoring-section .card-body');
+    if (monitoringSection) {
+        let html = '<div class="row">';
+
+        if (monitoringPlan.daily_checks && monitoringPlan.daily_checks.length > 0) {
+            html += `
+                <div class="col-md-6">
+                    <h6><i class="fas fa-calendar-day me-2"></i>Daily Monitoring</h6>
+                    <ul class="list-group list-group-flush">
+            `;
+            monitoringPlan.daily_checks.forEach(check => {
+                html += `<li class="list-group-item px-0">${check}</li>`;
             });
-        });
-        
-        // Observe all cards and metric elements
-        document.querySelectorAll('.card, .metric-card').forEach(el => {
-            observer.observe(el);
-        });
-    }
-    
-    addKeyboardShortcuts() {
-        document.addEventListener('keydown', (e) => {
-            // Ctrl/Cmd + R to refresh charts
-            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
-                e.preventDefault();
-                if (typeof refreshCharts === 'function') {
-                    refreshCharts();
-                    notifications.show('Charts refreshed!', 'info');
-                }
-            }
-            
-            // Escape to close modals
-            if (e.key === 'Escape') {
-                const modals = document.querySelectorAll('.fixed.inset-0');
-                modals.forEach(modal => modal.remove());
-            }
-        });
+            html += '</ul></div>';
+        }
+
+        if (monitoringPlan.weekly_reviews && monitoringPlan.weekly_reviews.length > 0) {
+            html += `
+                <div class="col-md-6">
+                    <h6><i class="fas fa-calendar-week me-2"></i>Weekly Reviews</h6>
+                    <ul class="list-group list-group-flush">
+            `;
+            monitoringPlan.weekly_reviews.forEach(review => {
+                html += `<li class="list-group-item px-0">${review}</li>`;
+            });
+            html += '</ul></div>';
+        }
+
+        html += '</div>';
+        monitoringSection.innerHTML = html;
+        console.log('✅ Monitoring plan updated');
+    } else {
+        console.log('⚠️ Monitoring section not found');
     }
 }
 
-// Initialize enhanced functionality
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize managers
-    window.alertsManager = new AlertsManager();
-    window.deploymentManager = new DeploymentManager();
-    window.uiEnhancer = new UIEnhancer();
+/**
+ * Shows no analysis message
+ */
+function showNoAnalysisMessage(container) {
+    container.innerHTML = `
+        <div class="text-center mt-4 mb-4">
+            <div class="alert alert-warning">
+                <h4><i class="fas fa-exclamation-triangle me-2"></i>No Analysis Available</h4>
+                <p>Please run a cost analysis first to generate your personalized implementation plan.</p>
+                <button class="btn btn-primary" onclick="switchToTab('#analysis')">
+                    <i class="fas fa-search me-2"></i>Run Analysis
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Shows implementation error message
+ */
+function showImplementationError(container, message) {
+    container.innerHTML = `
+        <div class="text-center mt-4 mb-4">
+            <div class="alert alert-danger">
+                <h4><i class="fas fa-exclamation-circle me-2"></i>Error Loading Implementation Plan</h4>
+                <p>${message}</p>
+                <button class="btn btn-outline-primary" onclick="loadImplementationPlan()">
+                    <i class="fas fa-redo me-2"></i>Retry
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Test implementation API for debugging
+ */
+function testImplementationAPI() {
+    console.log('🧪 Testing implementation API directly...');
+
+    fetch('/api/implementation-plan')
+        .then(response => response.json())
+        .then(data => {
+            console.log('🧪 Test result:', data);
+            console.log('🧪 Phases:', data.phases);
+            console.log('🧪 Summary:', data.summary);
+        })
+        .catch(error => {
+            console.error('🧪 Test error:', error);
+        });
+}
+
+/**
+ * Escapes HTML characters to prevent XSS
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Renders monitoring section for implementation plan
+ */
+function renderMonitoringSection(monitoringPlan) {
+    return `
+        <div class="card border-0 shadow-sm mt-5">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line me-2"></i>Ongoing Monitoring & Optimization
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    ${monitoringPlan.daily_checks ? `
+                        <div class="col-md-6">
+                            <h6 class="text-success">
+                                <i class="fas fa-calendar-day me-2"></i>Daily Monitoring
+                            </h6>
+                            <ul class="list-group list-group-flush">
+                                ${monitoringPlan.daily_checks.map(check => `
+                                    <li class="list-group-item border-0 px-0">${check}</li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${monitoringPlan.weekly_reviews ? `
+                        <div class="col-md-6">
+                            <h6 class="text-primary">
+                                <i class="fas fa-calendar-week me-2"></i>Weekly Reviews
+                            </h6>
+                            <ul class="list-group list-group-flush">
+                                ${monitoringPlan.weekly_reviews.map(review => `
+                                    <li class="list-group-item border-0 px-0">${review}</li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${monitoringPlan.monthly_assessments ? `
+                        <div class="col-md-6">
+                            <h6 class="text-warning">
+                                <i class="fas fa-calendar-alt me-2"></i>Monthly Assessments
+                            </h6>
+                            <ul class="list-group list-group-flush">
+                                ${monitoringPlan.monthly_assessments.map(assessment => `
+                                    <li class="list-group-item border-0 px-0">${assessment}</li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${monitoringPlan.automated_alerts ? `
+                        <div class="col-md-6">
+                            <h6 class="text-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Automated Alerts
+                            </h6>
+                            <ul class="list-group list-group-flush">
+                                ${monitoringPlan.automated_alerts.map(alert => `
+                                    <li class="list-group-item border-0 px-0">${alert}</li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Renders governance section for implementation plan
+ */
+function renderGovernanceSection(governancePlan) {
+    return `
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-shield-alt me-2"></i>Governance & Control Framework
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    ${governancePlan.resource_policies ? `
+                        <div class="col-md-4">
+                            <h6 class="text-primary">
+                                <i class="fas fa-cogs me-2"></i>Resource Policies
+                            </h6>
+                            <ul class="list-group list-group-flush">
+                                ${governancePlan.resource_policies.map(policy => `
+                                    <li class="list-group-item border-0 px-0">${policy}</li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${governancePlan.cost_controls ? `
+                        <div class="col-md-4">
+                            <h6 class="text-success">
+                                <i class="fas fa-dollar-sign me-2"></i>Cost Controls
+                            </h6>
+                            <ul class="list-group list-group-flush">
+                                ${governancePlan.cost_controls.map(control => `
+                                    <li class="list-group-item border-0 px-0">${control}</li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                    
+                    ${governancePlan.operational_procedures ? `
+                        <div class="col-md-4">
+                            <h6 class="text-warning">
+                                <i class="fas fa-clipboard-list me-2"></i>Operational Procedures
+                            </h6>
+                            <ul class="list-group list-group-flush">
+                                ${governancePlan.operational_procedures.map(procedure => `
+                                    <li class="list-group-item border-0 px-0">${procedure}</li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Renders success metrics section
+ */
+function renderSuccessMetricsSection(successMetrics) {
+    return `
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-bullseye me-2"></i>Success Metrics & KPIs
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    ${Object.entries(successMetrics).map(([categoryKey, categoryData]) => {
+                        if (!categoryData || typeof categoryData !== 'object') return '';
+                        return `
+                        <div class="col-md-4">
+                            <div class="metric-summary-card">
+                                <h6 class="text-info mb-3">
+                                    <i class="fas fa-${getCategoryIcon(categoryKey)} me-2"></i>
+                                    ${formatCategoryName(categoryKey)}
+                                </h6>
+                                ${Object.entries(categoryData).slice(0, 3).map(([key, value]) => `
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="small text-muted">${formatMetricName(key)}</span>
+                                        <span class="fw-bold text-primary">${value}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Renders contingency section
+ */
+function renderContingencySection(contingencyPlans) {
+    return `
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Contingency Plans
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    ${Object.entries(contingencyPlans).map(([key, plan]) => `
+                        <div class="col-md-4">
+                            <div class="card h-100 border-warning">
+                                <div class="card-header bg-warning bg-opacity-10">
+                                    <h6 class="mb-0 text-capitalize">
+                                        ${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="small text-muted mb-2">
+                                        <strong>Scenario:</strong> ${plan.scenario}
+                                    </p>
+                                    <p class="small mb-2">
+                                        <strong>Alternative:</strong> ${plan.alternative}
+                                    </p>
+                                    <div class="alert alert-warning alert-sm mb-0">
+                                        <strong>Impact:</strong> ${plan.impact}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ============================================================================
+// TAB NAVIGATION
+// ============================================================================
+
+/**
+ * Switches to specified tab
+ */
+function switchToTab(selector) {
+    const button = document.querySelector(`[data-bs-target="${selector}"]`);
+    if (button) button.click();
+}
+
+/**
+ * Handles tab switching events
+ */
+function onTabSwitch(event) {
+    const target = event.target.getAttribute('data-bs-target');
+    console.log('📑 Tab switched to:', target);
     
-    // Add enhanced CSS classes
+    switch (target) {
+        case '#dashboard':
+            setTimeout(initializeCharts, 500);
+            break;
+        case '#implementation':
+            loadImplementationPlan();
+            break;
+    }
+}
+
+// Export tab navigation functions immediately
+window.switchToTab = switchToTab;
+
+// ============================================================================
+// PLACEHOLDER FUNCTIONS (Future Features)
+// ============================================================================
+
+function analyzeAllClusters() {
+    showNotification('Analyzing all clusters... Feature coming soon!', 'info');
+}
+
+function showPortfolioAnalytics() {
+    showNotification('Portfolio Analytics... Feature coming soon!', 'info');
+}
+
+function refreshCharts() {
+    showNotification('Refreshing charts...', 'info');
+    initializeCharts();
+}
+
+function exportReport() {
+    showNotification('Report export coming soon!', 'info');
+}
+
+function deployOptimizations() {
+    showNotification('Deployment feature coming soon!', 'info');
+}
+
+function scheduleOptimization() {
+    showNotification('Scheduling feature coming soon!', 'info');
+}
+
+// Export placeholder functions immediately
+window.analyzeAllClusters = analyzeAllClusters;
+window.showPortfolioAnalytics = showPortfolioAnalytics;
+window.refreshCharts = refreshCharts;
+window.exportReport = exportReport;
+window.deployOptimizations = deployOptimizations;
+window.scheduleOptimization = scheduleOptimization;
+
+// ============================================================================
+// CSS INJECTION
+// ============================================================================
+
+/**
+ * Injects necessary CSS for enhanced functionality
+ */
+function injectEnhancedCSS() {
+    if (document.getElementById('enhanced-dashboard-css')) return;
+    
     const style = document.createElement('style');
+    style.id = 'enhanced-dashboard-css';
     style.textContent = `
+        .metric-updated { 
+            position: relative; 
+            transition: all 0.3s ease;
+        }
+        
+        .metric-updated-indicator { 
+            position: absolute; 
+            top: -2px; 
+            right: -2px; 
+            animation: pulse 2s infinite; 
+            color: #28a745;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .data-source-indicator { 
+            position: fixed; 
+            top: 90px; 
+            right: 20px; 
+            z-index: 1000; 
+        }
+        
+        .data-source-badge { 
+            background: rgba(255,255,255,0.95); 
+            border-radius: 20px; 
+            padding: 8px 16px; 
+            display: flex; 
+            align-items: center; 
+            gap: 5px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 0.875rem;
+        }
+        
+        .data-source-badge.real-data { 
+            border: 1px solid #28a745; 
+            color: #28a745; 
+        }
+        
+        .data-source-badge.sample-data { 
+            border: 1px solid #ffc107; 
+            color: #856404; 
+            background: rgba(255,193,7,0.1); 
+        }
+        
+        [data-theme="dark"] .data-source-badge { 
+            background: rgba(45,55,72,0.95); 
+            color: #f7fafc; 
+        }
+        
         .fade-in {
             animation: fadeIn 0.6s ease-out;
         }
         
-        .slide-up {
-            animation: slideUp 0.6s ease-out;
-        }
-        
-        .scale-in {
-            animation: scaleIn 0.4s ease-out;
-        }
-        
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            from { 
+                opacity: 0; 
+                transform: translateY(20px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
         }
         
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
+        .card:hover, .metric-card:hover {
+            transform: translateY(-2px);
+            transition: transform 0.2s ease;
         }
         
-        @keyframes scaleIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
+        .loading {
+            position: relative;
+            pointer-events: none;
         }
         
-        .btn-secondary {
-            @apply px-4 py-2 border border-gray-300 text-gray-700 bg-white rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200;
-        }
-        
-        .notification-toast {
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+        .loading::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
     `;
     document.head.appendChild(style);
+}
+
+// ============================================================================
+// INITIALIZATION & EVENT HANDLERS
+// ============================================================================
+
+/**
+ * Main initialization function
+ */
+function initializeDashboard() {
+    console.log('🚀 Initializing AKS Cost Intelligence Dashboard');
     
-    console.log('Enhanced dashboard initialized successfully!');
+    try {
+        // Inject enhanced CSS
+        injectEnhancedCSS();
+        
+        // Setup form handlers
+        setupFormHandlers();
+        
+        // Setup input validation
+        setupInputValidation();
+        
+        // Setup tab switching
+        setupTabSwitching();
+        
+        // Setup keyboard shortcuts
+        setupKeyboardShortcuts();
+        
+        // Auto-initialize charts if dashboard is active
+        if (document.querySelector('#dashboard')?.classList.contains('active')) {
+            setTimeout(initializeCharts, 500);
+        }
+        
+        // Test API connectivity
+        testAPIConnectivity();
+        
+        console.log('✅ Dashboard initialization completed');
+        
+    } catch (error) {
+        console.error('❌ Error during initialization:', error);
+        showNotification('Dashboard initialization failed: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Sets up form event handlers
+ */
+function setupFormHandlers() {
+    // Add cluster form handler
+    const possibleFormIds = ['addClusterForm', 'add-cluster-form', 'clusterForm'];
+    let formFound = false;
+    
+    for (const formId of possibleFormIds) {
+        const form = document.getElementById(formId);
+        if (form) {
+            console.log(`✅ Found form: ${formId}`);
+            form.addEventListener('submit', handleAddClusterSubmission);
+            formFound = true;
+            break;
+        }
+    }
+    
+    if (!formFound) {
+        console.warn('⚠️ No add cluster form found');
+    }
+    
+    // Analysis form handler
+    const analysisForm = document.getElementById('analysisForm');
+    if (analysisForm) {
+        analysisForm.addEventListener('submit', handleAnalysisSubmit);
+        console.log('✅ Analysis form handler attached');
+    }
+}
+
+/**
+ * Sets up tab switching functionality
+ */
+function setupTabSwitching() {
+    document.querySelectorAll('[data-bs-toggle="tab"]').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', onTabSwitch);
+    });
+}
+
+/**
+ * Sets up keyboard shortcuts
+ */
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (event) => {
+        // Ctrl/Cmd + R to refresh charts
+        if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+            event.preventDefault();
+            refreshCharts();
+        }
+        
+        // Escape to close modals
+        if (event.key === 'Escape') {
+            const modals = document.querySelectorAll('.modal.show');
+            modals.forEach(modal => {
+                const modalInstance = bootstrap.Modal.getInstance(modal);
+                if (modalInstance) modalInstance.hide();
+            });
+        }
+    });
+}
+
+/**
+ * Tests API connectivity
+ */
+function testAPIConnectivity() {
+    fetch(`${AppConfig.API_BASE_URL}/clusters`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('✅ API connectivity test passed');
+            if (data.clusters?.length > 0) {
+                console.log(`📊 Found ${data.clusters.length} existing clusters`);
+            }
+        })
+        .catch(error => {
+            console.error('❌ API connectivity test failed:', error);
+            showNotification('API connection failed. Some features may not work.', 'warning');
+        });
+}
+
+// ============================================================================
+// MAIN ENTRY POINT
+// ============================================================================
+
+/**
+ * Single DOMContentLoaded event handler
+ */
+document.addEventListener('DOMContentLoaded', initializeDashboard);
+
+// Export AppState for external access
+window.AppState = AppState;
+window.AppConfig = AppConfig;
+
+console.log('✅ Enhanced AKS Cost Intelligence Dashboard loaded successfully');
+
+/**
+ * Gets accuracy badge class for pod analysis
+ */
+function getAccuracyBadgeClass(accuracy) {
+    switch (accuracy?.toLowerCase()) {
+        case 'very high': return 'bg-success';
+        case 'high': return 'bg-info';
+        case 'good': return 'bg-warning';
+        case 'basic': return 'bg-secondary';
+        default: return 'bg-secondary';
+    }
+}
+
+/**
+ * Shows chart error message with retry option
+ */
+function showChartError(message) {
+    console.error('Chart error:', message);
+    
+    const chartIds = ['costBreakdownChart', 'hpaComparisonChart', 'nodeUtilizationChart', 'savingsBreakdownChart'];
+    chartIds.forEach(id => {
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        
+        canvas.parentElement.innerHTML = `
+            <div class="text-center text-muted p-4">
+                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                <p>${message}</p>
+                <button class="btn btn-outline-primary btn-sm" onclick="initializeCharts()">
+                    <i class="fas fa-redo me-1"></i>Retry
+                </button>
+            </div>
+        `;
+    });
+}
+
+// ============================================================================
+// IMPLEMENTATION PLAN MANAGEMENT
+// ============================================================================
+
+/**
+ * Loads and displays implementation plan
+ */
+function loadImplementationPlan() {
+    console.log('📋 Loading implementation plan...');
+    
+    const container = document.getElementById('implementation-plan-container');
+    if (!container) {
+        console.warn('Implementation plan container not found');
+        return;
+    }
+    
+    // Show loading state
+    container.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Loading implementation plan...</p>
+        </div>
+    `;
+    
+    fetch(`${AppConfig.API_BASE_URL}/implementation-plan`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                displayImplementationPlan(data);
+            } else {
+                throw new Error(data.message || 'Failed to load implementation plan');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Failed to load implementation plan:', error);
+            displayImplementationPlanError(container, error.message);
+        });
+}
+
+/**
+ * Displays implementation plan content
+ */
+function displayImplementationPlan(planData) {
+    const container = document.getElementById('implementation-plan-container');
+    
+    if (!planData?.phases?.length) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">No Implementation Plan Available</h4>
+                <p class="text-muted">Run an analysis first to generate your implementation plan</p>
+                <button class="btn btn-primary" onclick="switchToTab('#analysis')">
+                    <i class="fas fa-chart-bar"></i> Run Analysis
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    const summary = planData.summary || {};
+    
+    let html = `
+        <div class="card border-0 shadow-lg mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div class="card-body text-white">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h3 class="card-title mb-3">
+                            <i class="fas fa-rocket me-2"></i>Implementation Plan Summary
+                        </h3>
+                        <div class="mb-3">
+                            <strong>Cluster:</strong> ${summary.cluster_name || 'N/A'} 
+                            <span class="mx-2">•</span>
+                            <strong>Resource Group:</strong> ${summary.resource_group || 'N/A'}
+                        </div>
+                        <p class="mb-0 opacity-90">
+                            This ${summary.total_weeks || 0}-week implementation plan will optimize your AKS cluster 
+                            through ${summary.total_phases || 0} carefully planned phases.
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <div class="badge fs-6 px-3 py-2" style="background: rgba(255,255,255,0.2);">
+                            <i class="fas fa-shield-alt me-1"></i>
+                            ${summary.risk_level || 'Unknown'} Risk
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row g-3 mt-3">
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
+                            <div class="h4 mb-1 text-white">$${(summary.monthly_savings || 0).toLocaleString()}</div>
+                            <small class="opacity-90">Monthly Savings</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
+                            <div class="h4 mb-1 text-white">$${(summary.annual_savings || 0).toLocaleString()}</div>
+                            <small class="opacity-90">Annual Savings</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
+                            <div class="h4 mb-1 text-white">${summary.total_weeks || 0}</div>
+                            <small class="opacity-90">Total Weeks</small>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-3 rounded" style="background: rgba(255,255,255,0.15);">
+                            <div class="h4 mb-1 text-white">${(summary.complexity_score || 0).toFixed(1)}/10</div>
+                            <small class="opacity-90">Complexity</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Render phases
+    planData.phases.forEach((phase, index) => {
+        html += renderPhaseCard(phase, index + 1);
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * Renders individual phase card
+ */
+function renderPhaseCard(phase, phaseNumber) {
+    const riskColorClass = getRiskColorClass(phase.risk);
+    
+    return `
+        <div class="card border-0 shadow mb-4">
+            <div class="card-header ${riskColorClass} text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-${getPhaseIcon(phase.title)} me-2"></i>
+                        Phase ${phaseNumber}: ${phase.title}
+                    </h6>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-light text-dark">${phase.weeks || phase.duration} weeks</span>
+                        <span class="badge bg-light text-dark">$${(phase.savings || 0).toLocaleString()}/month</span>
+                        <span class="badge bg-light text-dark">${phase.risk} Risk</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="lead mb-4">${phase.description}</p>
+                
+                <div class="row">
+                    <div class="col-lg-8">
+                        <h6><i class="fas fa-tasks me-2"></i>Implementation Tasks</h6>
+                        ${renderTasksAccordion(phase.tasks, phaseNumber)}
+                    </div>
+                    <div class="col-lg-4">
+                        <h6><i class="fas fa-check-circle me-2"></i>Validation Steps</h6>
+                        ${renderValidationList(phase.validation)}
+                        
+                        <div class="mt-4">
+                            <h6><i class="fas fa-info-circle me-2"></i>Phase Summary</h6>
+                            <div class="card bg-light">
+                                <div class="card-body p-3">
+                                    <div class="row text-center">
+                                        <div class="col-6">
+                                            <strong class="text-success">$${(phase.savings || 0).toLocaleString()}</strong>
+                                            <small class="d-block text-muted">Monthly Savings</small>
+                                        </div>
+                                        <div class="col-6">
+                                            <strong class="text-primary">${phase.weeks || phase.duration} weeks</strong>
+                                            <small class="d-block text-muted">Duration</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Renders tasks accordion for a phase
+ */
+function renderTasksAccordion(tasks, phaseNumber) {
+    if (!tasks?.length) return '<p class="text-muted">No tasks defined</p>';
+    
+    return `
+        <div class="accordion accordion-flush" id="phase${phaseNumber}Tasks">
+            ${tasks.map((task, index) => {
+                const taskId = `task${phaseNumber}_${index}`;
+                return `
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#${taskId}">
+                                <strong>${task.task || `Task ${index + 1}`}</strong>
+                                ${task.time_estimate ? `<small class="text-muted ms-2">(${task.time_estimate})</small>` : ''}
+                            </button>
+                        </h2>
+                        <div id="${taskId}" class="accordion-collapse collapse" data-bs-parent="#phase${phaseNumber}Tasks">
+                            <div class="accordion-body">
+                                <p><strong>Description:</strong> ${task.description}</p>
+                                ${task.command ? `
+                                    <div class="mb-3">
+                                        <strong>Command:</strong>
+                                        <div class="bg-dark text-light p-3 rounded mt-2 position-relative">
+                                            <code>${task.command}</code>
+                                            <button class="btn btn-sm btn-outline-light position-absolute top-0 end-0 m-2" 
+                                                    onclick="copyToClipboard('${task.command.replace(/'/g, "\\'")}')">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                ${task.template ? `
+                                    <div class="mb-3">
+                                        <strong>YAML Template:</strong>
+                                        <div class="bg-light border rounded mt-2 position-relative" style="max-height: 300px; overflow-y: auto;">
+                                            <pre class="p-3 mb-0"><code>${escapeHtml(task.template)}</code></pre>
+                                            <button class="btn btn-sm btn-outline-primary position-absolute top-0 end-0 m-2" 
+                                                    onclick="copyToClipboard(\`${task.template.replace(/`/g, '\\`')}\`)">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                <div class="alert alert-info">
+                                    <strong>Expected Outcome:</strong> ${task.expected_outcome}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+/**
+ * Renders validation steps list
+ */
+function renderValidationList(validationSteps) {
+    if (!validationSteps?.length) return '<p class="text-muted">No validation steps defined</p>';
+    
+    return `
+        <ul class="list-group list-group-flush">
+            ${validationSteps.map(step => `
+                <li class="list-group-item px-0 border-0">
+                    <i class="fas fa-check text-success me-2"></i>${step}
+                </li>
+            `).join('')}
+        </ul>
+    `;
+}
+
+/**
+ * Displays implementation plan error
+ */
+function displayImplementationPlanError(container, message) {
+    container.innerHTML = `
+        <div class="alert alert-danger" role="alert">
+            <h4 class="alert-heading">
+                <i class="fas fa-exclamation-triangle"></i> Error Loading Implementation Plan
+            </h4>
+            <p class="mb-3">${message}</p>
+            <hr>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-danger btn-sm" onclick="loadImplementationPlan()">
+                    <i class="fas fa-redo"></i> Retry
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+                    <i class="fas fa-refresh"></i> Refresh Page
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Helper functions for implementation plan
+ */
+function getRiskColorClass(risk) {
+    switch (risk?.toLowerCase()) {
+        case 'high': return 'bg-danger';
+        case 'medium': return 'bg-warning';
+        case 'low': return 'bg-success';
+        default: return 'bg-primary';
+    }
+}
+
+function getPhaseIcon(title) {
+    const titleLower = title.toLowerCase();
+    if (titleLower.includes('resource') || titleLower.includes('right-sizing')) return 'cog';
+    if (titleLower.includes('hpa') || titleLower.includes('scaling')) return 'expand-arrows-alt';
+    if (titleLower.includes('storage')) return 'hdd';
+    if (titleLower.includes('optimization')) return 'bullseye';
+    return 'rocket';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ============================================================================
+// TAB NAVIGATION
+// ============================================================================
+
+/**
+ * Switches to specified tab
+ */
+function switchToTab(selector) {
+    const button = document.querySelector(`[data-bs-target="${selector}"]`);
+    if (button) button.click();
+}
+
+/**
+ * Handles tab switching events
+ */
+function onTabSwitch(event) {
+    const target = event.target.getAttribute('data-bs-target');
+    console.log('📑 Tab switched to:', target);
+    
+    switch (target) {
+        case '#dashboard':
+            setTimeout(initializeCharts, 500);
+            break;
+        case '#implementation':
+            loadImplementationPlan();
+            break;
+    }
+}
+
+// ============================================================================
+// PLACEHOLDER FUNCTIONS (Future Features)
+// ============================================================================
+
+function analyzeAllClusters() {
+    showNotification('Analyzing all clusters... Feature coming soon!', 'info');
+}
+
+function showPortfolioAnalytics() {
+    showNotification('Portfolio Analytics... Feature coming soon!', 'info');
+}
+
+function refreshCharts() {
+    showNotification('Refreshing charts...', 'info');
+    initializeCharts();
+}
+
+function exportReport() {
+    showNotification('Report export coming soon!', 'info');
+}
+
+function deployOptimizations() {
+    showNotification('Deployment feature coming soon!', 'info');
+}
+
+function scheduleOptimization() {
+    showNotification('Scheduling feature coming soon!', 'info');
+}
+
+// ============================================================================
+// CSS INJECTION
+// ============================================================================
+
+/**
+ * Injects necessary CSS for enhanced functionality
+ */
+function injectEnhancedCSS() {
+    if (document.getElementById('enhanced-dashboard-css')) return;
+    
+    const style = document.createElement('style');
+    style.id = 'enhanced-dashboard-css';
+    style.textContent = `
+        .metric-updated { 
+            position: relative; 
+            transition: all 0.3s ease;
+        }
+        
+        .metric-updated-indicator { 
+            position: absolute; 
+            top: -2px; 
+            right: -2px; 
+            animation: pulse 2s infinite; 
+            color: #28a745;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .data-source-indicator { 
+            position: fixed; 
+            top: 90px; 
+            right: 20px; 
+            z-index: 1000; 
+        }
+        
+        .data-source-badge { 
+            background: rgba(255,255,255,0.95); 
+            border-radius: 20px; 
+            padding: 8px 16px; 
+            display: flex; 
+            align-items: center; 
+            gap: 5px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 0.875rem;
+        }
+        
+        .data-source-badge.real-data { 
+            border: 1px solid #28a745; 
+            color: #28a745; 
+        }
+        
+        .data-source-badge.sample-data { 
+            border: 1px solid #ffc107; 
+            color: #856404; 
+            background: rgba(255,193,7,0.1); 
+        }
+        
+        [data-theme="dark"] .data-source-badge { 
+            background: rgba(45,55,72,0.95); 
+            color: #f7fafc; 
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { 
+                opacity: 0; 
+                transform: translateY(20px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
+        }
+        
+        .card:hover, .metric-card:hover {
+            transform: translateY(-2px);
+            transition: transform 0.2s ease;
+        }
+        
+        .loading {
+            position: relative;
+            pointer-events: none;
+        }
+        
+        .loading::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// ============================================================================
+// INITIALIZATION & EVENT HANDLERS
+// ============================================================================
+
+/**
+ * Main initialization function
+ */
+function initializeDashboard() {
+    console.log('🚀 Initializing AKS Cost Intelligence Dashboard');
+    
+    try {
+        // Inject enhanced CSS
+        injectEnhancedCSS();
+        
+        // Setup form handlers
+        setupFormHandlers();
+        
+        // Setup input validation
+        setupInputValidation();
+        
+        // Setup tab switching
+        setupTabSwitching();
+        
+        // Setup keyboard shortcuts
+        setupKeyboardShortcuts();
+        
+        // Auto-initialize charts if dashboard is active
+        if (document.querySelector('#dashboard')?.classList.contains('active')) {
+            setTimeout(initializeCharts, 500);
+        }
+        
+        // Test API connectivity
+        testAPIConnectivity();
+        
+        console.log('✅ Dashboard initialization completed');
+        
+    } catch (error) {
+        console.error('❌ Error during initialization:', error);
+        showNotification('Dashboard initialization failed: ' + error.message, 'error');
+    }
+}
+
+/**
+ * Sets up form event handlers
+ */
+function setupFormHandlers() {
+    // Add cluster form handler
+    const possibleFormIds = ['addClusterForm', 'add-cluster-form', 'clusterForm'];
+    let formFound = false;
+    
+    for (const formId of possibleFormIds) {
+        const form = document.getElementById(formId);
+        if (form) {
+            console.log(`✅ Found form: ${formId}`);
+            form.addEventListener('submit', handleAddClusterSubmission);
+            formFound = true;
+            break;
+        }
+    }
+    
+    if (!formFound) {
+        console.warn('⚠️ No add cluster form found');
+    }
+    
+    // Analysis form handler
+    const analysisForm = document.getElementById('analysisForm');
+    if (analysisForm) {
+        analysisForm.addEventListener('submit', handleAnalysisSubmit);
+        console.log('✅ Analysis form handler attached');
+    }
+}
+
+/**
+ * Sets up tab switching functionality
+ */
+function setupTabSwitching() {
+    document.querySelectorAll('[data-bs-toggle="tab"]').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', onTabSwitch);
+    });
+}
+
+/**
+ * Sets up keyboard shortcuts
+ */
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (event) => {
+        // Ctrl/Cmd + R to refresh charts
+        if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
+            event.preventDefault();
+            refreshCharts();
+        }
+        
+        // Escape to close modals
+        if (event.key === 'Escape') {
+            const modals = document.querySelectorAll('.modal.show');
+            modals.forEach(modal => {
+                const modalInstance = bootstrap.Modal.getInstance(modal);
+                if (modalInstance) modalInstance.hide();
+            });
+        }
+    });
+}
+
+/**
+ * Tests API connectivity
+ */
+function testAPIConnectivity() {
+    fetch(`${AppConfig.API_BASE_URL}/clusters`)
+        .then(response => response.json())
+        .then(data => {
+            console.log('✅ API connectivity test passed');
+            if (data.clusters?.length > 0) {
+                console.log(`📊 Found ${data.clusters.length} existing clusters`);
+            }
+        })
+        .catch(error => {
+            console.error('❌ API connectivity test failed:', error);
+            showNotification('API connection failed. Some features may not work.', 'warning');
+        });
+}
+
+/**
+ * Enhanced Frontend Integration for Auto-Analysis
+ * Add these enhancements to your existing main.js
+ */
+
+// Enhanced AppState for real-time tracking
+AppState.autoAnalysis = {
+    active: {},  // Track active analyses
+    pollingIntervals: {},  // Store polling intervals
+    statusCache: {}  // Cache status updates
+};
+
+/**
+ * ENHANCED: Add cluster with automatic analysis
+ * Replace your existing handleAddClusterSubmission function with this version
+ */
+function handleAddClusterSubmission(event) {
+    event.preventDefault();
+    console.log('📝 Enhanced form submission started with auto-analysis');
+    
+    const formData = new FormData(event.target);
+    const autoAnalyze = document.getElementById('auto_analyze')?.checked !== false; // Default true
+    
+    const clusterData = {
+        cluster_name: formData.get('cluster_name'),
+        resource_group: formData.get('resource_group'),
+        environment: formData.get('environment') || 'development',
+        region: formData.get('region') || '',
+        description: formData.get('description') || '',
+        auto_analyze: autoAnalyze
+    };
+    
+    console.log('📋 Enhanced cluster data:', clusterData);
+    
+    // Validate required fields
+    if (!clusterData.cluster_name || !clusterData.resource_group) {
+        showNotification('Cluster name and resource group are required', 'error');
+        return;
+    }
+    
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    if (!submitBtn) {
+        console.error('❌ Submit button not found');
+        return;
+    }
+    
+    // Show loading state
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding...';
+    submitBtn.disabled = true;
+    
+    console.log('📤 Sending enhanced API request...');
+    
+    // Make API call
+    fetch(`${AppConfig.API_BASE_URL}/clusters`, {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(clusterData)
+    })
+    .then(response => {
+        console.log('📡 Enhanced API response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('✅ Enhanced API success:', data);
+        
+        const clusterId = data.cluster_id;
+        const autoAnalysisStarted = data.auto_analysis;
+        
+        if (autoAnalysisStarted) {
+            // Auto-analysis started - show enhanced notification
+            showNotification(
+                `🎉 Cluster "${clusterData.cluster_name}" added successfully! Analysis is running automatically in the background.`, 
+                'success', 
+                8000
+            );
+            
+            // Start real-time status tracking
+            startAnalysisTracking(clusterId, clusterData.cluster_name);
+            
+            // Update button to show analysis status
+            submitBtn.innerHTML = '<i class="fas fa-cog fa-spin me-2"></i>Analysis Running...';
+            
+        } else {
+            showNotification(`Cluster "${clusterData.cluster_name}" added successfully!`, 'success');
+        }
+        
+        // Close modal if exists
+        const modalElement = document.getElementById('addClusterModal');
+        if (modalElement && window.bootstrap) {
+            const modal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
+            modal.hide();
+        }
+        
+        // Reset form
+        event.target.reset();
+        
+        // Refresh the cluster list after a delay
+        setTimeout(() => {
+            if (autoAnalysisStarted) {
+                // Keep modal area updated but don't reload immediately
+                showAnalysisProgressModal(clusterId, clusterData.cluster_name);
+            }
+            refreshClusterList();
+        }, 2000);
+        
+    })
+    .catch(error => {
+        console.error('❌ Enhanced API error:', error);
+        showNotification('Error adding cluster: ' + error.message, 'error');
+    })
+    .finally(() => {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
+
+/**
+ * Start real-time analysis tracking for a cluster
+ */
+function startAnalysisTracking(clusterId, clusterName) {
+    console.log(`🔄 Starting analysis tracking for ${clusterId}`);
+    
+    // Mark as active
+    AppState.autoAnalysis.active[clusterId] = {
+        clusterId: clusterId,
+        clusterName: clusterName,
+        startTime: new Date(),
+        lastUpdate: new Date()
+    };
+    
+    // Start polling for status updates
+    const pollInterval = setInterval(() => {
+        updateAnalysisStatus(clusterId);
+    }, 3000); // Poll every 3 seconds
+    
+    AppState.autoAnalysis.pollingIntervals[clusterId] = pollInterval;
+    
+    // Auto-stop polling after 10 minutes
+    setTimeout(() => {
+        stopAnalysisTracking(clusterId);
+    }, 10 * 60 * 1000);
+}
+
+/**
+ * Update analysis status for a specific cluster
+ */
+function updateAnalysisStatus(clusterId) {
+    fetch(`${AppConfig.API_BASE_URL}/clusters/${clusterId}/analysis-status`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const status = data.status;
+                const progress = data.progress || 0;
+                const message = data.message || 'Processing...';
+                
+                console.log(`📊 Status update for ${clusterId}: ${status} (${progress}%) - ${message}`);
+                
+                // Update UI elements
+                updateClusterStatusInUI(clusterId, status, progress, message);
+                
+                // Check if completed or failed
+                if (status === 'completed') {
+                    handleAnalysisComplete(clusterId, data);
+                    stopAnalysisTracking(clusterId);
+                } else if (status === 'failed') {
+                    handleAnalysisFailure(clusterId, message);
+                    stopAnalysisTracking(clusterId);
+                }
+                
+                // Cache the status
+                AppState.autoAnalysis.statusCache[clusterId] = {
+                    status: status,
+                    progress: progress,
+                    message: message,
+                    timestamp: new Date().toISOString()
+                };
+            }
+        })
+        .catch(error => {
+            console.error(`❌ Error updating status for ${clusterId}:`, error);
+        });
+}
+
+/**
+ * Stop analysis tracking for a cluster
+ */
+function stopAnalysisTracking(clusterId) {
+    console.log(`⏹️ Stopping analysis tracking for ${clusterId}`);
+    
+    // Clear polling interval
+    if (AppState.autoAnalysis.pollingIntervals[clusterId]) {
+        clearInterval(AppState.autoAnalysis.pollingIntervals[clusterId]);
+        delete AppState.autoAnalysis.pollingIntervals[clusterId];
+    }
+    
+    // Remove from active tracking
+    delete AppState.autoAnalysis.active[clusterId];
+}
+
+/**
+ * Update cluster status in the UI
+ */
+function updateClusterStatusInUI(clusterId, status, progress, message) {
+    // Find cluster cards/elements with this ID
+    const clusterElements = document.querySelectorAll(`[data-cluster-id="${clusterId}"]`);
+    
+    clusterElements.forEach(element => {
+        const statusElement = element.querySelector('.cluster-status');
+        const actionButton = element.querySelector('.cluster-action-btn');
+        const progressBar = element.querySelector('.analysis-progress');
+        
+        if (statusElement) {
+            statusElement.innerHTML = getEnhancedStatusHTML(status, message, progress);
+        }
+        
+        if (actionButton) {
+            updateActionButton(actionButton, status, clusterId, progress);
+        }
+        
+        if (progressBar) {
+            updateProgressBar(progressBar, progress, status);
+        }
+    });
+    
+    // Update any open progress modals
+    updateProgressModal(clusterId, status, progress, message);
+}
+
+/**
+ * Generate enhanced status HTML
+ */
+function getEnhancedStatusHTML(status, message, progress) {
+    switch (status) {
+        case 'analyzing':
+            return `
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                        <span class="visually-hidden">Analyzing...</span>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold text-primary">Analyzing</div>
+                        <small class="text-muted">${message}</small>
+                        <div class="progress mt-1" style="height: 4px;">
+                            <div class="progress-bar bg-primary" style="width: ${progress}%"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+        case 'completed':
+            return `
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-check-circle text-success me-2 fa-lg"></i>
+                    <div>
+                        <div class="fw-semibold text-success">Analysis Complete</div>
+                        <small class="text-muted">Results available</small>
+                    </div>
+                </div>
+            `;
+            
+        case 'failed':
+            return `
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle text-warning me-2 fa-lg"></i>
+                    <div>
+                        <div class="fw-semibold text-warning">Analysis Failed</div>
+                        <small class="text-muted">${message}</small>
+                    </div>
+                </div>
+            `;
+            
+        default:
+            return `
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-clock text-muted me-2"></i>
+                    <div>
+                        <div class="fw-semibold text-muted">Ready to Analyze</div>
+                        <small class="text-muted">Click to start analysis</small>
+                    </div>
+                </div>
+            `;
+    }
+}
+
+/**
+ * Update action button based on analysis status
+ */
+function updateActionButton(button, status, clusterId, progress = 0) {
+    switch (status) {
+        case 'analyzing':
+            button.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>Analyzing... ${progress}%`;
+            button.disabled = true;
+            button.className = 'btn btn-sm btn-outline-primary cluster-action-btn';
+            break;
+            
+        case 'completed':
+            button.innerHTML = '<i class="fas fa-eye me-1"></i>View Results';
+            button.disabled = false;
+            button.className = 'btn btn-sm btn-success cluster-action-btn';
+            button.onclick = () => selectCluster(clusterId);
+            break;
+            
+        case 'failed':
+            button.innerHTML = '<i class="fas fa-redo me-1"></i>Retry Analysis';
+            button.disabled = false;
+            button.className = 'btn btn-sm btn-warning cluster-action-btn';
+            button.onclick = () => analyzeCluster(clusterId);
+            break;
+            
+        default:
+            button.innerHTML = '<i class="fas fa-play me-1"></i>Analyze Now';
+            button.disabled = false;
+            button.className = 'btn btn-sm btn-primary cluster-action-btn';
+            button.onclick = () => analyzeCluster(clusterId);
+            break;
+    }
+}
+
+/**
+ * Handle analysis completion
+ */
+function handleAnalysisComplete(clusterId, statusData) {
+    const clusterName = AppState.autoAnalysis.active[clusterId]?.clusterName || 'Cluster';
+    
+    console.log(`🎉 Analysis completed for ${clusterName}`);
+    
+    // Show enhanced completion notification
+    const results = statusData.results || {};
+    const savings = results.total_savings || 0;
+    const cost = results.total_cost || 0;
+    
+    showEnhancedCompletionNotification(clusterName, cost, savings, clusterId);
+    
+    // Refresh cluster list to show updated data
+    setTimeout(() => {
+        refreshClusterList();
+    }, 2000);
+}
+
+/**
+ * Handle analysis failure
+ */
+function handleAnalysisFailure(clusterId, errorMessage) {
+    const clusterName = AppState.autoAnalysis.active[clusterId]?.clusterName || 'Cluster';
+    
+    console.log(`❌ Analysis failed for ${clusterName}: ${errorMessage}`);
+    
+    showNotification(
+        `Analysis failed for "${clusterName}": ${errorMessage}. You can retry the analysis manually.`,
+        'warning',
+        10000
+    );
+    
+    setTimeout(() => {
+        refreshClusterList();
+    }, 2000);
+}
+
+/**
+ * Show enhanced completion notification with results preview
+ */
+function showEnhancedCompletionNotification(clusterName, cost, savings, clusterId) {
+    const savingsPercent = cost > 0 ? ((savings / cost) * 100).toFixed(1) : 0;
+    
+    // Create enhanced notification
+    const notificationHTML = `
+        <div class="analysis-complete-notification">
+            <div class="d-flex align-items-start">
+                <div class="notification-icon me-3">
+                    <i class="fas fa-trophy text-warning fa-2x"></i>
+                </div>
+                <div class="flex-1">
+                    <h6 class="mb-1">🎉 Analysis Complete!</h6>
+                    <p class="mb-2">Results for <strong>${clusterName}</strong> are ready</p>
+                    <div class="quick-stats">
+                        <span class="badge bg-success me-2">$${cost.toLocaleString()} monthly cost</span>
+                        <span class="badge bg-primary me-2">$${savings.toLocaleString()} savings potential</span>
+                        <span class="badge bg-warning">${savingsPercent}% optimization</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Create enhanced toast
+    const toastContainer = document.getElementById('toast-container') || createToastContainer();
+    const toastElement = document.createElement('div');
+    toastElement.className = 'toast align-items-start border-0 shadow-lg';
+    toastElement.style.minWidth = '400px';
+    
+    toastElement.innerHTML = `
+        <div class="toast-header bg-success text-white">
+            <i class="fas fa-chart-line me-2"></i>
+            <strong class="me-auto">Analysis Complete</strong>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body">
+            ${notificationHTML}
+            <div class="mt-3">
+                <button class="btn btn-primary btn-sm me-2" onclick="selectCluster('${clusterId}')">
+                    <i class="fas fa-eye me-1"></i>View Results
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="toast">
+                    <i class="fas fa-check me-1"></i>Got it
+                </button>
+            </div>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toastElement);
+    
+    const toast = new bootstrap.Toast(toastElement, {
+        autohide: false // Don't auto-hide completion notifications
+    });
+    toast.show();
+    
+    // Auto-remove after 30 seconds
+    setTimeout(() => {
+        if (toastElement.parentNode) {
+            toastElement.parentNode.removeChild(toastElement);
+        }
+    }, 30000);
+}
+
+/**
+ * Show analysis progress modal for ongoing analysis
+ */
+function showAnalysisProgressModal(clusterId, clusterName) {
+    // Create or update progress modal
+    let modal = document.getElementById('analysisProgressModal');
+    if (!modal) {
+        modal = createAnalysisProgressModal();
+    }
+    
+    // Update modal content
+    const modalTitle = modal.querySelector('.modal-title');
+    const clusterNameElement = modal.querySelector('.cluster-name-progress');
+    
+    if (modalTitle) modalTitle.textContent = `Analysis in Progress - ${clusterName}`;
+    if (clusterNameElement) clusterNameElement.textContent = `Analyzing ${clusterName}...`;
+    
+    // Show modal
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
+    
+    // Store modal reference for updates
+    modal.setAttribute('data-cluster-id', clusterId);
+}
+
+/**
+ * Update progress modal with current status
+ */
+function updateProgressModal(clusterId, status, progress, message) {
+    const modal = document.querySelector(`#analysisProgressModal[data-cluster-id="${clusterId}"]`);
+    if (!modal) return;
+    
+    const progressCircle = modal.querySelector('.progress-circle');
+    const currentStepElement = modal.querySelector('.current-step');
+    const timeRemainingElement = modal.querySelector('.time-remaining');
+    
+    if (progressCircle) {
+        const circle = progressCircle.querySelector('.circle');
+        const percentage = progressCircle.querySelector('.percentage');
+        
+        if (circle && percentage) {
+            circle.style.strokeDasharray = `${progress}, 100`;
+            percentage.textContent = `${progress}%`;
+        }
+    }
+    
+    if (currentStepElement) {
+        currentStepElement.textContent = message;
+    }
+    
+    if (timeRemainingElement) {
+        const estimatedTotal = 300; // 5 minutes
+        const elapsed = (100 - progress) / 100;
+        const remaining = Math.max(30, elapsed * estimatedTotal);
+        timeRemainingElement.textContent = `~${Math.round(remaining)}s`;
+    }
+    
+    // Update step indicators
+    updateStepIndicators(modal, progress);
+    
+    // Auto-close modal when complete
+    if (status === 'completed' || status === 'failed') {
+        setTimeout(() => {
+            const bootstrapModal = bootstrap.Modal.getInstance(modal);
+            if (bootstrapModal) {
+                bootstrapModal.hide();
+            }
+        }, 3000);
+    }
+}
+
+/**
+ * Update step indicators in progress modal
+ */
+function updateStepIndicators(modal, progress) {
+    const steps = modal.querySelectorAll('.step-item');
+    
+    steps.forEach((step, index) => {
+        const stepProgress = (index + 1) * 25; // 4 steps total
+        const stepIcon = step.querySelector('.step-status i');
+        
+        if (progress >= stepProgress) {
+            // Step completed
+            if (stepIcon) {
+                stepIcon.className = 'fas fa-check text-success';
+            }
+            step.classList.add('completed');
+        } else if (progress >= stepProgress - 25) {
+            // Step in progress
+            if (stepIcon) {
+                stepIcon.className = 'fas fa-spinner fa-spin text-primary';
+            }
+            step.classList.add('active');
+        } else {
+            // Step pending
+            if (stepIcon) {
+                stepIcon.className = 'fas fa-clock text-muted';
+            }
+            step.classList.remove('active', 'completed');
+        }
+    });
+}
+
+/**
+ * Create toast container if it doesn't exist
+ */
+function createToastContainer() {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+    }
+    return container;
+}
+
+/**
+ * Enhanced cluster list refresh with status preservation
+ */
+function refreshClusterList() {
+    console.log('🔄 Enhanced cluster list refresh...');
+    
+    fetch(`${AppConfig.API_BASE_URL}/clusters`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.clusters) {
+                // Update cluster list while preserving real-time status
+                updateClusterListUI(data.clusters);
+                
+                // Re-apply any active analysis tracking
+                Object.keys(AppState.autoAnalysis.active).forEach(clusterId => {
+                    updateAnalysisStatus(clusterId);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error refreshing cluster list:', error);
+        });
+}
+
+/**
+ * Initialize auto-analysis system on page load
+ */
+function initializeAutoAnalysisSystem() {
+    console.log('🚀 Initializing auto-analysis system...');
+    
+    // Check for any clusters currently being analyzed
+    fetch(`${AppConfig.API_BASE_URL}/clusters`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.clusters) {
+                data.clusters.forEach(cluster => {
+                    if (cluster.analysis_status === 'analyzing') {
+                        console.log(`🔄 Resuming tracking for cluster: ${cluster.id}`);
+                        startAnalysisTracking(cluster.id, cluster.name);
+                    }
+                });
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error initializing auto-analysis:', error);
+        });
+}
+
+// Add to your existing DOMContentLoaded event
+document.addEventListener('DOMContentLoaded', function() {
+    // Your existing initialization code...
+    
+    // Initialize auto-analysis system
+    setTimeout(initializeAutoAnalysisSystem, 1000);
 });
 
-// Export for global access
+// Export enhanced functions
+window.startAnalysisTracking = startAnalysisTracking;
+window.stopAnalysisTracking = stopAnalysisTracking;
+window.updateAnalysisStatus = updateAnalysisStatus;
+
+// ============================================================================
+// EXPORT GLOBAL FUNCTIONS
+// ============================================================================
+
+// Make functions available globally for HTML onclick handlers
+window.selectCluster = selectCluster;
+window.analyzeCluster = analyzeCluster;
+window.removeCluster = removeCluster;
+window.analyzeAllClusters = analyzeAllClusters;
+window.showPortfolioAnalytics = showPortfolioAnalytics;
+window.refreshCharts = refreshCharts;
+window.exportReport = exportReport;
+window.deployOptimizations = deployOptimizations;
+window.scheduleOptimization = scheduleOptimization;
+window.showNotification = showNotification;
+window.showToast = showToast;
+window.copyToClipboard = copyToClipboard;
+window.switchToTab = switchToTab;
+window.loadImplementationPlan = loadImplementationPlan;
+
+// ============================================================================
+// MAIN ENTRY POINT
+// ============================================================================
+
+/**
+ * Single DOMContentLoaded event handler
+ */
+document.addEventListener('DOMContentLoaded', initializeDashboard);
+
+// Export AppState for external access
 window.AppState = AppState;
-window.notifications = notifications;
+window.AppConfig = AppConfig;
+
+console.log('✅ Enhanced AKS Cost Intelligence Dashboard loaded successfully');
