@@ -15,7 +15,8 @@
     
     <!-- Chart.js with UMD build to avoid ES6 import issues -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
-    <link rel="stylesheet" href="static/css/base.css">
+    <!-- <link rel="stylesheet" href="static/css/base.css"> -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
 </head>
 <body>
     <!-- Updated Navigation for Unified Dashboard -->

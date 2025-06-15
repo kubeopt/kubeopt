@@ -1,0 +1,640 @@
+{% extends "base.html" %}
+
+{% block title %}Cluster Portfolio - AKS Cost Intelligence{% endblock %}
+
+{% block content %}
+<div class="container">
+    {% if clusters|length > 0 %}
+    <!-- Portfolio Overview Cards -->
+    <div class="row mb-4">
+        <div class="col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h2 text-primary mb-2">${{ portfolio_summary.total_monthly_cost|round(2) if portfolio_summary.total_monthly_cost else 0 }}</div>
+                    <div class="text-muted">Total Monthly Cost</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h2 text-success mb-2">${{ portfolio_summary.total_potential_savings|round(2) if portfolio_summary.total_potential_savings else 0 }}</div>
+                    <div class="text-muted">Potential Savings</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h2 text-info mb-2">{{ "%.1f"|format(portfolio_summary.average_optimization_pct or 0) }}%</div>
+                    <div class="text-muted">Avg Optimization</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <div class="h2 text-warning mb-2">{{ portfolio_summary.environments|length if portfolio_summary.environments else 1 }}</div>
+                    <div class="text-muted">Environments</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cluster Grid Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3>Your Cluster Portfolio</h3>
+                <div class="btn-group">
+                    <button class="btn btn-outline-secondary active" data-view="grid">
+                        <i class="fas fa-th me-1"></i>Grid
+                    </button>
+                    <button class="btn btn-outline-secondary" data-view="list">
+                        <i class="fas fa-list me-1"></i>List
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Cluster Grid or Empty State -->
+    <div class="row" id="cluster-grid">
+        {% if clusters|length > 0 %}
+            {% for cluster in clusters %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card cluster-card h-100 border-0 shadow-sm" 
+                     style="cursor: pointer; transition: all 0.3s;" 
+                     onclick="selectCluster('{{ cluster.id }}')"
+                     data-cluster-id="{{ cluster.id }}">
+                    
+                    <div class="card-body position-relative">
+                        <!-- Status Indicator -->
+                        <div class="cluster-status" 
+                             style="position: absolute; top: 10px; right: 10px; width: 12px; height: 12px; border-radius: 50%; 
+                                    background-color: {% if cluster.last_analyzed %}{% if cluster.last_savings > 100 %}#ffc107{% else %}#28a745{% endif %}{% else %}#6c757d{% endif %};"></div>
+                        
+                        <!-- Environment Badge -->
+                        <div style="position: absolute; top: 10px; left: 10px;">
+                            <span class="badge {% if cluster.environment == 'production' %}bg-danger{% elif cluster.environment == 'staging' %}bg-warning{% elif cluster.environment == 'development' %}bg-info{% else %}bg-secondary{% endif %}">
+                                {{ cluster.environment.upper() if cluster.environment else 'UNKNOWN' }}
+                            </span>
+                        </div>
+                        
+                        <!-- Cluster Actions -->
+                        <div class="cluster-actions" style="position: absolute; top: 40px; right: 10px; opacity: 0; transition: opacity 0.3s;">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-light rounded-circle" data-bs-toggle="dropdown" onclick="event.stopPropagation()">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="#" onclick="analyzeCluster('{{ cluster.id }}')">
+                                        <i class="fas fa-play me-2"></i>Analyze Now</a></li>
+                                    <li><a class="dropdown-item" href="/cluster/{{ cluster.id }}/analyze">
+                                        <i class="fas fa-chart-line me-2"></i>View Dashboard</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger" href="#" onclick="removeCluster('{{ cluster.id }}')">
+                                        <i class="fas fa-trash me-2"></i>Remove</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h5 class="card-title">{{ cluster.name }}</h5>
+                            <p class="card-text text-muted">
+                                <i class="fas fa-folder-open me-1"></i>{{ cluster.resource_group }}
+                            </p>
+                            <p class="card-text text-muted">
+                                {{ cluster.environment.title() if cluster.environment else 'Unknown' }} • {{ cluster.region or 'Unknown Region' }}
+                            </p>
+                            
+                            {% if cluster.description %}
+                            <p class="card-text small text-muted">{{ cluster.description }}</p>
+                            {% endif %}
+                            
+                            <!-- Metrics Display -->
+                            <div class="cluster-metrics mt-3">
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <div class="metric-mini text-center p-2 bg-light rounded">
+                                            <div class="metric-value text-primary fw-bold">
+                                                ${{ "%.2f"|format(cluster.last_cost or 0) }}
+                                            </div>
+                                            <div class="metric-label small text-muted">Monthly Cost</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="metric-mini text-center p-2 bg-light rounded">
+                                            <div class="metric-value text-success fw-bold">
+                                                ${{ "%.2f"|format(cluster.last_savings or 0) }}
+                                            </div>
+                                            <div class="metric-label small text-muted">Potential Savings</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Analysis History -->
+                            <div class="mt-3 d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    {% if cluster.last_analyzed %}
+                                    <i class="fas fa-history me-1"></i>Recently analyzed
+                                    {% else %}
+                                    <i class="fas fa-exclamation-circle me-1"></i>Never analyzed
+                                    {% endif %}
+                                </small>
+                                
+                                <!-- Status Badge -->
+                                <div class="cluster-status-badge">
+                                    {% if cluster.last_analyzed %}
+                                        {% if cluster.last_savings and cluster.last_savings > 100 %}
+                                        <span class="badge bg-warning">High Savings</span>
+                                        {% else %}
+                                        <span class="badge bg-success">Analyzed</span>
+                                        {% endif %}
+                                    {% else %}
+                                    <span class="badge bg-secondary">Pending Analysis</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-footer bg-transparent border-0 pt-0">
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary btn-sm flex-fill" 
+                                    onclick="event.stopPropagation(); analyzeCluster('{{ cluster.id }}')">
+                                <i class="fas fa-play me-1"></i>Analyze Now
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm" 
+                                    onclick="event.stopPropagation(); selectCluster('{{ cluster.id }}')"
+                                    {% if not cluster.last_analyzed %}disabled{% endif %}>
+                                <i class="fas fa-eye me-1"></i>View
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Add New Cluster Card -->
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card h-100 border-2 border-dashed" 
+                     style="cursor: pointer; background: #f8f9fa;" 
+                     data-bs-toggle="modal" 
+                     data-bs-target="#addClusterModal">
+                    <div class="card-body d-flex align-items-center justify-content-center text-center">
+                        <div>
+                            <i class="fas fa-plus fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">Add New Cluster</h5>
+                            <p class="text-muted mb-0">Connect another AKS cluster for cost analysis</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <!-- Empty State -->
+            <div class="col-12">
+                <div class="text-center py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-dharmachakra fa-5x text-muted" style="opacity: 0.3;"></i>
+                    </div>
+                    <h3 class="text-muted mb-3">Welcome to AKS Cost Intelligence</h3>
+                    <p class="text-muted mb-4">Get started by adding your first AKS cluster to begin cost optimization analysis</p>
+                    <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#addClusterModal">
+                        <i class="fas fa-plus me-2"></i>Add Your First Cluster
+                    </button>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Cluster Modal -->
+<div class="modal fade" id="addClusterModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>Add New AKS Cluster
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <form id="addClusterForm" novalidate>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="cluster_name" class="form-label">
+                                    <i class="fas fa-dharmachakra me-1"></i>Cluster Name *
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="cluster_name" 
+                                       name="cluster_name" 
+                                       required
+                                       placeholder="e.g., aks-prod-eastus-1">
+                                <div class="invalid-feedback">
+                                    Please provide a valid cluster name.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="resource_group" class="form-label">
+                                    <i class="fas fa-folder-open me-1"></i>Resource Group *
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="resource_group" 
+                                       name="resource_group" 
+                                       required
+                                       placeholder="e.g., rg-prod-eastus">
+                                <div class="invalid-feedback">
+                                    Please provide a valid resource group name.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="environment" class="form-label">
+                                    <i class="fas fa-tag me-1"></i>Environment
+                                </label>
+                                <select class="form-select" id="environment" name="environment">
+                                    <option value="production">Production</option>
+                                    <option value="staging">Staging</option>
+                                    <option value="development" selected>Development</option>
+                                    <option value="testing">Testing</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="region" class="form-label">
+                                    <i class="fas fa-globe me-1"></i>Region
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="region" 
+                                       name="region"
+                                       placeholder="e.g., East US, West Europe">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">
+                            <i class="fas fa-align-left me-1"></i>Description
+                        </label>
+                        <textarea class="form-control" 
+                                  id="description" 
+                                  name="description" 
+                                  rows="2"
+                                  placeholder="Brief description of this cluster's purpose"></textarea>
+                    </div>
+
+                    <!-- Auto-Analysis Section -->
+                    <div class="card border-primary bg-light">
+                        <div class="card-body p-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="auto_analyze" checked>
+                                <label class="form-check-label fw-semibold" for="auto_analyze">
+                                    <i class="fas fa-magic me-2 text-primary"></i>Enable Automatic Analysis
+                                </label>
+                            </div>
+                            <div class="auto-analysis-info mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    When enabled, cost optimization analysis will start automatically after adding the cluster.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Cancel
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="submitClusterBtn">
+                        <i class="fas fa-plus me-2"></i>Add Cluster & Analyze
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Analysis Progress Modal -->
+<div class="modal fade" id="analysisProgressModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header border-0 bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-cog fa-spin me-2"></i>Analysis in Progress
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h6 class="cluster-name-progress mb-3">Analyzing Cluster...</h6>
+                        
+                        <div class="analysis-steps">
+                            <div class="step-item" data-step="1">
+                                <div class="step-icon bg-light rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                    <i class="fas fa-plug text-muted"></i>
+                                </div>
+                                <div class="step-content flex-grow-1">
+                                    <div class="step-title fw-semibold">Connecting to Azure</div>
+                                    <div class="step-description text-muted small">Establishing connection to your AKS cluster</div>
+                                </div>
+                                <div class="step-status">
+                                    <i class="fas fa-clock text-muted"></i>
+                                </div>
+                            </div>
+
+                            <div class="step-item" data-step="2">
+                                <div class="step-icon bg-light rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                    <i class="fas fa-download text-muted"></i>
+                                </div>
+                                <div class="step-content flex-grow-1">
+                                    <div class="step-title fw-semibold">Fetching Cost Data</div>
+                                    <div class="step-description text-muted small">Retrieving billing and resource data</div>
+                                </div>
+                                <div class="step-status">
+                                    <i class="fas fa-clock text-muted"></i>
+                                </div>
+                            </div>
+
+                            <div class="step-item" data-step="3">
+                                <div class="step-icon bg-light rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                    <i class="fas fa-chart-bar text-muted"></i>
+                                </div>
+                                <div class="step-content flex-grow-1">
+                                    <div class="step-title fw-semibold">Analyzing Metrics</div>
+                                    <div class="step-description text-muted small">Processing CPU, memory, and usage patterns</div>
+                                </div>
+                                <div class="step-status">
+                                    <i class="fas fa-clock text-muted"></i>
+                                </div>
+                            </div>
+
+                            <div class="step-item" data-step="4">
+                                <div class="step-icon bg-light rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                    <i class="fas fa-lightbulb text-muted"></i>
+                                </div>
+                                <div class="step-content flex-grow-1">
+                                    <div class="step-title fw-semibold">Generating Insights</div>
+                                    <div class="step-description text-muted small">Calculating optimization opportunities</div>
+                                </div>
+                                <div class="step-status">
+                                    <i class="fas fa-clock text-muted"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="progress-summary text-center">
+                            <div class="progress-circle mb-4">
+                                <div class="progress position-relative" style="width: 120px; height: 120px;">
+                                    <div class="progress-bar-circular"></div>
+                                    <div class="position-absolute top-50 start-50 translate-middle">
+                                        <span class="progress-percentage">0%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="progress-stats">
+                                <div class="stat-item mb-3">
+                                    <small class="text-muted d-block">Estimated Time Remaining</small>
+                                    <div class="fw-semibold time-remaining">Calculating...</div>
+                                </div>
+                                <div class="stat-item mb-3">
+                                    <small class="text-muted d-block">Current Step</small>
+                                    <div class="fw-semibold current-step">Initializing...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-minimize me-1"></i>Run in Background
+                </button>
+                <button type="button" class="btn btn-danger" onclick="cancelAnalysis()">
+                    <i class="fas fa-stop me-1"></i>Cancel Analysis
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced CSS -->
+<style>
+.cluster-card:hover .cluster-actions {
+    opacity: 1;
+}
+
+.analysis-progress {
+    transition: all 0.3s ease;
+}
+
+.step-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--bs-gray-200);
+    transition: all 0.3s ease;
+}
+
+.step-item:last-child {
+    border-bottom: none;
+}
+
+.step-item.active {
+    background-color: rgba(13, 110, 253, 0.1);
+    border-radius: 8px;
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+.step-item.completed {
+    opacity: 0.7;
+}
+
+.metric-mini {
+    transition: all 0.2s ease;
+}
+
+.metric-mini:hover {
+    background-color: var(--bs-gray-200) !important;
+}
+
+.auto-analysis-info {
+    background: rgba(13, 110, 253, 0.05);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.cluster-status-badge .badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Simplified progress circle */
+.progress-bar-circular {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: conic-gradient(#007bff 0deg, #eee 0deg);
+    transition: background 0.3s ease;
+}
+</style>
+
+<!-- Form Handler Script -->
+<script>
+(function() {
+    console.log('🚀 Form handler initializing...');
+    
+    function handleFormSubmit(event) {
+        event.preventDefault();
+        console.log('📝 Form submission intercepted');
+        
+        const form = event.target;
+        const submitBtn = document.getElementById('submitClusterBtn');
+        
+        // Get form data
+        const formData = new FormData(form);
+        const clusterData = {
+            cluster_name: formData.get('cluster_name'),
+            resource_group: formData.get('resource_group'),
+            environment: formData.get('environment') || 'development',
+            region: formData.get('region') || '',
+            description: formData.get('description') || '',
+            auto_analyze: formData.get('auto_analyze') === 'on'
+        };
+        
+        console.log('📊 Cluster data:', clusterData);
+        
+        // Validate required fields
+        if (!clusterData.cluster_name || !clusterData.resource_group) {
+            alert('❌ Cluster name and resource group are required');
+            return;
+        }
+        
+        // Show loading state
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding...';
+        submitBtn.disabled = true;
+        
+        // API call
+        fetch('/api/clusters', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(clusterData)
+        })
+        .then(response => {
+            console.log('📡 Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('✅ Success:', data);
+            
+            // Show success message
+            alert('🎉 Cluster added successfully!');
+            
+            // Close modal
+            const modal = document.getElementById('addClusterModal');
+            if (modal && typeof bootstrap !== 'undefined') {
+                const modalInstance = bootstrap.Modal.getInstance(modal) || new bootstrap.Modal(modal);
+                modalInstance.hide();
+            }
+            
+            // Reset form
+            form.reset();
+            
+            // Reload page to show new cluster
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        })
+        .catch(error => {
+            console.error('❌ Error:', error);
+            alert('❌ Error adding cluster: ' + error.message);
+        })
+        .finally(() => {
+            // Restore button
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        });
+    }
+    
+    // Attach event handlers when DOM is ready
+    function attachHandlers() {
+        const form = document.getElementById('addClusterForm');
+        if (form) {
+            console.log('✅ Form found, attaching handlers');
+            form.addEventListener('submit', handleFormSubmit);
+        } else {
+            console.error('❌ Form not found');
+        }
+    }
+    
+    // Initialize
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attachHandlers);
+    } else {
+        attachHandlers();
+    }
+})();
+
+// Global functions for cluster actions (to be implemented)
+function selectCluster(clusterId) {
+    console.log('Selecting cluster:', clusterId);
+    // Implement cluster selection logic
+    window.location.href = `/cluster/${clusterId}`;
+}
+
+function analyzeCluster(clusterId) {
+    console.log('Analyzing cluster:', clusterId);
+    // Show progress modal
+    const modal = new bootstrap.Modal(document.getElementById('analysisProgressModal'));
+    modal.show();
+    
+    // Implement analysis logic
+    // This would typically make an API call to start analysis
+}
+
+function removeCluster(clusterId) {
+    if (confirm('Are you sure you want to remove this cluster?')) {
+        console.log('Removing cluster:', clusterId);
+        // Implement removal logic
+    }
+}
+
+function cancelAnalysis() {
+    console.log('Cancelling analysis');
+    // Implement cancellation logic
+}
+</script>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}
