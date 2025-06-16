@@ -999,7 +999,7 @@ class WorkloadCostAnalyzer:
             
             # Try YAML first
             cmd = f'kubectl get {correct_resource_type} --all-namespaces'
-            yaml_data = self._safe_kubectl_yaml_command(cmd, timeout=20)
+            yaml_data = self._safe_kubectl_yaml_command(cmd, timeout=60)
             
             # If YAML fails, try text fallback
             if not yaml_data:
