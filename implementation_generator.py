@@ -42,6 +42,24 @@ except ImportError:
         except:
             return default
 
+def safe_float(value, default=0.0) -> float:
+    """Safely convert value to float"""
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+def safe_string(value, default='unknown') -> str:
+    """Safely convert value to string"""
+    try:
+        if value is None:
+            return default
+        return str(value)
+    except (TypeError, ValueError):
+        return default
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -85,73 +103,111 @@ class AKSImplementationGenerator:
         
         try:
             # Step 1: Extract and enrich analysis metrics using AI
+            logger.info("Step 1: Extracting and enriching metrics...")
             enriched_metrics = self.intelligence_engine.extract_and_enrich_metrics(analysis_results)
+            logger.info("✅ Metrics extracted successfully")
             
             # Step 2: Perform intelligent complexity analysis
+            logger.info("Step 2: Analyzing complexity...")
             complexity_analysis = self.intelligence_engine.analyze_complexity(enriched_metrics)
+            logger.info("✅ Complexity analysis completed")
             
             # Step 3: Assess risks using ML-inspired algorithms
+            logger.info("Step 3: Assessing risks...")
             risk_assessment = self.risk_assessor.assess_comprehensive_risks(enriched_metrics, complexity_analysis)
+            logger.info("✅ Risk assessment completed")
             
             # Step 4: Optimize timeline using adaptive algorithms
+            logger.info("Step 4: Optimizing timeline...")
             timeline_plan = self.timeline_optimizer.optimize_timeline(enriched_metrics, complexity_analysis, risk_assessment)
+            logger.info("✅ Timeline optimization completed")
             
             # Step 5: Generate intelligent phases with strategic prioritization
+            logger.info("Step 5: Generating strategic phases...")
             implementation_phases = self.phase_strategist.generate_strategic_phases(
                 enriched_metrics, complexity_analysis, risk_assessment, timeline_plan
             )
+            logger.info("✅ Strategic phases generated")
             
             # Step 6: Create comprehensive supporting plans
+            logger.info("Step 6: Creating supporting plans...")
             monitoring_plan = self._generate_adaptive_monitoring_plan(enriched_metrics, risk_assessment)
-            governance_plan = self._generate_intelligent_governance(enriched_metrics, complexity_analysis)
+            governance_plan = self._generate_intelligent_governance(enriched_metrics, complexity_analysis, risk_assessment)
             success_metrics = self._generate_dynamic_success_metrics(enriched_metrics, timeline_plan)
             contingency_plans = self._generate_smart_contingency_plans(enriched_metrics, risk_assessment)
+            logger.info("✅ Supporting plans created")
             
             # Step 7: Compile comprehensive implementation plan
+            logger.info("Step 7: Compiling implementation plan...")
             implementation_plan = {
                 'metadata': {
                     'generation_method': 'ai_ml_enhanced_algorithmic',
                     'intelligence_level': 'high',
-                    'adaptability_score': complexity_analysis.adaptability_score,
-                    'confidence_level': enriched_metrics.confidence_level,
+                    'adaptability_score': safe_float(getattr(complexity_analysis, 'adaptability_score', 0.7)),
+                    'confidence_level': safe_string(getattr(enriched_metrics, 'confidence_level', 'Medium')),
                     'generated_at': datetime.now().isoformat(),
-                    'data_sources': enriched_metrics.data_sources
+                    'data_sources': getattr(enriched_metrics, 'data_sources', ['Basic analysis'])
                 },
                 'executive_summary': self._generate_executive_summary(enriched_metrics, implementation_phases),
                 'intelligence_insights': self._generate_ai_insights(enriched_metrics, complexity_analysis),
                 'implementation_phases': implementation_phases,
-                'timeline_optimization': timeline_plan,
-                'risk_mitigation': risk_assessment,
+                'timeline_optimization': timeline_plan.__dict__,
+                'risk_mitigation': risk_assessment.__dict__,
                 'monitoring_strategy': monitoring_plan,
                 'governance_framework': governance_plan,
                 'success_criteria': success_metrics,
                 'contingency_planning': contingency_plans
             }
+            logger.info("✅ Implementation plan compiled successfully")
             
             logger.info(f"✅ AI-enhanced implementation plan generated successfully")
             logger.info(f"   - Phases: {len(implementation_phases)}")
-            logger.info(f"   - Timeline: {timeline_plan.total_weeks} weeks")
-            logger.info(f"   - Confidence: {enriched_metrics.confidence_level}")
+            logger.info(f"   - Timeline: {getattr(timeline_plan, 'total_weeks', 'unknown')} weeks")
+            logger.info(f"   - Confidence: {getattr(enriched_metrics, 'confidence_level', 'unknown')}")
             
             return implementation_plan
             
         except Exception as e:
-            logger.error(f"❌ Implementation plan generation failed: {e}")
+            import traceback
+            error_trace = traceback.format_exc()
+            logger.error(f"❌ Implementation plan generation failed at: {error_trace}")
+            logger.error(f"❌ Error type: {type(e).__name__}")
+            logger.error(f"❌ Error message: {str(e)}")
             return self._generate_error_plan(str(e))
     
     def _validate_analysis_data(self, analysis_results: Dict) -> bool:
-        """Validate that analysis results contain sufficient data for plan generation"""
+        """Validate that analysis results contain sufficient data for plan generation - WITH DEBUG INFO"""
         if not analysis_results:
             logger.warning("⚠️ No analysis results provided")
             return False
         
+        # DEBUG: Log the types of all values in analysis_results
+        logger.info("🔍 DEBUG: Analysis results data types:")
+        for key, value in analysis_results.items():
+            logger.info(f"   {key}: {type(value)} = {value}")
+        
         required_fields = ['total_cost', 'total_savings']
-        missing_fields = [field for field in required_fields if not analysis_results.get(field, 0)]
+        missing_fields = []
+        
+        for field in required_fields:
+            value = analysis_results.get(field, 0)
+            logger.info(f"🔍 DEBUG: {field} = {value} (type: {type(value)})")
+            
+            # Try to convert to float to check if it's valid
+            try:
+                float_value = safe_float(value)
+                if float_value <= 0:
+                    missing_fields.append(field)
+                    logger.warning(f"⚠️ {field} has invalid value: {value}")
+            except:
+                missing_fields.append(field)
+                logger.warning(f"⚠️ {field} cannot be converted to float: {value}")
         
         if missing_fields:
             logger.warning(f"⚠️ Missing critical analysis fields: {missing_fields}")
             return False
         
+        logger.info("✅ Analysis data validation passed")
         return True
     
     def _generate_no_analysis_plan(self) -> Dict:
@@ -205,26 +261,45 @@ class AKSImplementationGenerator:
     def _generate_executive_summary(self, metrics: 'EnrichedAnalysisMetrics', phases: List[Dict]) -> Dict:
         """Generate executive summary with key insights and recommendations"""
         total_phases = len(phases)
-        total_savings = sum(phase.get('projected_savings', 0) for phase in phases)
         
-        # Calculate ROI and payback period
-        implementation_effort_weeks = sum(phase.get('duration_weeks', 0) for phase in phases)
-        roi_percentage = (total_savings * 12 / metrics.total_cost * 100) if metrics.total_cost > 0 else 0
+        # SAFE: Ensure all values are properly converted to float
+        total_savings = 0.0
+        implementation_effort_weeks = 0.0
+        
+        for phase in phases:
+            phase_savings = safe_float(phase.get('projected_savings', 0))
+            phase_duration = safe_float(phase.get('duration_weeks', 0))
+            total_savings += phase_savings
+            implementation_effort_weeks += phase_duration
+        
+        # SAFE: Ensure metrics values are float before calculations
+        metrics_total_cost = safe_float(getattr(metrics, 'total_cost', 0))
+        metrics_total_savings = safe_float(getattr(metrics, 'total_savings', 0))
+        
+        # Calculate ROI and payback period with safe math
+        roi_percentage = 0.0
+        if metrics_total_cost > 0:
+            annual_savings = total_savings * 12.0
+            roi_percentage = (annual_savings / metrics_total_cost) * 100.0
+        
+        optimization_percentage = 0.0
+        if metrics_total_cost > 0:
+            optimization_percentage = (total_savings / metrics_total_cost) * 100.0
         
         return {
             'optimization_opportunity': {
-                'current_monthly_cost': metrics.total_cost,
+                'current_monthly_cost': metrics_total_cost,
                 'projected_monthly_savings': total_savings,
-                'annual_savings_potential': total_savings * 12,
-                'optimization_percentage': (total_savings / metrics.total_cost * 100) if metrics.total_cost > 0 else 0,
+                'annual_savings_potential': total_savings * 12.0,
+                'optimization_percentage': optimization_percentage,
                 'roi_12_months': roi_percentage
             },
             'implementation_overview': {
                 'total_phases': total_phases,
-                'estimated_duration_weeks': implementation_effort_weeks,
-                'complexity_level': metrics.complexity_level,
-                'risk_level': metrics.overall_risk_level,
-                'confidence_score': metrics.confidence_level
+                'estimated_duration_weeks': int(implementation_effort_weeks),
+                'complexity_level': safe_string(getattr(metrics, 'complexity_level', 'Medium')),
+                'risk_level': safe_string(getattr(metrics, 'overall_risk_level', 'Medium')),
+                'confidence_score': safe_string(getattr(metrics, 'confidence_level', 'Medium'))
             },
             'strategic_priorities': self._identify_strategic_priorities(metrics, phases),
             'key_recommendations': self._generate_key_recommendations(metrics, phases)
@@ -251,18 +326,26 @@ class AKSImplementationGenerator:
         """Identify strategic priorities based on analysis"""
         priorities = []
         
-        # Priority based on savings magnitude
-        if metrics.hpa_savings > metrics.total_savings * 0.4:
-            priorities.append(f"🎯 HPA optimization (${metrics.hpa_savings:.0f}/month - highest impact)")
+        # SAFE: Convert all values to float before calculations
+        hpa_savings = safe_float(getattr(metrics, 'hpa_savings', 0))
+        total_savings = safe_float(getattr(metrics, 'total_savings', 0))
+        cpu_gap = safe_float(getattr(metrics, 'cpu_gap', 0))
+        memory_gap = safe_float(getattr(metrics, 'memory_gap', 0))
+        right_sizing_savings = safe_float(getattr(metrics, 'right_sizing_savings', 0))
+        storage_savings = safe_float(getattr(metrics, 'storage_savings', 0))
         
-        if metrics.cpu_gap > 40:
-            priorities.append(f"⚡ CPU right-sizing (${metrics.right_sizing_savings:.0f}/month - quick wins)")
+        # Priority based on savings magnitude with safe calculations
+        if total_savings > 0 and hpa_savings > (total_savings * 0.4):
+            priorities.append(f"🎯 HPA optimization (${hpa_savings:.0f}/month - highest impact)")
         
-        if metrics.memory_gap > 30:
+        if cpu_gap > 40:
+            priorities.append(f"⚡ CPU right-sizing (${right_sizing_savings:.0f}/month - quick wins)")
+        
+        if memory_gap > 30:
             priorities.append(f"🧠 Memory optimization (high over-provisioning detected)")
         
-        if metrics.storage_savings > 50:
-            priorities.append(f"💾 Storage class optimization (${metrics.storage_savings:.0f}/month potential)")
+        if storage_savings > 50:
+            priorities.append(f"💾 Storage class optimization (${storage_savings:.0f}/month potential)")
         
         return priorities[:4]  # Top 4 priorities
     
@@ -308,12 +391,12 @@ class AKSImplementationGenerator:
             'health_checks': self._create_adaptive_health_checks(risk_assessment)
         }
     
-    def _generate_intelligent_governance(self, metrics: 'EnrichedAnalysisMetrics', complexity: 'ComplexityAnalysis') -> Dict:
+    def _generate_intelligent_governance(self, metrics: 'EnrichedAnalysisMetrics', complexity: 'ComplexityAnalysis', risk_assessment: 'RiskAssessment') -> Dict:
         """Generate intelligent governance framework"""
         return {
             'decision_framework': self._create_decision_framework(complexity),
             'approval_workflows': self._create_approval_workflows(metrics),
-            'change_management': self._create_change_management_process(complexity),
+            'change_management': self._create_change_management_process(complexity, risk_assessment),
             'rollback_procedures': self._create_rollback_procedures(metrics),
             'compliance_requirements': self._create_compliance_framework(metrics)
         }
@@ -365,10 +448,18 @@ class AKSImplementationGenerator:
     
     def _predict_optimization_sustainability(self, metrics: 'EnrichedAnalysisMetrics') -> str:
         """Predict how sustainable the optimization will be"""
+        # Convert confidence_level string to numeric value
+        confidence_level_str = safe_string(getattr(metrics, 'confidence_level', 'Medium'))
+        confidence_numeric = self._confidence_level_to_numeric(confidence_level_str)
+        
+        # Safe conversion of other metrics
+        data_quality_score = safe_float(getattr(metrics, 'data_quality_score', 7.0))
+        total_savings = safe_float(getattr(metrics, 'total_savings', 0))
+
         sustainability_score = (
-            (metrics.confidence_level * 0.4) +
-            (metrics.data_quality_score / 10 * 0.3) +
-            (min(1.0, metrics.total_savings / 200) * 0.3)
+            (confidence_numeric * 0.4) +
+            (data_quality_score / 10 * 0.3) +
+            (min(1.0, total_savings / 200) * 0.3)
         )
         
         if sustainability_score > 0.8:
@@ -454,12 +545,12 @@ class AKSImplementationGenerator:
             }
         ]
     
-    def _create_change_management_process(self, complexity: 'ComplexityAnalysis') -> Dict:
+    def _create_change_management_process(self, complexity: 'ComplexityAnalysis', risk_assessment: 'RiskAssessment') -> Dict:
         """Create change management process"""
         return {
-            'change_windows': 'maintenance' if complexity.overall_risk == 'High' else 'business_hours',
+            'change_windows': 'maintenance' if risk_assessment.overall_risk == 'High' else 'business_hours',
             'rollback_readiness': 'mandatory',
-            'testing_requirements': 'comprehensive' if complexity.overall_risk == 'High' else 'standard'
+            'testing_requirements': 'comprehensive' if risk_assessment.overall_risk == 'High' else 'standard'
         }
     
     def _create_rollback_procedures(self, metrics: 'EnrichedAnalysisMetrics') -> Dict:
@@ -558,20 +649,36 @@ class AKSImplementationGenerator:
         ]
     
     def _generate_ai_recommendations(self, metrics: 'EnrichedAnalysisMetrics', complexity: 'ComplexityAnalysis') -> List[str]:
-        """Generate AI-driven recommendations"""
+        """Generate AI-driven recommendations - FIXED VERSION"""
         recommendations = []
         
-        if complexity.automation_readiness_score > 0.7:
+        automation_readiness_score = safe_float(getattr(complexity, 'automation_readiness_score', 0))
+        if automation_readiness_score > 0.7:
             recommendations.append("🤖 High automation readiness - consider automated scaling policies")
         
-        if metrics.confidence_level > 0.8:
+        # Use numeric analysis_confidence instead of string confidence_level
+        analysis_confidence = safe_float(getattr(metrics, 'analysis_confidence', 0.7))
+        if analysis_confidence > 0.8:
             recommendations.append("📊 High confidence in analysis - aggressive optimization recommended")
         
-        if complexity.efficiency_score < 0.6:
+        efficiency_score = safe_float(getattr(complexity, 'efficiency_score', 0.6))
+        if efficiency_score < 0.6:
             recommendations.append("⚡ Low efficiency detected - prioritize fundamental improvements")
         
         return recommendations
+    
+    def _confidence_level_to_numeric(self, confidence_level: str) -> float:
+        """Convert confidence level string to numeric value"""
+        confidence_map = {
+            'High': 1.0, 'Medium': 0.7, 'Low': 0.4,
+            'high': 1.0, 'medium': 0.7, 'low': 0.4
+        }
+        return confidence_map.get(confidence_level, 0.7)
 
+    def _optimization_intensity_to_numeric(self, intensity: str) -> float:
+        """Convert optimization intensity to numeric value"""
+        intensity_map = {'conservative': 0.9, 'moderate': 0.7, 'aggressive': 0.5}
+        return intensity_map.get(intensity, 0.7)
 # ============================================================================
 # AI/ML-ENHANCED INTELLIGENCE ENGINE
 # ============================================================================
@@ -655,20 +762,20 @@ class ImplementationIntelligenceEngine:
         )
     
     def _extract_base_metrics(self, analysis_results: Dict) -> Dict:
-        """Extract base metrics from analysis results"""
+        """Extract base metrics from analysis results with proper type conversion"""        
         return {
-            'total_cost': analysis_results.get('total_cost', 0),
-            'total_savings': analysis_results.get('total_savings', 0),
-            'hpa_savings': analysis_results.get('hpa_savings', 0),
-            'right_sizing_savings': analysis_results.get('right_sizing_savings', 0),
-            'storage_savings': analysis_results.get('storage_savings', 0),
-            'hpa_reduction': analysis_results.get('hpa_reduction', 0),
-            'cpu_gap': analysis_results.get('cpu_gap', 0),
-            'memory_gap': analysis_results.get('memory_gap', 0),
-            'node_cost': analysis_results.get('node_cost', 0),
-            'storage_cost': analysis_results.get('storage_cost', 0),
-            'resource_group': analysis_results.get('resource_group', 'unknown'),
-            'cluster_name': analysis_results.get('cluster_name', 'unknown')
+            'total_cost': safe_float(analysis_results.get('total_cost', 0)),
+            'total_savings': safe_float(analysis_results.get('total_savings', 0)),
+            'hpa_savings': safe_float(analysis_results.get('hpa_savings', 0)),
+            'right_sizing_savings': safe_float(analysis_results.get('right_sizing_savings', 0)),
+            'storage_savings': safe_float(analysis_results.get('storage_savings', 0)),
+            'hpa_reduction': safe_float(analysis_results.get('hpa_reduction', 0)),
+            'cpu_gap': safe_float(analysis_results.get('cpu_gap', 0)),
+            'memory_gap': safe_float(analysis_results.get('memory_gap', 0)),
+            'node_cost': safe_float(analysis_results.get('node_cost', 0)),
+            'storage_cost': safe_float(analysis_results.get('storage_cost', 0)),
+            'resource_group': safe_string(analysis_results.get('resource_group', 'unknown')),
+            'cluster_name': safe_string(analysis_results.get('cluster_name', 'unknown'))
         }
     
     def _calculate_derived_metrics(self, base_metrics: Dict, analysis_results: Dict) -> Dict:
@@ -697,7 +804,7 @@ class ImplementationIntelligenceEngine:
         }
     
     def _assess_data_quality(self, analysis_results: Dict) -> Dict:
-        """Assess data quality and confidence levels"""
+        """Assess data quality and confidence levels with proper type conversion"""
         confidence_factors = []
         
         # Analysis method confidence
@@ -716,7 +823,7 @@ class ImplementationIntelligenceEngine:
         confidence_factors.append(data_completeness)
         
         # Analysis confidence from algorithms
-        algorithmic_confidence = analysis_results.get('analysis_confidence', 0.7)
+        algorithmic_confidence = safe_float(analysis_results.get('analysis_confidence', 0.7))
         confidence_factors.append(algorithmic_confidence)
         
         # Calculate overall confidence
@@ -730,9 +837,12 @@ class ImplementationIntelligenceEngine:
         else:
             confidence_level = 'Low'
         
-        # Assess overall risk
-        savings_percentage = (analysis_results.get('total_savings', 0) / 
-                            analysis_results.get('total_cost', 1) * 100)
+        # Assess overall risk (with safe type conversion)
+        total_savings = safe_float(analysis_results.get('total_savings', 0))
+        total_cost = safe_float(analysis_results.get('total_cost', 1))
+        
+        savings_percentage = (total_savings / total_cost * 100) if total_cost > 0 else 0
+        
         if savings_percentage > 30:
             overall_risk_level = 'High'
         elif savings_percentage > 15:
@@ -749,7 +859,7 @@ class ImplementationIntelligenceEngine:
         }
     
     def _extract_node_metrics(self, analysis_results: Dict) -> List[Dict]:
-        """Extract node metrics from analysis results"""
+        """Extract node metrics from analysis results with proper type conversion"""
         # Try to get node metrics from various sources
         current_usage = analysis_results.get('current_usage_analysis', {})
         
@@ -757,15 +867,15 @@ class ImplementationIntelligenceEngine:
             return current_usage['nodes']
         
         # Fallback: estimate based on cost
-        node_cost = analysis_results.get('node_cost', 0)
+        node_cost = safe_float(analysis_results.get('node_cost', 0))
         estimated_nodes = max(1, int(node_cost / 200))  # Estimate ~$200/node/month
         
         return [{'name': f'estimated-node-{i+1}'} for i in range(estimated_nodes)]
     
     def _calculate_hpa_maturity_score(self, analysis_results: Dict) -> float:
-        """Calculate HPA maturity score"""
-        hpa_reduction = analysis_results.get('hpa_reduction', 0)
-        hpa_savings = analysis_results.get('hpa_savings', 0)
+        """Calculate HPA maturity score with proper type conversion"""
+        hpa_reduction = safe_float(analysis_results.get('hpa_reduction', 0))
+        hpa_savings = safe_float(analysis_results.get('hpa_savings', 0))
         
         # Basic maturity based on current HPA effectiveness
         if hpa_reduction > 40:
@@ -776,21 +886,28 @@ class ImplementationIntelligenceEngine:
             return 0.8  # Low potential means already mature
     
     def _analyze_savings_distribution(self, metrics: Dict) -> Dict:
-        """Analyze how savings are distributed across optimization types"""
-        total_savings = metrics['total_savings']
+        """Analyze how savings are distributed across optimization types with safe type conversion"""
+        total_savings = safe_float(metrics.get('total_savings', 0))
         
         if total_savings == 0:
             return {'hpa_percentage': 0, 'right_sizing_percentage': 0, 'storage_percentage': 0}
         
+        hpa_savings = safe_float(metrics.get('hpa_savings', 0))
+        right_sizing_savings = safe_float(metrics.get('right_sizing_savings', 0))
+        storage_savings = safe_float(metrics.get('storage_savings', 0))
+        
         return {
-            'hpa_percentage': (metrics['hpa_savings'] / total_savings * 100),
-            'right_sizing_percentage': (metrics['right_sizing_savings'] / total_savings * 100),
-            'storage_percentage': (metrics['storage_savings'] / total_savings * 100)
+            'hpa_percentage': (hpa_savings / total_savings * 100),
+            'right_sizing_percentage': (right_sizing_savings / total_savings * 100),
+            'storage_percentage': (storage_savings / total_savings * 100)
         }
     
     def _calculate_optimization_intensity(self, metrics: Dict) -> str:
-        """Calculate optimization intensity level"""
-        savings_percentage = (metrics['total_savings'] / metrics['total_cost'] * 100) if metrics['total_cost'] > 0 else 0
+        """Calculate optimization intensity level with safe type conversion"""
+        total_savings = safe_float(metrics.get('total_savings', 0))
+        total_cost = safe_float(metrics.get('total_cost', 1))
+        
+        savings_percentage = (total_savings / total_cost * 100) if total_cost > 0 else 0
         
         if savings_percentage > 30:
             return 'aggressive'
@@ -800,9 +917,12 @@ class ImplementationIntelligenceEngine:
             return 'conservative'
     
     def _calculate_resource_efficiency_score(self, metrics: Dict) -> float:
-        """Calculate resource efficiency score"""
-        cpu_efficiency = max(0, 100 - metrics['cpu_gap']) / 100
-        memory_efficiency = max(0, 100 - metrics['memory_gap']) / 100
+        """Calculate resource efficiency score with safe type conversion"""
+        cpu_gap = safe_float(metrics.get('cpu_gap', 0))
+        memory_gap = safe_float(metrics.get('memory_gap', 0))
+        
+        cpu_efficiency = max(0, 100 - cpu_gap) / 100
+        memory_efficiency = max(0, 100 - memory_gap) / 100
         return (cpu_efficiency + memory_efficiency) / 2
     
     def _identify_data_sources(self, analysis_results: Dict) -> List[str]:
@@ -821,11 +941,11 @@ class ImplementationIntelligenceEngine:
         return sources or ['Basic analysis']
     
     def _assess_complexity_level(self, analysis_results: Dict) -> str:
-        """Assess overall complexity level"""
+        """Assess overall complexity level with proper type conversion"""
         complexity_indicators = []
         
         # Cost-based complexity
-        total_cost = analysis_results.get('total_cost', 0)
+        total_cost = safe_float(analysis_results.get('total_cost', 0))
         if total_cost > 1000:
             complexity_indicators.append(3)
         elif total_cost > 500:
@@ -834,8 +954,11 @@ class ImplementationIntelligenceEngine:
             complexity_indicators.append(1)
         
         # Savings-based complexity
-        savings_percentage = (analysis_results.get('total_savings', 0) / 
-                            analysis_results.get('total_cost', 1) * 100)
+        total_savings = safe_float(analysis_results.get('total_savings', 0))
+        total_cost_for_calc = safe_float(analysis_results.get('total_cost', 1))
+        
+        savings_percentage = (total_savings / total_cost_for_calc * 100) if total_cost_for_calc > 0 else 0
+        
         if savings_percentage > 25:
             complexity_indicators.append(3)
         elif savings_percentage > 15:
@@ -856,26 +979,32 @@ class ImplementationIntelligenceEngine:
         """Calculate technical complexity score (0-1)"""
         factors = []
         
+        # SAFE: Convert all values to float
+        node_count = safe_float(getattr(metrics, 'node_count', 1))
+        hpa_reduction = safe_float(getattr(metrics, 'hpa_reduction', 0))
+        cpu_gap = safe_float(getattr(metrics, 'cpu_gap', 0))
+        memory_gap = safe_float(getattr(metrics, 'memory_gap', 0))
+        
         # Node count complexity
-        if metrics.node_count > 15:
+        if node_count > 15:
             factors.append(1.0)
-        elif metrics.node_count > 8:
+        elif node_count > 8:
             factors.append(0.7)
-        elif metrics.node_count > 3:
+        elif node_count > 3:
             factors.append(0.4)
         else:
             factors.append(0.2)
         
         # HPA complexity
-        if metrics.hpa_reduction > 50:
+        if hpa_reduction > 50:
             factors.append(0.9)
-        elif metrics.hpa_reduction > 30:
+        elif hpa_reduction > 30:
             factors.append(0.6)
         else:
             factors.append(0.3)
         
         # Resource gap complexity
-        avg_gap = (metrics.cpu_gap + metrics.memory_gap) / 2
+        avg_gap = (cpu_gap + memory_gap) / 2.0
         if avg_gap > 50:
             factors.append(0.8)
         elif avg_gap > 30:
@@ -889,16 +1018,20 @@ class ImplementationIntelligenceEngine:
         """Calculate operational complexity score (0-1)"""
         factors = []
         
+        # SAFE: Convert values to float
+        total_cost = safe_float(getattr(metrics, 'total_cost', 0))
+        total_savings = safe_float(getattr(metrics, 'total_savings', 0))
+        
         # Organization size factor
-        if metrics.total_cost > 2000:
+        if total_cost > 2000:
             factors.append(0.9)  # Enterprise
-        elif metrics.total_cost > 500:
+        elif total_cost > 500:
             factors.append(0.6)  # Medium
         else:
             factors.append(0.3)  # Small
         
         # Change management complexity
-        savings_percentage = (metrics.total_savings / metrics.total_cost * 100) if metrics.total_cost > 0 else 0
+        savings_percentage = (total_savings / total_cost * 100.0) if total_cost > 0 else 0
         if savings_percentage > 30:
             factors.append(0.8)  # Major changes
         elif savings_percentage > 15:
@@ -912,8 +1045,12 @@ class ImplementationIntelligenceEngine:
         """Calculate business complexity score (0-1)"""
         factors = []
         
+        # SAFE: Convert values to float
+        total_savings = safe_float(getattr(metrics, 'total_savings', 0))
+        overall_risk_level = safe_string(getattr(metrics, 'overall_risk_level', 'Medium'))
+        
         # Financial impact
-        annual_savings = metrics.total_savings * 12
+        annual_savings = total_savings * 12.0
         if annual_savings > 10000:
             factors.append(0.9)  # High business impact
         elif annual_savings > 2000:
@@ -922,9 +1059,9 @@ class ImplementationIntelligenceEngine:
             factors.append(0.3)  # Low impact
         
         # Risk tolerance
-        if metrics.overall_risk_level == 'High':
+        if overall_risk_level == 'High':
             factors.append(0.8)
-        elif metrics.overall_risk_level == 'Medium':
+        elif overall_risk_level == 'Medium':
             factors.append(0.5)
         else:
             factors.append(0.2)
@@ -936,19 +1073,23 @@ class ImplementationIntelligenceEngine:
         return (technical * 0.4) + (operational * 0.3) + (business * 0.3)
     
     def _assess_automation_readiness(self, metrics: 'EnrichedAnalysisMetrics') -> float:
-        """Assess readiness for automation"""
+        """Assess readiness for automation - FIXED VERSION"""
         factors = []
         
         # HPA maturity
-        factors.append(metrics.hpa_maturity_score)
+        hpa_maturity_score = safe_float(getattr(metrics, 'hpa_maturity_score', 0.5))
+        factors.append(hpa_maturity_score)
         
-        # Data quality
-        factors.append(metrics.confidence_level == 'High')
+        # Data quality - convert confidence level string to numeric score
+        confidence_level_str = safe_string(getattr(metrics, 'confidence_level', 'Medium'))
+        confidence_numeric = self._confidence_level_to_numeric(confidence_level_str)
+        factors.append(confidence_numeric)
         
         # Cluster size (larger clusters benefit more from automation)
-        if metrics.node_count > 10:
+        node_count = safe_float(getattr(metrics, 'node_count', 1))
+        if node_count > 10:
             factors.append(1.0)
-        elif metrics.node_count > 5:
+        elif node_count > 5:
             factors.append(0.7)
         else:
             factors.append(0.4)
@@ -997,6 +1138,19 @@ class ImplementationIntelligenceEngine:
         
         return safe_mean(factors)
 
+    def _confidence_level_to_numeric(self, confidence_level: str) -> float:
+        """Convert confidence level string to numeric value"""
+        confidence_map = {
+            'High': 1.0, 'Medium': 0.7, 'Low': 0.4,
+            'high': 1.0, 'medium': 0.7, 'low': 0.4
+        }
+        return confidence_map.get(confidence_level, 0.7)
+
+    def _optimization_intensity_to_numeric(self, intensity: str) -> float:
+        """Convert optimization intensity to numeric value"""
+        intensity_map = {'conservative': 0.9, 'moderate': 0.7, 'aggressive': 0.5}
+        return intensity_map.get(intensity, 0.7)
+    
 # ============================================================================
 # SMART RISK ASSESSMENT ENGINE
 # ============================================================================
@@ -1585,38 +1739,47 @@ class IntelligentPhaseStrategist:
         """Identify all optimization opportunities"""
         opportunities = []
         
+        # SAFE: Convert all metrics to float before calculations
+        hpa_savings = safe_float(getattr(metrics, 'hpa_savings', 0))
+        right_sizing_savings = safe_float(getattr(metrics, 'right_sizing_savings', 0))
+        storage_savings = safe_float(getattr(metrics, 'storage_savings', 0))
+        total_savings = safe_float(getattr(metrics, 'total_savings', 1))  # Use 1 to avoid division by zero
+        
         # HPA optimization opportunity
-        if metrics.hpa_savings > 20:
+        if hpa_savings > 20:
+            hpa_impact = (hpa_savings / total_savings) if total_savings > 0 else 0
             opportunities.append({
                 'type': 'hpa_optimization',
-                'savings': metrics.hpa_savings,
+                'savings': hpa_savings,
                 'complexity': self._assess_hpa_complexity(metrics),
                 'risk': self._assess_hpa_risk(metrics),
-                'impact': metrics.hpa_savings / metrics.total_savings if metrics.total_savings > 0 else 0,
+                'impact': hpa_impact,
                 'dependencies': [],
                 'timeline_weeks': self._estimate_hpa_timeline(metrics)
             })
         
         # Right-sizing opportunity
-        if metrics.right_sizing_savings > 15:
+        if right_sizing_savings > 15:
+            right_sizing_impact = (right_sizing_savings / total_savings) if total_savings > 0 else 0
             opportunities.append({
                 'type': 'right_sizing',
-                'savings': metrics.right_sizing_savings,
+                'savings': right_sizing_savings,
                 'complexity': self._assess_right_sizing_complexity(metrics),
                 'risk': self._assess_right_sizing_risk(metrics),
-                'impact': metrics.right_sizing_savings / metrics.total_savings if metrics.total_savings > 0 else 0,
+                'impact': right_sizing_impact,
                 'dependencies': [],
                 'timeline_weeks': self._estimate_right_sizing_timeline(metrics)
             })
         
         # Storage optimization opportunity
-        if metrics.storage_savings > 10:
+        if storage_savings > 10:
+            storage_impact = (storage_savings / total_savings) if total_savings > 0 else 0
             opportunities.append({
                 'type': 'storage_optimization',
-                'savings': metrics.storage_savings,
+                'savings': storage_savings,
                 'complexity': self._assess_storage_complexity(metrics),
                 'risk': self._assess_storage_risk(metrics),
-                'impact': metrics.storage_savings / metrics.total_savings if metrics.total_savings > 0 else 0,
+                'impact': storage_impact,
                 'dependencies': [],
                 'timeline_weeks': self._estimate_storage_timeline(metrics)
             })
@@ -1852,17 +2015,22 @@ class IntelligentPhaseStrategist:
     # ------------------------------------------------------------------------
     
     def _assess_hpa_complexity(self, metrics: 'EnrichedAnalysisMetrics') -> float:
-        """Assess HPA implementation complexity"""
+        """Assess HPA implementation complexity - WITH TYPE SAFETY"""
         factors = []
         
+        # SAFE: Convert all values to float
+        hpa_maturity_score = safe_float(getattr(metrics, 'hpa_maturity_score', 0.5))
+        hpa_reduction = safe_float(getattr(metrics, 'hpa_reduction', 0))
+        node_count = safe_float(getattr(metrics, 'node_count', 1))
+        
         # HPA maturity factor
-        factors.append(1 - metrics.hpa_maturity_score)
+        factors.append(1.0 - hpa_maturity_score)
         
         # Reduction magnitude factor
-        factors.append(min(1.0, metrics.hpa_reduction / 80))
+        factors.append(min(1.0, hpa_reduction / 80.0))
         
         # Cluster size factor
-        factors.append(min(1.0, metrics.node_count / 20))
+        factors.append(min(1.0, node_count / 20.0))
         
         return safe_mean(factors)
     
@@ -1870,16 +2038,20 @@ class IntelligentPhaseStrategist:
         """Assess HPA implementation risk"""
         factors = []
         
+        # SAFE: Convert values to float
+        hpa_reduction = safe_float(getattr(metrics, 'hpa_reduction', 0))
+        hpa_maturity_score = safe_float(getattr(metrics, 'hpa_maturity_score', 0.5))
+        
         # High reduction = high risk
-        if metrics.hpa_reduction > 50:
+        if hpa_reduction > 50:
             factors.append(0.8)
-        elif metrics.hpa_reduction > 30:
+        elif hpa_reduction > 30:
             factors.append(0.6)
         else:
             factors.append(0.3)
         
         # Low maturity = high risk
-        factors.append(1 - metrics.hpa_maturity_score)
+        factors.append(1.0 - hpa_maturity_score)
         
         return safe_mean(factors)
     
@@ -1887,24 +2059,32 @@ class IntelligentPhaseStrategist:
         """Estimate HPA implementation timeline"""
         base_weeks = 3
         
-        if metrics.hpa_reduction > 40:
+        # SAFE: Convert to float
+        hpa_reduction = safe_float(getattr(metrics, 'hpa_reduction', 0))
+        hpa_maturity_score = safe_float(getattr(metrics, 'hpa_maturity_score', 0.5))
+        
+        if hpa_reduction > 40:
             base_weeks += 2
-        elif metrics.hpa_reduction > 25:
+        elif hpa_reduction > 25:
             base_weeks += 1
         
-        if metrics.hpa_maturity_score < 0.5:
+        if hpa_maturity_score < 0.5:
             base_weeks += 1
         
         return base_weeks
     
     def _assess_right_sizing_complexity(self, metrics: 'EnrichedAnalysisMetrics') -> float:
-        """Assess right-sizing complexity"""
-        avg_gap = (metrics.cpu_gap + metrics.memory_gap) / 2
-        return min(1.0, avg_gap / 60)  # Normalize to 0-1
+        """Assess right-sizing complexity - WITH TYPE SAFETY"""
+        cpu_gap = safe_float(getattr(metrics, 'cpu_gap', 0))
+        memory_gap = safe_float(getattr(metrics, 'memory_gap', 0))
+        avg_gap = (cpu_gap + memory_gap) / 2.0
+        return min(1.0, avg_gap / 60.0)  # Normalize to 0-1
     
     def _assess_right_sizing_risk(self, metrics: 'EnrichedAnalysisMetrics') -> float:
-        """Assess right-sizing risk"""
-        avg_gap = (metrics.cpu_gap + metrics.memory_gap) / 2
+        """Assess right-sizing risk - WITH TYPE SAFETY"""
+        cpu_gap = safe_float(getattr(metrics, 'cpu_gap', 0))
+        memory_gap = safe_float(getattr(metrics, 'memory_gap', 0))
+        avg_gap = (cpu_gap + memory_gap) / 2.0
         
         if avg_gap > 50:
             return 0.7  # High risk for dramatic changes
@@ -1917,21 +2097,28 @@ class IntelligentPhaseStrategist:
         """Estimate right-sizing timeline"""
         base_weeks = 2
         
-        avg_gap = (metrics.cpu_gap + metrics.memory_gap) / 2
+        cpu_gap = safe_float(getattr(metrics, 'cpu_gap', 0))
+        memory_gap = safe_float(getattr(metrics, 'memory_gap', 0))
+        node_count = safe_float(getattr(metrics, 'node_count', 1))
+        
+        avg_gap = (cpu_gap + memory_gap) / 2.0
         if avg_gap > 40:
             base_weeks += 2
         elif avg_gap > 25:
             base_weeks += 1
         
-        if metrics.node_count > 10:
+        if node_count > 10:
             base_weeks += 1
         
         return base_weeks
     
     def _assess_storage_complexity(self, metrics: 'EnrichedAnalysisMetrics') -> float:
         """Assess storage optimization complexity"""
-        storage_percentage = (metrics.storage_cost / metrics.total_cost) if metrics.total_cost > 0 else 0
-        return min(1.0, storage_percentage * 2)  # Normalize complexity
+        storage_cost = safe_float(getattr(metrics, 'storage_cost', 0))
+        total_cost = safe_float(getattr(metrics, 'total_cost', 1))
+        
+        storage_percentage = (storage_cost / total_cost) if total_cost > 0 else 0
+        return min(1.0, storage_percentage * 2.0)  # Normalize complexity
     
     def _assess_storage_risk(self, metrics: 'EnrichedAnalysisMetrics') -> float:
         """Assess storage optimization risk"""

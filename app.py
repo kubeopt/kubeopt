@@ -823,13 +823,13 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
             logger.warning("⚠️ Limited current metrics - using conservative optimization")
             metrics_data = create_minimal_metrics_structure()
         
-        # FIXED: Extract and preserve real node data BEFORE algorithmic analysis
+        #  Extract and preserve real node data BEFORE algorithmic analysis
         real_node_metrics = []
         if metrics_data and metrics_data.get('nodes'):
             real_node_metrics = metrics_data['nodes'].copy()
-            logger.info(f"🔧 FIXED: Preserving {len(real_node_metrics)} real node metrics for charts")
+            logger.info(f"🔧  Preserving {len(real_node_metrics)} real node metrics for charts")
             for node in real_node_metrics:
-                logger.info(f"🔧 FIXED: Preserved node {node.get('name', 'unknown')}: CPU={node.get('cpu_usage_pct', 0)}%, Memory={node.get('memory_usage_pct', 0)}%")
+                logger.info(f"🔧  Preserved node {node.get('name', 'unknown')}: CPU={node.get('cpu_usage_pct', 0)}%, Memory={node.get('memory_usage_pct', 0)}%")
         
         # Pod-level analysis if enabled
         pod_data = None
@@ -876,15 +876,15 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
         analysis_results['actual_period_cost'] = total_period_cost
         analysis_results['analysis_period_days'] = days
         
-        # FIXED: FORCE preservation of real node metrics in multiple keys for compatibility
+        #  FORCE preservation of real node metrics in multiple keys for compatibility
         if real_node_metrics:
             analysis_results['nodes'] = real_node_metrics.copy()
             analysis_results['node_metrics'] = real_node_metrics.copy()
             analysis_results['real_node_data'] = real_node_metrics.copy()
-            logger.info(f"🔧 FIXED: Forced preservation of {len(real_node_metrics)} real nodes in analysis_results")
-            logger.info(f"🔧 FIXED: Available node keys in analysis_results: {[key for key in analysis_results.keys() if 'node' in key.lower()]}")
+            logger.info(f"🔧  Forced preservation of {len(real_node_metrics)} real nodes in analysis_results")
+            logger.info(f"🔧  Available node keys in analysis_results: {[key for key in analysis_results.keys() if 'node' in key.lower()]}")
         else:
-            logger.warning("⚠️ FIXED: No real node metrics to preserve")
+            logger.warning("⚠️  No real node metrics to preserve")
         
         # Add pod data if available
         if pod_data:
@@ -912,12 +912,12 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
             'has_real_node_data': len(real_node_metrics) > 0
         })
         
-        # FIXED: Final validation that node data is preserved
+        #  Final validation that node data is preserved
         preserved_nodes = analysis_results.get('nodes', [])
-        logger.info(f"🔧 FIXED: Final validation - analysis_results contains {len(preserved_nodes)} nodes")
+        logger.info(f"🔧  Final validation - analysis_results contains {len(preserved_nodes)} nodes")
         if preserved_nodes:
             sample_node = preserved_nodes[0]
-            logger.info(f"🔧 FIXED: Sample preserved node: {sample_node.get('name', 'unknown')} with CPU={sample_node.get('cpu_usage_pct', 'missing')}%")
+            logger.info(f"🔧  Sample preserved node: {sample_node.get('name', 'unknown')} with CPU={sample_node.get('cpu_usage_pct', 'missing')}%")
         
         logger.info(f"🎉 CONSISTENT ANALYSIS COMPLETED")
         
@@ -1316,11 +1316,11 @@ def generate_workload_data():
         return None
 
 def chart_data_consistent():
-    """FIXED: Main chart data API for consistent analysis with database fallback"""
+    """ Main chart data API for consistent analysis with database fallback"""
     try:
         logger.info("📊 FIXED CONSISTENT chart data API called")
         
-        # FIXED: Try to get cluster context from the request
+        #  Try to get cluster context from the request
         cluster_id = None
         
         # Check if we're on a cluster-specific page
@@ -1328,34 +1328,34 @@ def chart_data_consistent():
         if '/cluster/' in referrer:
             try:
                 cluster_id = referrer.split('/cluster/')[-1].split('/')[0].split('?')[0]
-                logger.info(f"🎯 FIXED: Detected cluster context: {cluster_id}")
+                logger.info(f"🎯  Detected cluster context: {cluster_id}")
             except:
-                logger.warning("⚠️ FIXED: Could not extract cluster ID from referrer")
+                logger.warning("⚠️  Could not extract cluster ID from referrer")
         
-        # FIXED: Try global analysis_results first, then database fallback
+        #  Try global analysis_results first, then database fallback
         current_analysis = None
         data_source = "unknown"
         
         if analysis_results and analysis_results.get('total_cost'):
-            logger.info("✅ FIXED: Using global analysis_results")
+            logger.info("✅  Using global analysis_results")
             current_analysis = analysis_results
             data_source = "global_variable"
         elif cluster_id:
-            logger.info(f"🔄 FIXED: Global analysis_results empty, trying database for cluster {cluster_id}")
+            logger.info(f"🔄  Global analysis_results empty, trying database for cluster {cluster_id}")
             try:
                 cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
                 if cached_analysis and cached_analysis.get('total_cost'):
-                    logger.info(f"✅ FIXED: Found cached analysis in database: ${cached_analysis.get('total_cost', 0):.2f}")
+                    logger.info(f"✅  Found cached analysis in database: ${cached_analysis.get('total_cost', 0):.2f}")
                     current_analysis = cached_analysis
                     data_source = "database_cache"
                 else:
-                    logger.warning("⚠️ FIXED: No cached analysis found in database")
+                    logger.warning("⚠️  No cached analysis found in database")
             except Exception as db_error:
-                logger.error(f"❌ FIXED: Database error: {db_error}")
+                logger.error(f"❌  Database error: {db_error}")
         
-        # FIXED: Enhanced validation with detailed logging
+        #  Enhanced validation with detailed logging
         if not current_analysis:
-            logger.warning("⚠️ FIXED: No analysis results available from any source")
+            logger.warning("⚠️  No analysis results available from any source")
             return jsonify({
                 'status': 'no_data',
                 'message': 'No analysis results available. Please run analysis first.',
@@ -1367,8 +1367,8 @@ def chart_data_consistent():
             }), 200
         
         if not current_analysis.get('total_cost'):
-            logger.warning("⚠️ FIXED: Analysis results exist but no total_cost found")
-            logger.warning(f"⚠️ FIXED: Available keys: {list(current_analysis.keys())}")
+            logger.warning("⚠️  Analysis results exist but no total_cost found")
+            logger.warning(f"⚠️  Available keys: {list(current_analysis.keys())}")
             return jsonify({
                 'status': 'no_data',
                 'message': 'Invalid analysis data - no cost information found',
@@ -1381,18 +1381,18 @@ def chart_data_consistent():
         monthly_cost = current_analysis.get('total_cost', 0)
         monthly_savings = current_analysis.get('total_savings', 0)
         
-        # FIXED: Ensure node_metrics is properly set
+        #  Ensure node_metrics is properly set
         if 'node_metrics' not in current_analysis and 'nodes' in current_analysis:
             current_analysis['node_metrics'] = current_analysis['nodes']
         
         actual_period_cost = current_analysis.get('actual_period_cost', monthly_cost)
         analysis_period_days = current_analysis.get('analysis_period_days', 30)
 
-        # FIXED: Enhanced logging
-        logger.info(f"📊 FIXED: Returning chart data from {data_source}: cost=${monthly_cost:.2f}, savings=${monthly_savings:.2f}")
+        #  Enhanced logging
+        logger.info(f"📊  Returning chart data from {data_source}: cost=${monthly_cost:.2f}, savings=${monthly_savings:.2f}")
         
         if monthly_cost <= 0:
-            logger.warning(f"⚠️ FIXED: Invalid cost data: {monthly_cost}")
+            logger.warning(f"⚠️  Invalid cost data: {monthly_cost}")
             return jsonify({
                 'status': 'invalid_data',
                 'message': f'Invalid cost data: ${monthly_cost}',
@@ -1402,7 +1402,7 @@ def chart_data_consistent():
                 }
             }), 200
 
-        # FIXED: Get individual cost components with validation
+        #  Get individual cost components with validation
         node_cost = ensure_float(current_analysis.get('node_cost', 0))
         storage_cost = ensure_float(current_analysis.get('storage_cost', 0))
         networking_cost = ensure_float(current_analysis.get('networking_cost', 0))
@@ -1410,10 +1410,10 @@ def chart_data_consistent():
         registry_cost = ensure_float(current_analysis.get('registry_cost', 0))
         other_cost = ensure_float(current_analysis.get('other_cost', 0))
         
-        # FIXED: Validate and fix cost components
+        #  Validate and fix cost components
         component_total = node_cost + storage_cost + networking_cost + control_plane_cost + registry_cost + other_cost
         if abs(component_total - monthly_cost) > (monthly_cost * 0.01):
-            logger.warning(f"⚠️ FIXED: Cost mismatch: components={component_total:.2f}, total={monthly_cost:.2f}")
+            logger.warning(f"⚠️  Cost mismatch: components={component_total:.2f}, total={monthly_cost:.2f}")
             if component_total > 0:
                 adjustment_factor = monthly_cost / component_total
                 node_cost *= adjustment_factor
@@ -1422,9 +1422,9 @@ def chart_data_consistent():
                 control_plane_cost *= adjustment_factor
                 registry_cost *= adjustment_factor
                 other_cost *= adjustment_factor
-                logger.info(f"✅ FIXED: Applied adjustment factor: {adjustment_factor:.4f}")
+                logger.info(f"✅  Applied adjustment factor: {adjustment_factor:.4f}")
 
-        # FIXED: Enhanced response with better node utilization data
+        #  Enhanced response with better node utilization data
         response_data = {
             'status': 'success',
             'consistent_analysis': True,
@@ -1467,7 +1467,7 @@ def chart_data_consistent():
                 'memoryReplicas': [4, 7, 10, 7, 4]
             },
             
-            # FIXED: Enhanced node utilization with proper data structure
+            #  Enhanced node utilization with proper data structure
             'nodeUtilization': generate_node_utilization_data(current_analysis),
             
             # Savings breakdown
@@ -1519,31 +1519,31 @@ def chart_data_consistent():
             }
         }
 
-        # FIXED: Enhanced pod cost data generation
+        #  Enhanced pod cost data generation
         if current_analysis.get('has_pod_costs'):
-            logger.info(f"✅ FIXED: Pod cost data found, generating charts")
+            logger.info(f"✅  Pod cost data found, generating charts")
             
             pod_data = generate_pod_cost_data()
             if pod_data:
                 response_data['podCostBreakdown'] = pod_data
-                logger.info("✅ FIXED: Pod breakdown data added")
+                logger.info("✅  Pod breakdown data added")
             
             namespace_data = generate_namespace_data()
             if namespace_data:
                 response_data['namespaceDistribution'] = namespace_data
-                logger.info("✅ FIXED: Namespace distribution data added")
+                logger.info("✅  Namespace distribution data added")
             
             workload_data = generate_workload_data()
             if workload_data:
                 response_data['workloadCosts'] = workload_data
-                logger.info("✅ FIXED: Workload costs data added")
+                logger.info("✅  Workload costs data added")
         
-        logger.info(f"✅ FIXED: Chart data API completed successfully from {data_source}")
+        logger.info(f"✅  Chart data API completed successfully from {data_source}")
         return jsonify(response_data)
 
     except Exception as e:
-        logger.error(f"❌ FIXED: ERROR in chart_data API: {e}")
-        logger.error(f"❌ FIXED: Stack trace: {traceback.format_exc()}")
+        logger.error(f"❌  ERROR in chart_data API: {e}")
+        logger.error(f"❌  Stack trace: {traceback.format_exc()}")
         return jsonify({
             'status': 'error',
             'message': f'Error generating chart data: {str(e)}',
@@ -1554,12 +1554,12 @@ def chart_data_consistent():
         }), 500
 
 def generate_node_utilization_data(analysis_data):
-    """FIXED: Generate node utilization data with enhanced real data detection"""
+    """ Generate node utilization data with enhanced real data detection"""
     try:
-        logger.info("🔧 FIXED: Generating node utilization data for charts")
-        logger.info(f"🔧 FIXED: Available keys in analysis_data: {list(analysis_data.keys()) if analysis_data else 'None'}")
+        logger.info("🔧  Generating node utilization data for charts")
+        logger.info(f"🔧  Available keys in analysis_data: {list(analysis_data.keys()) if analysis_data else 'None'}")
         
-        # FIXED: Try multiple sources for node data with enhanced logging
+        #  Try multiple sources for node data with enhanced logging
         node_metrics = None
         data_source = "unknown"
         
@@ -1567,46 +1567,46 @@ def generate_node_utilization_data(analysis_data):
         if analysis_data.get('real_node_data'):
             node_metrics = analysis_data['real_node_data']
             data_source = "real_node_data"
-            logger.info(f"✅ FIXED: Found real_node_data with {len(node_metrics)} nodes")
+            logger.info(f"✅  Found real_node_data with {len(node_metrics)} nodes")
         
         # Source 2: node_metrics key
         elif analysis_data.get('node_metrics'):
             node_metrics = analysis_data['node_metrics']
             data_source = "node_metrics"
-            logger.info(f"✅ FIXED: Found node_metrics with {len(node_metrics)} nodes")
+            logger.info(f"✅  Found node_metrics with {len(node_metrics)} nodes")
         
         # Source 3: nodes key  
         elif analysis_data.get('nodes'):
             node_metrics = analysis_data['nodes']
             data_source = "nodes"
-            logger.info(f"✅ FIXED: Found nodes with {len(node_metrics)} nodes")
+            logger.info(f"✅  Found nodes with {len(node_metrics)} nodes")
         
         # Source 4: Check if we have real node data flag
         elif analysis_data.get('has_real_node_data'):
-            logger.warning("⚠️ FIXED: has_real_node_data=True but no node data found in expected keys")
+            logger.warning("⚠️  has_real_node_data=True but no node data found in expected keys")
             # Look for any key containing 'node' 
             for key in analysis_data.keys():
                 if 'node' in key.lower() and isinstance(analysis_data[key], list) and len(analysis_data[key]) > 0:
                     node_metrics = analysis_data[key]
                     data_source = f"fallback_key_{key}"
-                    logger.info(f"✅ FIXED: Found node data in fallback key: {key}")
+                    logger.info(f"✅  Found node data in fallback key: {key}")
                     break
         
-        # FIXED: Enhanced validation with detailed logging
+        #  Enhanced validation with detailed logging
         if not node_metrics:
-            logger.warning("⚠️ FIXED: No node metrics found in any source")
-            logger.warning(f"⚠️ FIXED: Analysis data keys checked: {list(analysis_data.keys()) if analysis_data else 'No analysis_data'}")
+            logger.warning("⚠️  No node metrics found in any source")
+            logger.warning(f"⚠️  Analysis data keys checked: {list(analysis_data.keys()) if analysis_data else 'No analysis_data'}")
             # Don't create fallback data - return None to indicate no real data
             return None
         
         if len(node_metrics) == 0:
-            logger.warning("⚠️ FIXED: Node metrics found but empty")
+            logger.warning("⚠️  Node metrics found but empty")
             return None
         
-        logger.info(f"🔧 FIXED: Using node data from source: {data_source}")
-        logger.info(f"🔧 FIXED: First node sample: {node_metrics[0] if node_metrics else 'None'}")
+        logger.info(f"🔧  Using node data from source: {data_source}")
+        logger.info(f"🔧  First node sample: {node_metrics[0] if node_metrics else 'None'}")
         
-        # FIXED: Process node metrics into chart format
+        #  Process node metrics into chart format
         nodes = []
         cpu_request = []
         cpu_actual = []
@@ -1641,7 +1641,7 @@ def generate_node_utilization_data(analysis_data):
                 memory_actual.append(memory_usage)
                 memory_request.append(memory_req)
                 
-                logger.info(f"✅ FIXED: Processed REAL node {node_name}: CPU={cpu_usage:.1f}% (req={cpu_req:.1f}%), Memory={memory_usage:.1f}% (req={memory_req:.1f}%)")
+                logger.info(f"✅  Processed REAL node {node_name}: CPU={cpu_usage:.1f}% (req={cpu_req:.1f}%), Memory={memory_usage:.1f}% (req={memory_req:.1f}%)")
         
         result = {
             'nodes': nodes,
@@ -1653,15 +1653,15 @@ def generate_node_utilization_data(analysis_data):
             'real_data': True
         }
         
-        logger.info(f"✅ FIXED: Generated REAL node utilization data for {len(nodes)} nodes from {data_source}")
-        logger.info(f"🔧 FIXED: Real CPU usage range: {min(cpu_actual):.1f}% - {max(cpu_actual):.1f}%")
-        logger.info(f"🔧 FIXED: Real Memory usage range: {min(memory_actual):.1f}% - {max(memory_actual):.1f}%")
+        logger.info(f"✅  Generated REAL node utilization data for {len(nodes)} nodes from {data_source}")
+        logger.info(f"🔧  Real CPU usage range: {min(cpu_actual):.1f}% - {max(cpu_actual):.1f}%")
+        logger.info(f"🔧  Real Memory usage range: {min(memory_actual):.1f}% - {max(memory_actual):.1f}%")
         
         return result
         
     except Exception as e:
-        logger.error(f"❌ FIXED: Error generating node utilization data: {e}")
-        logger.error(f"❌ FIXED: Exception details: {traceback.format_exc()}")
+        logger.error(f"❌  Error generating node utilization data: {e}")
+        logger.error(f"❌  Exception details: {traceback.format_exc()}")
         # Return None instead of fallback data to indicate failure
         return None
     
@@ -2390,27 +2390,6 @@ def chart_data():
             'message': f'Error routing chart data: {str(e)}'
         }), 500
 
-@app.route('/api/implementation-plan')
-def get_implementation_plan():
-    """Get implementation plan"""
-    global analysis_results
-    try:
-        logger.info("🚀 Implementation plan API called")        
-        plan = implementation_generator.generate_implementation_plan(analysis_results)
-        
-        return jsonify(plan)
-        
-    except Exception as e:
-        logger.error(f"❌ Implementation plan error: {e}")
-        return jsonify({
-            'status': 'error',
-            'message': f'Error generating implementation plan: {str(e)}',
-            'phases': [],
-            'summary': {
-                'message': f'Error: {str(e)}'
-            }
-        })
-
 @app.route('/api/debug-analysis')
 def debug_analysis():
     """Debug endpoint to check analysis results"""
@@ -2423,9 +2402,9 @@ def debug_analysis():
 
 @app.route('/api/clusters/<cluster_id>/chart-data')
 def cluster_specific_chart_data(cluster_id: str):
-    """FIXED: Cluster-specific chart data endpoint"""
+    """ Cluster-specific chart data endpoint"""
     try:
-        logger.info(f"📊 FIXED: Cluster-specific chart data requested for {cluster_id}")
+        logger.info(f"📊  Cluster-specific chart data requested for {cluster_id}")
         
         # Get cluster analysis from database
         cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
@@ -2451,12 +2430,19 @@ def cluster_specific_chart_data(cluster_id: str):
             analysis_results = original_results
             
     except Exception as e:
-        logger.error(f"❌ FIXED: Error in cluster-specific chart data: {e}")
+        logger.error(f"❌  Error in cluster-specific chart data: {e}")
         return jsonify({
             'status': 'error',
             'message': str(e),
             'cluster_id': cluster_id
         }), 500
+
+@app.route('/api/implementation-plan')
+def get_implementation_plan():
+    """Get implementation plan based on analysis results"""
+    global analysis_results
+    plan = implementation_generator.generate_implementation_plan(analysis_results)
+    return jsonify(plan)
 
 # ============================================================================
 # DATABASE MAINTENANCE ROUTES

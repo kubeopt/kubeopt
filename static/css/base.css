@@ -2019,3 +2019,39 @@ p {
 .mt-4 {
     margin-top: 1.5rem !important;
 }
+
+.phase-card {
+    transition: transform 0.2s ease;
+}
+
+.phase-card:hover {
+    transform: translateY(-2px);
+}
+
+.code-block {
+    position: relative;
+}
+
+.copy-btn {
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.copy-btn:hover {
+    opacity: 1;
+}
+
+.phase-detail-item {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 0.5rem;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: #f8f9fa;
+    color: #0d6efd;
+}
+
+.accordion-button:focus {
+    box-shadow: none;
+    border-color: #86b7fe;
+}
