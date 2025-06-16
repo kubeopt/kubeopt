@@ -198,12 +198,12 @@ class AKSRealTimeMetricsFetcher:
             
             # Get node usage with shorter timeout first
             logger.info("🔧 DEBUG: Fetching node usage...")
-            top_nodes = self.execute_kubectl_command("kubectl top nodes --no-headers", timeout=30)
+            top_nodes = self.execute_kubectl_command("kubectl top nodes --no-headers", timeout=45)
             
             if not top_nodes:
                 logger.warning("⚠️ Could not fetch 'kubectl top nodes' - trying alternative")
                 # Alternative: try with different format
-                top_nodes = self.execute_kubectl_command("kubectl top nodes", timeout=30)
+                top_nodes = self.execute_kubectl_command("kubectl top nodes", timeout=45)
             
             # Get node information
             logger.info("🔧 DEBUG: Fetching node information...")
@@ -241,10 +241,10 @@ class AKSRealTimeMetricsFetcher:
                         logger.info(f"🔧 DEBUG: Line {line_idx}: {line}")
                         logger.info(f"🔧 DEBUG: Parts: {parts}")
                         
-                        if len(parts) >= 5:  # Fixed: Need at least 5 parts for node data
+                        if len(parts) >= 5:  #  Need at least 5 parts for node data
                             node_name = parts[0]
                             cpu_usage = self.parser.parse_cpu_safe(parts[1])
-                            # Fixed: Memory is in parts[3], not parts[2] (parts[2] is CPU percentage)
+                            #  Memory is in parts[3], not parts[2] (parts[2] is CPU percentage)
                             memory_usage = self.parser.parse_memory_safe(parts[3])
                             
                             node_usage[node_name] = {
