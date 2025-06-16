@@ -37,7 +37,10 @@ const AppState = {
  */
 function formatValue(value, format) {
     const num = parseFloat(value) || 0;
-    if (isNaN(num)) return '0';
+    if (isNaN(num)) {
+        console.warn('⚠️ Invalid number for formatting:', value);
+        return '0';
+    }
     
     switch(format) {
         case 'currency':
@@ -569,30 +572,72 @@ function handleAnalysisSubmit(event) {
  * Initializes all dashboard charts
  */
 function initializeCharts() {
-    console.log('📊 Initializing charts...');
+    console.log('📊 Initializing charts with real data...');
     
     fetch(`${AppConfig.API_BASE_URL}/chart-data`)
         .then(response => {
+            console.log('📡 Chart data response status:', response.status);
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             return response.json();
         })
         .then(data => {
             console.log('📈 Chart data received:', data);
+            
+            // Validate the response
             if (data.status !== 'success') {
-                throw new Error(data.message || 'Unexpected response');
+                throw new Error(data.message || 'Invalid API response');
             }
             
-            // Update metrics if available
-            if (data.metrics) updateDashboardMetrics(data.metrics);
+            if (!data.metrics) {
+                throw new Error('No metrics data in response');
+            }
             
-            // Create all charts
+            // Log the actual values we're working with
+            console.log('💰 Cost:', data.metrics.total_cost);
+            console.log('💵 Savings:', data.metrics.total_savings);
+            
+            // Update metrics FIRST
+            updateDashboardMetrics(data.metrics);
+            
+            // Then create charts
             createAllCharts(data);
-            console.log('✅ Charts initialized successfully');
+            
+            console.log('✅ Charts initialized successfully with real data');
         })
         .catch(error => {
-            console.error('❌ Chart init error:', error);
-            showChartError('Unable to load chart data: ' + error.message);
+            console.error('❌ Chart initialization failed:', error);
+            showChartError('Unable to load real data: ' + error.message);
+            
+            // Don't fall back to sample data - show the error
+            const errorMessage = `Failed to load analysis data: ${error.message}. Please run analysis first.`;
+            showNotification(errorMessage, 'error');
         });
+}
+
+/**
+ * Validate chart data before processing
+ */
+function validateChartData(data) {
+    if (!data || data.status !== 'success') {
+        throw new Error(`Invalid API response: ${data?.message || 'Unknown error'}`);
+    }
+    
+    if (!data.metrics) {
+        throw new Error('No metrics in API response');
+    }
+    
+    const requiredMetrics = ['total_cost', 'total_savings'];
+    for (const metric of requiredMetrics) {
+        if (data.metrics[metric] === undefined || data.metrics[metric] === null) {
+            throw new Error(`Missing required metric: ${metric}`);
+        }
+        if (isNaN(parseFloat(data.metrics[metric]))) {
+            throw new Error(`Invalid numeric value for ${metric}: ${data.metrics[metric]}`);
+        }
+    }
+    
+    console.log('✅ Chart data validation passed');
+    return true;
 }
 
 // Export chart functions immediately
@@ -602,23 +647,122 @@ window.initializeCharts = initializeCharts;
  * Updates dashboard metrics with animation
  */
 function updateDashboardMetrics(metrics) {
-    console.log('📊 Updating metrics:', metrics);
+    console.log('📊 FIXED: Updating metrics with comprehensive element targeting:', metrics);
     
+    // Validate metrics object
+    if (!metrics || typeof metrics !== 'object') {
+        console.error('❌ Invalid metrics object:', metrics);
+        return;
+    }
+    
+    // FIXED: Enhanced metric updates with multiple selectors
     const metricUpdates = [
-        { selectors: ['#current-cost'], value: metrics.total_cost, format: 'currency' },
-        { selectors: ['#potential-savings'], value: metrics.total_savings, format: 'currency' },
-        { selectors: ['#hpa-efficiency'], value: metrics.hpa_reduction, format: 'percentage' },
-        { selectors: ['#optimization-score'], value: calculateOptimizationScore(metrics), format: 'number' },
-        { selectors: ['#savings-percentage'], value: metrics.savings_percentage, format: 'percentage' },
-        { selectors: ['#annual-savings'], value: metrics.annual_savings, format: 'currency' }
+        { 
+            selectors: ['#current-cost'], 
+            value: metrics.total_cost, 
+            format: 'currency',
+            label: 'Current Monthly Cost'
+        },
+        { 
+            selectors: ['#potential-savings', '#monthly-savings'], 
+            value: metrics.total_savings, 
+            format: 'currency',
+            label: 'Potential Monthly Savings'
+        },
+        { 
+            selectors: ['#hpa-efficiency'], 
+            value: metrics.hpa_reduction, 
+            format: 'percentage',
+            label: 'HPA Efficiency'
+        },
+        { 
+            selectors: ['#optimization-score'], 
+            value: calculateOptimizationScore(metrics), 
+            format: 'number',
+            label: 'Optimization Score'
+        },
+        { 
+            selectors: ['#savings-percentage'], 
+            value: metrics.savings_percentage, 
+            format: 'percentage',
+            label: 'Savings Percentage'
+        },
+        { 
+            selectors: ['#annual-savings'], 
+            value: metrics.annual_savings, 
+            format: 'currency',
+            label: 'Annual Savings'
+        }
     ];
     
+    // FIXED: Log each update for debugging
     metricUpdates.forEach((metric, index) => {
+        console.log(`📊 FIXED: Updating metric ${index} (${metric.label}):`, metric.selectors[0], '=', metric.value);
         animateMetricUpdate(metric, index * 100);
     });
     
+    // FIXED: Update specific savings elements
+    updateSpecificSavingsElements(metrics);
+    
+    // FIXED: Update savings breakdown mini elements
+    updateSavingsBreakdownMini(metrics);
+    
     updateCostTrend(metrics);
     updateDataSourceIndicator(metrics);
+}
+
+/**
+ * FIXED: Update specific savings elements
+ */
+function updateSpecificSavingsElements(metrics) {
+    console.log('🔧 FIXED: Updating specific savings elements');
+    
+    // Update monthly savings in multiple locations
+    const monthlySavingsElements = [
+        '#monthly-savings',
+        '#potential-savings',
+        '#action-savings'
+    ];
+    
+    monthlySavingsElements.forEach(selector => {
+        const element = document.querySelector(selector);
+        if (element) {
+            element.textContent = formatValue(metrics.total_savings || 0, 'currency');
+            console.log(`Updated ${selector} to: ${element.textContent}`);
+        }
+    });
+    
+    // Update annual savings
+    const annualSavingsElement = document.querySelector('#annual-savings');
+    if (annualSavingsElement) {
+        annualSavingsElement.textContent = formatValue(metrics.annual_savings || 0, 'currency');
+    }
+    
+    // Update savings percentage
+    const savingsPercentageElements = document.querySelectorAll('#savings-percentage');
+    savingsPercentageElements.forEach(element => {
+        element.textContent = `${(metrics.savings_percentage || 0).toFixed(1)}% potential savings`;
+    });
+}
+
+/**
+ * FIXED: Show loading states for charts
+ */
+function showChartLoading(chartId) {
+    const loadingElement = document.getElementById(chartId + 'Loading');
+    if (loadingElement) {
+        loadingElement.style.display = 'block';
+    }
+}
+
+/**
+ * FIXED: Hide loading states for charts
+ */
+function hideChartLoading(chartId) {
+    const loadingElement = document.getElementById(chartId + 'Loading');
+    if (loadingElement) {
+        loadingElement.style.display = 'none';
+    }
 }
 
 /**
@@ -953,48 +1097,141 @@ function createHPAComparisonChart(data, isRealData) {
     AppState.chartInstances['hpaComparisonChart'] = new Chart(ctx, config);
 }
 
+function updateSavingsBreakdownMini(metrics) {
+    console.log('🔧 FIXED: Updating savings breakdown mini elements');
+    
+    const hpaElement = document.getElementById('hpa-savings-mini');
+    const rightsizingElement = document.getElementById('rightsizing-savings-mini');
+    const storageElement = document.getElementById('storage-savings-mini');
+    
+    if (hpaElement) {
+        hpaElement.textContent = formatValue(metrics.hpa_savings || 0, 'currency');
+    }
+    if (rightsizingElement) {
+        rightsizingElement.textContent = formatValue(metrics.right_sizing_savings || 0, 'currency');
+    }
+    if (storageElement) {
+        storageElement.textContent = formatValue(metrics.storage_savings || 0, 'currency');
+    }
+    
+    // Update gap displays
+    const cpuGapElement = document.getElementById('cpu-gap-display');
+    const memoryGapElement = document.getElementById('memory-gap-display');
+    
+    if (cpuGapElement) {
+        cpuGapElement.textContent = (metrics.cpu_gap || 0).toFixed(1);
+    }
+    if (memoryGapElement) {
+        memoryGapElement.textContent = (metrics.memory_gap || 0).toFixed(1);
+    }
+}
+
 /**
  * Creates node utilization chart
  */
 function createNodeUtilizationChart(data, isRealData) {
     const canvas = document.getElementById('nodeUtilizationChart');
-    if (!canvas) return;
+    if (!canvas) {
+        console.warn('⚠️ FIXED: Node utilization chart canvas not found');
+        return;
+    }
+
+    console.log('🔧 FIXED: Creating node utilization chart with data:', data);
 
     const ctx = canvas.getContext('2d');
     const colors = getChartColors();
+    
+    // FIXED: Enhanced data validation and processing
+    const nodes = data.nodes || [];
+    const cpuRequest = data.cpuRequest || [];
+    const cpuActual = data.cpuActual || [];
+    const memoryRequest = data.memoryRequest || [];
+    const memoryActual = data.memoryActual || [];
+    
+    console.log(`🔧 FIXED: Raw data arrays:`, {
+        nodesLength: nodes.length,
+        cpuRequestLength: cpuRequest.length,
+        cpuActualLength: cpuActual.length,
+        memoryRequestLength: memoryRequest.length,
+        memoryActualLength: memoryActual.length
+    });
+    
+    // FIXED: If arrays are empty but we have node names, this means the data structure is different
+    if (nodes.length === 0) {
+        console.warn('⚠️ FIXED: No node data available for chart');
+        canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No node utilization data available</div>';
+        return;
+    }
+    
+    // FIXED: If the utilization arrays are empty, extract data from a different structure
+    let finalNodes = nodes;
+    let finalCpuRequest = cpuRequest;
+    let finalCpuActual = cpuActual;
+    let finalMemoryRequest = memoryRequest;
+    let finalMemoryActual = memoryActual;
+    
+    // FIXED: Check if data is in a different format (like from the consistent analysis)
+    if (cpuRequest.length === 0 && typeof nodes[0] === 'object') {
+        console.log('🔧 FIXED: Extracting data from object format nodes');
+        
+        finalNodes = nodes.map(node => node.name || node.node_name || 'Unknown');
+        finalCpuRequest = nodes.map(node => parseFloat(node.cpu_request_pct || node.cpu_request || 0));
+        finalCpuActual = nodes.map(node => parseFloat(node.cpu_usage_pct || node.cpu_actual || 0));
+        finalMemoryRequest = nodes.map(node => parseFloat(node.memory_request_pct || node.memory_request || 0));
+        finalMemoryActual = nodes.map(node => parseFloat(node.memory_usage_pct || node.memory_actual || 0));
+        
+        console.log('🔧 FIXED: Extracted data:', {
+            nodes: finalNodes,
+            cpuRequest: finalCpuRequest,
+            cpuActual: finalCpuActual,
+            memoryRequest: finalMemoryRequest,
+            memoryActual: finalMemoryActual
+        });
+    }
+    
+    // FIXED: Validate we have actual data
+    if (finalNodes.length === 0 || finalCpuActual.every(val => val === 0)) {
+        console.warn('⚠️ FIXED: No valid utilization data found');
+        canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No valid node utilization data found</div>';
+        return;
+    }
 
     const config = {
         type: 'bar',
         data: {
-            labels: data.nodes || [],
+            labels: finalNodes,
             datasets: [
                 {
-                    label: 'CPU Request',
-                    data: data.cpuRequest || [],
+                    label: 'CPU Request %',
+                    data: finalCpuRequest,
                     backgroundColor: 'rgba(52, 152, 219, 0.3)',
                     borderColor: '#3498db',
-                    borderWidth: 2
+                    borderWidth: 2,
+                    order: 2
                 },
                 {
-                    label: 'CPU Actual',
-                    data: data.cpuActual || [],
+                    label: 'CPU Actual %',
+                    data: finalCpuActual,
                     backgroundColor: 'rgba(231, 76, 60, 0.7)',
                     borderColor: '#e74c3c',
-                    borderWidth: 2
+                    borderWidth: 2,
+                    order: 1
                 },
                 {
-                    label: 'Memory Request',
-                    data: data.memoryRequest || [],
+                    label: 'Memory Request %',
+                    data: finalMemoryRequest,
                     backgroundColor: 'rgba(155, 89, 182, 0.3)',
                     borderColor: '#9b59b6',
-                    borderWidth: 2
+                    borderWidth: 2,
+                    order: 4
                 },
                 {
-                    label: 'Memory Actual',
-                    data: data.memoryActual || [],
+                    label: 'Memory Actual %',
+                    data: finalMemoryActual,
                     backgroundColor: 'rgba(46, 204, 113, 0.7)',
                     borderColor: '#2ecc71',
-                    borderWidth: 2
+                    borderWidth: 2,
+                    order: 3
                 }
             ]
         },
@@ -1002,14 +1239,29 @@ function createNodeUtilizationChart(data, isRealData) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { labels: { color: colors.textColor } }
+                legend: { 
+                    labels: { color: colors.textColor },
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
+                        }
+                    }
+                }
             },
             scales: {
                 x: {
-                    ticks: { color: colors.textColor },
+                    ticks: { 
+                        color: colors.textColor,
+                        maxRotation: 45
+                    },
                     grid: { color: colors.gridColor }
                 },
                 y: {
+                    beginAtZero: true,
+                    max: 100,
                     ticks: {
                         color: colors.textColor,
                         callback: function(value) {
@@ -1017,18 +1269,27 @@ function createNodeUtilizationChart(data, isRealData) {
                         }
                     },
                     grid: { color: colors.gridColor },
-                    max: 100,
                     title: {
                         display: true,
                         text: 'Utilization %',
                         color: colors.textColor
                     }
                 }
+            },
+            animation: {
+                duration: 1000,
+                easing: 'easeInOutQuart'
             }
         }
     };
 
+    // Destroy existing chart if it exists
+    if (AppState.chartInstances['nodeUtilizationChart']) {
+        AppState.chartInstances['nodeUtilizationChart'].destroy();
+    }
+
     AppState.chartInstances['nodeUtilizationChart'] = new Chart(ctx, config);
+    console.log('✅ FIXED: Node utilization chart created successfully with real data');
 }
 
 /**
@@ -1036,20 +1297,48 @@ function createNodeUtilizationChart(data, isRealData) {
  */
 function createSavingsBreakdownChart(data, isRealData) {
     const canvas = document.getElementById('savingsBreakdownChart');
-    if (!canvas) return;
+    if (!canvas) {
+        console.warn('⚠️ Savings breakdown chart canvas not found');
+        return;
+    }
+
+    // Show loading
+    showChartLoading('savingsBreakdown');
 
     const ctx = canvas.getContext('2d');
     const colors = getChartColors();
+    
+    console.log('🔧 FIXED: Creating savings breakdown chart with data:', data);
+
+    // FIXED: Validate data and filter out zero values
+    const categories = data.categories || [];
+    const values = data.values || [];
+    
+    // Filter out zero/negative values for better visualization
+    const filteredData = categories.map((category, index) => ({
+        category: category,
+        value: Math.max(0, values[index] || 0)
+    })).filter(item => item.value > 0);
+    
+    if (filteredData.length === 0) {
+        console.warn('⚠️ No savings data to display');
+        canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No savings opportunities identified</div>';
+        hideChartLoading('savingsBreakdown');
+        return;
+    }
+    
+    console.log(`🔧 FIXED: Processing ${filteredData.length} savings categories:`, filteredData);
 
     const config = {
         type: 'pie',
         data: {
-            labels: data.categories || [],
+            labels: filteredData.map(item => item.category),
             datasets: [{
-                data: data.values || [],
+                data: filteredData.map(item => item.value),
                 backgroundColor: ['#3498db', '#e74c3c', '#2ecc71'],
                 borderWidth: 2,
-                borderColor: colors.backgroundColor
+                borderColor: colors.backgroundColor,
+                hoverOffset: 6
             }]
         },
         options: {
@@ -1061,21 +1350,54 @@ function createSavingsBreakdownChart(data, isRealData) {
                     labels: {
                         color: colors.textColor,
                         padding: 10,
-                        usePointStyle: true
+                        usePointStyle: true,
+                        generateLabels: function(chart) {
+                            const data = chart.data;
+                            if (data.labels.length && data.datasets.length) {
+                                return data.labels.map((label, i) => {
+                                    const value = data.datasets[0].data[i];
+                                    const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                    return {
+                                        text: `${label}: $${value.toLocaleString()} (${percentage}%)`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        index: i
+                                    };
+                                });
+                            }
+                            return [];
+                        }
                     }
                 },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
-                            return `${context.label}: $${context.parsed.toLocaleString()}`;
+                            const value = context.parsed;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${context.label}: $${value.toLocaleString()} (${percentage}%)`;
                         }
                     }
+                }
+            },
+            animation: {
+                onComplete: function() {
+                    hideChartLoading('savingsBreakdown');
                 }
             }
         }
     };
 
+    // Destroy existing chart if it exists
+    if (AppState.chartInstances['savingsBreakdownChart']) {
+        AppState.chartInstances['savingsBreakdownChart'].destroy();
+    }
+
     AppState.chartInstances['savingsBreakdownChart'] = new Chart(ctx, config);
+    console.log('✅ FIXED: Savings breakdown chart created successfully');
+    
+    // Hide loading after a short delay as fallback
+    setTimeout(() => hideChartLoading('savingsBreakdown'), 1000);
 }
 
 /**
@@ -3943,630 +4265,6 @@ function switchToListView(gridButton, listButton, clusterGrid) {
     console.log('✅ Switched to list view');
 }
 
-
-
-/**
- * Enhanced Animations and Cost Savings Effects
- * Adds dynamic animations to cost savings elements and compact layout management
- */
-
-// Enhanced Animation System
-class AnimationManager {
-    constructor() {
-        this.savingsThreshold = 100; // Threshold for high savings animation
-        this.init();
-    }
-
-    init() {
-        this.setupContinuousAnimations();
-        this.setupSavingsAnimations();
-        this.setupCompactLayout();
-        this.setupDynamicEffects();
-    }
-
-    /**
-     * Setup continuous animations for brand icon and other elements
-     */
-    setupContinuousAnimations() {
-        // Ensure Kubernetes icon spins continuously
-        const brandIcon = document.querySelector('.brand-icon');
-        if (brandIcon && !brandIcon.classList.contains('spinning-icon')) {
-            brandIcon.classList.add('spinning-icon');
-        }
-
-        // Add floating animation to metric icons
-        const metricIcons = document.querySelectorAll('.metric-icon');
-        metricIcons.forEach((icon, index) => {
-            icon.style.animationDelay = `${index * 0.5}s`;
-        });
-    }
-
-    /**
-     * Setup cost savings specific animations
-     */
-    setupSavingsAnimations() {
-        // Enhanced savings metric card detection and animation
-        this.updateSavingsCards();
-        
-        // Setup observer for dynamic content
-        const observer = new MutationObserver(() => {
-            this.updateSavingsCards();
-        });
-        
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['class', 'id']
-        });
-    }
-
-    /**
-     * Update savings cards with animations based on values
-     */
-    updateSavingsCards() {
-        // Find potential savings elements
-        const savingsElements = [
-            ...document.querySelectorAll('#potential-savings'),
-            ...document.querySelectorAll('[id*="savings"]'),
-            ...document.querySelectorAll('.metric-value:contains("$")')
-        ];
-
-        savingsElements.forEach(element => {
-            const parentCard = element.closest('.metric-card');
-            if (parentCard && this.isSavingsElement(element)) {
-                this.applySavingsEffects(parentCard, element);
-            }
-        });
-
-        // Handle mini metric savings
-        this.updateMiniSavingsMetrics();
-    }
-
-    /**
-     * Check if element represents savings
-     */
-    isSavingsElement(element) {
-        const text = element.textContent?.toLowerCase() || '';
-        const id = element.id?.toLowerCase() || '';
-        
-        return text.includes('savings') || 
-               text.includes('save') || 
-               id.includes('savings') || 
-               id.includes('save') ||
-               element.classList.contains('savings');
-    }
-
-    /**
-     * Apply savings effects to metric cards
-     */
-    applySavingsEffects(card, valueElement) {
-        // Add savings card class
-        if (!card.classList.contains('savings-card')) {
-            card.classList.add('savings-card');
-        }
-
-        // Parse savings value to determine intensity
-        const value = this.parseMoneyValue(valueElement.textContent);
-        
-        if (value > this.savingsThreshold) {
-            this.addHighSavingsEffects(card, valueElement);
-        } else if (value > 50) {
-            this.addMediumSavingsEffects(card, valueElement);
-        } else if (value > 0) {
-            this.addLowSavingsEffects(card, valueElement);
-        }
-
-        // Add cost efficiency badge
-        this.addCostEfficiencyBadge(card, value);
-    }
-
-    /**
-     * Add high savings effects
-     */
-    addHighSavingsEffects(card, valueElement) {
-        card.style.animationDuration = '2s';
-        
-        // Create sparkle effect
-        this.createSparkleEffect(card);
-        
-        // Add pulsing glow
-        card.style.boxShadow = `
-            0 8px 32px rgba(52, 199, 89, 0.4),
-            0 0 50px rgba(52, 199, 89, 0.2),
-            inset 0 1px 0 rgba(255, 255, 255, 0.2)
-        `;
-        
-        // Animate the value with counting effect
-        this.animateValueCounting(valueElement);
-    }
-
-    /**
-     * Add medium savings effects
-     */
-    addMediumSavingsEffects(card, valueElement) {
-        card.style.animationDuration = '3s';
-        card.style.boxShadow = `
-            0 6px 24px rgba(52, 199, 89, 0.3),
-            0 0 30px rgba(52, 199, 89, 0.15)
-        `;
-    }
-
-    /**
-     * Add low savings effects
-     */
-    addLowSavingsEffects(card, valueElement) {
-        card.style.animationDuration = '4s';
-        card.style.boxShadow = `
-            0 4px 16px rgba(52, 199, 89, 0.2),
-            0 0 20px rgba(52, 199, 89, 0.1)
-        `;
-    }
-
-    /**
-     * Create sparkle effect for high savings
-     */
-    createSparkleEffect(card) {
-        if (card.querySelector('.sparkle-container')) return;
-
-        const sparkleContainer = document.createElement('div');
-        sparkleContainer.className = 'sparkle-container';
-        sparkleContainer.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            pointer-events: none;
-            overflow: hidden;
-            border-radius: inherit;
-        `;
-
-        // Create multiple sparkles
-        for (let i = 0; i < 8; i++) {
-            const sparkle = document.createElement('div');
-            sparkle.className = 'sparkle';
-            sparkle.style.cssText = `
-                position: absolute;
-                width: 4px;
-                height: 4px;
-                background: radial-gradient(circle, #00ff88 0%, transparent 70%);
-                border-radius: 50%;
-                animation: sparkle-float ${2 + Math.random() * 3}s ease-in-out infinite;
-                animation-delay: ${Math.random() * 2}s;
-                top: ${Math.random() * 100}%;
-                left: ${Math.random() * 100}%;
-            `;
-            sparkleContainer.appendChild(sparkle);
-        }
-
-        card.appendChild(sparkleContainer);
-        
-        // Add sparkle animation CSS if not exists
-        this.addSparkleCSS();
-    }
-
-    /**
-     * Add sparkle animation CSS
-     */
-    addSparkleCSS() {
-        if (document.getElementById('sparkle-animations')) return;
-
-        const style = document.createElement('style');
-        style.id = 'sparkle-animations';
-        style.textContent = `
-            @keyframes sparkle-float {
-                0%, 100% {
-                    transform: translateY(0px) scale(0);
-                    opacity: 0;
-                }
-                50% {
-                    transform: translateY(-20px) scale(1);
-                    opacity: 1;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    /**
-     * Animate value counting effect
-     */
-    animateValueCounting(element) {
-        const finalValue = this.parseMoneyValue(element.textContent);
-        const duration = 2000;
-        const startTime = Date.now();
-        const startValue = 0;
-
-        const animate = () => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            
-            // Easing function
-            const easeOut = 1 - Math.pow(1 - progress, 3);
-            
-            const currentValue = startValue + (finalValue - startValue) * easeOut;
-            element.textContent = `$${Math.round(currentValue).toLocaleString()}`;
-            
-            if (progress < 1) {
-                requestAnimationFrame(animate);
-            } else {
-                element.textContent = `$${finalValue.toLocaleString()}`;
-            }
-        };
-
-        animate();
-    }
-
-    /**
-     * Add cost efficiency badge
-     */
-    addCostEfficiencyBadge(card, value) {
-        // Remove existing badge
-        const existingBadge = card.querySelector('.cost-efficiency-badge');
-        if (existingBadge) {
-            existingBadge.remove();
-        }
-
-        const badge = document.createElement('div');
-        badge.className = 'cost-efficiency-badge';
-        
-        if (value > 500) {
-            badge.classList.add('high-savings');
-            badge.textContent = '🔥 HIGH SAVINGS';
-        } else if (value > 100) {
-            badge.classList.add('medium-savings');
-            badge.textContent = '💰 GOOD SAVINGS';
-        } else if (value > 0) {
-            badge.classList.add('low-savings');
-            badge.textContent = '📈 SOME SAVINGS';
-        }
-
-        card.appendChild(badge);
-    }
-
-    /**
-     * Update mini savings metrics
-     */
-    updateMiniSavingsMetrics() {
-        const miniMetrics = document.querySelectorAll('.metric-mini');
-        
-        miniMetrics.forEach(mini => {
-            const valueElement = mini.querySelector('.metric-value');
-            const labelElement = mini.querySelector('.metric-label');
-            
-            if (valueElement && labelElement) {
-                const label = labelElement.textContent.toLowerCase();
-                const value = this.parseMoneyValue(valueElement.textContent);
-                
-                if (label.includes('savings') || label.includes('save')) {
-                    mini.classList.add('savings-mini');
-                    
-                    if (value > 50) {
-                        mini.style.animationDuration = '2s';
-                    }
-                }
-            }
-        });
-    }
-
-    /**
-     * Setup compact layout management
-     */
-    setupCompactLayout() {
-        // Apply compact spacing to containers
-        const containers = document.querySelectorAll('.container, .container-fluid');
-        containers.forEach(container => {
-            container.classList.add('compact-spacing');
-        });
-
-        // Optimize metric grid layout
-        this.optimizeMetricLayout();
-        
-        // Setup responsive mini metrics
-        this.setupResponsiveMiniMetrics();
-    }
-
-    /**
-     * Optimize metric layout for better space usage
-     */
-    optimizeMetricLayout() {
-        const metricsRow = document.getElementById('metrics-row');
-        if (metricsRow) {
-            metricsRow.classList.add('metric-grid');
-        }
-
-        // Group mini metrics
-        const miniMetrics = document.querySelectorAll('.metric-mini');
-        if (miniMetrics.length > 2) {
-            const container = miniMetrics[0].parentElement;
-            const row = document.createElement('div');
-            row.className = 'metric-mini-row';
-            
-            miniMetrics.forEach(mini => {
-                row.appendChild(mini);
-            });
-            
-            container.appendChild(row);
-        }
-    }
-
-    /**
-     * Setup responsive mini metrics
-     */
-    setupResponsiveMiniMetrics() {
-        const handleResize = () => {
-            const miniMetrics = document.querySelectorAll('.metric-mini');
-            const screenWidth = window.innerWidth;
-            
-            miniMetrics.forEach(mini => {
-                if (screenWidth < 768) {
-                    mini.style.minWidth = 'auto';
-                    mini.style.width = '100%';
-                } else {
-                    mini.style.minWidth = '80px';
-                    mini.style.width = 'auto';
-                }
-            });
-        };
-
-        window.addEventListener('resize', handleResize);
-        handleResize(); // Initial call
-    }
-
-    /**
-     * Setup dynamic effects based on data changes
-     */
-    setupDynamicEffects() {
-        // Monitor for data updates
-        this.setupDataUpdateEffects();
-        
-        // Setup hover enhancement effects
-        this.setupHoverEffects();
-        
-        // Setup loading state animations
-        this.setupLoadingAnimations();
-    }
-
-    /**
-     * Setup data update effects
-     */
-    setupDataUpdateEffects() {
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.type === 'childList' || mutation.type === 'characterData') {
-                    const target = mutation.target;
-                    
-                    // If a metric value was updated
-                    if (target.classList?.contains('metric-value') || 
-                        target.parentElement?.classList?.contains('metric-value')) {
-                        this.animateDataUpdate(target);
-                    }
-                }
-            });
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            characterData: true
-        });
-    }
-
-    /**
-     * Animate data updates
-     */
-    animateDataUpdate(element) {
-        const metricElement = element.classList?.contains('metric-value') ? 
-            element : element.closest('.metric-value');
-        
-        if (metricElement) {
-            metricElement.style.transform = 'scale(1.1)';
-            metricElement.style.transition = 'transform 0.3s ease';
-            
-            setTimeout(() => {
-                metricElement.style.transform = 'scale(1)';
-            }, 300);
-            
-            // Add update indicator
-            this.addUpdateIndicator(metricElement);
-        }
-    }
-
-    /**
-     * Add update indicator
-     */
-    addUpdateIndicator(element) {
-        const indicator = document.createElement('div');
-        indicator.style.cssText = `
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            width: 8px;
-            height: 8px;
-            background: #00ff88;
-            border-radius: 50%;
-            animation: pulse-indicator 1s ease-in-out 3;
-            z-index: 10;
-        `;
-        
-        element.style.position = 'relative';
-        element.appendChild(indicator);
-        
-        setTimeout(() => {
-            indicator.remove();
-        }, 3000);
-        
-        // Add pulse indicator CSS if not exists
-        this.addPulseIndicatorCSS();
-    }
-
-    /**
-     * Add pulse indicator CSS
-     */
-    addPulseIndicatorCSS() {
-        if (document.getElementById('pulse-indicator-animations')) return;
-
-        const style = document.createElement('style');
-        style.id = 'pulse-indicator-animations';
-        style.textContent = `
-            @keyframes pulse-indicator {
-                0%, 100% {
-                    transform: scale(1);
-                    opacity: 1;
-                }
-                50% {
-                    transform: scale(1.5);
-                    opacity: 0.7;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    /**
-     * Setup enhanced hover effects
-     */
-    setupHoverEffects() {
-        // Enhanced metric card hover effects
-        const metricCards = document.querySelectorAll('.metric-card');
-        metricCards.forEach(card => {
-            card.addEventListener('mouseenter', () => {
-                const icon = card.querySelector('.metric-icon');
-                if (icon) {
-                    icon.style.transform = 'scale(1.2) rotate(10deg)';
-                    icon.style.filter = 'brightness(1.2)';
-                }
-            });
-            
-            card.addEventListener('mouseleave', () => {
-                const icon = card.querySelector('.metric-icon');
-                if (icon) {
-                    icon.style.transform = '';
-                    icon.style.filter = '';
-                }
-            });
-        });
-
-        // Enhanced cluster card hover effects
-        const clusterCards = document.querySelectorAll('.cluster-card');
-        clusterCards.forEach(card => {
-            card.addEventListener('mouseenter', () => {
-                const miniMetrics = card.querySelectorAll('.metric-mini');
-                miniMetrics.forEach((mini, index) => {
-                    setTimeout(() => {
-                        mini.style.transform = 'translateY(-4px) scale(1.05)';
-                    }, index * 100);
-                });
-            });
-            
-            card.addEventListener('mouseleave', () => {
-                const miniMetrics = card.querySelectorAll('.metric-mini');
-                miniMetrics.forEach(mini => {
-                    mini.style.transform = '';
-                });
-            });
-        });
-    }
-
-    /**
-     * Setup loading animations
-     */
-    setupLoadingAnimations() {
-        const loadingElements = document.querySelectorAll('.loading, .loading-spinner');
-        loadingElements.forEach(element => {
-            if (!element.querySelector('.enhanced-loading-indicator')) {
-                this.addEnhancedLoadingIndicator(element);
-            }
-        });
-    }
-
-    /**
-     * Add enhanced loading indicator
-     */
-    addEnhancedLoadingIndicator(element) {
-        const indicator = document.createElement('div');
-        indicator.className = 'enhanced-loading-indicator';
-        indicator.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(90deg, 
-                transparent 0%, 
-                rgba(0, 122, 255, 0.2) 50%, 
-                transparent 100%);
-            animation: loading-shimmer 2s ease-in-out infinite;
-            border-radius: inherit;
-            pointer-events: none;
-        `;
-        
-        element.style.position = 'relative';
-        element.appendChild(indicator);
-        
-        // Add loading shimmer CSS if not exists
-        this.addLoadingShimmerCSS();
-    }
-
-    /**
-     * Add loading shimmer CSS
-     */
-    addLoadingShimmerCSS() {
-        if (document.getElementById('loading-shimmer-animations')) return;
-
-        const style = document.createElement('style');
-        style.id = 'loading-shimmer-animations';
-        style.textContent = `
-            @keyframes loading-shimmer {
-                0% {
-                    transform: translateX(-100%);
-                }
-                100% {
-                    transform: translateX(100%);
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    /**
-     * Parse money value from text
-     */
-    parseMoneyValue(text) {
-        if (!text) return 0;
-        
-        // Remove currency symbols, commas, and extract numbers
-        const cleaned = text.replace(/[$,\s]/g, '');
-        const number = parseFloat(cleaned) || 0;
-        
-        return number;
-    }
-
-    /**
-     * Public method to trigger savings animation on specific element
-     */
-    triggerSavingsAnimation(elementId, value) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            const card = element.closest('.metric-card');
-            if (card) {
-                this.applySavingsEffects(card, element);
-                if (value > this.savingsThreshold) {
-                    this.animateValueCounting(element);
-                }
-            }
-        }
-    }
-
-    /**
-     * Public method to update all animations
-     */
-    refreshAnimations() {
-        this.updateSavingsCards();
-        this.setupContinuousAnimations();
-    }
-}
 
 // Initialize animation manager
 let animationManager;
