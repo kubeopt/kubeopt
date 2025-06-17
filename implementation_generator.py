@@ -1846,12 +1846,13 @@ class IntelligentPhaseStrategist:
         return phases
     
     def _create_phase_from_opportunity(self, opportunity: Dict, phase_number: int,
-                                     start_week: int, metrics: 'EnrichedAnalysisMetrics',
-                                     complexity: 'ComplexityAnalysis') -> Dict:
+                                 start_week: int, metrics: 'EnrichedAnalysisMetrics',
+                                 complexity: 'ComplexityAnalysis') -> Dict:
         """Create implementation phase from opportunity"""
         
         # Generate phase-specific tasks
         tasks = self._generate_phase_tasks(opportunity, metrics)
+        tasks = [self._ensure_task_commands(task, metrics) for task in tasks]
         
         # Calculate duration
         duration = opportunity['timeline_weeks']
@@ -1905,86 +1906,361 @@ class IntelligentPhaseStrategist:
             return []
     
     def _generate_hpa_tasks(self, metrics: 'EnrichedAnalysisMetrics') -> List[Dict]:
-        """Generate HPA-specific tasks"""
+        """Generate HPA-specific tasks with real kubectl commands and YAML templates"""
         target_utilization = max(60, min(85, 100 - (metrics.hpa_reduction / 2)))
+        cluster_name = getattr(metrics, 'cluster_name', 'your-cluster')
+        resource_group = getattr(metrics, 'resource_group', 'your-rg')
         
+        # Generate realistic namespace list based on cluster
+        namespaces = ['default', 'kube-system', 'production', 'staging']
+        
+        hpa_yaml_template = f'''apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+    name: {{workload-name}}-hpa
+    namespace: {{namespace}}
+    spec:
+    scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: {{workload-name}}
+    minReplicas: 2
+    maxReplicas: 10
+    metrics:
+    - type: Resource
+        resource:
+        name: memory
+        target:
+            type: Utilization
+            averageUtilization: {target_utilization:.0f}
+    - type: Resource
+        resource:
+        name: cpu
+        target:
+            type: Utilization
+            averageUtilization: 70
+    behavior:
+        scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+        - type: Percent
+            value: 10
+            periodSeconds: 60
+        scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+        - type: Percent
+            value: 25
+            periodSeconds: 60'''
+
         return [
             {
                 'task_id': 'hpa_001',
-                'title': 'Current HPA Analysis',
-                'description': f'Analyze existing HPA configurations for {metrics.hpa_reduction:.1f}% optimization potential',
-                'estimated_hours': 8,
-                'skills_required': ['Kubernetes', 'HPA'],
-                'deliverable': 'Current HPA assessment report'
+                'title': 'Analyze Current HPA Configurations',
+                'description': f'Analyze existing HPA configurations across {cluster_name} for {metrics.hpa_reduction:.1f}% optimization potential',
+                'estimated_hours': 4,
+                'skills_required': ['Kubernetes', 'HPA', 'kubectl'],
+                'deliverable': 'Current HPA assessment report with baseline metrics',
+                'command': f'''# Connect to AKS cluster
+    az aks get-credentials --resource-group {resource_group} --name {cluster_name}
+
+    # List all current HPAs
+    kubectl get hpa --all-namespaces
+
+    # Analyze HPA status and current utilization
+    kubectl describe hpa --all-namespaces
+
+    # Check current resource usage
+    kubectl top pods --all-namespaces --sort-by=memory
+
+    # Export current HPA configurations for backup
+    kubectl get hpa --all-namespaces -o yaml > current-hpa-backup.yaml''',
+                'expected_outcome': f'Baseline documentation of current HPA configurations and identification of ${metrics.hpa_savings:.0f}/month optimization opportunities'
             },
             {
-                'task_id': 'hpa_002',
-                'title': 'Memory-Based HPA Design',
-                'description': f'Design memory-based HPA with {target_utilization:.0f}% target utilization',
-                'estimated_hours': 12,
-                'skills_required': ['Kubernetes', 'HPA', 'Performance Testing'],
-                'deliverable': 'HPA configuration templates'
+                'task_id': 'hpa_002', 
+                'title': 'Design Memory-Based HPA Strategy',
+                'description': f'Design optimized memory-based HPA configurations targeting {target_utilization:.0f}% utilization',
+                'estimated_hours': 6,
+                'skills_required': ['Kubernetes', 'HPA', 'YAML', 'Performance Analysis'],
+                'deliverable': 'Optimized HPA YAML templates and implementation strategy',
+                'template': hpa_yaml_template,
+                'command': f'''# Test HPA configuration (dry-run)
+    kubectl apply --dry-run=client -f optimized-hpa.yaml
+
+    # Validate HPA metrics server is running
+    kubectl get pods -n kube-system | grep metrics-server
+
+    # Check if custom metrics are available (if needed)
+    kubectl get --raw "/apis/metrics.k8s.io/v1beta1/nodes"
+
+    # Create namespace-specific HPA configurations
+    for ns in {" ".join(namespaces)}; do
+    echo "Preparing HPA for namespace: $ns"
+    sed "s/{{{{namespace}}}}/$ns/g" hpa-template.yaml > hpa-$ns.yaml
+    done''',
+                'expected_outcome': f'Production-ready HPA templates optimized for {target_utilization:.0f}% memory utilization'
             },
             {
                 'task_id': 'hpa_003',
-                'title': 'HPA Implementation',
-                'description': f'Deploy and configure memory-based HPA for ${metrics.hpa_savings:.0f}/month savings',
-                'estimated_hours': 16,
-                'skills_required': ['Kubernetes', 'HPA', 'Monitoring'],
-                'deliverable': 'Deployed HPA configurations'
+                'title': 'Deploy and Validate Memory-Based HPA',
+                'description': f'Implement memory-based HPA configurations for ${metrics.hpa_savings:.0f}/month savings',
+                'estimated_hours': 8,
+                'skills_required': ['Kubernetes', 'HPA', 'Monitoring', 'kubectl'],
+                'deliverable': 'Deployed and validated HPA configurations with monitoring',
+                'command': f'''# Deploy HPA configurations with validation
+    kubectl apply -f optimized-hpa.yaml
+
+    # Verify HPA deployment
+    kubectl get hpa --all-namespaces
+
+    # Monitor HPA scaling decisions
+    kubectl describe hpa {{workload-name}}-hpa -n {{namespace}}
+
+    # Watch real-time HPA activity
+    kubectl get hpa --all-namespaces --watch
+
+    # Validate memory metrics are being used
+    kubectl get --raw "/apis/metrics.k8s.io/v1beta1/pods" | jq '.items[] | {{name: .metadata.name, memory: .containers[].usage.memory}}'
+
+    # Set up monitoring alerts for HPA scaling events
+    kubectl get events --field-selector involvedObject.kind=HorizontalPodAutoscaler --sort-by='.lastTimestamp' --watch''',
+                'expected_outcome': f'Successfully deployed memory-based HPA achieving ${metrics.hpa_savings:.0f}/month cost reduction'
             }
         ]
     
     def _generate_right_sizing_tasks(self, metrics: 'EnrichedAnalysisMetrics') -> List[Dict]:
-        """Generate right-sizing specific tasks"""
+        """Generate right-sizing specific tasks with real kubectl commands"""
+        cluster_name = getattr(metrics, 'cluster_name', 'your-cluster')
+        resource_group = getattr(metrics, 'resource_group', 'your-rg')
+        
+        # Calculate recommended resource values
+        cpu_reduction = safe_float(getattr(metrics, 'cpu_gap', 0))
+        memory_reduction = safe_float(getattr(metrics, 'memory_gap', 0))
+        
+        resource_yaml_template = f'''apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+    name: {{workload-name}}
+    namespace: {{namespace}}
+    spec:
+    template:
+        spec:
+        containers:
+        - name: {{container-name}}
+            resources:
+            requests:
+                memory: "{{optimized-memory-request}}"
+                cpu: "{{optimized-cpu-request}}"
+            limits:
+                memory: "{{optimized-memory-limit}}"
+                cpu: "{{optimized-cpu-limit}}"'''
+
         return [
             {
                 'task_id': 'rs_001',
-                'title': 'Resource Usage Analysis',
-                'description': f'Analyze {metrics.cpu_gap:.1f}% CPU and {metrics.memory_gap:.1f}% memory over-provisioning',
-                'estimated_hours': 6,
-                'skills_required': ['Kubernetes', 'Monitoring'],
-                'deliverable': 'Resource usage analysis report'
+                'title': 'Analyze Resource Over-Provisioning',
+                'description': f'Analyze {cpu_reduction:.1f}% CPU and {memory_reduction:.1f}% memory over-provisioning across {cluster_name}',
+                'estimated_hours': 4,
+                'skills_required': ['Kubernetes', 'Resource Management', 'kubectl'],
+                'deliverable': 'Comprehensive resource usage analysis with optimization recommendations',
+                'command': f'''# Connect to cluster
+    az aks get-credentials --resource-group {resource_group} --name {cluster_name}
+
+    # Analyze current resource requests vs actual usage
+    kubectl top pods --all-namespaces --sort-by=memory
+
+    # Get detailed resource information for all deployments
+    kubectl get deployments --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,CPU_REQUEST:.spec.template.spec.containers[*].resources.requests.cpu,MEMORY_REQUEST:.spec.template.spec.containers[*].resources.requests.memory"
+
+    # Analyze node capacity and allocation
+    kubectl describe nodes | grep -A 5 "Allocated resources"
+
+    # Export current resource configurations
+    kubectl get deployments --all-namespaces -o yaml > current-deployments-backup.yaml
+
+    # Generate resource utilization report
+    kubectl top pods --all-namespaces --no-headers | awk '{{print $1,$2,$3,$4}}' > resource-usage-report.txt''',
+                'expected_outcome': f'Detailed analysis identifying ${metrics.right_sizing_savings:.0f}/month in right-sizing opportunities'
             },
             {
                 'task_id': 'rs_002',
-                'title': 'Right-Sizing Plan Development',
-                'description': f'Develop resource optimization plan for ${metrics.right_sizing_savings:.0f}/month savings',
-                'estimated_hours': 8,
-                'skills_required': ['Kubernetes', 'Capacity Planning'],
-                'deliverable': 'Resource optimization plan'
+                'title': 'Calculate Optimized Resource Allocations',
+                'description': f'Calculate optimal resource requests and limits for ${metrics.right_sizing_savings:.0f}/month savings',
+                'estimated_hours': 6,
+                'skills_required': ['Kubernetes', 'Capacity Planning', 'Resource Optimization'],
+                'deliverable': 'Optimized resource allocation plan with specific recommendations',
+                'template': resource_yaml_template,
+                'command': f'''# Calculate optimal resource values based on actual usage
+    # This script analyzes usage patterns and recommends optimized values
+
+    # Get 7-day average resource usage (requires metrics history)
+    kubectl top pods --all-namespaces | awk 'NR>1 {{print $1,$2,$3,$4}}' > current-usage.txt
+
+    # Calculate recommended values (example for automation)
+    # CPU: Set requests to 80% of average usage, limits to 150% of requests
+    # Memory: Set requests to 90% of average usage, limits to 120% of requests
+
+    # Generate optimized deployment YAML files
+    for deployment in $(kubectl get deployments --all-namespaces --no-headers | awk '{{print $1"/"$2}}'); do
+    namespace=$(echo $deployment | cut -d'/' -f1)
+    name=$(echo $deployment | cut -d'/' -f2)
+    
+    echo "Optimizing resources for $namespace/$name"
+    kubectl get deployment $name -n $namespace -o yaml > optimized-$namespace-$name.yaml
+    
+    # Apply calculated optimizations to YAML (requires sed/awk scripting)
+    # This is where you'd apply the calculated optimal values
+    done''',
+                'expected_outcome': f'Production-ready YAML configurations with {cpu_reduction:.1f}% CPU and {memory_reduction:.1f}% memory optimization'
             },
             {
                 'task_id': 'rs_003',
-                'title': 'Resource Optimization Implementation',
-                'description': 'Apply resource optimizations with performance monitoring',
-                'estimated_hours': 12,
-                'skills_required': ['Kubernetes', 'Monitoring', 'Performance Testing'],
-                'deliverable': 'Optimized resource configurations'
+                'title': 'Implement Resource Optimizations',
+                'description': 'Deploy optimized resource configurations with careful monitoring and rollback capabilities',
+                'estimated_hours': 8,
+                'skills_required': ['Kubernetes', 'kubectl', 'Monitoring', 'Incident Response'],
+                'deliverable': 'Deployed optimized resource configurations with monitoring dashboards',
+                'command': f'''# Phase 1: Apply optimizations to non-critical workloads first
+    kubectl apply -f optimized-staging-*.yaml
+
+    # Monitor for 24 hours before proceeding to production
+    kubectl get pods --all-namespaces | grep staging
+
+    # Phase 2: Apply to production workloads (one by one)
+    for file in optimized-production-*.yaml; do
+    echo "Applying optimization: $file"
+    kubectl apply -f $file
+    
+    # Wait and monitor for issues
+    sleep 300  # 5 minute pause between deployments
+    
+    # Check pod status
+    kubectl get pods -l app={{workload-name}} --watch --timeout=300s
+    
+    # Verify application health
+    kubectl get events --field-selector involvedObject.kind=Pod --sort-by='.lastTimestamp' | tail -10
+    done
+
+    # Monitor resource usage after optimization
+    kubectl top pods --all-namespaces | grep -E "(production|staging)"
+
+    # Validate cost savings (check node utilization)
+    kubectl describe nodes | grep -A 10 "Allocated resources"''',
+                'expected_outcome': f'Successfully implemented resource optimizations achieving ${metrics.right_sizing_savings:.0f}/month cost reduction'
             }
         ]
     
     def _generate_storage_tasks(self, metrics: 'EnrichedAnalysisMetrics') -> List[Dict]:
-        """Generate storage-specific tasks"""
+        """Generate storage-specific tasks with real Azure and kubectl commands"""
+        cluster_name = getattr(metrics, 'cluster_name', 'your-cluster')
+        resource_group = getattr(metrics, 'resource_group', 'your-rg')
+        storage_savings = safe_float(getattr(metrics, 'storage_savings', 0))
+        
+        storage_class_yaml = '''apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+    name: optimized-standard-ssd
+    provisioner: disk.csi.azure.com
+    parameters:
+    skuName: StandardSSD_LRS
+    kind: managed
+    tier: Standard
+    reclaimPolicy: Delete
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer'''
+
         return [
             {
                 'task_id': 'st_001',
-                'title': 'Storage Usage Analysis',
-                'description': f'Analyze ${metrics.storage_cost:.0f}/month storage costs for optimization',
-                'estimated_hours': 4,
-                'skills_required': ['Kubernetes', 'Storage'],
-                'deliverable': 'Storage usage analysis'
+                'title': 'Analyze Storage Usage and Costs',
+                'description': f'Comprehensive analysis of ${storage_savings:.0f}/month storage optimization potential',
+                'estimated_hours': 3,
+                'skills_required': ['Kubernetes', 'Azure Storage', 'Cost Analysis'],
+                'deliverable': 'Storage usage analysis with cost optimization recommendations',
+                'command': f'''# Connect to cluster
+    az aks get-credentials --resource-group {resource_group} --name {cluster_name}
+
+    # Analyze current storage classes
+    kubectl get storageclass
+
+    # List all persistent volumes and their storage classes
+    kubectl get pv -o custom-columns="NAME:.metadata.name,CAPACITY:.spec.capacity.storage,STORAGECLASS:.spec.storageClassName,STATUS:.status.phase"
+
+    # Analyze PVC usage across namespaces
+    kubectl get pvc --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,STORAGE:.spec.resources.requests.storage,STORAGECLASS:.spec.storageClassName"
+
+    # Check actual storage usage vs requested
+    kubectl top pods --all-namespaces --containers | grep -v POD
+
+    # Azure-specific: Analyze disk costs
+    az disk list --resource-group MC_{resource_group}_{cluster_name}_* --output table
+
+    # Get storage cost breakdown
+    az consumption usage list --start-date $(date -d "30 days ago" +%Y-%m-%d) --end-date $(date +%Y-%m-%d) | grep -i storage''',
+                'expected_outcome': f'Detailed storage analysis identifying ${storage_savings:.0f}/month optimization opportunities'
             },
             {
                 'task_id': 'st_002',
-                'title': 'Storage Class Optimization',
-                'description': f'Implement storage class optimization for ${metrics.storage_savings:.0f}/month savings',
-                'estimated_hours': 8,
-                'skills_required': ['Kubernetes', 'Storage', 'Azure'],
-                'deliverable': 'Optimized storage classes'
+                'title': 'Implement Storage Class Optimization',
+                'description': f'Deploy optimized storage classes and migrate workloads for ${storage_savings:.0f}/month savings',
+                'estimated_hours': 5,
+                'skills_required': ['Kubernetes', 'Azure Storage', 'Data Migration'],
+                'deliverable': 'Optimized storage classes with migration plan',
+                'template': storage_class_yaml,
+                'command': f'''# Create optimized storage classes
+    kubectl apply -f optimized-storage-classes.yaml
+
+    # Verify new storage classes
+    kubectl get storageclass
+
+    # Identify PVCs using expensive storage classes
+    kubectl get pvc --all-namespaces -o json | jq '.items[] | select(.spec.storageClassName == "premium") | {{namespace: .metadata.namespace, name: .metadata.name, storage: .spec.resources.requests.storage}}'
+
+    # For each PVC that can be optimized:
+    # 1. Create new PVC with optimized storage class
+    # 2. Copy data (for stateful workloads)
+    # 3. Update deployment to use new PVC
+    # 4. Delete old PVC
+
+    # Example migration script for non-critical data:
+    for pvc in $(kubectl get pvc --all-namespaces -o json | jq -r '.items[] | select(.spec.storageClassName == "premium") | "\\(.metadata.namespace)/\\(.metadata.name)"'); do
+    namespace=$(echo $pvc | cut -d'/' -f1)
+    name=$(echo $pvc | cut -d'/' -f2)
+    
+    echo "Migrating PVC: $namespace/$name"
+    
+    # Create new optimized PVC
+    kubectl get pvc $name -n $namespace -o yaml | sed 's/premium/optimized-standard-ssd/g' | sed 's/name: $name/name: $name-optimized/g' | kubectl apply -f -
+    
+    # Wait for new PVC to be bound
+    kubectl wait --for=condition=Bound pvc/$name-optimized -n $namespace --timeout=300s
+    done
+
+    # Update storage class for new workloads
+    kubectl patch storageclass optimized-standard-ssd -p '{{"metadata":{{"annotations":{{"storageclass.kubernetes.io/is-default-class":"true"}}}}}}'
+    kubectl patch storageclass premium -p '{{"metadata":{{"annotations":{{"storageclass.kubernetes.io/is-default-class":"false"}}}}}}' ''',
+                'expected_outcome': f'Optimized storage classes deployed achieving ${storage_savings:.0f}/month cost reduction'
             }
         ]
+
     
+    def _ensure_task_commands(self, task: Dict, metrics: 'EnrichedAnalysisMetrics') -> Dict:
+        """Ensure all tasks have executable commands"""
+        if 'command' not in task:
+            # Add fallback commands based on task type
+            cluster_name = getattr(metrics, 'cluster_name', 'your-cluster')
+            resource_group = getattr(metrics, 'resource_group', 'your-rg')
+            
+            task['command'] = f'''# Connect to cluster
+    az aks get-credentials --resource-group {resource_group} --name {cluster_name}
+
+    # Execute task: {task.get('title', 'Task')}
+    kubectl get pods --all-namespaces
+    echo "Task: {task.get('description', 'No description')}"'''
+        
+        return task
+
     def _optimize_phase_sequence(self, phases: List[Dict], risk_assessment: 'RiskAssessment') -> List[Dict]:
         """Optimize the sequence of phases"""
         # Sort phases by priority and risk
