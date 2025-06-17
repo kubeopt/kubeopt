@@ -1,0 +1,991 @@
+/**
+ * ============================================================================
+ * ENHANCED IMPLEMENTATION PLAN STYLING
+ * ============================================================================
+ * Professional styling for the complete implementation plan display
+ * ============================================================================
+ */
+
+/* ============================================================================
+ * MAIN CONTAINER & LAYOUT
+ * ============================================================================ */
+
+#implementation-plan-container {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+    color: #2d3748;
+}
+
+/* ============================================================================
+ * TASK BLOCKS & IMPLEMENTATION SECTIONS
+ * ============================================================================ */
+
+.task-block {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.task-block:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+.task-header {
+    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%) !important;
+    border-bottom: 2px solid #007bff;
+    padding: 1.5rem !important;
+    position: relative;
+}
+
+.task-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, #007bff, #0056b3);
+}
+
+.task-header h6 {
+    color: #2d3748;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.task-header .badge {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 50px;
+}
+
+.task-header .text-muted {
+    color: #6c757d !important;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.task-header .text-sm {
+    font-size: 0.875rem;
+}
+
+/* ============================================================================
+ * COMMAND BLOCKS & CODE STYLING
+ * ============================================================================ */
+
+.task-commands {
+    background: #ffffff;
+    padding: 1.5rem !important;
+    border-top: 1px solid #e9ecef;
+}
+
+.command-wrapper {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    margin-top: 1rem;
+}
+
+.command-code {
+    margin: 0 !important;
+    padding: 1.25rem !important;
+    background: #ffffff !important;
+    border: none !important;
+    border-radius: 0 !important;
+    
+    /* Enhanced scrolling */
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: pre;
+    
+    /* Typography */
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace !important;
+    font-size: 0.85rem !important;
+    line-height: 1.5 !important;
+    
+    /* Dimensions */
+    max-height: 400px;
+    min-height: 60px;
+    
+    /* Smooth scrolling */
+    scroll-behavior: smooth;
+    
+    /* Border and spacing */
+    border-left: 3px solid #007bff;
+}
+
+.command-code code {
+    color: #2d3748 !important;
+    background: none !important;
+    padding: 0 !important;
+    font-size: inherit !important;
+    font-family: inherit !important;
+    white-space: pre !important;
+    word-wrap: normal !important;
+    word-break: normal !important;
+}
+
+/* ============================================================================
+ * COPY BUTTON STYLING
+ * ============================================================================ */
+
+.copy-btn {
+    background: linear-gradient(135deg, #007bff, #0056b3) !important;
+    border: none !important;
+    color: white !important;
+    font-size: 0.8rem !important;
+    padding: 0.5rem 1rem !important;
+    border-radius: 6px !important;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+}
+
+.copy-btn:hover {
+    background: linear-gradient(135deg, #0056b3, #004085) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+}
+
+.copy-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+}
+
+.copy-btn.copied {
+    background: linear-gradient(135deg, #28a745, #20c997) !important;
+    transform: scale(0.95);
+    transition: all 0.2s ease;
+}
+
+.copy-btn.copied::after {
+    content: ' ✓';
+}
+
+/* ============================================================================
+ * ENHANCED SCROLLBARS
+ * ============================================================================ */
+
+.command-code::-webkit-scrollbar {
+    height: 8px;
+}
+
+.command-code::-webkit-scrollbar-track {
+    background: #f1f3f4;
+    border-radius: 4px;
+}
+
+.command-code::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #007bff, #0056b3);
+    border-radius: 4px;
+    transition: background 0.3s ease;
+}
+
+.command-code::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, #0056b3, #004085);
+}
+
+/* Firefox scrollbar */
+.command-code {
+    scrollbar-width: thin;
+    scrollbar-color: #007bff #f1f3f4;
+}
+
+/* ============================================================================
+ * SECTION HEADERS & CARDS
+ * ============================================================================ */
+
+.card {
+    border-radius: 12px !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05) !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+    transform: translateY(-2px);
+}
+
+.card-header {
+    border-radius: 12px 12px 0 0 !important;
+    font-weight: 600;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.2) !important;
+    padding: 1rem 1.5rem !important;
+}
+
+.card-body {
+    padding: 1.5rem !important;
+}
+
+/* ============================================================================
+ * BADGES & STATUS INDICATORS
+ * ============================================================================ */
+
+.badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.375rem 0.75rem;
+    border-radius: 50px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge.bg-success {
+    background: linear-gradient(135deg, #28a745, #20c997) !important;
+}
+
+.badge.bg-primary {
+    background: linear-gradient(135deg, #17a2b8, #138496) !important;
+}
+
+.badge.bg-warning {
+    background: linear-gradient(135deg, #17a2b8, #138496) !important;
+    color: #212529 !important;
+}
+
+.badge.bg-danger {
+    background: linear-gradient(135deg, #dc3545, #c82333) !important;
+}
+
+.badge.bg-info {
+    background: linear-gradient(135deg, #17a2b8, #138496) !important;
+}
+
+.badge.bg-secondary {
+    background: linear-gradient(135deg, #17a2b8, #138496) !important;
+}
+
+.badge.bg-light {
+    background: #f8f9fa !important;
+    color: #495057 !important;
+    border: 1px solid #dee2e6;
+}
+
+/* ============================================================================
+ * LISTS & CONTENT SECTIONS
+ * ============================================================================ */
+
+.list-group-item {
+    border: none !important;
+    padding: 0.75rem 0 !important;
+    background: transparent !important;
+    border-bottom: 1px solid #f1f3f4 !important;
+}
+
+.list-group-item:last-child {
+    border-bottom: none !important;
+}
+
+.list-group-flush .list-group-item {
+    border-radius: 0 !important;
+}
+
+/* ============================================================================
+ * ALERTS & NOTIFICATIONS
+ * ============================================================================ */
+
+.alert {
+    border-radius: 8px !important;
+    border: none !important;
+    padding: 1rem 1.25rem !important;
+    margin-bottom: 1rem !important;
+}
+
+.alert-success {
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(32, 201, 151, 0.1)) !important;
+    border-left: 4px solid #28a745 !important;
+    color: #155724 !important;
+}
+
+.alert-light {
+    background: #f8f9fa !important;
+    border-left: 4px solid #dee2e6 !important;
+    color: #6c757d !important;
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(255, 143, 0, 0.1)) !important;
+    border-left: 4px solid #ffc107 !important;
+    color: #856404 !important;
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.1), rgba(200, 35, 51, 0.1)) !important;
+    border-left: 4px solid #dc3545 !important;
+    color: #721c24 !important;
+}
+
+.alert-info {
+    background: linear-gradient(135deg, rgba(23, 162, 184, 0.1), rgba(19, 132, 150, 0.1)) !important;
+    border-left: 4px solid #17a2b8 !important;
+    color: #0c5460 !important;
+}
+
+/* ============================================================================
+ * SECTION SPECIFIC STYLING
+ * ============================================================================ */
+
+/* Header sections */
+.card-header.bg-info {
+    background: linear-gradient(135deg, #0c4083, #136296) !important;
+}
+
+.card-header.bg-warning {
+    background: linear-gradient(135deg, #1752b8, #136696) !important;
+    color: #212529 !important;
+}
+
+.card-header.bg-success {
+    background: linear-gradient(135deg, #173fb8, #135d96) !important;
+}
+
+.card-header.bg-secondary {
+    background: linear-gradient(135deg, #175db8, #133896) !important;
+}
+
+.card-header.bg-dark {
+    background: linear-gradient(135deg, #174fb8, #135796) !important;
+}
+
+/* Purple gradient for AI sections */
+.bg-purple {
+    background: linear-gradient(135deg, #17a2b8, #138496) !important;
+}
+
+.text-purple {
+    color: #42a8c1 !important;
+}
+
+.border-purple {
+    border-color: #4295c1 !important;
+}
+
+/* ============================================================================
+ * RESPONSIVE DESIGN
+ * ============================================================================ */
+
+@media (max-width: 768px) {
+    .task-header {
+        padding: 1rem !important;
+    }
+    
+    .task-commands {
+        padding: 1rem !important;
+    }
+    
+    .command-code {
+        padding: 1rem !important;
+        font-size: 0.8rem !important;
+    }
+    
+    .copy-btn {
+        font-size: 0.75rem !important;
+        padding: 0.375rem 0.75rem !important;
+    }
+    
+    .card-body {
+        padding: 1rem !important;
+    }
+    
+    .card-header {
+        padding: 0.75rem 1rem !important;
+    }
+    
+    .badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .command-code {
+        font-size: 0.75rem !important;
+        padding: 0.75rem !important;
+    }
+    
+    .task-header .text-sm {
+        font-size: 0.8rem;
+    }
+    
+    .copy-btn {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+}
+
+/* ============================================================================
+ * DARK MODE SUPPORT
+ * ============================================================================ */
+
+[data-theme="dark"] #implementation-plan-container {
+    color: #f7fafc;
+}
+
+[data-theme="dark"] .task-block {
+    background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+    border-color: #4a5568;
+}
+
+[data-theme="dark"] .task-header {
+    background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%) !important;
+    color: #f7fafc !important;
+}
+
+[data-theme="dark"] .task-commands {
+    background: #2d3748 !important;
+}
+
+[data-theme="dark"] .command-wrapper {
+    background: #4a5568;
+    border-color: #718096;
+}
+
+[data-theme="dark"] .command-code {
+    background: #1a202c !important;
+    color: #f7fafc !important;
+    border-left-color: #4299e1;
+}
+
+[data-theme="dark"] .command-code code {
+    color: #f7fafc !important;
+}
+
+[data-theme="dark"] .card {
+    background: #2d3748 !important;
+    border-color: #4a5568 !important;
+}
+
+[data-theme="dark"] .list-group-item {
+    color: #f7fafc !important;
+    border-color: #4a5568 !important;
+}
+
+/* ============================================================================
+ * ANIMATION & TRANSITIONS
+ * ============================================================================ */
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.task-block {
+    animation: slideInUp 0.6s ease-out;
+}
+
+.card {
+    animation: fadeInScale 0.4s ease-out;
+}
+
+/* ============================================================================
+ * UTILITY CLASSES
+ * ============================================================================ */
+
+.border-start {
+    border-left: 4px solid !important;
+}
+
+.border-4 {
+    border-width: 4px !important;
+}
+
+.rounded-lg {
+    border-radius: 0.75rem !important;
+}
+
+.shadow-sm {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+}
+
+.shadow {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07) !important;
+}
+
+.shadow-lg {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+}
+/* COMPREHENSIVE COMMAND SCROLLING FIX */
+/* Add this to your implan.css file */
+
+/* Fix the parent containers first */
+.task-commands,
+.command-wrapper,
+.task-block {
+    overflow: visible !important;
+    max-width: 100% !important;
+}
+
+/* Main command code fix */
+.command-code {
+    /* Force horizontal scrolling */
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    
+    /* Prevent text wrapping */
+    white-space: pre !important;
+    word-wrap: normal !important;
+    word-break: normal !important;
+    
+    /* Set dimensions */
+    max-width: 100% !important;
+    width: 100% !important;
+    
+    /* Ensure scrolling works */
+    display: block !important;
+    
+    /* Add some spacing for the scrollbar */
+    padding-bottom: 1rem !important;
+    
+    /* Make sure the background extends */
+    box-sizing: border-box !important;
+}
+
+/* Fix the code element inside */
+.command-code code {
+    white-space: pre !important;
+    word-wrap: normal !important;
+    word-break: normal !important;
+    display: inline !important;
+    background: none !important;
+    padding: 0 !important;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+    line-height: 1.5 !important;
+}
+
+/* Fix any pre elements */
+.command-code pre,
+.task-commands pre {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    white-space: pre !important;
+    word-wrap: normal !important;
+    word-break: normal !important;
+    margin: 0 !important;
+}
+
+/* Ensure parent containers don't interfere */
+.card-body,
+.task-block .card-body {
+    overflow: visible !important;
+}
+
+.col-md-12,
+.col-12 {
+    overflow: visible !important;
+}
+
+/* Make sure Bootstrap containers don't interfere */
+.container,
+.container-fluid,
+.row {
+    overflow: visible !important;
+}
+
+/* Enhanced scrollbar styling */
+.command-code::-webkit-scrollbar {
+    height: 12px !important;
+    background: #f8f9fa !important;
+}
+
+.command-code::-webkit-scrollbar-track {
+    background: #e9ecef !important;
+    border-radius: 6px !important;
+    margin: 0 10px !important;
+}
+
+.command-code::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #007bff, #0056b3) !important;
+    border-radius: 6px !important;
+    border: 2px solid #e9ecef !important;
+}
+
+.command-code::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, #0056b3, #004085) !important;
+}
+
+/* Firefox scrollbar */
+.command-code {
+    scrollbar-width: thin !important;
+    scrollbar-color: #007bff #e9ecef !important;
+}
+
+/* Extra fix for nested elements */
+.command-code * {
+    white-space: inherit !important;
+    word-break: inherit !important;
+    word-wrap: inherit !important;
+}
+
+/* Responsive fixes */
+@media (max-width: 768px) {
+    .command-code {
+        font-size: 0.75rem !important;
+        padding: 0.75rem !important;
+        padding-bottom: 1.25rem !important;
+    }
+    
+    .command-code::-webkit-scrollbar {
+        height: 10px !important;
+    }
+}
+
+/* Debug: Add a visible border to see the scrolling area */
+.command-code {
+    border: 1px solid #dee2e6 !important;
+    border-radius: 4px !important;
+}
+
+/* Additional container fixes */
+#implementation-plan-container,
+#implementation-plan-container *:not(.command-code):not(.command-code *) {
+    overflow: visible !important;
+}
+
+/* Make sure the task wrapper doesn't constrain */
+.task-wrapper,
+.implementation-tasks,
+.tasks-container {
+    overflow: visible !important;
+    width: 100% !important;
+}
+
+/* ADD VERTICAL SCROLLING TO COMMAND BLOCKS */
+
+.command-code {
+    /* Keep horizontal scrolling */
+    overflow-x: auto !important;
+    
+    /* Add vertical scrolling */
+    overflow-y: auto !important;
+    
+    /* Set max height for vertical scroll */
+    max-height: 300px !important; /* Adjust this as needed */
+    
+    /* Ensure both scrollbars work */
+    overflow: auto !important;
+}
+
+/* Style both scrollbars */
+.command-code::-webkit-scrollbar {
+    width: 8px !important;  /* vertical scrollbar */
+    height: 8px !important; /* horizontal scrollbar */
+}
+
+.command-code::-webkit-scrollbar-track {
+    background: #f1f3f4 !important;
+    border-radius: 4px !important;
+}
+
+.command-code::-webkit-scrollbar-thumb {
+    background: linear-gradient(45deg, #007bff, #0056b3) !important;
+    border-radius: 4px !important;
+}
+
+.command-code::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(45deg, #0056b3, #004085) !important;
+}
+
+/* Corner where scrollbars meet */
+.command-code::-webkit-scrollbar-corner {
+    background: #f1f3f4 !important;
+}
+
+/* Firefox scrollbars */
+.command-code {
+    scrollbar-width: thin !important;
+    scrollbar-color: #007bff #f1f3f4 !important;
+}
+
+/* FORCE VERTICAL SCROLLING - MORE AGGRESSIVE */
+.command-code,
+.command-code pre,
+pre.command-code {
+    overflow: scroll !important;
+    overflow-x: scroll !important;
+    overflow-y: scroll !important;
+    max-height: 200px !important;
+    height: auto !important;
+    display: block !important;
+    white-space: pre !important;
+    
+    /* Force scrollbars to always show */
+    scrollbar-width: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+/* Remove any conflicting styles */
+.command-code * {
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+/* Make sure parent doesn't constrain */
+.task-commands,
+.command-wrapper {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
+/* MAKE INNER CARDS/SECTIONS MUCH SMALLER */
+
+/* Task sections within phases */
+.task-header {
+    padding: 0.5rem !important;
+    margin-bottom: 0.25rem !important;
+}
+
+.task-commands {
+    padding: 0.5rem !important;
+}
+
+/* Collapsible section headers */
+.collapsible-section-header {
+    padding: 0.25rem 0 !important;
+    margin-bottom: 0.5rem !important;
+}
+
+/* Success criteria, validation steps, etc. */
+.list-group-item {
+    padding: 0.25rem 0 !important;
+    font-size: 0.875rem !important;
+}
+
+/* Alert boxes (like rollback plan, monitoring) */
+.alert {
+    padding: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+    font-size: 0.8rem !important;
+}
+
+/* Phase header sections */
+.phase-header {
+    padding: 0.75rem !important;
+}
+
+/* Badge spacing */
+.badge {
+    margin-right: 0.25rem !important;
+    margin-bottom: 0.25rem !important;
+    font-size: 0.65rem !important;
+    padding: 0.2rem 0.4rem !important;
+}
+
+/* Row and column spacing within tasks */
+.task-block .row {
+    margin-bottom: 0.5rem !important;
+}
+
+.task-block .col-md-6,
+.task-block .col-md-4 {
+    padding: 0.25rem !important;
+}
+
+/* Expected outcome text */
+.task-block .mb-3 {
+    margin-bottom: 0.5rem !important;
+}
+
+/* Skills required badges area */
+.task-block .mt-3 {
+    margin-top: 0.5rem !important;
+}
+
+/* Remove excessive margins */
+.task-block h6 {
+    margin-bottom: 0.25rem !important;
+}
+
+.task-block p {
+    margin-bottom: 0.5rem !important;
+}
+
+.task-block .text-muted {
+    font-size: 0.8rem !important;
+}
+/* MAKE CARDS MORE COMPACT */
+
+/* Reduce card padding */
+.card-body {
+    padding: 1rem !important; /* was 1.5rem */
+}
+
+.card-header {
+    padding: 0.75rem 1rem !important; /* was 1rem 1.5rem */
+}
+
+/* Make phase headers more compact */
+.phase-header {
+    padding: 1rem !important; /* was 1.5rem */
+}
+
+/* Reduce task block padding */
+.task-header {
+    padding: 1rem !important; /* was 1.5rem */
+}
+
+.task-commands {
+    padding: 1rem !important; /* was 1.5rem */
+}
+
+/* Make badges smaller */
+.badge {
+    font-size: 0.7rem !important; /* was 0.75rem */
+    padding: 0.25rem 0.5rem !important; /* was 0.375rem 0.75rem */
+}
+
+/* Reduce margins between sections */
+.mb-4 {
+    margin-bottom: 1.5rem !important; /* was 2rem+ */
+}
+
+.mb-3 {
+    margin-bottom: 1rem !important;
+}
+
+/* Make alerts more compact */
+.alert {
+    padding: 0.75rem 1rem !important; /* was 1rem 1.25rem */
+    margin-bottom: 0.75rem !important; /* was 1rem */
+}
+
+/* Reduce task block margins */
+.task-block {
+    margin-bottom: 1rem !important; /* was 2rem */
+}
+
+/* Make command blocks more compact */
+.command-code {
+    padding: 1rem !important; /* was 1.25rem */
+    max-height: 250px !important; /* was 400px */
+}
+/* ============================================================================
+ * PRINT STYLES
+ * ============================================================================ */
+
+@media print {
+    .copy-btn {
+        display: none !important;
+    }
+    
+    .card {
+        break-inside: avoid;
+        box-shadow: none !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    .command-code {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.75rem !important;
+    }
+    
+    .task-block {
+        break-inside: avoid;
+        margin-bottom: 1rem;
+    }
+}
+
+/* ULTRA HIGH SPECIFICITY - FORCE OVERRIDE */
+
+/* Target with very specific selectors */
+#implementation-plan-container .card .card-body {
+    padding: 0.5rem !important;
+    margin: 0 !important;
+}
+
+#implementation-plan-container .task-block .task-header {
+    padding: 0.5rem !important;
+    margin-bottom: 0.25rem !important;
+}
+
+#implementation-plan-container .task-block .task-commands {
+    padding: 0.5rem !important;
+    margin: 0 !important;
+}
+
+#implementation-plan-container .alert {
+    padding: 0.4rem 0.6rem !important;
+    margin-bottom: 0.5rem !important;
+    font-size: 0.8rem !important;
+}
+
+#implementation-plan-container .list-group-item {
+    padding: 0.25rem 0 !important;
+    font-size: 0.85rem !important;
+    border: none !important;
+}
+
+#implementation-plan-container .badge {
+    font-size: 0.65rem !important;
+    padding: 0.15rem 0.3rem !important;
+    margin: 0.1rem !important;
+}
+
+#implementation-plan-container .phase-header {
+    padding: 0.75rem !important;
+    margin-bottom: 0 !important;
+}
+
+#implementation-plan-container .collapsible-section-header {
+    padding: 0.25rem 0 !important;
+    margin: 0.25rem 0 !important;
+}
+
+/* Fix overlapping with z-index and positioning */
+#implementation-plan-container .card {
+    position: relative !important;
+    z-index: 1 !important;
+    margin-bottom: 0.75rem !important;
+    overflow: visible !important;
+}
+
+#implementation-plan-container .task-block {
+    position: relative !important;
+    z-index: 2 !important;
+    margin-bottom: 0.75rem !important;
+    clear: both !important;
+}
+
+/* Force vertical scrolling with highest specificity */
+#implementation-plan-container .command-code,
+#implementation-plan-container pre.command-code {
+    overflow: auto !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    max-height: 200px !important;
+    height: auto !important;
+    display: block !important;
+    white-space: pre !important;
+    word-wrap: normal !important;
+    word-break: normal !important;
+    scrollbar-width: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    position: relative !important;
+    z-index: 3 !important;
+}
