@@ -1909,7 +1909,7 @@ function displayImplementationPlan(planData) {
 
     let html = `
         <!-- EXECUTIVE SUMMARY HEADER (Always Visible) -->
-        <div class="card border-0 shadow-lg mb-4" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);">
+        <div class="card border-0 shadow-lg mb-4">
             <div class="card-body text-white">
                 <div class="row align-items-center">
                     <div class="col-md-8">
@@ -3029,13 +3029,13 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function copyCommand(elementId) {
-    const element = document.getElementById(elementId);
-    if (!element) return;
+// function copyCommand(elementId) {
+//     const element = document.getElementById(elementId);
+//     if (!element) return;
     
-    const text = element.textContent || element.innerText;
-    copyToClipboard(text);
-}
+//     const text = element.textContent || element.innerText;
+//     copyToClipboard(text);
+// }
 
 function showNoAnalysisMessage(container) {
     container.innerHTML = `
@@ -3162,7 +3162,7 @@ function loadInlineCSS() {
         
         .task-header { 
             background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%) !important; 
-            border-bottom: 2px solid #007bff; 
+            border-bottom: 2px solid rgb(0, 255, 234); 
             padding: 1.5rem !important;
             position: relative;
         }
@@ -3174,7 +3174,7 @@ function loadInlineCSS() {
             left: 0;
             width: 4px;
             height: 100%;
-            background: linear-gradient(180deg, #007bff, #0056b3);
+            background: linear-gradient(180deg,rgb(0, 255, 200),rgb(0, 179, 173));
         }
         
         .task-header h6 {
@@ -3203,7 +3203,7 @@ function loadInlineCSS() {
             padding: 1.25rem !important; 
             background: #ffffff !important; 
             border: none !important; 
-            border-left: 3px solid #007bff !important; 
+            border-left: 3px solid rgb(0, 255, 162) !important; 
             overflow-x: auto; 
             overflow-y: hidden;
             white-space: pre;
@@ -3227,7 +3227,7 @@ function loadInlineCSS() {
         }
         
         .copy-btn { 
-            background: linear-gradient(135deg, #007bff, #0056b3) !important; 
+            background: linear-gradient(135deg,rgb(0, 255, 157),rgb(0, 170, 179)) !important; 
             border: none !important; 
             color: white !important; 
             font-size: 0.8rem !important; 
@@ -3239,7 +3239,7 @@ function loadInlineCSS() {
         }
         
         .copy-btn:hover { 
-            background: linear-gradient(135deg, #0056b3, #004085) !important; 
+            background: linear-gradient(135deg,rgb(0, 179, 152), #004085) !important; 
             transform: translateY(-1px);
             box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
         }
@@ -3266,18 +3266,18 @@ function loadInlineCSS() {
             border-radius: 4px; 
         }
         .command-code::-webkit-scrollbar-thumb { 
-            background: linear-gradient(90deg, #007bff, #0056b3); 
+            background: linear-gradient(90deg,rgb(0, 255, 204),rgb(0, 179, 122)); 
             border-radius: 4px;
             transition: background 0.3s ease;
         }
         .command-code::-webkit-scrollbar-thumb:hover { 
-            background: linear-gradient(90deg, #0056b3, #004085); 
+            background: linear-gradient(90deg,rgb(0, 167, 179),rgb(0, 109, 133)); 
         }
         
         /* Firefox scrollbar */
         .command-code {
             scrollbar-width: thin;
-            scrollbar-color: #007bff #f1f3f4;
+            scrollbar-color:rgb(0, 255, 242) #f1f3f4;
         }
         
         /* Cards and General Styling */
@@ -3319,7 +3319,7 @@ function loadInlineCSS() {
         }
         
         .badge.bg-primary {
-            background: linear-gradient(135deg, #007bff, #0056b3) !important;
+            background: linear-gradient(135deg,rgb(0, 255, 157),rgb(0, 179, 137)) !important;
         }
         
         .badge.bg-warning {
@@ -3457,47 +3457,6 @@ function loadInlineCSS() {
     document.head.appendChild(style);
     console.log('✅ Loaded comprehensive inline CSS');
 }
-
-// // Enhanced copy functionality with better visual feedback
-// function copyToClipboard(text) {
-//     if (navigator.clipboard && navigator.clipboard.writeText) {
-//         navigator.clipboard.writeText(text).then(() => {
-//             showNotification('📋 Copied to clipboard!', 'success', 2000);
-            
-//             // Add visual feedback to the button
-//             if (event && event.target) {
-//                 const button = event.target.closest('.copy-btn');
-//                 if (button) {
-//                     button.classList.add('copied');
-//                     button.innerHTML = button.innerHTML.replace('Copy', 'Copied');
-                    
-//                     setTimeout(() => {
-//                         button.classList.remove('copied');
-//                         button.innerHTML = button.innerHTML.replace('Copied', 'Copy');
-//                     }, 2000);
-//                 }
-//             }
-//         }).catch(err => {
-//             console.error('Failed to copy:', err);
-//             showNotification('❌ Failed to copy to clipboard', 'error');
-//         });
-//     } else {
-//         // Fallback for older browsers
-//         const textArea = document.createElement('textarea');
-//         textArea.value = text;
-//         textArea.style.cssText = 'position: fixed; top: -1000px; left: -1000px;';
-//         document.body.appendChild(textArea);
-//         textArea.select();
-//         try {
-//             document.execCommand('copy');
-//             showNotification('📋 Copied to clipboard!', 'success', 2000);
-//         } catch (err) {
-//             console.error('Failed to copy:', err);
-//             showNotification('❌ Failed to copy to clipboard', 'error');
-//         }
-//         document.body.removeChild(textArea);
-//     }
-// }
 
 // Make functions globally available
 window.displayImplementationPlan = displayImplementationPlan;
@@ -3680,13 +3639,13 @@ function getRiskColor(risk) {
 /**
  * FIXED: Copy command functionality
  */
-function copyCommand(elementId) {
-    const element = document.getElementById(elementId);
-    if (!element) return;
+// function copyCommand(elementId) {
+//     const element = document.getElementById(elementId);
+//     if (!element) return;
     
-    const text = element.textContent || element.innerText;
-    copyToClipboard(text);
-}
+//     const text = element.textContent || element.innerText;
+//     copyToClipboard(text);
+// }
 
 /**
  * FIXED: Export implementation plan functionality
@@ -3716,37 +3675,365 @@ function exportImplementationPlan() {
 }
 
 
-// FIXED: Enhanced copy functionality with feedback
-function copyToClipboard(text) {
+/**
+ * ============================================================================
+ * FIXED COPY TO CLIPBOARD FUNCTIONALITY
+ * ============================================================================
+ * Fixes the "Cannot read properties of undefined (reading 'target')" error
+ * ============================================================================
+ */
+
+/**
+ * FIXED: Enhanced copy to clipboard function with proper error handling
+ */
+function copyToClipboard(text, buttonElement = null) {
+    // Get the button element if not provided
+    if (!buttonElement && typeof event !== 'undefined' && event.target) {
+        buttonElement = event.target.closest('.copy-btn, button');
+    }
+    
+    console.log('📋 Copy function called:', { text, buttonElement });
+    
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
-            showNotification('Copied to clipboard!', 'success', 2000);
-            // Add visual feedback to the button
-            event.target.closest('.copy-btn').classList.add('copied');
-            setTimeout(() => {
-                event.target.closest('.copy-btn').classList.remove('copied');
-            }, 1000);
+            console.log('✅ Successfully copied to clipboard:', text.substring(0, 50) + '...');
+            showCopySuccess(buttonElement, 'Copied to clipboard!');
+            showNotification('📋 Copied to clipboard!', 'success', 2000);
         }).catch(err => {
-            console.error('Failed to copy:', err);
-            showNotification('Failed to copy to clipboard', 'error');
+            console.error('❌ Clipboard API failed:', err);
+            fallbackCopy(text, buttonElement);
         });
     } else {
-        // Fallback for older browsers
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        textArea.style.cssText = 'position: fixed; top: -1000px; left: -1000px;';
-        document.body.appendChild(textArea);
-        textArea.select();
-        try {
-            document.execCommand('copy');
-            showNotification('Copied to clipboard!', 'success', 2000);
-        } catch (err) {
-            console.error('Failed to copy:', err);
-            showNotification('Failed to copy to clipboard', 'error');
+        console.log('📋 Using fallback copy method');
+        fallbackCopy(text, buttonElement);
+    }
+}
+
+/**
+ * FIXED: Fallback copy method for older browsers
+ */
+function fallbackCopy(text, buttonElement = null) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.cssText = `
+        position: fixed !important;
+        top: -1000px !important;
+        left: -1000px !important;
+        width: 1px !important;
+        height: 1px !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    `;
+    
+    document.body.appendChild(textArea);
+    textArea.select();
+    textArea.setSelectionRange(0, 99999);
+    
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            console.log('✅ Fallback copy successful');
+            showCopySuccess(buttonElement, 'Copied to clipboard!');
+            showNotification('📋 Copied to clipboard!', 'success', 2000);
+        } else {
+            throw new Error('execCommand failed');
         }
+    } catch (err) {
+        console.error('❌ Fallback copy failed:', err);
+        showCopyError(buttonElement, 'Copy failed');
+        showNotification('❌ Failed to copy to clipboard', 'error');
+    } finally {
         document.body.removeChild(textArea);
     }
 }
+
+/**
+ * FIXED: Enhanced copyCommand function
+ */
+function copyCommand(elementId, buttonElement = null) {
+    console.log('📋 copyCommand called with elementId:', elementId);
+    
+    const element = document.getElementById(elementId);
+    if (!element) {
+        console.error('❌ Element not found:', elementId);
+        showNotification('❌ Content not found', 'error');
+        return;
+    }
+    
+    // Get the text content
+    const text = element.textContent || element.innerText || element.value;
+    if (!text || text.trim() === '') {
+        console.error('❌ No text content found in element:', elementId);
+        showNotification('❌ No content to copy', 'error');
+        return;
+    }
+    
+    // If buttonElement not provided, try to find it
+    if (!buttonElement && typeof event !== 'undefined' && event.target) {
+        buttonElement = event.target.closest('.copy-btn, button');
+    }
+    
+    copyToClipboard(text.trim(), buttonElement);
+}
+
+/**
+ * FIXED: Show copy success with visual feedback
+ */
+function showCopySuccess(buttonElement, message = 'Copied!') {
+    if (!buttonElement) {
+        console.log('✅ Copy successful (no button element for feedback)');
+        return;
+    }
+    
+    // Store original content
+    const originalHTML = buttonElement.innerHTML;
+    const originalText = buttonElement.textContent;
+    
+    // Show success state
+    buttonElement.classList.add('copied');
+    
+    // Update button content
+    if (buttonElement.querySelector('i')) {
+        buttonElement.innerHTML = '<i class="fas fa-check"></i> Copied!';
+    } else {
+        buttonElement.textContent = 'Copied!';
+    }
+    
+    // Add success styling
+    buttonElement.style.background = 'linear-gradient(135deg, #059669, #047857)';
+    buttonElement.style.transform = 'scale(0.95)';
+    
+    // Reset after delay
+    setTimeout(() => {
+        buttonElement.classList.remove('copied');
+        buttonElement.innerHTML = originalHTML;
+        buttonElement.style.background = '';
+        buttonElement.style.transform = '';
+        console.log('🔄 Button state reset');
+    }, 2000);
+}
+
+/**
+ * FIXED: Show copy error with visual feedback
+ */
+function showCopyError(buttonElement, message = 'Copy failed') {
+    if (!buttonElement) {
+        console.log('❌ Copy failed (no button element for feedback)');
+        return;
+    }
+    
+    const originalHTML = buttonElement.innerHTML;
+    
+    buttonElement.classList.add('copy-error');
+    buttonElement.innerHTML = '<i class="fas fa-exclamation"></i> Failed';
+    buttonElement.style.background = 'linear-gradient(135deg, #dc2626, #b91c1c)';
+    
+    setTimeout(() => {
+        buttonElement.classList.remove('copy-error');
+        buttonElement.innerHTML = originalHTML;
+        buttonElement.style.background = '';
+    }, 2000);
+}
+
+/**
+ * FIXED: Enhanced event handler setup for copy buttons
+ */
+function setupCopyButtonHandlers() {
+    console.log('🔧 Setting up copy button handlers...');
+    
+    // Remove existing handlers to prevent duplicates
+    document.removeEventListener('click', handleCopyButtonClick);
+    
+    // Add global click handler for copy buttons
+    document.addEventListener('click', handleCopyButtonClick);
+    
+    console.log('✅ Copy button handlers setup complete');
+}
+
+/**
+ * FIXED: Global copy button click handler
+ */
+function handleCopyButtonClick(event) {
+    const copyBtn = event.target.closest('.copy-btn, [onclick*="copy"], [data-copy]');
+    if (!copyBtn) return;
+    
+    console.log('📋 Copy button clicked:', copyBtn);
+    
+    // Prevent default action
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Get copy target
+    let copyTarget = null;
+    let copyText = '';
+    
+    // Method 1: data-copy attribute
+    if (copyBtn.hasAttribute('data-copy')) {
+        copyText = copyBtn.getAttribute('data-copy');
+        console.log('📋 Method 1: Using data-copy attribute');
+    }
+    
+    // Method 2: data-copy-target attribute
+    else if (copyBtn.hasAttribute('data-copy-target')) {
+        const targetId = copyBtn.getAttribute('data-copy-target');
+        copyTarget = document.getElementById(targetId);
+        if (copyTarget) {
+            copyText = copyTarget.textContent || copyTarget.innerText || copyTarget.value;
+            console.log('📋 Method 2: Using data-copy-target attribute');
+        }
+    }
+    
+    // Method 3: Check onclick attribute for element ID
+    else if (copyBtn.hasAttribute('onclick')) {
+        const onclickValue = copyBtn.getAttribute('onclick');
+        const match = onclickValue.match(/copyCommand\(['"]([^'"]+)['"]\)/);
+        if (match) {
+            const elementId = match[1];
+            copyTarget = document.getElementById(elementId);
+            if (copyTarget) {
+                copyText = copyTarget.textContent || copyTarget.innerText || copyTarget.value;
+                console.log('📋 Method 3: Using onclick attribute parsing');
+            }
+        }
+    }
+    
+    // Method 4: Find nearest code block (fallback)
+    else {
+        copyTarget = copyBtn.closest('.command-wrapper, .code-block, .task-block')
+                           ?.querySelector('.command-code, .code-content, pre, code');
+        if (copyTarget) {
+            copyText = copyTarget.textContent || copyTarget.innerText;
+            console.log('📋 Method 4: Using nearest code block');
+        }
+    }
+    
+    // Execute copy if we found content
+    if (copyText && copyText.trim()) {
+        console.log('📋 Copying text:', copyText.substring(0, 50) + '...');
+        copyToClipboard(copyText.trim(), copyBtn);
+    } else {
+        console.error('❌ No content found to copy');
+        showCopyError(copyBtn, 'No content found');
+        showNotification('❌ No content found to copy', 'error');
+    }
+}
+
+/**
+ * FIXED: Enhanced notification system
+ */
+function showNotificationFixed(message, type = 'info', duration = 5000) {
+    // Remove existing notifications
+    document.querySelectorAll('.notification-toast').forEach(toast => toast.remove());
+    
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed notification-toast`;
+    toast.style.cssText = `
+        top: 100px; 
+        right: 20px; 
+        z-index: 9999; 
+        min-width: 350px;
+        border-radius: 10px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        backdrop-filter: blur(10px);
+        opacity: 0;
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+    `;
+    
+    const iconMap = {
+        'success': 'check-circle',
+        'error': 'exclamation-circle',
+        'warning': 'exclamation-triangle',
+        'info': 'info-circle'
+    };
+    
+    toast.innerHTML = `
+        <i class="fas fa-${iconMap[type] || 'info-circle'} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" onclick="this.parentNode.remove()"></button>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Animate in
+    setTimeout(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(0)';
+    }, 100);
+    
+    // Auto-remove
+    if (duration > 0) {
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, duration);
+    }
+}
+
+/**
+ * FIXED: Replacement for main notification function
+ */
+if (typeof showNotification === 'undefined') {
+    window.showNotification = showNotificationFixed;
+}
+
+/**
+ * FIXED: Initialize copy functionality
+ */
+function initializeCopyFunctionality() {
+    console.log('🚀 Initializing copy functionality...');
+    
+    // Setup event handlers
+    setupCopyButtonHandlers();
+    
+    // Make functions globally available
+    window.copyToClipboard = copyToClipboard;
+    window.copyCommand = copyCommand;
+    window.showCopySuccess = showCopySuccess;
+    window.showCopyError = showCopyError;
+    
+    // Ensure copy buttons are visible
+    setTimeout(() => {
+        const copyButtons = document.querySelectorAll('.copy-btn');
+        console.log(`🔍 Found ${copyButtons.length} copy buttons`);
+        
+        copyButtons.forEach((btn, index) => {
+            // Make sure copy buttons are visible
+            if (btn.style.opacity === '0' || btn.style.display === 'none') {
+                btn.style.opacity = '0.8';
+                btn.style.display = 'block';
+                console.log(`👁️ Made copy button ${index + 1} visible`);
+            }
+            
+            // Add data attributes for easier targeting
+            if (!btn.hasAttribute('data-copy') && !btn.hasAttribute('data-copy-target')) {
+                const commandWrapper = btn.closest('.command-wrapper, .code-block');
+                const codeElement = commandWrapper?.querySelector('.command-code, .code-content, pre, code');
+                if (codeElement && codeElement.id) {
+                    btn.setAttribute('data-copy-target', codeElement.id);
+                    console.log(`🔗 Added data-copy-target to button ${index + 1}`);
+                }
+            }
+        });
+    }, 1000);
+    
+    console.log('✅ Copy functionality initialization complete');
+}
+
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeCopyFunctionality);
+} else {
+    initializeCopyFunctionality();
+}
+
+console.log('✅ Copy functionality script loaded successfully');
 
 // Make functions globally available
 window.copyCommand = copyCommand;
@@ -4822,39 +5109,7 @@ function getClusterNameFromContext() {
     return 'current-cluster';
 }
 
-/**
- * Enhanced notification function
- */
-function showNotificationFixed(message, type = 'info', duration = 5000) {
-    // Remove existing notifications
-    document.querySelectorAll('.notification-toast').forEach(toast => toast.remove());
-    
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed notification-toast`;
-    toast.style.cssText = `
-        top: 100px; 
-        right: 20px; 
-        z-index: 9999; 
-        min-width: 350px;
-        border-radius: 10px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    `;
-    toast.innerHTML = `
-        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} me-2"></i>
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    document.body.appendChild(toast);
-    
-    if (duration > 0) {
-        setTimeout(() => {
-            if (toast.parentNode) {
-                toast.remove();
-            }
-        }, duration);
-    }
-}
+
 
 // ============================================================================
 // 8. INITIALIZATION

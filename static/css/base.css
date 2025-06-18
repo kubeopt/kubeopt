@@ -28,8 +28,8 @@
     --glass-dark-strong: rgba(0, 0, 0, 0.1);
     
     /* ACCENT COLORS */
-    --accent-blue: #007AFF;
-    --accent-blue-light: #5AC8FA;
+    --accent-blue: #24be9f;
+    --accent-blue-light: #43ba77;
     --accent-green: #34C759;
     --accent-orange: #FF9500;
     --accent-red: #FF3B30;
@@ -38,8 +38,8 @@
     --accent-indigo: #5856D6;
     
     /* STANDARD COLORS */
-    --primary: #2563eb;
-    --primary-light: #3b82f6;
+    --primary: #20b97e;
+    --primary-light: #3bdaf6;
     --success: #059669;
     --warning: #d97706;
     --danger: #dc2626;
@@ -56,7 +56,7 @@
     --gray-900: #111827;
     
     /* GRADIENTS */
-    --gradient-primary: linear-gradient(135deg, #007AFF 0%, #5AC8FA 100%);
+    --gradient-primary: linear-gradient(135deg, #25c15c 0%, #5AC8FA 100%);
     --gradient-success: linear-gradient(135deg, #34C759 0%, #30D158 100%);
     --gradient-warning: linear-gradient(135deg, #FF9500 0%, #FFCC02 100%);
     --gradient-danger: linear-gradient(135deg, #FF3B30 0%, #FF6961 100%);
@@ -545,7 +545,8 @@ p {
 .card-body {
     padding: var(--spacing-xl);
     background: transparent;
-    color: var(--text-primary);
+    /* background-color: #9aaea8; */
+    color: #289156;
     position: relative;
     flex: 1;
     display: flex;
@@ -694,7 +695,7 @@ p {
 }
 
 .cost-icon { 
-    background: linear-gradient(135deg, var(--primary), #1d4ed8); 
+    background: linear-gradient(135deg, var(--primary), #15c786); 
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -712,7 +713,7 @@ p {
     background-clip: text;
 }
 .environments-icon { 
-    background: linear-gradient(135deg, #8b5cf6, #7c3aed); 
+    background: linear-gradient(135deg, #5cf6c5, #3aedea); 
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -976,6 +977,7 @@ p {
     margin: 8px 0 0 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -1468,7 +1470,7 @@ p {
 .form-field select:focus,
 .form-field textarea:focus {
     outline: none;
-    border-color: rgba(0, 122, 255, 0.4);
+    border-color: rgba(30, 188, 109, 0.4);
     background: rgba(255, 255, 255, 0.6);
     box-shadow: 
         0 0 0 4px rgba(0, 122, 255, 0.1),
@@ -2012,7 +2014,7 @@ p {
 }
 
 .page-header {
-    background: rgb(80, 119, 177);
+    background: rgb(80, 177, 137);
     border-radius: var(--radius-lg);
     padding: 16px 20px;
     box-shadow: var(--shadow-sm);
@@ -2412,6 +2414,7 @@ p {
     font-size: 48px;
     background: linear-gradient(135deg, var(--primary), var(--info));
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 16px;
     animation: float-icon 3s ease-in-out infinite;
@@ -2746,7 +2749,7 @@ p {
 }
 
 .btn-primary:hover {
-    box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3) !important;
+    box-shadow: 0 6px 20px rgba(0, 255, 123, 0.3) !important;
 }
 
 /* Make chart containers less bulky */
@@ -2773,8 +2776,8 @@ p {
 .form-control:focus, .form-select:focus {
     transform: translateY(-1px) scale(1.005) !important;
     box-shadow: 
-        0 0 0 0.15rem rgba(0, 123, 255, 0.1) !important,
-        0 3px 15px rgba(0, 123, 255, 0.08) !important;
+        0 0 0 0.15rem rgba(0, 123, 255, 0.1) !important;
+        
 }
 
 .form-control:hover:not(:focus), .form-select:hover:not(:focus) {
@@ -3088,7 +3091,7 @@ p {
 
 .accordion-button:not(.collapsed) {
     background-color: #f8f9fa;
-    color: #0d6efd;
+    color: #0dfd71;
     box-shadow: none;
     border: none;
 }
@@ -3373,3 +3376,7 @@ p {
     box-sizing: border-box !important;
 }
 
+.bg-primary {
+    --bs-bg-opacity: 1;
+    background-color: rgb(88 138 122) !important
+}

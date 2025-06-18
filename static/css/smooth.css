@@ -88,7 +88,7 @@ body.page-transitioning {
 }
 
 .nav-pills .nav-link.active {
-    background: linear-gradient(135deg, #007bff, #0056b3) !important;
+    background: linear-gradient(135deg, #0db488, #00b395) !important;
     color: white !important;
     transform: translateY(-3px) scale(1.05);
     box-shadow: 0 8px 25px rgba(0, 123, 255, 0.4);
@@ -650,6 +650,7 @@ html {
 
 .copy-btn:active {
     transform: scale(0.95);
+    opacity: 1;
 }
 
 /* === CODE BLOCK ENHANCEMENTS === */
