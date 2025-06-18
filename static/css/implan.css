@@ -1,380 +1,1499 @@
 /* ============================================================================
- * AGGRESSIVE ARROW POSITIONING FIX - Universal Solution
+ * EMERALD CODE BLOCKS - Sleek and Sophisticated Design
  * ============================================================================
- * This targets arrows more aggressively with higher specificity
- * Add this CSS AFTER your existing implementation plan CSS
+ * Modern emerald/teal themed code blocks with refined styling
  * ============================================================================ */
 
 /* ============================================================================
- * FORCE HEADER LAYOUT - Maximum Specificity
+ * EMERALD IMPLEMENTATION PLAN - Complete Theme Update
  * ============================================================================ */
 
-/* Target ALL possible header combinations with maximum specificity */
-#implementation-plan-container .card .card-header,
-#implementation-plan-container .section .section-header,
-#implementation-plan-container .accordion .accordion-header .accordion-button,
-#implementation-plan-container .collapse-header,
-#implementation-plan-container .toggle-header,
-#implementation-plan-container .collapsible-header,
-#implementation-plan-container [data-bs-toggle="collapse"],
-#implementation-plan-container [data-toggle="collapse"],
-#implementation-plan-container .card-header[role="button"],
-#implementation-plan-container .card-header[onclick],
-#implementation-plan-container .header-toggle {
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    flex-direction: row !important;
-    width: 100% !important;
-    position: relative !important;
+/* Implementation Plan Header */
+#implementation-plan-container .card-header {
+    background: var(--gradient-primary) !important;
+    color: var(--text-white) !important;
+    border: none !important;
+    padding: var(--spacing-lg) var(--spacing-xl) !important;
+    font-weight: 600 !important;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
+}
+
+/* Main Implementation Container */
+#implementation-plan-container {
+    background: var(--glass-white);
+    backdrop-filter: var(--blur-lg);
+    border: var(--border-glass);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: var(--shadow-glass);
+}
+
+/* Implementation Status Cards */
+#implementation-plan-container .alert-primary,
+#implementation-plan-container .bg-primary {
+    background: #00ff88;
+    border-color: var(--accent-emerald) !important;
+    color: var(--text-white) !important;
+}
+
+#implementation-plan-container .text-primary {
+    background: var(--gradient-primary) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+}
+
+/* Implementation Badges */
+#implementation-plan-container .badge-primary,
+#implementation-plan-container .bg-info {
+    background: var(--gradient-primary) !important;
+    color: var(--text-white) !important;
+    border: none !important;
+}
+
+/* Implementation Buttons */
+#implementation-plan-container .btn-primary {
+    background: var(--gradient-primary) !important;
+    border-color: var(--accent-emerald) !important;
+    color: var(--text-white) !important;
+    box-shadow: var(--shadow-colored) !important;
+}
+
+#implementation-plan-container .btn-outline-primary {
+    background: var(--glass-white) !important;
+    border-color: var(--accent-emerald) !important;
+    color: var(--accent-emerald) !important;
+}
+
+#implementation-plan-container .btn-outline-primary:hover {
+    background: var(--gradient-primary) !important;
+    color: var(--text-white) !important;
+}
+
+/* Implementation Links */
+#implementation-plan-container a {
+    color: var(--accent-emerald) !important;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+#implementation-plan-container a:hover {
+    color: var(--accent-emerald-dark) !important;
+    text-decoration: underline;
+}
+
+/* Implementation Progress Indicators */
+#implementation-plan-container .progress-bar {
+    background: var(--gradient-primary) !important;
+}
+
+/* Implementation Accordion Headers */
+#implementation-plan-container .accordion-button:not(.collapsed) {
+    background: rgba(16, 185, 129, 0.1) !important;
+    color: var(--accent-emerald) !important;
+    border-color: var(--accent-emerald) !important;
+}
+
+/* Implementation Status Icons */
+#implementation-plan-container .text-info {
+    color: var(--accent-emerald) !important;
+}
+
+/* Implementation Phase Cards */
+#implementation-plan-container .phase-card {
+    border: 1px solid rgba(16, 185, 129, 0.2) !important;
+    border-radius: var(--radius-lg);
+    background: var(--glass-white-strong);
+    backdrop-filter: var(--blur-md);
+}
+
+#implementation-plan-container .phase-card:hover {
+    border-color: var(--accent-emerald) !important;
+    box-shadow: var(--shadow-colored) !important;
+}
+
+/* Override any remaining blue elements */
+#implementation-plan-container .btn-info,
+#implementation-plan-container .alert-info,
+#implementation-plan-container .border-info {
+    background: var(--gradient-primary) !important;
+    border-color: var(--accent-emerald) !important;
+    color: var(--text-white) !important;
+}
+
+#implementation-plan-container .list-group-item {
+    background: var(--glass-white-light);
+    border-color: rgba(16, 185, 129, 0.1);
+    color: var(--text-primary);
+}
+
+#implementation-plan-container .list-group-item:hover {
+    background: var(--glass-white-strong);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+/* Implementation Metrics */
+#implementation-plan-container .metric-value {
+    background: var(--gradient-primary) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+}
+
+/* Implementation Tables */
+#implementation-plan-container .table {
+    background: var(--glass-white-light);
+    border-color: rgba(16, 185, 129, 0.1);
+}
+
+#implementation-plan-container .table th {
+    background: var(--glass-white-strong);
+    color: var(--text-primary);
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+#implementation-plan-container .table td {
+    color: var(--text-primary);
+    border-color: rgba(16, 185, 129, 0.1);
+}
+
+/* Implementation Highlights */
+#implementation-plan-container .highlight,
+#implementation-plan-container .mark {
+    background: rgba(16, 185, 129, 0.2) !important;
+    color: var(--text-primary) !important;
 }
 
 /* ============================================================================
- * FORCE TEXT CONTENT TO LEFT SIDE
+ * EMERALD COMMAND WRAPPER - Sophisticated Design
  * ============================================================================ */
 
-/* Target all possible text content elements */
-#implementation-plan-container .card-header > *:not(.toggle-arrow):not(.chevron):not(.fa-chevron-down):not(.fa-chevron-up):not(.fa-angle-down):not(.fa-angle-up):not([class*="chevron"]):not([class*="arrow"]),
-#implementation-plan-container .card-header .header-content,
-#implementation-plan-container .card-header .card-title,
-#implementation-plan-container .card-header h1,
-#implementation-plan-container .card-header h2,
-#implementation-plan-container .card-header h3,
-#implementation-plan-container .card-header h4,
-#implementation-plan-container .card-header h5,
-#implementation-plan-container .card-header h6,
-#implementation-plan-container .section-header .section-title,
-#implementation-plan-container .accordion-button .btn-text,
-#implementation-plan-container .toggle-header .toggle-text {
-    flex: 1 1 auto !important;
-    text-align: left !important;
-    margin-right: auto !important;
-    order: 1 !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: var(--spacing-sm, 0.5rem) !important;
+#implementation-plan-container .command-wrapper {
+    background: rgba(16, 185, 129, 0.03) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(16, 185, 129, 0.12) !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    box-shadow: 
+        0 4px 12px rgba(16, 185, 129, 0.08),
+        0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    margin-top: 16px !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative;
+}
+
+#implementation-plan-container .command-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(16, 185, 129, 0.4) 50%, 
+        transparent 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#implementation-plan-container .command-wrapper:hover {
+    background: rgba(16, 185, 129, 0.06) !important;
+    border-color: rgba(16, 185, 129, 0.25) !important;
+    box-shadow: 
+        0 8px 25px rgba(16, 185, 129, 0.15),
+        0 4px 12px rgba(16, 185, 129, 0.1) !important;
+    transform: translateY(-2px) !important;
+}
+
+#implementation-plan-container .command-wrapper:hover::before {
+    opacity: 1;
+}
+
+/* ============================================================================
+ * EMERALD CODE BLOCKS - Elegant and Compact
+ * ============================================================================ */
+
+#implementation-plan-container .command-code {
     margin: 0 !important;
-    width: auto !important;
-    max-width: calc(100% - 2rem) !important;
+    padding: 16px 20px !important;
+    background: linear-gradient(135deg, 
+        rgba(6, 95, 70, 0.95) 0%, 
+        rgba(4, 120, 87, 0.95) 100%) !important;
+    backdrop-filter: blur(8px) !important;
+    border: none !important;
+    border-left: 3px solid rgba(52, 211, 153, 0.6) !important;
+    border-radius: 0 !important;
+    
+    /* Enhanced scrolling */
+    overflow: auto !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    white-space: pre !important;
+    word-wrap: normal !important;
+    word-break: normal !important;
+    
+    /* Optimized dimensions */
+    max-height: 220px !important;
+    min-height: 50px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    
+    /* Premium typography */
+    font-family: 'SF Mono', 'Monaco', 'Menlo', 'Fira Code', 'Consolas', monospace !important;
+    font-size: 0.85rem !important;
+    line-height: 1.5 !important;
+    color: rgba(236, 253, 245, 0.95) !important;
+    font-weight: 400 !important;
+    letter-spacing: 0.02em !important;
+    
+    /* Ultra-thin emerald scrollbars */
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(52, 211, 153, 0.7) rgba(16, 185, 129, 0.1) !important;
+}
+
+#implementation-plan-container .command-code:focus {
+    outline: none !important;
+    border-left-color: rgba(52, 211, 153, 0.9) !important;
+    background: linear-gradient(135deg, 
+        rgba(6, 95, 70, 1) 0%, 
+        rgba(4, 120, 87, 1) 100%) !important;
+    box-shadow: inset 0 0 0 2px rgba(52, 211, 153, 0.3) !important;
+}
+
+#implementation-plan-container .command-code code {
+    color: inherit !important;
+    background: none !important;
+    padding: 0 !important;
+    font-size: inherit !important;
+    font-family: inherit !important;
+    white-space: pre !important;
+    word-wrap: normal !important;
+    word-break: normal !important;
+    border: none !important;
+    display: block !important;
+    width: 100% !important;
+    line-height: inherit !important;
 }
 
 /* ============================================================================
- * FORCE ARROWS TO RIGHT SIDE - Maximum Targeting
+ * EMERALD WEBKIT SCROLLBARS - Ultra-Modern
  * ============================================================================ */
 
-/* Target ALL possible arrow elements with maximum specificity */
-#implementation-plan-container .card-header .toggle-arrow,
-#implementation-plan-container .card-header .chevron,
-#implementation-plan-container .card-header .chevron-down,
-#implementation-plan-container .card-header .chevron-up,
-#implementation-plan-container .card-header .fa-chevron-down,
-#implementation-plan-container .card-header .fa-chevron-up,
-#implementation-plan-container .card-header .fa-angle-down,
-#implementation-plan-container .card-header .fa-angle-up,
-#implementation-plan-container .card-header .fas.fa-chevron-down,
-#implementation-plan-container .card-header .fas.fa-chevron-up,
-#implementation-plan-container .card-header .collapse-icon,
-#implementation-plan-container .card-header .expand-icon,
-#implementation-plan-container .card-header .toggle-icon,
-#implementation-plan-container .card-header [class*="chevron"],
-#implementation-plan-container .card-header [class*="arrow"],
-#implementation-plan-container .card-header [class*="expand"],
-#implementation-plan-container .card-header [class*="collapse"],
-#implementation-plan-container .card-header i[class*="chevron"],
-#implementation-plan-container .card-header i[class*="arrow"],
-#implementation-plan-container .section-header .toggle-arrow,
-#implementation-plan-container .section-header .chevron,
-#implementation-plan-container .accordion-button::after,
-#implementation-plan-container [data-bs-toggle="collapse"] .toggle-arrow,
-#implementation-plan-container [data-bs-toggle="collapse"] .chevron,
-#implementation-plan-container [data-toggle="collapse"] .toggle-arrow,
-#implementation-plan-container [data-toggle="collapse"] .chevron {
-    position: absolute !important;
-    right: var(--spacing-lg, 1rem) !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    flex-shrink: 0 !important;
-    order: 999 !important;
-    z-index: 10 !important;
-    font-size: 0.9rem !important;
-    color: rgba(255, 255, 255, 0.8) !important;
+#implementation-plan-container .command-code::-webkit-scrollbar {
+    width: 6px !important;
+    height: 6px !important;
+}
+
+#implementation-plan-container .command-code::-webkit-scrollbar-track {
+    background: rgba(16, 185, 129, 0.08) !important;
+    border-radius: 3px !important;
+    margin: 3px !important;
+}
+
+#implementation-plan-container .command-code::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, 
+        rgba(52, 211, 153, 0.6) 0%, 
+        rgba(16, 185, 129, 0.8) 100%) !important;
+    border-radius: 3px !important;
     transition: all 0.3s ease !important;
-    width: auto !important;
-    height: auto !important;
-    min-width: 1rem !important;
-    text-align: center !important;
+    border: 1px solid rgba(16, 185, 129, 0.2) !important;
 }
 
-/* Alternative positioning using flexbox for stubborn cases */
-#implementation-plan-container .force-flex-arrows .card-header .toggle-arrow,
-#implementation-plan-container .force-flex-arrows .card-header .chevron,
-#implementation-plan-container .force-flex-arrows .card-header [class*="chevron"] {
-    position: static !important;
-    margin-left: auto !important;
-    margin-right: 0 !important;
-    order: 999 !important;
-    flex-shrink: 0 !important;
+#implementation-plan-container .command-code::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, 
+        rgba(52, 211, 153, 0.9) 0%, 
+        rgba(16, 185, 129, 1) 100%) !important;
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.4) !important;
+}
+
+#implementation-plan-container .command-code::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(135deg, 
+        rgba(52, 211, 153, 1) 0%, 
+        rgba(16, 185, 129, 1) 100%) !important;
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.6) !important;
+}
+
+#implementation-plan-container .command-code::-webkit-scrollbar-corner {
+    background: transparent !important;
+}
+
+/* Smooth scrollbar reveal */
+#implementation-plan-container .command-code::-webkit-scrollbar {
+    opacity: 0 !important;
+    transition: opacity 0.4s ease !important;
+}
+
+#implementation-plan-container .command-code:hover::-webkit-scrollbar,
+#implementation-plan-container .command-code:focus::-webkit-scrollbar {
+    opacity: 1 !important;
 }
 
 /* ============================================================================
- * BOOTSTRAP ACCORDION SPECIFIC FIX
+ * EMERALD COPY BUTTON - Premium Design
  * ============================================================================ */
 
-#implementation-plan-container .accordion-button {
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    padding-right: 3rem !important; /* Make room for arrow */
-}
-
-#implementation-plan-container .accordion-button::after {
+#implementation-plan-container .copy-btn {
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.9) 0%, 
+        rgba(52, 211, 153, 0.9) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
+    font-size: 0.75rem !important;
+    padding: 8px 16px !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    font-family: 'SF Pro Display', 'Inter', sans-serif !important;
+    box-shadow: 
+        0 4px 12px rgba(16, 185, 129, 0.25),
+        0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    cursor: pointer !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
     position: absolute !important;
-    right: 1rem !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    width: 1.25rem !important;
-    height: 1.25rem !important;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23ffffff'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e") !important;
-    background-repeat: no-repeat !important;
-    background-size: 1.25rem !important;
-    transition: transform 0.2s ease-in-out !important;
-    order: 999 !important;
+    top: 12px !important;
+    right: 12px !important;
     z-index: 10 !important;
+    opacity: 0 !important;
+    transform: scale(0.9) translateY(4px) !important;
+    backdrop-filter: blur(8px) !important;
+    letter-spacing: 0.02em !important;
 }
 
-#implementation-plan-container .accordion-button:not(.collapsed)::after {
-    transform: translateY(-50%) rotate(-180deg) !important;
+#implementation-plan-container .command-wrapper:hover .copy-btn {
+    opacity: 1 !important;
+    transform: scale(1) translateY(0) !important;
+}
+
+#implementation-plan-container .copy-btn:hover {
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 1) 0%, 
+        rgba(52, 211, 153, 1) 100%) !important;
+    box-shadow: 
+        0 8px 25px rgba(16, 185, 129, 0.4),
+        0 4px 12px rgba(52, 211, 153, 0.3) !important;
+    transform: scale(1.05) translateY(-2px) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+#implementation-plan-container .copy-btn:active {
+    transform: scale(0.98) translateY(0) !important;
+    box-shadow: 
+        0 4px 12px rgba(16, 185, 129, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+#implementation-plan-container .copy-btn.copied {
+    background: linear-gradient(135deg, 
+        rgba(6, 95, 70, 0.9) 0%, 
+        rgba(4, 120, 87, 0.9) 100%) !important;
+    box-shadow: 
+        0 8px 25px rgba(6, 95, 70, 0.4),
+        0 4px 12px rgba(4, 120, 87, 0.3) !important;
+}
+
+#implementation-plan-container .copy-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(255, 255, 255, 0.25), 
+        transparent);
+    transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ============================================================================
- * HOVER AND INTERACTION STATES
+ * EMERALD TASK HEADERS - Refined Design
  * ============================================================================ */
 
-#implementation-plan-container .card-header:hover .toggle-arrow,
-#implementation-plan-container .card-header:hover .chevron,
-#implementation-plan-container .card-header:hover [class*="chevron"],
-#implementation-plan-container .section-header:hover .toggle-arrow,
-#implementation-plan-container .section-header:hover .chevron {
-    color: rgba(255, 255, 255, 1) !important;
-    transform: translateY(-50%) scale(1.1) !important;
+#implementation-plan-container .task-header {
+    padding: 16px 20px !important;
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.04) 0%, 
+        rgba(52, 211, 153, 0.04) 100%) !important;
+    backdrop-filter: blur(8px) !important;
+    border-bottom: 1px solid rgba(16, 185, 129, 0.2) !important;
+    border-radius: 8px 8px 0 0 !important;
+    position: relative;
 }
 
-/* Rotation states for expanded/collapsed */
-#implementation-plan-container .card-header[aria-expanded="true"] .toggle-arrow,
-#implementation-plan-container .card-header[aria-expanded="true"] .chevron,
-#implementation-plan-container .card-header.expanded .toggle-arrow,
-#implementation-plan-container .card-header.expanded .chevron,
-#implementation-plan-container .section-header.expanded .toggle-arrow,
-#implementation-plan-container .section-header.expanded .chevron {
-    transform: translateY(-50%) rotate(180deg) !important;
+#implementation-plan-container .task-header::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(52, 211, 153, 0.4) 50%, 
+        transparent 100%);
 }
 
-#implementation-plan-container .card-header[aria-expanded="true"]:hover .toggle-arrow,
-#implementation-plan-container .card-header[aria-expanded="true"]:hover .chevron,
-#implementation-plan-container .card-header.expanded:hover .toggle-arrow,
-#implementation-plan-container .card-header.expanded:hover .chevron {
-    transform: translateY(-50%) rotate(180deg) scale(1.1) !important;
+#implementation-plan-container .task-header h6 {
+    font-size: 0.95rem !important;
+    margin-bottom: 6px !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.9) 0%, 
+        rgba(6, 95, 70, 0.9) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+#implementation-plan-container .task-commands {
+    background: transparent !important;
+    padding: 20px !important;
+    border-top: none !important;
 }
 
 /* ============================================================================
- * FALLBACK FOR CUSTOM ARROWS
+ * EMERALD SYNTAX HIGHLIGHTING - Sophisticated Colors
  * ============================================================================ */
 
-/* If no arrow exists, add one via CSS */
-#implementation-plan-container .card-header:not([class*="no-arrow"]):not(.no-toggle)::after,
-#implementation-plan-container .section-header:not([class*="no-arrow"]):not(.no-toggle)::after {
-    content: '▼' !important;
-    position: absolute !important;
-    right: var(--spacing-lg, 1rem) !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    font-size: 0.8rem !important;
-    color: rgba(255, 255, 255, 0.8) !important;
-    transition: all 0.3s ease !important;
-    z-index: 10 !important;
-    pointer-events: none !important;
+#implementation-plan-container .command-code .comment {
+    color: rgba(209, 250, 229, 0.6) !important;
+    font-style: italic;
 }
 
-#implementation-plan-container .card-header[aria-expanded="true"]::after,
-#implementation-plan-container .card-header.expanded::after,
-#implementation-plan-container .section-header.expanded::after {
-    transform: translateY(-50%) rotate(180deg) !important;
+#implementation-plan-container .command-code .command {
+    color: rgba(167, 243, 208, 0.95) !important;
+    font-weight: 500;
 }
 
-/* Override the fallback if a real arrow exists */
-#implementation-plan-container .card-header:has(.toggle-arrow)::after,
-#implementation-plan-container .card-header:has(.chevron)::after,
-#implementation-plan-container .card-header:has([class*="chevron"])::after,
-#implementation-plan-container .section-header:has(.toggle-arrow)::after,
-#implementation-plan-container .section-header:has(.chevron)::after {
-    display: none !important;
+#implementation-plan-container .command-code .flag {
+    color: rgba(252, 211, 77, 0.9) !important;
+    font-weight: 500;
+}
+
+#implementation-plan-container .command-code .string {
+    color: rgba(187, 247, 208, 0.95) !important;
+}
+
+#implementation-plan-container .command-code .variable {
+    color: rgba(110, 231, 183, 0.9) !important;
+}
+
+#implementation-plan-container .command-code .keyword {
+    color: rgba(52, 211, 153, 0.95) !important;
+    font-weight: 600;
+}
+
+#implementation-plan-container .command-code .number {
+    color: rgba(134, 239, 172, 0.9) !important;
+}
+
+#implementation-plan-container .command-code .operator {
+    color: rgba(209, 250, 229, 0.8) !important;
 }
 
 /* ============================================================================
- * RESPONSIVE ADJUSTMENTS
+ * RESPONSIVE EMERALD DESIGN
  * ============================================================================ */
 
 @media (max-width: 768px) {
-    #implementation-plan-container .card-header .toggle-arrow,
-    #implementation-plan-container .card-header .chevron,
-    #implementation-plan-container .card-header [class*="chevron"],
-    #implementation-plan-container .section-header .toggle-arrow,
-    #implementation-plan-container .section-header .chevron {
-        right: var(--spacing-md, 0.75rem) !important;
-        font-size: 0.85rem !important;
+    #implementation-plan-container .command-code {
+        padding: 12px 16px !important;
+        font-size: 0.8rem !important;
+        max-height: 180px !important;
+        line-height: 1.4 !important;
     }
     
-    #implementation-plan-container .accordion-button {
-        padding-right: 2.5rem !important;
+    #implementation-plan-container .copy-btn {
+        font-size: 0.7rem !important;
+        padding: 6px 12px !important;
+        top: 8px !important;
+        right: 8px !important;
     }
     
-    #implementation-plan-container .accordion-button::after {
-        right: 0.75rem !important;
-        width: 1rem !important;
-        height: 1rem !important;
-        background-size: 1rem !important;
+    #implementation-plan-container .task-header {
+        padding: 12px 16px !important;
     }
     
-    #implementation-plan-container .card-header::after,
-    #implementation-plan-container .section-header::after {
-        right: var(--spacing-md, 0.75rem) !important;
-        font-size: 0.75rem !important;
+    #implementation-plan-container .task-commands {
+        padding: 16px !important;
+    }
+    
+    #implementation-plan-container .command-code::-webkit-scrollbar {
+        width: 4px !important;
+        height: 4px !important;
+    }
+    
+    #implementation-plan-container .command-wrapper {
+        margin-top: 12px !important;
     }
 }
 
 @media (max-width: 576px) {
-    #implementation-plan-container .card-header .toggle-arrow,
-    #implementation-plan-container .card-header .chevron,
-    #implementation-plan-container .card-header [class*="chevron"],
-    #implementation-plan-container .section-header .toggle-arrow,
-    #implementation-plan-container .section-header .chevron {
-        right: var(--spacing-sm, 0.5rem) !important;
-        font-size: 0.8rem !important;
+    #implementation-plan-container .command-code {
+        padding: 10px 12px !important;
+        font-size: 0.75rem !important;
+        max-height: 150px !important;
+        line-height: 1.3 !important;
     }
     
-    #implementation-plan-container .accordion-button {
-        padding-right: 2rem !important;
+    #implementation-plan-container .copy-btn {
+        position: static !important;
+        width: 100% !important;
+        margin-top: 12px !important;
+        opacity: 1 !important;
+        transform: none !important;
+        border-radius: 4px !important;
     }
     
-    #implementation-plan-container .accordion-button::after {
-        right: 0.5rem !important;
-    }
-    
-    #implementation-plan-container .card-header::after,
-    #implementation-plan-container .section-header::after {
-        right: var(--spacing-sm, 0.5rem) !important;
+    #implementation-plan-container .command-wrapper {
+        margin-top: 10px !important;
+        border-radius: 6px !important;
     }
 }
 
 /* ============================================================================
- * DARK MODE SUPPORT
+ * DARK MODE EMERALD ADJUSTMENTS
  * ============================================================================ */
 
-[data-theme="dark"] #implementation-plan-container .card-header .toggle-arrow,
-[data-theme="dark"] #implementation-plan-container .card-header .chevron,
-[data-theme="dark"] #implementation-plan-container .card-header [class*="chevron"],
-[data-theme="dark"] #implementation-plan-container .section-header .toggle-arrow,
-[data-theme="dark"] #implementation-plan-container .section-header .chevron {
-    color: rgba(245, 245, 247, 0.8) !important;
+[data-theme="dark"] #implementation-plan-container .command-wrapper {
+    background: rgba(16, 185, 129, 0.04) !important;
+    border-color: rgba(16, 185, 129, 0.15) !important;
+    box-shadow: 
+        0 4px 12px rgba(16, 185, 129, 0.12),
+        0 1px 3px rgba(0, 0, 0, 0.2) !important;
 }
 
-[data-theme="dark"] #implementation-plan-container .card-header:hover .toggle-arrow,
-[data-theme="dark"] #implementation-plan-container .card-header:hover .chevron,
-[data-theme="dark"] #implementation-plan-container .card-header:hover [class*="chevron"],
-[data-theme="dark"] #implementation-plan-container .section-header:hover .toggle-arrow,
-[data-theme="dark"] #implementation-plan-container .section-header:hover .chevron {
-    color: rgba(245, 245, 247, 1) !important;
+[data-theme="dark"] #implementation-plan-container .command-wrapper:hover {
+    background: rgba(16, 185, 129, 0.08) !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    box-shadow: 
+        0 8px 25px rgba(16, 185, 129, 0.2),
+        0 4px 12px rgba(16, 185, 129, 0.15) !important;
 }
 
-[data-theme="dark"] #implementation-plan-container .accordion-button::after {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23f5f5f7'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e") !important;
+[data-theme="dark"] #implementation-plan-container .command-code {
+    background: linear-gradient(135deg, 
+        rgba(3, 44, 33, 0.98) 0%, 
+        rgba(2, 56, 40, 0.98) 100%) !important;
+    color: rgba(220, 252, 231, 0.95) !important;
+    border-left-color: rgba(52, 211, 153, 0.7) !important;
 }
 
-[data-theme="dark"] #implementation-plan-container .card-header::after,
-[data-theme="dark"] #implementation-plan-container .section-header::after {
-    color: rgba(245, 245, 247, 0.8) !important;
+[data-theme="dark"] #implementation-plan-container .command-code::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, 
+        rgba(52, 211, 153, 0.5) 0%, 
+        rgba(16, 185, 129, 0.7) 100%) !important;
+}
+
+[data-theme="dark"] #implementation-plan-container .command-code::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, 
+        rgba(52, 211, 153, 0.8) 0%, 
+        rgba(16, 185, 129, 0.9) 100%) !important;
+}
+
+[data-theme="dark"] #implementation-plan-container .task-header {
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.06) 0%, 
+        rgba(52, 211, 153, 0.06) 100%) !important;
+    border-bottom-color: rgba(16, 185, 129, 0.25) !important;
 }
 
 /* ============================================================================
- * DEBUGGING HELPER CLASSES
- * ============================================================================ */
-
-/* Add this class to your container to see what's happening */
-#implementation-plan-container.debug-arrows .card-header,
-#implementation-plan-container.debug-arrows .section-header {
-    border: 2px solid red !important;
-}
-
-#implementation-plan-container.debug-arrows .card-header .toggle-arrow,
-#implementation-plan-container.debug-arrows .card-header .chevron,
-#implementation-plan-container.debug-arrows .card-header [class*="chevron"],
-#implementation-plan-container.debug-arrows .section-header .toggle-arrow,
-#implementation-plan-container.debug-arrows .section-header .chevron {
-    background: lime !important;
-    border: 2px solid blue !important;
-}
-
-/* ============================================================================
- * NUCLEAR OPTION - Use only if nothing else works
- * ============================================================================ */
-
-/* Add class "nuclear-arrows" to force positioning */
-#implementation-plan-container.nuclear-arrows .card-header,
-#implementation-plan-container.nuclear-arrows .section-header {
-    position: relative !important;
-}
-
-#implementation-plan-container.nuclear-arrows .card-header * {
-    position: static !important;
-}
-
-#implementation-plan-container.nuclear-arrows .card-header *:last-child {
-    position: absolute !important;
-    right: 1rem !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    margin: 0 !important;
-}
-
-/* ============================================================================
- * PRINT STYLES
+ * PRINT OPTIMIZATION
  * ============================================================================ */
 
 @media print {
-    #implementation-plan-container .card-header .toggle-arrow,
-    #implementation-plan-container .card-header .chevron,
-    #implementation-plan-container .card-header [class*="chevron"],
-    #implementation-plan-container .section-header .toggle-arrow,
-    #implementation-plan-container .section-header .chevron,
-    #implementation-plan-container .accordion-button::after,
-    #implementation-plan-container .card-header::after,
-    #implementation-plan-container .section-header::after {
+    #implementation-plan-container .copy-btn {
+        display: none !important;
+    }
+    
+    #implementation-plan-container .command-code {
+        background: #f0fdf4 !important;
+        color: #065f46 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        border-left-color: #10b981 !important;
+        padding: 12px !important;
+        font-size: 0.8rem !important;
+    }
+    
+    #implementation-plan-container .command-wrapper {
+        background: #ffffff !important;
+        border: 1px solid #d1fae5 !important;
+        box-shadow: none !important;
+        break-inside: avoid;
+    }
+    
+    #implementation-plan-container .task-header {
+        background: #ecfdf5 !important;
+        border-bottom-color: #10b981 !important;
+    }
+}
+
+/* ============================================================================
+ * ACCESSIBILITY IMPROVEMENTS
+ * ============================================================================ */
+
+#implementation-plan-container .command-code:focus-visible {
+    outline: 3px solid rgba(52, 211, 153, 0.6) !important;
+    outline-offset: 2px !important;
+    border-radius: 4px !important;
+}
+
+#implementation-plan-container .copy-btn:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.8) !important;
+    outline-offset: 2px !important;
+    box-shadow: 
+        0 8px 25px rgba(16, 185, 129, 0.4),
+        0 4px 12px rgba(52, 211, 153, 0.3),
+        0 0 0 3px rgba(52, 211, 153, 0.3) !important;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    #implementation-plan-container .command-wrapper,
+    #implementation-plan-container .copy-btn,
+    #implementation-plan-container .command-code {
+        transition: none !important;
+        transform: none !important;
+        animation: none !important;
+    }
+    
+    #implementation-plan-container .copy-btn::before {
         display: none !important;
     }
 }
 
 /* ============================================================================
- * USAGE INSTRUCTIONS
+ * HIGH CONTRAST MODE
  * ============================================================================ */
 
-/*
-USAGE:
+@media (prefers-contrast: high) {
+    #implementation-plan-container .command-code {
+        background: rgba(3, 44, 33, 1) !important;
+        color: #ffffff !important;
+        border-left-color: #00ff88 !important;
+        border-left-width: 4px !important;
+    }
+    
+    #implementation-plan-container .copy-btn {
+        background: #10b981 !important;
+        border: 2px solid #ffffff !important;
+        color: #ffffff !important;
+    }
+    
+    #implementation-plan-container .command-wrapper {
+        border: 2px solid #10b981 !important;
+        background: rgba(16, 185, 129, 0.1) !important;
+    }
+}
 
-1. Add this CSS AFTER your existing implementation plan CSS
-2. If arrows still don't move, add class "force-flex-arrows" to your container:
-   <div id="implementation-plan-container" class="force-flex-arrows">
+/* ============================================================================
+ * EMERALD GLOW EFFECTS - Subtle and Premium
+ * ============================================================================ */
 
-3. If that doesn't work, add class "nuclear-arrows":
-   <div id="implementation-plan-container" class="nuclear-arrows">
+#implementation-plan-container .command-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at center, 
+        rgba(16, 185, 129, 0.02) 0%, 
+        transparent 70%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
 
-4. For debugging, add class "debug-arrows" to see element positions:
-   <div id="implementation-plan-container" class="debug-arrows">
+#implementation-plan-container .command-wrapper:hover::after {
+    opacity: 1;
+}
 
-5. If no arrows exist, they'll be automatically added via CSS ::after
+#implementation-plan-container .copy-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: all 0.6s ease;
+    pointer-events: none;
+}
 
-This should work with ANY HTML structure!
-*/
+#implementation-plan-container .copy-btn:active::after {
+    width: 100px;
+    height: 100px;
+    opacity: 0;
+}
+
+#implementation-plan-container .command-wrapper {
+    background: rgba(16, 185, 129, 0.03) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(16, 185, 129, 0.12) !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    box-shadow: 
+        0 4px 12px rgba(16, 185, 129, 0.08),
+        0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    margin-top: 16px !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative;
+}
+
+#implementation-plan-container .command-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(16, 185, 129, 0.4) 50%, 
+        transparent 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#implementation-plan-container .command-wrapper:hover {
+    background: rgba(16, 185, 129, 0.06) !important;
+    border-color: rgba(16, 185, 129, 0.25) !important;
+    box-shadow: 
+        0 8px 25px rgba(16, 185, 129, 0.15),
+        0 4px 12px rgba(16, 185, 129, 0.1) !important;
+    transform: translateY(-2px) !important;
+}
+
+#implementation-plan-container .command-wrapper:hover::before {
+    opacity: 1;
+}
+
+/* ============================================================================
+ * EMERALD CODE BLOCKS - Elegant and Compact
+ * ============================================================================ */
+
+#implementation-plan-container .command-code {
+    margin: 0 !important;
+    padding: 16px 20px !important;
+    background: linear-gradient(135deg, 
+        rgba(6, 95, 70, 0.95) 0%, 
+        rgba(4, 120, 87, 0.95) 100%) !important;
+    backdrop-filter: blur(8px) !important;
+    border: none !important;
+    border-left: 3px solid rgba(52, 211, 153, 0.6) !important;
+    border-radius: 0 !important;
+    
+    /* Enhanced scrolling */
+    overflow: auto !important;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    white-space: pre !important;
+    word-wrap: normal !important;
+    word-break: normal !important;
+    
+    /* Optimized dimensions */
+    max-height: 220px !important;
+    min-height: 50px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    
+    /* Premium typography */
+    font-family: 'SF Mono', 'Monaco', 'Menlo', 'Fira Code', 'Consolas', monospace !important;
+    font-size: 0.85rem !important;
+    line-height: 1.5 !important;
+    color: rgba(236, 253, 245, 0.95) !important;
+    font-weight: 400 !important;
+    letter-spacing: 0.02em !important;
+    
+    /* Ultra-thin emerald scrollbars */
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(52, 211, 153, 0.7) rgba(16, 185, 129, 0.1) !important;
+}
+
+#implementation-plan-container .command-code:focus {
+    outline: none !important;
+    border-left-color: rgba(52, 211, 153, 0.9) !important;
+    background: linear-gradient(135deg, 
+        rgba(6, 95, 70, 1) 0%, 
+        rgba(4, 120, 87, 1) 100%) !important;
+    box-shadow: inset 0 0 0 2px rgba(52, 211, 153, 0.3) !important;
+}
+
+#implementation-plan-container .command-code code {
+    color: inherit !important;
+    background: none !important;
+    padding: 0 !important;
+    font-size: inherit !important;
+    font-family: inherit !important;
+    white-space: pre !important;
+    word-wrap: normal !important;
+    word-break: normal !important;
+    border: none !important;
+    display: block !important;
+    width: 100% !important;
+    line-height: inherit !important;
+}
+
+/* ============================================================================
+ * EMERALD WEBKIT SCROLLBARS - Ultra-Modern
+ * ============================================================================ */
+
+#implementation-plan-container .command-code::-webkit-scrollbar {
+    width: 6px !important;
+    height: 6px !important;
+}
+
+#implementation-plan-container .command-code::-webkit-scrollbar-track {
+    background: rgba(16, 185, 129, 0.08) !important;
+    border-radius: 3px !important;
+    margin: 3px !important;
+}
+
+#implementation-plan-container .command-code::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, 
+        rgba(52, 211, 153, 0.6) 0%, 
+        rgba(16, 185, 129, 0.8) 100%) !important;
+    border-radius: 3px !important;
+    transition: all 0.3s ease !important;
+    border: 1px solid rgba(16, 185, 129, 0.2) !important;
+}
+
+#implementation-plan-container .command-code::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, 
+        rgba(52, 211, 153, 0.9) 0%, 
+        rgba(16, 185, 129, 1) 100%) !important;
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.4) !important;
+}
+
+#implementation-plan-container .command-code::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(135deg, 
+        rgba(52, 211, 153, 1) 0%, 
+        rgba(16, 185, 129, 1) 100%) !important;
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.6) !important;
+}
+
+#implementation-plan-container .command-code::-webkit-scrollbar-corner {
+    background: transparent !important;
+}
+
+/* Smooth scrollbar reveal */
+#implementation-plan-container .command-code::-webkit-scrollbar {
+    opacity: 0 !important;
+    transition: opacity 0.4s ease !important;
+}
+
+#implementation-plan-container .command-code:hover::-webkit-scrollbar,
+#implementation-plan-container .command-code:focus::-webkit-scrollbar {
+    opacity: 1 !important;
+}
+
+/* ============================================================================
+ * EMERALD COPY BUTTON - Premium Design
+ * ============================================================================ */
+
+#implementation-plan-container .copy-btn {
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.9) 0%, 
+        rgba(52, 211, 153, 0.9) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
+    font-size: 0.75rem !important;
+    padding: 8px 16px !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    font-family: 'SF Pro Display', 'Inter', sans-serif !important;
+    box-shadow: 
+        0 4px 12px rgba(16, 185, 129, 0.25),
+        0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    cursor: pointer !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: absolute !important;
+    top: 12px !important;
+    right: 12px !important;
+    z-index: 10 !important;
+    opacity: 0 !important;
+    transform: scale(0.9) translateY(4px) !important;
+    backdrop-filter: blur(8px) !important;
+    letter-spacing: 0.02em !important;
+}
+
+#implementation-plan-container .command-wrapper:hover .copy-btn {
+    opacity: 1 !important;
+    transform: scale(1) translateY(0) !important;
+}
+
+#implementation-plan-container .copy-btn:hover {
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 1) 0%, 
+        rgba(52, 211, 153, 1) 100%) !important;
+    box-shadow: 
+        0 8px 25px rgba(16, 185, 129, 0.4),
+        0 4px 12px rgba(52, 211, 153, 0.3) !important;
+    transform: scale(1.05) translateY(-2px) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+#implementation-plan-container .copy-btn:active {
+    transform: scale(0.98) translateY(0) !important;
+    box-shadow: 
+        0 4px 12px rgba(16, 185, 129, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.2) !important;
+}
+
+#implementation-plan-container .copy-btn.copied {
+    background: linear-gradient(135deg, 
+        rgba(6, 95, 70, 0.9) 0%, 
+        rgba(4, 120, 87, 0.9) 100%) !important;
+    box-shadow: 
+        0 8px 25px rgba(6, 95, 70, 0.4),
+        0 4px 12px rgba(4, 120, 87, 0.3) !important;
+}
+
+#implementation-plan-container .copy-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(255, 255, 255, 0.25), 
+        transparent);
+    transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#implementation-plan-container .copy-btn:hover::before {
+    left: 100%;
+}
+
+/* ============================================================================
+ * EMERALD TASK HEADERS - Refined Design
+ * ============================================================================ */
+
+#implementation-plan-container .task-header {
+    padding: 16px 20px !important;
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.04) 0%, 
+        rgba(52, 211, 153, 0.04) 100%) !important;
+    backdrop-filter: blur(8px) !important;
+    border-bottom: 1px solid rgba(16, 185, 129, 0.2) !important;
+    border-radius: 8px 8px 0 0 !important;
+    position: relative;
+}
+
+#implementation-plan-container .task-header::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(52, 211, 153, 0.4) 50%, 
+        transparent 100%);
+}
+
+#implementation-plan-container .task-header h6 {
+    font-size: 0.95rem !important;
+    margin-bottom: 6px !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.9) 0%, 
+        rgba(6, 95, 70, 0.9) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+#implementation-plan-container .task-commands {
+    background: transparent !important;
+    padding: 20px !important;
+    border-top: none !important;
+}
+
+/* ============================================================================
+ * EMERALD SYNTAX HIGHLIGHTING - Sophisticated Colors
+ * ============================================================================ */
+
+#implementation-plan-container .command-code .comment {
+    color: rgba(209, 250, 229, 0.6) !important;
+    font-style: italic;
+}
+
+#implementation-plan-container .command-code .command {
+    color: rgba(167, 243, 208, 0.95) !important;
+    font-weight: 500;
+}
+
+#implementation-plan-container .command-code .flag {
+    color: rgba(252, 211, 77, 0.9) !important;
+    font-weight: 500;
+}
+
+#implementation-plan-container .command-code .string {
+    color: rgba(187, 247, 208, 0.95) !important;
+}
+
+#implementation-plan-container .command-code .variable {
+    color: rgba(110, 231, 183, 0.9) !important;
+}
+
+#implementation-plan-container .command-code .keyword {
+    color: rgba(52, 211, 153, 0.95) !important;
+    font-weight: 600;
+}
+
+#implementation-plan-container .command-code .number {
+    color: rgba(134, 239, 172, 0.9) !important;
+}
+
+#implementation-plan-container .command-code .operator {
+    color: rgba(209, 250, 229, 0.8) !important;
+}
+
+/* ============================================================================
+ * RESPONSIVE EMERALD DESIGN
+ * ============================================================================ */
+
+@media (max-width: 768px) {
+    #implementation-plan-container .command-code {
+        padding: 12px 16px !important;
+        font-size: 0.8rem !important;
+        max-height: 180px !important;
+        line-height: 1.4 !important;
+    }
+    
+    #implementation-plan-container .copy-btn {
+        font-size: 0.7rem !important;
+        padding: 6px 12px !important;
+        top: 8px !important;
+        right: 8px !important;
+    }
+    
+    #implementation-plan-container .task-header {
+        padding: 12px 16px !important;
+    }
+    
+    #implementation-plan-container .task-commands {
+        padding: 16px !important;
+    }
+    
+    #implementation-plan-container .command-code::-webkit-scrollbar {
+        width: 4px !important;
+        height: 4px !important;
+    }
+    
+    #implementation-plan-container .command-wrapper {
+        margin-top: 12px !important;
+    }
+}
+
+@media (max-width: 576px) {
+    #implementation-plan-container .command-code {
+        padding: 10px 12px !important;
+        font-size: 0.75rem !important;
+        max-height: 150px !important;
+        line-height: 1.3 !important;
+    }
+    
+    #implementation-plan-container .copy-btn {
+        position: static !important;
+        width: 100% !important;
+        margin-top: 12px !important;
+        opacity: 1 !important;
+        transform: none !important;
+        border-radius: 4px !important;
+    }
+    
+    #implementation-plan-container .command-wrapper {
+        margin-top: 10px !important;
+        border-radius: 6px !important;
+    }
+}
+
+/* ============================================================================
+ * DARK MODE EMERALD ADJUSTMENTS
+ * ============================================================================ */
+
+[data-theme="dark"] #implementation-plan-container .command-wrapper {
+    background: rgba(16, 185, 129, 0.04) !important;
+    border-color: rgba(16, 185, 129, 0.15) !important;
+    box-shadow: 
+        0 4px 12px rgba(16, 185, 129, 0.12),
+        0 1px 3px rgba(0, 0, 0, 0.2) !important;
+}
+
+[data-theme="dark"] #implementation-plan-container .command-wrapper:hover {
+    background: rgba(16, 185, 129, 0.08) !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    box-shadow: 
+        0 8px 25px rgba(16, 185, 129, 0.2),
+        0 4px 12px rgba(16, 185, 129, 0.15) !important;
+}
+
+[data-theme="dark"] #implementation-plan-container .command-code {
+    background: linear-gradient(135deg, 
+        rgba(3, 44, 33, 0.98) 0%, 
+        rgba(2, 56, 40, 0.98) 100%) !important;
+    color: rgba(220, 252, 231, 0.95) !important;
+    border-left-color: rgba(52, 211, 153, 0.7) !important;
+}
+
+[data-theme="dark"] #implementation-plan-container .command-code::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, 
+        rgba(52, 211, 153, 0.5) 0%, 
+        rgba(16, 185, 129, 0.7) 100%) !important;
+}
+
+[data-theme="dark"] #implementation-plan-container .command-code::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, 
+        rgba(52, 211, 153, 0.8) 0%, 
+        rgba(16, 185, 129, 0.9) 100%) !important;
+}
+
+[data-theme="dark"] #implementation-plan-container .task-header {
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.06) 0%, 
+        rgba(52, 211, 153, 0.06) 100%) !important;
+    border-bottom-color: rgba(16, 185, 129, 0.25) !important;
+}
+
+/* ============================================================================
+ * PRINT OPTIMIZATION
+ * ============================================================================ */
+
+@media print {
+    #implementation-plan-container .copy-btn {
+        display: none !important;
+    }
+    
+    #implementation-plan-container .command-code {
+        background: #f0fdf4 !important;
+        color: #065f46 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        border-left-color: #10b981 !important;
+        padding: 12px !important;
+        font-size: 0.8rem !important;
+    }
+    
+    #implementation-plan-container .command-wrapper {
+        background: #ffffff !important;
+        border: 1px solid #d1fae5 !important;
+        box-shadow: none !important;
+        break-inside: avoid;
+    }
+    
+    #implementation-plan-container .task-header {
+        background: #ecfdf5 !important;
+        border-bottom-color: #10b981 !important;
+    }
+}
+
+/* ============================================================================
+ * ACCESSIBILITY IMPROVEMENTS
+ * ============================================================================ */
+
+#implementation-plan-container .command-code:focus-visible {
+    outline: 3px solid rgba(52, 211, 153, 0.6) !important;
+    outline-offset: 2px !important;
+    border-radius: 4px !important;
+}
+
+#implementation-plan-container .copy-btn:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.8) !important;
+    outline-offset: 2px !important;
+    box-shadow: 
+        0 8px 25px rgba(16, 185, 129, 0.4),
+        0 4px 12px rgba(52, 211, 153, 0.3),
+        0 0 0 3px rgba(52, 211, 153, 0.3) !important;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    #implementation-plan-container .command-wrapper,
+    #implementation-plan-container .copy-btn,
+    #implementation-plan-container .command-code {
+        transition: none !important;
+        transform: none !important;
+        animation: none !important;
+    }
+    
+    #implementation-plan-container .copy-btn::before {
+        display: none !important;
+    }
+}
+
+/* ============================================================================
+ * HIGH CONTRAST MODE
+ * ============================================================================ */
+
+@media (prefers-contrast: high) {
+    #implementation-plan-container .command-code {
+        background: rgba(3, 44, 33, 1) !important;
+        color: #ffffff !important;
+        border-left-color: #00ff88 !important;
+        border-left-width: 4px !important;
+    }
+    
+    #implementation-plan-container .copy-btn {
+        background: #10b981 !important;
+        border: 2px solid #ffffff !important;
+        color: #ffffff !important;
+    }
+    
+    #implementation-plan-container .command-wrapper {
+        border: 2px solid #10b981 !important;
+        background: rgba(16, 185, 129, 0.1) !important;
+    }
+}
+
+/* ============================================================================
+ * EMERALD GLOW EFFECTS - Subtle and Premium
+ * ============================================================================ */
+
+#implementation-plan-container .command-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at center, 
+        rgba(16, 185, 129, 0.02) 0%, 
+        transparent 70%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+#implementation-plan-container .command-wrapper:hover::after {
+    opacity: 1;
+}
+
+#implementation-plan-container .copy-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: all 0.6s ease;
+    pointer-events: none;
+}
+
+#implementation-plan-container .copy-btn:active::after {
+    width: 100px;
+    height: 100px;
+    opacity: 0;
+}
+
+/* ============================================================================
+         * COPY BUTTON FIX - Multiple Solutions
+         * ============================================================================ */
+
+        /* SOLUTION 1: Make copy buttons always visible */
+        #implementation-plan-container .copy-btn,
+        .copy-btn {
+            background: linear-gradient(135deg, 
+                rgba(16, 185, 129, 0.9) 0%, 
+                rgba(52, 211, 153, 0.9) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            color: white !important;
+            font-size: 0.75rem !important;
+            padding: 8px 16px !important;
+            border-radius: 6px !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            position: absolute !important;
+            top: 12px !important;
+            right: 12px !important;
+            z-index: 100 !important;
+            
+            /* FIX: Always visible with slight transparency */
+            opacity: 0.7 !important;
+            transform: scale(1) translateY(0) !important;
+            backdrop-filter: blur(8px) !important;
+            letter-spacing: 0.02em !important;
+        }
+
+        /* Enhanced visibility on hover */
+        #implementation-plan-container .copy-btn:hover,
+        .copy-btn:hover {
+            opacity: 1 !important;
+            background: linear-gradient(135deg, 
+                rgba(16, 185, 129, 1) 0%, 
+                rgba(52, 211, 153, 1) 100%) !important;
+            box-shadow: 
+                0 8px 25px rgba(16, 185, 129, 0.4),
+                0 4px 12px rgba(52, 211, 153, 0.3) !important;
+            transform: scale(1.05) translateY(-2px) !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+        }
+
+        /* SOLUTION 2: Alternative positioning for better visibility */
+        .command-wrapper-enhanced {
+            position: relative;
+            background: rgba(16, 185, 129, 0.03) !important;
+            border: 1px solid rgba(16, 185, 129, 0.12) !important;
+            border-radius: 8px !important;
+            margin-top: 16px !important;
+            overflow: visible !important;
+        }
+
+        .copy-btn-enhanced {
+            background: linear-gradient(135deg, #10b981, #34d399) !important;
+            color: white !important;
+            border: none !important;
+            padding: 6px 12px !important;
+            border-radius: 4px !important;
+            font-size: 0.7rem !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+            
+            /* Always visible alternative positioning */
+            position: relative !important;
+            float: right !important;
+            margin-bottom: 8px !important;
+            opacity: 1 !important;
+            z-index: 10 !important;
+        }
+
+        .copy-btn-enhanced:hover {
+            background: linear-gradient(135deg, #059669, #10b981) !important;
+            transform: scale(1.05) !important;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+        }
+
+        /* SOLUTION 3: Inline copy buttons */
+        .copy-btn-inline {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            background: rgba(16, 185, 129, 0.1) !important;
+            color: #059669 !important;
+            border: 1px solid rgba(16, 185, 129, 0.3) !important;
+            padding: 4px 8px !important;
+            border-radius: 4px !important;
+            font-size: 0.65rem !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+            margin-left: auto !important;
+            opacity: 1 !important;
+        }
+
+        .copy-btn-inline:hover {
+            background: rgba(16, 185, 129, 0.2) !important;
+            color: #047857 !important;
+            border-color: rgba(16, 185, 129, 0.5) !important;
+            transform: scale(1.02) !important;
+        }
+
+        /* SOLUTION 4: Debug helpers */
+        .debug-copy-area {
+            border: 2px dashed #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+            position: relative;
+            min-height: 50px;
+            margin: 10px 0;
+        }
+
+        .debug-copy-area::after {
+            content: 'Copy button should appear here';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.7rem;
+            color: #92400e;
+            opacity: 0.7;
+        }
+
+        /* SOLUTION 5: Force visibility override */
+        .force-visible-copy {
+            opacity: 1 !important;
+            visibility: visible !important;
+            display: block !important;
+            position: relative !important;
+            z-index: 999 !important;
+        }
+
+        /* Command wrapper improvements */
+        .command-code-enhanced {
+            background: linear-gradient(135deg, 
+                rgba(6, 95, 70, 0.95) 0%, 
+                rgba(4, 120, 87, 0.95) 100%) !important;
+            color: rgba(236, 253, 245, 0.95) !important;
+            padding: 16px 50px 16px 20px !important; /* Extra right padding for button */
+            border-radius: 8px !important;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace !important;
+            font-size: 0.85rem !important;
+            line-height: 1.5 !important;
+            overflow-x: auto !important;
+            position: relative !important;
+            border-left: 3px solid rgba(52, 211, 153, 0.6) !important;
+        }
+
+        /* Make sure parent containers don't hide overflow */
+        .command-wrapper,
+        .task-commands,
+        .code-block {
+            overflow: visible !important;
+            position: relative !important;
+        }
+
+        /* Mobile responsive fixes */
+        @media (max-width: 768px) {
+            #implementation-plan-container .copy-btn,
+            .copy-btn {
+                position: static !important;
+                width: 100% !important;
+                margin-top: 12px !important;
+                opacity: 1 !important;
+                transform: none !important;
+                border-radius: 4px !important;
+            }
+            
+            .copy-btn-enhanced,
+            .copy-btn-inline {
+                position: static !important;
+                float: none !important;
+                display: block !important;
+                width: 100% !important;
+                margin: 8px 0 !important;
+                text-align: center !important;
+            }
+        }
+
+        /* Success state */
+        .copy-btn.copied,
+        .copy-btn-enhanced.copied,
+        .copy-btn-inline.copied {
+            background: linear-gradient(135deg, #059669, #047857) !important;
+            color: white !important;
+        }
+
+        .copy-btn.copied::after,
+        .copy-btn-enhanced.copied::after,
+        .copy-btn-inline.copied::after {
+            content: ' ✓ Copied!';
+        }

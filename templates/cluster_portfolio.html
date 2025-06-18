@@ -127,8 +127,9 @@
                         {{ cluster.environment[:3].upper() if cluster.environment else 'UNK' }}
                     </div>
                     <div class="card-actions">
-                        <button class="action-icon" onclick="event.stopPropagation(); analyzeCluster('{{ cluster.id }}')" title="Analyze">
+                        <button class="action-icon analyze-btn" data-cluster-id="{{ cluster.id }}" onclick="event.stopPropagation(); analyzeCluster('{{ cluster.id }}')" title="Analyze">
                             <i class="fas fa-play"></i>
+                            <i class="fas fa-spinner fa-spin analyzing-spinner" style="display: none;"></i>
                         </button>
                         <button class="action-icon danger" onclick="event.stopPropagation(); deleteCluster('{{ cluster.id }}')" title="Delete">
                             <i class="fas fa-trash-alt"></i>
@@ -196,24 +197,18 @@
                 
                 <!-- Card Footer -->
                 <div class="card-footer">
-                    <div class="status-info">
+                    <div class="status-info" data-cluster-id="{{ cluster.id }}">
                         {% if cluster.last_analyzed %}
                         <i class="fas fa-check-circle success-icon"></i>
-                        <span>Analyzed</span>
+                        <span class="status-text">Analyzed</span>
                         {% else %}
                         <i class="fas fa-clock warning-icon"></i>
-                        <span>Pending</span>
+                        <span class="status-text">Pending</span>
                         {% endif %}
+                        <!-- Analyzing state (hidden by default) -->
+                        <i class="fas fa-cog fa-spin analyzing-icon" style="display: none;"></i>
+                        <span class="analyzing-text" style="display: none;">Analyzing...</span>
                     </div>
-                    <!-- <div class="quick-actions">
-                        <button class="quick-btn primary" onclick="event.stopPropagation(); analyzeCluster('{{ cluster.id }}')">
-                            <i class="fas fa-play"></i>
-                        </button>
-                        <button class="quick-btn" onclick="event.stopPropagation(); selectCluster('{{ cluster.id }}')"
-                                {% if not cluster.last_analyzed %}disabled{% endif %}>
-                            <i class="fas fa-eye"></i>
-                        </button>
-                    </div> -->
                 </div>
                 
                 <!-- Hover Effect -->
@@ -324,18 +319,610 @@
     </div>
 </div>
 
+<!-- Inline Delete Confirmation Form (No Modal) -->
+<div id="deleteConfirmationForm" class="delete-form-container" style="display: none;">
+    <div class="delete-form-content">
+        <div class="delete-form-header">
+            <div class="delete-icon-wrapper">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="delete-form-info">
+                <h3>Delete Cluster</h3>
+                <p>This action cannot be undone. All analysis data will be permanently removed.</p>
+            </div>
+        </div>
+        
+        <div class="delete-form-details">
+            <div class="detail-item">
+                <span class="detail-label">Cluster:</span>
+                <span class="detail-value" id="deleteClusterName">-</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Resource Group:</span>
+                <span class="detail-value" id="deleteResourceGroup">-</span>
+            </div>
+        </div>
+        
+        <form id="deleteClusterForm" class="delete-form">
+            <input type="hidden" id="deleteClusterId" value="">
+            
+            <div class="confirmation-checkbox">
+                <label class="checkbox">
+                    <input type="checkbox" id="confirmDelete" required>
+                    <span class="checkmark">
+                        <i class="fas fa-check"></i>
+                    </span>
+                    I understand this action cannot be undone
+                </label>
+            </div>
+            
+            <div class="delete-form-actions">
+                <button type="button" class="btn secondary" onclick="hideDeleteForm()">Cancel</button>
+                <button type="submit" class="btn danger" id="confirmDeleteBtn" disabled>
+                    <span class="btn-text">Delete Cluster</span>
+                    <div class="btn-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Old modal removed - now using form-based approach -->
+
 <!-- Notification Container -->
 <div id="notificationContainer" class="notification-container"></div>
 
 <!-- Include enhanced smooth CSS -->
 <style>
-    /* ======================================
-   AGGRESSIVE CLUSTER PORTFOLIO OVERRIDE
-   Completely replaces base.css styles on cluster portfolio page
-   ====================================== */
+    /* Enhanced analyzing state styles */
+    .cluster-card.analyzing {
+        border: 1px solid #4f46e5;
+        box-shadow: 0 0 20px rgba(79, 70, 229, 0.3);
+    }
 
-/* CRITICAL: Apply to body when on cluster portfolio page */
+    .cluster-card.analyzing .card-glow {
+        background: linear-gradient(45deg, rgba(79, 70, 229, 0.1), rgba(139, 92, 246, 0.1));
+        opacity: 1;
+    }
 
+    .analyze-btn {
+        position: relative;
+        transition: all 0.3s ease;
+    }
+
+    .analyze-btn.analyzing {
+        color: #4f46e5;
+        background: rgba(79, 70, 229, 0.1);
+    }
+
+    .analyzing-spinner {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+
+    .status-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s ease;
+    }
+
+    .analyzing-icon {
+        color: #4f46e5;
+    }
+
+    .analyzing-text {
+        color: #4f46e5;
+        font-weight: 500;
+    }
+
+    /* Status transition animations */
+    .status-info i,
+    .status-info span {
+        transition: opacity 0.3s ease;
+    }
+
+    /* Form-based delete confirmation styles only */
+    .delete-form-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+    }
+
+    .delete-form-container.show {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .delete-form-content {
+        background: white;
+        border-radius: 20px;
+        padding: 32px;
+        max-width: 480px;
+        width: 90%;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+        transform: scale(0.9) translateY(20px);
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .delete-form-container.show .delete-form-content {
+        transform: scale(1) translateY(0);
+    }
+
+    .delete-form-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 20px;
+        margin-bottom: 24px;
+    }
+
+    .delete-icon-wrapper {
+        width: 60px;
+        height: 60px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #fef3c7, #fbbf24);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        animation: pulse-warning 2s infinite;
+    }
+
+    .delete-icon-wrapper i {
+        font-size: 28px;
+        color: #d97706;
+    }
+
+    .delete-form-info h3 {
+        margin: 0 0 8px 0;
+        font-size: 22px;
+        font-weight: 700;
+        color: #111827;
+        line-height: 1.3;
+    }
+
+    .delete-form-info p {
+        margin: 0;
+        font-size: 15px;
+        color: #6b7280;
+        line-height: 1.5;
+    }
+
+    .delete-form-details {
+        background: #f9fafb;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 24px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .detail-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+    }
+
+    .detail-item:not(:last-child) {
+        border-bottom: 1px solid #e5e7eb;
+        margin-bottom: 8px;
+        padding-bottom: 16px;
+    }
+
+    .detail-label {
+        font-weight: 600;
+        color: #374151;
+        font-size: 14px;
+    }
+
+    .detail-value {
+        font-weight: 500;
+        color: #111827;
+        font-size: 14px;
+        font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+        background: white;
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid #d1d5db;
+    }
+
+    .confirmation-checkbox {
+        margin-bottom: 24px;
+    }
+
+    .confirmation-checkbox .checkbox {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 500;
+        color: #374151;
+        user-select: none;
+    }
+
+    .confirmation-checkbox .checkmark {
+        width: 20px;
+        height: 20px;
+        border: 2px solid #d1d5db;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        background: white;
+    }
+
+    .confirmation-checkbox input[type="checkbox"] {
+        display: none;
+    }
+
+    .confirmation-checkbox input[type="checkbox"]:checked + .checkmark {
+        background: #ef4444;
+        border-color: #ef4444;
+        color: white;
+    }
+
+    .confirmation-checkbox .checkmark i {
+        font-size: 12px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .confirmation-checkbox input[type="checkbox"]:checked + .checkmark i {
+        opacity: 1;
+    }
+
+    .delete-form-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+    }
+
+    .delete-form-actions .btn {
+        min-width: 120px;
+        height: 44px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .delete-form-actions .btn.secondary {
+        background: #f3f4f6;
+        color: #374151;
+        border: 1px solid #e5e7eb;
+    }
+
+    .delete-form-actions .btn.secondary:hover {
+        background: #e5e7eb;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .delete-form-actions .btn.danger {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    .delete-form-actions .btn.danger:hover:not(:disabled) {
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+    }
+
+    .delete-form-actions .btn.danger:disabled {
+        background: #d1d5db;
+        color: #9ca3af;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    /* Dark mode support */
+    @media (prefers-color-scheme: dark) {
+        .confirmation-container {
+            background: rgba(31, 41, 55, 0.95);
+        }
+        
+        .confirmation-title {
+            color: #f9fafb;
+        }
+        
+        .confirmation-message {
+            color: #d1d5db;
+        }
+        
+        .confirmation-footer .btn.secondary {
+            background: #374151;
+            color: #f9fafb;
+            border-color: #4b5563;
+        }
+        
+        .confirmation-footer .btn.secondary:hover {
+            background: #4b5563;
+        }
+    }
+
+    /* Inline Delete Form Styles (Form-based approach) */
+    .delete-form-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+    }
+
+    .delete-form-container.show {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .delete-form-content {
+        background: white;
+        border-radius: 20px;
+        padding: 32px;
+        max-width: 480px;
+        width: 90%;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+        transform: scale(0.9) translateY(20px);
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .delete-form-container.show .delete-form-content {
+        transform: scale(1) translateY(0);
+    }
+
+    .delete-form-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 20px;
+        margin-bottom: 24px;
+    }
+
+    .delete-icon-wrapper {
+        width: 60px;
+        height: 60px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #fef3c7, #fbbf24);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        animation: pulse-warning 2s infinite;
+    }
+
+    .delete-icon-wrapper i {
+        font-size: 28px;
+        color: #d97706;
+    }
+
+    .delete-form-info h3 {
+        margin: 0 0 8px 0;
+        font-size: 22px;
+        font-weight: 700;
+        color: #111827;
+        line-height: 1.3;
+    }
+
+    .delete-form-info p {
+        margin: 0;
+        font-size: 15px;
+        color: #6b7280;
+        line-height: 1.5;
+    }
+
+    .delete-form-details {
+        background: #f9fafb;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 24px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .detail-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+    }
+
+    .detail-item:not(:last-child) {
+        border-bottom: 1px solid #e5e7eb;
+        margin-bottom: 8px;
+        padding-bottom: 16px;
+    }
+
+    .detail-label {
+        font-weight: 600;
+        color: #374151;
+        font-size: 14px;
+    }
+
+    .detail-value {
+        font-weight: 500;
+        color: #111827;
+        font-size: 14px;
+        font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+        background: white;
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid #d1d5db;
+    }
+
+    .confirmation-checkbox {
+        margin-bottom: 24px;
+    }
+
+    .confirmation-checkbox .checkbox {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 500;
+        color: #374151;
+        user-select: none;
+    }
+
+    .confirmation-checkbox .checkmark {
+        width: 20px;
+        height: 20px;
+        border: 2px solid #d1d5db;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        background: white;
+    }
+
+    .confirmation-checkbox input[type="checkbox"] {
+        display: none;
+    }
+
+    .confirmation-checkbox input[type="checkbox"]:checked + .checkmark {
+        background: #ef4444;
+        border-color: #ef4444;
+        color: white;
+    }
+
+    .confirmation-checkbox .checkmark i {
+        font-size: 12px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .confirmation-checkbox input[type="checkbox"]:checked + .checkmark i {
+        opacity: 1;
+    }
+
+    .delete-form-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+    }
+
+    .delete-form-actions .btn {
+        min-width: 120px;
+        height: 44px;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .delete-form-actions .btn.secondary {
+        background: #f3f4f6;
+        color: #374151;
+        border: 1px solid #e5e7eb;
+    }
+
+    .delete-form-actions .btn.secondary:hover {
+        background: #e5e7eb;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .delete-form-actions .btn.danger {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+        border: none;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    .delete-form-actions .btn.danger:hover:not(:disabled) {
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+    }
+
+    .delete-form-actions .btn.danger:disabled {
+        background: #d1d5db;
+        color: #9ca3af;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    /* Dark mode support for delete form */
+    @media (prefers-color-scheme: dark) {
+        .delete-form-content {
+            background: #1f2937;
+        }
+
+        .delete-form-info h3 {
+            color: #f9fafb;
+        }
+
+        .delete-form-info p {
+            color: #d1d5db;
+        }
+
+        .delete-form-details {
+            background: #374151;
+            border-color: #4b5563;
+        }
+
+        .detail-item {
+            border-color: #4b5563;
+        }
+
+        .detail-label {
+            color: #f9fafb;
+        }
+
+        .detail-value {
+            background: #4b5563;
+            color: #f9fafb;
+            border-color: #6b7280;
+        }
+
+        .confirmation-checkbox .checkbox {
+            color: #f9fafb;
+        }
+
+        .confirmation-checkbox .checkmark {
+            background: #374151;
+            border-color: #6b7280;
+        }
+
+        .delete-form-actions .btn.secondary {
+            background: #374151;
+            color: #f9fafb;
+            border-color: #4b5563;
+        }
+
+        .delete-form-actions .btn.secondary:hover {
+            background: #4b5563;
+        }
+    }
 </style>
 
 <script>
@@ -343,7 +930,8 @@
 const AppState = {
     clusters: [],
     notifications: new Map(),
-    isLoading: false
+    isLoading: false,
+    analyzingClusters: new Set() // Track which clusters are being analyzed
 };
 
 // Utility Functions
@@ -426,7 +1014,259 @@ const LoadingManager = {
     }
 };
 
-// Notification System
+// Cluster Analysis State Management
+const AnalysisStateManager = {
+    setAnalyzing(clusterId, analyzing = true) {
+        const clusterCard = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+        const analyzeBtn = document.querySelector(`.analyze-btn[data-cluster-id="${clusterId}"]`);
+        const statusInfo = document.querySelector(`.status-info[data-cluster-id="${clusterId}"]`);
+        
+        if (!clusterCard || !analyzeBtn || !statusInfo) return;
+
+        if (analyzing) {
+            // Add to tracking set
+            AppState.analyzingClusters.add(clusterId);
+            
+            // Update cluster card appearance
+            clusterCard.classList.add('analyzing');
+            
+            // Update analyze button
+            analyzeBtn.classList.add('analyzing');
+            analyzeBtn.disabled = true;
+            analyzeBtn.querySelector('.fa-play').style.display = 'none';
+            analyzeBtn.querySelector('.analyzing-spinner').style.display = 'block';
+            
+            // Update status display
+            statusInfo.querySelector('.fa-clock, .fa-check-circle').style.display = 'none';
+            statusInfo.querySelector('.status-text').style.display = 'none';
+            statusInfo.querySelector('.analyzing-icon').style.display = 'inline-block';
+            statusInfo.querySelector('.analyzing-text').style.display = 'inline-block';
+            
+        } else {
+            // Remove from tracking set
+            AppState.analyzingClusters.delete(clusterId);
+            
+            // Reset cluster card appearance
+            clusterCard.classList.remove('analyzing');
+            
+            // Reset analyze button
+            analyzeBtn.classList.remove('analyzing');
+            analyzeBtn.disabled = false;
+            analyzeBtn.querySelector('.fa-play').style.display = 'block';
+            analyzeBtn.querySelector('.analyzing-spinner').style.display = 'none';
+            
+            // Reset status display to analyzed state
+            statusInfo.querySelector('.analyzing-icon').style.display = 'none';
+            statusInfo.querySelector('.analyzing-text').style.display = 'none';
+            statusInfo.querySelector('.fa-check-circle').style.display = 'inline-block';
+            statusInfo.querySelector('.status-text').style.display = 'inline-block';
+            statusInfo.querySelector('.status-text').textContent = 'Analyzed';
+        }
+    }
+};
+
+// Form-based Delete Confirmation Manager (Same approach as Add Cluster)
+const DeleteFormManager = {
+    show(clusterId, clusterName, resourceGroup) {
+        const form = document.getElementById('deleteConfirmationForm');
+        const clusterNameEl = document.getElementById('deleteClusterName');
+        const resourceGroupEl = document.getElementById('deleteResourceGroup');
+        const clusterIdInput = document.getElementById('deleteClusterId');
+        const checkbox = document.getElementById('confirmDelete');
+        const submitBtn = document.getElementById('confirmDeleteBtn');
+
+        // Populate form data
+        clusterNameEl.textContent = clusterName;
+        resourceGroupEl.textContent = resourceGroup;
+        clusterIdInput.value = clusterId;
+
+        // Reset form state
+        checkbox.checked = false;
+        submitBtn.disabled = true;
+        LoadingManager.button(submitBtn, false);
+
+        // Show form
+        form.style.display = 'flex';
+        setTimeout(() => form.classList.add('show'), 10);
+        document.body.style.overflow = 'hidden';
+
+        // Focus checkbox
+        setTimeout(() => checkbox.focus(), 300);
+    },
+
+    hide() {
+        const form = document.getElementById('deleteConfirmationForm');
+        form.classList.remove('show');
+        document.body.style.overflow = '';
+        
+        setTimeout(() => {
+            form.style.display = 'none';
+        }, 300);
+    }
+};
+
+// Form Event Handlers
+function setupDeleteFormHandlers() {
+    const form = document.getElementById('deleteClusterForm');
+    const checkbox = document.getElementById('confirmDelete');
+    const submitBtn = document.getElementById('confirmDeleteBtn');
+
+    // Enable/disable submit button based on checkbox
+    checkbox.addEventListener('change', () => {
+        submitBtn.disabled = !checkbox.checked;
+    });
+
+    // Handle form submission
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        if (!checkbox.checked) {
+            NotificationManager.show(
+                'Confirmation Required',
+                'Please confirm that you understand this action cannot be undone',
+                'warning'
+            );
+            return;
+        }
+
+        const clusterId = document.getElementById('deleteClusterId').value;
+        const clusterName = document.getElementById('deleteClusterName').textContent;
+
+        LoadingManager.button(submitBtn, true);
+        LoadingManager.show(`Deleting ${clusterName}...`);
+
+        try {
+            const response = await fetch(`/cluster/${clusterId}/remove`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                LoadingManager.hide();
+                DeleteFormManager.hide();
+                
+                NotificationManager.show(
+                    'Deleted!', 
+                    `Cluster "${clusterName}" removed successfully`, 
+                    'success'
+                );
+                
+                // Check if we're on portfolio page or cluster detail page
+                const clusterCard = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+                if (clusterCard) {
+                    // Portfolio page - animate out card
+                    clusterCard.style.transform = 'scale(0.9)';
+                    clusterCard.style.opacity = '0';
+                    
+                    setTimeout(() => {
+                        clusterCard.remove();
+                        setTimeout(() => {
+                            LoadingManager.show('Refreshing...');
+                            setTimeout(() => window.location.reload(), 500);
+                        }, 1200);
+                    }, 200);
+                } else {
+                    // Cluster detail page - redirect to portfolio
+                    setTimeout(() => {
+                        LoadingManager.show('Redirecting...');
+                        setTimeout(() => window.location.href = '/', 500);
+                    }, 1200);
+                }
+            } else {
+                throw new Error(data.message || 'Delete failed');
+            }
+        } catch (error) {
+            LoadingManager.hide();
+            LoadingManager.button(submitBtn, false);
+            
+            NotificationManager.show(
+                'Delete Failed', 
+                error.message, 
+                'error',
+                6000
+            );
+        }
+    });
+}
+
+function hideDeleteForm() {
+    DeleteFormManager.hide();
+}
+const ConfirmationModal = {
+    currentResolver: null,
+
+    show(title, message, confirmText = 'Confirm', confirmStyle = 'danger') {
+        return new Promise((resolve) => {
+            this.currentResolver = resolve;
+            
+            const modal = document.getElementById('confirmationModal');
+            const titleEl = modal.querySelector('.confirmation-title');
+            const messageEl = modal.querySelector('.confirmation-message');
+            const confirmBtn = modal.querySelector('.confirmation-confirm');
+            const iconEl = modal.querySelector('.confirmation-icon');
+            const iconWrapper = modal.querySelector('.confirmation-icon-wrapper');
+            
+            // Update content
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            confirmBtn.querySelector('.btn-text').textContent = confirmText;
+            
+            // Update styling based on type
+            confirmBtn.className = `btn ${confirmStyle} confirmation-confirm`;
+            
+            if (confirmStyle === 'danger') {
+                iconEl.className = 'confirmation-icon fas fa-exclamation-triangle';
+                iconWrapper.style.background = 'linear-gradient(135deg, #fef3c7, #fbbf24)';
+                iconEl.style.color = '#d97706';
+            } else {
+                iconEl.className = 'confirmation-icon fas fa-question-circle';
+                iconWrapper.style.background = 'linear-gradient(135deg, #dbeafe, #3b82f6)';
+                iconEl.style.color = '#2563eb';
+            }
+            
+            // Show modal
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+            
+            // Focus confirm button
+            setTimeout(() => {
+                confirmBtn.focus();
+            }, 150);
+        });
+    },
+
+    close(event = null) {
+        if (event && event.target !== document.getElementById('confirmationModal')) {
+            return;
+        }
+        
+        const modal = document.getElementById('confirmationModal');
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+        
+        // Reset button state
+        const confirmBtn = modal.querySelector('.confirmation-confirm');
+        LoadingManager.button(confirmBtn, false);
+        
+        if (this.currentResolver) {
+            this.currentResolver(false);
+            this.currentResolver = null;
+        }
+    },
+
+    confirm() {
+        if (this.currentResolver) {
+            this.currentResolver(true);
+            this.currentResolver = null;
+        }
+        
+        const modal = document.getElementById('confirmationModal');
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+};
 const NotificationManager = {
     show(title, message, type = 'info', duration = 4000) {
         const container = document.getElementById('notificationContainer');
@@ -651,7 +1491,23 @@ const ClusterManager = {
     },
 
     async analyze(clusterId) {
-        LoadingManager.show('Starting analysis...');
+        // Check if already analyzing
+        if (AppState.analyzingClusters.has(clusterId)) {
+            NotificationManager.show(
+                'Already Analyzing', 
+                'This cluster is currently being analyzed', 
+                'warning'
+            );
+            return;
+        }
+
+        // Set analyzing state
+        AnalysisStateManager.setAnalyzing(clusterId, true);
+        
+        // Show global loading with slight delay to show cluster state first
+        setTimeout(() => {
+            LoadingManager.show('Starting analysis...');
+        }, 300);
         
         try {
             const response = await fetch(`/cluster/${clusterId}/analyze`, {
@@ -664,6 +1520,8 @@ const ClusterManager = {
             
             if (data.status === 'success') {
                 LoadingManager.hide();
+                AnalysisStateManager.setAnalyzing(clusterId, false);
+                
                 NotificationManager.show(
                     'Analysis Complete!', 
                     'Redirecting to results...', 
@@ -679,6 +1537,8 @@ const ClusterManager = {
             }
         } catch (error) {
             LoadingManager.hide();
+            AnalysisStateManager.setAnalyzing(clusterId, false);
+            
             NotificationManager.show(
                 'Analysis Failed', 
                 error.message, 
@@ -689,58 +1549,43 @@ const ClusterManager = {
     },
 
     async delete(clusterId) {
-        const clusterCard = document.querySelector(`[data-cluster-id="${clusterId}"]`);
-        const clusterName = clusterCard?.querySelector('.cluster-name')?.textContent || 'cluster';
-        
-        if (!confirm(`Delete "${clusterName}"? This action cannot be undone.`)) {
-            return;
-        }
+        // Try to get cluster info from the card first (portfolio page)
+        let clusterCard = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+        let clusterName = 'cluster';
+        let resourceGroup = 'unknown';
 
-        LoadingManager.show(`Deleting ${clusterName}...`);
-
-        try {
-            const response = await fetch(`/cluster/${clusterId}/remove`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            const data = await response.json();
-            
-            if (data.status === 'success') {
-                LoadingManager.hide();
-                NotificationManager.show(
-                    'Deleted!', 
-                    `Cluster "${clusterName}" removed successfully`, 
-                    'success'
-                );
-                
-                // Animate out
-                if (clusterCard) {
-                    clusterCard.style.transform = 'scale(0.9)';
-                    clusterCard.style.opacity = '0';
-                    
-                    setTimeout(() => {
-                        clusterCard.remove();
-                        
-                        // Refresh after delay
-                        setTimeout(() => {
-                            LoadingManager.show('Refreshing...');
-                            setTimeout(() => window.location.reload(), 500);
-                        }, 1200);
-                    }, 200);
+        if (clusterCard) {
+            // We're on the portfolio page
+            clusterName = clusterCard.querySelector('.cluster-name')?.textContent || 'cluster';
+            const infoItems = clusterCard.querySelectorAll('.info-item');
+            for (let item of infoItems) {
+                if (item.querySelector('.fa-cube')) {
+                    resourceGroup = item.textContent.trim() || 'unknown';
+                    break;
                 }
-            } else {
-                throw new Error(data.message || 'Delete failed');
             }
-        } catch (error) {
-            LoadingManager.hide();
-            NotificationManager.show(
-                'Delete Failed', 
-                error.message, 
-                'error',
-                6000
-            );
+        } else {
+            // We're likely on a cluster detail page - try to get info from page
+            const titleElement = document.querySelector('h1, .cluster-title, .page-title');
+            if (titleElement) {
+                clusterName = titleElement.textContent.trim();
+            }
+            
+            // Look for resource group in page content
+            const resourceGroupElement = document.querySelector('[data-resource-group], .resource-group');
+            if (resourceGroupElement) {
+                resourceGroup = resourceGroupElement.textContent.trim();
+            } else {
+                // Fallback: try to extract from URL or other page elements
+                const urlParts = window.location.pathname.split('/');
+                if (urlParts.length > 2) {
+                    clusterName = urlParts[2] || clusterName;
+                }
+            }
         }
+
+        // Show form-based delete confirmation
+        DeleteFormManager.show(clusterId, clusterName, resourceGroup);
     },
 
     select(clusterId) {
@@ -783,8 +1628,12 @@ function selectCluster(clusterId) {
 // Event Listeners
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-        const modal = document.getElementById('modalOverlay');
-        if (modal.classList.contains('show')) {
+        const deleteForm = document.getElementById('deleteConfirmationForm');
+        const addModal = document.getElementById('modalOverlay');
+        
+        if (deleteForm && deleteForm.classList.contains('show')) {
+            DeleteFormManager.hide();
+        } else if (addModal && addModal.classList.contains('show')) {
             ModalManager.close();
         }
     }
@@ -796,6 +1645,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize managers
     ViewManager.init();
+    setupDeleteFormHandlers(); // Initialize delete form handlers
     
     // Start animations
     setTimeout(() => {

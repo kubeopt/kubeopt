@@ -806,7 +806,7 @@ class AKSDashboard {
     
     generateColors(count) {
         const baseColors = [
-            'rgba(59, 130, 246, 0.8)',   // Blue
+            'rgba(59, 246, 206, 0.8)',   // Blue
             'rgba(34, 197, 94, 0.8)',    // Green
             'rgba(168, 85, 247, 0.8)',   // Purple
             'rgba(249, 115, 22, 0.8)',   // Orange

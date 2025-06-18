@@ -895,19 +895,19 @@ class ReportGenerator:
                 <div class="summary">
                     <h2>Executive Summary</h2>
                     <div class="metric-grid">
-                        <div class="metric-card">
+                        <div class="metric-card savings-card">
                             <div class="metric-value">${data.get('summary', {}).get('total_cost', 0):,.0f}</div>
                             <div class="metric-label">Monthly Cost</div>
                         </div>
-                        <div class="metric-card">
+                        <div class="metric-card savings-card">
                             <div class="metric-value">${data.get('summary', {}).get('potential_savings', 0):,.0f}</div>
                             <div class="metric-label">Potential Savings</div>
                         </div>
-                        <div class="metric-card">
+                        <div class="metric-card savings-card">
                             <div class="metric-value">{data.get('summary', {}).get('efficiency_score', 0):.1f}%</div>
                             <div class="metric-label">Efficiency Score</div>
                         </div>
-                        <div class="metric-card">
+                        <div class="metric-card savings-card">
                             <div class="metric-value">{data.get('summary', {}).get('cluster_count', 0)}</div>
                             <div class="metric-label">Clusters Analyzed</div>
                         </div>
