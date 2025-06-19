@@ -767,75 +767,75 @@ function initializeCharts() {
 /**
  * Updates dashboard metrics with animation - FIXED
  */
-function updateDashboardMetrics(metrics) {
-    console.log('📊 Updating metrics with comprehensive element targeting:', metrics);
+// function updateDashboardMetrics(metrics) {
+//     console.log('📊 Updating metrics with comprehensive element targeting:', metrics);
     
-    // Validate metrics object
-    if (!metrics || typeof metrics !== 'object') {
-        console.error('❌ Invalid metrics object:', metrics);
-        return;
-    }
+//     // Validate metrics object
+//     if (!metrics || typeof metrics !== 'object') {
+//         console.error('❌ Invalid metrics object:', metrics);
+//         return;
+//     }
     
-    // FIXED: Calculate optimization score if not provided
-    const optimizationScore = metrics.optimization_score || calculateOptimizationScore(metrics);
+//     // FIXED: Calculate optimization score if not provided
+//     const optimizationScore = metrics.optimization_score || calculateOptimizationScore(metrics);
     
-    // FIXED: Calculate HPA efficiency if not provided
-    const hpaEfficiency = metrics.hpa_efficiency || metrics.hpa_reduction || 0;
+//     // FIXED: Calculate HPA efficiency if not provided
+//     const hpaEfficiency = metrics.hpa_efficiency || metrics.hpa_reduction || 0;
     
-    // Enhanced metric updates with multiple selectors
-    const metricUpdates = [
-        { 
-            selectors: ['#current-cost'], 
-            value: metrics.total_cost, 
-            format: 'currency',
-            label: 'Current Monthly Cost'
-        },
-        { 
-            selectors: ['#potential-savings', '#monthly-savings'], 
-            value: metrics.total_savings, 
-            format: 'currency',
-            label: 'Potential Monthly Savings'
-        },
-        { 
-            selectors: ['#hpa-efficiency'], 
-            value: hpaEfficiency, 
-            format: 'percentage',
-            label: 'HPA Efficiency'
-        },
-        { 
-            selectors: ['#optimization-score'], 
-            value: optimizationScore, 
-            format: 'number',
-            label: 'Optimization Score'
-        },
-        { 
-            selectors: ['#savings-percentage'], 
-            value: metrics.savings_percentage, 
-            format: 'percentage',
-            label: 'Savings Percentage'
-        },
-        { 
-            selectors: ['#annual-savings'], 
-            value: metrics.annual_savings, 
-            format: 'currency',
-            label: 'Annual Savings'
-        }
-    ];
+//     // Enhanced metric updates with multiple selectors
+//     const metricUpdates = [
+//         { 
+//             selectors: ['#current-cost'], 
+//             value: metrics.total_cost, 
+//             format: 'currency',
+//             label: 'Current Monthly Cost'
+//         },
+//         { 
+//             selectors: ['#potential-savings', '#monthly-savings'], 
+//             value: metrics.total_savings, 
+//             format: 'currency',
+//             label: 'Potential Monthly Savings'
+//         },
+//         { 
+//             selectors: ['#hpa-efficiency'], 
+//             value: hpaEfficiency, 
+//             format: 'percentage',
+//             label: 'HPA Efficiency'
+//         },
+//         { 
+//             selectors: ['#optimization-score'], 
+//             value: optimizationScore, 
+//             format: 'number',
+//             label: 'Optimization Score'
+//         },
+//         { 
+//             selectors: ['#savings-percentage'], 
+//             value: metrics.savings_percentage, 
+//             format: 'percentage',
+//             label: 'Savings Percentage'
+//         },
+//         { 
+//             selectors: ['#annual-savings'], 
+//             value: metrics.annual_savings, 
+//             format: 'currency',
+//             label: 'Annual Savings'
+//         }
+//     ];
     
-    // Log each update for debugging
-    metricUpdates.forEach((metric, index) => {
-        console.log(`📊 Updating metric ${index} (${metric.label}):`, metric.selectors[0], '=', metric.value);
-        animateMetricUpdate(metric, index * 100);
-    });
+//     // Log each update for debugging
+//     metricUpdates.forEach((metric, index) => {
+//         console.log(`📊 Updating metric ${index} (${metric.label}):`, metric.selectors[0], '=', metric.value);
+//         animateMetricUpdate(metric, index * 100);
+//     });
     
-    // Update specific savings elements - FIXED
-    updateSpecificSavingsElements(metrics);
+//     // Update specific savings elements - FIXED
+//     updateSpecificSavingsElements(metrics);
     
-    // Update savings breakdown mini elements - FIXED
-    updateSavingsBreakdownMini(metrics);
+//     // Update savings breakdown mini elements - FIXED
+//     updateSavingsBreakdownMini(metrics);
     
-    updateCostTrend(metrics);
-}
+//     updateCostTrend(metrics);
+// }
 
 /**
  * Update specific savings elements - FIXED
@@ -4799,7 +4799,7 @@ function handleAnalysisCompletion() {
         }
         
         // Clear all loading states
-        clearAllLoadingStates();
+        /*clearAllLoadingStates();*/
         
         // Update data source indicator
         updateDataSourceIndicator({
@@ -4876,7 +4876,7 @@ function handleAnalysisSubmitFixed(event) {
 /**
  * Fixed data source indicator with proper positioning
  */
-function updateDataSourceIndicatorFixed(metadata = {}) {
+function updateDataSourceIndicator(metadata = {}) {
     console.log('🏷️ Updating data source indicator with fixed positioning:', metadata);
     
     const isRealData = metadata.is_real_data === true || 
@@ -4932,7 +4932,7 @@ function updateDataSourceIndicatorFixed(metadata = {}) {
 /**
  * Fixed metrics update that properly replaces loading states
  */
-function updateDashboardMetricsFixed(metrics) {
+function updateDashboardMetrics(metrics) {
     console.log('📊 Updating metrics with fixed loading state replacement:', metrics);
     
     if (!metrics || typeof metrics !== 'object') {
@@ -5122,13 +5122,10 @@ function initializeAllFixes() {
     console.log('🚀 Initializing comprehensive dashboard fixes...');
     
     // Override existing functions with fixed versions
-    window.updateDataSourceIndicator = updateDataSourceIndicatorFixed;
-    window.updateDashboardMetrics = updateDashboardMetricsFixed;
-    window.clearAllLoadingStates = clearAllLoadingStatesFixed;
+    window.updateDataSourceIndicator = updateDataSourceIndicator;
+    window.updateDashboardMetrics = updateDashboardMetrics;
+    /*window.clearAllLoadingStates = clearAllLoadingStates;*/
     window.showNotification = showNotificationFixed;
-    
-    // Initialize modal fixes
-    initializeModalFixed();
     
     // Add CSS for fixed data source indicator
     addFixedDataSourceCSS();
