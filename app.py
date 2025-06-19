@@ -166,74 +166,74 @@ def validate_cost_data(cost_components):
 # BACKGROUND UPDATES
 # ============================================================================
 
-def add_auto_update_feature():
-    """Add background auto-update feature for real-time data updates"""
+# def add_auto_update_feature():
+#     """Add background auto-update feature for real-time data updates"""
     
-    def update_background_data():
-        """Background thread to update data every minute"""
-        while True:
-            try:
-                if (analysis_results and 
-                    isinstance(analysis_results, dict) and 
-                    analysis_results.get('total_cost', 0) > 0):
+#     def update_background_data():
+#         """Background thread to update data every minute"""
+#         while True:
+#             try:
+#                 if (analysis_results and 
+#                     isinstance(analysis_results, dict) and 
+#                     analysis_results.get('total_cost', 0) > 0):
                     
-                    logger.info("Performing background data update")
+#                     logger.info("Performing background data update")
                     
-                    # Add small random variations to costs (±2%)
-                    variation = 1 + random.uniform(-0.02, 0.02)
+#                     # Add small random variations to costs (±2%)
+#                     variation = 1 + random.uniform(-0.02, 0.02)
                     
-                    try:
-                        analysis_results['node_cost'] *= variation
-                        analysis_results['storage_cost'] *= variation
+#                     try:
+#                         analysis_results['node_cost'] *= variation
+#                         analysis_results['storage_cost'] *= variation
                         
-                        #total cost from components
-                        analysis_results['total_cost'] = (
-                            analysis_results['node_cost'] + 
-                            analysis_results['storage_cost'] + 
-                            analysis_results.get('networking_cost', 0) +
-                            analysis_results.get('control_plane_cost', 0) +
-                            analysis_results.get('registry_cost', 0) +
-                            analysis_results.get('other_cost', 0)
-                        )
+#                         #total cost from components
+#                         analysis_results['total_cost'] = (
+#                             analysis_results['node_cost'] + 
+#                             analysis_results['storage_cost'] + 
+#                             analysis_results.get('networking_cost', 0) +
+#                             analysis_results.get('control_plane_cost', 0) +
+#                             analysis_results.get('registry_cost', 0) +
+#                             analysis_results.get('other_cost', 0)
+#                         )
                         
-                        # Recalculate savings proportionally
-                        node_cost = analysis_results.get('node_cost', 0)
-                        storage_cost = analysis_results.get('storage_cost', 0)
-                        total_cost = analysis_results.get('total_cost', 1)
+#                         # Recalculate savings proportionally
+#                         node_cost = analysis_results.get('node_cost', 0)
+#                         storage_cost = analysis_results.get('storage_cost', 0)
+#                         total_cost = analysis_results.get('total_cost', 1)
                         
-                        hpa_ratio = analysis_results.get('hpa_savings', 0) / max(node_cost, 1) if node_cost > 0 else 0.12
-                        right_sizing_ratio = analysis_results.get('right_sizing_savings', 0) / max(node_cost, 1) if node_cost > 0 else 0.08
-                        storage_ratio = analysis_results.get('storage_savings', 0) / max(storage_cost, 1) if storage_cost > 0 else 0.05
+#                         hpa_ratio = analysis_results.get('hpa_savings', 0) / max(node_cost, 1) if node_cost > 0 else 0.12
+#                         right_sizing_ratio = analysis_results.get('right_sizing_savings', 0) / max(node_cost, 1) if node_cost > 0 else 0.08
+#                         storage_ratio = analysis_results.get('storage_savings', 0) / max(storage_cost, 1) if storage_cost > 0 else 0.05
                         
-                        analysis_results['hpa_savings'] = node_cost * hpa_ratio
-                        analysis_results['right_sizing_savings'] = node_cost * right_sizing_ratio
-                        analysis_results['storage_savings'] = storage_cost * storage_ratio
-                        analysis_results['total_savings'] = (
-                            analysis_results['hpa_savings'] + 
-                            analysis_results['right_sizing_savings'] + 
-                            analysis_results['storage_savings']
-                        )
-                        analysis_results['savings_percentage'] = (
-                            analysis_results['total_savings'] / total_cost * 100
-                        ) if total_cost > 0 else 0
-                        analysis_results['annual_savings'] = analysis_results['total_savings'] * 12
+#                         analysis_results['hpa_savings'] = node_cost * hpa_ratio
+#                         analysis_results['right_sizing_savings'] = node_cost * right_sizing_ratio
+#                         analysis_results['storage_savings'] = storage_cost * storage_ratio
+#                         analysis_results['total_savings'] = (
+#                             analysis_results['hpa_savings'] + 
+#                             analysis_results['right_sizing_savings'] + 
+#                             analysis_results['storage_savings']
+#                         )
+#                         analysis_results['savings_percentage'] = (
+#                             analysis_results['total_savings'] / total_cost * 100
+#                         ) if total_cost > 0 else 0
+#                         analysis_results['annual_savings'] = analysis_results['total_savings'] * 12
                         
-                        logger.info(f"Background update completed at {time.strftime('%H:%M:%S')}")
+#                         logger.info(f"Background update completed at {time.strftime('%H:%M:%S')}")
                         
-                    except Exception as update_error:
-                        logger.error(f"Error during background cost update: {update_error}")
+#                     except Exception as update_error:
+#                         logger.error(f"Error during background cost update: {update_error}")
                         
-            except Exception as e:
-                logger.error(f"Error in background update: {e}")
+#             except Exception as e:
+#                 logger.error(f"Error in background update: {e}")
                 
-            time.sleep(60)  # Sleep for 60 seconds
+#             time.sleep(60)  # Sleep for 60 seconds
     
-    # Start the background thread
-    bg_thread = threading.Thread(target=update_background_data, daemon=True)
-    bg_thread.start()
-    logger.info("Enhanced background auto-update thread started")
+#     # Start the background thread
+#     bg_thread = threading.Thread(target=update_background_data, daemon=True)
+#     bg_thread.start()
+#     logger.info("Enhanced background auto-update thread started")
     
-    return bg_thread
+#     return bg_thread
 
 # ============================================================================
 # COST DATA PROCESSING
@@ -935,6 +935,48 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
         }
         return {'status': 'error', 'message': error_msg}
 
+def generate_dynamic_hpa_comparison(analysis_data):
+    """Generate HPA comparison from real metrics and analysis data"""
+    if not analysis_data.get('has_real_node_data'):
+        raise ValueError("No real node data available for HPA comparison")
+    
+    nodes = analysis_data.get('real_node_data', [])
+    if not nodes:
+        raise ValueError("No node metrics found for HPA calculation")
+    
+    # Calculate current resource utilization across all nodes
+    total_cpu_usage = sum(node.get('cpu_usage_pct', 0) for node in nodes)
+    total_memory_usage = sum(node.get('memory_usage_pct', 0) for node in nodes)
+    avg_cpu = total_cpu_usage / len(nodes)
+    avg_memory = total_memory_usage / len(nodes)
+    
+    # Current replicas estimation based on node utilization
+    current_replicas = len(nodes) * 2  # Assume 2 replicas per node on average
+    
+    # CPU-based HPA scaling (target 70% CPU)
+    cpu_target = 70.0
+    cpu_scale_factor = avg_cpu / cpu_target
+    cpu_replicas = max(1, int(current_replicas * cpu_scale_factor))
+    
+    # Memory-based HPA scaling (target 60% Memory)  
+    memory_target = 60.0
+    memory_scale_factor = avg_memory / memory_target
+    memory_replicas = max(1, int(current_replicas * memory_scale_factor))
+    
+    # Generate 5 time points based on variation in node utilization
+    time_variations = [0.8, 1.2, 1.5, 1.1, 0.9]  # Load pattern multipliers
+    
+    return {
+        'timePoints': ['Low Traffic', 'Medium Traffic', 'Peak Traffic', 'Evening', 'Night'],
+        'cpuReplicas': [max(1, int(cpu_replicas * var)) for var in time_variations],
+        'memoryReplicas': [max(1, int(memory_replicas * var)) for var in time_variations],
+        'current_cpu_avg': avg_cpu,
+        'current_memory_avg': avg_memory,
+        'cpu_target': cpu_target,
+        'memory_target': memory_target
+    }
+
+
 def extract_cost_components(cost_df, days, monthly_equivalent_cost):
     """Extract cost components from DataFrame with proper validation"""
     multiplier = 30/days if days != 30 else 1
@@ -1142,178 +1184,163 @@ def generate_pod_cost_data():
         return None
 
 def generate_namespace_data():
-    """Generate namespace distribution data"""
+    """Generate namespace distribution data - ONLY from real analysis"""
     try:
-        namespace_costs = None
+        logger.info("🔍 Extracting REAL namespace data from analysis")
         
-        if analysis_results.get('namespace_costs'):
-            namespace_costs = analysis_results['namespace_costs']
-        elif analysis_results.get('pod_cost_analysis'):
-            pod_analysis = analysis_results['pod_cost_analysis']
-            namespace_costs = pod_analysis.get('namespace_costs') or pod_analysis.get('namespace_summary')
+        # Source 1: Direct namespace_costs
+        namespace_costs = analysis_results.get('namespace_costs')
+        if namespace_costs:
+            logger.info(f"✅ Found direct namespace_costs with {len(namespace_costs)} namespaces")
         
+        # Source 2: Pod cost analysis namespace costs
         if not namespace_costs:
-            return None
+            pod_analysis = analysis_results.get('pod_cost_analysis', {})
+            namespace_costs = pod_analysis.get('namespace_costs') or pod_analysis.get('namespace_summary')
+            if namespace_costs:
+                logger.info(f"✅ Found pod_cost_analysis namespace_costs with {len(namespace_costs)} namespaces")
         
+        # NO STATIC FALLBACKS - Only real data
+        if not namespace_costs:
+            raise ValueError("No real namespace costs available")
+        
+        # Convert pandas objects if needed
         if hasattr(namespace_costs, 'to_dict'):
             namespace_costs = namespace_costs.to_dict()
         
-        total_cost = sum(namespace_costs.values())
+        if not isinstance(namespace_costs, dict):
+            raise ValueError(f"Invalid namespace_costs type: {type(namespace_costs)}")
+        
+        total_cost = sum(float(cost) for cost in namespace_costs.values() if cost)
         if total_cost == 0:
-            return None
+            raise ValueError("Total namespace costs is zero")
+        
+        # Process REAL namespace data
+        valid_namespaces = {}
+        for namespace, cost in namespace_costs.items():
+            try:
+                cost_float = float(cost)
+                if cost_float > 0:
+                    valid_namespaces[namespace] = cost_float
+            except (ValueError, TypeError):
+                logger.warning(f"⚠️ Invalid cost for namespace {namespace}: {cost}")
+        
+        if not valid_namespaces:
+            raise ValueError("No valid namespace costs after processing")
+        
+        total_valid_cost = sum(valid_namespaces.values())
         
         result = {
-            'namespaces': list(namespace_costs.keys()),
-            'costs': [float(cost) for cost in namespace_costs.values()],
-            'percentages': [float(cost/total_cost*100) for cost in namespace_costs.values()],
-            'total_cost': float(total_cost)
+            'namespaces': list(valid_namespaces.keys()),
+            'costs': list(valid_namespaces.values()),
+            'percentages': [float(cost/total_valid_cost*100) for cost in valid_namespaces.values()],
+            'total_cost': float(total_valid_cost),
+            'data_source': 'real_namespace_analysis',
+            'total_namespaces': len(valid_namespaces)
         }
+        
+        logger.info(f"✅ Generated REAL namespace data:")
+        logger.info(f"   - Total namespaces: {len(valid_namespaces)}")
+        logger.info(f"   - Top namespace: {result['namespaces'][0]} = ${result['costs'][0]:.2f}")
+        logger.info(f"   - Total cost: ${total_valid_cost:.2f}")
         
         return result
         
     except Exception as e:
-        logger.error(f"Error generating namespace data: {e}")
-        return None
+        logger.error(f"❌ Cannot generate namespace data from real sources: {e}")
+        raise ValueError(f"No real namespace data available: {e}")
 
 # workload data function
 
 def generate_workload_data():
-    """Generate workload cost data with realistic distribution"""
+    """Generate workload cost data - ONLY from real pod analysis data"""
     try:
+        logger.info("🔍 Extracting REAL workload data from analysis")
+        
+        # Source 1: Direct workload_costs from analysis_results
         workload_costs = analysis_results.get('workload_costs')
+        if workload_costs:
+            logger.info(f"✅ Found workload_costs with {len(workload_costs)} workloads")
+        
+        # Source 2: Pod cost analysis workload costs
         if not workload_costs:
             pod_analysis = analysis_results.get('pod_cost_analysis', {})
-            workload_costs = pod_analysis.get('workload_costs', {})
+            workload_costs = pod_analysis.get('workload_costs')
+            if workload_costs:
+                logger.info(f"✅ Found pod_cost_analysis workload_costs with {len(workload_costs)} workloads")
         
-        # Enhanced fallback: Generate from namespace costs if no workload data
+        # Source 3: Check if we have the right structure
         if not workload_costs and analysis_results.get('has_pod_costs'):
-            logger.info("🔧 Generating REALISTIC workload data from namespace costs")
-            namespace_costs = None
-            
-            # Try multiple sources for namespace costs
-            if analysis_results.get('namespace_costs'):
-                namespace_costs = analysis_results['namespace_costs']
-            elif analysis_results.get('pod_cost_analysis', {}).get('namespace_costs'):
-                namespace_costs = analysis_results['pod_cost_analysis']['namespace_costs']
-            elif analysis_results.get('pod_cost_analysis', {}).get('namespace_summary'):
-                namespace_costs = analysis_results['pod_cost_analysis']['namespace_summary']
-            
-            if namespace_costs:
-                workload_costs = {}
-                
-                # Convert pandas objects if needed
-                if hasattr(namespace_costs, 'to_dict'):
-                    namespace_costs = namespace_costs.to_dict()
-                
-                # Generate workloads with REALISTIC cost patterns
-                sorted_namespaces = sorted(namespace_costs.items(), key=lambda x: float(x[1]), reverse=True)[:6]
-                
-                for ns_index, (ns_name, ns_cost) in enumerate(sorted_namespaces):
-                    ns_cost = float(ns_cost)
-                    
-                    # Realistic workload patterns per namespace
-                    if ns_cost > 50:  # High-cost namespace
-                        workload_patterns = [
-                            {'name': 'api-gateway', 'ratio': 0.4, 'type': 'Deployment', 'replicas': 5},
-                            {'name': 'worker-service', 'ratio': 0.3, 'type': 'Deployment', 'replicas': 3},
-                            {'name': 'background-jobs', 'ratio': 0.2, 'type': 'StatefulSet', 'replicas': 2},
-                            {'name': 'cache-redis', 'ratio': 0.1, 'type': 'StatefulSet', 'replicas': 1}
-                        ]
-                    elif ns_cost > 20:  # Medium-cost namespace
-                        workload_patterns = [
-                            {'name': 'main-app', 'ratio': 0.6, 'type': 'Deployment', 'replicas': 3},
-                            {'name': 'database', 'ratio': 0.25, 'type': 'StatefulSet', 'replicas': 1},
-                            {'name': 'monitoring', 'ratio': 0.15, 'type': 'DaemonSet', 'replicas': 2}
-                        ]
-                    else:  # Low-cost namespace
-                        workload_patterns = [
-                            {'name': 'service', 'ratio': 0.7, 'type': 'Deployment', 'replicas': 2},
-                            {'name': 'sidecar', 'ratio': 0.3, 'type': 'DaemonSet', 'replicas': 1}
-                        ]
-                    
-                    # Create workloads with realistic cost distribution
-                    for pattern in workload_patterns:
-                        workload_name = f"{ns_name}/{pattern['name']}"
-                        workload_cost = ns_cost * pattern['ratio']
-                        
-                        # Add some realistic variation (±20%)
-                        variation = 1 + (hash(workload_name) % 41 - 20) / 100  # Deterministic variation
-                        workload_cost *= variation
-                        
-                        workload_costs[workload_name] = {
-                            'cost': max(0.5, workload_cost),  # Minimum $0.50
-                            'type': pattern['type'],
-                            'namespace': ns_name,
-                            'replicas': pattern['replicas']
-                        }
+            logger.error("❌ has_pod_costs=True but workload_costs not found!")
+            logger.error(f"❌ Available keys in analysis_results: {list(analysis_results.keys())}")
+            logger.error(f"❌ pod_cost_analysis keys: {list(analysis_results.get('pod_cost_analysis', {}).keys())}")
         
-        # Final fallback: Create realistic sample data
+        # REMOVE ALL STATIC FALLBACKS - Only use real data
         if not workload_costs:
-            logger.info("🔧 Creating REALISTIC workload sample data")
-            node_cost = analysis_results.get('node_cost', 200)
-            
-            # Realistic workload cost patterns (Pareto distribution)
-            realistic_workloads = [
-                {'name': 'platform-api/api-gateway', 'ratio': 0.25, 'type': 'Deployment', 'replicas': 5},
-                {'name': 'platform-api/auth-service', 'ratio': 0.15, 'type': 'Deployment', 'replicas': 3},
-                {'name': 'data-platform/kafka-cluster', 'ratio': 0.12, 'type': 'StatefulSet', 'replicas': 3},
-                {'name': 'monitoring/prometheus', 'ratio': 0.10, 'type': 'StatefulSet', 'replicas': 2},
-                {'name': 'platform-api/worker-service', 'ratio': 0.08, 'type': 'Deployment', 'replicas': 4},
-                {'name': 'kube-system/coredns', 'ratio': 0.06, 'type': 'Deployment', 'replicas': 2},
-                {'name': 'data-platform/elasticsearch', 'ratio': 0.05, 'type': 'StatefulSet', 'replicas': 1},
-                {'name': 'logging/fluentd', 'ratio': 0.04, 'type': 'DaemonSet', 'replicas': 3},
-                {'name': 'default/nginx-ingress', 'ratio': 0.04, 'type': 'Deployment', 'replicas': 2},
-                {'name': 'monitoring/grafana', 'ratio': 0.03, 'type': 'Deployment', 'replicas': 1},
-                {'name': 'security/vault', 'ratio': 0.03, 'type': 'StatefulSet', 'replicas': 1},
-                {'name': 'default/redis-cache', 'ratio': 0.025, 'type': 'StatefulSet', 'replicas': 1},
-                {'name': 'kube-system/metrics-server', 'ratio': 0.02, 'type': 'Deployment', 'replicas': 1},
-                {'name': 'logging/logstash', 'ratio': 0.015, 'type': 'Deployment', 'replicas': 2}
-            ]
-            
-            workload_costs = {}
-            for workload in realistic_workloads:
-                workload_cost = node_cost * workload['ratio']
+            raise ValueError("No real workload costs available - cannot generate fake data")
+        
+        # Process REAL workload data
+        if not isinstance(workload_costs, dict):
+            raise ValueError(f"Invalid workload_costs type: {type(workload_costs)}")
+        
+        if len(workload_costs) == 0:
+            raise ValueError("Workload costs dictionary is empty")
+        
+        # Sort by cost (from real data only)
+        sorted_workloads = []
+        
+        for workload_name, workload_data in workload_costs.items():
+            try:
+                if isinstance(workload_data, dict):
+                    cost = float(workload_data.get('cost', 0))
+                    workload_type = str(workload_data.get('type', 'Unknown'))
+                    namespace = str(workload_data.get('namespace', 'unknown'))
+                    replicas = int(workload_data.get('replicas', 1))
+                else:
+                    # If workload_data is just a cost value
+                    cost = float(workload_data) if workload_data else 0
+                    workload_type = 'Unknown'
+                    namespace = workload_name.split('/')[0] if '/' in workload_name else 'unknown'
+                    replicas = 1
                 
-                workload_costs[workload['name']] = {
-                    'cost': workload_cost,
-                    'type': workload['type'],
-                    'namespace': workload['name'].split('/')[0],
-                    'replicas': workload['replicas']
-                }
-        
-        if not workload_costs:
-            logger.warning("❌ No workload costs could be generated")
-            return None
-        
-        # Sort by cost (realistic distribution)
-        sorted_workloads = sorted(
-            workload_costs.items(), 
-            key=lambda x: x[1].get('cost', 0) if isinstance(x[1], dict) else float(x[1]) if x[1] else 0, 
-            reverse=True
-        )[:15]
+                if cost > 0:  # Only include workloads with valid costs
+                    sorted_workloads.append((workload_name, cost, workload_type, namespace, replicas))
+                    
+            except Exception as workload_error:
+                logger.warning(f"⚠️ Error processing workload {workload_name}: {workload_error}")
         
         if not sorted_workloads:
-            return None
+            raise ValueError("No valid workload data after processing")
+        
+        # Sort by cost descending and take top 20
+        sorted_workloads.sort(key=lambda x: x[1], reverse=True)
+        top_workloads = sorted_workloads[:20]
         
         result = {
-            'workloads': [w[0] for w in sorted_workloads],
-            'costs': [float(w[1].get('cost', 0) if isinstance(w[1], dict) else w[1] if w[1] else 0) for w in sorted_workloads],
-            'types': [str(w[1].get('type', 'Deployment') if isinstance(w[1], dict) else 'Deployment') for w in sorted_workloads],
-            'namespaces': [str(w[1].get('namespace', 'default') if isinstance(w[1], dict) else 'default') for w in sorted_workloads],
-            'replicas': [int(w[1].get('replicas', 1) if isinstance(w[1], dict) else 1) for w in sorted_workloads]
+            'workloads': [w[0] for w in top_workloads],
+            'costs': [w[1] for w in top_workloads],
+            'types': [w[2] for w in top_workloads],
+            'namespaces': [w[3] for w in top_workloads],
+            'replicas': [w[4] for w in top_workloads],
+            'data_source': 'real_workload_analysis',
+            'total_workloads_available': len(sorted_workloads)
         }
         
-        # Log realistic distribution
-        logger.info(f"✅ Generated REALISTIC workload data:")
+        logger.info(f"✅ Generated workload data from REAL analysis:")
+        logger.info(f"   - Total workloads processed: {len(sorted_workloads)}")
+        logger.info(f"   - Top workloads shown: {len(top_workloads)}")
         logger.info(f"   - Top workload: {result['workloads'][0]} = ${result['costs'][0]:.2f}")
-        logger.info(f"   - Total workloads: {len(result['workloads'])}")
         logger.info(f"   - Cost range: ${min(result['costs']):.2f} - ${max(result['costs']):.2f}")
         
         return result
         
     except Exception as e:
-        logger.error(f"❌ Error generating realistic workload data: {e}")
-        return None
+        logger.error(f"❌ Cannot generate workload data from real sources: {e}")
+        logger.error(f"❌ Analysis results structure: {type(analysis_results)}")
+        logger.error(f"❌ Has pod costs: {analysis_results.get('has_pod_costs', 'NOT_FOUND')}")
+        
+        # DO NOT CREATE FAKE DATA - throw the exception
+        raise ValueError(f"No real workload data available: {e}")
 
 def chart_data_consistent():
     """ Main chart data API for consistent analysis with database fallback"""
@@ -1376,7 +1403,7 @@ def chart_data_consistent():
                     'analysis_keys': list(current_analysis.keys()),
                     'data_source': data_source
                 }
-            }), 200
+            }), 200     
 
         monthly_cost = current_analysis.get('total_cost', 0)
         monthly_savings = current_analysis.get('total_savings', 0)
@@ -1460,12 +1487,10 @@ def chart_data_consistent():
                 ]
             },
             
+
+
             # HPA comparison
-            'hpaComparison': {
-                'timePoints': ['Morning', 'Midday', 'Afternoon', 'Evening', 'Night'],
-                'cpuReplicas': [6, 10, 14, 10, 6],
-                'memoryReplicas': [4, 7, 10, 7, 4]
-            },
+            'hpaComparison': generate_dynamic_hpa_comparison(current_analysis),
             
             #  Enhanced node utilization with proper data structure
             'nodeUtilization': generate_node_utilization_data(current_analysis),
@@ -1481,25 +1506,7 @@ def chart_data_consistent():
             },
             
             # Always include trend data
-            'trendData': {
-                'labels': ['Current', 'Week 1', 'Week 2', 'Week 3', 'Month 1'],
-                'datasets': [
-                    {
-                        'name': 'Current Monthly Cost',
-                        'data': [monthly_cost] * 5
-                    },
-                    {
-                        'name': 'Optimized Monthly Cost',
-                        'data': [
-                            monthly_cost,
-                            monthly_cost * 0.95,
-                            monthly_cost * 0.85,
-                            monthly_cost * 0.75,
-                            max(0, monthly_cost - monthly_savings)
-                        ]
-                    }
-                ]
-            },
+            'trendData': generate_dynamic_trend_data(cluster_id, current_analysis),
             
             # Insights
             'insights': generate_insights(current_analysis),
@@ -1552,6 +1559,56 @@ def chart_data_consistent():
                 'error_details': str(e)
             }
         }), 500
+
+def generate_dynamic_trend_data(cluster_id, current_analysis):
+    """Generate trend data from actual historical analysis"""
+    try:
+        # Get historical analysis data from database
+        history = enhanced_cluster_manager.get_analysis_history(cluster_id, limit=12)
+        
+        if len(history) < 2:
+            raise ValueError(f"Insufficient historical data for trends (found {len(history)} analyses)")
+        
+        # Sort by timestamp
+        history.sort(key=lambda x: x.get('analyzed_at', ''))
+        
+        # Extract costs and dates
+        dates = []
+        costs = []
+        savings = []
+        
+        for analysis in history[-5:]:  # Last 5 analyses
+            if analysis.get('total_cost'):
+                dates.append(analysis.get('analyzed_at', '').split('T')[0])  # Date only
+                costs.append(float(analysis.get('total_cost', 0)))
+                savings.append(float(analysis.get('total_savings', 0)))
+        
+        if len(costs) < 2:
+            raise ValueError("Not enough cost data points for trend analysis")
+        
+        # Calculate optimized costs (current cost - potential savings)
+        optimized_costs = [cost - saving for cost, saving in zip(costs, savings)]
+        
+        return {
+            'labels': dates,
+            'datasets': [
+                {
+                    'name': 'Actual Monthly Cost',
+                    'data': costs
+                },
+                {
+                    'name': 'Potential Optimized Cost',
+                    'data': optimized_costs
+                }
+            ],
+            'data_source': 'historical_analysis',
+            'data_points': len(costs)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to generate trend data: {e}")
+        raise ValueError(f"Cannot generate trend data: {e}")
+
 
 def generate_node_utilization_data(analysis_data):
     """ Generate node utilization data with enhanced real data detection"""
@@ -1669,40 +1726,40 @@ def generate_node_utilization_data(analysis_data):
 # CONFIGURATION AND STARTUP ENHANCEMENTS
 # ============================================================================
 
-def load_cluster_configurations():
-    """Load cluster configurations from file on startup"""
-    try:
-        if os.path.exists('clusters.json'):
-            with open('clusters.json', 'r') as f:
-                clusters_data = json.load(f)
-                for cluster_data in clusters_data:
-                    cluster_manager.add_cluster(cluster_data)
-            logger.info(f"Loaded {len(clusters_data)} cluster configurations")
-    except Exception as e:
-        logger.warning(f"Could not load cluster configurations: {e}")
+# def load_cluster_configurations():
+#     """Load cluster configurations from file on startup"""
+#     try:
+#         if os.path.exists('clusters.json'):
+#             with open('clusters.json', 'r') as f:
+#                 clusters_data = json.load(f)
+#                 for cluster_data in clusters_data:
+#                     cluster_manager.add_cluster(cluster_data)
+#             logger.info(f"Loaded {len(clusters_data)} cluster configurations")
+#     except Exception as e:
+#         logger.warning(f"Could not load cluster configurations: {e}")
 
-def save_cluster_configurations():
-    """Save cluster configurations to file"""
-    try:
-        clusters_data = list(cluster_manager.clusters.values())
-        with open('clusters.json', 'w') as f:
-            json.dump(clusters_data, f, indent=2)
-        logger.info(f"Saved {len(clusters_data)} cluster configurations")
-    except Exception as e:
-        logger.warning(f"Could not save cluster configurations: {e}")
+# def save_cluster_configurations():
+#     """Save cluster configurations to file"""
+#     try:
+#         clusters_data = list(cluster_manager.clusters.values())
+#         with open('clusters.json', 'w') as f:
+#             json.dump(clusters_data, f, indent=2)
+#         logger.info(f"Saved {len(clusters_data)} cluster configurations")
+#     except Exception as e:
+#         logger.warning(f"Could not save cluster configurations: {e}")
 
 # Add to application startup
 # Replace the deprecated decorator with this approach
 first_request_done = False
 
-@app.before_request
-def initialize_multi_cluster():
-    """Initialize multi-cluster functionality"""
-    global first_request_done
-    if not first_request_done:
-        load_cluster_configurations()
-        logger.info("Multi-cluster functionality initialized")
-        first_request_done = True
+# @app.before_request
+# def initialize_multi_cluster():
+#     """Initialize multi-cluster functionality"""
+#     global first_request_done
+#     if not first_request_done:
+#         load_cluster_configurations()
+#         logger.info("Multi-cluster functionality initialized")
+#         first_request_done = True
 
 
 # ============================
@@ -1965,9 +2022,9 @@ def get_clusters_overview():
             'message': str(e)
         }), 500
 
-# Add graceful shutdown handler
-import atexit
-atexit.register(save_cluster_configurations)
+# # Add graceful shutdown handler
+# import atexit
+# atexit.register(save_cluster_configurations)
 
 # ============================================================================
 # FLASK ROUTES
@@ -2343,6 +2400,9 @@ def enhanced_analyze():
             monthly_savings = analysis_results.get('total_savings', 0)
             analysis_results['node_metrics'] = analysis_results.get('nodes', [])
             confidence = analysis_results.get('analysis_confidence', 0)
+
+            # Check alerts after successful analysis
+            check_alerts_after_analysis(cluster_id, analysis_results)
             
             success_msg = (
                 f'🎯 Analysis Complete! '
@@ -2547,6 +2607,447 @@ def time_ago(timestamp_str):
     except:
         return 'Unknown'
 
+# ======================================================
+# Alerts
+#=======================
+
+# Add this to your app.py file - FIXED VERSION
+# Replace the existing alerts initialization and routes section
+
+# ======================================================
+# ALERTS SYSTEM - FIXED INTEGRATION
+# ======================================================
+
+try:
+    from alerts_manager import (
+        EnhancedAlertsManager, 
+        init_enhanced_alerts_service, 
+        shutdown_enhanced_alerts_service
+    )
+    ALERTS_AVAILABLE = True
+    logger.info("✅ Alerts manager imported successfully")
+except ImportError as e:
+    logger.warning(f"⚠️ Alerts manager not available: {e}")
+    ALERTS_AVAILABLE = False
+
+# Global alerts manager
+alerts_manager = None
+
+
+
+
+def initialize_alerts_system():
+    """Initialize alerts system with proper error handling"""
+    global alerts_manager
+    
+    if not ALERTS_AVAILABLE:
+        logger.warning("⚠️ Alerts system not available - skipping initialization")
+        return None
+    
+    try:
+        # Initialize alerts service with cluster manager
+        alerts_manager = init_enhanced_alerts_service(enhanced_cluster_manager)
+        logger.info("✅ Alerts system initialized successfully")
+        
+        # Register shutdown handler
+        import atexit
+        atexit.register(shutdown_enhanced_alerts_service)
+        
+        return alerts_manager
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize alerts system: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        return None
+
+# Initialize alerts system after cluster manager is ready
+alerts_manager = initialize_alerts_system()
+
+# ======================================================
+# ALERTS API ROUTES
+# ======================================================
+
+#
+
+# Replace ALL the alerts routes in your app.py with these COMPLETELY FIXED versions:
+
+@app.route('/api/alerts', methods=['GET', 'POST'])
+def alerts_api():
+    """Enhanced alerts API endpoint - COMPLETELY FIXED"""
+    try:
+        if not alerts_manager:
+            return jsonify({
+                'status': 'error',
+                'message': 'Alerts system not available'
+            }), 503
+            
+        if request.method == 'GET':
+            # Get all alerts with enhanced filtering
+            cluster_id = request.args.get('cluster_id')
+            status = request.args.get('status', 'active')
+            
+            logger.info(f"🔍 GET /api/alerts - cluster_id: {cluster_id}, status: {status}")
+            
+            try:
+                # Call the alerts manager method
+                alerts_data = alerts_manager.get_alerts_route(cluster_id)
+                
+                if alerts_data['status'] == 'success':
+                    alerts = alerts_data['alerts']
+                    
+                    # Additional status filtering if needed
+                    if status and status != 'all' and status != 'active':
+                        alerts = [a for a in alerts if a.get('status') == status]
+                    
+                    logger.info(f"✅ Returning {len(alerts)} alerts")
+                    
+                    return jsonify({
+                        'status': 'success',
+                        'alerts': alerts,
+                        'total': len(alerts),
+                        'cluster_id': cluster_id
+                    })
+                else:
+                    logger.error(f"❌ Alerts manager returned error: {alerts_data}")
+                    return jsonify(alerts_data), 500
+                    
+            except Exception as manager_error:
+                logger.error(f"❌ Error calling alerts manager: {manager_error}")
+                logger.error(f"❌ Manager error traceback: {traceback.format_exc()}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Alerts manager error: {str(manager_error)}'
+                }), 500
+                
+        elif request.method == 'POST':
+            # Create new alert
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No data provided'
+                }), 400
+            
+            logger.info(f"🔍 POST /api/alerts - data: {data}")
+            
+            # Enhanced validation
+            if not data.get('email'):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Email address is required'
+                }), 400
+            
+            if not data.get('threshold_amount') and not data.get('threshold_percentage'):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Either threshold amount or percentage is required'
+                }), 400
+            
+            # Auto-populate cluster info if cluster_id provided
+            cluster_id = data.get('cluster_id')
+            if cluster_id:
+                cluster = enhanced_cluster_manager.get_cluster(cluster_id)
+                if cluster:
+                    data['cluster_name'] = cluster['name']
+                    data['resource_group'] = cluster['resource_group']
+                    data['name'] = data.get('name', f"Budget Alert - {cluster['name']}")
+            
+            # Set default name if not provided
+            if not data.get('name'):
+                data['name'] = f"Cost Alert - {data.get('cluster_name', 'Unknown')}"
+            
+            try:
+                result = alerts_manager.create_alert_route(data)
+                
+                if result['status'] == 'success':
+                    logger.info(f"✅ Created alert: {result['alert_id']}")
+                    return jsonify(result)
+                else:
+                    logger.error(f"❌ Failed to create alert: {result}")
+                    return jsonify(result), 400
+                    
+            except Exception as create_error:
+                logger.error(f"❌ Error creating alert: {create_error}")
+                logger.error(f"❌ Create error traceback: {traceback.format_exc()}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to create alert: {str(create_error)}'
+                }), 500
+                
+    except Exception as e:
+        logger.error(f"❌ Error in alerts API: {e}")
+        logger.error(f"❌ API error traceback: {traceback.format_exc()}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Internal server error: {str(e)}'
+        }), 500
+
+@app.route('/api/alerts/<int:alert_id>', methods=['GET', 'PUT', 'DELETE'])
+def alert_detail_api(alert_id: int):
+    """Individual alert management - FIXED"""
+    try:
+        if not alerts_manager:
+            return jsonify({
+                'status': 'error',
+                'message': 'Alerts system not available'
+            }), 503
+            
+        if request.method == 'GET':
+            try:
+                alerts_data = alerts_manager.get_alerts_route()
+                if alerts_data['status'] == 'success':
+                    alert = next((a for a in alerts_data['alerts'] if a['id'] == alert_id), None)
+                    if alert:
+                        return jsonify({
+                            'status': 'success',
+                            'alert': alert
+                        })
+                    else:
+                        return jsonify({
+                            'status': 'error',
+                            'message': 'Alert not found'
+                        }), 404
+                else:
+                    return jsonify(alerts_data), 500
+            except Exception as get_error:
+                logger.error(f"❌ Error getting alert {alert_id}: {get_error}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to get alert: {str(get_error)}'
+                }), 500
+        
+        elif request.method == 'PUT':
+            try:
+                data = request.get_json() or {}
+                result = alerts_manager.update_alert_route(alert_id, data)
+                
+                if result['status'] == 'success':
+                    return jsonify(result)
+                else:
+                    return jsonify(result), 400
+            except Exception as update_error:
+                logger.error(f"❌ Error updating alert {alert_id}: {update_error}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to update alert: {str(update_error)}'
+                }), 500
+        
+        elif request.method == 'DELETE':
+            try:
+                result = alerts_manager.delete_alert_route(alert_id)
+                return jsonify(result)
+            except Exception as delete_error:
+                logger.error(f"❌ Error deleting alert {alert_id}: {delete_error}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to delete alert: {str(delete_error)}'
+                }), 500
+            
+    except Exception as e:
+        logger.error(f"❌ Error in alert detail API: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/alerts/<int:alert_id>/test', methods=['POST'])
+def test_alert_api(alert_id: int):
+    """Test alert notification - FIXED"""
+    try:
+        if not alerts_manager:
+            return jsonify({
+                'status': 'error',
+                'message': 'Alerts system not available'
+            }), 503
+            
+        result = alerts_manager.test_alert_route(alert_id)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"❌ Error testing alert: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/alerts/<int:alert_id>/pause', methods=['POST'])
+def pause_alert_api(alert_id: int):
+    """Pause/unpause alert - FIXED"""
+    try:
+        if not alerts_manager:
+            return jsonify({
+                'status': 'error',
+                'message': 'Alerts system not available'
+            }), 503
+            
+        data = request.get_json() or {}
+        action = data.get('action', 'pause')  # pause or resume
+        status = 'paused' if action == 'pause' else 'active'
+        
+        result = alerts_manager.update_alert_route(alert_id, {'status': status})
+        
+        if result['status'] == 'success':
+            return jsonify({
+                'status': 'success',
+                'message': f'Alert {action}d successfully'
+            })
+        else:
+            return jsonify(result), 400
+            
+    except Exception as e:
+        logger.error(f"❌ Error pausing/resuming alert: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/alerts/triggers', methods=['GET'])
+def alert_triggers_api():
+    """Get alert trigger history - FIXED"""
+    try:
+        if not alerts_manager:
+            return jsonify({
+                'status': 'error',
+                'message': 'Alerts system not available'
+            }), 503
+            
+        # Return empty triggers for now (can be implemented later)
+        return jsonify({
+            'status': 'success',
+            'triggers': []
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting alert triggers: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/alerts/email-config', methods=['GET', 'POST'])
+def email_config_api():
+    """Email configuration management - FIXED"""
+    try:
+        if request.method == 'GET':
+            # Check if email is configured
+            email_configured = bool(
+                os.getenv('SMTP_USERNAME') and 
+                os.getenv('SMTP_PASSWORD')
+            )
+            
+            return jsonify({
+                'status': 'success',
+                'email_configured': email_configured,
+                'smtp_server': os.getenv('SMTP_SERVER', 'smtp.gmail.com'),
+                'smtp_port': os.getenv('SMTP_PORT', '587'),
+                'from_email': os.getenv('FROM_EMAIL', '')
+            })
+        
+        elif request.method == 'POST':
+            return jsonify({
+                'status': 'info',
+                'message': 'Email configuration should be set via environment variables'
+            })
+            
+    except Exception as e:
+        logger.error(f"❌ Error in email config API: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/alerts/system-status', methods=['GET'])
+def alerts_system_status():
+    """Get alerts system status for debugging - FIXED"""
+    try:
+        return jsonify({
+            'status': 'success',
+            'alerts_available': ALERTS_AVAILABLE if 'ALERTS_AVAILABLE' in globals() else (alerts_manager is not None),
+            'alerts_manager_initialized': alerts_manager is not None,
+            'alerts_manager_type': type(alerts_manager).__name__ if alerts_manager else None,
+            'email_configured': bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')),
+            'smtp_server': os.getenv('SMTP_SERVER', 'Not configured'),
+            'cluster_manager_available': enhanced_cluster_manager is not None,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"❌ Error in alerts system status: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+# ======================================================
+# ALERTS INTEGRATION WITH ANALYSIS
+# ======================================================
+
+def check_alerts_after_analysis(cluster_id: str, analysis_results: dict):
+    """Check and trigger alerts after analysis completion"""
+    try:
+        if not alerts_manager:
+            logger.debug("⚠️ Alerts manager not available - skipping alert check")
+            return
+        
+        cluster = enhanced_cluster_manager.get_cluster(cluster_id)
+        if not cluster:
+            return
+        
+        # Get current cost from analysis
+        current_cost = analysis_results.get('total_cost', 0)
+        
+        if current_cost <= 0:
+            logger.debug(f"No cost data to check alerts for cluster {cluster_id}")
+            return
+        
+        logger.info(f"🔍 Checking alerts for cluster {cluster_id} with cost ${current_cost:.2f}")
+        
+        # Get alerts for this specific cluster
+        try:
+            alerts_data = alerts_manager.get_alerts_route()
+            if alerts_data['status'] != 'success':
+                logger.warning("Failed to get alerts for checking")
+                return
+            
+            cluster_alerts = [a for a in alerts_data['alerts'] if 
+                            a.get('cluster_name') == cluster['name'] and 
+                            a.get('resource_group') == cluster['resource_group'] and
+                            a.get('status') == 'active']
+            
+            alerts_triggered = 0
+            
+            for alert in cluster_alerts:
+                try:
+                    # Simple threshold check
+                    threshold = alert.get('threshold_amount', 0)
+                    
+                    if threshold > 0 and current_cost >= threshold:
+                        logger.info(f"🚨 Alert would trigger for cluster {cluster_id}: ${current_cost:.2f} >= ${threshold:.2f}")
+                        alerts_triggered += 1
+                        
+                        # For now, just log it - full alert sending would be implemented here
+                        
+                except Exception as alert_error:
+                    logger.error(f"❌ Error checking alert {alert.get('id')}: {alert_error}")
+            
+            if alerts_triggered > 0:
+                logger.info(f"📧 Would trigger {alerts_triggered} alerts for cluster {cluster_id}")
+            else:
+                logger.debug(f"✅ No alerts triggered for cluster {cluster_id}")
+            
+        except Exception as alerts_error:
+            logger.error(f"❌ Error getting alerts for checking: {alerts_error}")
+        
+    except Exception as e:
+        logger.error(f"❌ Error checking alerts after analysis: {e}")
+
+
+
+# ===ALERTS=============
+# End
+# =========Alerts=======
+
 # ============================================================================
 # APPLICATION STARTUP
 # ============================================================================
@@ -2557,7 +3058,7 @@ if __name__ == "__main__":
         initialize_database()
         
         # Start background data updates
-        bg_thread = add_auto_update_feature()
+        #bg_thread = add_auto_update_feature()
         
         # Run the application
         logger.info("🚀 Starting Enhanced AKS Cost Optimization")

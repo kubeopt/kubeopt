@@ -163,7 +163,7 @@
                             <i class="fas fa-dollar-sign"></i>
                         </div>
                         <div class="metric-info">
-                            <span class="metric-value">${{ "%.0f"|format(cluster.last_cost or 1250) }}</span>
+                            <span class="metric-value">${{ "%.0f"|format(cluster.last_cost or 0) }}</span>
                             <span class="metric-label">Cost</span>
                         </div>
                     </div>
@@ -173,7 +173,7 @@
                             <i class="fas fa-piggy-bank"></i>
                         </div>
                         <div class="metric-info">
-                            <span class="metric-value">${{ "%.0f"|format(cluster.last_savings or 380) }}</span>
+                            <span class="metric-value">${{ "%.0f"|format(cluster.last_savings or 0) }}</span>
                             <span class="metric-label">Savings</span>
                         </div>
                     </div>
@@ -185,9 +185,9 @@
                         <div class="metric-info">
                             <span class="metric-value">
                                 {% if cluster.last_cost and cluster.last_cost > 0 %}
-                                {{ "%.0f"|format((cluster.last_savings or 380) / (cluster.last_cost or 1250) * 100) }}%
+                                {{ "%.0f"|format((cluster.last_savings or 0) / (cluster.last_cost or 0) * 100) }}%
                                 {% else %}
-                                30%
+                                0%
                                 {% endif %}
                             </span>
                             <span class="metric-label">Potential</span>
