@@ -773,12 +773,19 @@ class PodCostAnalyzer:
             return None
 
     def _analyze_by_pod_count_robust(self, total_cost: float) -> Optional[Dict]:
-        """
-        Analyze costs based on pod count per namespace (BASIC ACCURACY)
-        
-        Simple text-based counting with namespace weighting
-        """
+        """Analyze costs based on pod count per namespace - INCLUDE ALL NAMESPACES"""
         try:
+            # First get ALL namespaces
+            all_namespaces_cmd = "kubectl get namespaces -o json"
+            all_ns_data = self._safe_kubectl_yaml_command(all_namespaces_cmd)
+            
+            all_namespaces = set()
+            if all_ns_data and 'items' in all_ns_data:
+                all_namespaces = {item['metadata']['name'] for item in all_ns_data['items']}
+            
+            logger.info(f"🔍 Found {len(all_namespaces)} total namespaces: {sorted(all_namespaces)}")
+            
+            # Get pods per namespace
             output = self._safe_kubectl_command("kubectl get pods --all-namespaces --no-headers")
             
             if not output:
@@ -788,6 +795,7 @@ class PodCostAnalyzer:
             namespace_data = {}
             total_pods = 0
             
+            # Count pods per namespace
             for line in output.split('\n'):
                 if line.strip():
                     parts = line.split()
@@ -807,27 +815,44 @@ class PodCostAnalyzer:
                         namespace_data[namespace]['pods'] += 1
                         total_pods += 1
 
-            if total_pods == 0:
+            logger.info(f"📊 Namespaces with pods: {len(namespace_data)}")
+            
+            # ADD MISSING NAMESPACES (with zero pods)
+            for namespace in all_namespaces:
+                if namespace not in namespace_data:
+                    namespace_data[namespace] = {
+                        'pods': 0,  # Zero pods
+                        'weight': self._get_namespace_weight(namespace)
+                    }
+                    logger.info(f"➕ Added empty namespace: {namespace}")
+
+            logger.info(f"📊 TOTAL namespaces after adding empty ones: {len(namespace_data)}")
+
+            if len(namespace_data) == 0:
                 return None
 
             # Calculate weighted distribution
             total_weighted_pods = sum(
-                data['pods'] * data['weight'] 
+                max(1, data['pods']) * data['weight']  # Use max(1, pods) to give empty namespaces minimal cost
                 for data in namespace_data.values()
             )
             
             namespace_costs = {}
             for namespace, data in namespace_data.items():
-                weighted_pods = data['pods'] * data['weight']
+                # Give empty namespaces a minimal cost (0.1% of total)
+                effective_pods = max(0.01, data['pods'])  # Minimum 0.01 "virtual pod"
+                weighted_pods = effective_pods * data['weight']
                 cost_share = (weighted_pods / total_weighted_pods) * total_cost if total_weighted_pods > 0 else 0
                 namespace_costs[namespace] = max(cost_share, 0.01)
 
-            logger.info(f"📊 Pod count analysis: Distributed ${total_cost:.2f} across {len(namespace_costs)} namespaces")
+            logger.info(f"📊 FINAL namespace analysis: Distributed ${total_cost:.2f} across {len(namespace_costs)} namespaces")
+            logger.info(f"📊 All namespaces included: {sorted(namespace_costs.keys())}")
             
             return {
                 'namespace_costs': namespace_costs,
                 'total_pods_analyzed': total_pods,
-                'total_namespaces': len(namespace_data)
+                'total_namespaces': len(namespace_data),
+                'empty_namespaces_included': len([ns for ns, data in namespace_data.items() if data['pods'] == 0])
             }
 
         except Exception as e:

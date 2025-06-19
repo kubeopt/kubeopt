@@ -1160,7 +1160,7 @@ def generate_pod_cost_data():
             namespace_costs = namespace_costs.to_dict()
         
         # Sort by cost, get top 10
-        sorted_namespaces = sorted(namespace_costs.items(), key=lambda x: float(x[1]), reverse=True)[:10]
+        sorted_namespaces = sorted(namespace_costs.items(), key=lambda x: float(x[1]), reverse=True)[:100]
         
         if not sorted_namespaces:
             return None
@@ -1184,23 +1184,16 @@ def generate_pod_cost_data():
         return None
 
 def generate_namespace_data():
-    """Generate namespace distribution data - ONLY from real analysis"""
+    """Generate namespace distribution data"""
     try:
         logger.info("🔍 Extracting REAL namespace data from analysis")
         
-        # Source 1: Direct namespace_costs
+        # Get namespace costs (existing logic)
         namespace_costs = analysis_results.get('namespace_costs')
-        if namespace_costs:
-            logger.info(f"✅ Found direct namespace_costs with {len(namespace_costs)} namespaces")
-        
-        # Source 2: Pod cost analysis namespace costs
         if not namespace_costs:
             pod_analysis = analysis_results.get('pod_cost_analysis', {})
             namespace_costs = pod_analysis.get('namespace_costs') or pod_analysis.get('namespace_summary')
-            if namespace_costs:
-                logger.info(f"✅ Found pod_cost_analysis namespace_costs with {len(namespace_costs)} namespaces")
         
-        # NO STATIC FALLBACKS - Only real data
         if not namespace_costs:
             raise ValueError("No real namespace costs available")
         
@@ -1211,16 +1204,14 @@ def generate_namespace_data():
         if not isinstance(namespace_costs, dict):
             raise ValueError(f"Invalid namespace_costs type: {type(namespace_costs)}")
         
-        total_cost = sum(float(cost) for cost in namespace_costs.values() if cost)
-        if total_cost == 0:
-            raise ValueError("Total namespace costs is zero")
-        
-        # Process REAL namespace data
+        # DO NOT FILTER OUT ZERO-COST NAMESPACES
+        # Include ALL namespaces, even those with minimal costs
         valid_namespaces = {}
         for namespace, cost in namespace_costs.items():
             try:
                 cost_float = float(cost)
-                if cost_float > 0:
+                # Include ALL namespaces, even those with $0.01 cost
+                if cost_float >= 0:  # Changed from > 0 to >= 0
                     valid_namespaces[namespace] = cost_float
             except (ValueError, TypeError):
                 logger.warning(f"⚠️ Invalid cost for namespace {namespace}: {cost}")
@@ -1230,10 +1221,13 @@ def generate_namespace_data():
         
         total_valid_cost = sum(valid_namespaces.values())
         
+        # Sort by cost but keep ALL namespaces
+        sorted_namespaces = sorted(valid_namespaces.items(), key=lambda x: x[1], reverse=True)
+        
         result = {
-            'namespaces': list(valid_namespaces.keys()),
-            'costs': list(valid_namespaces.values()),
-            'percentages': [float(cost/total_valid_cost*100) for cost in valid_namespaces.values()],
+            'namespaces': [ns[0] for ns in sorted_namespaces],  # ALL namespaces
+            'costs': [ns[1] for ns in sorted_namespaces],       # ALL costs
+            'percentages': [float(cost/total_valid_cost*100) for _, cost in sorted_namespaces],
             'total_cost': float(total_valid_cost),
             'data_source': 'real_namespace_analysis',
             'total_namespaces': len(valid_namespaces)
@@ -1241,6 +1235,7 @@ def generate_namespace_data():
         
         logger.info(f"✅ Generated REAL namespace data:")
         logger.info(f"   - Total namespaces: {len(valid_namespaces)}")
+        logger.info(f"   - All namespaces: {[ns[0] for ns in sorted_namespaces]}")
         logger.info(f"   - Top namespace: {result['namespaces'][0]} = ${result['costs'][0]:.2f}")
         logger.info(f"   - Total cost: ${total_valid_cost:.2f}")
         
@@ -1313,8 +1308,9 @@ def generate_workload_data():
             raise ValueError("No valid workload data after processing")
         
         # Sort by cost descending and take top 20
+        max_workloads = 100
         sorted_workloads.sort(key=lambda x: x[1], reverse=True)
-        top_workloads = sorted_workloads[:20]
+        top_workloads = sorted_workloads[:max_workloads]
         
         result = {
             'workloads': [w[0] for w in top_workloads],
@@ -1323,7 +1319,9 @@ def generate_workload_data():
             'namespaces': [w[3] for w in top_workloads],
             'replicas': [w[4] for w in top_workloads],
             'data_source': 'real_workload_analysis',
-            'total_workloads_available': len(sorted_workloads)
+            'total_workloads_available': len(sorted_workloads),
+            'workloads_shown': len(top_workloads),
+            'workloads_hidden': max(0, len(sorted_workloads) - max_workloads)
         }
         
         logger.info(f"✅ Generated workload data from REAL analysis:")
@@ -1359,6 +1357,11 @@ def chart_data_consistent():
             except:
                 logger.warning("⚠️  Could not extract cluster ID from referrer")
         
+        if not cluster_id:
+            cluster_id = request.args.get('cluster_id')
+            if cluster_id:
+                logger.info(f"🎯 Detected cluster from request args: {cluster_id}")
+
         #  Try global analysis_results first, then database fallback
         current_analysis = None
         data_source = "unknown"
@@ -2181,6 +2184,7 @@ def api_list_clusters():
 @app.route('/cluster/<cluster_id>')
 def single_cluster_dashboard(cluster_id: str):
     """Enhanced single cluster dashboard with SQLite backend"""
+    global analysis_results
     try:
         cluster = enhanced_cluster_manager.get_cluster(cluster_id)
         
@@ -2188,11 +2192,17 @@ def single_cluster_dashboard(cluster_id: str):
             flash(f'Cluster {cluster_id} not found', 'error')
             return redirect(url_for('cluster_portfolio'))
         
+        # CLEAR global cache if switching to different cluster
+        current_global_cluster = f"{analysis_results.get('resource_group', '')}_{analysis_results.get('cluster_name', '')}"
+        if current_global_cluster != cluster_id and analysis_results:
+            logger.info(f"🔄 Switching from {current_global_cluster} to {cluster_id} - clearing global cache")
+            clear_global_analysis_cache()
+
         # Get latest analysis results from database
         cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
         
         # Set global analysis_results for backward compatibility
-        global analysis_results
+
         if cached_analysis:
             analysis_results = cached_analysis
             logger.info(f"📊 Loaded cached analysis for {cluster_id}: ${cached_analysis.get('total_cost', 0):.2f}")
@@ -2366,6 +2376,12 @@ def enhanced_analyze():
         days = int(request.form.get('days', 30))
         enable_pod_analysis = request.form.get('enable_pod_analysis') == 'on'
         redirect_to_cluster = request.form.get('redirect_to_cluster', 'false') == 'true'
+        current_cluster_id = f"{resource_group}_{cluster_name}"
+
+        # Check if we're analyzing a different cluster
+        if analysis_results.get('cluster_name') != cluster_name or analysis_results.get('resource_group') != resource_group:
+            logger.info(f"🔄 Switching to different cluster {current_cluster_id} - clearing cache")
+            clear_global_analysis_cache()
 
         if not resource_group or not cluster_name:
             flash('Resource group and cluster name are required', 'error')
@@ -3047,6 +3063,51 @@ def check_alerts_after_analysis(cluster_id: str, analysis_results: dict):
 # ===ALERTS=============
 # End
 # =========Alerts=======
+
+
+# CLEAR global cache when analyzing new clusters
+def clear_global_analysis_cache():
+    """Clear global analysis cache to prevent cross-cluster contamination"""
+    global analysis_results
+    analysis_results = {}
+    logger.info("🧹 Cleared global analysis cache")
+
+@app.route('/api/cache/clear', methods=['POST'])
+def clear_analysis_cache():
+    """Clear analysis cache"""
+    try:
+        clear_global_analysis_cache()
+        return jsonify({
+            'status': 'success',
+            'message': 'Analysis cache cleared successfully'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/cache/status', methods=['GET'])
+def cache_status():
+    """Get cache status for debugging"""
+    try:
+        global_cluster = analysis_results.get('cluster_name', 'None')
+        global_cost = analysis_results.get('total_cost', 0)
+        
+        return jsonify({
+            'status': 'success',
+            'global_cache': {
+                'cluster_name': global_cluster,
+                'total_cost': global_cost,
+                'has_data': bool(analysis_results)
+            },
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 # ============================================================================
 # APPLICATION STARTUP
