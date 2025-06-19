@@ -254,6 +254,7 @@ body.page-transitioning {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     font-weight: 600;
     letter-spacing: -0.02em;
+    background-color:#2b5b4094
 }
 
 .btn::before {

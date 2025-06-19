@@ -1,0 +1,506 @@
+/* Enhanced Budget Alerts CSS - Professional Card Layout */
+
+/* Fix the alert tab container */
+.tab-pane#alerts {
+    padding: 0;
+    background: transparent;
+}
+
+.alerts-tab-container {
+    padding: 1rem 0;
+}
+
+/* Budget Form Card - Main Container */
+.budget-form-card {
+    background: #2a2d3a !important;
+    border: 1px solid #404452 !important;
+    border-radius: 12px !important;
+    margin-bottom: 2rem !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    overflow: hidden !important;
+    position: relative !important;
+}
+
+/* Budget Form Header */
+.budget-form-header {
+    background: linear-gradient(135deg, #343a46 0%, #2a2d3a 100%) !important;
+    border-bottom: 1px solid #404452 !important;
+    padding: 1.75rem 2rem 1.5rem 2rem !important;
+    position: relative !important;
+}
+
+.budget-form-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, #28a745 50%, transparent 100%);
+    opacity: 0.3;
+}
+
+.budget-form-header h5 {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    font-size: 1.4rem !important;
+    margin-bottom: 0.75rem !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.budget-form-header h5 i {
+    color: #28a745 !important;
+    margin-right: 0.75rem !important;
+    font-size: 1.3rem !important;
+}
+
+.budget-form-header p {
+    color: #8591a3 !important;
+    font-size: 0.95rem !important;
+    line-height: 1.5 !important;
+    margin: 0 !important;
+    opacity: 0.9 !important;
+}
+
+/* Budget Form Body */
+.budget-form-body {
+    padding: 2rem !important;
+    background: #2a2d3a !important;
+}
+
+/* Email Configuration Status */
+.email-config-status {
+    background: rgba(255, 193, 7, 0.12) !important;
+    border: 1px solid rgba(255, 193, 7, 0.25) !important;
+    border-radius: 8px !important;
+    padding: 1rem 1.25rem !important;
+    margin-bottom: 2rem !important;
+    color: #ffca2c !important;
+    font-weight: 500 !important;
+    display: flex !important;
+    align-items: center !important;
+    font-size: 0.9rem !important;
+}
+
+.email-config-status.text-success {
+    background: rgba(40, 167, 69, 0.12) !important;
+    border-color: rgba(40, 167, 69, 0.25) !important;
+    color: #28a745 !important;
+}
+
+.email-config-status i {
+    margin-right: 0.75rem !important;
+    font-size: 1rem !important;
+}
+
+/* Form Groups and Labels */
+.budget-form-body .form-group {
+    margin-bottom: 1.5rem !important;
+}
+
+.budget-form-body .form-label {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    margin-bottom: 0.75rem !important;
+    display: flex !important;
+    align-items: center !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+.budget-form-body .form-label i {
+    color: #28a745 !important;
+    margin-right: 0.75rem !important;
+    width: 18px !important;
+    text-align: center !important;
+    font-size: 0.9rem !important;
+}
+
+/* Form Controls */
+.budget-form-body .form-control,
+.budget-form-body .form-select {
+    background-color: #1a1d29 !important;
+    border: 2px solid #404452 !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    padding: 0.875rem 1rem !important;
+    font-size: 0.95rem !important;
+    font-weight: 500 !important;
+    transition: all 0.3s ease !important;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+.budget-form-body .form-control:focus,
+.budget-form-body .form-select:focus {
+    background-color: #1a1d29 !important;
+    border-color: #28a745 !important;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.15), inset 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    color: #ffffff !important;
+    outline: none !important;
+}
+
+.budget-form-body .form-control::placeholder {
+    color: #6c757d !important;
+    font-weight: 400 !important;
+}
+
+/* Input Group */
+.budget-form-body .input-group-text {
+    background-color: #343a46 !important;
+    border: 2px solid #404452 !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    border-radius: 8px 0 0 8px !important;
+    border-right: none !important;
+}
+
+.budget-form-body .input-group .form-control {
+    border-left: none !important;
+    border-radius: 0 8px 8px 0 !important;
+}
+
+.budget-form-body .input-group .form-control:focus {
+    border-left: 2px solid #28a745 !important;
+}
+
+/* Setup Alert Button */
+.setup-alert-btn {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+    border: none !important;
+    color: white !important;
+    padding: 1rem 2rem !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 1.05rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    transition: all 0.3s ease !important;
+    width: 100% !important;
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3) !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.setup-alert-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s ease;
+}
+
+.setup-alert-btn:hover {
+    background: linear-gradient(135deg, #20c997 0%, #28a745 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4) !important;
+    color: white !important;
+}
+
+.setup-alert-btn:hover::before {
+    left: 100%;
+}
+
+.setup-alert-btn:active {
+    transform: translateY(0) !important;
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3) !important;
+}
+
+.setup-alert-btn i {
+    margin-right: 0.75rem !important;
+    font-size: 1.1rem !important;
+}
+
+/* Active Alerts Section */
+.active-alerts-section {
+    background: #2a2d3a !important;
+    border: 1px solid #404452 !important;
+    border-radius: 12px !important;
+    margin-bottom: 2rem !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    overflow: hidden !important;
+}
+
+.active-alerts-header {
+    background: linear-gradient(135deg, #343a46 0%, #2a2d3a 100%) !important;
+    border-bottom: 1px solid #404452 !important;
+    padding: 1.5rem 2rem !important;
+}
+
+.active-alerts-header h6 {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    font-size: 1.1rem !important;
+    margin: 0 !important;
+}
+
+.active-alerts-header h6 i {
+    color: #28a745 !important;
+    margin-right: 0.75rem !important;
+}
+
+.active-alerts-body {
+    padding: 2rem !important;
+}
+
+/* Alert Item */
+.alert-item {
+    background: #1a1d29 !important;
+    border: 1px solid #404452 !important;
+    border-radius: 10px !important;
+    padding: 1.5rem !important;
+    margin-bottom: 1.25rem !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.alert-item:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+    border-color: #28a745 !important;
+}
+
+.alert-item-title {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    font-size: 1.05rem !important;
+}
+
+.alert-item-details {
+    color: #e9ecef !important;
+    font-size: 0.9rem !important;
+    line-height: 1.4 !important;
+}
+
+.alert-item-details strong {
+    color: #ffffff !important;
+}
+
+/* Badge Styling */
+.badge.bg-success {
+    background: linear-gradient(135deg, #28a745, #20c997) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 0.5rem 1rem !important;
+    border-radius: 20px !important;
+    font-size: 0.75rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+.badge.bg-primary {
+    background: linear-gradient(135deg, #007bff, #0056b3) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 0.35rem 0.75rem !important;
+    border-radius: 15px !important;
+    font-size: 0.75rem !important;
+}
+
+/* Filter Buttons */
+.btn-group .btn {
+    border-radius: 6px !important;
+    margin-right: 0.5rem !important;
+    padding: 0.5rem 1rem !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+}
+
+.btn-group .btn.active {
+    background: linear-gradient(135deg, #28a745, #20c997) !important;
+    border-color: #28a745 !important;
+    color: white !important;
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3) !important;
+}
+
+/* Right Sidebar */
+.alerts-sidebar-content {
+    position: sticky !important;
+    top: 2rem !important;
+    max-height: calc(100vh - 4rem) !important;
+    overflow-y: auto !important;
+}
+
+.alerts-sidebar-content .card {
+    background: #2a2d3a !important;
+    border: 1px solid #404452 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.alerts-sidebar-content .card-header {
+    background: linear-gradient(135deg, #343a46 0%, #2a2d3a 100%) !important;
+    border-bottom: 1px solid #404452 !important;
+    padding: 1.25rem 1.5rem !important;
+}
+
+.alerts-sidebar-content .card-body {
+    padding: 1.5rem !important;
+}
+
+.alerts-sidebar-content h6 {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    margin-bottom: 1rem !important;
+}
+
+.alerts-sidebar-content h6 i {
+    color: #28a745 !important;
+    margin-right: 0.5rem !important;
+}
+
+.alerts-sidebar-content p {
+    color: #8591a3 !important;
+    line-height: 1.5 !important;
+}
+
+.alerts-sidebar-content ul li {
+    color: #e9ecef !important;
+    margin-bottom: 0.75rem !important;
+}
+
+.alerts-sidebar-content ul li i {
+    color: #28a745 !important;
+    margin-right: 0.75rem !important;
+}
+
+.alerts-sidebar-content code {
+    background: #1a1d29 !important;
+    color: #20c997 !important;
+    padding: 0.25rem 0.5rem !important;
+    border-radius: 4px !important;
+    font-size: 0.85rem !important;
+    border: 1px solid #404452 !important;
+}
+
+/* Responsive Design */
+@media (max-width: 991.98px) {
+    .alerts-sidebar-content {
+        position: static !important;
+        max-height: none !important;
+        margin-top: 2rem !important;
+    }
+    
+    .budget-form-header,
+    .budget-form-body,
+    .active-alerts-header,
+    .active-alerts-body {
+        padding: 1.5rem !important;
+    }
+    
+    .alerts-sidebar-content .card-body {
+        padding: 1.25rem !important;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .budget-form-header,
+    .budget-form-body {
+        padding: 1.25rem !important;
+    }
+    
+    .budget-form-body .row .col-md-4 {
+        margin-bottom: 1.25rem !important;
+    }
+    
+    .setup-alert-btn {
+        padding: 0.875rem 1.5rem !important;
+        font-size: 1rem !important;
+    }
+}
+
+/* Grid Layout Fixes */
+#alerts .row {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+#alerts .col-lg-8,
+#alerts .col-lg-4 {
+    padding-left: 15px !important;
+    padding-right: 15px !important;
+}
+
+/* Animation for form interactions */
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.budget-form-card,
+.active-alerts-section {
+    animation: slideInUp 0.6s ease-out !important;
+}
+
+/* Loading state for button */
+.setup-alert-btn.loading {
+    pointer-events: none !important;
+    opacity: 0.8 !important;
+}
+
+.setup-alert-btn.loading i {
+    animation: spin 1s linear infinite !important;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.alerts-form-section{
+    padding: var(--spacing-xl);
+    background: transparent;
+    /* background-color: #9aaea8; */
+    color: #289156;
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+
+    border: 0.5px solid #333;
+    border-radius:1px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+
+}
+
+.budget-alert-form{
+    padding: var(--spacing-xl);
+    background: transparent;
+    /* background-color: #9aaea8; */
+    color: #289156;
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+
+    border: 0.5px solid #333;
+    border-radius:1px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.alerts-form-header {
+    
+    background: linear-gradient(135deg, #343a46 0%, #2a2d3a 100%) !important;
+    border-bottom: 1px solid #404452 !important;
+    padding: 1.75rem 2rem 1.5rem 2rem !important;
+    position: relative !important;
+    border-radius: 1px;
+
+}
+
+.alerts-form-body {
+    padding: 2rem !important;
+    background: #2a2d3a !important;
+}

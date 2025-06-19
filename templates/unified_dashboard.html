@@ -4,7 +4,8 @@
 
 <!-- Include enhanced smooth CSS -->
 {% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/smooth.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='static/css/smooth.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='static/css/alerts.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -307,11 +308,11 @@
             <!-- Enhanced Metrics Row with Smooth Animations -->
             <div class="row mb-4" id="metrics-row">
                 <div class="col-lg-3 col-md-6 mb-3">
-                    <div class="metric-card">
+                    <div class="metric-card savings-card">
                         <div class="metric-icon">
                             <i class="fas fa-dollar-sign"></i>
                         </div>
-                        <div class="metric-value" id="current-cost" data-metric="cost">--</div>
+                        <div class="metric-value text-success" id="current-cost" data-metric="cost">--</div>
                         <div class="metric-label">Current Monthly Cost</div>
                         <div class="text-muted small mt-2">
                             <i class="fas fa-info-circle me-1"></i>
@@ -606,91 +607,300 @@
             </div>
         </div>
 
-        <!-- Enhanced Alerts Tab -->
-        <div class="tab-pane fade {% if active_tab == 'alerts' %}show active{% endif %}" id="alerts" role="tabpanel">
-            <div class="row">
-                <div class="col-lg-8">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="fas fa-bell me-2"></i>Budget Monitoring
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <p class="mb-4">
-                                Set up intelligent budget alerts to monitor your AKS spending and get notified
-                                before you exceed your monthly budget threshold.
-                            </p>
+        
+                        
 
-                            <form id="budget-alert-form">
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <div class="form-group">
-                                            <label for="budget-amount" class="form-label">
-                                                <i class="fas fa-dollar-sign me-1"></i>Monthly Budget
-                                            </label>
-                                            <div class="input-group">
-                                                <span class="input-group-text">$</span>
-                                                <input type="number" class="form-control smooth-input" id="budget-amount"
-                                                       required min="1" placeholder="5000">
+                <!-- Enhanced Alerts Tab -->
+                                <!-- Enhanced Alerts Tab with Fixed Layout -->
+                <div class="tab-pane fade {% if active_tab == 'alerts' %}show active{% endif %}" id="alerts" role="tabpanel">
+                    <div class="alerts-tab-container">
+                        <div class="row">
+                            <!-- Left Column - Alerts Configuration -->
+                            <div class="col-lg-8 col-xl-8">
+                                <!-- Budget Alert Form -->
+                                <div class="alerts-form-section">
+                                    <div class="alerts-form-header">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-bell me-2"></i>Budget Monitoring & Alerts
+                                        </h5>
+                                        <p class="mb-0 small opacity-90 mt-2">
+                                            Set up intelligent budget alerts to monitor your AKS spending and get notified
+                                            before you exceed your monthly budget threshold.
+                                        </p>
+                                    </div>
+                                    <div class="alerts-form-body">
+                                        
+
+                                        <!-- Enhanced Budget Alert Form -->
+                                        <form id="budget-alert-form" class="budget-alert-form">
+                                            <div class="row">
+                                                <div class="col-md-4">
+                                                    <div class="form-group">
+                                                        <label for="budget-amount" class="form-label">
+                                                            <i class="fas fa-dollar-sign"></i>Monthly Budget
+                                                        </label>
+                                                        <div class="input-group">
+                                                            <span class="input-group-text">$</span>
+                                                            <input type="number" class="form-control" 
+                                                                id="budget-amount" name="threshold_amount"
+                                                                required min="1" step="0.01" placeholder="5000">
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-group">
+                                                        <label for="alert-email" class="form-label">
+                                                            <i class="fas fa-at"></i>Alert Email
+                                                        </label>
+                                                        <input type="email" class="form-control" 
+                                                            id="alert-email" name="email"
+                                                            required placeholder="admin@company.com">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-group">
+                                                        <label for="alert-threshold" class="form-label">
+                                                            <i class="fas fa-percentage"></i>Alert Threshold
+                                                        </label>
+                                                        <select class="form-select" id="alert-threshold" name="threshold_percentage">
+                                                            <option value="75">75% - Early Warning</option>
+                                                            <option value="80" selected>80% - Recommended</option>
+                                                            <option value="90">90% - Critical</option>
+                                                            <option value="100">100% - Emergency</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="d-grid">
+                                                <button type="submit" class="btn setup-alert-btn">
+                                                    <i class="fas fa-bell me-2"></i>
+                                                    <span class="btn-text">Setup Alert</span>
+                                                </button>
+                                            </div>
+                                        </form>
+                                        <!-- Email Configuration Status -->
+                                        <div class="email-config-status">
+                                            <i class="fas fa-spinner fa-spin me-1"></i>Checking email configuration...
+                                        </div>
+                                    </div>
+                                </div>
+<div style="padding:5px"></div>
+                                <!-- Active Alerts List -->
+                                <div class="active-alerts-section">
+                                    <div class="active-alerts-header">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-list me-2"></i>Active Alerts
+                                                <span class="badge bg-primary ms-2 alerts-counter">0</span>
+                                            </h6>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-secondary active" onclick="filterAlerts('all')">All</button>
+                                                <button class="btn btn-outline-success" onclick="filterAlerts('active')">Active</button>
+                                                <button class="btn btn-outline-warning" onclick="filterAlerts('paused')">Paused</button>
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
-                                        <div class="form-group">
-                                            <label for="alert-email" class="form-label">
-                                                <i class="fas fa-at me-1"></i>Alert Email
-                                            </label>
-                                            <input type="email" class="form-control smooth-input" id="alert-email"
-                                                   required placeholder="admin@company.com">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="form-group">
-                                            <label for="alert-threshold" class="form-label">
-                                                <i class="fas fa-percentage me-1"></i>Threshold
-                                            </label>
-                                            <select class="form-select smooth-input" id="alert-threshold">
-                                                <option value="75">75% - Early Warning</option>
-                                                <option value="80" selected>80% - Recommended</option>
-                                                <option value="90">90% - Critical</option>
-                                                <option value="100">100% - Emergency</option>
-                                            </select>
+                                    <div class="active-alerts-body">
+                                        <div id="alerts-list-container">
+                                            <!-- Alerts will be loaded here dynamically -->
+                                            <div class="alerts-loading">
+                                                <i class="fas fa-spinner fa-spin"></i>
+                                                <p>Loading alerts...</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+                            </div>
 
-                                <div class="d-grid">
-                                    <button type="submit" class="btn btn-primary smooth-btn">
-                                        <i class="fas fa-bell me-2"></i>
-                                        <span class="btn-text">Setup Alerts</span>
-                                    </button>
+                            
+
+                            <!-- Right Column - Guidelines & Status -->
+                                        <div class="col-lg-4">
+                                            <div class="alerts-sidebar-content">
+                                                <!-- Your existing Pro Tip card -->
+                                                <div class="card mb-4">
+                                                    <div class="card-header">
+                                                        
+                                                    </div>
+                                                    <div class="card-body">
+                                                        <h6 class="mb-0">
+                                                            <i class="fas fa-lightbulb me-2"></i>Pro Tip
+                                                        </h6>
+                                                        <p class="mb-0">
+                                                            Set your alert threshold to 75% to get early warnings and have time
+                                                            to implement optimizations before budget overrun.
+                                                        </p>
+                                                        <p style="padding:5px;"></p>
+                                                        <h6 class="mb-0">
+                                                            <i class="fas fa-chart-line me-2"></i>Best Practices
+                                                        </h6>
+                                                        <ul class="list-unstyled">
+                                                            <li class="mb-2">
+                                                                <i class="fas fa-check text-success me-2"></i>
+                                                                Set multiple thresholds (75%, 90%, 100%)
+                                                            </li>
+                                                            <li class="mb-2">
+                                                                <i class="fas fa-check text-success me-2"></i>
+                                                                Use different emails for different severity levels
+                                                            </li>
+                                                            <li class="mb-2">
+                                                                <i class="fas fa-check text-success me-2"></i>
+                                                                Test alerts monthly to ensure they work
+                                                            </li>
+                                                            <li class="mb-2">
+                                                                <i class="fas fa-check text-success me-2"></i>
+                                                                Monitor both absolute costs and growth rates
+                                                            </li>
+                                                        </ul>
+                                                        <p style="padding:5px;"></p>
+                                                        <h6 class="mb-0">
+                                                            <i class="fas fa-envelope me-2"></i>Email Configuration
+                                                        </h6>
+                                                        <p class="mb-2 small">
+                                                            To enable email notifications, configure SMTP settings via environment variables:
+                                                        </p>
+                                                        <ul class="small mb-0">
+                                                            <li><code>SMTP_SERVER</code></li>
+                                                            <li><code>SMTP_USERNAME</code></li>
+                                                            <li><code>SMTP_PASSWORD</code></li>
+                                                        </ul>
+                                                    </div>
+                                                </div>
+
+                                                
+                                                
+                                                    
+                                                
+                                            </div>
+                                        </div>
+
+                                    <!-- Alert Activity (if space allows) -->
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-history me-2"></i>Recent Activity
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div id="alert-triggers-container" class="alert-triggers-container">
+                                                <!-- Alert triggers will be loaded here -->
+                                                <div class="text-center text-muted py-3">
+                                                    <i class="fas fa-clock me-2"></i>
+                                                    <small>No recent alert activity</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-lg-4">
-                    <div class="card h-100">
-                        <div class="card-header">
-                            <h6 class="mb-0">
-                                <i class="fas fa-info-circle me-2"></i>Alert Guidelines
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="insight-box">
-                                <h6><i class="fas fa-lightbulb me-2"></i>Pro Tip</h6>
-                                <p class="mb-0">
-                                    Set your alert threshold to 75% to get early warnings and have time
-                                    to implement optimizations before budget overrun.
-                                </p>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
+
+                <!-- Enhanced Action Buttons for Alerts -->
+                <div class="container mt-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-lg-8">
+                                    <h5 class="mb-1">
+                                        <i class="fas fa-shield-alt me-2"></i>
+                                        Budget Protection Active
+                                    </h5>
+                                    <p class="text-muted mb-0">
+                                        <span id="alerts-action-description">
+                                            Your alerts are monitoring this cluster for cost threshold breaches.
+                                        </span>
+                                    </p>
+                                </div>
+                                <div class="col-lg-4 text-lg-end">
+                                    <div class="d-flex gap-2 justify-content-lg-end">
+                                        <button class="btn btn-outline-primary smooth-btn" onclick="showAdvancedAlertsModal()">
+                                            <i class="fas fa-cog me-2"></i>
+                                            <span class="btn-text">Advanced</span>
+                                        </button>
+                                        <button class="btn btn-outline-secondary smooth-btn" onclick="loadAlerts()">
+                                            <i class="fas fa-sync me-2"></i>
+                                            <span class="btn-text">Refresh</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Enhanced JavaScript for alert filtering -->
+                <script>
+                function filterAlerts(status) {
+                    const buttons = document.querySelectorAll('.btn-group .btn');
+                    buttons.forEach(btn => btn.classList.remove('active'));
+                    
+                    event.target.classList.add('active');
+                    
+                    const alertItems = document.querySelectorAll('.alert-item');
+                    alertItems.forEach(item => {
+                        const alertStatus = item.dataset.status || 'active';
+                        if (status === 'all' || alertStatus === status) {
+                            item.style.display = 'block';
+                            item.style.animation = 'fadeIn 0.3s ease-in';
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
+                }
+
+                // Enhanced notification integration
+                function checkForAlertTriggers() {
+                    fetch('/api/alerts/triggers')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success' && data.triggers.length > 0) {
+                                displayAlertTriggers(data.triggers);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error loading alert triggers:', error);
+                        });
+                }
+
+                function displayAlertTriggers(triggers) {
+                    const container = document.getElementById('alert-triggers-container');
+                    if (!container) return;
+                    
+                    if (triggers.length === 0) {
+                        container.innerHTML = `
+                            <div class="text-center text-muted py-3">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <small>No alerts triggered recently</small>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    const triggersHTML = triggers.slice(0, 5).map(trigger => `
+                        <div class="alert-trigger-item border-bottom pb-2 mb-2">
+                            <div class="d-flex justify-content-between">
+                                <small class="fw-bold">${escapeHtml(trigger.alert_name)}</small>
+                                <small class="text-muted">${formatDateTime(trigger.triggered_at)}</small>
+                            </div>
+                            <div class="small text-muted mt-1">
+                                Cost: $${trigger.current_cost.toLocaleString()} / Threshold: $${trigger.threshold.toLocaleString()}
+                            </div>
+                            ${!trigger.acknowledged ? '<span class="badge bg-warning text-dark small">New</span>' : ''}
+                        </div>
+                    `).join('');
+                    
+                    container.innerHTML = triggersHTML;
+                }
+
+                // Load alert triggers on page load
+                document.addEventListener('DOMContentLoaded', function() {
+                    setTimeout(checkForAlertTriggers, 1000);
+                });
+                </script>
     </div>
 </div>
 
@@ -772,6 +982,8 @@
 
 <!-- Include enhanced smooth transitions -->
 <script src="{{ url_for('static', filename='js/smooth.js') }}"></script>
+
+<script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
 
 <script>
 // Enhanced smooth functions for this specific page
