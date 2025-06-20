@@ -655,6 +655,23 @@ class PodCostAnalyzer:
             Cost analysis based on actual usage
         """
         try:
+            # FIRST: Get ALL namespaces to ensure we include empty ones
+            logger.info("🔍 Getting all namespaces for complete analysis...")
+            all_namespaces_cmd = "kubectl get namespaces --no-headers"
+            all_ns_output = self._safe_kubectl_command(all_namespaces_cmd)
+            
+            all_namespaces = set()
+            if all_ns_output:
+                for line in all_ns_output.split('\n'):
+                    if line.strip():
+                        parts = line.split()
+                        if len(parts) >= 1 and not parts[0].upper() in ['NAME', 'NAMESPACE']:
+                            all_namespaces.add(parts[0])
+            
+            logger.info(f"🔍 Found {len(all_namespaces)} total namespaces: {sorted(all_namespaces)}")
+            
+            # SECOND: Get pod usage metrics
+            logger.info("📊 Getting pod usage metrics...")
             output = self._safe_kubectl_command("kubectl top pods --all-namespaces --no-headers")
             
             if not output:
@@ -705,7 +722,10 @@ class PodCostAnalyzer:
                 return None
 
             logger.info(f"📊 Analyzed {len(pods)} pods with actual usage data")
-            return self._calculate_cost_by_usage(pods, total_cost)
+            logger.info(f"📊 Namespaces with metrics: {sorted(set(pod['namespace'] for pod in pods))}")
+            
+            # THIRD: Calculate costs including all namespaces
+            return self._calculate_cost_by_usage(pods, total_cost, all_namespaces)
 
         except Exception as e:
             logger.error(f"❌ Container usage analysis error: {e}")
@@ -773,7 +793,7 @@ class PodCostAnalyzer:
             return None
 
     def _analyze_by_pod_count_robust(self, total_cost: float) -> Optional[Dict]:
-        """Analyze costs based on pod count per namespace - INCLUDE ALL NAMESPACES"""
+        """Analyze costs based on pod count per namespace"""
         try:
             # First get ALL namespaces
             all_namespaces_cmd = "kubectl get namespaces -o json"
@@ -817,7 +837,7 @@ class PodCostAnalyzer:
 
             logger.info(f"📊 Namespaces with pods: {len(namespace_data)}")
             
-            # ADD MISSING NAMESPACES (with zero pods)
+            # NAMESPACES (with zero pods) - but don't give them cost
             for namespace in all_namespaces:
                 if namespace not in namespace_data:
                     namespace_data[namespace] = {
@@ -831,57 +851,71 @@ class PodCostAnalyzer:
             if len(namespace_data) == 0:
                 return None
 
-            # Calculate weighted distribution
+            # Calculate weighted distribution for namespaces with pods
+            active_namespaces = {ns: data for ns, data in namespace_data.items() if data['pods'] > 0}
+            empty_namespaces = {ns: data for ns, data in namespace_data.items() if data['pods'] == 0}
+            
+            # Calculate total weighted pods ONLY for active namespaces
             total_weighted_pods = sum(
-                max(1, data['pods']) * data['weight']  # Use max(1, pods) to give empty namespaces minimal cost
-                for data in namespace_data.values()
+                data['pods'] * data['weight']
+                for data in active_namespaces.values()
             )
             
             namespace_costs = {}
+            
+            # Distribute costs ONLY among active namespaces
             for namespace, data in namespace_data.items():
-                # Give empty namespaces a minimal cost (0.1% of total)
-                effective_pods = max(0.01, data['pods'])  # Minimum 0.01 "virtual pod"
-                weighted_pods = effective_pods * data['weight']
-                cost_share = (weighted_pods / total_weighted_pods) * total_cost if total_weighted_pods > 0 else 0
-                namespace_costs[namespace] = max(cost_share, 0.01)
+                if data['pods'] > 0:
+                    # Active namespace - gets proportional cost
+                    weighted_pods = data['pods'] * data['weight']
+                    cost_share = (weighted_pods / total_weighted_pods) * total_cost if total_weighted_pods > 0 else 0
+                    namespace_costs[namespace] = max(cost_share, 0.01)  # Minimum $0.01
+                else:
+                    #Empty namespace gets $0.00 (but is still counted)
+                    namespace_costs[namespace] = 0.00
 
-            logger.info(f"📊 FINAL namespace analysis: Distributed ${total_cost:.2f} across {len(namespace_costs)} namespaces")
-            logger.info(f"📊 All namespaces included: {sorted(namespace_costs.keys())}")
+            logger.info(f"📊 FINAL namespace analysis: Distributed ${total_cost:.2f} across {len(active_namespaces)} active namespaces")
+            logger.info(f"📊 Total namespaces counted: {len(namespace_costs)} (including {len(empty_namespaces)} empty)")
+            logger.info(f"📊 Active namespaces: {sorted(active_namespaces.keys())}")
+            logger.info(f"📊 Empty namespaces: {sorted(empty_namespaces.keys())}")
             
             return {
                 'namespace_costs': namespace_costs,
                 'total_pods_analyzed': total_pods,
-                'total_namespaces': len(namespace_data),
-                'empty_namespaces_included': len([ns for ns, data in namespace_data.items() if data['pods'] == 0])
+                'total_namespaces': len(namespace_data),  # Count includes ALL namespaces
+                'active_namespaces': len(active_namespaces),  # Only namespaces with pods
+                'empty_namespaces_included': len(empty_namespaces),  # Empty namespaces counted but no cost
+                'cost_allocation_method': 'active_namespaces_only'
             }
 
         except Exception as e:
             logger.error(f"❌ Pod count analysis error: {e}")
             return None
 
-    def _calculate_cost_by_usage(self, pods: List[Dict], total_cost: float) -> Dict:
-        """
-        Calculate cost distribution based on actual pod resource usage
+    def _calculate_cost_by_usage(self, pods: List[Dict], total_cost: float, all_namespaces: set = None) -> Dict:
+        """Calculate cost distribution including empty namespaces - COUNT ALL but ONLY DISTRIBUTE to active namespaces"""
         
-        Args:
-            pods: List of pod usage data
-            total_cost: Total cost to distribute
-            
-        Returns:
-            Detailed cost breakdown by namespace and usage patterns
-        """
+        # If all_namespaces not provided, derive from pods
+        if all_namespaces is None:
+            all_namespaces = set(pod['namespace'] for pod in pods)
+            logger.warning("⚠️ all_namespaces not provided, using namespaces from pods only")
+        
+        logger.info(f"🔍 Processing cost distribution for {len(all_namespaces)} total namespaces")
+        logger.info(f"📊 All namespaces: {sorted(all_namespaces)}")
+        
         namespace_usage = {}
         total_cpu = 0
         total_memory = 0
 
-        # Aggregate usage by namespace
+        # Initialize all namespaces
+        for namespace in all_namespaces:
+            namespace_usage[namespace] = {'cpu': 0, 'memory': 0, 'pods': 0}
+
+        # Aggregate usage by namespace for pods that have metrics
         for pod in pods:
             namespace = pod['namespace']
             cpu = pod['cpu_millicores']
             memory = pod['memory_bytes']
-
-            if namespace not in namespace_usage:
-                namespace_usage[namespace] = {'cpu': 0, 'memory': 0, 'pods': 0}
 
             namespace_usage[namespace]['cpu'] += cpu
             namespace_usage[namespace]['memory'] += memory
@@ -890,22 +924,62 @@ class PodCostAnalyzer:
             total_cpu += cpu
             total_memory += memory
 
-        # Calculate costs using weighted approach (CPU: 70%, Memory: 30%)
+        # Identify empty vs active namespaces
+        empty_namespaces = [ns for ns, usage in namespace_usage.items() if usage['pods'] == 0]
+        active_namespaces = [ns for ns, usage in namespace_usage.items() if usage['pods'] > 0]
+        
+        # Log namespace categorization
+        logger.info(f"📊 Namespace categorization:")
+        logger.info(f"   - Total namespaces: {len(all_namespaces)}")
+        logger.info(f"   - Active namespaces (with pods): {len(active_namespaces)}")
+        logger.info(f"   - Empty namespaces: {len(empty_namespaces)}")
+        logger.info(f"   - Active namespaces: {sorted(active_namespaces)}")
+        logger.info(f"   - Empty namespaces: {sorted(empty_namespaces)}")
+        
+        # Use 100% of budget for active namespaces only
+        active_namespace_budget = total_cost  # Use full budget for active namespaces
+
+        logger.info(f"💰 Cost allocation: ${active_namespace_budget:.2f} for {len(active_namespaces)} active namespaces")
+
         namespace_costs = {}
+
+        # Allocate costs ONLY for namespaces with pods (using 100% of budget)
         for namespace, usage in namespace_usage.items():
-            cpu_weight = (usage['cpu'] / total_cpu) * 0.7 if total_cpu > 0 else 0
-            memory_weight = (usage['memory'] / total_memory) * 0.3 if total_memory > 0 else 0
-            cost_allocation = (cpu_weight + memory_weight) * total_cost
-            namespace_costs[namespace] = max(cost_allocation, 0.01)
+            if usage['pods'] > 0:
+                # Use weighted approach (CPU: 70%, Memory: 30%)
+                cpu_weight = (usage['cpu'] / total_cpu) * 0.7 if total_cpu > 0 else 0
+                memory_weight = (usage['memory'] / total_memory) * 0.3 if total_memory > 0 else 0
+                cost_allocation = (cpu_weight + memory_weight) * active_namespace_budget
+                namespace_costs[namespace] = max(cost_allocation, 0.01)  # Minimum $0.01 for active namespaces
+            else:
+                # Empty namespaces get $0.00 cost (but are still counted)
+                namespace_costs[namespace] = 0.00
+
+        # Ensure all namespaces are included in the response
+        for namespace in all_namespaces:
+            if namespace not in namespace_costs:
+                namespace_costs[namespace] = 0.00
+
+        # Log final cost distribution
+        logger.info(f"✅ Cost distribution complete:")
+        logger.info(f"   - Total namespaces in result: {len(namespace_costs)}")
+        logger.info(f"   - Active namespaces with cost > $0: {len([ns for ns, cost in namespace_costs.items() if cost > 0])}")
+        logger.info(f"   - Empty namespaces with $0 cost: {len([ns for ns, cost in namespace_costs.items() if cost == 0])}")
+        
+        # Log top cost namespaces for verification
+        sorted_costs = sorted(namespace_costs.items(), key=lambda x: x[1], reverse=True)
+        logger.info(f"   - Top 5 namespace costs: {sorted_costs[:5]}")
 
         return {
             'namespace_costs': namespace_costs,
             'total_pods_analyzed': len(pods),
-            'total_namespaces': len(namespace_usage),
+            'total_namespaces': len(namespace_costs),  # Count includes ALL namespaces
+            'active_namespaces': len(active_namespaces),  # Namespaces with pods/cost
+            'empty_namespaces': len(empty_namespaces),    # Namespaces without pods/cost
             'usage_distribution': namespace_usage,
             'total_cpu_millicores': total_cpu,
             'total_memory_bytes': total_memory,
-            'cost_calculation_method': 'actual_usage_weighted'
+            'cost_calculation_method': 'actual_usage_all_namespaces_included'
         }
 
 # ============================================================================
