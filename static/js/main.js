@@ -313,36 +313,40 @@ function setupInputValidation() {
  * Sets up form event handlers
  */
 function setupFormHandlers() {
-    // Add cluster form handler - FIXED with proper modal handling
+    console.log('🔧 Setting up FIXED form handlers');
+    
+    // Handle analysis form ONLY ONCE
+    const analysisForm = document.getElementById('analysisForm');
+    if (analysisForm) {
+        // Remove ALL existing event listeners by cloning
+        const newForm = analysisForm.cloneNode(true);
+        analysisForm.parentNode.replaceChild(newForm, analysisForm);
+        
+        // Add ONLY the fixed handler
+        newForm.addEventListener('submit', handleAnalysisSubmit);
+        console.log('✅ Analysis form handler attached (fixed version)');
+    }
+    
+    // Handle add cluster modal form
     const addClusterModal = document.getElementById('addClusterModal');
     if (addClusterModal) {
-        // Clear form when modal opens
         addClusterModal.addEventListener('show.bs.modal', function() {
             const form = this.querySelector('form');
             if (form) {
                 form.reset();
-                // Clear validation classes
                 form.querySelectorAll('.form-control').forEach(input => {
                     input.classList.remove('is-invalid', 'is-valid');
                 });
             }
         });
         
-        // Handle form submission
         const form = addClusterModal.querySelector('form');
-        if (form) {
+        if (form && typeof handleAddClusterSubmission === 'function') {
             form.addEventListener('submit', handleAddClusterSubmission);
             console.log('✅ Add cluster form handler attached');
         }
     }
-    
-    // Analysis form handler - FIXED
-    const analysisForm = document.getElementById('analysisForm');
-    if (analysisForm) {
-        analysisForm.addEventListener('submit', handleAnalysisSubmit);
-        console.log('✅ Analysis form handler attached');
-    }
-}
+}   
 
 // ============================================================================
 // CLUSTER MANAGEMENT
@@ -559,107 +563,107 @@ function removeCluster(clusterId) {
 /**
  * Handles analysis form submission with progress tracking - FIXED
  */
-function handleAnalysisSubmit(event) {
-    event.preventDefault();
+// function handleAnalysisSubmit(event) {
+//     event.preventDefault();
     
-    if (!validateAnalysisForm()) return;
+//     if (!validateAnalysisForm()) return;
     
-    console.log('📊 Enhanced form submitted for analysis');
-    const btn = document.getElementById('analyzeBtn');
-    const progress = document.getElementById('analysisProgress');
-    const fill = document.getElementById('progressFill');
-    const text = document.getElementById('progressText');
+//     console.log('📊 Enhanced form submitted for analysis');
+//     const btn = document.getElementById('analyzeBtn');
+//     const progress = document.getElementById('analysisProgress');
+//     const fill = document.getElementById('progressFill');
+//     const text = document.getElementById('progressText');
     
-    // Enhanced loading state with animations
-    if (btn) {
-        btn.classList.add('loading');
-        btn.disabled = true;
-    }
+//     // Enhanced loading state with animations
+//     if (btn) {
+//         btn.classList.add('loading');
+//         btn.disabled = true;
+//     }
     
-    if (progress) progress.classList.add('visible');
+//     if (progress) progress.classList.add('visible');
 
-    // Enhanced progress steps with animations
-    const progressSteps = [
-        { percentage: 10, text: '🔌 Connecting to Azure...', color: '#007AFF' },
-        { percentage: 25, text: '💰 Fetching cost data...', color: '#5AC8FA' },
-        { percentage: 45, text: '📊 Analyzing cluster metrics...', color: '#AF52DE' },
-        { percentage: 65, text: '🎯 Calculating optimization opportunities...', color: '#FF9500' },
-        { percentage: 85, text: '💡 Generating insights...', color: '#34C759' },
-        { percentage: 95, text: '✨ Finalizing analysis...', color: '#00C851' }
-    ];
+//     // Enhanced progress steps with animations
+//     const progressSteps = [
+//         { percentage: 10, text: '🔌 Connecting to Azure...', color: '#007AFF' },
+//         { percentage: 25, text: '💰 Fetching cost data...', color: '#5AC8FA' },
+//         { percentage: 45, text: '📊 Analyzing cluster metrics...', color: '#AF52DE' },
+//         { percentage: 65, text: '🎯 Calculating optimization opportunities...', color: '#FF9500' },
+//         { percentage: 85, text: '💡 Generating insights...', color: '#34C759' },
+//         { percentage: 95, text: '✨ Finalizing analysis...', color: '#00C851' }
+//     ];
     
-    let stepIndex = 0;
-    function advanceProgress() {
-        if (stepIndex < progressSteps.length && fill && text) {
-            const step = progressSteps[stepIndex];
-            fill.style.width = step.percentage + '%';
-            fill.style.background = `linear-gradient(90deg, ${step.color}, ${step.color}dd)`;
-            text.textContent = step.text;
+//     let stepIndex = 0;
+//     function advanceProgress() {
+//         if (stepIndex < progressSteps.length && fill && text) {
+//             const step = progressSteps[stepIndex];
+//             fill.style.width = step.percentage + '%';
+//             fill.style.background = `linear-gradient(90deg, ${step.color}, ${step.color}dd)`;
+//             text.textContent = step.text;
             
-            // Add ripple effect
-            fill.style.boxShadow = `0 0 20px ${step.color}44`;
+//             // Add ripple effect
+//             fill.style.boxShadow = `0 0 20px ${step.color}44`;
             
-            stepIndex++;
-            setTimeout(advanceProgress, 800);
-        }
-    }
-    advanceProgress();
+//             stepIndex++;
+//             setTimeout(advanceProgress, 800);
+//         }
+//     }
+//     advanceProgress();
 
-    // Submit analysis with enhanced completion handling - FIXED
-    fetch('/analyze', { 
-        method: 'POST', 
-        body: new FormData(event.target) 
-    })
-    .then(response => {
-        if (!response.ok) throw new Error(response.statusText);
-        return response.text();
-    })
-    .then(() => {
-        if (fill) {
-            fill.style.width = '100%';
-            fill.style.background = 'linear-gradient(90deg, #00C851, #32CD32)';
-            fill.style.boxShadow = '0 0 30px #00C85144';
-        }
-        if (text) text.textContent = '🎉 Analysis completed successfully!';
+//     // Submit analysis with enhanced completion handling - FIXED
+//     fetch('/analyze', { 
+//         method: 'POST', 
+//         body: new FormData(event.target) 
+//     })
+//     .then(response => {
+//         if (!response.ok) throw new Error(response.statusText);
+//         return response.text();
+//     })
+//     .then(() => {
+//         if (fill) {
+//             fill.style.width = '100%';
+//             fill.style.background = 'linear-gradient(90deg, #00C851, #32CD32)';
+//             fill.style.boxShadow = '0 0 30px #00C85144';
+//         }
+//         if (text) text.textContent = '🎉 Analysis completed successfully!';
         
-        AppState.analysisCompleted = true;
+//         AppState.analysisCompleted = true;
         
-        setTimeout(() => {
-            showNotification('🎉 Analysis completed! Found significant optimization opportunities.', 'success');
+//         setTimeout(() => {
+//             showNotification('🎉 Analysis completed! Found significant optimization opportunities.', 'success');
             
-            setTimeout(() => {
-                switchToTab('#dashboard');
-                resetAnalysisForm();
+//             setTimeout(() => {
+//                 switchToTab('#dashboard');
+//                 resetAnalysisForm();
                 
-                // FIXED: Auto-load charts and clear loading states
-                setTimeout(() => {
-                    initializeCharts();
-                    clearLoadingStates(); // NEW: Clear all loading states
-                }, 500);
-            }, 1500);
-        }, 1000);
-    })
-    .catch(error => {
-        console.error('❌ Analysis failed:', error);
-        showNotification('❌ Analysis failed: ' + error.message, 'error');
-        resetAnalysisForm();
-    });
+//                 // FIXED: Auto-load charts and clear loading states
+//                 setTimeout(() => {
+//                     initializeCharts();
+//                     clearLoadingStates(); // NEW: Clear all loading states
+//                 }, 500);
+//             }, 1500);
+//         }, 1000);
+//     })
+//     .catch(error => {
+//         console.error('❌ Analysis failed:', error);
+//         showNotification('❌ Analysis failed: ' + error.message, 'error');
+//         resetAnalysisForm();
+//     });
 
-    function resetAnalysisForm() {
-        if (btn) {
-            btn.classList.remove('loading');
-            btn.disabled = false;
-        }
-        if (progress) progress.classList.remove('visible');
-        if (fill) {
-            fill.style.width = '0%';
-            fill.style.background = '';
-            fill.style.boxShadow = '';
-        }
-        if (text) text.textContent = 'Initializing analysis...';
-        stepIndex = 0;
-    }
-}
+//     function resetAnalysisForm() {
+//         if (btn) {
+//             btn.classList.remove('loading');
+//             btn.disabled = false;
+//         }
+//         if (progress) progress.classList.remove('visible');
+//         if (fill) {
+//             fill.style.width = '0%';
+//             fill.style.background = '';
+//             fill.style.boxShadow = '';
+//         }
+//         if (text) text.textContent = 'Initializing analysis...';
+//         stepIndex = 0;
+//     }
+// }
 
 // ============================================================================
 // NEW: CLEAR LOADING STATES FUNCTION
@@ -4082,9 +4086,42 @@ function displayImplementationError(container, message) {
  * Switches to specified tab - FIXED
  */
 function switchToTab(selector) {
-    const button = document.querySelector(`[data-bs-target="${selector}"]`);
-    if (button) {
-        button.click();
+    console.log('🔄 Switching to tab:', selector);
+    
+    try {
+        // Method 1: Find and click the tab button
+        const tabButton = document.querySelector(`[data-bs-target="${selector}"]`);
+        if (tabButton) {
+            tabButton.click();
+            console.log('✅ Tab switched via button click');
+            return;
+        }
+        
+        // Method 2: Manual tab switching
+        if (selector === '#dashboard') {
+            const analysisTab = document.getElementById('analysis');
+            const dashboardTab = document.getElementById('dashboard');
+            const analysisTabBtn = document.getElementById('analysis-tab');
+            const dashboardTabBtn = document.getElementById('dashboard-tab');
+            
+            if (analysisTab && dashboardTab) {
+                // Hide analysis tab
+                analysisTab.classList.remove('show', 'active');
+                if (analysisTabBtn) analysisTabBtn.classList.remove('active');
+                
+                // Show dashboard tab
+                dashboardTab.classList.add('show', 'active');
+                if (dashboardTabBtn) dashboardTabBtn.classList.add('active');
+                
+                console.log('✅ Tab switched manually');
+                return;
+            }
+        }
+        
+        console.warn('⚠️ Could not switch tab');
+        
+    } catch (error) {
+        console.error('❌ Error switching tab:', error);
     }
 }
 
@@ -4814,12 +4851,12 @@ function handleAnalysisCompletion() {
 /**
  * Fixed analysis form submission that properly handles completion
  */
-function handleAnalysisSubmitFixed(event) {
+function handleAnalysisSubmit(event) {
     event.preventDefault();
     
     if (!validateAnalysisForm()) return;
     
-    console.log('📊 Starting enhanced analysis with proper completion handling');
+    console.log('📊 Starting FIXED analysis with guaranteed completion');
     
     const btn = document.getElementById('analyzeBtn');
     const progress = document.getElementById('analysisProgress');
@@ -4830,12 +4867,15 @@ function handleAnalysisSubmitFixed(event) {
         btn.disabled = true;
     }
     
-    if (progress) progress.classList.add('visible');
+    if (progress) {
+        progress.classList.add('visible');
+        progress.style.display = 'block';
+    }
     
     // Start progress animation
     startEnhancedProgressAnimation();
     
-    // Submit analysis with proper completion handling
+    // Submit analysis
     fetch('/analyze', {
         method: 'POST',
         body: new FormData(event.target)
@@ -4845,26 +4885,41 @@ function handleAnalysisSubmitFixed(event) {
         return response.text();
     })
     .then(() => {
-        console.log('✅ Analysis completed successfully - triggering UI updates');
+        console.log('✅ Analysis completed successfully');
         
-        // Complete progress with success state
+        // Complete progress
         completeProgressWithSuccess();
         
         // Show success notification
-        showNotification('🎉 Analysis completed! Loading optimized dashboard...', 'success');
+        if (typeof showNotification === 'function') {
+            showNotification('🎉 Analysis completed! Loading dashboard...', 'success');
+        }
         
-        // Switch to dashboard and handle completion
+        // Wait a moment, then switch to dashboard and reset
         setTimeout(() => {
+            // Switch to dashboard tab
             switchToTab('#dashboard');
+            
+            // Reset form completely
             resetAnalysisForm();
             
-            // CRITICAL FIX: Properly handle analysis completion
-            handleAnalysisCompletion();
+            // Load charts after a brief delay
+            setTimeout(() => {
+                if (typeof initializeCharts === 'function') {
+                    initializeCharts();
+                }
+                if (typeof handleAnalysisCompletion === 'function') {
+                    handleAnalysisCompletion();
+                }
+            }, 500);
+            
         }, 2000);
     })
     .catch(error => {
         console.error('❌ Analysis failed:', error);
-        showNotification(`Analysis failed: ${error.message}`, 'error');
+        if (typeof showNotification === 'function') {
+            showNotification(`Analysis failed: ${error.message}`, 'error');
+        }
         resetAnalysisForm();
     });
 }
@@ -5051,23 +5106,30 @@ function startEnhancedProgressAnimation() {
     
     if (!fill || !text) return;
     
-    const steps = [
-        { percentage: 15, text: '🔌 Connecting to Azure...', delay: 500, color: '#007bff' },
-        { percentage: 35, text: '💰 Fetching cost data...', delay: 1200, color: '#17a2b8' },
-        { percentage: 55, text: '📊 Analyzing metrics...', delay: 1800, color: '#6f42c1' },
-        { percentage: 75, text: '🎯 Calculating optimizations...', delay: 2400, color: '#fd7e14' },
-        { percentage: 90, text: '💡 Generating insights...', delay: 3000, color: '#28a745' }
+    const progressSteps = [
+        { percentage: 10, text: '🔌 Connecting to Azure...', color: '#007AFF' },
+        { percentage: 25, text: '💰 Fetching cost data...', color: '#5AC8FA' },
+        { percentage: 45, text: '📊 Analyzing cluster metrics...', color: '#AF52DE' },
+        { percentage: 65, text: '🎯 Calculating optimization opportunities...', color: '#FF9500' },
+        { percentage: 85, text: '💡 Generating insights...', color: '#34C759' }
     ];
     
-    steps.forEach(step => {
-        setTimeout(() => {
+    let stepIndex = 0;
+    function advanceProgress() {
+        if (stepIndex < progressSteps.length && fill && text) {
+            const step = progressSteps[stepIndex];
             fill.style.width = step.percentage + '%';
             fill.style.background = `linear-gradient(90deg, ${step.color}, ${step.color}dd)`;
-            fill.style.boxShadow = `0 0 20px ${step.color}44`;
             text.textContent = step.text;
-        }, step.delay);
-    });
+            fill.style.boxShadow = `0 0 20px ${step.color}44`;
+            
+            stepIndex++;
+            setTimeout(advanceProgress, 800);
+        }
+    }
+    advanceProgress();
 }
+
 
 /**
  * Complete progress with success state
@@ -5119,28 +5181,135 @@ function getClusterNameFromContext() {
  * Initialize all fixes
  */
 function initializeAllFixes() {
-    console.log('🚀 Initializing comprehensive dashboard fixes...');
+    console.log('🚀 Initializing COMPLETE fixes');
     
     // Override existing functions with fixed versions
-    window.updateDataSourceIndicator = updateDataSourceIndicator;
-    window.updateDashboardMetrics = updateDashboardMetrics;
-    /*window.clearAllLoadingStates = clearAllLoadingStates;*/
-    window.showNotification = showNotificationFixed;
-    
-    // Add CSS for fixed data source indicator
-    addFixedDataSourceCSS();
-    
-    // Override analysis form handler
-    const analysisForm = document.getElementById('analysisForm');
-    if (analysisForm) {
-        // Remove existing listeners and add fixed one
-        const newForm = analysisForm.cloneNode(true);
-        analysisForm.parentNode.replaceChild(newForm, analysisForm);
-        newForm.addEventListener('submit', handleAnalysisSubmitFixed);
-        console.log('✅ Analysis form handler fixed');
+    if (typeof updateDataSourceIndicator === 'function') {
+        window.updateDataSourceIndicator = updateDataSourceIndicator;
+    }
+    if (typeof updateDashboardMetrics === 'function') {
+        window.updateDashboardMetrics = updateDashboardMetrics;
     }
     
-    console.log('✅ All dashboard fixes initialized successfully');
+    // Setup fixed form handlers (this prevents conflicts)
+    setupFormHandlers();
+    
+    // Make sure all required functions are available globally
+    window.resetAnalysisForm = resetAnalysisForm;
+    window.completeProgressWithSuccess = completeProgressWithSuccess;
+    window.startEnhancedProgressAnimation = startEnhancedProgressAnimation;
+    window.switchToTab = switchToTab;
+    window.handleAnalysisSubmit = handleAnalysisSubmit;
+    
+    // Add necessary CSS
+    addAnalysisFixCSS();
+    
+    console.log('✅ ALL fixes initialized successfully');
+}
+
+function addAnalysisFixCSS() {
+    if (document.getElementById('analysis-fix-css')) return;
+    
+    const style = document.createElement('style');
+    style.id = 'analysis-fix-css';
+    style.textContent = `
+        /* Analysis progress fixes */
+        .analysis-progress {
+            transition: all 0.3s ease !important;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        
+        .analysis-progress.visible {
+            opacity: 1 !important;
+            transform: translateY(0) !important;
+            display: block !important;
+        }
+        
+        /* Button loading state fixes */
+        .btn.loading {
+            pointer-events: none !important;
+            opacity: 0.8;
+        }
+        
+        .btn:not(.loading) {
+            pointer-events: auto !important;
+            opacity: 1;
+        }
+        
+        /* Progress bar animation */
+        .progress-fill {
+            transition: width 0.5s ease, background 0.3s ease !important;
+        }
+        
+        /* Tab switching fixes */
+        .tab-pane {
+            transition: opacity 0.3s ease !important;
+        }
+        
+        .tab-pane.active {
+            opacity: 1 !important;
+        }
+        
+        .tab-pane:not(.active) {
+            opacity: 0 !important;
+        }
+    `;
+    document.head.appendChild(style);
+}
+/**
+ * ============================================================================
+ * COMPLETE ANALYSIS FORM FIX - ALL ISSUES RESOLVED
+ * ============================================================================
+ * Fixes: missing functions, conflicting handlers, stuck progress, disabled button
+ * ============================================================================
+ */
+
+/**
+ * MISSING FUNCTION: resetAnalysisForm - this was causing the ReferenceError
+ */
+function resetAnalysisForm() {
+    console.log('🧹 Resetting analysis form to initial state');
+    
+    const btn = document.getElementById('analyzeBtn');
+    const progress = document.getElementById('analysisProgress');
+    const fill = document.getElementById('progressFill');
+    const text = document.getElementById('progressText');
+    
+    // Reset button to original state
+    if (btn) {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        btn.innerHTML = `
+            <span class="btn-content">
+                <i class="fas fa-play me-2"></i>
+                <span class="btn-text">Start Analysis</span>
+            </span>
+            <div class="btn-loader d-none">
+                <i class="fas fa-spinner fa-spin me-2"></i>
+                <span>Analyzing...</span>
+            </div>
+        `;
+    }
+    
+    // Hide and reset progress bar
+    if (progress) {
+        progress.classList.remove('visible');
+        progress.style.display = 'none';
+    }
+    
+    // Reset progress bar fill and text
+    if (fill) {
+        fill.style.width = '0%';
+        fill.style.background = '';
+        fill.style.boxShadow = '';
+    }
+    
+    if (text) {
+        text.textContent = 'Initializing analysis...';
+    }
+    
+    console.log('✅ Analysis form reset completed');
 }
 
 /**
