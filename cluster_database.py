@@ -3,9 +3,113 @@ import sqlite3
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+import traceback
+from typing import Any, Dict, List, Optional
 import os
 
+def migrate_database_schema(db_path: str = 'clusters.db'):
+    """Migrate database schema to include analysis_data column and other required columns"""
+    import sqlite3
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Check current schema
+            cursor.execute("PRAGMA table_info(clusters)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            
+            # Define required columns
+            required_columns = {
+                'analysis_data': 'TEXT',
+                'last_confidence': 'REAL DEFAULT 0'
+            }
+            
+            # Add missing columns
+            columns_added = 0
+            for column_name, column_def in required_columns.items():
+                if column_name not in existing_columns:
+                    try:
+                        alter_sql = f"ALTER TABLE clusters ADD COLUMN {column_name} {column_def}"
+                        cursor.execute(alter_sql)
+                        logger.info(f"✅ Added column: {column_name}")
+                        columns_added += 1
+                    except sqlite3.OperationalError as e:
+                        if "duplicate column name" not in str(e).lower():
+                            logger.error(f"❌ Failed to add column {column_name}: {e}")
+            
+            conn.commit()
+            
+            if columns_added > 0:
+                logger.info(f"✅ Database migration completed: {columns_added} columns added")
+            
+            return True
+            
+    except Exception as e:
+        logger.error(f"❌ Database migration failed: {e}")
+        return False
+
+def serialize_implementation_plan(plan_data):
+    """Serialize implementation plan while preserving all ML/algorithmic data"""
+    import pandas as pd
+    from datetime import datetime
+    
+    def serialize_object(obj):
+        if obj is None:
+            return None
+        elif isinstance(obj, (str, int, float, bool)):
+            return obj
+        elif isinstance(obj, dict):
+            return {k: serialize_object(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [serialize_object(item) for item in obj]
+        elif isinstance(obj, pd.Series):
+            return obj.to_dict()
+        elif isinstance(obj, pd.DataFrame):
+            return obj.to_dict('records')
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
+        elif hasattr(obj, '__dict__'):
+            # Handle complex objects like cluster_dna, dynamic_strategy
+            serialized = {'__class_name__': obj.__class__.__name__}
+            for key, value in obj.__dict__.items():
+                serialized[key] = serialize_object(value)
+            return serialized
+        elif hasattr(obj, 'to_dict'):
+            return serialize_object(obj.to_dict())
+        else:
+            return str(obj)
+    
+    return serialize_object(plan_data)
+
+def deserialize_implementation_plan(serialized_data):
+    """Deserialize implementation plan and reconstruct objects"""
+    def deserialize_object(obj):
+        if obj is None:
+            return None
+        elif isinstance(obj, (str, int, float, bool)):
+            return obj
+        elif isinstance(obj, dict):
+            if '__class_name__' in obj:
+                # Reconstruct complex object as dict (maintains functionality)
+                reconstructed = {}
+                for key, value in obj.items():
+                    if key != '__class_name__':
+                        reconstructed[key] = deserialize_object(value)
+                reconstructed['__original_class__'] = obj['__class_name__']
+                return reconstructed
+            else:
+                return {k: deserialize_object(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [deserialize_object(item) for item in obj]
+        else:
+            return obj
+    
+    return deserialize_object(serialized_data)
+    
 logger = logging.getLogger(__name__)
 
 class EnhancedClusterManager:
@@ -20,9 +124,13 @@ class EnhancedClusterManager:
         self.cleanup_stale_analyses()
         
     def init_database(self):
-        """Initialize SQLite database with proper schema"""
+        """Initialize SQLite database with proper schema including analysis_data"""
         try:
+            # First run migration to ensure schema is up to date
+            migrate_database_schema(self.db_path)
+            
             with sqlite3.connect(self.db_path) as conn:
+                # Create clusters table with ALL required columns
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS clusters (
                         id TEXT PRIMARY KEY,
@@ -36,8 +144,15 @@ class EnhancedClusterManager:
                         last_analyzed TIMESTAMP NULL,
                         last_cost REAL DEFAULT 0,
                         last_savings REAL DEFAULT 0,
+                        last_confidence REAL DEFAULT 0,
                         analysis_count INTEGER DEFAULT 0,
-                        metadata TEXT DEFAULT '{}'
+                        metadata TEXT DEFAULT '{}',
+                        analysis_data TEXT,
+                        analysis_status TEXT DEFAULT 'pending',
+                        analysis_progress INTEGER DEFAULT 0,
+                        analysis_message TEXT DEFAULT '',
+                        analysis_started_at TIMESTAMP,
+                        auto_analyze_enabled BOOLEAN DEFAULT 1
                     )
                 ''')
                 
@@ -63,7 +178,7 @@ class EnhancedClusterManager:
                 ''')
                 
                 conn.commit()
-                logger.info("✅ Database initialized successfully")
+                logger.info("✅ Database initialized successfully with complete schema")
                 
         except Exception as e:
             logger.error(f"❌ Database initialization failed: {e}")
@@ -141,63 +256,147 @@ class EnhancedClusterManager:
             logger.error(f"❌ Failed to list clusters: {e}")
             return []
     
-    def update_cluster_analysis(self, cluster_id: str, analysis_results: Dict):
-        """Update cluster with latest analysis results"""
+    def update_cluster_analysis(self, cluster_id: str, analysis_data: dict):
+        """FIXED: Update cluster with analysis results - preserves implementation plan"""
         try:
+            enhanced_analysis_data = analysis_data.copy()
+            
+            # Check for node data and set flag
+            has_node_data = False
+            for key in ['nodes', 'node_metrics', 'real_node_data']:
+                if enhanced_analysis_data.get(key) and len(enhanced_analysis_data[key]) > 0:
+                    has_node_data = True
+                    logger.info(f"✅ DB SAVE: Found node data in {key} ({len(enhanced_analysis_data[key])} nodes)")
+                    break
+            
+            enhanced_analysis_data['has_real_node_data'] = has_node_data
+            
+            if has_node_data:
+                node_data = None
+                for key in ['nodes', 'node_metrics', 'real_node_data']:
+                    if enhanced_analysis_data.get(key):
+                        node_data = enhanced_analysis_data[key]
+                        break
+                
+                if node_data:
+                    enhanced_analysis_data['nodes'] = node_data
+                    enhanced_analysis_data['node_metrics'] = node_data
+                    enhanced_analysis_data['real_node_data'] = node_data
+            
+            # CRITICAL: Generate implementation plan BEFORE serialization
+            if 'implementation_plan' not in enhanced_analysis_data:
+                try:
+                    from implementation_generator import AKSImplementationGenerator
+                    implementation_generator = AKSImplementationGenerator()
+                    implementation_plan = implementation_generator.generate_implementation_plan(enhanced_analysis_data)
+                    enhanced_analysis_data['implementation_plan'] = implementation_plan
+                    logger.info("✅ Generated implementation plan for database")
+                    
+                    # Validate the plan has phases
+                    if implementation_plan and 'implementation_phases' in implementation_plan:
+                        phases_count = len(implementation_plan['implementation_phases'])
+                        logger.info(f"✅ Implementation plan has {phases_count} phases")
+                        
+                except Exception as impl_error:
+                    logger.error(f"❌ Failed to generate implementation plan: {impl_error}")
+                    import traceback
+                    logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            
+            # Use specialized serialization for implementation plan
+            serializable_data = serialize_implementation_plan(enhanced_analysis_data)
+            
+            total_cost = float(serializable_data.get('total_cost', 0))
+            total_savings = float(serializable_data.get('total_savings', 0))
+            confidence = float(serializable_data.get('analysis_confidence', 0))
+            
             with sqlite3.connect(self.db_path) as conn:
-                # Update cluster record
                 conn.execute('''
                     UPDATE clusters 
-                    SET last_analyzed = ?, last_cost = ?, last_savings = ?, analysis_count = analysis_count + 1
+                    SET last_cost = ?, last_savings = ?, last_confidence = ?, 
+                        last_analyzed = ?, analysis_data = ?
                     WHERE id = ?
                 ''', (
+                    total_cost, total_savings, confidence,
                     datetime.now().isoformat(),
-                    analysis_results.get('total_cost', 0),
-                    analysis_results.get('total_savings', 0),
+                    json.dumps(serializable_data),
                     cluster_id
                 ))
-                
-                # Store full analysis results
-                conn.execute('''
-                    INSERT INTO analysis_results 
-                    (cluster_id, results, total_cost, total_savings, confidence_level)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (
-                    cluster_id,
-                    json.dumps(analysis_results),
-                    analysis_results.get('total_cost', 0),
-                    analysis_results.get('total_savings', 0),
-                    analysis_results.get('confidence_level', 'Medium')
-                ))
-                
                 conn.commit()
-                logger.info(f"✅ Updated cluster analysis: {cluster_id}")
-                
+            
+            logger.info(f"✅ Updated cluster analysis with implementation plan: {cluster_id}")
+            
         except Exception as e:
             logger.error(f"❌ Failed to update cluster analysis: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             raise
-    
-    def get_latest_analysis(self, cluster_id: str) -> Optional[Dict]:
-        """Get latest analysis results for a cluster"""
+
+    def get_latest_analysis(self, cluster_id: str) -> Optional[Dict[str, Any]]:
+        """FIXED: Get latest analysis with proper implementation plan deserialization"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT * FROM analysis_results 
-                    WHERE cluster_id = ? 
-                    ORDER BY analysis_date DESC 
+                    SELECT analysis_data, last_analyzed, last_cost, last_savings
+                    FROM clusters 
+                    WHERE id = ? AND analysis_data IS NOT NULL
+                    ORDER BY last_analyzed DESC
                     LIMIT 1
                 ''', (cluster_id,))
                 
                 row = cursor.fetchone()
-                if row:
-                    analysis = dict(row)
-                    analysis['results'] = json.loads(analysis['results'])
-                    return analysis['results']
-                return None
-                
+                if row and row['analysis_data']:
+                    try:
+                        serialized_data = json.loads(row['analysis_data'])
+                        
+                        # Use specialized deserialization
+                        analysis_data = deserialize_implementation_plan(serialized_data)
+                        
+                        # Set node data flag
+                        has_node_data = False
+                        for key in ['nodes', 'node_metrics', 'real_node_data']:
+                            if analysis_data.get(key) and len(analysis_data[key]) > 0:
+                                has_node_data = True
+                                break
+                        
+                        analysis_data['has_real_node_data'] = has_node_data
+                        
+                        if has_node_data:
+                            node_data = None
+                            for key in ['nodes', 'node_metrics', 'real_node_data']:
+                                if analysis_data.get(key):
+                                    node_data = analysis_data[key]
+                                    break
+                            
+                            if node_data:
+                                analysis_data['nodes'] = node_data
+                                analysis_data['node_metrics'] = node_data
+                                analysis_data['real_node_data'] = node_data
+                        
+                        # CRITICAL: Validate implementation plan structure
+                        if 'implementation_plan' in analysis_data:
+                            impl_plan = analysis_data['implementation_plan']
+                            if isinstance(impl_plan, dict) and 'implementation_phases' in impl_plan:
+                                phases = impl_plan['implementation_phases']
+                                if isinstance(phases, list) and len(phases) > 0:
+                                    logger.info(f"✅ DB LOAD: Implementation plan has {len(phases)} phases")
+                                else:
+                                    logger.warning("⚠️ DB LOAD: Implementation plan phases are empty")
+                            else:
+                                logger.warning("⚠️ DB LOAD: Implementation plan missing phases structure")
+                        
+                        logger.info(f"📦 Loaded COMPLETE analysis from database: {cluster_id}")
+                        return analysis_data
+                        
+                    except json.JSONDecodeError as e:
+                        logger.error(f"❌ Failed to decode analysis data: {e}")
+                        return None
+                else:
+                    logger.info(f"ℹ️ No analysis data found for cluster: {cluster_id}")
+                    return None
+                    
         except Exception as e:
-            logger.error(f"❌ Failed to get latest analysis for {cluster_id}: {e}")
+            logger.error(f"❌ Database error getting analysis: {e}")
             return None
     
     def get_portfolio_summary(self) -> Dict:
@@ -321,36 +520,15 @@ class EnhancedClusterManager:
     # Enhanced cluster_database.py - Add these methods to your EnhancedClusterManager class
 
     def enhance_database_for_auto_analysis(self):
-        """Enhance database schema to support auto-analysis tracking"""
+        """Enhanced method that uses the migration function"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                # Check if columns already exist
-                cursor = conn.execute("PRAGMA table_info(clusters)")
-                existing_columns = [column[1] for column in cursor.fetchall()]
-                
-                # Add new columns for analysis tracking
-                if 'analysis_status' not in existing_columns:
-                    conn.execute('ALTER TABLE clusters ADD COLUMN analysis_status TEXT DEFAULT "pending"')
-                    logger.info("✅ Added analysis_status column")
-                
-                if 'analysis_progress' not in existing_columns:
-                    conn.execute('ALTER TABLE clusters ADD COLUMN analysis_progress INTEGER DEFAULT 0')
-                    logger.info("✅ Added analysis_progress column")
-                
-                if 'analysis_message' not in existing_columns:
-                    conn.execute('ALTER TABLE clusters ADD COLUMN analysis_message TEXT DEFAULT ""')
-                    logger.info("✅ Added analysis_message column")
-                
-                if 'analysis_started_at' not in existing_columns:
-                    conn.execute('ALTER TABLE clusters ADD COLUMN analysis_started_at TIMESTAMP NULL')
-                    logger.info("✅ Added analysis_started_at column")
-                
-                if 'auto_analyze_enabled' not in existing_columns:
-                    conn.execute('ALTER TABLE clusters ADD COLUMN auto_analyze_enabled BOOLEAN DEFAULT 1')
-                    logger.info("✅ Added auto_analyze_enabled column")
-                
-                conn.commit()
-                logger.info("✅ Database schema enhanced for auto-analysis")
+            # Use the standardized migration function
+            migration_success = migrate_database_schema(self.db_path)
+            
+            if migration_success:
+                logger.info("✅ Database schema enhanced for auto-analysis via migration")
+            else:
+                logger.warning("⚠️ Some database schema enhancements may have failed")
                 
         except Exception as e:
             logger.error(f"❌ Database schema enhancement failed: {e}")
