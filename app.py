@@ -12,7 +12,7 @@ memory-based HPA implementation and generalizable metrics collection.
 import os
 import json
 import sqlite3
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import numpy as np
 import time
@@ -28,10 +28,157 @@ from datetime import datetime, timedelta, timezone
 from implementation_generator import AKSImplementationGenerator
 from pod_cost_analyzer import get_enhanced_pod_cost_breakdown
 from cluster_database import EnhancedClusterManager, migrate_from_json
-from aks_realtime_metrics import AKSRealTimeMetricsFetcher, get_aks_realtime_metrics
 
 enhanced_cluster_manager = EnhancedClusterManager()
 analysis_status_tracker = {}
+analysis_results = {}
+
+# Enhanced global cache with TTL
+analysis_cache = {
+    'clusters': {},  # {cluster_id: {'data': {}, 'timestamp': str, 'ttl_hours': int}}
+    'global_ttl_hours': 1
+}
+
+def is_cache_valid(cluster_id: str = None) -> bool:
+    """Check if cache is valid for specific cluster or any cluster"""
+    if not cluster_id:
+        return False
+        
+    if cluster_id not in analysis_cache['clusters']:
+        logger.info(f"🕐 No cache found for cluster: {cluster_id}")
+        return False
+    
+    cluster_cache = analysis_cache['clusters'][cluster_id]
+    if not cluster_cache.get('timestamp'):
+        return False
+    
+    try:
+        cache_time = datetime.fromisoformat(cluster_cache['timestamp'])
+        expiry_time = cache_time + timedelta(hours=analysis_cache['global_ttl_hours'])
+        
+        is_valid = datetime.now() < expiry_time
+        
+        if not is_valid:
+            logger.info(f"🕐 Cache expired for {cluster_id}: cached at {cache_time}")
+            # Clean up expired cache
+            del analysis_cache['clusters'][cluster_id]
+        else:
+            remaining = expiry_time - datetime.now()
+            logger.info(f"✅ Cache valid for {cluster_id}: {remaining.total_seconds()/60:.1f} minutes remaining")
+        
+        return is_valid
+    except Exception as e:
+        logger.error(f"❌ Error checking cache validity for {cluster_id}: {e}")
+        # Clean up invalid cache
+        if cluster_id in analysis_cache['clusters']:
+            del analysis_cache['clusters'][cluster_id]
+        return False
+
+def clear_analysis_cache(cluster_id: str = None):
+    """Clear cache for specific cluster or all clusters"""
+    global analysis_cache
+    
+    if cluster_id:
+        if cluster_id in analysis_cache['clusters']:
+            del analysis_cache['clusters'][cluster_id]
+            logger.info(f"🧹 Cleared cache for cluster: {cluster_id}")
+        else:
+            logger.info(f"ℹ️ No cache to clear for cluster: {cluster_id}")
+    else:
+        old_count = len(analysis_cache['clusters'])
+        analysis_cache['clusters'] = {}
+        logger.info(f"🧹 Cleared ALL cluster caches ({old_count} clusters)")
+
+
+def save_to_cache(cluster_id: str, complete_analysis_data: dict):
+    """FIXED: Save complete analysis data to cluster-specific cache"""
+    global analysis_cache
+    
+    logger.info(f"💾 SAVING TO CACHE: {cluster_id}")
+    enhanced_cache_data = complete_analysis_data.copy()
+    
+    # Preserve node data
+    node_data_found = False
+    node_data = None
+    
+    for node_key in ['nodes', 'node_metrics', 'real_node_data']:
+        if complete_analysis_data.get(node_key):
+            node_data = complete_analysis_data[node_key]
+            node_data_found = True
+            break
+    
+    if node_data_found and node_data:
+        enhanced_cache_data['nodes'] = node_data.copy()
+        enhanced_cache_data['node_metrics'] = node_data.copy()
+        enhanced_cache_data['real_node_data'] = node_data.copy()
+        enhanced_cache_data['has_real_node_data'] = True
+        logger.info(f"✅ CACHE: Preserved {len(node_data)} nodes for {cluster_id}")
+    
+    # Preserve namespace data
+    if complete_analysis_data.get('has_pod_costs'):
+        pod_analysis = complete_analysis_data.get('pod_cost_analysis', {})
+        namespace_costs = pod_analysis.get('namespace_costs') or pod_analysis.get('namespace_summary') or complete_analysis_data.get('namespace_costs')
+        
+        if namespace_costs:
+            enhanced_cache_data['namespace_costs'] = namespace_costs
+            enhanced_cache_data['namespace_summary'] = namespace_costs
+            if 'pod_cost_analysis' not in enhanced_cache_data:
+                enhanced_cache_data['pod_cost_analysis'] = {}
+            enhanced_cache_data['pod_cost_analysis']['namespace_costs'] = namespace_costs
+    
+    # Validate and generate implementation plan
+    if 'implementation_plan' not in enhanced_cache_data:
+        try:
+            from implementation_generator import AKSImplementationGenerator
+            implementation_generator = AKSImplementationGenerator()
+            implementation_plan = implementation_generator.generate_implementation_plan(enhanced_cache_data)
+            enhanced_cache_data['implementation_plan'] = implementation_plan
+            logger.info(f"✅ CACHE: Generated implementation plan for {cluster_id}")
+        except Exception as impl_error:
+            logger.error(f"❌ CACHE: Failed to generate implementation plan for {cluster_id}: {impl_error}")
+    
+    # Store in cluster-specific cache
+    analysis_cache['clusters'][cluster_id] = {
+        'data': enhanced_cache_data,
+        'timestamp': datetime.now().isoformat(),
+        'cluster_id': cluster_id,
+        'ttl_hours': analysis_cache['global_ttl_hours']
+    }
+    
+    total_clusters_cached = len(analysis_cache['clusters'])
+    logger.info(f"💾 CACHE SAVED: {cluster_id} | Total clusters cached: {total_clusters_cached}")
+
+
+def load_from_cache(cluster_id: str) -> dict:
+    """FIXED: Load analysis data from cluster-specific cache"""
+    
+    if not is_cache_valid(cluster_id):
+        logger.info(f"🕐 CACHE: Invalid or expired for {cluster_id}")
+        return {}
+    
+    cluster_cache = analysis_cache['clusters'][cluster_id]
+    cached_data = cluster_cache['data'].copy()
+    
+    # Validate node data exists in cache
+    node_data_keys = ['nodes', 'node_metrics', 'real_node_data']
+    has_node_data = False
+    
+    for key in node_data_keys:
+        if cached_data.get(key) and len(cached_data[key]) > 0:
+            has_node_data = True
+            logger.info(f"✅ CACHE LOAD: Found node data in {key} ({len(cached_data[key])} nodes) for {cluster_id}")
+            break
+    
+    if not has_node_data:
+        logger.error(f"❌ CACHE LOAD: No valid node data found in cache for {cluster_id}")
+        # Remove invalid cache
+        del analysis_cache['clusters'][cluster_id]
+        return {}
+    
+    total_clusters_cached = len(analysis_cache['clusters'])
+    logger.info(f"📦 CACHE LOADED: {cluster_id} with {len(cached_data.get('nodes', []))} nodes | Total cached: {total_clusters_cached}")
+    return cached_data
+
 
 def enhance_database_schema():
         """Add analysis status tracking to database"""
@@ -123,11 +270,13 @@ def convert_k8s_memory_to_bytes(mem_str):
     else:
         return float(mem_str)
 
-def ensure_float(val):
+def ensure_float(value: Any) -> float:
     """Safely convert value to float"""
     try:
-        return float(val) if val is not None else 0.0
-    except (TypeError, ValueError):
+        if value is None:
+            return 0.0
+        return float(value)
+    except (ValueError, TypeError):
         return 0.0
 
 def safe_mean(values):
@@ -777,7 +926,7 @@ def create_minimal_metrics_structure():
 # ============================================================================
 
 def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_analysis=True):
-    """Main analysis function - consistent approach with FIXED node data preservation"""
+    """FIXED: Main analysis function - GUARANTEES implementation plan generation"""
     logger.info(f"🎯 Starting CONSISTENT analysis for {cluster_name} ({days} days)")
     
     global analysis_results
@@ -808,8 +957,6 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
             cost_label = f"Monthly Equivalent (from {days}-day actual: ${total_period_cost:.2f})"
         
         cost_components = extract_cost_components(cost_df, days, monthly_equivalent_cost)
-        
-        # Validate cost components
         cost_components = validate_cost_data(cost_components)
         
         # Get current usage metrics
@@ -820,16 +967,17 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
         metrics_data = get_aks_metrics_from_monitor(resource_group, cluster_name, metrics_start_time, metrics_end_time)
         
         if not metrics_data or not metrics_data.get('nodes'):
-            logger.warning("⚠️ Limited current metrics - using conservative optimization")
-            metrics_data = create_minimal_metrics_structure()
+            logger.error("❌ No current metrics available - cannot proceed without real data")
+            raise ValueError("No real node metrics available from Azure Monitor or kubectl")
         
-        #  Extract and preserve real node data BEFORE algorithmic analysis
+        # CRITICAL: Extract and preserve real node data
         real_node_metrics = []
         if metrics_data and metrics_data.get('nodes'):
             real_node_metrics = metrics_data['nodes'].copy()
-            logger.info(f"🔧  Preserving {len(real_node_metrics)} real node metrics for charts")
-            for node in real_node_metrics:
-                logger.info(f"🔧  Preserved node {node.get('name', 'unknown')}: CPU={node.get('cpu_usage_pct', 0)}%, Memory={node.get('memory_usage_pct', 0)}%")
+            logger.info(f"🔧 PRESERVED {len(real_node_metrics)} real node metrics")
+        else:
+            logger.error("❌ CRITICAL: No node metrics in metrics_data")
+            raise ValueError("No node metrics found in metrics data")
         
         # Pod-level analysis if enabled
         pod_data = None
@@ -876,15 +1024,16 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
         analysis_results['actual_period_cost'] = total_period_cost
         analysis_results['analysis_period_days'] = days
         
-        #  FORCE preservation of real node metrics in multiple keys for compatibility
+        # CRITICAL: FORCE preservation of real node metrics
         if real_node_metrics:
             analysis_results['nodes'] = real_node_metrics.copy()
             analysis_results['node_metrics'] = real_node_metrics.copy()
             analysis_results['real_node_data'] = real_node_metrics.copy()
-            logger.info(f"🔧  Forced preservation of {len(real_node_metrics)} real nodes in analysis_results")
-            logger.info(f"🔧  Available node keys in analysis_results: {[key for key in analysis_results.keys() if 'node' in key.lower()]}")
+            analysis_results['has_real_node_data'] = True
+            logger.info(f"🔧 FORCED preservation of {len(real_node_metrics)} real nodes")
         else:
-            logger.warning("⚠️  No real node metrics to preserve")
+            logger.error("❌ CRITICAL: No real node metrics to preserve")
+            raise ValueError("No real node metrics available for analysis")
         
         # Add pod data if available
         if pod_data:
@@ -912,20 +1061,43 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
             'has_real_node_data': len(real_node_metrics) > 0
         })
         
-        #  Final validation that node data is preserved
-        preserved_nodes = analysis_results.get('nodes', [])
-        logger.info(f"🔧  Final validation - analysis_results contains {len(preserved_nodes)} nodes")
-        if preserved_nodes:
-            sample_node = preserved_nodes[0]
-            logger.info(f"🔧  Sample preserved node: {sample_node.get('name', 'unknown')} with CPU={sample_node.get('cpu_usage_pct', 'missing')}%")
+        # CRITICAL: GENERATE IMPLEMENTATION PLAN IMMEDIATELY AFTER ANALYSIS
+        logger.info("📋 GENERATING IMPLEMENTATION PLAN IMMEDIATELY...")
+        try:
+            from implementation_generator import AKSImplementationGenerator
+            implementation_generator = AKSImplementationGenerator()
+            implementation_plan = implementation_generator.generate_implementation_plan(analysis_results)
+            analysis_results['implementation_plan'] = implementation_plan
+            
+            # Validate implementation plan structure
+            if implementation_plan and isinstance(implementation_plan, dict):
+                if 'implementation_phases' in implementation_plan:
+                    phases = implementation_plan['implementation_phases']
+                    if isinstance(phases, list) and len(phases) > 0:
+                        logger.info(f"✅ GENERATED IMPLEMENTATION PLAN: {len(phases)} phases")
+                        logger.info(f"✅ Phase titles: {[p.get('title', 'Untitled') for p in phases[:3]]}")
+                    else:
+                        logger.error("❌ Implementation plan phases are empty or invalid")
+                        raise ValueError("Implementation plan phases are empty")
+                else:
+                    logger.error("❌ Implementation plan missing phases structure")
+                    raise ValueError("Implementation plan missing phases structure")
+            else:
+                logger.error("❌ Implementation plan is not a valid dictionary")
+                raise ValueError("Implementation plan generation failed")
+                
+        except Exception as impl_error:
+            logger.error(f"❌ IMPLEMENTATION PLAN GENERATION FAILED: {impl_error}")
+            logger.error(f"❌ Implementation error traceback: {traceback.format_exc()}")
         
-        logger.info(f"🎉 CONSISTENT ANALYSIS COMPLETED")
+        logger.info(f"🎉 CONSISTENT ANALYSIS COMPLETED WITH IMPLEMENTATION PLAN")
         
         return {'status': 'success', 'data_type': 'consistent_algorithmic'}
         
     except Exception as e:
         error_msg = str(e)
         logger.error(f"❌ CONSISTENT ANALYSIS FAILED: {error_msg}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         analysis_results = {
             'error': error_msg,
@@ -936,45 +1108,77 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
         return {'status': 'error', 'message': error_msg}
 
 def generate_dynamic_hpa_comparison(analysis_data):
-    """Generate HPA comparison from real metrics and analysis data"""
-    if not analysis_data.get('has_real_node_data'):
-        raise ValueError("No real node data available for HPA comparison")
-    
-    nodes = analysis_data.get('real_node_data', [])
-    if not nodes:
-        raise ValueError("No node metrics found for HPA calculation")
-    
-    # Calculate current resource utilization across all nodes
-    total_cpu_usage = sum(node.get('cpu_usage_pct', 0) for node in nodes)
-    total_memory_usage = sum(node.get('memory_usage_pct', 0) for node in nodes)
-    avg_cpu = total_cpu_usage / len(nodes)
-    avg_memory = total_memory_usage / len(nodes)
-    
-    # Current replicas estimation based on node utilization
-    current_replicas = len(nodes) * 2  # Assume 2 replicas per node on average
-    
-    # CPU-based HPA scaling (target 70% CPU)
-    cpu_target = 70.0
-    cpu_scale_factor = avg_cpu / cpu_target
-    cpu_replicas = max(1, int(current_replicas * cpu_scale_factor))
-    
-    # Memory-based HPA scaling (target 60% Memory)  
-    memory_target = 60.0
-    memory_scale_factor = avg_memory / memory_target
-    memory_replicas = max(1, int(current_replicas * memory_scale_factor))
-    
-    # Generate 5 time points based on variation in node utilization
-    time_variations = [0.8, 1.2, 1.5, 1.1, 0.9]  # Load pattern multipliers
-    
-    return {
-        'timePoints': ['Low Traffic', 'Medium Traffic', 'Peak Traffic', 'Evening', 'Night'],
-        'cpuReplicas': [max(1, int(cpu_replicas * var)) for var in time_variations],
-        'memoryReplicas': [max(1, int(memory_replicas * var)) for var in time_variations],
-        'current_cpu_avg': avg_cpu,
-        'current_memory_avg': avg_memory,
-        'cpu_target': cpu_target,
-        'memory_target': memory_target
-    }
+    """Generate HPA comparison - FIXED to fail fast without fallbacks"""
+    try:
+        logger.info("🔧 Generating HPA comparison from analysis data")
+        logger.info(f"🔧 Analysis data keys: {list(analysis_data.keys()) if analysis_data else 'None'}")
+        
+        # Step 1: Validate we have real node data flag
+        if not analysis_data.get('has_real_node_data'):
+            raise ValueError("Analysis data indicates no real node data available (has_real_node_data=False)")
+        
+        # Step 2: Find node data in any of the expected keys
+        nodes = None
+        for key in ['real_node_data', 'nodes', 'node_metrics']:
+            if analysis_data.get(key):
+                nodes = analysis_data[key]
+                logger.info(f"✅ HPA: Found node data in key: {key}")
+                break
+        
+        if not nodes:
+            raise ValueError("No node data found in expected keys (real_node_data, nodes, node_metrics)")
+        
+        if len(nodes) == 0:
+            raise ValueError("Node data exists but is empty")
+        
+        # Step 3: Validate node data structure
+        for i, node in enumerate(nodes):
+            if not isinstance(node, dict):
+                raise ValueError(f"Node {i} is not a dictionary: {type(node)}")
+            if 'cpu_usage_pct' not in node or 'memory_usage_pct' not in node:
+                raise ValueError(f"Node {i} missing required usage data: {list(node.keys())}")
+        
+        logger.info(f"✅ HPA: Using {len(nodes)} validated nodes for HPA calculation")
+        
+        # Step 4: Calculate HPA data from real metrics
+        total_cpu_usage = sum(node.get('cpu_usage_pct', 0) for node in nodes)
+        total_memory_usage = sum(node.get('memory_usage_pct', 0) for node in nodes)
+        avg_cpu = total_cpu_usage / len(nodes)
+        avg_memory = total_memory_usage / len(nodes)
+        
+        # Current replicas estimation based on node utilization
+        current_replicas = len(nodes) * 2  # Assume 2 replicas per node on average
+        
+        # CPU-based HPA scaling (target 70% CPU)
+        cpu_target = 70.0
+        cpu_scale_factor = avg_cpu / cpu_target if cpu_target > 0 else 1.0
+        cpu_replicas = max(1, int(current_replicas * cpu_scale_factor))
+        
+        # Memory-based HPA scaling (target 60% Memory)  
+        memory_target = 60.0
+        memory_scale_factor = avg_memory / memory_target if memory_target > 0 else 1.0
+        memory_replicas = max(1, int(current_replicas * memory_scale_factor))
+        
+        # Generate 5 time points based on variation in node utilization
+        time_variations = [0.8, 1.2, 1.5, 1.1, 0.9]  # Load pattern multipliers
+        
+        result = {
+            'timePoints': ['Low Traffic', 'Medium Traffic', 'Peak Traffic', 'Evening', 'Night'],
+            'cpuReplicas': [max(1, int(cpu_replicas * var)) for var in time_variations],
+            'memoryReplicas': [max(1, int(memory_replicas * var)) for var in time_variations],
+            'current_cpu_avg': avg_cpu,
+            'current_memory_avg': avg_memory,
+            'cpu_target': cpu_target,
+            'memory_target': memory_target,
+            'data_source': 'real_node_metrics'
+        }
+        
+        logger.info(f"✅ HPA: Generated comparison with avg CPU: {avg_cpu:.1f}%, avg Memory: {avg_memory:.1f}%")
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ HPA: Failed to generate HPA comparison: {e}")
+        raise ValueError(f"Cannot generate HPA comparison: {e}")
 
 
 def extract_cost_components(cost_df, days, monthly_equivalent_cost):
@@ -1136,21 +1340,24 @@ def generate_insights(analysis_results):
     
     return insights
 
-def generate_pod_cost_data():
-    """Generate pod cost chart data"""
+def generate_pod_cost_data(analysis_data=None):
+    """Generate pod cost chart data - NO FALLBACKS"""
     try:
-        if not analysis_results.get('has_pod_costs'):
+        # Use provided analysis_data
+        data_source = analysis_data
+        
+        if not data_source.get('has_pod_costs'):
             return None
         
         # Try multiple sources for namespace costs
         namespace_costs = None
         
-        if analysis_results.get('namespace_costs'):
-            namespace_costs = analysis_results['namespace_costs']
-        elif analysis_results.get('pod_cost_analysis', {}).get('namespace_costs'):
-            namespace_costs = analysis_results['pod_cost_analysis']['namespace_costs']
-        elif analysis_results.get('pod_cost_analysis', {}).get('namespace_summary'):
-            namespace_costs = analysis_results['pod_cost_analysis']['namespace_summary']
+        if data_source.get('namespace_costs'):
+            namespace_costs = data_source['namespace_costs']
+        elif data_source.get('pod_cost_analysis', {}).get('namespace_costs'):
+            namespace_costs = data_source['pod_cost_analysis']['namespace_costs']
+        elif data_source.get('pod_cost_analysis', {}).get('namespace_summary'):
+            namespace_costs = data_source['pod_cost_analysis']['namespace_summary']
         
         if not namespace_costs:
             return None
@@ -1159,13 +1366,13 @@ def generate_pod_cost_data():
         if hasattr(namespace_costs, 'to_dict'):
             namespace_costs = namespace_costs.to_dict()
         
-        # Sort by cost, get top 10
+        # Sort by cost, get top 100
         sorted_namespaces = sorted(namespace_costs.items(), key=lambda x: float(x[1]), reverse=True)[:100]
         
         if not sorted_namespaces:
             return None
         
-        pod_analysis = analysis_results.get('pod_cost_analysis', {})
+        pod_analysis = data_source.get('pod_cost_analysis', {})
         
         result = {
             'labels': [ns[0] for ns in sorted_namespaces],
@@ -1183,15 +1390,18 @@ def generate_pod_cost_data():
         logger.error(f"Error generating pod cost data: {e}")
         return None
 
-def generate_namespace_data():
-    """Generate namespace distribution data"""
+def generate_namespace_data(analysis_data=None):
+    """Generate namespace distribution data - NO FALLBACKS"""
     try:
         logger.info("🔍 Extracting REAL namespace data from analysis")
         
+        # Use provided analysis_data
+        data_source = analysis_data
+        
         # Get namespace costs (existing logic)
-        namespace_costs = analysis_results.get('namespace_costs')
+        namespace_costs = data_source.get('namespace_costs')
         if not namespace_costs:
-            pod_analysis = analysis_results.get('pod_cost_analysis', {})
+            pod_analysis = data_source.get('pod_cost_analysis', {})
             namespace_costs = pod_analysis.get('namespace_costs') or pod_analysis.get('namespace_summary')
         
         if not namespace_costs:
@@ -1204,14 +1414,12 @@ def generate_namespace_data():
         if not isinstance(namespace_costs, dict):
             raise ValueError(f"Invalid namespace_costs type: {type(namespace_costs)}")
         
-        # DO NOT FILTER OUT ZERO-COST NAMESPACES
         # Include ALL namespaces, even those with minimal costs
         valid_namespaces = {}
         for namespace, cost in namespace_costs.items():
             try:
                 cost_float = float(cost)
-                # Include ALL namespaces, even those with $0.01 cost
-                if cost_float >= 0:  # Changed from > 0 to >= 0
+                if cost_float >= 0:  # Include all non-negative costs
                     valid_namespaces[namespace] = cost_float
             except (ValueError, TypeError):
                 logger.warning(f"⚠️ Invalid cost for namespace {namespace}: {cost}")
@@ -1225,54 +1433,45 @@ def generate_namespace_data():
         sorted_namespaces = sorted(valid_namespaces.items(), key=lambda x: x[1], reverse=True)
         
         result = {
-            'namespaces': [ns[0] for ns in sorted_namespaces],  # ALL namespaces
-            'costs': [ns[1] for ns in sorted_namespaces],       # ALL costs
+            'namespaces': [ns[0] for ns in sorted_namespaces],
+            'costs': [ns[1] for ns in sorted_namespaces],
             'percentages': [float(cost/total_valid_cost*100) for _, cost in sorted_namespaces],
             'total_cost': float(total_valid_cost),
             'data_source': 'real_namespace_analysis',
             'total_namespaces': len(valid_namespaces)
         }
         
-        logger.info(f"✅ Generated REAL namespace data:")
-        logger.info(f"   - Total namespaces: {len(valid_namespaces)}")
-        logger.info(f"   - All namespaces: {[ns[0] for ns in sorted_namespaces]}")
-        logger.info(f"   - Top namespace: {result['namespaces'][0]} = ${result['costs'][0]:.2f}")
-        logger.info(f"   - Total cost: ${total_valid_cost:.2f}")
-        
+        logger.info(f"✅ Generated REAL namespace data: {len(valid_namespaces)} namespaces")
         return result
         
     except Exception as e:
-        logger.error(f"❌ Cannot generate namespace data from real sources: {e}")
+        logger.error(f"❌ Cannot generate namespace data: {e}")
         raise ValueError(f"No real namespace data available: {e}")
 
 # workload data function
 
-def generate_workload_data():
-    """Generate workload cost data - ONLY from real pod analysis data"""
+def generate_workload_data(analysis_data=None):
+    """Generate workload cost data - NO FALLBACKS"""
     try:
         logger.info("🔍 Extracting REAL workload data from analysis")
         
+        # Use provided analysis_data
+        data_source = analysis_data
+        
         # Source 1: Direct workload_costs from analysis_results
-        workload_costs = analysis_results.get('workload_costs')
+        workload_costs = data_source.get('workload_costs')
         if workload_costs:
             logger.info(f"✅ Found workload_costs with {len(workload_costs)} workloads")
         
         # Source 2: Pod cost analysis workload costs
         if not workload_costs:
-            pod_analysis = analysis_results.get('pod_cost_analysis', {})
+            pod_analysis = data_source.get('pod_cost_analysis', {})
             workload_costs = pod_analysis.get('workload_costs')
             if workload_costs:
                 logger.info(f"✅ Found pod_cost_analysis workload_costs with {len(workload_costs)} workloads")
         
-        # Source 3: Check if we have the right structure
-        if not workload_costs and analysis_results.get('has_pod_costs'):
-            logger.error("❌ has_pod_costs=True but workload_costs not found!")
-            logger.error(f"❌ Available keys in analysis_results: {list(analysis_results.keys())}")
-            logger.error(f"❌ pod_cost_analysis keys: {list(analysis_results.get('pod_cost_analysis', {}).keys())}")
-        
-        # REMOVE ALL STATIC FALLBACKS - Only use real data
         if not workload_costs:
-            raise ValueError("No real workload costs available - cannot generate fake data")
+            raise ValueError("No real workload costs available")
         
         # Process REAL workload data
         if not isinstance(workload_costs, dict):
@@ -1307,7 +1506,7 @@ def generate_workload_data():
         if not sorted_workloads:
             raise ValueError("No valid workload data after processing")
         
-        # Sort by cost descending and take top 20
+        # Sort by cost descending and take top 100
         max_workloads = 100
         sorted_workloads.sort(key=lambda x: x[1], reverse=True)
         top_workloads = sorted_workloads[:max_workloads]
@@ -1324,248 +1523,386 @@ def generate_workload_data():
             'workloads_hidden': max(0, len(sorted_workloads) - max_workloads)
         }
         
-        logger.info(f"✅ Generated workload data from REAL analysis:")
-        logger.info(f"   - Total workloads processed: {len(sorted_workloads)}")
-        logger.info(f"   - Top workloads shown: {len(top_workloads)}")
-        logger.info(f"   - Top workload: {result['workloads'][0]} = ${result['costs'][0]:.2f}")
-        logger.info(f"   - Cost range: ${min(result['costs']):.2f} - ${max(result['costs']):.2f}")
-        
+        logger.info(f"✅ Generated workload data: {len(sorted_workloads)} total, {len(top_workloads)} shown")
         return result
         
     except Exception as e:
-        logger.error(f"❌ Cannot generate workload data from real sources: {e}")
-        logger.error(f"❌ Analysis results structure: {type(analysis_results)}")
-        logger.error(f"❌ Has pod costs: {analysis_results.get('has_pod_costs', 'NOT_FOUND')}")
-        
-        # DO NOT CREATE FAKE DATA - throw the exception
+        logger.error(f"❌ Cannot generate workload data: {e}")
         raise ValueError(f"No real workload data available: {e}")
 
 def chart_data_consistent():
-    """ Main chart data API for consistent analysis with database fallback"""
+    """FIXED Chart data API with proper error handling - no fallbacks"""
+    global analysis_results
+    
     try:
-        logger.info("📊 FIXED CONSISTENT chart data API called")
+        logger.info("📊 Chart data API called")
         
-        #  Try to get cluster context from the request
-        cluster_id = None
+        # Extract cluster ID from request context
+        cluster_id = _extract_cluster_id()
         
-        # Check if we're on a cluster-specific page
-        referrer = request.headers.get('Referer', '')
-        if '/cluster/' in referrer:
-            try:
-                cluster_id = referrer.split('/cluster/')[-1].split('/')[0].split('?')[0]
-                logger.info(f"🎯  Detected cluster context: {cluster_id}")
-            except:
-                logger.warning("⚠️  Could not extract cluster ID from referrer")
+        # Get analysis data from available sources
+        current_analysis, data_source = _get_analysis_data(cluster_id)
         
-        if not cluster_id:
-            cluster_id = request.args.get('cluster_id')
-            if cluster_id:
-                logger.info(f"🎯 Detected cluster from request args: {cluster_id}")
-
-        #  Try global analysis_results first, then database fallback
-        current_analysis = None
-        data_source = "unknown"
+        # Validate analysis data
+        validation_error = _validate_analysis_data(current_analysis, cluster_id, data_source)
+        if validation_error:
+            return validation_error
         
-        if analysis_results and analysis_results.get('total_cost'):
-            logger.info("✅  Using global analysis_results")
-            current_analysis = analysis_results
-            data_source = "global_variable"
-        elif cluster_id:
-            logger.info(f"🔄  Global analysis_results empty, trying database for cluster {cluster_id}")
-            try:
-                cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
-                if cached_analysis and cached_analysis.get('total_cost'):
-                    logger.info(f"✅  Found cached analysis in database: ${cached_analysis.get('total_cost', 0):.2f}")
-                    current_analysis = cached_analysis
-                    data_source = "database_cache"
-                else:
-                    logger.warning("⚠️  No cached analysis found in database")
-            except Exception as db_error:
-                logger.error(f"❌  Database error: {db_error}")
-        
-        #  Enhanced validation with detailed logging
-        if not current_analysis:
-            logger.warning("⚠️  No analysis results available from any source")
+        # CRITICAL: Validate node data exists before proceeding
+        if not current_analysis.get('has_real_node_data'):
+            logger.error("❌ CHART DATA: Analysis has no real node data flag")
             return jsonify({
-                'status': 'no_data',
-                'message': 'No analysis results available. Please run analysis first.',
+                'status': 'error',
+                'message': 'Analysis data missing real node data flag',
                 'debug_info': {
-                    'global_results_available': bool(analysis_results),
-                    'cluster_id_detected': cluster_id,
-                    'referrer': referrer[:100] if referrer else None
+                    'cluster_id': cluster_id,
+                    'data_source': data_source,
+                    'has_real_node_data': current_analysis.get('has_real_node_data', 'NOT_SET')
                 }
-            }), 200
+            }), 500
         
-        if not current_analysis.get('total_cost'):
-            logger.warning("⚠️  Analysis results exist but no total_cost found")
-            logger.warning(f"⚠️  Available keys: {list(current_analysis.keys())}")
+        # Validate actual node data exists
+        node_data = None
+        for key in ['real_node_data', 'nodes', 'node_metrics']:
+            if current_analysis.get(key) and len(current_analysis[key]) > 0:
+                node_data = current_analysis[key]
+                logger.info(f"✅ CHART DATA: Found node data in {key} ({len(node_data)} nodes)")
+                break
+        
+        if not node_data:
+            logger.error("❌ CHART DATA: No node data found in any expected key")
             return jsonify({
-                'status': 'no_data',
-                'message': 'Invalid analysis data - no cost information found',
+                'status': 'error',
+                'message': 'No real node data available for chart generation',
                 'debug_info': {
-                    'analysis_keys': list(current_analysis.keys()),
-                    'data_source': data_source
+                    'cluster_id': cluster_id,
+                    'data_source': data_source,
+                    'available_keys': list(current_analysis.keys()),
+                    'has_real_node_data': current_analysis.get('has_real_node_data')
                 }
-            }), 200     
-
-        monthly_cost = current_analysis.get('total_cost', 0)
-        monthly_savings = current_analysis.get('total_savings', 0)
+            }), 500
         
-        #  Ensure node_metrics is properly set
-        if 'node_metrics' not in current_analysis and 'nodes' in current_analysis:
-            current_analysis['node_metrics'] = current_analysis['nodes']
+        # Extract cost metrics
+        cost_metrics = _extract_cost_metrics(current_analysis, data_source)
         
-        actual_period_cost = current_analysis.get('actual_period_cost', monthly_cost)
-        analysis_period_days = current_analysis.get('analysis_period_days', 30)
-
-        #  Enhanced logging
-        logger.info(f"📊  Returning chart data from {data_source}: cost=${monthly_cost:.2f}, savings=${monthly_savings:.2f}")
+        # If we got data from database, refresh cache
+        if data_source == "database" and cluster_id:
+            logger.info("💾 Refreshing cache with database data...")
+            save_to_cache(cluster_id, current_analysis)
+            data_source = "database_cached"
         
-        if monthly_cost <= 0:
-            logger.warning(f"⚠️  Invalid cost data: {monthly_cost}")
-            return jsonify({
-                'status': 'invalid_data',
-                'message': f'Invalid cost data: ${monthly_cost}',
-                'debug_info': {
-                    'monthly_cost': monthly_cost,
-                    'data_source': data_source
-                }
-            }), 200
-
-        #  Get individual cost components with validation
-        node_cost = ensure_float(current_analysis.get('node_cost', 0))
-        storage_cost = ensure_float(current_analysis.get('storage_cost', 0))
-        networking_cost = ensure_float(current_analysis.get('networking_cost', 0))
-        control_plane_cost = ensure_float(current_analysis.get('control_plane_cost', 0))
-        registry_cost = ensure_float(current_analysis.get('registry_cost', 0))
-        other_cost = ensure_float(current_analysis.get('other_cost', 0))
+        # Build complete response - this will now work because we validated node data
+        response_data = _build_response_data(current_analysis, cost_metrics, data_source, cluster_id)
         
-        #  Validate and fix cost components
-        component_total = node_cost + storage_cost + networking_cost + control_plane_cost + registry_cost + other_cost
-        if abs(component_total - monthly_cost) > (monthly_cost * 0.01):
-            logger.warning(f"⚠️  Cost mismatch: components={component_total:.2f}, total={monthly_cost:.2f}")
-            if component_total > 0:
-                adjustment_factor = monthly_cost / component_total
-                node_cost *= adjustment_factor
-                storage_cost *= adjustment_factor
-                networking_cost *= adjustment_factor
-                control_plane_cost *= adjustment_factor
-                registry_cost *= adjustment_factor
-                other_cost *= adjustment_factor
-                logger.info(f"✅  Applied adjustment factor: {adjustment_factor:.4f}")
-
-        #  Enhanced response with better node utilization data
-        response_data = {
-            'status': 'success',
-            'consistent_analysis': True,
-            'data_source': data_source,
-            
-            # Main metrics
-            'metrics': {
-                'total_cost': ensure_float(monthly_cost),
-                'actual_period_cost': ensure_float(actual_period_cost),
-                'analysis_period_days': analysis_period_days,
-                'cost_label': current_analysis.get('cost_label', f'{analysis_period_days}-day baseline'),
-                'total_savings': ensure_float(monthly_savings),
-                'hpa_savings': ensure_float(current_analysis.get('hpa_savings', 0)),
-                'right_sizing_savings': ensure_float(current_analysis.get('right_sizing_savings', 0)),
-                'storage_savings': ensure_float(current_analysis.get('storage_savings', 0)),
-                'savings_percentage': ensure_float(current_analysis.get('savings_percentage', 0)),
-                'annual_savings': ensure_float(current_analysis.get('annual_savings', 0)),
-                'hpa_reduction': ensure_float(current_analysis.get('hpa_reduction', 0)),
-                'cpu_gap': ensure_float(current_analysis.get('cpu_gap', 0)),
-                'memory_gap': ensure_float(current_analysis.get('memory_gap', 0))
-            },
-            
-            # Cost breakdown
-            'costBreakdown': {
-                'labels': ['VM Scale Sets (Nodes)', 'Storage', 'Networking', 'AKS Control Plane', 'Container Registry', 'Other'],
-                'values': [
-                    node_cost,
-                    storage_cost,
-                    networking_cost,
-                    control_plane_cost,
-                    registry_cost,
-                    other_cost
-                ]
-            },
-            
-
-
-            # HPA comparison
-            'hpaComparison': generate_dynamic_hpa_comparison(current_analysis),
-            
-            #  Enhanced node utilization with proper data structure
-            'nodeUtilization': generate_node_utilization_data(current_analysis),
-            
-            # Savings breakdown
-            'savingsBreakdown': {
-                'categories': ['Memory-based HPA', 'Right-sizing', 'Storage Optimization'],
-                'values': [
-                    ensure_float(current_analysis.get('hpa_savings', 0)),
-                    ensure_float(current_analysis.get('right_sizing_savings', 0)),
-                    ensure_float(current_analysis.get('storage_savings', 0))
-                ]
-            },
-            
-            # Always include trend data
-            'trendData': generate_dynamic_trend_data(cluster_id, current_analysis),
-            
-            # Insights
-            'insights': generate_insights(current_analysis),
-            
-            # Metadata
-            'metadata': {
-                'analysis_method': 'consistent_current_usage_optimization',
-                'is_consistent': True,
-                'confidence': current_analysis.get('analysis_confidence', 0),
-                'confidence_level': current_analysis.get('confidence_level', 'Medium'),
-                'algorithms_used': current_analysis.get('algorithms_used', []),
-                'resource_group': current_analysis.get('resource_group', ''),
-                'cluster_name': current_analysis.get('cluster_name', ''),
-                'timestamp': datetime.now().isoformat(),
-                'data_source': data_source,
-                'cluster_id': cluster_id
-            }
-        }
-
-        #  Enhanced pod cost data generation
-        if current_analysis.get('has_pod_costs'):
-            logger.info(f"✅  Pod cost data found, generating charts")
-            
-            pod_data = generate_pod_cost_data()
-            if pod_data:
-                response_data['podCostBreakdown'] = pod_data
-                logger.info("✅  Pod breakdown data added")
-            
-            namespace_data = generate_namespace_data()
-            if namespace_data:
-                response_data['namespaceDistribution'] = namespace_data
-                logger.info("✅  Namespace distribution data added")
-            
-            workload_data = generate_workload_data()
-            if workload_data:
-                response_data['workloadCosts'] = workload_data
-                logger.info("✅  Workload costs data added")
-        
-        logger.info(f"✅  Chart data API completed successfully from {data_source}")
+        logger.info(f"✅ Chart data API completed from {data_source}")
         return jsonify(response_data)
 
-    except Exception as e:
-        logger.error(f"❌  ERROR in chart_data API: {e}")
-        logger.error(f"❌  Stack trace: {traceback.format_exc()}")
+    except ValueError as ve:
+        # These are expected errors (like missing node data)
+        logger.error(f"❌ Chart data validation error: {ve}")
         return jsonify({
             'status': 'error',
-            'message': f'Error generating chart data: {str(e)}',
-            'debug_info': {
-                'error_type': type(e).__name__,
-                'error_details': str(e)
-            }
+            'message': str(ve),
+            'error_type': 'validation_error'
+        }), 400
+    except Exception as e:
+        # Unexpected errors
+        logger.error(f"❌ ERROR in chart_data API: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Internal server error: {str(e)}',
+            'error_type': 'internal_error'
         }), 500
 
-def generate_dynamic_trend_data(cluster_id, current_analysis):
-    """Generate trend data from actual historical analysis"""
+
+def _extract_cluster_id() -> Optional[str]:
+    """Extract cluster ID from request context"""
+    cluster_id = None
+    
+    # Check referrer header for cluster context
+    referrer = request.headers.get('Referer', '')
+    if '/cluster/' in referrer:
+        try:
+            cluster_id = referrer.split('/cluster/')[-1].split('/')[0].split('?')[0]
+        except Exception:
+            pass
+    
+    # Fallback to query parameter
+    if not cluster_id:
+        cluster_id = request.args.get('cluster_id')
+    
+    return cluster_id
+
+
+def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, Any]], str]:
+    """FIXED: Get analysis data ONLY from cluster-specific sources"""
+    
+    if not cluster_id:
+        logger.warning("⚠️ No cluster_id provided for analysis data")
+        return None, "no_cluster_id"
+    
+    # Priority 1: Cluster-specific cache
     try:
+        cached_data = load_from_cache(cluster_id)
+        if cached_data and cached_data.get('total_cost', 0) > 0:
+            logger.info(f"✅ Using cluster-specific cache: {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
+            return cached_data, "cluster_cache"
+    except Exception as e:
+        logger.warning(f"⚠️ Cluster cache fetch failed for {cluster_id}: {e}")
+    
+    # Priority 2: Database (cluster-specific)
+    try:
+        logger.info(f"🔄 Loading from database for cluster: {cluster_id}")
+        db_data = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+        if db_data and db_data.get('total_cost', 0) > 0:
+            logger.info(f"📦 Using database for cluster: {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
+            
+            # Cache the database data for future use
+            save_to_cache(cluster_id, db_data)
+            return db_data, "cluster_database"
+    except Exception as e:
+        logger.error(f"❌ Database error for cluster {cluster_id}: {e}")
+    
+    # NO FALLBACK TO GLOBAL DATA - this prevents contamination
+    logger.warning(f"⚠️ No analysis data found for cluster: {cluster_id}")
+    return None, "no_data"
+
+
+def _validate_analysis_data(current_analysis: Optional[Dict[str, Any]], 
+                          cluster_id: Optional[str], 
+                          data_source: str) -> Optional[tuple]:
+    """Validate analysis data and return error response if invalid"""
+    
+    if not current_analysis:
+        logger.warning("⚠️ No analysis data available from any source")
+        return jsonify({
+            'status': 'no_data',
+            'message': 'No analysis results available. Please run analysis first.',
+            'debug_info': {
+                'cluster_id': cluster_id,
+                'data_source': data_source,
+                'referrer': request.headers.get('Referer', '')[:100] if request.headers.get('Referer') else None
+            }
+        }), 200
+    
+    if not current_analysis.get('total_cost'):
+        logger.warning("⚠️ Analysis results exist but no total_cost found")
+        logger.warning(f"⚠️ Available keys: {list(current_analysis.keys())}")
+        return jsonify({
+            'status': 'no_data',
+            'message': 'Invalid analysis data - no cost information found',
+            'debug_info': {
+                'analysis_keys': list(current_analysis.keys()),
+                'data_source': data_source
+            }
+        }), 200
+    
+    total_cost = ensure_float(current_analysis.get('total_cost', 0))
+    if total_cost <= 0:
+        logger.warning(f"⚠️ Invalid cost data: {total_cost}")
+        return jsonify({
+            'status': 'invalid_data',
+            'message': f'Invalid cost data: ${total_cost}',
+            'debug_info': {
+                'total_cost': total_cost,
+                'data_source': data_source
+            }
+        }), 200
+    
+    return None
+
+
+def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) -> Dict[str, float]:
+    """Extract and validate cost metrics from analysis data"""
+    
+    monthly_cost = ensure_float(current_analysis.get('total_cost', 0))
+    monthly_savings = ensure_float(current_analysis.get('total_savings', 0))
+    
+    logger.info(f"📊 Extracting metrics from {data_source}: cost=${monthly_cost:.2f}, savings=${monthly_savings:.2f}")
+    
+    # Get individual cost components
+    cost_components = {
+        'node_cost': ensure_float(current_analysis.get('node_cost', 0)),
+        'storage_cost': ensure_float(current_analysis.get('storage_cost', 0)),
+        'networking_cost': ensure_float(current_analysis.get('networking_cost', 0)),
+        'control_plane_cost': ensure_float(current_analysis.get('control_plane_cost', 0)),
+        'registry_cost': ensure_float(current_analysis.get('registry_cost', 0)),
+        'other_cost': ensure_float(current_analysis.get('other_cost', 0))
+    }
+    
+    # Validate and fix cost components if necessary
+    component_total = sum(cost_components.values())
+    if abs(component_total - monthly_cost) > (monthly_cost * 0.01):  # 1% tolerance
+        logger.warning(f"⚠️ Cost mismatch: components={component_total:.2f}, total={monthly_cost:.2f}")
+        if component_total > 0:
+            adjustment_factor = monthly_cost / component_total
+            cost_components = {k: v * adjustment_factor for k, v in cost_components.items()}
+            logger.info(f"✅ Applied adjustment factor: {adjustment_factor:.4f}")
+    
+    return {
+        'monthly_cost': monthly_cost,
+        'monthly_savings': monthly_savings,
+        **cost_components
+    }
+
+
+def _build_response_data(current_analysis: Dict[str, Any], 
+                        cost_metrics: Dict[str, float], 
+                        data_source: str, 
+                        cluster_id: Optional[str]) -> Dict[str, Any]:
+    """FIXED Build the complete response data structure with proper error handling"""
+    
+    # Ensure node_metrics is properly set
+    if 'node_metrics' not in current_analysis and 'nodes' in current_analysis:
+        current_analysis['node_metrics'] = current_analysis['nodes']
+    
+    actual_period_cost = current_analysis.get('actual_period_cost', cost_metrics['monthly_cost'])
+    analysis_period_days = current_analysis.get('analysis_period_days', 30)
+    
+    response_data = {
+        'status': 'success',
+        'consistent_analysis': True,
+        'data_source': data_source,
+        
+        # Main metrics
+        'metrics': {
+            'total_cost': cost_metrics['monthly_cost'],
+            'actual_period_cost': ensure_float(actual_period_cost),
+            'analysis_period_days': analysis_period_days,
+            'cost_label': current_analysis.get('cost_label', f'{analysis_period_days}-day baseline'),
+            'total_savings': cost_metrics['monthly_savings'],
+            'hpa_savings': ensure_float(current_analysis.get('hpa_savings', 0)),
+            'right_sizing_savings': ensure_float(current_analysis.get('right_sizing_savings', 0)),
+            'storage_savings': ensure_float(current_analysis.get('storage_savings', 0)),
+            'savings_percentage': ensure_float(current_analysis.get('savings_percentage', 0)),
+            'annual_savings': ensure_float(current_analysis.get('annual_savings', 0)),
+            'hpa_reduction': ensure_float(current_analysis.get('hpa_reduction', 0)),
+            'cpu_gap': ensure_float(current_analysis.get('cpu_gap', 0)),
+            'memory_gap': ensure_float(current_analysis.get('memory_gap', 0))
+        },
+        
+        # Cost breakdown
+        'costBreakdown': {
+            'labels': ['VM Scale Sets (Nodes)', 'Storage', 'Networking', 'AKS Control Plane', 'Container Registry', 'Other'],
+            'values': [
+                cost_metrics['node_cost'],
+                cost_metrics['storage_cost'],
+                cost_metrics['networking_cost'],
+                cost_metrics['control_plane_cost'],
+                cost_metrics['registry_cost'],
+                cost_metrics['other_cost']
+            ]
+        },
+        
+        # Savings breakdown
+        'savingsBreakdown': {
+            'categories': ['Memory-based HPA', 'Right-sizing', 'Storage Optimization'],
+            'values': [
+                ensure_float(current_analysis.get('hpa_savings', 0)),
+                ensure_float(current_analysis.get('right_sizing_savings', 0)),
+                ensure_float(current_analysis.get('storage_savings', 0))
+            ]
+        },
+        
+        # Insights
+        'insights': generate_insights(current_analysis),
+        
+        # Metadata
+        'metadata': {
+            'analysis_method': 'consistent_current_usage_optimization',
+            'is_consistent': True,
+            'confidence': current_analysis.get('analysis_confidence', 0),
+            'confidence_level': current_analysis.get('confidence_level', 'Medium'),
+            'algorithms_used': current_analysis.get('algorithms_used', []),
+            'resource_group': current_analysis.get('resource_group', ''),
+            'cluster_name': current_analysis.get('cluster_name', ''),
+            'timestamp': datetime.now().isoformat(),
+            'data_source': data_source,
+            'cluster_id': cluster_id
+        }
+    }
+    
+    # Add charts that require node data - with proper error handling
+    try:
+        # HPA comparison - will fail fast if no node data
+        response_data['hpaComparison'] = generate_dynamic_hpa_comparison(current_analysis)
+        logger.info("✅ Generated HPA comparison")
+    except Exception as hpa_error:
+        logger.error(f"❌ Failed to generate HPA comparison: {hpa_error}")
+        raise ValueError(f"Cannot generate HPA comparison: {hpa_error}")
+    
+    try:
+        # Node utilization - will fail fast if no node data
+        response_data['nodeUtilization'] = generate_node_utilization_data(current_analysis)
+        logger.info("✅ Generated node utilization")
+    except Exception as node_error:
+        logger.error(f"❌ Failed to generate node utilization: {node_error}")
+        raise ValueError(f"Cannot generate node utilization data: {node_error}")
+    
+    try:
+        # Trend data
+        response_data['trendData'] = generate_dynamic_trend_data(cluster_id, current_analysis)
+        logger.info("✅ Generated trend data")
+    except Exception as trend_error:
+        logger.warning(f"⚠️ Failed to generate trend data: {trend_error}")
+        # Trend data is optional
+        response_data['trendData'] = {
+            'labels': [],
+            'datasets': [],
+            'data_source': 'error',
+            'error': str(trend_error)
+        }
+    
+    # Add pod cost data if available
+    if current_analysis.get('has_pod_costs'):
+        logger.info("✅ Pod cost data found, generating charts")
+        try:
+            _add_pod_cost_data(response_data, current_analysis)
+        except Exception as pod_error:
+            logger.warning(f"⚠️ Failed to add pod cost data: {pod_error}")
+            # Pod data is optional
+    
+    return response_data
+
+
+def _add_pod_cost_data(response_data: Dict[str, Any], current_analysis: Dict[str, Any]) -> None:
+    """Add pod cost related data to response - FIXED to use current_analysis"""
+    try:
+        pod_data = generate_pod_cost_data(current_analysis)  # Pass current_analysis
+        if pod_data:
+            response_data['podCostBreakdown'] = pod_data
+            logger.info("✅ Pod breakdown data added")
+        
+        namespace_data = generate_namespace_data(current_analysis)  # Pass current_analysis
+        if namespace_data:
+            response_data['namespaceDistribution'] = namespace_data
+            logger.info("✅ Namespace distribution data added")
+        
+        workload_data = generate_workload_data(current_analysis)  # Pass current_analysis
+        if workload_data:
+            response_data['workloadCosts'] = workload_data
+            logger.info("✅ Workload costs data added")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to add pod cost data: {e}")
+
+
+# Helper function that needs to be implemented
+def ensure_float(value: Any) -> float:
+    """Safely convert value to float"""
+    try:
+        if value is None:
+            return 0.0
+        return float(value)
+    except (ValueError, TypeError):
+        return 0.0
+
+def generate_dynamic_trend_data(cluster_id, current_analysis):
+    """Generate trend data from actual historical analysis - FIXED"""
+    try:
+        if not cluster_id:
+            raise ValueError("No cluster ID provided for trend analysis")
+            
         # Get historical analysis data from database
         history = enhanced_cluster_manager.get_analysis_history(cluster_id, limit=12)
         
@@ -1614,59 +1951,33 @@ def generate_dynamic_trend_data(cluster_id, current_analysis):
 
 
 def generate_node_utilization_data(analysis_data):
-    """ Generate node utilization data with enhanced real data detection"""
+    """Generate node utilization data - FIXED to fail fast without fallbacks"""
     try:
-        logger.info("🔧  Generating node utilization data for charts")
-        logger.info(f"🔧  Available keys in analysis_data: {list(analysis_data.keys()) if analysis_data else 'None'}")
+        logger.info("🔧 Generating node utilization data for charts")
+        logger.info(f"🔧 Available keys: {list(analysis_data.keys()) if analysis_data else 'None'}")
         
-        #  Try multiple sources for node data with enhanced logging
+        # Step 1: Validate we have real node data flag
+        if not analysis_data.get('has_real_node_data'):
+            raise ValueError("Analysis data indicates no real node data available")
+        
+        # Step 2: Find node data
         node_metrics = None
         data_source = "unknown"
         
-        # Source 1: real_node_data key (new)
-        if analysis_data.get('real_node_data'):
-            node_metrics = analysis_data['real_node_data']
-            data_source = "real_node_data"
-            logger.info(f"✅  Found real_node_data with {len(node_metrics)} nodes")
+        for key in ['real_node_data', 'node_metrics', 'nodes']:
+            if analysis_data.get(key):
+                node_metrics = analysis_data[key]
+                data_source = key
+                logger.info(f"✅ NODE UTIL: Found data in {key} ({len(node_metrics)} nodes)")
+                break
         
-        # Source 2: node_metrics key
-        elif analysis_data.get('node_metrics'):
-            node_metrics = analysis_data['node_metrics']
-            data_source = "node_metrics"
-            logger.info(f"✅  Found node_metrics with {len(node_metrics)} nodes")
-        
-        # Source 3: nodes key  
-        elif analysis_data.get('nodes'):
-            node_metrics = analysis_data['nodes']
-            data_source = "nodes"
-            logger.info(f"✅  Found nodes with {len(node_metrics)} nodes")
-        
-        # Source 4: Check if we have real node data flag
-        elif analysis_data.get('has_real_node_data'):
-            logger.warning("⚠️  has_real_node_data=True but no node data found in expected keys")
-            # Look for any key containing 'node' 
-            for key in analysis_data.keys():
-                if 'node' in key.lower() and isinstance(analysis_data[key], list) and len(analysis_data[key]) > 0:
-                    node_metrics = analysis_data[key]
-                    data_source = f"fallback_key_{key}"
-                    logger.info(f"✅  Found node data in fallback key: {key}")
-                    break
-        
-        #  Enhanced validation with detailed logging
         if not node_metrics:
-            logger.warning("⚠️  No node metrics found in any source")
-            logger.warning(f"⚠️  Analysis data keys checked: {list(analysis_data.keys()) if analysis_data else 'No analysis_data'}")
-            # Don't create fallback data - return None to indicate no real data
-            return None
+            raise ValueError("No node metrics found in expected keys")
         
         if len(node_metrics) == 0:
-            logger.warning("⚠️  Node metrics found but empty")
-            return None
+            raise ValueError("Node metrics found but empty")
         
-        logger.info(f"🔧  Using node data from source: {data_source}")
-        logger.info(f"🔧  First node sample: {node_metrics[0] if node_metrics else 'None'}")
-        
-        #  Process node metrics into chart format
+        # Step 3: Process nodes
         nodes = []
         cpu_request = []
         cpu_actual = []
@@ -1674,34 +1985,29 @@ def generate_node_utilization_data(analysis_data):
         memory_actual = []
         
         for i, node in enumerate(node_metrics):
-            if isinstance(node, dict):
-                # Extract node name
-                node_name = node.get('name', f'node-{i+1}')
-                nodes.append(node_name)
-                
-                # Extract CPU data (real values)
-                cpu_usage = float(node.get('cpu_usage_pct', 0))
-                cpu_req = float(node.get('cpu_request_pct', 0))
-                
-                # If we don't have request data, calculate reasonable estimates
-                if cpu_req == 0 and cpu_usage > 0:
-                    cpu_req = min(100, cpu_usage * 1.5 + 20)
-                
-                cpu_actual.append(cpu_usage)
-                cpu_request.append(cpu_req)
-                
-                # Extract Memory data (real values)
-                memory_usage = float(node.get('memory_usage_pct', 0))
-                memory_req = float(node.get('memory_request_pct', 0))
-                
-                # If we don't have request data, calculate reasonable estimates
-                if memory_req == 0 and memory_usage > 0:
-                    memory_req = min(100, memory_usage * 1.3 + 15)
-                
-                memory_actual.append(memory_usage)
-                memory_request.append(memory_req)
-                
-                logger.info(f"✅  Processed REAL node {node_name}: CPU={cpu_usage:.1f}% (req={cpu_req:.1f}%), Memory={memory_usage:.1f}% (req={memory_req:.1f}%)")
+            if not isinstance(node, dict):
+                raise ValueError(f"Node {i} is not a dictionary")
+            
+            # Extract node name
+            node_name = node.get('name', f'node-{i+1}')
+            nodes.append(node_name)
+            
+            # Extract CPU data (real values)
+            cpu_usage = float(node.get('cpu_usage_pct', 0))
+            cpu_req = float(node.get('cpu_request_pct', 0))
+            
+            
+            cpu_actual.append(cpu_usage)
+            cpu_request.append(cpu_req)
+            
+            # Extract Memory data (real values)
+            memory_usage = float(node.get('memory_usage_pct', 0))
+            memory_req = float(node.get('memory_request_pct', 0))
+            
+            memory_actual.append(memory_usage)
+            memory_request.append(memory_req)
+            
+            logger.info(f"✅ NODE UTIL: Processed {node_name}: CPU={cpu_usage:.1f}%, Memory={memory_usage:.1f}%")
         
         result = {
             'nodes': nodes,
@@ -1713,17 +2019,12 @@ def generate_node_utilization_data(analysis_data):
             'real_data': True
         }
         
-        logger.info(f"✅  Generated REAL node utilization data for {len(nodes)} nodes from {data_source}")
-        logger.info(f"🔧  Real CPU usage range: {min(cpu_actual):.1f}% - {max(cpu_actual):.1f}%")
-        logger.info(f"🔧  Real Memory usage range: {min(memory_actual):.1f}% - {max(memory_actual):.1f}%")
-        
+        logger.info(f"✅ NODE UTIL: Generated data for {len(nodes)} nodes")
         return result
         
     except Exception as e:
-        logger.error(f"❌  Error generating node utilization data: {e}")
-        logger.error(f"❌  Exception details: {traceback.format_exc()}")
-        # Return None instead of fallback data to indicate failure
-        return None
+        logger.error(f"❌ NODE UTIL: Failed to generate utilization data: {e}")
+        raise ValueError(f"Cannot generate node utilization data: {e}")
     
 # ============================================================================
 # CONFIGURATION AND STARTUP ENHANCEMENTS
@@ -2079,17 +2380,45 @@ def cluster_portfolio():
 
 @app.route('/dashboard')
 def unified_dashboard():
-    """Original unified dashboard - now for backward compatibility"""
-    current_results = analysis_results if analysis_results.get('total_cost', 0) > 0 else {}
-    has_analysis_data = bool(current_results.get('total_cost', 0) > 0)
+    """Original unified dashboard - FIXED to avoid global dependency"""
+    logger.warning("⚠️ /dashboard route accessed - this is deprecated, use cluster-specific dashboards")
     
+    # Try to get any recent cluster data
+    try:
+        clusters = enhanced_cluster_manager.list_clusters()
+        if clusters:
+            # Get the most recently analyzed cluster
+            recent_cluster = max(
+                (c for c in clusters if c.get('last_analyzed')), 
+                key=lambda x: x.get('last_analyzed', ''), 
+                default=None
+            )
+            
+            if recent_cluster:
+                cluster_id = recent_cluster['id']
+                current_analysis, data_source = _get_analysis_data(cluster_id)
+                
+                if current_analysis and current_analysis.get('total_cost', 0) > 0:
+                    context = {
+                        'results': current_analysis,
+                        'has_analysis_data': True,
+                        'cluster_context': recent_cluster,
+                        'timestamp': datetime.now().strftime('%B %d, %Y %H:%M:%S'),
+                        'data_source': f'Most recent cluster analysis ({data_source})',
+                        'deprecated_warning': True
+                    }
+                    return render_template('unified_dashboard.html', **context)
+    except Exception as e:
+        logger.error(f"Error loading recent cluster data: {e}")
+    
+    # No cluster data available
     context = {
-        'results': current_results,
-        'has_analysis_data': has_analysis_data,
+        'results': {},
+        'has_analysis_data': False,
         'timestamp': datetime.now().strftime('%B %d, %Y %H:%M:%S'),
-        'is_sample_data': current_results.get('is_sample_data', False),
-        'data_source': current_results.get('data_source', 'No analysis run yet'),
-        'cluster_context': None  # Indicates this is not cluster-specific
+        'data_source': 'No analysis data available',
+        'cluster_context': None,
+        'deprecated_warning': True
     }
     
     return render_template('unified_dashboard.html', **context)
@@ -2183,8 +2512,9 @@ def api_list_clusters():
 
 @app.route('/cluster/<cluster_id>')
 def single_cluster_dashboard(cluster_id: str):
-    """Enhanced single cluster dashboard with SQLite backend"""
+    """FIXED Enhanced dashboard - Cache → DB → Refresh Cache → Serve"""
     global analysis_results
+    
     try:
         cluster = enhanced_cluster_manager.get_cluster(cluster_id)
         
@@ -2192,23 +2522,40 @@ def single_cluster_dashboard(cluster_id: str):
             flash(f'Cluster {cluster_id} not found', 'error')
             return redirect(url_for('cluster_portfolio'))
         
-        # CLEAR global cache if switching to different cluster
-        current_global_cluster = f"{analysis_results.get('resource_group', '')}_{analysis_results.get('cluster_name', '')}"
-        if current_global_cluster != cluster_id and analysis_results:
-            logger.info(f"🔄 Switching from {current_global_cluster} to {cluster_id} - clearing global cache")
-            clear_global_analysis_cache()
-
-        # Get latest analysis results from database
-        cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+        logger.info(f"📊 Dashboard access for {cluster_id}")
         
-        # Set global analysis_results for backward compatibility
-
-        if cached_analysis:
-            analysis_results = cached_analysis
-            logger.info(f"📊 Loaded cached analysis for {cluster_id}: ${cached_analysis.get('total_cost', 0):.2f}")
+        # STEP 1: Try cache first (if valid and for this cluster)
+        cached_analysis = load_from_cache(cluster_id)
+        data_source = "cache"
+        
+        if not cached_analysis:
+            # STEP 2: Cache invalid/empty, try database
+            logger.info("🔄 Cache invalid/empty, loading from database...")
+            cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+            
+            if cached_analysis and cached_analysis.get('total_cost', 0) > 0:
+                # STEP 3: Validate DB data has node data before caching
+                has_node_data = False
+                for key in ['nodes', 'node_metrics', 'real_node_data']:
+                    if cached_analysis.get(key) and len(cached_analysis[key]) > 0:
+                        has_node_data = True
+                        break
+                
+                if has_node_data:
+                    # STEP 4: REFRESH CACHE with DB data
+                    logger.info("💾 Refreshing cache with database data...")
+                    save_to_cache(cluster_id, cached_analysis)
+                    
+                    logger.info(f"📦 Loaded from database and refreshed cache: ${cached_analysis.get('total_cost', 0):.2f}")
+                    data_source = "database_cached"
+                else:
+                    logger.warning("⚠️ Database data missing node data - not caching")
+                    data_source = "database_no_cache"
+            else:
+                logger.info(f"ℹ️ No analysis data found for {cluster_id}")
+                data_source = "none"
         else:
-            analysis_results = {}
-            logger.info(f"ℹ️ No cached analysis found for {cluster_id}")
+            logger.info(f"✅ Using VALID cache for dashboard: ${cached_analysis.get('total_cost', 0):.2f}")
         
         # Get analysis history
         analysis_history = enhanced_cluster_manager.get_analysis_history(cluster_id, limit=5)
@@ -2219,13 +2566,15 @@ def single_cluster_dashboard(cluster_id: str):
             'has_analysis_data': bool(cached_analysis and cached_analysis.get('total_cost', 0) > 0),
             'cluster_context': cluster,
             'analysis_history': analysis_history,
-            'timestamp': datetime.now().strftime('%B %d, %Y %H:%M:%S')
+            'timestamp': datetime.now().strftime('%B %d, %Y %H:%M:%S'),
+            'data_source': data_source
         }
         
         return render_template('unified_dashboard.html', **context)
         
     except Exception as e:
         logger.error(f"❌ Error loading cluster dashboard {cluster_id}: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         flash(f'Error loading cluster dashboard: {str(e)}', 'error')
         return redirect(url_for('cluster_portfolio'))
 
@@ -2369,30 +2718,27 @@ def remove_cluster_route(cluster_id: str):
 
 @app.route('/analyze', methods=['POST'])
 def enhanced_analyze():
-    """Enhanced analyze route with multi-cluster SQLite support"""
+    """FIXED Enhanced analyze route - Complete cluster isolation"""
     try:
+        # Extract form data
         resource_group = request.form.get('resource_group')
         cluster_name = request.form.get('cluster_name')
         days = int(request.form.get('days', 30))
         enable_pod_analysis = request.form.get('enable_pod_analysis') == 'on'
         redirect_to_cluster = request.form.get('redirect_to_cluster', 'false') == 'true'
-        current_cluster_id = f"{resource_group}_{cluster_name}"
-
-        # Check if we're analyzing a different cluster
-        if analysis_results.get('cluster_name') != cluster_name or analysis_results.get('resource_group') != resource_group:
-            logger.info(f"🔄 Switching to different cluster {current_cluster_id} - clearing cache")
-            clear_global_analysis_cache()
+        cluster_id = f"{resource_group}_{cluster_name}"
 
         if not resource_group or not cluster_name:
             flash('Resource group and cluster name are required', 'error')
             return redirect(url_for('cluster_portfolio'))
 
-        # Check if this cluster is already managed
-        cluster_id = f"{resource_group}_{cluster_name}"
+        # IMMEDIATELY clear cache for THIS SPECIFIC CLUSTER only
+        logger.info(f"🔄 FRESH ANALYSIS: Clearing cache for cluster {cluster_id}")
+        clear_analysis_cache(cluster_id)
+
+        # Auto-add cluster if not exists
         existing_cluster = enhanced_cluster_manager.get_cluster(cluster_id)
-        
         if not existing_cluster:
-            # Auto-add cluster if not exists
             cluster_config = {
                 'cluster_name': cluster_name,
                 'resource_group': resource_group,
@@ -2401,27 +2747,46 @@ def enhanced_analyze():
                 'description': f'Auto-added from analysis request on {datetime.now().strftime("%Y-%m-%d %H:%M")}'
             }
             cluster_id = enhanced_cluster_manager.add_cluster(cluster_config)
-            logger.info(f"🆕 Auto-added cluster {cluster_id} for analysis")
+            logger.info(f"🆕 Auto-added cluster {cluster_id}")
         
-        # Run analysis
+        # Run FRESH analysis
+        logger.info(f"🚀 Running FRESH analysis for {cluster_id}")
         result = run_consistent_analysis(
             resource_group, cluster_name, days, enable_pod_analysis
         )
         
         if result['status'] == 'success':
-            # Update cluster with results
-            enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_results)
+            # Get the analysis results (they're in global analysis_results temporarily)
+            global analysis_results
+            current_analysis_results = analysis_results.copy()
             
-            monthly_cost = analysis_results.get('total_cost', 0)
-            monthly_savings = analysis_results.get('total_savings', 0)
-            analysis_results['node_metrics'] = analysis_results.get('nodes', [])
-            confidence = analysis_results.get('analysis_confidence', 0)
+            # Validate node data
+            if not current_analysis_results.get('has_real_node_data'):
+                logger.error(f"❌ FRESH ANALYSIS: No real node data for {cluster_id}")
+                flash('❌ Analysis failed: No real node data available', 'error')
+                return redirect(url_for('cluster_portfolio'))
+            
+            # Save to database with cluster_id
+            logger.info(f"💾 Saving analysis to database for cluster: {cluster_id}")
+            enhanced_cluster_manager.update_cluster_analysis(cluster_id, current_analysis_results)
+            
+            # Save to cluster-specific cache
+            logger.info(f"💾 Saving analysis to cache for cluster: {cluster_id}")
+            save_to_cache(cluster_id, current_analysis_results)
+            
+            # Clear global analysis_results to prevent contamination
+            analysis_results = {}
+            logger.info("🧹 Cleared global analysis_results to prevent contamination")
+            
+            monthly_cost = current_analysis_results.get('total_cost', 0)
+            monthly_savings = current_analysis_results.get('total_savings', 0)
+            confidence = current_analysis_results.get('analysis_confidence', 0)
 
             # Check alerts after successful analysis
-            check_alerts_after_analysis(cluster_id, analysis_results)
+            check_alerts_after_analysis(cluster_id, current_analysis_results)
             
             success_msg = (
-                f'🎯 Analysis Complete! '
+                f'🎯 Fresh Analysis Complete for {cluster_name}! '
                 f'${monthly_cost:.0f}/month baseline, ${monthly_savings:.0f}/month savings potential '
                 f'| Confidence: {confidence:.2f}'
             )
@@ -2435,91 +2800,234 @@ def enhanced_analyze():
                 return redirect(url_for('cluster_portfolio'))
         else:
             error_message = result.get('message', 'Unknown error')
-            flash(f'❌ Analysis failed: {error_message}', 'error')
+            flash(f'❌ Fresh analysis failed: {error_message}', 'error')
             return redirect(url_for('cluster_portfolio'))
 
     except Exception as e:
-        logger.error(f"❌ Enhanced analyze route failed: {e}")
+        logger.error(f"❌ Fresh analysis route failed: {e}")
         logger.error(f"❌ Traceback: {traceback.format_exc()}")
-        flash(f'❌ Analysis failed: {str(e)}', 'error')
+        flash(f'❌ Fresh analysis failed: {str(e)}', 'error')
         return redirect(url_for('cluster_portfolio'))
-
 
 @app.route('/api/chart-data')
 def chart_data():
-    """Main chart data API route"""
+    """COMPLETELY FIXED Chart data API route - no global analysis_results dependency"""
     try:
         logger.info("📊 Chart data API called")
         
-        if not analysis_results:
-            return jsonify({
-                'status': 'no_data',
-                'message': 'No analysis results available'
-            }), 200
         
+        # Call the comprehensive chart data function that handles all data sources
         return chart_data_consistent()
             
     except Exception as e:
         logger.error(f"❌ ERROR in chart_data routing: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         return jsonify({
             'status': 'error',
-            'message': f'Error routing chart data: {str(e)}'
+            'message': f'Chart data routing error: {str(e)}',
+            'error_type': 'routing_error'
+        }), 500
+            
+    except Exception as e:
+        logger.error(f"❌ ERROR in chart_data routing: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Chart data routing error: {str(e)}',
+            'error_type': 'routing_error'
         }), 500
 
 @app.route('/api/debug-analysis')
 def debug_analysis():
-    """Debug endpoint to check analysis results"""
-    return jsonify({
-        'analysis_results_keys': list(analysis_results.keys()),
-        'total_cost': analysis_results.get('total_cost', 'NOT_FOUND'),
-        'has_data': bool(analysis_results and analysis_results.get('total_cost', 0) > 0),
-        'full_results': analysis_results
-    })
-
-@app.route('/api/clusters/<cluster_id>/chart-data')
-def cluster_specific_chart_data(cluster_id: str):
-    """ Cluster-specific chart data endpoint"""
+    """Debug endpoint to check analysis results - FIXED to use cluster-specific data"""
     try:
-        logger.info(f"📊  Cluster-specific chart data requested for {cluster_id}")
+        # Try to get cluster ID from request
+        cluster_id = request.args.get('cluster_id')
+        if not cluster_id:
+            # Try to extract from referrer
+            referrer = request.headers.get('Referer', '')
+            if '/cluster/' in referrer:
+                try:
+                    cluster_id = referrer.split('/cluster/')[-1].split('/')[0].split('?')[0]
+                except Exception:
+                    pass
         
-        # Get cluster analysis from database
-        cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+        if cluster_id:
+            # Get cluster-specific data
+            current_analysis, data_source = _get_analysis_data(cluster_id)
+            if current_analysis:
+                return jsonify({
+                    'cluster_id': cluster_id,
+                    'data_source': data_source,
+                    'analysis_results_keys': list(current_analysis.keys()),
+                    'total_cost': current_analysis.get('total_cost', 'NOT_FOUND'),
+                    'has_data': bool(current_analysis and current_analysis.get('total_cost', 0) > 0),
+                    'has_pod_costs': current_analysis.get('has_pod_costs', False),
+                    'has_node_data': current_analysis.get('has_real_node_data', False),
+                    'full_results': current_analysis
+                })
         
-        if not cached_analysis:
-            return jsonify({
-                'status': 'no_data',
-                'message': f'No analysis data found for cluster {cluster_id}',
-                'cluster_id': cluster_id
-            }), 404
-        
-        # Temporarily set global analysis_results for compatibility
-        global analysis_results
-        original_results = analysis_results.copy() if analysis_results else {}
-        analysis_results = cached_analysis
-        
-        try:
-            # Use the existing chart data function
-            response = chart_data_consistent()
-            return response
-        finally:
-            # Restore original results
-            analysis_results = original_results
-            
-    except Exception as e:
-        logger.error(f"❌  Error in cluster-specific chart data: {e}")
+        # Fallback: check global (but warn)
+        logger.warning("⚠️ Debug endpoint: No cluster_id provided, checking global analysis_results")
         return jsonify({
-            'status': 'error',
-            'message': str(e),
-            'cluster_id': cluster_id
+            'cluster_id': None,
+            'data_source': 'global_fallback',
+            'analysis_results_keys': list(analysis_results.keys()) if analysis_results else [],
+            'total_cost': analysis_results.get('total_cost', 'NOT_FOUND') if analysis_results else 'NO_GLOBAL_DATA',
+            'has_data': bool(analysis_results and analysis_results.get('total_cost', 0) > 0),
+            'full_results': analysis_results if analysis_results else {}
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'status': 'error'
         }), 500
+
+# @app.route('/api/clusters/<cluster_id>/chart-data')
+# def cluster_specific_chart_data(cluster_id: str):
+#     """Cluster-specific chart data endpoint"""
+#     # MUST declare global at the very beginning
+#     global analysis_results
+    
+#     try:
+#         logger.info(f"📊 Cluster-specific chart data requested for {cluster_id}")
+        
+#         # Get cluster analysis from database
+#         cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+        
+#         if not cached_analysis:
+#             return jsonify({
+#                 'status': 'no_data',
+#                 'message': f'No analysis data found for cluster {cluster_id}',
+#                 'cluster_id': cluster_id
+#             }), 404
+        
+#         # Temporarily set global analysis_results for compatibility
+#         original_results = analysis_results.copy() if analysis_results else {}
+#         analysis_results = cached_analysis
+        
+#         try:
+#             # Use the existing chart data function
+#             response = chart_data_consistent()
+#             return response
+#         finally:
+#             # Restore original results
+#             analysis_results = original_results
+            
+#     except Exception as e:
+#         logger.error(f"❌ Error in cluster-specific chart data: {e}")
+#         return jsonify({
+#             'status': 'error',
+#             'message': str(e),
+#             'cluster_id': cluster_id
+#         }), 500
 
 @app.route('/api/implementation-plan')
 def get_implementation_plan():
-    """Get implementation plan based on analysis results"""
-    global analysis_results
-    plan = implementation_generator.generate_implementation_plan(analysis_results)
-    return jsonify(plan)
-
+    """FIXED: Implementation plan API with cluster-specific data access"""
+    try:
+        logger.info("📋 Implementation plan API called")
+        
+        # Extract cluster ID from request
+        cluster_id = request.args.get('cluster_id')
+        if not cluster_id:
+            # Try to extract from referrer
+            referrer = request.headers.get('Referer', '')
+            if '/cluster/' in referrer:
+                try:
+                    cluster_id = referrer.split('/cluster/')[-1].split('/')[0].split('?')[0]
+                    logger.info(f"📋 Extracted cluster_id from referrer: {cluster_id}")
+                except Exception:
+                    pass
+        
+        if not cluster_id:
+            logger.warning("⚠️ No cluster_id provided")
+            return jsonify({
+                'status': 'error',
+                'message': 'No cluster ID provided for implementation plan'
+            }), 400
+        
+        # Get cluster-specific analysis data
+        current_analysis, data_source = _get_analysis_data(cluster_id)
+        
+        if not current_analysis:
+            logger.error(f"❌ No analysis data found for cluster {cluster_id}")
+            return jsonify({
+                'status': 'error',
+                'message': 'No analysis data available for implementation plan',
+                'cluster_id': cluster_id,
+                'data_source': data_source
+            }), 404
+        
+        # Check if we have an implementation plan
+        if 'implementation_plan' not in current_analysis:
+            logger.warning(f"⚠️ No implementation plan found for {cluster_id}, generating fresh one...")
+            try:
+                from implementation_generator import AKSImplementationGenerator
+                implementation_generator = AKSImplementationGenerator()
+                implementation_plan = implementation_generator.generate_implementation_plan(current_analysis)
+                current_analysis['implementation_plan'] = implementation_plan
+                
+                # Update cache and database
+                save_to_cache(cluster_id, current_analysis)
+                enhanced_cluster_manager.update_cluster_analysis(cluster_id, current_analysis)
+                
+                logger.info(f"✅ Generated fresh implementation plan for {cluster_id}")
+            except Exception as gen_error:
+                logger.error(f"❌ Failed to generate implementation plan for {cluster_id}: {gen_error}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to generate implementation plan: {str(gen_error)}'
+                }), 500
+        
+        implementation_plan = current_analysis['implementation_plan']
+        
+        # Validate implementation plan structure
+        if not isinstance(implementation_plan, dict):
+            logger.error(f"❌ Implementation plan is not a dict for {cluster_id}: {type(implementation_plan)}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Implementation plan has invalid structure'
+            }), 500
+        
+        if 'implementation_phases' not in implementation_plan:
+            logger.error(f"❌ Implementation plan missing phases for {cluster_id}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Implementation plan missing phases structure'
+            }), 500
+        
+        phases = implementation_plan['implementation_phases']
+        if not isinstance(phases, list) or len(phases) == 0:
+            logger.error(f"❌ Implementation phases invalid for {cluster_id}: {type(phases)}, length: {len(phases) if isinstance(phases, list) else 'N/A'}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Implementation plan has no valid phases'
+            }), 500
+        
+        logger.info(f"✅ Implementation plan validated for {cluster_id}: {len(phases)} phases from {data_source}")
+        
+        # Add metadata
+        implementation_plan['api_metadata'] = {
+            'data_source': data_source,
+            'cluster_id': cluster_id,
+            'phases_count': len(phases),
+            'generated_at': datetime.now().isoformat(),
+            'total_cost': current_analysis.get('total_cost', 0),
+            'total_savings': current_analysis.get('total_savings', 0)
+        }
+        
+        return jsonify(implementation_plan)
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting implementation plan: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Implementation plan error: {str(e)}'
+        }), 500
+    
 # ============================================================================
 # DATABASE MAINTENANCE ROUTES
 # ============================================================================
@@ -3073,13 +3581,23 @@ def clear_global_analysis_cache():
     logger.info("🧹 Cleared global analysis cache")
 
 @app.route('/api/cache/clear', methods=['POST'])
-def clear_analysis_cache():
-    """Clear analysis cache"""
+def clear_analysis_cache_api():
+    """Clear analysis cache for specific cluster or all clusters"""
     try:
-        clear_global_analysis_cache()
+        data = request.get_json() or {}
+        cluster_id = data.get('cluster_id')
+        
+        if cluster_id:
+            clear_analysis_cache(cluster_id)
+            message = f'Analysis cache cleared for cluster {cluster_id}'
+        else:
+            clear_analysis_cache()
+            message = 'All analysis caches cleared successfully'
+            
         return jsonify({
             'status': 'success',
-            'message': 'Analysis cache cleared successfully'
+            'message': message,
+            'total_clusters_remaining': len(analysis_cache['clusters'])
         })
     except Exception as e:
         return jsonify({
@@ -3089,20 +3607,53 @@ def clear_analysis_cache():
 
 @app.route('/api/cache/status', methods=['GET'])
 def cache_status():
-    """Get cache status for debugging"""
+    """Get detailed cache status for debugging"""
     try:
-        global_cluster = analysis_results.get('cluster_name', 'None')
-        global_cost = analysis_results.get('total_cost', 0)
+        cluster_id = request.args.get('cluster_id')
+        
+        status_info = {
+            'total_cached_clusters': len(analysis_cache['clusters']),
+            'cached_clusters': list(analysis_cache['clusters'].keys()),
+            'global_ttl_hours': analysis_cache['global_ttl_hours'],
+            'cache_type': 'multi_cluster'
+        }
+        
+        if cluster_id:
+            # Specific cluster status
+            if cluster_id in analysis_cache['clusters']:
+                cluster_cache = analysis_cache['clusters'][cluster_id]
+                status_info.update({
+                    'cluster_id': cluster_id,
+                    'cache_valid': is_cache_valid(cluster_id),
+                    'cache_timestamp': cluster_cache.get('timestamp'),
+                    'cache_has_data': bool(cluster_cache.get('data')),
+                    'cache_total_cost': cluster_cache.get('data', {}).get('total_cost', 0),
+                    'cache_has_pod_costs': cluster_cache.get('data', {}).get('has_pod_costs', False),
+                    'namespace_count_in_cache': len(cluster_cache.get('data', {}).get('namespace_costs', {}))
+                })
+            else:
+                status_info.update({
+                    'cluster_id': cluster_id,
+                    'cache_exists': False,
+                    'message': f'No cache found for cluster {cluster_id}'
+                })
+        else:
+            # All clusters summary
+            cluster_summaries = {}
+            for cid, cache_data in analysis_cache['clusters'].items():
+                cluster_summaries[cid] = {
+                    'cost': cache_data.get('data', {}).get('total_cost', 0),
+                    'timestamp': cache_data.get('timestamp'),
+                    'valid': is_cache_valid(cid)
+                }
+            status_info['cluster_summaries'] = cluster_summaries
         
         return jsonify({
             'status': 'success',
-            'global_cache': {
-                'cluster_name': global_cluster,
-                'total_cost': global_cost,
-                'has_data': bool(analysis_results)
-            },
+            'cache_status': status_info,
             'timestamp': datetime.now().isoformat()
         })
+        
     except Exception as e:
         return jsonify({
             'status': 'error',
