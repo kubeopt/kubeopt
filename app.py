@@ -23,11 +23,16 @@ import logging
 import statistics
 import traceback
 import math
+import uuid
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from datetime import datetime, timedelta, timezone
 from implementation_generator import AKSImplementationGenerator
 from pod_cost_analyzer import get_enhanced_pod_cost_breakdown
 from cluster_database import EnhancedClusterManager, migrate_from_json
+
+# Thread-safe analysis storage
+_analysis_sessions = {}
+_analysis_lock = threading.Lock()
 
 enhanced_cluster_manager = EnhancedClusterManager()
 analysis_status_tracker = {}
@@ -925,20 +930,37 @@ def create_minimal_metrics_structure():
 # ANALYSIS ENGINE
 # ============================================================================
 
-def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_analysis=True):
-    """FIXED: Main analysis function - GUARANTEES implementation plan generation"""
-    logger.info(f"🎯 Starting CONSISTENT analysis for {cluster_name} ({days} days)")
+def run_consistent_analysis(resource_group: str, cluster_name: str, days: int = 30, enable_pod_analysis: bool = True) -> Dict[str, Any]:
+    """THREAD-SAFE analysis function with FORCED implementation plan regeneration"""
     
-    global analysis_results
-    analysis_results = {}
+    # Create unique session ID for this analysis
+    session_id = str(uuid.uuid4())
+    cluster_id = f"{resource_group}_{cluster_name}"
+    
+    logger.info(f"🎯 Starting THREAD-SAFE analysis for {cluster_name} (session: {session_id[:8]})")
     
     try:
+        # Initialize session-specific analysis results
+        session_results = {}
+        
+        # Store in thread-safe sessions dict
+        with _analysis_lock:
+            _analysis_sessions[session_id] = {
+                'cluster_id': cluster_id,
+                'results': session_results,
+                'status': 'running',
+                'started_at': datetime.now().isoformat(),
+                'thread_id': threading.current_thread().ident
+            }
+        
+        logger.info(f"🔐 Session {session_id[:8]} locked for cluster {cluster_name}")
+        
         # Calculate date range
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
         
         # Get cost data
-        logger.info(f"📊 Fetching {days}-day actual cost baseline...")
+        logger.info(f"📊 Session {session_id[:8]}: Fetching {days}-day actual cost baseline...")
         cost_df = get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_date)
         
         if cost_df is None or cost_df.empty:
@@ -960,23 +982,23 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
         cost_components = validate_cost_data(cost_components)
         
         # Get current usage metrics
-        logger.info("📈 Fetching current usage metrics...")
+        logger.info(f"📈 Session {session_id[:8]}: Fetching current usage metrics...")
         metrics_end_time = datetime.now()
         metrics_start_time = metrics_end_time - timedelta(hours=1)
         
         metrics_data = get_aks_metrics_from_monitor(resource_group, cluster_name, metrics_start_time, metrics_end_time)
         
         if not metrics_data or not metrics_data.get('nodes'):
-            logger.error("❌ No current metrics available - cannot proceed without real data")
+            logger.error(f"❌ Session {session_id[:8]}: No current metrics available")
             raise ValueError("No real node metrics available from Azure Monitor or kubectl")
         
-        # CRITICAL: Extract and preserve real node data
+        # CRITICAL: Extract and preserve real node data IN SESSION
         real_node_metrics = []
         if metrics_data and metrics_data.get('nodes'):
             real_node_metrics = metrics_data['nodes'].copy()
-            logger.info(f"🔧 PRESERVED {len(real_node_metrics)} real node metrics")
+            logger.info(f"🔧 Session {session_id[:8]}: PRESERVED {len(real_node_metrics)} real node metrics")
         else:
-            logger.error("❌ CRITICAL: No node metrics in metrics_data")
+            logger.error(f"❌ Session {session_id[:8]}: CRITICAL: No node metrics in metrics_data")
             raise ValueError("No node metrics found in metrics data")
         
         # Pod-level analysis if enabled
@@ -984,7 +1006,7 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
         actual_node_cost_for_pod_analysis = float(cost_df[cost_df['Category'] == 'Node Pools']['Cost'].sum())
         
         if enable_pod_analysis and actual_node_cost_for_pod_analysis > 0:
-            logger.info("🔍 Running current pod analysis...")
+            logger.info(f"🔍 Session {session_id[:8]}: Running current pod analysis...")
             try:
                 pod_cost_result = get_enhanced_pod_cost_breakdown(
                     resource_group, cluster_name, actual_node_cost_for_pod_analysis
@@ -992,14 +1014,14 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
                 
                 if pod_cost_result and pod_cost_result.get('success'):
                     pod_data = pod_cost_result
-                    logger.info(f"✅ Pod analysis: {pod_cost_result.get('analysis_method', 'unknown')}")
+                    logger.info(f"✅ Session {session_id[:8]}: Pod analysis: {pod_cost_result.get('analysis_method', 'unknown')}")
                     
             except Exception as pod_error:
-                logger.error(f"❌ Pod analysis error: {pod_error}")
+                logger.error(f"❌ Session {session_id[:8]}: Pod analysis error: {pod_error}")
                 pod_data = None
         
         # Run algorithmic analysis
-        logger.info("🎯 Executing CONSISTENT algorithmic analysis...")
+        logger.info(f"🎯 Session {session_id[:8]}: Executing CONSISTENT algorithmic analysis...")
         try:
             from algorithmic_cost_analyzer import integrate_consistent_analysis
             
@@ -1011,101 +1033,132 @@ def run_consistent_analysis(resource_group, cluster_name, days=30, enable_pod_an
                 pod_data=pod_data
             )
             
-            logger.info("✅ Consistent algorithmic analysis completed successfully")
+            logger.info(f"✅ Session {session_id[:8]}: Consistent algorithmic analysis completed")
             
         except Exception as algo_error:
-            logger.error(f"❌ Consistent algorithmic analysis failed: {algo_error}")
+            logger.error(f"❌ Session {session_id[:8]}: Consistent algorithmic analysis failed: {algo_error}")
             # Fallback to basic calculations
             consistent_results = calculate_basic_savings(cost_components, metrics_data)
         
-        # Store results
-        analysis_results = consistent_results.copy()
-        analysis_results['cost_label'] = cost_label
-        analysis_results['actual_period_cost'] = total_period_cost
-        analysis_results['analysis_period_days'] = days
+        # Store results IN SESSION (not global)
+        session_results.update(consistent_results)
+        session_results['cost_label'] = cost_label
+        session_results['actual_period_cost'] = total_period_cost
+        session_results['analysis_period_days'] = days
         
-        # CRITICAL: FORCE preservation of real node metrics
+        # CRITICAL: FORCE preservation of real node metrics IN SESSION
         if real_node_metrics:
-            analysis_results['nodes'] = real_node_metrics.copy()
-            analysis_results['node_metrics'] = real_node_metrics.copy()
-            analysis_results['real_node_data'] = real_node_metrics.copy()
-            analysis_results['has_real_node_data'] = True
-            logger.info(f"🔧 FORCED preservation of {len(real_node_metrics)} real nodes")
+            session_results['nodes'] = real_node_metrics.copy()
+            session_results['node_metrics'] = real_node_metrics.copy()
+            session_results['real_node_data'] = real_node_metrics.copy()
+            session_results['has_real_node_data'] = True
+            logger.info(f"🔧 Session {session_id[:8]}: FORCED preservation of {len(real_node_metrics)} real nodes")
         else:
-            logger.error("❌ CRITICAL: No real node metrics to preserve")
+            logger.error(f"❌ Session {session_id[:8]}: CRITICAL: No real node metrics to preserve")
             raise ValueError("No real node metrics available for analysis")
         
         # Add pod data if available
         if pod_data:
-            analysis_results['has_pod_costs'] = True
-            analysis_results['pod_cost_analysis'] = pod_data
+            session_results['has_pod_costs'] = True
+            session_results['pod_cost_analysis'] = pod_data
             
             if 'namespace_costs' in pod_data:
-                analysis_results['namespace_costs'] = pod_data['namespace_costs']
+                session_results['namespace_costs'] = pod_data['namespace_costs']
             elif 'namespace_summary' in pod_data:
-                analysis_results['namespace_costs'] = pod_data['namespace_summary']
+                session_results['namespace_costs'] = pod_data['namespace_summary']
             
             if 'workload_costs' in pod_data:
-                analysis_results['workload_costs'] = pod_data['workload_costs']
+                session_results['workload_costs'] = pod_data['workload_costs']
         else:
-            analysis_results['has_pod_costs'] = False
+            session_results['has_pod_costs'] = False
         
-        # Add metadata
-        analysis_results.update({
+        # CRITICAL: Add metadata BEFORE implementation plan generation
+        session_results.update({
             'resource_group': resource_group,
             'cluster_name': cluster_name,
             'cost_period': f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')} ({days} days)",
             'cost_data_source': cost_df.attrs.get('data_source', 'Azure Cost Management API'),
             'metrics_data_source': metrics_data.get('metadata', {}).get('data_source', 'Azure Monitor'),
             'analysis_timestamp': datetime.now().isoformat(),
-            'has_real_node_data': len(real_node_metrics) > 0
+            'has_real_node_data': len(real_node_metrics) > 0,
+            'session_id': session_id
         })
         
-        # CRITICAL: GENERATE IMPLEMENTATION PLAN IMMEDIATELY AFTER ANALYSIS
-        logger.info("📋 GENERATING IMPLEMENTATION PLAN IMMEDIATELY...")
+        # CRITICAL: GENERATE FRESH IMPLEMENTATION PLAN IN SESSION
+        logger.info(f"📋 Session {session_id[:8]}: GENERATING FRESH IMPLEMENTATION PLAN...")
         try:
             from implementation_generator import AKSImplementationGenerator
             implementation_generator = AKSImplementationGenerator()
-            implementation_plan = implementation_generator.generate_implementation_plan(analysis_results)
-            analysis_results['implementation_plan'] = implementation_plan
+            
+            # Generate fresh implementation plan with complete metadata
+            fresh_implementation_plan = implementation_generator.generate_implementation_plan(session_results)
+            session_results['implementation_plan'] = fresh_implementation_plan
             
             # Validate implementation plan structure
-            if implementation_plan and isinstance(implementation_plan, dict):
-                if 'implementation_phases' in implementation_plan:
-                    phases = implementation_plan['implementation_phases']
+            if fresh_implementation_plan and isinstance(fresh_implementation_plan, dict):
+                if 'implementation_phases' in fresh_implementation_plan:
+                    phases = fresh_implementation_plan['implementation_phases']
                     if isinstance(phases, list) and len(phases) > 0:
-                        logger.info(f"✅ GENERATED IMPLEMENTATION PLAN: {len(phases)} phases")
-                        logger.info(f"✅ Phase titles: {[p.get('title', 'Untitled') for p in phases[:3]]}")
+                        logger.info(f"✅ Session {session_id[:8]}: GENERATED FRESH IMPLEMENTATION PLAN: {len(phases)} phases")
+                        logger.info(f"✅ Session {session_id[:8]}: Cluster: {resource_group}/{cluster_name}")
                     else:
-                        logger.error("❌ Implementation plan phases are empty or invalid")
+                        logger.error(f"❌ Session {session_id[:8]}: Implementation plan phases are empty or invalid")
                         raise ValueError("Implementation plan phases are empty")
                 else:
-                    logger.error("❌ Implementation plan missing phases structure")
+                    logger.error(f"❌ Session {session_id[:8]}: Implementation plan missing phases structure")
                     raise ValueError("Implementation plan missing phases structure")
             else:
-                logger.error("❌ Implementation plan is not a valid dictionary")
+                logger.error(f"❌ Session {session_id[:8]}: Implementation plan is not a valid dictionary")
                 raise ValueError("Implementation plan generation failed")
                 
         except Exception as impl_error:
-            logger.error(f"❌ IMPLEMENTATION PLAN GENERATION FAILED: {impl_error}")
-            logger.error(f"❌ Implementation error traceback: {traceback.format_exc()}")
+            logger.error(f"❌ Session {session_id[:8]}: IMPLEMENTATION PLAN GENERATION FAILED: {impl_error}")
+            raise impl_error
         
-        logger.info(f"🎉 CONSISTENT ANALYSIS COMPLETED WITH IMPLEMENTATION PLAN")
+        # Update session status
+        with _analysis_lock:
+            if session_id in _analysis_sessions:
+                _analysis_sessions[session_id]['status'] = 'completed'
+                _analysis_sessions[session_id]['completed_at'] = datetime.now().isoformat()
         
-        return {'status': 'success', 'data_type': 'consistent_algorithmic'}
+        logger.info(f"🎉 Session {session_id[:8]}: THREAD-SAFE ANALYSIS COMPLETED WITH FRESH IMPLEMENTATION PLAN")
+        
+        return {
+            'status': 'success', 
+            'data_type': 'consistent_algorithmic',
+            'session_id': session_id,
+            'results': session_results  # Return session-specific results
+        }
         
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"❌ CONSISTENT ANALYSIS FAILED: {error_msg}")
-        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        logger.error(f"❌ Session {session_id[:8]}: CONSISTENT ANALYSIS FAILED: {error_msg}")
         
-        analysis_results = {
-            'error': error_msg,
-            'status': 'failed',
-            'analysis_method': 'consistent_algorithmic',
-            'message': f'Consistent analysis failed: {error_msg}'
+        # Update session status
+        with _analysis_lock:
+            if session_id in _analysis_sessions:
+                _analysis_sessions[session_id]['status'] = 'failed'
+                _analysis_sessions[session_id]['error'] = error_msg
+                _analysis_sessions[session_id]['failed_at'] = datetime.now().isoformat()
+        
+        return {
+            'status': 'error', 
+            'message': error_msg,
+            'session_id': session_id
         }
-        return {'status': 'error', 'message': error_msg}
+    
+    finally:
+        # Cleanup session after some time (optional)
+        def cleanup_session():
+            time.sleep(300)  # Wait 5 minutes
+            with _analysis_lock:
+                if session_id in _analysis_sessions:
+                    del _analysis_sessions[session_id]
+                    logger.info(f"🧹 Cleaned up session {session_id[:8]}")
+        
+        cleanup_thread = threading.Thread(target=cleanup_session, daemon=True)
+        cleanup_thread.start()
+
 
 def generate_dynamic_hpa_comparison(analysis_data):
     """Generate HPA comparison - FIXED to fail fast without fallbacks"""
@@ -2240,6 +2293,31 @@ def get_cluster_analysis_status(cluster_id: str):
             'message': str(e)
         }), 500
 
+@app.route('/api/analysis-sessions', methods=['GET'])
+def get_analysis_sessions():
+    """Monitor active analysis sessions"""
+    try:
+        with _analysis_lock:
+            sessions = {
+                sid: {
+                    'cluster_id': sdata['cluster_id'],
+                    'status': sdata['status'],
+                    'started_at': sdata['started_at'],
+                    'thread_id': sdata['thread_id']
+                } for sid, sdata in _analysis_sessions.items()
+            }
+        
+        return jsonify({
+            'status': 'success',
+            'active_sessions': len(sessions),
+            'sessions': sessions
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 @app.route('/api/analysis-status/batch', methods=['POST'])
 def get_batch_analysis_status():
     """Get analysis status for multiple clusters"""
@@ -2717,8 +2795,8 @@ def remove_cluster_route(cluster_id: str):
     return redirect(url_for('cluster_portfolio'))
 
 @app.route('/analyze', methods=['POST'])
-def enhanced_analyze():
-    """FIXED Enhanced analyze route - Complete cluster isolation"""
+def enhanced_analyze_thread_safe():
+    """THREAD-SAFE Enhanced analyze route with FORCED implementation plan regeneration"""
     try:
         # Extract form data
         resource_group = request.form.get('resource_group')
@@ -2733,7 +2811,7 @@ def enhanced_analyze():
             return redirect(url_for('cluster_portfolio'))
 
         # IMMEDIATELY clear cache for THIS SPECIFIC CLUSTER only
-        logger.info(f"🔄 FRESH ANALYSIS: Clearing cache for cluster {cluster_id}")
+        logger.info(f"🔄 FRESH THREAD-SAFE ANALYSIS: Clearing cache for cluster {cluster_id}")
         clear_analysis_cache(cluster_id)
 
         # Auto-add cluster if not exists
@@ -2749,46 +2827,62 @@ def enhanced_analyze():
             cluster_id = enhanced_cluster_manager.add_cluster(cluster_config)
             logger.info(f"🆕 Auto-added cluster {cluster_id}")
         
-        # Run FRESH analysis
-        logger.info(f"🚀 Running FRESH analysis for {cluster_id}")
+        # Run THREAD-SAFE analysis with FRESH implementation plan
+        logger.info(f"🚀 Running THREAD-SAFE analysis with FRESH implementation plan for {cluster_id}")
         result = run_consistent_analysis(
             resource_group, cluster_name, days, enable_pod_analysis
         )
         
         if result['status'] == 'success':
-            # Get the analysis results (they're in global analysis_results temporarily)
-            global analysis_results
-            current_analysis_results = analysis_results.copy()
+            # Get the session-specific analysis results
+            session_results = result['results']
+            session_id = result['session_id']
             
             # Validate node data
-            if not current_analysis_results.get('has_real_node_data'):
-                logger.error(f"❌ FRESH ANALYSIS: No real node data for {cluster_id}")
+            if not session_results.get('has_real_node_data'):
+                logger.error(f"❌ Session {session_id[:8]}: No real node data for {cluster_id}")
                 flash('❌ Analysis failed: No real node data available', 'error')
                 return redirect(url_for('cluster_portfolio'))
             
+            # Validate implementation plan was generated
+            if 'implementation_plan' not in session_results:
+                logger.error(f"❌ Session {session_id[:8]}: No implementation plan generated for {cluster_id}")
+                flash('❌ Analysis failed: Implementation plan generation failed', 'error')
+                return redirect(url_for('cluster_portfolio'))
+            
+            # FORCE implementation plan metadata update
+            impl_plan = session_results['implementation_plan']
+            if isinstance(impl_plan, dict):
+                # Ensure cluster metadata is in implementation plan
+                impl_plan['cluster_metadata'] = {
+                    'cluster_name': cluster_name,
+                    'resource_group': resource_group,
+                    'cluster_id': cluster_id,
+                    'generated_at': datetime.now().isoformat(),
+                    'session_id': session_id[:8]
+                }
+                session_results['implementation_plan'] = impl_plan
+                logger.info(f"✅ Session {session_id[:8]}: FORCED implementation plan metadata update")
+            
             # Save to database with cluster_id
-            logger.info(f"💾 Saving analysis to database for cluster: {cluster_id}")
-            enhanced_cluster_manager.update_cluster_analysis(cluster_id, current_analysis_results)
+            logger.info(f"💾 Session {session_id[:8]}: Saving analysis to database for cluster: {cluster_id}")
+            enhanced_cluster_manager.update_cluster_analysis(cluster_id, session_results)
             
-            # Save to cluster-specific cache
-            logger.info(f"💾 Saving analysis to cache for cluster: {cluster_id}")
-            save_to_cache(cluster_id, current_analysis_results)
+            # Save to cluster-specific cache with FRESH implementation plan
+            logger.info(f"💾 Session {session_id[:8]}: Saving analysis to cache for cluster: {cluster_id}")
+            save_to_cache(cluster_id, session_results)
             
-            # Clear global analysis_results to prevent contamination
-            analysis_results = {}
-            logger.info("🧹 Cleared global analysis_results to prevent contamination")
-            
-            monthly_cost = current_analysis_results.get('total_cost', 0)
-            monthly_savings = current_analysis_results.get('total_savings', 0)
-            confidence = current_analysis_results.get('analysis_confidence', 0)
+            monthly_cost = session_results.get('total_cost', 0)
+            monthly_savings = session_results.get('total_savings', 0)
+            confidence = session_results.get('analysis_confidence', 0)
 
             # Check alerts after successful analysis
-            check_alerts_after_analysis(cluster_id, current_analysis_results)
+            check_alerts_after_analysis(cluster_id, session_results)
             
             success_msg = (
-                f'🎯 Fresh Analysis Complete for {cluster_name}! '
+                f'🎯 Thread-Safe Analysis Complete for {cluster_name}! '
                 f'${monthly_cost:.0f}/month baseline, ${monthly_savings:.0f}/month savings potential '
-                f'| Confidence: {confidence:.2f}'
+                f'| Confidence: {confidence:.2f} | Session: {session_id[:8]}'
             )
             
             flash(success_msg, 'success')
@@ -2800,13 +2894,14 @@ def enhanced_analyze():
                 return redirect(url_for('cluster_portfolio'))
         else:
             error_message = result.get('message', 'Unknown error')
-            flash(f'❌ Fresh analysis failed: {error_message}', 'error')
+            session_id = result.get('session_id', 'unknown')
+            flash(f'❌ Thread-safe analysis failed (session {session_id[:8]}): {error_message}', 'error')
             return redirect(url_for('cluster_portfolio'))
 
     except Exception as e:
-        logger.error(f"❌ Fresh analysis route failed: {e}")
+        logger.error(f"❌ Thread-safe analysis route failed: {e}")
         logger.error(f"❌ Traceback: {traceback.format_exc()}")
-        flash(f'❌ Fresh analysis failed: {str(e)}', 'error')
+        flash(f'❌ Thread-safe analysis failed: {str(e)}', 'error')
         return redirect(url_for('cluster_portfolio'))
 
 @app.route('/api/chart-data')
@@ -2818,15 +2913,6 @@ def chart_data():
         
         # Call the comprehensive chart data function that handles all data sources
         return chart_data_consistent()
-            
-    except Exception as e:
-        logger.error(f"❌ ERROR in chart_data routing: {e}")
-        logger.error(f"❌ Traceback: {traceback.format_exc()}")
-        return jsonify({
-            'status': 'error',
-            'message': f'Chart data routing error: {str(e)}',
-            'error_type': 'routing_error'
-        }), 500
             
     except Exception as e:
         logger.error(f"❌ ERROR in chart_data routing: {e}")
@@ -2925,7 +3011,7 @@ def debug_analysis():
 
 @app.route('/api/implementation-plan')
 def get_implementation_plan():
-    """FIXED: Implementation plan API with cluster-specific data access"""
+    """FIXED: Implementation plan API with forced regeneration for fresh analysis"""
     try:
         logger.info("📋 Implementation plan API called")
         
@@ -2948,6 +3034,15 @@ def get_implementation_plan():
                 'message': 'No cluster ID provided for implementation plan'
             }), 400
         
+        # Get cluster info first
+        cluster = enhanced_cluster_manager.get_cluster(cluster_id)
+        if not cluster:
+            logger.error(f"❌ Cluster {cluster_id} not found in database")
+            return jsonify({
+                'status': 'error',
+                'message': f'Cluster {cluster_id} not found'
+            }), 404
+        
         # Get cluster-specific analysis data
         current_analysis, data_source = _get_analysis_data(cluster_id)
         
@@ -2960,28 +3055,69 @@ def get_implementation_plan():
                 'data_source': data_source
             }), 404
         
-        # Check if we have an implementation plan
-        if 'implementation_plan' not in current_analysis:
-            logger.warning(f"⚠️ No implementation plan found for {cluster_id}, generating fresh one...")
+        # 🔥 CRITICAL FIX: Always regenerate implementation plan for fresh analysis
+        regenerate_plan = True  # Force regeneration every time
+        implementation_plan = current_analysis.get('implementation_plan')
+        
+        # Additional checks to force regeneration
+        if implementation_plan:
+            plan_timestamp = implementation_plan.get('cluster_metadata', {}).get('generated_at')
+            analysis_timestamp = current_analysis.get('analysis_timestamp')
+            
+            # Force regeneration if analysis is newer than plan
+            if analysis_timestamp and plan_timestamp:
+                try:
+                    analysis_time = datetime.fromisoformat(analysis_timestamp)
+                    plan_time = datetime.fromisoformat(plan_timestamp)
+                    
+                    if analysis_time > plan_time:
+                        logger.info(f"🔄 Analysis is newer than plan - forcing regeneration for {cluster_id}")
+                        regenerate_plan = True
+                except Exception:
+                    regenerate_plan = True
+        
+        if regenerate_plan:
+            logger.info(f"🔄 FORCE regenerating implementation plan for {cluster_id}")
             try:
                 from implementation_generator import AKSImplementationGenerator
                 implementation_generator = AKSImplementationGenerator()
-                implementation_plan = implementation_generator.generate_implementation_plan(current_analysis)
-                current_analysis['implementation_plan'] = implementation_plan
                 
-                # Update cache and database
+                # Ensure cluster metadata is in analysis data
+                current_analysis['cluster_name'] = cluster['name']
+                current_analysis['resource_group'] = cluster['resource_group']
+                
+                # Generate fresh implementation plan
+                fresh_plan = implementation_generator.generate_implementation_plan(current_analysis)
+                
+                # Add cluster metadata to plan with current timestamp
+                if isinstance(fresh_plan, dict):
+                    fresh_plan['cluster_metadata'] = {
+                        'cluster_name': cluster['name'],
+                        'resource_group': cluster['resource_group'],
+                        'cluster_id': cluster_id,
+                        'generated_at': datetime.now().isoformat(),
+                        'regenerated': True,
+                        'total_cost': current_analysis.get('total_cost', 0),
+                        'total_savings': current_analysis.get('total_savings', 0),
+                        'analysis_timestamp': current_analysis.get('analysis_timestamp'),
+                        'data_source': data_source
+                    }
+                
+                current_analysis['implementation_plan'] = fresh_plan
+                implementation_plan = fresh_plan
+                
+                # Update cache and database with fresh plan
                 save_to_cache(cluster_id, current_analysis)
                 enhanced_cluster_manager.update_cluster_analysis(cluster_id, current_analysis)
                 
-                logger.info(f"✅ Generated fresh implementation plan for {cluster_id}")
+                logger.info(f"✅ FORCE regenerated implementation plan for {cluster_id}")
+                
             except Exception as gen_error:
-                logger.error(f"❌ Failed to generate implementation plan for {cluster_id}: {gen_error}")
+                logger.error(f"❌ Failed to regenerate implementation plan for {cluster_id}: {gen_error}")
                 return jsonify({
                     'status': 'error',
                     'message': f'Failed to generate implementation plan: {str(gen_error)}'
                 }), 500
-        
-        implementation_plan = current_analysis['implementation_plan']
         
         # Validate implementation plan structure
         if not isinstance(implementation_plan, dict):
@@ -3008,15 +3144,27 @@ def get_implementation_plan():
         
         logger.info(f"✅ Implementation plan validated for {cluster_id}: {len(phases)} phases from {data_source}")
         
-        # Add metadata
+        # FORCE fresh metadata in API response
         implementation_plan['api_metadata'] = {
             'data_source': data_source,
             'cluster_id': cluster_id,
+            'cluster_name': cluster['name'],
+            'resource_group': cluster['resource_group'],
             'phases_count': len(phases),
             'generated_at': datetime.now().isoformat(),
             'total_cost': current_analysis.get('total_cost', 0),
-            'total_savings': current_analysis.get('total_savings', 0)
+            'total_savings': current_analysis.get('total_savings', 0),
+            'forced_regeneration': True
         }
+        
+        # Ensure cluster metadata is also in the main structure
+        if 'cluster_metadata' not in implementation_plan:
+            implementation_plan['cluster_metadata'] = {
+                'cluster_name': cluster['name'],
+                'resource_group': cluster['resource_group'],
+                'cluster_id': cluster_id,
+                'generated_at': datetime.now().isoformat()
+            }
         
         return jsonify(implementation_plan)
         

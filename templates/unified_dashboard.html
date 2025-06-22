@@ -978,7 +978,7 @@
 
 {% block scripts %}
 <!-- Include original main.js -->
-<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/index.js') }}"></script>
 
 <!-- Include enhanced smooth transitions -->
 <script src="{{ url_for('static', filename='js/smooth.js') }}"></script>
@@ -986,8 +986,23 @@
 <script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
 
 <script>
-// Enhanced smooth functions for this specific page
+/**
+ * Dashboard-specific functions that couldn't be moved to modules
+ */
 function deleteCurrentCluster(clusterId) {
+    // Validate cluster context if available
+    if (window.validateClusterContext && !window.validateClusterContext('deleteCurrentCluster')) {
+        console.error('❌ BLOCKED: deleteCurrentCluster - invalid cluster context');
+        return;
+    }
+    
+    // Double-check cluster ID matches current context
+    const currentClusterId = window.getCurrentClusterId ? window.getCurrentClusterId() : null;
+    if (currentClusterId && clusterId !== currentClusterId) {
+        console.error(`❌ CLUSTER MISMATCH: Trying to delete ${clusterId} but current is ${currentClusterId}`);
+        return;
+    }
+    
     const modal = new bootstrap.Modal(document.getElementById('deleteCurrentClusterModal'));
     modal.show();
     
@@ -995,28 +1010,9 @@ function deleteCurrentCluster(clusterId) {
     window.currentClusterToDelete = clusterId;
 }
 
-function refreshChartsSmooth() {
-    if (window.smoothNotificationManager) {
-        window.smoothNotificationManager.show('Refreshing charts...', 'info', 3000);
-    }
-    
-    // Show loading for charts
-    if (window.smoothChartManager) {
-        const chartIds = ['mainTrendChart', 'costBreakdownChart', 'hpaComparisonChart', 'nodeUtilizationChart', 'savingsBreakdownChart'];
-        chartIds.forEach(id => window.smoothChartManager.showChartLoading(id));
-        
-        setTimeout(() => {
-            if (typeof initializeCharts === 'function') {
-                initializeCharts();
-            }
-            chartIds.forEach(id => window.smoothChartManager.hideChartLoading(id));
-        }, 1000);
-    } else if (typeof refreshCharts === 'function') {
-        refreshCharts();
-    }
-}
-
-// Enhanced placeholder functions with smooth feedback
+/**
+ * Placeholder functions for future features
+ */
 function compareWithOtherClusters() {
     if (window.smoothNotificationManager) {
         window.smoothNotificationManager.show('Cross-cluster comparison feature coming soon!', 'info');
@@ -1065,29 +1061,145 @@ function scheduleOptimization() {
     }
 }
 
-// Confirm deletion handler
+/**
+ * Setup cluster-specific polling for dashboard
+ */
+function setupDashboardPolling() {
+    const getCurrentClusterId = window.getCurrentClusterId;
+    const makeClusterAwareAPICall = window.makeClusterAwareAPICall || fetch;
+    
+    if (!getCurrentClusterId) {
+        console.warn('⚠️ Cluster isolation not available - skipping polling setup');
+        return;
+    }
+    
+    const clusterId = getCurrentClusterId();
+    
+    if (!clusterId) {
+        console.error('❌ Cannot setup polling without cluster ID');
+        return;
+    }
+    
+    console.log(`🔄 Setting up dashboard polling for cluster: ${clusterId}`);
+    
+    // Clear any existing timers
+    if (window.dashboardTimers) {
+        window.dashboardTimers.forEach(timer => clearInterval(timer));
+        window.dashboardTimers = [];
+    }
+    
+    // Poll cache status every 30 seconds for THIS cluster only
+    const cacheTimer = setInterval(() => {
+        const currentClusterId = getCurrentClusterId();
+        if (currentClusterId === clusterId) {
+            makeClusterAwareAPICall('/api/cache/status')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('✅ Cache status for current cluster:', data);
+                })
+                .catch(error => {
+                    console.error('Cache status error:', error);
+                });
+        } else {
+            console.log(`🛑 Stopping polling for ${clusterId} - cluster changed to ${currentClusterId}`);
+            clearInterval(cacheTimer);
+        }
+    }, 30000);
+    
+    // Store timer for cleanup
+    if (!window.dashboardTimers) {
+        window.dashboardTimers = [];
+    }
+    window.dashboardTimers.push(cacheTimer);
+}
+
+/**
+ * Initialize cluster-specific dashboard
+ */
+function initializeDashboard() {
+    const getCurrentClusterId = window.getCurrentClusterId;
+    
+    if (!getCurrentClusterId) {
+        console.warn('⚠️ Cluster isolation not available - basic initialization only');
+        
+        // Fallback initialization without cluster isolation
+        if (typeof window.initializeCharts === 'function') {
+            window.initializeCharts();
+        }
+        if (typeof window.loadImplementationPlan === 'function') {
+            window.loadImplementationPlan();
+        }
+        return;
+    }
+    
+    const clusterId = getCurrentClusterId();
+    
+    if (!clusterId) {
+        console.error('❌ CRITICAL: Cannot initialize dashboard without cluster ID!');
+        // Redirect to cluster portfolio
+        window.location.href = '/clusters';
+        return;
+    }
+    
+    console.log(`🎯 Initializing dashboard for cluster: ${clusterId}`);
+    
+    // Clear any old timers that might reference other clusters
+    if (window.dashboardTimers) {
+        window.dashboardTimers.forEach(timer => clearInterval(timer));
+        window.dashboardTimers = [];
+    }
+    
+    // Initialize with cluster-specific data
+    if (typeof window.initializeCharts === 'function') {
+        window.initializeCharts();
+    }
+    
+    if (typeof window.loadImplementationPlan === 'function') {
+        window.loadImplementationPlan();
+    }
+    
+    // Set up cluster-specific polling
+    setupDashboardPolling();
+}
+
+// ============================================================================
+// EVENT LISTENERS
+// ============================================================================
+
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🎯 Initializing cluster-isolated dashboard...');
+    
+    // Wait a moment for modules to load
+    setTimeout(() => {
+        initializeDashboard();
+    }, 100);
+    
+    // Confirm deletion handler with cluster validation
     const confirmDeleteBtn = document.getElementById('confirmCurrentDeleteBtn');
     if (confirmDeleteBtn) {
         confirmDeleteBtn.addEventListener('click', function() {
             if (!window.currentClusterToDelete) return;
             
+            // Double-check cluster context if available
+            if (window.validateClusterContext && !window.validateClusterContext('confirmDelete')) {
+                console.error('❌ BLOCKED: Delete confirmation - invalid cluster context');
+                return;
+            }
+            
             this.classList.add('loading');
             
             fetch(`/cluster/${window.currentClusterToDelete}/remove`, {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-Cluster-ID': window.currentClusterToDelete
+                }
             })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
                     if (window.smoothNotificationManager) {
                         window.smoothNotificationManager.show('Cluster deleted successfully!', 'success');
-                    }
-                    
-                    // Smooth transition to portfolio
-                    if (window.pageTransitionManager) {
-                        window.pageTransitionManager.show('Redirecting to portfolio...');
                     }
                     
                     setTimeout(() => {
@@ -1111,5 +1223,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Handle browser back/forward
+window.addEventListener('popstate', function() {
+    console.log('🔄 URL changed - reinitializing cluster dashboard...');
+    initializeDashboard();
+});
+
+// Log initialization
+console.log('📊 Simplified cluster-isolated dashboard JavaScript loaded');
 </script>
 {% endblock %}
