@@ -370,15 +370,6 @@ export function handleAnalysisSubmit(event) {
             // Reset form completely
             resetAnalysisForm();
             
-            // Load charts after a brief delay
-            setTimeout(() => {
-                if (typeof initializeCharts === 'function') {
-                    initializeCharts();
-                }
-                if (typeof handleAnalysisCompletion === 'function') {
-                    handleAnalysisCompletion();
-                }
-            }, 500);
             
         }, 2000);
     })

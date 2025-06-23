@@ -93,12 +93,6 @@ function switchToDashboard() {
         dashboardTab.classList.add('show', 'active');
         if (dashboardTabBtn) dashboardTabBtn.classList.add('active');
         
-        // Trigger chart loading if needed
-        setTimeout(() => {
-            if (typeof initializeCharts === 'function') {
-                initializeCharts();
-            }
-        }, 300);
         
         console.log('✅ Switched to dashboard tab');
         updateAppState('smoothTransitions.currentTab', '#dashboard');
@@ -136,13 +130,6 @@ function switchToImplementation() {
     if (implementationTab) {
         // Switch tab
         switchToTab('#implementation');
-        
-        // Load implementation plan if needed
-        setTimeout(() => {
-            if (typeof loadImplementationPlan === 'function') {
-                loadImplementationPlan();
-            }
-        }, 500);
         
         console.log('✅ Switched to implementation tab');
         updateAppState('smoothTransitions.currentTab', '#implementation');

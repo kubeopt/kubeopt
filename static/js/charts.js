@@ -113,7 +113,7 @@ export function makeClusterAwareAPICall(endpoint, options = {}) {
 }
 
 /**
- * FIXED: Initializes all dashboard charts with cluster isolation
+ * FIXED: Initializes all dashboard charts with cluster isolation + insights
  */
 export function initializeCharts() {
     console.log('📊 Initializing charts with cluster isolation...');
@@ -151,13 +151,25 @@ export function initializeCharts() {
             // Then create charts
             createAllCharts(data);
             
+            // FIXED: Update insights using the same data (NO DUPLICATE API CALL)
+            if (typeof window.updateRealDynamicInsights === 'function') {
+                console.log('📊 Updating insights with chart data...');
+                window.updateRealDynamicInsights(data);
+            }
+            
             // Clear loading states after successful chart creation
             setTimeout(() => {
                 clearLoadingStates();
                 updateDataSourceIndicator(data.metadata || {});
+                
+                // Create insight notifications if available
+                if (typeof window.createInsightNotification === 'function') {
+                    const insights = window.generateRealDynamicInsights ? window.generateRealDynamicInsights(data) : {};
+                    window.createInsightNotification(insights);
+                }
             }, 1000);
             
-            console.log('✅ Cluster-isolated charts initialized successfully');
+            console.log('✅ Cluster-isolated charts AND insights initialized successfully');
         })
         .catch(error => {
             console.error('❌ Cluster-isolated chart initialization failed:', error);

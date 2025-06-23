@@ -10,42 +10,6 @@ import { getCurrentClusterId, validateClusterContext, makeClusterAwareAPICall } 
 import { refreshImplementationPlan } from './implementation-plan.js';
 import { showNotification } from './notifications.js';
 
-/**
- * Dashboard initialization with cluster isolation
- */
-export function initializeDashboard() {
-    const clusterId = getCurrentClusterId();
-    
-    if (!clusterId) {
-        console.error('❌ CRITICAL: Cannot initialize dashboard without cluster ID!');
-        // Redirect to cluster portfolio
-        window.location.href = '/clusters';
-        return;
-    }
-    
-    console.log(`🎯 Initializing dashboard for cluster: ${clusterId}`);
-    
-    // Clear any old timers that might reference other clusters
-    if (window.dashboardTimers) {
-        window.dashboardTimers.forEach(timer => clearInterval(timer));
-        window.dashboardTimers = [];
-    }
-    
-    // Initialize with cluster-specific data
-    if (typeof window.initializeCharts === 'function') {
-        window.initializeCharts();
-    }
-    
-    if (typeof window.loadImplementationPlan === 'function') {
-        window.loadImplementationPlan();
-    }
-    
-    // Set up cluster-specific polling
-    setupDashboardPolling();
-    
-    // Validate page state
-    validatePageState();
-}
 
 /**
  * Setup cluster-specific polling to prevent cross-contamination
