@@ -166,11 +166,14 @@ function showCopyError(buttonElement, message = 'Copy failed') {
 function setupCopyButtonHandlers() {
     console.log('🔧 Setting up copy button handlers...');
     
-    // Remove existing handlers to prevent duplicates
-    document.removeEventListener('click', handleCopyButtonClick);
+    // ✅ CHECK IF ALREADY SETUP
+    if (window.copyHandlersSetup) {
+        console.log('Copy handlers already setup, skipping...');
+        return;
+    }
     
-    // Add global click handler for copy buttons
     document.addEventListener('click', handleCopyButtonClick);
+    window.copyHandlersSetup = true;  // ✅ PREVENT DUPLICATES
     
     console.log('✅ Copy button handlers setup complete');
 }

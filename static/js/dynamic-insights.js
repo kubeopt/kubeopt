@@ -1,8 +1,9 @@
 /**
  * ============================================================================
- * AKS COST INTELLIGENCE - DYNAMIC INSIGHTS GENERATOR
+ * AKS COST INTELLIGENCE - DYNAMIC INSIGHTS GENERATOR (FIXED)
  * ============================================================================
  * Generates insights dynamically from actual analysis data
+ * NO DUPLICATE API CALLS - Works with charts.js
  * ============================================================================
  */
 
@@ -149,7 +150,7 @@ export function generateRealDynamicInsights(data) {
 }
 
 /**
- * Enhanced function to update insights with REAL dynamic content
+ * FIXED: Update insights using data passed from charts.js (NO API CALL)
  */
 export function updateRealDynamicInsights(data) {
     console.log('📊 Updating insights with REAL dynamic content from:', data);
@@ -361,37 +362,9 @@ export function createInsightNotification(insights) {
     }
 }
 
-
 /**
- * Enhanced analysis completion handler with real insights
- */
-export function handleAnalysisCompletionWithRealInsights() {
-    console.log('🎉 Analysis completed - updating with REAL dynamic insights');
-    
-    // Load charts and insights with real data
-    setTimeout(() => {
-        initializeChartsWithRealInsights();
-    }, 1000);
-}
-
-/**
- * Create insight cards for empty states
- */
-export function createEmptyStateInsights() {
-    const emptyInsights = {
-        cost: 'Run cost analysis to identify your highest spending categories and optimization opportunities.',
-        hpa: 'Enable HPA analysis to discover auto-scaling optimization potential and reduce resource waste.',
-        rightsizing: 'Perform resource analysis to find right-sizing opportunities that match workload requirements.',
-        storage: 'Analyze storage usage to identify tier optimization and cleanup automation opportunities.',
-        performance: 'Monitor cluster performance to maintain optimal efficiency and identify bottlenecks.',
-        security: 'Run security assessment to ensure compliance and protect against vulnerabilities.'
-    };
-    
-    return emptyInsights;
-}
-
-/**
- * Update insights with loading states
+ * REMOVED: No more duplicate API calls - insights are updated by charts.js
+ * This function now just sets up loading states
  */
 export function showInsightLoadingStates() {
     const insightSelectors = ['#cost-insight', '#hpa-insight'];
@@ -410,29 +383,20 @@ export function showInsightLoadingStates() {
 }
 
 /**
- * Initialize real insights system
+ * FIXED: No more function overriding - work with charts.js
  */
-export function initializeRealInsights() {
-    console.log('🚀 Initializing REAL dynamic insights system...');
+export function initializeInsightsSystem() {
+    console.log('🚀 Initializing insights system (no API duplicates)...');
     
-    // Override existing functions if they exist
-    if (typeof window.initializeCharts !== 'undefined') {
-        window.originalInitializeCharts = window.initializeCharts;
+    // DON'T override initializeCharts - let charts.js handle it
+    // Just make our functions available
+    if (typeof window !== 'undefined') {
+        window.updateRealDynamicInsights = updateRealDynamicInsights;
+        window.generateRealDynamicInsights = generateRealDynamicInsights;
+        window.showInsightLoadingStates = showInsightLoadingStates;
     }
-    window.initializeCharts = initializeChartsWithRealInsights;
     
-    if (typeof window.updateDynamicInsights !== 'undefined') {
-        window.originalUpdateDynamicInsights = window.updateDynamicInsights;
-    }
-    window.updateDynamicInsights = updateRealDynamicInsights;
-    
-    // Also override the completion handler if it exists
-    if (typeof window.handleAnalysisCompletion !== 'undefined') {
-        window.originalHandleAnalysisCompletion = window.handleAnalysisCompletion;
-    }
-    window.handleAnalysisCompletion = handleAnalysisCompletionWithRealInsights;
-    
-    console.log('✅ REAL dynamic insights system initialized');
+    console.log('✅ Insights system initialized (charts.js will handle API calls)');
 }
 
 // CSS for insight animations
@@ -506,27 +470,13 @@ function addInsightAnimationCSS() {
     document.head.appendChild(style);
 }
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-        initializeRealInsights();
-        addInsightAnimationCSS();
-    });
-} else {
-    initializeRealInsights();
-    addInsightAnimationCSS();
-}
-
-// Make functions globally available
+// Make functions globally available (but don't override charts.js functions)
 if (typeof window !== 'undefined') {
     window.generateRealDynamicInsights = generateRealDynamicInsights;
     window.updateRealDynamicInsights = updateRealDynamicInsights;
-    window.initializeChartsWithRealInsights = initializeChartsWithRealInsights;
-    window.handleAnalysisCompletionWithRealInsights = handleAnalysisCompletionWithRealInsights;
     window.generateInsightSummary = generateInsightSummary;
     window.createInsightNotification = createInsightNotification;
     window.showInsightLoadingStates = showInsightLoadingStates;
-    window.createEmptyStateInsights = createEmptyStateInsights;
 }
 
-console.log('✅ REAL Dynamic Insights Generator loaded successfully');
+console.log('✅ REAL Dynamic Insights Generator loaded (fixed - no API duplicates)');
