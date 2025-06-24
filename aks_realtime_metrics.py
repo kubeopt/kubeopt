@@ -75,6 +75,256 @@ class AKSRealTimeMetricsFetcher:
         self.cluster_name = cluster_name
         self.connection_verified = False
         self.parser = KubernetesParsingUtils()
+
+    def get_hpa_implementation_status(self) -> Dict[str, Any]:
+        """
+        Detect current HPA implementation patterns in the cluster
+        INTEGRATION: Called during comprehensive metrics collection
+        """
+        logger.info("🔍 Detecting current HPA implementation...")
+        
+        try:
+            # Get all HPA resources
+            hpa_configs = self._get_hpa_configurations()
+            
+            # Analyze deployment scaling patterns  
+            deployment_patterns = self._analyze_deployment_scaling_configs()
+            
+            # Determine primary HPA pattern
+            primary_pattern = self._determine_hpa_pattern(hpa_configs, deployment_patterns)
+            
+            return {
+                'current_hpa_pattern': primary_pattern['pattern'],
+                'confidence': primary_pattern['confidence'],
+                'hpa_resources': hpa_configs,
+                'deployment_analysis': deployment_patterns,
+                'total_hpas': len(hpa_configs),
+                'analysis_timestamp': datetime.now().isoformat(),
+                'detection_method': 'kubectl_analysis'
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ HPA detection failed: {e}")
+            return {
+                'current_hpa_pattern': 'detection_failed',
+                'confidence': 'low',
+                'error': str(e),
+                'analysis_timestamp': datetime.now().isoformat()
+            }
+
+    def _get_hpa_configurations(self) -> List[Dict]:
+        """Get existing HPA configurations"""
+        try:
+            hpa_output = self.execute_kubectl_command("kubectl get hpa --all-namespaces -o json")
+            
+            if not hpa_output:
+                logger.info("📋 No HPA resources found")
+                return []
+            
+            hpa_data = json.loads(hpa_output)
+            hpa_configs = []
+            
+            for hpa in hpa_data.get('items', []):
+                config = {
+                    'name': hpa['metadata']['name'],
+                    'namespace': hpa['metadata']['namespace'],
+                    'target': hpa['spec']['scaleTargetRef']['name'],
+                    'min_replicas': hpa['spec'].get('minReplicas', 1),
+                    'max_replicas': hpa['spec'].get('maxReplicas', 10),
+                    'metrics': [],
+                    'primary_metric': 'unknown'
+                }
+                
+                # Analyze metrics configuration
+                for metric in hpa['spec'].get('metrics', []):
+                    if metric['type'] == 'Resource':
+                        metric_name = metric['resource']['name']
+                        config['metrics'].append({
+                            'type': 'resource',
+                            'name': metric_name,
+                            'target': metric['resource']['target']
+                        })
+                        
+                        # Determine primary metric
+                        if metric_name == 'cpu':
+                            config['primary_metric'] = 'cpu_based'
+                        elif metric_name == 'memory':
+                            config['primary_metric'] = 'memory_based'
+                
+                hpa_configs.append(config)
+            
+            logger.info(f"✅ Found {len(hpa_configs)} HPA configurations")
+            return hpa_configs
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting HPA configs: {e}")
+            return []
+
+    def _analyze_deployment_scaling_configs(self) -> Dict:
+        """Analyze deployment resource configurations for scaling insights"""
+        try:
+            deployments_output = self.execute_kubectl_command("kubectl get deployments --all-namespaces -o json")
+            
+            if not deployments_output:
+                return {}
+            
+            deployments = json.loads(deployments_output)
+            
+            analysis = {
+                'total_deployments': 0,
+                'cpu_request_patterns': [],
+                'memory_request_patterns': [],
+                'avg_cpu_requests': 0,
+                'avg_memory_requests': 0
+            }
+            
+            cpu_values = []
+            memory_values = []
+            
+            for deployment in deployments.get('items', []):
+                analysis['total_deployments'] += 1
+                
+                # Analyze container resource patterns
+                containers = deployment['spec']['template']['spec'].get('containers', [])
+                for container in containers:
+                    resources = container.get('resources', {})
+                    requests = resources.get('requests', {})
+                    
+                    if 'cpu' in requests:
+                        cpu_val = self.parser.parse_cpu_safe(requests['cpu'])
+                        if cpu_val > 0:
+                            cpu_values.append(cpu_val)
+                            
+                    if 'memory' in requests:
+                        memory_val = self.parser.parse_memory_safe(requests['memory'])
+                        if memory_val > 0:
+                            memory_values.append(memory_val)
+            
+            if cpu_values:
+                analysis['avg_cpu_requests'] = sum(cpu_values) / len(cpu_values)
+            if memory_values:
+                analysis['avg_memory_requests'] = sum(memory_values) / len(memory_values)
+            
+            logger.info(f"📊 Analyzed {analysis['total_deployments']} deployments")
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"❌ Error analyzing deployments: {e}")
+            return {}
+
+    def _determine_hpa_pattern(self, hpa_configs: List[Dict], deployment_patterns: Dict) -> Dict:
+        """Determine the primary HPA pattern from analysis"""
+        
+        if not hpa_configs:
+            return {
+                'pattern': 'no_hpa_detected',
+                'confidence': 'high',
+                'reason': 'No HPA resources found in cluster'
+            }
+        
+        # Analyze primary metrics
+        cpu_based_count = 0
+        memory_based_count = 0
+        hybrid_count = 0
+        
+        for config in hpa_configs:
+            primary_metric = config.get('primary_metric', 'unknown')
+            metrics_count = len(config.get('metrics', []))
+            
+            if primary_metric == 'cpu_based':
+                cpu_based_count += 1
+            elif primary_metric == 'memory_based':
+                memory_based_count += 1
+            elif metrics_count > 1:
+                hybrid_count += 1
+        
+        total_hpas = len(hpa_configs)
+        
+        # Determine pattern based on majority
+        if cpu_based_count > total_hpas * 0.6:
+            return {
+                'pattern': 'cpu_based_dominant',
+                'confidence': 'high',
+                'reason': f'{cpu_based_count}/{total_hpas} HPAs use CPU-based scaling',
+                'cpu_percentage': (cpu_based_count / total_hpas) * 100
+            }
+        elif memory_based_count > total_hpas * 0.6:
+            return {
+                'pattern': 'memory_based_dominant',
+                'confidence': 'high',
+                'reason': f'{memory_based_count}/{total_hpas} HPAs use memory-based scaling',
+                'memory_percentage': (memory_based_count / total_hpas) * 100
+            }
+        elif hybrid_count > 0:
+            return {
+                'pattern': 'hybrid_approach',
+                'confidence': 'medium',
+                'reason': f'Mixed implementation: CPU={cpu_based_count}, Memory={memory_based_count}, Hybrid={hybrid_count}'
+            }
+        else:
+            return {
+                'pattern': 'mixed_implementation',
+                'confidence': 'medium',
+                'reason': 'Multiple approaches detected without clear majority'
+            }
+
+    # MODIFY the get_comprehensive_metrics method to include HPA detection:
+    def get_comprehensive_metrics(self) -> Dict[str, Any]:
+        """ENHANCED: Get comprehensive metrics including HPA detection"""
+        logger.info("🚀 Fetching comprehensive real-time AKS metrics...")
+        
+        start_time = datetime.now()
+        
+        if not self.verify_cluster_connection():
+            return {
+                'status': 'error',
+                'message': 'Failed to connect to AKS cluster',
+                'timestamp': start_time.isoformat()
+            }
+        
+        try:
+            # Get node metrics (existing logic)
+            node_metrics = self.get_node_metrics()
+            
+            # NEW: Get HPA implementation status
+            hpa_status = self.get_hpa_implementation_status()
+            
+            if node_metrics.get('nodes'):
+                return {
+                    'metadata': {
+                        'cluster_name': self.cluster_name,
+                        'resource_group': self.resource_group,
+                        'timestamp': datetime.now().isoformat(),
+                        'source': 'Real-time AKS Cluster Metrics with HPA Detection',
+                        'data_source': 'kubectl via az aks command invoke',
+                        'collection_time_ms': int((datetime.now() - start_time).total_seconds() * 1000),
+                        'integration_ready': True
+                    },
+                    'nodes': node_metrics.get('nodes', []),
+                    'total_nodes': node_metrics.get('total_nodes', 0),
+                    'ready_nodes': node_metrics.get('ready_nodes', 0),
+                    'status': 'success',
+                    'data_quality': 'high' if node_metrics['nodes'] else 'low',
+                    
+                    # NEW: HPA implementation data
+                    'hpa_implementation': hpa_status,
+                    'current_hpa_pattern': hpa_status.get('current_hpa_pattern'),
+                    'hpa_detection_confidence': hpa_status.get('confidence')
+                }
+            else:
+                return {
+                    'status': 'error',
+                    'message': 'No node metrics available',
+                    'timestamp': start_time.isoformat()
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Error collecting comprehensive metrics: {e}")
+            return {
+                'status': 'error',
+                'message': f'Error collecting metrics: {str(e)}',
+                'timestamp': start_time.isoformat()
+            }    
         
     def verify_cluster_connection(self) -> bool:
         """Verify AKS cluster connectivity with enhanced debugging"""
