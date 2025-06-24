@@ -160,7 +160,7 @@ export function initializeCharts() {
             // Clear loading states after successful chart creation
             setTimeout(() => {
                 clearLoadingStates();
-                updateDataSourceIndicator(data.metadata || {});
+                //updateDataSourceIndicator(data.metadata || {});
                 
                 // Create insight notifications if available
                 if (typeof window.createInsightNotification === 'function') {
@@ -412,34 +412,34 @@ function updateCostTrend(metrics) {
 /**
  * Updates data source indicator
  */
-export function updateDataSourceIndicator(metadata) {
-    const isRealData = !metadata.is_sample_data;
-    let indicator = document.querySelector('#data-source-indicator');
+// export function updateDataSourceIndicator(metadata) {
+//     const isRealData = !metadata.is_sample_data;
+//     let indicator = document.querySelector('#data-source-indicator');
     
-    if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'data-source-indicator';
-        indicator.className = 'data-source-indicator';
-        document.body.appendChild(indicator);
-    }
+//     if (!indicator) {
+//         indicator = document.createElement('div');
+//         indicator.id = 'data-source-indicator';
+//         indicator.className = 'data-source-indicator';
+//         document.body.appendChild(indicator);
+//     }
     
-    // Better positioning to avoid overlap
-    indicator.style.cssText = `
-        position: fixed;
-        top: 140px;
-        right: 20px;
-        z-index: 999;
-        max-width: 200px;
-    `;
+//     // Better positioning to avoid overlap
+//     indicator.style.cssText = `
+//         position: fixed;
+//         top: 140px;
+//         right: 20px;
+//         z-index: 999;
+//         max-width: 200px;
+//     `;
     
-    indicator.innerHTML = `
-        <div class="data-source-badge ${isRealData ? 'real-data' : 'sample-data'}">
-            <i class="fas fa-${isRealData ? 'cloud' : 'flask'}"></i>
-            <span>${isRealData ? 'Live Azure Data' : 'Demo Mode'}</span>
-            <small>${metadata.data_source || ''}</small>
-        </div>
-    `;
-}
+//     indicator.innerHTML = `
+//         <div class="data-source-badge ${isRealData ? 'real-data' : 'sample-data'}">
+//             <i class="fas fa-${isRealData ? 'cloud' : 'flask'}"></i>
+//             <span>${isRealData ? 'Live Azure Data' : 'Demo Mode'}</span>
+//             <small>${metadata.data_source || ''}</small>
+//         </div>
+//     `;
+// }
 
 /**
  * Creates all charts from provided data
@@ -1292,7 +1292,7 @@ export function clearLoadingStates() {
 if (typeof window !== 'undefined') {
     window.initializeCharts = initializeCharts;
     window.updateDashboardMetrics = updateDashboardMetrics;
-    window.updateDataSourceIndicator = updateDataSourceIndicator;
+    //window.updateDataSourceIndicator = updateDataSourceIndicator;
     window.createAllCharts = createAllCharts;
     window.destroyAllCharts = destroyAllCharts;
     window.clearLoadingStates = clearLoadingStates;

@@ -113,6 +113,10 @@ def deserialize_implementation_plan(serialized_data):
     
 logger = logging.getLogger(__name__)
 
+# ==================================================================================================
+#
+# ==================================================================================================
+
 class EnhancedClusterManager:
     """Enhanced cluster manager with SQLite database for enterprise use"""
     
@@ -310,6 +314,19 @@ class EnhancedClusterManager:
             total_savings = float(serializable_data.get('total_savings', 0))
             confidence = float(serializable_data.get('analysis_confidence', 0))
             
+            if 'hpa_recommendations' not in analysis_data:
+                logger.warning(f"⚠️ DB SAVE: No HPA recommendations for {cluster_id}")
+                # Continue saving but log the issue
+            else:
+                logger.info(f"✅ DB SAVE: HPA recommendations found for {cluster_id}")
+                
+                # Validate HPA structure
+                hpa_recs = analysis_data['hpa_recommendations']
+                if isinstance(hpa_recs, dict) and 'optimization_recommendation' in hpa_recs:
+                    logger.info(f"✅ DB SAVE: HPA structure validated for {cluster_id}")
+                else:
+                    logger.warning(f"⚠️ DB SAVE: HPA structure incomplete for {cluster_id}")
+
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute('''
                     UPDATE clusters 
@@ -323,6 +340,12 @@ class EnhancedClusterManager:
                     cluster_id
                 ))
                 conn.commit()
+
+            # Ensure HPA data is in the JSON that gets saved
+            if 'hpa_recommendations' in analysis_data:
+                logger.info(f"✅ DB SAVE: Saving analysis with HPA recommendations for {cluster_id}")
+            else:
+                logger.warning(f"⚠️ DB SAVE: Saving analysis WITHOUT HPA recommendations for {cluster_id}")
             
             logger.info(f"✅ Updated cluster analysis with implementation plan: {cluster_id}")
             
@@ -373,6 +396,14 @@ class EnhancedClusterManager:
                                 analysis_data['nodes'] = node_data
                                 analysis_data['node_metrics'] = node_data
                                 analysis_data['real_node_data'] = node_data
+                                     # Validate HPA recommendations
+                        
+                        if 'hpa_recommendations' not in analysis_data:
+                            logger.warning(f"⚠️ DB LOAD: No HPA recommendations for {cluster_id}")
+                            # Return data anyway, but log the issue
+                        else:
+                            logger.info(f"✅ DB LOAD: HPA recommendations found for {cluster_id}")
+                    
                         
                         # CRITICAL: Validate implementation plan structure
                         if 'implementation_plan' in analysis_data:
@@ -387,6 +418,7 @@ class EnhancedClusterManager:
                                 logger.warning("⚠️ DB LOAD: Implementation plan missing phases structure")
                         
                         logger.info(f"📦 Loaded COMPLETE analysis from database: {cluster_id}")
+                           
                         return analysis_data
                         
                     except json.JSONDecodeError as e:
@@ -433,7 +465,7 @@ class EnhancedClusterManager:
                 'total_clusters': 0,
                 'total_monthly_cost': 0,
                 'total_potential_savings': 0,
-                'average_optimization_pct': 0,
+                'avg_optimization_pct': 0,
                 'environments': [],
                 'last_updated': datetime.now().isoformat()
             }
@@ -444,7 +476,7 @@ class EnhancedClusterManager:
                 'total_clusters': 0,
                 'total_monthly_cost': 0,
                 'total_potential_savings': 0,
-                'average_optimization_pct': 0,
+                'avg_optimization_pct': 0,
                 'environments': [],
                 'last_updated': datetime.now().isoformat()
             }
