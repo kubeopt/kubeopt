@@ -96,13 +96,13 @@ def clear_analysis_cache(cluster_id: str = None):
 
 
 def save_to_cache(cluster_id: str, complete_analysis_data: dict):
-    """FIXED: Save complete analysis data to cluster-specific cache"""
+    """OPTIMIZED: Save to cache without regenerating implementation plan if it already exists"""
     global analysis_cache
     
-    logger.info(f"💾 SAVING TO CACHE: {cluster_id}")
+    logger.info(f"💾 OPTIMIZED CACHE SAVE: {cluster_id}")
     enhanced_cache_data = complete_analysis_data.copy()
     
-    # Preserve node data
+    # Preserve node data (existing logic)
     node_data_found = False
     node_data = None
     
@@ -117,9 +117,8 @@ def save_to_cache(cluster_id: str, complete_analysis_data: dict):
         enhanced_cache_data['node_metrics'] = node_data.copy()
         enhanced_cache_data['real_node_data'] = node_data.copy()
         enhanced_cache_data['has_real_node_data'] = True
-        logger.info(f"✅ CACHE: Preserved {len(node_data)} nodes for {cluster_id}")
     
-    # Preserve namespace data
+    # Preserve namespace data (existing logic)
     if complete_analysis_data.get('has_pod_costs'):
         pod_analysis = complete_analysis_data.get('pod_cost_analysis', {})
         namespace_costs = pod_analysis.get('namespace_costs') or pod_analysis.get('namespace_summary') or complete_analysis_data.get('namespace_costs')
@@ -131,16 +130,35 @@ def save_to_cache(cluster_id: str, complete_analysis_data: dict):
                 enhanced_cache_data['pod_cost_analysis'] = {}
             enhanced_cache_data['pod_cost_analysis']['namespace_costs'] = namespace_costs
     
-    # Validate and generate implementation plan
-    if 'implementation_plan' not in enhanced_cache_data:
+    # OPTIMIZATION: Only regenerate implementation plan if missing or invalid
+    has_valid_plan = False
+    if 'implementation_plan' in enhanced_cache_data:
+        impl_plan = enhanced_cache_data['implementation_plan']
+        if isinstance(impl_plan, dict) and 'implementation_phases' in impl_plan:
+            phases = impl_plan['implementation_phases']
+            if isinstance(phases, list) and len(phases) > 0:
+                has_valid_plan = True
+                logger.info(f"✅ OPTIMIZED: Using existing valid implementation plan ({len(phases)} phases)")
+    
+    if not has_valid_plan:
+        # Only regenerate if needed
         try:
             from implementation_generator import AKSImplementationGenerator
             implementation_generator = AKSImplementationGenerator()
-            implementation_plan = implementation_generator.generate_implementation_plan(enhanced_cache_data)
-            enhanced_cache_data['implementation_plan'] = implementation_plan
-            logger.info(f"✅ CACHE: Generated implementation plan for {cluster_id}")
+            
+            fresh_implementation_plan = implementation_generator.generate_implementation_plan(enhanced_cache_data)
+            enhanced_cache_data['implementation_plan'] = fresh_implementation_plan
+            logger.info(f"🔄 OPTIMIZED: Generated fresh implementation plan for {cluster_id}")
+            
         except Exception as impl_error:
-            logger.error(f"❌ CACHE: Failed to generate implementation plan for {cluster_id}: {impl_error}")
+            logger.error(f"❌ OPTIMIZED: Failed to generate implementation plan: {impl_error}")
+    
+    # Add optimized metadata
+    enhanced_cache_data['cache_metadata'] = {
+        'cached_at': datetime.now().isoformat(),
+        'optimization': 'reduced_redundancy',
+        'cluster_id': cluster_id
+    }
     
     # Store in cluster-specific cache
     analysis_cache['clusters'][cluster_id] = {
@@ -150,8 +168,8 @@ def save_to_cache(cluster_id: str, complete_analysis_data: dict):
         'ttl_hours': analysis_cache['global_ttl_hours']
     }
     
-    total_clusters_cached = len(analysis_cache['clusters'])
-    logger.info(f"💾 CACHE SAVED: {cluster_id} | Total clusters cached: {total_clusters_cached}")
+    logger.info(f"💾 OPTIMIZED CACHE: {cluster_id} saved efficiently")
+
 
 
 def load_from_cache(cluster_id: str) -> dict:
@@ -1032,13 +1050,25 @@ def run_consistent_analysis(resource_group: str, cluster_name: str, days: int = 
                 metrics_data=metrics_data,
                 pod_data=pod_data
             )
+
+            # Validate HPA recommendations were generated
+            if 'hpa_recommendations' not in consistent_results:
+                logger.error(f"❌ Session {session_id[:8]}: No HPA recommendations in algorithmic results")
+                raise ValueError("Algorithmic analysis failed to generate HPA recommendations")
             
+            hpa_recs = consistent_results['hpa_recommendations']
+            if not isinstance(hpa_recs, dict) or 'optimization_recommendation' not in hpa_recs:
+                logger.error(f"❌ Session {session_id[:8]}: Invalid HPA recommendations structure")
+                raise ValueError("Invalid HPA recommendations structure from algorithmic analysis")
+            
+            logger.info(f"✅ Session {session_id[:8]}: HPA recommendations validated successfully")
             logger.info(f"✅ Session {session_id[:8]}: Consistent algorithmic analysis completed")
             
         except Exception as algo_error:
             logger.error(f"❌ Session {session_id[:8]}: Consistent algorithmic analysis failed: {algo_error}")
+            raise ValueError(f"Enhanced algorithmic analysis failed: {algo_error}")
             # Fallback to basic calculations
-            consistent_results = calculate_basic_savings(cost_components, metrics_data)
+            #consistent_results = calculate_basic_savings(cost_components, metrics_data)
         
         # Store results IN SESSION (not global)
         session_results.update(consistent_results)
@@ -1123,12 +1153,46 @@ def run_consistent_analysis(resource_group: str, cluster_name: str, days: int = 
         
         logger.info(f"🎉 Session {session_id[:8]}: THREAD-SAFE ANALYSIS COMPLETED WITH FRESH IMPLEMENTATION PLAN")
         
-        return {
+        result = {
             'status': 'success', 
             'data_type': 'consistent_algorithmic',
             'session_id': session_id,
             'results': session_results  # Return session-specific results
         }
+
+        if result['status'] == 'success':
+            session_results = result['results']
+            session_id = result['session_id']
+            
+            # STEP 1: Update global analysis_results with fresh session data
+            global analysis_results
+            analysis_results.clear()  # Clear old data
+            analysis_results.update(session_results)
+            logger.info(f"✅ Session {session_id[:8]}: Updated global analysis_results with fresh data")
+            
+            # STEP 2: Store in database with fresh implementation plan FIRST
+            enhanced_cluster_manager.update_cluster_analysis(cluster_id, session_results)
+            logger.info(f"✅ Session {session_id[:8]}: Saved fresh data to database")
+            
+            # STEP 3: Force cache refresh with fresh data (this will preserve the fresh impl plan)
+            save_to_cache(cluster_id, session_results)
+            logger.info(f"✅ Session {session_id[:8]}: Updated cache with fresh implementation plan")
+            
+            # STEP 4: Validate implementation plan propagation
+            if 'implementation_plan' in session_results:
+                impl_plan = session_results['implementation_plan']
+                if isinstance(impl_plan, dict) and 'implementation_phases' in impl_plan:
+                    phases_count = len(impl_plan['implementation_phases'])
+                    logger.info(f"✅ Session {session_id[:8]}: Implementation plan propagated successfully ({phases_count} phases)")
+                else:
+                    logger.error(f"❌ Session {session_id[:8]}: Implementation plan structure invalid")
+            else:
+                logger.error(f"❌ Session {session_id[:8]}: No implementation plan in session results")
+        
+        verify_implementation_plan_flow(cluster_id, session_id, session_results)        
+        
+        return result    
+
         
     except Exception as e:
         error_msg = str(e)
@@ -1150,7 +1214,7 @@ def run_consistent_analysis(resource_group: str, cluster_name: str, days: int = 
     finally:
         # Cleanup session after some time (optional)
         def cleanup_session():
-            time.sleep(300)  # Wait 5 minutes
+            time.sleep(600)  # Wait 5 minutes
             with _analysis_lock:
                 if session_id in _analysis_sessions:
                     del _analysis_sessions[session_id]
@@ -1161,76 +1225,46 @@ def run_consistent_analysis(resource_group: str, cluster_name: str, days: int = 
 
 
 def generate_dynamic_hpa_comparison(analysis_data):
-    """Generate HPA comparison - FIXED to fail fast without fallbacks"""
+    """Generate HPA comparison using REAL HPA detection data - NO FALLBACKS"""
     try:
-        logger.info("🔧 Generating HPA comparison from analysis data")
-        logger.info(f"🔧 Analysis data keys: {list(analysis_data.keys()) if analysis_data else 'None'}")
+        logger.info("🔧 Generating HPA comparison from REAL analysis data with HPA detection")
         
-        # Step 1: Validate we have real node data flag
-        if not analysis_data.get('has_real_node_data'):
-            raise ValueError("Analysis data indicates no real node data available (has_real_node_data=False)")
+        # Step 1: Get HPA recommendations from algorithmic analysis
+        hpa_recommendations = analysis_data.get('hpa_recommendations')
+        if not hpa_recommendations:
+            raise ValueError("No HPA recommendations found in analysis data - algorithmic analysis may have failed")
         
-        # Step 2: Find node data in any of the expected keys
-        nodes = None
-        for key in ['real_node_data', 'nodes', 'node_metrics']:
-            if analysis_data.get(key):
-                nodes = analysis_data[key]
-                logger.info(f"✅ HPA: Found node data in key: {key}")
-                break
+        # Step 2: Extract HPA chart data from recommendations
+        hpa_chart_data = hpa_recommendations.get('hpa_chart_data')
+        if not hpa_chart_data:
+            raise ValueError("No HPA chart data found in recommendations")
         
-        if not nodes:
-            raise ValueError("No node data found in expected keys (real_node_data, nodes, node_metrics)")
+        # Step 3: Get current implementation status
+        current_implementation = hpa_recommendations.get('current_implementation', {})
+        optimization_recommendation = hpa_recommendations.get('optimization_recommendation', {})
         
-        if len(nodes) == 0:
-            raise ValueError("Node data exists but is empty")
+        # Step 4: Validate chart data structure
+        required_fields = ['timePoints', 'cpuReplicas', 'memoryReplicas']
+        for field in required_fields:
+            if field not in hpa_chart_data:
+                raise ValueError(f"Missing required field in HPA chart data: {field}")
         
-        # Step 3: Validate node data structure
-        for i, node in enumerate(nodes):
-            if not isinstance(node, dict):
-                raise ValueError(f"Node {i} is not a dictionary: {type(node)}")
-            if 'cpu_usage_pct' not in node or 'memory_usage_pct' not in node:
-                raise ValueError(f"Node {i} missing required usage data: {list(node.keys())}")
+        # Step 5: Enhance chart data with implementation context
+        enhanced_chart_data = hpa_chart_data.copy()
+        enhanced_chart_data.update({
+            'current_implementation_pattern': current_implementation.get('pattern', 'unknown'),
+            'detection_confidence': current_implementation.get('confidence', 'low'),
+            'total_hpas_detected': current_implementation.get('total_hpas', 0),
+            'optimization_direction': optimization_recommendation.get('direction', 'unknown'),
+            'recommendation_title': optimization_recommendation.get('title', 'HPA Analysis'),
+            'data_source': 'real_hpa_detection_with_kubectl'
+        })
         
-        logger.info(f"✅ HPA: Using {len(nodes)} validated nodes for HPA calculation")
-        
-        # Step 4: Calculate HPA data from real metrics
-        total_cpu_usage = sum(node.get('cpu_usage_pct', 0) for node in nodes)
-        total_memory_usage = sum(node.get('memory_usage_pct', 0) for node in nodes)
-        avg_cpu = total_cpu_usage / len(nodes)
-        avg_memory = total_memory_usage / len(nodes)
-        
-        # Current replicas estimation based on node utilization
-        current_replicas = len(nodes) * 2  # Assume 2 replicas per node on average
-        
-        # CPU-based HPA scaling (target 70% CPU)
-        cpu_target = 70.0
-        cpu_scale_factor = avg_cpu / cpu_target if cpu_target > 0 else 1.0
-        cpu_replicas = max(1, int(current_replicas * cpu_scale_factor))
-        
-        # Memory-based HPA scaling (target 60% Memory)  
-        memory_target = 60.0
-        memory_scale_factor = avg_memory / memory_target if memory_target > 0 else 1.0
-        memory_replicas = max(1, int(current_replicas * memory_scale_factor))
-        
-        # Generate 5 time points based on variation in node utilization
-        time_variations = [0.8, 1.2, 1.5, 1.1, 0.9]  # Load pattern multipliers
-        
-        result = {
-            'timePoints': ['Low Traffic', 'Medium Traffic', 'Peak Traffic', 'Evening', 'Night'],
-            'cpuReplicas': [max(1, int(cpu_replicas * var)) for var in time_variations],
-            'memoryReplicas': [max(1, int(memory_replicas * var)) for var in time_variations],
-            'current_cpu_avg': avg_cpu,
-            'current_memory_avg': avg_memory,
-            'cpu_target': cpu_target,
-            'memory_target': memory_target,
-            'data_source': 'real_node_metrics'
-        }
-        
-        logger.info(f"✅ HPA: Generated comparison with avg CPU: {avg_cpu:.1f}%, avg Memory: {avg_memory:.1f}%")
-        return result
+        logger.info(f"✅ HPA: Generated comparison with REAL detection: {current_implementation.get('pattern')} -> {optimization_recommendation.get('direction')}")
+        return enhanced_chart_data
         
     except Exception as e:
-        logger.error(f"❌ HPA: Failed to generate HPA comparison: {e}")
+        logger.error(f"❌ HPA: Failed to generate comparison with HPA detection: {e}")
         raise ValueError(f"Cannot generate HPA comparison: {e}")
 
 
@@ -1282,49 +1316,49 @@ def extract_cost_components(cost_df, days, monthly_equivalent_cost):
     
     return components
 
-def calculate_basic_savings(cost_components, metrics_data):
-    """Calculate basic savings when algorithmic analysis fails"""
-    node_cost = cost_components.get('node_cost', 0)
-    storage_cost = cost_components.get('storage_cost', 0)
-    total_cost = cost_components.get('total_cost', 0)
+# def calculate_basic_savings(cost_components, metrics_data):
+#     """Calculate basic savings when algorithmic analysis fails"""
+#     node_cost = cost_components.get('node_cost', 0)
+#     storage_cost = cost_components.get('storage_cost', 0)
+#     total_cost = cost_components.get('total_cost', 0)
     
-    # Basic savings estimates
-    hpa_savings = node_cost * 0.15  # 15% HPA savings
-    right_sizing_savings = node_cost * 0.10  # 10% right-sizing savings
-    storage_savings = storage_cost * 0.05  # 5% storage savings
+#     # Basic savings estimates
+#     hpa_savings = node_cost * 0.15  # 15% HPA savings
+#     right_sizing_savings = node_cost * 0.10  # 10% right-sizing savings
+#     storage_savings = storage_cost * 0.05  # 5% storage savings
     
-    total_savings = hpa_savings + right_sizing_savings + storage_savings
-    savings_percentage = (total_savings / total_cost * 100) if total_cost > 0 else 0
+#     total_savings = hpa_savings + right_sizing_savings + storage_savings
+#     savings_percentage = (total_savings / total_cost * 100) if total_cost > 0 else 0
     
-    return {
-        'total_cost': total_cost,
-        'node_cost': node_cost,
-        'storage_cost': storage_cost,
-        'networking_cost': cost_components.get('networking_cost', 0),
-        'control_plane_cost': cost_components.get('control_plane_cost', 0),
-        'registry_cost': cost_components.get('registry_cost', 0),
-        'other_cost': cost_components.get('other_cost', 0),
-        'hpa_savings': hpa_savings,
-        'right_sizing_savings': right_sizing_savings,
-        'storage_savings': storage_savings,
-        'total_savings': total_savings,
-        'savings_percentage': savings_percentage,
-        'annual_savings': total_savings * 12,
-        'hpa_reduction': 15.0,
-        'cpu_gap': 25.0,
-        'memory_gap': 20.0,
-        'analysis_confidence': 0.7,
-        'confidence_level': 'Medium',
-        'algorithms_used': ['basic_estimation'],
-        'is_consistent': True
-    }
+#     return {
+#         'total_cost': total_cost,
+#         'node_cost': node_cost,
+#         'storage_cost': storage_cost,
+#         'networking_cost': cost_components.get('networking_cost', 0),
+#         'control_plane_cost': cost_components.get('control_plane_cost', 0),
+#         'registry_cost': cost_components.get('registry_cost', 0),
+#         'other_cost': cost_components.get('other_cost', 0),
+#         'hpa_savings': hpa_savings,
+#         'right_sizing_savings': right_sizing_savings,
+#         'storage_savings': storage_savings,
+#         'total_savings': total_savings,
+#         'savings_percentage': savings_percentage,
+#         'annual_savings': total_savings * 12,
+#         'hpa_reduction': 15.0,
+#         'cpu_gap': 25.0,
+#         'memory_gap': 20.0,
+#         'analysis_confidence': 0.7,
+#         'confidence_level': 'Medium',
+#         'algorithms_used': ['basic_estimation'],
+#         'is_consistent': True
+#     }
 
 # ============================================================================
 # CHART DATA GENERATION
 # ============================================================================
 
 def generate_insights(analysis_results):
-    """Generate insights for the dashboard"""
+    """Generate insights using REAL HPA recommendations - NO CONTRADICTIONS"""
     if not analysis_results:
         return {
             'cost_breakdown': 'No analysis data available. Please run an analysis first.',
@@ -1335,7 +1369,7 @@ def generate_insights(analysis_results):
     
     insights = {}
     
-    # Cost breakdown insight
+    # Cost breakdown insight (existing logic - keep as is)
     node_cost = analysis_results.get('node_cost', 0)
     total_cost = analysis_results.get('total_cost', 0)
     node_percentage = (node_cost / total_cost) * 100 if total_cost > 0 else 0
@@ -1347,18 +1381,33 @@ def generate_insights(analysis_results):
     else:
         insights['cost_breakdown'] = f"✅ Your costs are well-distributed with VM Scale Sets at <strong>{node_percentage:.1f}%</strong> (${node_cost:.2f})."
     
-    # HPA insight
-    hpa_reduction = analysis_results.get('hpa_reduction', 0)
-    hpa_savings = analysis_results.get('hpa_savings', 0)
+    # NEW: HPA insight using REAL recommendations
+    hpa_recommendations = analysis_results.get('hpa_recommendations', {})
+    optimization_rec = hpa_recommendations.get('optimization_recommendation', {})
+    current_impl = hpa_recommendations.get('current_implementation', {})
     
-    if hpa_reduction > 40:
-        insights['hpa_comparison'] = f"🚀 <strong>MAJOR OPPORTUNITY:</strong> Memory-based HPA can reduce your replica count by <strong>{hpa_reduction:.1f}%</strong>, saving <strong>${hpa_savings:.2f}/month</strong>!"
-    elif hpa_reduction > 20:
-        insights['hpa_comparison'] = f"⭐ <strong>SOLID SAVINGS:</strong> Memory-based HPA offers <strong>{hpa_reduction:.1f}%</strong> fewer replicas, worth <strong>${hpa_savings:.2f}/month</strong>."
+    if optimization_rec:
+        title = optimization_rec.get('title', 'HPA Analysis')
+        description = optimization_rec.get('description', 'No specific recommendation available')
+        direction = optimization_rec.get('direction', 'unknown')
+        monthly_savings = optimization_rec.get('monthly_savings', 0)
+        current_status = optimization_rec.get('current_status', 'Unknown status')
+        
+        if direction == 'cost_optimization' and monthly_savings > 0:
+            insights['hpa_comparison'] = f"🚀 <strong>{title}:</strong> {description}"
+        elif direction == 'status_quo':
+            insights['hpa_comparison'] = f"✅ <strong>{title}:</strong> {description}"
+        elif direction == 'implement_hpa':
+            insights['hpa_comparison'] = f"📋 <strong>{title}:</strong> {description}"
+        elif direction == 'standardize':
+            insights['hpa_comparison'] = f"🔄 <strong>{title}:</strong> {description}"
+        else:
+            insights['hpa_comparison'] = f"🔍 <strong>{title}:</strong> {description}"
     else:
-        insights['hpa_comparison'] = f"📈 Memory-based HPA provides a modest <strong>{hpa_reduction:.1f}%</strong> improvement (${hpa_savings:.2f}/month)."
+        # Fallback only if no HPA recommendations at all
+        insights['hpa_comparison'] = f"🔍 <strong>HPA ANALYSIS NEEDED:</strong> Run HPA detection to get accurate scaling recommendations."
     
-    # Resource gap insight
+    # Resource gap insight (existing logic - keep as is)
     cpu_gap = analysis_results.get('cpu_gap', 0)
     memory_gap = analysis_results.get('memory_gap', 0)
     right_sizing_savings = analysis_results.get('right_sizing_savings', 0)
@@ -1368,7 +1417,7 @@ def generate_insights(analysis_results):
     else:
         insights['resource_gap'] = f"✅ <strong>WELL-OPTIMIZED:</strong> Minor gaps of <strong>{cpu_gap:.1f}% CPU</strong> and <strong>{memory_gap:.1f}% memory</strong>."
     
-    # Savings summary
+    # Savings summary (existing logic - keep as is)
     total_savings = analysis_results.get('total_savings', 0)
     annual_savings = analysis_results.get('annual_savings', 0)
     savings_percentage = analysis_results.get('savings_percentage', 0)
@@ -1379,17 +1428,6 @@ def generate_insights(analysis_results):
         insights['savings_summary'] = f"📊 <strong>SIGNIFICANT IMPACT:</strong> Annual savings of <strong>${annual_savings:.2f}</strong> ({savings_percentage:.1f}% reduction)."
     else:
         insights['savings_summary'] = f"💡 <strong>STEADY IMPROVEMENTS:</strong> Save <strong>${annual_savings:.2f}/year</strong> ({savings_percentage:.1f}% optimization)."
-    
-    # Pod cost insights if available
-    if analysis_results.get('has_pod_costs'):
-        if analysis_results.get('top_namespace'):
-            top_ns = analysis_results['top_namespace']
-            ns_cost_pct = (top_ns['cost'] / node_cost) * 100 if node_cost > 0 else 0
-            
-            if ns_cost_pct > 50:
-                insights['namespace_analysis'] = f"🎯 <strong>MAJOR FINDING:</strong> Namespace '<strong>{top_ns['name']}</strong>' consumes <strong>${top_ns['cost']:.2f} ({ns_cost_pct:.1f}%)</strong> of your node costs!"
-            else:
-                insights['namespace_analysis'] = f"✅ <strong>BALANCED DISTRIBUTION:</strong> Top namespace '<strong>{top_ns['name']}</strong>' uses <strong>${top_ns['cost']:.2f} ({ns_cost_pct:.1f}%)</strong>."
     
     return insights
 
@@ -1857,6 +1895,14 @@ def _build_response_data(current_analysis: Dict[str, Any],
                 ensure_float(current_analysis.get('storage_savings', 0))
             ]
         },
+
+        'hpa_implementation': {
+            'current_pattern': current_analysis.get('hpa_recommendations', {}).get('current_implementation', {}).get('pattern', 'unknown'),
+            'detection_confidence': current_analysis.get('hpa_recommendations', {}).get('current_implementation', {}).get('confidence', 'low'),
+            'total_hpas': current_analysis.get('hpa_recommendations', {}).get('current_implementation', {}).get('total_hpas', 0),
+            'recommendation_direction': current_analysis.get('hpa_recommendations', {}).get('optimization_recommendation', {}).get('direction', 'unknown'),
+            'optimization_title': current_analysis.get('hpa_recommendations', {}).get('optimization_recommendation', {}).get('title', 'HPA Analysis')
+        },
         
         # Insights
         'insights': generate_insights(current_analysis),
@@ -2079,44 +2125,6 @@ def generate_node_utilization_data(analysis_data):
         logger.error(f"❌ NODE UTIL: Failed to generate utilization data: {e}")
         raise ValueError(f"Cannot generate node utilization data: {e}")
     
-# ============================================================================
-# CONFIGURATION AND STARTUP ENHANCEMENTS
-# ============================================================================
-
-# def load_cluster_configurations():
-#     """Load cluster configurations from file on startup"""
-#     try:
-#         if os.path.exists('clusters.json'):
-#             with open('clusters.json', 'r') as f:
-#                 clusters_data = json.load(f)
-#                 for cluster_data in clusters_data:
-#                     cluster_manager.add_cluster(cluster_data)
-#             logger.info(f"Loaded {len(clusters_data)} cluster configurations")
-#     except Exception as e:
-#         logger.warning(f"Could not load cluster configurations: {e}")
-
-# def save_cluster_configurations():
-#     """Save cluster configurations to file"""
-#     try:
-#         clusters_data = list(cluster_manager.clusters.values())
-#         with open('clusters.json', 'w') as f:
-#             json.dump(clusters_data, f, indent=2)
-#         logger.info(f"Saved {len(clusters_data)} cluster configurations")
-#     except Exception as e:
-#         logger.warning(f"Could not save cluster configurations: {e}")
-
-# Add to application startup
-# Replace the deprecated decorator with this approach
-first_request_done = False
-
-# @app.before_request
-# def initialize_multi_cluster():
-#     """Initialize multi-cluster functionality"""
-#     global first_request_done
-#     if not first_request_done:
-#         load_cluster_configurations()
-#         logger.info("Multi-cluster functionality initialized")
-#         first_request_done = True
 
 
 # ============================
@@ -2590,7 +2598,7 @@ def api_list_clusters():
 
 @app.route('/cluster/<cluster_id>')
 def single_cluster_dashboard(cluster_id: str):
-    """FIXED Enhanced dashboard - Cache → DB → Refresh Cache → Serve"""
+    """FIXED: Dashboard with session data priority"""
     global analysis_results
     
     try:
@@ -2600,44 +2608,87 @@ def single_cluster_dashboard(cluster_id: str):
             flash(f'Cluster {cluster_id} not found', 'error')
             return redirect(url_for('cluster_portfolio'))
         
-        logger.info(f"📊 Dashboard access for {cluster_id}")
+        logger.info(f"📊 Dashboard access for {cluster_id} - CHECKING FRESH SESSION DATA FIRST")
         
-        # STEP 1: Try cache first (if valid and for this cluster)
-        cached_analysis = load_from_cache(cluster_id)
-        data_source = "cache"
+        # STEP 0: Check if there's fresh session data first (HIGHEST PRIORITY)
+        fresh_session_data = None
+        data_source = "none"
         
-        if not cached_analysis:
-            # STEP 2: Cache invalid/empty, try database
-            logger.info("🔄 Cache invalid/empty, loading from database...")
-            cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+        # In single_cluster_dashboard() - Add detailed session debugging
+        with _analysis_lock:
+            logger.info(f"🔍 DEBUG: Checking {len(_analysis_sessions)} active sessions for cluster {cluster_id}")
             
-            if cached_analysis and cached_analysis.get('total_cost', 0) > 0:
-                # STEP 3: Validate DB data has node data before caching
-                has_node_data = False
-                for key in ['nodes', 'node_metrics', 'real_node_data']:
-                    if cached_analysis.get(key) and len(cached_analysis[key]) > 0:
-                        has_node_data = True
-                        break
+            for session_id, session_info in _analysis_sessions.items():
+                logger.info(f"🔍 Session {session_id[:8]}: cluster={session_info.get('cluster_id')}, status={session_info.get('status')}, has_results={'results' in session_info}")
                 
-                if has_node_data:
-                    # STEP 4: REFRESH CACHE with DB data
-                    logger.info("💾 Refreshing cache with database data...")
-                    save_to_cache(cluster_id, cached_analysis)
+                if (session_info.get('cluster_id') == cluster_id and 
+                    session_info.get('status') == 'completed' and
+                    'results' in session_info):
                     
-                    logger.info(f"📦 Loaded from database and refreshed cache: ${cached_analysis.get('total_cost', 0):.2f}")
-                    data_source = "database_cached"
+                    fresh_session_data = session_info['results']
+                    data_source = "fresh_session"
+                    logger.info(f"🎯 FOUND fresh session data for {cluster_id} (session: {session_id[:8]})")
+                    break
+            
+            if not fresh_session_data:
+                logger.warning(f"⚠️ NO fresh session data found for {cluster_id}")
+        
+        cached_analysis = None
+        
+        if fresh_session_data:
+            # STEP 1: Use fresh session data and update cache + database
+            logger.info(f"🚀 Using FRESH session data for {cluster_id}")
+            
+            # Update database with fresh data
+            enhanced_cluster_manager.update_cluster_analysis(cluster_id, fresh_session_data)
+            
+            # Update cache with fresh data
+            save_to_cache(cluster_id, fresh_session_data)
+            
+            cached_analysis = fresh_session_data
+            data_source = "fresh_session_cached"
+            
+            # Validate implementation plan exists in fresh data
+            if 'implementation_plan' in fresh_session_data:
+                impl_plan = fresh_session_data['implementation_plan']
+                if isinstance(impl_plan, dict) and 'implementation_phases' in impl_plan:
+                    phases_count = len(impl_plan['implementation_phases'])
+                    logger.info(f"✅ DASHBOARD: Fresh session has implementation plan with {phases_count} phases")
                 else:
-                    logger.warning("⚠️ Database data missing node data - not caching")
-                    data_source = "database_no_cache"
+                    logger.warning(f"⚠️ DASHBOARD: Fresh session implementation plan structure invalid")
             else:
-                logger.info(f"ℹ️ No analysis data found for {cluster_id}")
-                data_source = "none"
+                logger.warning(f"⚠️ DASHBOARD: Fresh session missing implementation plan")
+        
         else:
-            logger.info(f"✅ Using VALID cache for dashboard: ${cached_analysis.get('total_cost', 0):.2f}")
+            # STEP 2: No fresh session data, try cache
+            logger.info(f"🔄 No fresh session data, trying cache for {cluster_id}")
+            cached_analysis = load_from_cache(cluster_id)
+            data_source = "cache"
+            
+            if not cached_analysis:
+                # STEP 3: Cache miss, try database
+                logger.info("🔄 Cache miss, loading from database...")
+                cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+                
+                if cached_analysis and cached_analysis.get('total_cost', 0) > 0:
+                    # STEP 4: Validate DB data has implementation plan before caching
+                    if 'implementation_plan' in cached_analysis:
+                        logger.info("💾 Database data has implementation plan, refreshing cache...")
+                        save_to_cache(cluster_id, cached_analysis)
+                        data_source = "database_cached"
+                    else:
+                        logger.warning("⚠️ Database data missing implementation plan - not caching")
+                        data_source = "database_no_cache"
+                else:
+                    logger.info(f"ℹ️ No analysis data found for {cluster_id}")
+                    data_source = "none"
+            else:
+                logger.info(f"✅ Using cache for {cluster_id}")
         
         # Get analysis history
         analysis_history = enhanced_cluster_manager.get_analysis_history(cluster_id, limit=5)
         
+        # Build context
         context = {
             'cluster': cluster,
             'results': cached_analysis or {},
@@ -2648,6 +2699,21 @@ def single_cluster_dashboard(cluster_id: str):
             'data_source': data_source
         }
         
+        # Add implementation plan debug info
+        if cached_analysis and 'implementation_plan' in cached_analysis:
+            impl_plan = cached_analysis['implementation_plan']
+            if isinstance(impl_plan, dict) and 'implementation_phases' in impl_plan:
+                context['impl_plan_phases'] = len(impl_plan['implementation_phases'])
+                context['impl_plan_status'] = 'valid'
+            else:
+                context['impl_plan_phases'] = 0
+                context['impl_plan_status'] = 'invalid'
+        else:
+            context['impl_plan_phases'] = 0
+            context['impl_plan_status'] = 'missing'
+        
+        logger.info(f"📊 DASHBOARD CONTEXT: {data_source}, impl_plan: {context['impl_plan_status']} ({context['impl_plan_phases']} phases)")
+        
         return render_template('unified_dashboard.html', **context)
         
     except Exception as e:
@@ -2655,6 +2721,59 @@ def single_cluster_dashboard(cluster_id: str):
         logger.error(f"❌ Traceback: {traceback.format_exc()}")
         flash(f'Error loading cluster dashboard: {str(e)}', 'error')
         return redirect(url_for('cluster_portfolio'))
+
+def verify_implementation_plan_flow(cluster_id: str, session_id: str, session_results: dict):
+    """Debug method to verify implementation plan flow"""
+    logger.info(f"🔍 VERIFICATION: Implementation plan flow for {cluster_id} (session: {session_id[:8]})")
+    
+    # Check session results
+    if 'implementation_plan' in session_results:
+        impl_plan = session_results['implementation_plan']
+        if isinstance(impl_plan, dict) and 'implementation_phases' in impl_plan:
+            phases = impl_plan['implementation_phases']
+            logger.info(f"✅ VERIFICATION: Session has valid implementation plan with {len(phases)} phases")
+            
+            # Log first phase for verification
+            if phases:
+                first_phase = phases[0]
+                logger.info(f"🔍 VERIFICATION: First phase: {first_phase.get('title', 'No title')}")
+        else:
+            logger.error(f"❌ VERIFICATION: Session implementation plan invalid: {type(impl_plan)}")
+    else:
+        logger.error(f"❌ VERIFICATION: Session missing implementation plan")
+    
+    # Check cache after save
+    try:
+        cached_data = load_from_cache(cluster_id)
+        if cached_data and 'implementation_plan' in cached_data:
+            impl_plan = cached_data['implementation_plan']
+            if isinstance(impl_plan, dict) and 'implementation_phases' in impl_plan:
+                phases = impl_plan['implementation_phases']
+                logger.info(f"✅ VERIFICATION: Cache has valid implementation plan with {len(phases)} phases")
+            else:
+                logger.error(f"❌ VERIFICATION: Cache implementation plan invalid")
+        else:
+            logger.error(f"❌ VERIFICATION: Cache missing implementation plan")
+    except Exception as cache_error:
+        logger.error(f"❌ VERIFICATION: Cache check failed: {cache_error}")
+    
+    # Check database
+    try:
+        db_data = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+        if db_data and 'implementation_plan' in db_data:
+            impl_plan = db_data['implementation_plan']
+            if isinstance(impl_plan, dict) and 'implementation_phases' in impl_plan:
+                phases = impl_plan['implementation_phases']
+                logger.info(f"✅ VERIFICATION: Database has valid implementation plan with {len(phases)} phases")
+            else:
+                logger.error(f"❌ VERIFICATION: Database implementation plan invalid")
+        else:
+            logger.error(f"❌ VERIFICATION: Database missing implementation plan")
+    except Exception as db_error:
+        logger.error(f"❌ VERIFICATION: Database check failed: {db_error}")
+
+# Add this call at the end of successful analysis in run_consistent_analysis():
+# verify_implementation_plan_flow(cluster_id, session_id, session_results)
 
 @app.route('/cluster/<cluster_id>/analyze', methods=['GET', 'POST'])
 def cluster_analyze_endpoint(cluster_id: str):
@@ -2969,56 +3088,16 @@ def debug_analysis():
             'error': str(e),
             'status': 'error'
         }), 500
-
-# @app.route('/api/clusters/<cluster_id>/chart-data')
-# def cluster_specific_chart_data(cluster_id: str):
-#     """Cluster-specific chart data endpoint"""
-#     # MUST declare global at the very beginning
-#     global analysis_results
     
-#     try:
-#         logger.info(f"📊 Cluster-specific chart data requested for {cluster_id}")
-        
-#         # Get cluster analysis from database
-#         cached_analysis = enhanced_cluster_manager.get_latest_analysis(cluster_id)
-        
-#         if not cached_analysis:
-#             return jsonify({
-#                 'status': 'no_data',
-#                 'message': f'No analysis data found for cluster {cluster_id}',
-#                 'cluster_id': cluster_id
-#             }), 404
-        
-#         # Temporarily set global analysis_results for compatibility
-#         original_results = analysis_results.copy() if analysis_results else {}
-#         analysis_results = cached_analysis
-        
-#         try:
-#             # Use the existing chart data function
-#             response = chart_data_consistent()
-#             return response
-#         finally:
-#             # Restore original results
-#             analysis_results = original_results
-            
-#     except Exception as e:
-#         logger.error(f"❌ Error in cluster-specific chart data: {e}")
-#         return jsonify({
-#             'status': 'error',
-#             'message': str(e),
-#             'cluster_id': cluster_id
-#         }), 500
-
 @app.route('/api/implementation-plan')
 def get_implementation_plan():
-    """FIXED: Implementation plan API with forced regeneration for fresh analysis"""
+    """COMPLETELY FIXED: Implementation plan API with session priority"""
     try:
         logger.info("📋 Implementation plan API called")
         
-        # Extract cluster ID from request
+        # Extract cluster ID
         cluster_id = request.args.get('cluster_id')
         if not cluster_id:
-            # Try to extract from referrer
             referrer = request.headers.get('Referer', '')
             if '/cluster/' in referrer:
                 try:
@@ -3028,26 +3107,45 @@ def get_implementation_plan():
                     pass
         
         if not cluster_id:
-            logger.warning("⚠️ No cluster_id provided")
             return jsonify({
                 'status': 'error',
                 'message': 'No cluster ID provided for implementation plan'
             }), 400
         
-        # Get cluster info first
+        # Get cluster info
         cluster = enhanced_cluster_manager.get_cluster(cluster_id)
         if not cluster:
-            logger.error(f"❌ Cluster {cluster_id} not found in database")
             return jsonify({
                 'status': 'error',
                 'message': f'Cluster {cluster_id} not found'
             }), 404
         
-        # Get cluster-specific analysis data
-        current_analysis, data_source = _get_analysis_data(cluster_id)
+        # PRIORITY 1: Check for fresh session data first
+        fresh_session_data = None
+        data_source = "none"
+        
+        with _analysis_lock:
+            for session_id, session_info in _analysis_sessions.items():
+                if (session_info.get('cluster_id') == cluster_id and 
+                    session_info.get('status') == 'completed' and
+                    'results' in session_info):
+                    
+                    fresh_session_data = session_info['results']
+                    data_source = "fresh_session"
+                    logger.info(f"🎯 API: Found fresh session data for {cluster_id}")
+                    break
+        
+        current_analysis = None
+        
+        if fresh_session_data:
+            # Use fresh session data
+            current_analysis = fresh_session_data
+            logger.info(f"📋 API: Using fresh session data for implementation plan")
+        else:
+            # Fallback to cache/database
+            current_analysis, data_source = _get_analysis_data(cluster_id)
         
         if not current_analysis:
-            logger.error(f"❌ No analysis data found for cluster {cluster_id}")
             return jsonify({
                 'status': 'error',
                 'message': 'No analysis data available for implementation plan',
@@ -3055,125 +3153,85 @@ def get_implementation_plan():
                 'data_source': data_source
             }), 404
         
-        # 🔥 CRITICAL FIX: Always regenerate implementation plan for fresh analysis
-        regenerate_plan = True  # Force regeneration every time
+        # Get implementation plan
         implementation_plan = current_analysis.get('implementation_plan')
         
-        # Additional checks to force regeneration
-        if implementation_plan:
-            plan_timestamp = implementation_plan.get('cluster_metadata', {}).get('generated_at')
-            analysis_timestamp = current_analysis.get('analysis_timestamp')
+        # ALWAYS regenerate if missing or invalid
+        if (not implementation_plan or 
+            not isinstance(implementation_plan, dict) or 
+            'implementation_phases' not in implementation_plan or
+            not implementation_plan['implementation_phases']):
             
-            # Force regeneration if analysis is newer than plan
-            if analysis_timestamp and plan_timestamp:
-                try:
-                    analysis_time = datetime.fromisoformat(analysis_timestamp)
-                    plan_time = datetime.fromisoformat(plan_timestamp)
-                    
-                    if analysis_time > plan_time:
-                        logger.info(f"🔄 Analysis is newer than plan - forcing regeneration for {cluster_id}")
-                        regenerate_plan = True
-                except Exception:
-                    regenerate_plan = True
-        
-        if regenerate_plan:
-            logger.info(f"🔄 FORCE regenerating implementation plan for {cluster_id}")
+            logger.info(f"🔄 API: Regenerating implementation plan for {cluster_id}")
             try:
                 from implementation_generator import AKSImplementationGenerator
                 implementation_generator = AKSImplementationGenerator()
                 
-                # Ensure cluster metadata is in analysis data
                 current_analysis['cluster_name'] = cluster['name']
                 current_analysis['resource_group'] = cluster['resource_group']
                 
-                # Generate fresh implementation plan
                 fresh_plan = implementation_generator.generate_implementation_plan(current_analysis)
                 
-                # Add cluster metadata to plan with current timestamp
                 if isinstance(fresh_plan, dict):
                     fresh_plan['cluster_metadata'] = {
                         'cluster_name': cluster['name'],
                         'resource_group': cluster['resource_group'],
                         'cluster_id': cluster_id,
                         'generated_at': datetime.now().isoformat(),
-                        'regenerated': True,
-                        'total_cost': current_analysis.get('total_cost', 0),
-                        'total_savings': current_analysis.get('total_savings', 0),
-                        'analysis_timestamp': current_analysis.get('analysis_timestamp'),
-                        'data_source': data_source
+                        'api_regenerated': True
                     }
                 
                 current_analysis['implementation_plan'] = fresh_plan
                 implementation_plan = fresh_plan
                 
-                # Update cache and database with fresh plan
+                # Update cache and database
                 save_to_cache(cluster_id, current_analysis)
                 enhanced_cluster_manager.update_cluster_analysis(cluster_id, current_analysis)
                 
-                logger.info(f"✅ FORCE regenerated implementation plan for {cluster_id}")
+                logger.info(f"✅ API: Regenerated implementation plan for {cluster_id}")
                 
             except Exception as gen_error:
-                logger.error(f"❌ Failed to regenerate implementation plan for {cluster_id}: {gen_error}")
+                logger.error(f"❌ API: Failed to regenerate implementation plan: {gen_error}")
                 return jsonify({
                     'status': 'error',
                     'message': f'Failed to generate implementation plan: {str(gen_error)}'
                 }), 500
         
-        # Validate implementation plan structure
-        if not isinstance(implementation_plan, dict):
-            logger.error(f"❌ Implementation plan is not a dict for {cluster_id}: {type(implementation_plan)}")
+        # Final validation
+        if not isinstance(implementation_plan, dict) or 'implementation_phases' not in implementation_plan:
             return jsonify({
                 'status': 'error',
                 'message': 'Implementation plan has invalid structure'
             }), 500
         
-        if 'implementation_phases' not in implementation_plan:
-            logger.error(f"❌ Implementation plan missing phases for {cluster_id}")
-            return jsonify({
-                'status': 'error',
-                'message': 'Implementation plan missing phases structure'
-            }), 500
-        
         phases = implementation_plan['implementation_phases']
         if not isinstance(phases, list) or len(phases) == 0:
-            logger.error(f"❌ Implementation phases invalid for {cluster_id}: {type(phases)}, length: {len(phases) if isinstance(phases, list) else 'N/A'}")
             return jsonify({
                 'status': 'error',
                 'message': 'Implementation plan has no valid phases'
             }), 500
         
-        logger.info(f"✅ Implementation plan validated for {cluster_id}: {len(phases)} phases from {data_source}")
-        
-        # FORCE fresh metadata in API response
+        # Add API metadata
         implementation_plan['api_metadata'] = {
             'data_source': data_source,
             'cluster_id': cluster_id,
             'cluster_name': cluster['name'],
             'resource_group': cluster['resource_group'],
             'phases_count': len(phases),
-            'generated_at': datetime.now().isoformat(),
+            'api_called_at': datetime.now().isoformat(),
             'total_cost': current_analysis.get('total_cost', 0),
-            'total_savings': current_analysis.get('total_savings', 0),
-            'forced_regeneration': True
+            'total_savings': current_analysis.get('total_savings', 0)
         }
         
-        # Ensure cluster metadata is also in the main structure
-        if 'cluster_metadata' not in implementation_plan:
-            implementation_plan['cluster_metadata'] = {
-                'cluster_name': cluster['name'],
-                'resource_group': cluster['resource_group'],
-                'cluster_id': cluster_id,
-                'generated_at': datetime.now().isoformat()
-            }
+        logger.info(f"✅ API: Returning implementation plan for {cluster_id}: {len(phases)} phases from {data_source}")
         
         return jsonify(implementation_plan)
         
     except Exception as e:
-        logger.error(f"❌ Error getting implementation plan: {e}")
-        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        logger.error(f"❌ Error in implementation plan API: {e}")
         return jsonify({
             'status': 'error',
-            'message': f'Implementation plan error: {str(e)}'
+            'message': f'Implementation plan API error: {str(e)}'
         }), 500
     
 # ============================================================================
