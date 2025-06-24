@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import warnings
 
-from pod_cost_analyzer import KubernetesParsingUtils
+from app.analytics.pod_cost_analyzer import KubernetesParsingUtils
 warnings.filterwarnings('ignore')
 
 logger = logging.getLogger(__name__)

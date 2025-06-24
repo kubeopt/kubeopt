@@ -6,8 +6,9 @@ from datetime import datetime, timedelta
 import traceback
 from typing import Any, Dict, List, Optional
 import os
+from app.ml.implementation_generator import AKSImplementationGenerator
 
-def migrate_database_schema(db_path: str = 'clusters.db'):
+def migrate_database_schema(db_path: str = '../data/database/clusters.db'):
     """Migrate database schema to include analysis_data column and other required columns"""
     import sqlite3
     import logging
@@ -115,7 +116,7 @@ logger = logging.getLogger(__name__)
 class EnhancedClusterManager:
     """Enhanced cluster manager with SQLite database for enterprise use"""
     
-    def __init__(self, db_path="clusters.db"):
+    def __init__(self, db_path='app/data/database/clusters.db'):
         self.db_path = db_path
         self.init_database()
         # Enhance schema for auto-analysis
@@ -286,7 +287,7 @@ class EnhancedClusterManager:
             # CRITICAL: Generate implementation plan BEFORE serialization
             if 'implementation_plan' not in enhanced_analysis_data:
                 try:
-                    from implementation_generator import AKSImplementationGenerator
+                    
                     implementation_generator = AKSImplementationGenerator()
                     implementation_plan = implementation_generator.generate_implementation_plan(enhanced_analysis_data)
                     enhanced_analysis_data['implementation_plan'] = implementation_plan

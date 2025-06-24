@@ -56,7 +56,7 @@ class AlertTrigger:
 class EnhancedAlertsDatabase:
     """Enhanced database manager integrated with existing cluster database"""
     
-    def __init__(self, cluster_db_path: str = "clusters.db"):
+    def __init__(self, cluster_db_path: str = '../data/database/clusters.db'):
         self.db_path = cluster_db_path  # Use same database as clusters
         self.init_alerts_tables()
         self.migrate_existing_alerts() 
@@ -748,7 +748,7 @@ class EnhancedAlertsManager:
     
     def __init__(self, enhanced_cluster_manager=None):
         self.enhanced_cluster_manager = enhanced_cluster_manager
-        self.db = EnhancedAlertsDatabase(enhanced_cluster_manager.db_path if enhanced_cluster_manager else "clusters.db")
+        self.db = EnhancedAlertsDatabase(enhanced_cluster_manager.db_path if enhanced_cluster_manager else '../data/database/clusters.db')
         self.notifier = EnhancedEmailNotifier()
         self.monitor = EnhancedCostMonitor(self.db, self.notifier, enhanced_cluster_manager)
         self._service_started = False
