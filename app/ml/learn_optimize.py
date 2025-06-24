@@ -111,7 +111,7 @@ class LearningOptimizationEngine:
     Revolutionary learning engine that improves strategy generation
     """
     
-    def __init__(self, db_path: str = "optimization_learning.db"):
+    def __init__(self, db_path: str = 'app/data/database/optimization_learning.db'):
         self.db_path = db_path
         self.pattern_analyzer = PatternAnalyzer()
         self.archetype_learner = ArchetypeLearner()

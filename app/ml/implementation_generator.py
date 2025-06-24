@@ -14,6 +14,12 @@ import traceback
 from typing import Dict, List, Optional, Any
 import threading
 import time
+from app.ml.dna_analyzer import ClusterDNAAnalyzer
+from app.ml.dynamic_strategy import DynamicStrategyEngine
+from app.ml.dynamic_cmd_center import AdvancedExecutableCommandGenerator
+from app.ml.learn_optimize import LearningOptimizationEngine
+from app.ml.dynamic_plan_generator import DynamicImplementationGenerator
+from app.ml.cost_anomaly_detection import RealTimeCostAnomalyDetector
 
 logger = logging.getLogger(__name__)
 
@@ -44,35 +50,35 @@ class AKSImplementationGenerator:
         
         # Initialize your original components
         try:
-            from dna_analyzer import ClusterDNAAnalyzer
+            
             self.dna_analyzer = ClusterDNAAnalyzer(enable_temporal_intelligence=enable_temporal)
             logger.info("✅ Enhanced DNA Analyzer initialized")
         except ImportError:
             logger.warning("⚠️ DNA Analyzer not available - using fallback")
         
         try:
-            from dynamic_strategy import DynamicStrategyEngine
+            
             self.strategy_generator = DynamicStrategyEngine()
             logger.info("✅ Strategy Engine initialized")
         except ImportError:
             logger.warning("⚠️ Strategy Engine not available - using fallback")
         
         try:
-            from dynamic_cmd_center import AdvancedExecutableCommandGenerator
+            
             self.command_center = AdvancedExecutableCommandGenerator()
             logger.info("✅ Command Center initialized")
         except ImportError:
             logger.warning("⚠️ Command Center not available - using fallback")
         
         try:
-            from learn_optimize import LearningOptimizationEngine
+            
             self.learning_engine = LearningOptimizationEngine()
             logger.info("✅ Learning Engine initialized")
         except ImportError:
             logger.warning("⚠️ Learning Engine not available - using fallback")
         
         try:
-            from dynamic_plan_generator import DynamicImplementationGenerator
+            
             self.plan_generator = DynamicImplementationGenerator()
             logger.info("✅ Plan Generator initialized")
         except ImportError:
@@ -81,7 +87,7 @@ class AKSImplementationGenerator:
         # NEW: Initialize cost anomaly detection
         if self.enable_cost_monitoring:
             try:
-                from cost_anomaly_detection import RealTimeCostAnomalyDetector
+                
                 self.cost_anomaly_detector = RealTimeCostAnomalyDetector(detection_interval_seconds=300)
                 logger.info("✅ Cost Anomaly Detector initialized")
             except ImportError:

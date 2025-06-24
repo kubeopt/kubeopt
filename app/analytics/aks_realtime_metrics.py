@@ -740,11 +740,11 @@ USAGE EXAMPLES:
 metrics = get_aks_realtime_metrics("my-rg", "my-cluster")
 
 # Get cost distribution 
-from pod_cost_analyzer import get_enhanced_pod_cost_breakdown
+from app.analytics.pod_cost_analyzer import get_enhanced_pod_cost_breakdown
 costs = get_enhanced_pod_cost_breakdown("my-rg", "my-cluster", 1000.0)
 
 # Combine for comprehensive analysis
-from algorithmic_cost_analyzer import integrate_consistent_analysis
+from app.analytics.algorithmic_cost_analyzer import integrate_consistent_analysis
 results = integrate_consistent_analysis("my-rg", "my-cluster", 
                                        cost_data=billing_data,
                                        metrics_data=metrics,

@@ -9,7 +9,14 @@ memory-based HPA implementation and generalizable metrics collection.
 # IMPORTS AND CONFIGURATION
 # ============================================================================
 
+import sys
 import os
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
 import json
 import sqlite3
 from typing import Any, Dict, List, Optional, Tuple
@@ -26,9 +33,9 @@ import math
 import uuid
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from datetime import datetime, timedelta, timezone
-from implementation_generator import AKSImplementationGenerator
-from pod_cost_analyzer import get_enhanced_pod_cost_breakdown
-from cluster_database import EnhancedClusterManager, migrate_from_json
+from app.ml.implementation_generator import AKSImplementationGenerator
+from app.analytics.pod_cost_analyzer import get_enhanced_pod_cost_breakdown
+from app.data.cluster_database import EnhancedClusterManager, migrate_from_json
 
 # Thread-safe analysis storage
 _analysis_sessions = {}
@@ -143,7 +150,7 @@ def save_to_cache(cluster_id: str, complete_analysis_data: dict):
     if not has_valid_plan:
         # Only regenerate if needed
         try:
-            from implementation_generator import AKSImplementationGenerator
+
             implementation_generator = AKSImplementationGenerator()
             
             fresh_implementation_plan = implementation_generator.generate_implementation_plan(enhanced_cache_data)
@@ -256,7 +263,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Initialize Flask app and components
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../frontend/static', template_folder='../frontend/templates')
 app.secret_key = os.urandom(24)
 implementation_generator = AKSImplementationGenerator()
 
@@ -671,7 +678,7 @@ def get_aks_metrics_from_monitor(resource_group, cluster_name, start_date, end_d
     
     # First, try the real-time kubectl approach (more reliable)
     try:
-        from aks_realtime_metrics import get_aks_realtime_metrics
+        from app.analytics.aks_realtime_metrics import get_aks_realtime_metrics
         
         logger.info("🚀 Attempting real-time kubectl metrics collection...")
         realtime_metrics = get_aks_realtime_metrics(resource_group, cluster_name)
@@ -1041,7 +1048,7 @@ def run_consistent_analysis(resource_group: str, cluster_name: str, days: int = 
         # Run algorithmic analysis
         logger.info(f"🎯 Session {session_id[:8]}: Executing CONSISTENT algorithmic analysis...")
         try:
-            from algorithmic_cost_analyzer import integrate_consistent_analysis
+            from app.analytics.algorithmic_cost_analyzer import integrate_consistent_analysis
             
             consistent_results = integrate_consistent_analysis(
                 resource_group=resource_group,
@@ -1117,7 +1124,7 @@ def run_consistent_analysis(resource_group: str, cluster_name: str, days: int = 
         # CRITICAL: GENERATE FRESH IMPLEMENTATION PLAN IN SESSION
         logger.info(f"📋 Session {session_id[:8]}: GENERATING FRESH IMPLEMENTATION PLAN...")
         try:
-            from implementation_generator import AKSImplementationGenerator
+            from app.ml.implementation_generator import AKSImplementationGenerator
             implementation_generator = AKSImplementationGenerator()
             
             # Generate fresh implementation plan with complete metadata
@@ -3164,7 +3171,6 @@ def get_implementation_plan():
             
             logger.info(f"🔄 API: Regenerating implementation plan for {cluster_id}")
             try:
-                from implementation_generator import AKSImplementationGenerator
                 implementation_generator = AKSImplementationGenerator()
                 
                 current_analysis['cluster_name'] = cluster['name']
@@ -3349,7 +3355,7 @@ def time_ago(timestamp_str):
 # ======================================================
 
 try:
-    from alerts_manager import (
+    from app.alerts.alerts_manager import (
         EnhancedAlertsManager, 
         init_enhanced_alerts_service, 
         shutdown_enhanced_alerts_service
@@ -3362,9 +3368,6 @@ except ImportError as e:
 
 # Global alerts manager
 alerts_manager = None
-
-
-
 
 def initialize_alerts_system():
     """Initialize alerts system with proper error handling"""
@@ -3396,10 +3399,6 @@ alerts_manager = initialize_alerts_system()
 # ======================================================
 # ALERTS API ROUTES
 # ======================================================
-
-#
-
-# Replace ALL the alerts routes in your app.py with these COMPLETELY FIXED versions:
 
 @app.route('/api/alerts', methods=['GET', 'POST'])
 def alerts_api():

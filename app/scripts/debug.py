@@ -8,6 +8,9 @@ Diagnoses why the revolutionary system isn't generating implementation plans
 import json
 import traceback
 from datetime import datetime
+from app.ml.implementation_generator import AKSImplementationGenerator
+from app.ml.dna_analyzer import ClusterDNAAnalyzer
+from app.ml.dynamic_strategy import DynamicStrategyEngine
 
 def debug_plan_generation():
     """Debug the plan generation process step by step"""
@@ -22,7 +25,7 @@ def debug_plan_generation():
     print("-" * 45)
     
     try:
-        from implementation_generator import AKSImplementationGenerator
+        
         print("✅ AKSImplementationGenerator imported successfully")
         
         generator = AKSImplementationGenerator()
@@ -268,8 +271,7 @@ def debug_plan_generation():
 def test_strategy_generator_properly(analysis_data):
     """Test strategy generator with proper DNA input"""
     try:
-        from dna_analyzer import ClusterDNAAnalyzer
-        from dynamic_strategy import DynamicStrategyEngine
+
         
         # Step 1: Get cluster DNA
         dna_analyzer = ClusterDNAAnalyzer()

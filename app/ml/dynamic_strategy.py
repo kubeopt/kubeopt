@@ -17,7 +17,7 @@ from dataclasses import dataclass, asdict
 import logging
 
 # Import from Phase 1
-from dna_analyzer import ClusterDNA, analyze_cluster_dna_from_analysis
+from app.ml.dna_analyzer import ClusterDNA, analyze_cluster_dna_from_analysis
 
 logger = logging.getLogger(__name__)
 
