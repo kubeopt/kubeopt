@@ -73,7 +73,7 @@ export function displayImplementationPlan(planData) {
 
     const html = `
     <!-- Hero Header -->
-    <div class="card border-0 shadow-lg mb-4" style="background: linear-gradient(135deg, #28a745, #20c997);">
+    <div class="card border-0 shadow-lg mb-4">
         <div class="card-body text-white">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
@@ -190,7 +190,7 @@ export function displayImplementationPlan(planData) {
 function renderExecutiveSummary(summary, intelligence) {
     return `
         <div class="card shadow mb-4">
-            <div class="card-header bg-info text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#executive-summary">
+            <div class="card-header bg-dark text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#executive-summary">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-brain me-2"></i>Executive Summary & AI Insights</h6>
                     <i class="fas fa-chevron-down collapse-icon"></i>
@@ -237,7 +237,7 @@ function renderCostProtection(costProtection) {
     
     return `
         <div class="card shadow mb-4">
-            <div class="card-header bg-warning text-dark" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#cost-protection">
+            <div class="card-header bg-dark text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#cost-protection">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Cost Protection & Monitoring</h6>
                     <div class="d-flex align-items-center">
@@ -294,7 +294,7 @@ function renderCostProtection(costProtection) {
 function renderInteractiveTimeline(phases, timeline) {
     return `
         <div class="card shadow mb-4">
-            <div class="card-header bg-secondary text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#timeline-overview">
+            <div class="card-header bg-dark text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#timeline-overview">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-project-diagram me-2"></i>Interactive Timeline</h6>
                     <div class="d-flex gap-2">
@@ -594,7 +594,7 @@ function renderIntelligenceInsights(intelligence) {
     
     return `
         <div class="card shadow mb-4">
-            <div class="card-header bg-purple text-white" style="cursor: pointer; background-color: #6f42c1 !important;" data-bs-toggle="collapse" data-bs-target="#intelligence-insights">
+            <div class="card-header bg-dark text-white" >
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-brain me-2"></i>AI Intelligence Insights</h6>
                     <i class="fas fa-chevron-down collapse-icon"></i>
@@ -711,7 +711,7 @@ function renderMonitoringStrategy(monitoring) {
     
     return `
         <div class="card shadow mb-4">
-            <div class="card-header bg-warning text-dark" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#monitoring-strategy">
+            <div class="card-header bg-dark text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#monitoring-strategy">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Monitoring Strategy</h6>
                     <i class="fas fa-chevron-down collapse-icon"></i>
@@ -754,7 +754,7 @@ function renderContingencyPlanning(contingency) {
     
     return `
         <div class="card shadow mb-4">
-            <div class="card-header bg-secondary text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#contingency-planning">
+            <div class="card-header bg-dark text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#contingency-planning">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Contingency Planning</h6>
                     <i class="fas fa-chevron-down collapse-icon"></i>
@@ -795,7 +795,7 @@ function renderSuccessCriteria(success) {
     
     return `
         <div class="card shadow mb-4">
-            <div class="card-header bg-success text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#success-criteria">
+            <div class="card-header bg-dark text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#success-criteria">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-target me-2"></i>Success Criteria & Metrics</h6>
                     <i class="fas fa-chevron-down collapse-icon"></i>
@@ -836,7 +836,7 @@ function renderTimelineOptimization(timeline) {
     
     return `
         <div class="card shadow mb-4">
-            <div class="card-header bg-info text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#timeline-optimization">
+            <div class="card-header bg-dark text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#timeline-optimization">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Timeline Optimization</h6>
                     <i class="fas fa-chevron-down collapse-icon"></i>
@@ -874,7 +874,7 @@ function renderRiskMitigation(risk) {
     
     return `
         <div class="card shadow mb-4">
-            <div class="card-header bg-danger text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#risk-mitigation">
+            <div class="card-header bg-dark text-white" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#risk-mitigation">
                 <div class="d-flex justify-content-between align-items-center">
                     <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Risk Mitigation</h6>
                     <span class="badge bg-light text-dark">${risk.overall_risk || 'Low'} Risk</span>

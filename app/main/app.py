@@ -103,13 +103,34 @@ def clear_analysis_cache(cluster_id: str = None):
 
 
 def save_to_cache(cluster_id: str, complete_analysis_data: dict):
-    """OPTIMIZED: Save to cache without regenerating implementation plan if it already exists"""
+    """Preserve HPA recommendations during cache save"""
     global analysis_cache
     
     logger.info(f"💾 OPTIMIZED CACHE SAVE: {cluster_id}")
+    
+    # STEP 1: VALIDATE HPA RECOMMENDATIONS IN INPUT
+    if 'hpa_recommendations' not in complete_analysis_data:
+        logger.error(f"❌ CACHE INPUT: No HPA recommendations for {cluster_id}")
+        logger.error(f"❌ Available keys: {list(complete_analysis_data.keys())}")
+        # Still cache but flag as incomplete
+        
     enhanced_cache_data = complete_analysis_data.copy()
     
-    # Preserve node data (existing logic)
+    # STEP 2: EXPLICITLY PRESERVE HPA RECOMMENDATIONS FIRST
+    if 'hpa_recommendations' in complete_analysis_data:
+        enhanced_cache_data['hpa_recommendations'] = complete_analysis_data['hpa_recommendations']
+        logger.info(f"✅ CACHE: HPA recommendations explicitly preserved for {cluster_id}")
+        
+        # Validate structure
+        hpa_recs = enhanced_cache_data['hpa_recommendations']
+        if isinstance(hpa_recs, dict) and 'optimization_recommendation' in hpa_recs:
+            logger.info(f"✅ CACHE: HPA structure validated for {cluster_id}")
+        else:
+            logger.warning(f"⚠️ CACHE: HPA structure incomplete for {cluster_id}")
+    else:
+        logger.warning(f"⚠️ CACHE: No HPA recommendations to preserve for {cluster_id}")
+    
+    # STEP 3: Preserve node data (your existing logic)
     node_data_found = False
     node_data = None
     
@@ -125,7 +146,7 @@ def save_to_cache(cluster_id: str, complete_analysis_data: dict):
         enhanced_cache_data['real_node_data'] = node_data.copy()
         enhanced_cache_data['has_real_node_data'] = True
     
-    # Preserve namespace data (existing logic)
+    # STEP 4: Preserve namespace data (your existing logic)
     if complete_analysis_data.get('has_pod_costs'):
         pod_analysis = complete_analysis_data.get('pod_cost_analysis', {})
         namespace_costs = pod_analysis.get('namespace_costs') or pod_analysis.get('namespace_summary') or complete_analysis_data.get('namespace_costs')
@@ -137,7 +158,7 @@ def save_to_cache(cluster_id: str, complete_analysis_data: dict):
                 enhanced_cache_data['pod_cost_analysis'] = {}
             enhanced_cache_data['pod_cost_analysis']['namespace_costs'] = namespace_costs
     
-    # OPTIMIZATION: Only regenerate implementation plan if missing or invalid
+    # STEP 5: Implementation plan logic (your existing logic)
     has_valid_plan = False
     if 'implementation_plan' in enhanced_cache_data:
         impl_plan = enhanced_cache_data['implementation_plan']
@@ -148,26 +169,30 @@ def save_to_cache(cluster_id: str, complete_analysis_data: dict):
                 logger.info(f"✅ OPTIMIZED: Using existing valid implementation plan ({len(phases)} phases)")
     
     if not has_valid_plan:
-        # Only regenerate if needed
         try:
-
             implementation_generator = AKSImplementationGenerator()
-            
             fresh_implementation_plan = implementation_generator.generate_implementation_plan(enhanced_cache_data)
             enhanced_cache_data['implementation_plan'] = fresh_implementation_plan
             logger.info(f"🔄 OPTIMIZED: Generated fresh implementation plan for {cluster_id}")
-            
         except Exception as impl_error:
             logger.error(f"❌ OPTIMIZED: Failed to generate implementation plan: {impl_error}")
     
-    # Add optimized metadata
+    # STEP 6: FINAL VALIDATION - Ensure HPA still exists after all processing
+    if 'hpa_recommendations' in complete_analysis_data and 'hpa_recommendations' not in enhanced_cache_data:
+        logger.error(f"❌ CACHE ERROR: HPA recommendations lost during processing for {cluster_id}")
+        # Restore them
+        enhanced_cache_data['hpa_recommendations'] = complete_analysis_data['hpa_recommendations']
+        logger.info(f"🔧 CACHE: Restored HPA recommendations for {cluster_id}")
+    
+    # STEP 7: Add enhanced metadata
     enhanced_cache_data['cache_metadata'] = {
         'cached_at': datetime.now().isoformat(),
-        'optimization': 'reduced_redundancy',
-        'cluster_id': cluster_id
+        'optimization': 'hpa_preserved',
+        'cluster_id': cluster_id,
+        'has_hpa_recommendations': 'hpa_recommendations' in enhanced_cache_data
     }
     
-    # Store in cluster-specific cache
+    # STEP 8: Store in cluster-specific cache
     analysis_cache['clusters'][cluster_id] = {
         'data': enhanced_cache_data,
         'timestamp': datetime.now().isoformat(),
@@ -175,12 +200,16 @@ def save_to_cache(cluster_id: str, complete_analysis_data: dict):
         'ttl_hours': analysis_cache['global_ttl_hours']
     }
     
-    logger.info(f"💾 OPTIMIZED CACHE: {cluster_id} saved efficiently")
+    # STEP 9: Final verification log
+    if 'hpa_recommendations' in enhanced_cache_data:
+        logger.info(f"💾 CACHE SAVED: {cluster_id} with HPA recommendations preserved")
+    else:
+        logger.warning(f"💾 CACHE SAVED: {cluster_id} WITHOUT HPA recommendations")
 
 
 
 def load_from_cache(cluster_id: str) -> dict:
-    """FIXED: Load analysis data from cluster-specific cache"""
+    """Validate HPA recommendations during cache load"""
     
     if not is_cache_valid(cluster_id):
         logger.info(f"🕐 CACHE: Invalid or expired for {cluster_id}")
@@ -189,7 +218,40 @@ def load_from_cache(cluster_id: str) -> dict:
     cluster_cache = analysis_cache['clusters'][cluster_id]
     cached_data = cluster_cache['data'].copy()
     
-    # Validate node data exists in cache
+    # STEP 1: VALIDATE HPA RECOMMENDATIONS IN CACHED DATA
+    if 'hpa_recommendations' not in cached_data:
+        logger.error(f"❌ CACHE LOAD: No HPA recommendations in cached data for {cluster_id}")
+        logger.error(f"❌ CACHE KEYS: {list(cached_data.keys())}")
+        
+        # Option 1: Remove invalid cache (recommended for data integrity)
+        del analysis_cache['clusters'][cluster_id]
+        logger.warning(f"🗑️ CACHE: Removed incomplete cache for {cluster_id}")
+        return {}
+        
+        # Option 2: Try to regenerate HPA (if you want to be more permissive)
+        # try:
+        #     from app.analytics.algorithmic_cost_analyzer import HPARecommendationEngine
+        #     hpa_engine = HPARecommendationEngine()
+        #     hpa_recommendations = hpa_engine.generate_hpa_recommendations(cached_data, {})
+        #     if hpa_recommendations:
+        #         cached_data['hpa_recommendations'] = hpa_recommendations
+        #         logger.info(f"🔧 CACHE: Regenerated HPA recommendations for {cluster_id}")
+        #     else:
+        #         return {}
+        # except Exception as regen_error:
+        #     logger.error(f"❌ CACHE: HPA regeneration failed: {regen_error}")
+        #     return {}
+    else:
+        logger.info(f"✅ CACHE LOAD: HPA recommendations found for {cluster_id}")
+        
+        # Validate HPA structure
+        hpa_recs = cached_data['hpa_recommendations']
+        if isinstance(hpa_recs, dict) and 'optimization_recommendation' in hpa_recs:
+            logger.info(f"✅ CACHE LOAD: HPA structure validated for {cluster_id}")
+        else:
+            logger.warning(f"⚠️ CACHE LOAD: HPA structure incomplete for {cluster_id}")
+    
+    # STEP 2: Validate node data exists in cache (your existing logic)
     node_data_keys = ['nodes', 'node_metrics', 'real_node_data']
     has_node_data = False
     
@@ -201,12 +263,11 @@ def load_from_cache(cluster_id: str) -> dict:
     
     if not has_node_data:
         logger.error(f"❌ CACHE LOAD: No valid node data found in cache for {cluster_id}")
-        # Remove invalid cache
         del analysis_cache['clusters'][cluster_id]
         return {}
     
     total_clusters_cached = len(analysis_cache['clusters'])
-    logger.info(f"📦 CACHE LOADED: {cluster_id} with {len(cached_data.get('nodes', []))} nodes | Total cached: {total_clusters_cached}")
+    logger.info(f"📦 CACHE LOADED: {cluster_id} with HPA + {len(cached_data.get('nodes', []))} nodes | Total cached: {total_clusters_cached}")
     return cached_data
 
 
@@ -1629,91 +1690,57 @@ def generate_workload_data(analysis_data=None):
         raise ValueError(f"No real workload data available: {e}")
 
 def chart_data_consistent():
-    """FIXED Chart data API with proper error handling - no fallbacks"""
-    global analysis_results
-    
+    """FIXED: HPA-validated chart data generation"""
     try:
-        logger.info("📊 Chart data API called")
-        
-        # Extract cluster ID from request context
+        # Extract cluster ID
         cluster_id = _extract_cluster_id()
         
-        # Get analysis data from available sources
+        # Get analysis data with HPA validation
         current_analysis, data_source = _get_analysis_data(cluster_id)
         
-        # Validate analysis data
+        # CRITICAL: Validate HPA recommendations exist
+        if current_analysis and 'hpa_recommendations' not in current_analysis:
+            logger.error(f"❌ CHART DATA: Analysis missing HPA recommendations for {cluster_id}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Analysis data incomplete - missing HPA recommendations',
+                'debug_info': {
+                    'cluster_id': cluster_id,
+                    'data_source': data_source,
+                    'has_cost_data': current_analysis.get('total_cost', 0) > 0 if current_analysis else False,
+                    'available_keys': list(current_analysis.keys()) if current_analysis else []
+                }
+            }), 500
+        
+        # Validate other required data
         validation_error = _validate_analysis_data(current_analysis, cluster_id, data_source)
         if validation_error:
             return validation_error
         
-        # CRITICAL: Validate node data exists before proceeding
-        if not current_analysis.get('has_real_node_data'):
-            logger.error("❌ CHART DATA: Analysis has no real node data flag")
-            return jsonify({
-                'status': 'error',
-                'message': 'Analysis data missing real node data flag',
-                'debug_info': {
-                    'cluster_id': cluster_id,
-                    'data_source': data_source,
-                    'has_real_node_data': current_analysis.get('has_real_node_data', 'NOT_SET')
-                }
-            }), 500
+        # Log successful HPA validation
+        if current_analysis and 'hpa_recommendations' in current_analysis:
+            hpa_recs = current_analysis['hpa_recommendations']
+            if isinstance(hpa_recs, dict) and 'optimization_recommendation' in hpa_recs:
+                opt_title = hpa_recs['optimization_recommendation'].get('title', 'Unknown')
+                logger.info(f"✅ CHART DATA: HPA recommendations validated - {opt_title}")
+            else:
+                logger.warning(f"⚠️ CHART DATA: HPA structure incomplete")
         
-        # Validate actual node data exists
-        node_data = None
-        for key in ['real_node_data', 'nodes', 'node_metrics']:
-            if current_analysis.get(key) and len(current_analysis[key]) > 0:
-                node_data = current_analysis[key]
-                logger.info(f"✅ CHART DATA: Found node data in {key} ({len(node_data)} nodes)")
-                break
-        
-        if not node_data:
-            logger.error("❌ CHART DATA: No node data found in any expected key")
-            return jsonify({
-                'status': 'error',
-                'message': 'No real node data available for chart generation',
-                'debug_info': {
-                    'cluster_id': cluster_id,
-                    'data_source': data_source,
-                    'available_keys': list(current_analysis.keys()),
-                    'has_real_node_data': current_analysis.get('has_real_node_data')
-                }
-            }), 500
-        
+        # Rest of your existing chart_data_consistent logic...
         # Extract cost metrics
         cost_metrics = _extract_cost_metrics(current_analysis, data_source)
         
-        # If we got data from database, refresh cache
-        if data_source == "database" and cluster_id:
-            logger.info("💾 Refreshing cache with database data...")
-            save_to_cache(cluster_id, current_analysis)
-            data_source = "database_cached"
-        
-        # Build complete response - this will now work because we validated node data
+        # Build response data
         response_data = _build_response_data(current_analysis, cost_metrics, data_source, cluster_id)
         
-        logger.info(f"✅ Chart data API completed from {data_source}")
+        logger.info(f"✅ Chart data API completed from {data_source} with HPA")
         return jsonify(response_data)
 
-    except ValueError as ve:
-        # These are expected errors (like missing node data)
-        logger.error(f"❌ Chart data validation error: {ve}")
-        return jsonify({
-            'status': 'error',
-            'message': str(ve),
-            'error_type': 'validation_error'
-        }), 400
     except Exception as e:
-        # Unexpected errors
-        logger.error(f"❌ ERROR in chart_data API: {e}")
-        logger.error(f"❌ Traceback: {traceback.format_exc()}")
-        return jsonify({
-            'status': 'error',
-            'message': f'Internal server error: {str(e)}',
-            'error_type': 'internal_error'
-        }), 500
-
-
+        logger.error(f"❌ Chart data error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+# 
 def _extract_cluster_id() -> Optional[str]:
     """Extract cluster ID from request context"""
     cluster_id = None
@@ -1734,37 +1761,46 @@ def _extract_cluster_id() -> Optional[str]:
 
 
 def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, Any]], str]:
-    """FIXED: Get analysis data ONLY from cluster-specific sources"""
+    """HPA-aware analysis data loading"""
     
     if not cluster_id:
         logger.warning("⚠️ No cluster_id provided for analysis data")
         return None, "no_cluster_id"
     
-    # Priority 1: Cluster-specific cache
+    # Priority 1: Cluster-specific cache with HPA validation
     try:
         cached_data = load_from_cache(cluster_id)
         if cached_data and cached_data.get('total_cost', 0) > 0:
-            logger.info(f"✅ Using cluster-specific cache: {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
-            return cached_data, "cluster_cache"
+            # Validate HPA recommendations exist
+            if 'hpa_recommendations' in cached_data:
+                logger.info(f"✅ CACHE: Complete data with HPA for {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
+                return cached_data, "cluster_cache"
+            else:
+                logger.warning(f"⚠️ CACHE: Data exists but missing HPA for {cluster_id}")
+                # Clear incomplete cache
+                clear_analysis_cache(cluster_id)
     except Exception as e:
         logger.warning(f"⚠️ Cluster cache fetch failed for {cluster_id}: {e}")
     
-    # Priority 2: Database (cluster-specific)
+    # Priority 2: Database with HPA validation
     try:
         logger.info(f"🔄 Loading from database for cluster: {cluster_id}")
         db_data = enhanced_cluster_manager.get_latest_analysis(cluster_id)
         if db_data and db_data.get('total_cost', 0) > 0:
-            logger.info(f"📦 Using database for cluster: {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
-            
-            # Cache the database data for future use
-            save_to_cache(cluster_id, db_data)
-            return db_data, "cluster_database"
+            # Validate HPA recommendations in database data
+            if 'hpa_recommendations' in db_data:
+                logger.info(f"✅ DATABASE: Complete data with HPA for {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
+                # Cache the complete database data
+                save_to_cache(cluster_id, db_data)
+                return db_data, "cluster_database"
+            else:
+                logger.warning(f"⚠️ DATABASE: Data exists but missing HPA for {cluster_id}")
+                # Database data is incomplete - you might want to regenerate
     except Exception as e:
         logger.error(f"❌ Database error for cluster {cluster_id}: {e}")
     
-    # NO FALLBACK TO GLOBAL DATA - this prevents contamination
-    logger.warning(f"⚠️ No analysis data found for cluster: {cluster_id}")
-    return None, "no_data"
+    logger.warning(f"⚠️ No complete analysis data (with HPA) found for cluster: {cluster_id}")
+    return None, "no_complete_data"
 
 
 def _validate_analysis_data(current_analysis: Optional[Dict[str, Any]], 
@@ -2465,7 +2501,7 @@ def cluster_portfolio():
                                 'total_clusters': 0, 
                                 'total_monthly_cost': 0, 
                                 'total_potential_savings': 0, 
-                                'average_optimization_pct': 0, 
+                                'avg_optimization_pct': 0, 
                                 'environments': [],
                                 'last_updated': datetime.now().isoformat()
                              },
