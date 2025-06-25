@@ -127,7 +127,21 @@ class EnhancedClusterManager:
         self.enhance_database_for_auto_analysis()
         # Clean up any stale analyses on startup
         self.cleanup_stale_analyses()
-        
+
+    def touch_cluster(self, cluster_id: str):
+        """Update cluster timestamp to invalidate cache"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute('''
+                    UPDATE clusters 
+                    SET last_analyzed = ? 
+                    WHERE id = ?
+                ''', (datetime.now().isoformat(), cluster_id))
+                conn.commit()
+                logger.info(f"✅ Updated timestamp for cluster {cluster_id}")
+        except Exception as e:
+            logger.error(f"❌ Failed to touch cluster {cluster_id}: {e}")
+                
     def init_database(self):
         """Initialize SQLite database with proper schema including analysis_data"""
         try:
