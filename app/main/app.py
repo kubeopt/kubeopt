@@ -12,6 +12,7 @@ memory-based HPA implementation and generalizable metrics collection.
 import sys
 import os
 from pathlib import Path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent
@@ -36,6 +37,7 @@ from datetime import datetime, timedelta, timezone
 from app.ml.implementation_generator import AKSImplementationGenerator
 from app.analytics.pod_cost_analyzer import get_enhanced_pod_cost_breakdown
 from app.data.cluster_database import EnhancedClusterManager, migrate_from_json
+from app.analytics.aks_realtime_metrics import AKSRealTimeMetricsFetcher
 
 # Thread-safe analysis storage
 _analysis_sessions = {}
@@ -1072,7 +1074,8 @@ def run_consistent_analysis(resource_group: str, cluster_name: str, days: int = 
         metrics_end_time = datetime.now()
         metrics_start_time = metrics_end_time - timedelta(hours=1)
         
-        metrics_data = get_aks_metrics_from_monitor(resource_group, cluster_name, metrics_start_time, metrics_end_time)
+        fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name)
+        metrics_data = fetcher.get_enhanced_metrics_for_ml()
         
         if not metrics_data or not metrics_data.get('nodes'):
             logger.error(f"❌ Session {session_id[:8]}: No current metrics available")
@@ -1293,47 +1296,89 @@ def run_consistent_analysis(resource_group: str, cluster_name: str, days: int = 
 
 
 def generate_dynamic_hpa_comparison(analysis_data):
-    """Generate HPA comparison using REAL HPA detection data - NO FALLBACKS"""
+    """
+    FIXED: Generate HPA comparison using ML-enhanced analysis - NO CONTRADICTIONS
+    REPLACES: The existing generate_dynamic_hpa_comparison function
+    """
     try:
-        logger.info("🔧 Generating HPA comparison from REAL analysis data with HPA detection")
+        logger.info("🤖 Generating ML-enhanced HPA comparison with intelligent analysis")
         
-        # Step 1: Get HPA recommendations from algorithmic analysis
+        # Step 1: Get ML-enhanced HPA recommendations
         hpa_recommendations = analysis_data.get('hpa_recommendations')
         if not hpa_recommendations:
-            raise ValueError("No HPA recommendations found in analysis data - algorithmic analysis may have failed")
+            raise ValueError("No ML-enhanced HPA recommendations found")
         
-        # Step 2: Extract HPA chart data from recommendations
+        # Step 2: Extract ML chart data
         hpa_chart_data = hpa_recommendations.get('hpa_chart_data')
         if not hpa_chart_data:
-            raise ValueError("No HPA chart data found in recommendations")
+            raise ValueError("No ML-generated chart data found")
         
-        # Step 3: Get current implementation status
-        current_implementation = hpa_recommendations.get('current_implementation', {})
-        optimization_recommendation = hpa_recommendations.get('optimization_recommendation', {})
+        # Step 3: Get ML analysis details
+        optimization_rec = hpa_recommendations.get('optimization_recommendation', {})
+        current_impl = hpa_recommendations.get('current_implementation', {})
+        workload_chars = hpa_recommendations.get('workload_characteristics', {})
         
-        # Step 4: Validate chart data structure
-        required_fields = ['timePoints', 'cpuReplicas', 'memoryReplicas']
-        for field in required_fields:
-            if field not in hpa_chart_data:
-                raise ValueError(f"Missing required field in HPA chart data: {field}")
+        # Step 4: Validate ML analysis results
+        if not optimization_rec.get('ml_enhanced'):
+            logger.warning("⚠️ Recommendations not ML-enhanced, using fallback")
+            raise ValueError("ML enhancement not detected")
         
-        # Step 5: Enhance chart data with implementation context
+        # Step 5: Extract ML insights
+        ml_classification = workload_chars.get('ml_classification', {})
+        optimization_analysis = workload_chars.get('optimization_analysis', {})
+        
+        workload_type = ml_classification.get('workload_type', 'UNKNOWN')
+        ml_confidence = ml_classification.get('confidence', 0.5)
+        optimization_action = optimization_analysis.get('primary_action', 'MONITOR')
+        
+        # Step 6: Build enhanced chart data with ML insights
         enhanced_chart_data = hpa_chart_data.copy()
         enhanced_chart_data.update({
-            'current_implementation_pattern': current_implementation.get('pattern', 'unknown'),
-            'detection_confidence': current_implementation.get('confidence', 'low'),
-            'total_hpas_detected': current_implementation.get('total_hpas', 0),
-            'optimization_direction': optimization_recommendation.get('direction', 'unknown'),
-            'recommendation_title': optimization_recommendation.get('title', 'HPA Analysis'),
-            'data_source': 'real_hpa_detection_with_kubectl'
+            # ML Analysis Results
+            'ml_workload_type': workload_type,
+            'ml_confidence': ml_confidence,
+            'ml_optimization_action': optimization_action,
+            'ml_analysis_timestamp': datetime.now().isoformat(),
+            
+            # Current Implementation (ML-detected)
+            'current_implementation_pattern': current_impl.get('pattern', 'ml_detected'),
+            'detection_confidence': 'high',  # ML provides high confidence
+            'ml_enhanced': True,
+            
+            # Recommendation Details
+            'recommendation_title': optimization_rec.get('title', 'ML HPA Analysis'),
+            'optimization_direction': optimization_rec.get('action', 'MONITOR'),
+            'ml_reasoning': optimization_rec.get('description', 'ML-based analysis'),
+            
+            # Cost Impact (if available)
+            'cost_impact': optimization_rec.get('cost_impact', {}),
+            
+            # Data Source
+            'data_source': 'ml_intelligent_hpa_analysis',
+            'analysis_method': 'machine_learning'
         })
         
-        logger.info(f"✅ HPA: Generated comparison with REAL detection: {current_implementation.get('pattern')} -> {optimization_recommendation.get('direction')}")
+        # Step 7: Add ML feature importance if available
+        feature_importance = ml_classification.get('feature_importance', {})
+        if feature_importance:
+            enhanced_chart_data['ml_feature_importance'] = feature_importance
+        
+        # Step 8: Add optimization insights
+        if optimization_analysis:
+            enhanced_chart_data['optimization_insights'] = {
+                'cpu_analysis': optimization_analysis.get('cpu_analysis', {}),
+                'memory_analysis': optimization_analysis.get('memory_analysis', {}),
+                'recommendation_reasoning': optimization_analysis.get('reasoning', 'ML-based analysis')
+            }
+        
+        logger.info(f"✅ ML-HPA: Generated comparison with {workload_type} classification (confidence: {ml_confidence:.1%})")
+        logger.info(f"🎯 ML-HPA: Recommendation: {optimization_rec.get('action')} - {optimization_action}")
+        
         return enhanced_chart_data
         
     except Exception as e:
-        logger.error(f"❌ HPA: Failed to generate comparison with HPA detection: {e}")
-        raise ValueError(f"Cannot generate HPA comparison: {e}")
+        logger.error(f"❌ ML-HPA: Failed to generate ML-enhanced comparison: {e}")
+        raise ValueError(f"❌ ML-HPA: Failed to generate ML-enhanced comparison: {e}")
 
 
 def extract_cost_components(cost_df, days, monthly_equivalent_cost):
@@ -1449,31 +1494,16 @@ def generate_insights(analysis_results):
     else:
         insights['cost_breakdown'] = f"✅ Your costs are well-distributed with VM Scale Sets at <strong>{node_percentage:.1f}%</strong> (${node_cost:.2f})."
     
-    # NEW: HPA insight using REAL recommendations
+    # NEW: HPA insight using REAL recommendations    
     hpa_recommendations = analysis_results.get('hpa_recommendations', {})
-    optimization_rec = hpa_recommendations.get('optimization_recommendation', {})
-    current_impl = hpa_recommendations.get('current_implementation', {})
+    ml_recommendation = hpa_recommendations.get('optimization_recommendation', {})
     
-    if optimization_rec:
-        title = optimization_rec.get('title', 'HPA Analysis')
-        description = optimization_rec.get('description', 'No specific recommendation available')
-        direction = optimization_rec.get('direction', 'unknown')
-        monthly_savings = optimization_rec.get('monthly_savings', 0)
-        current_status = optimization_rec.get('current_status', 'Unknown status')
-        
-        if direction == 'cost_optimization' and monthly_savings > 0:
-            insights['hpa_comparison'] = f"🚀 <strong>{title}:</strong> {description}"
-        elif direction == 'status_quo':
-            insights['hpa_comparison'] = f"✅ <strong>{title}:</strong> {description}"
-        elif direction == 'implement_hpa':
-            insights['hpa_comparison'] = f"📋 <strong>{title}:</strong> {description}"
-        elif direction == 'standardize':
-            insights['hpa_comparison'] = f"🔄 <strong>{title}:</strong> {description}"
-        else:
-            insights['hpa_comparison'] = f"🔍 <strong>{title}:</strong> {description}"
+    if ml_recommendation and ml_recommendation.get('ml_enhanced'):
+        # Use ML-generated insights
+        insights['hpa_comparison'] = f"🤖 <strong>{ml_recommendation.get('title', 'ML Analysis')}</strong>: {ml_recommendation.get('description', 'ML-based recommendation')}"
     else:
-        # Fallback only if no HPA recommendations at all
-        insights['hpa_comparison'] = f"🔍 <strong>HPA ANALYSIS NEEDED:</strong> Run HPA detection to get accurate scaling recommendations."
+        # Fallback
+        insights['hpa_comparison'] = "🔍 Run ML analysis for intelligent HPA recommendations"
     
     # Resource gap insight (existing logic - keep as is)
     cpu_gap = analysis_results.get('cpu_gap', 0)
