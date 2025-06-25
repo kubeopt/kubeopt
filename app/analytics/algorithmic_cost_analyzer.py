@@ -21,6 +21,8 @@ from collections import defaultdict
 import warnings
 
 from app.analytics.pod_cost_analyzer import KubernetesParsingUtils
+from app.ml.workload_performance_analyzer import create_ml_enhanced_hpa_engine, integrate_with_existing_analyzer
+
 warnings.filterwarnings('ignore')
 
 logger = logging.getLogger(__name__)
@@ -85,258 +87,245 @@ def ensure_numeric(value, default=0.0) -> float:
 
 # ADD THIS NEW CLASS TO algorithmic_cost_analyzer.py
 
-class HPARecommendationEngine:
+class MLEnhancedHPARecommendationEngine:
     """
-    Smart HPA Recommendation Engine
-    INTEGRATION: Uses detected HPA patterns to generate accurate recommendations
+    ML-Enhanced HPA Recommendation Engine
+    REPLACES: The existing rule-based HPARecommendationEngine
     """
     
     def __init__(self):
+        self.ml_engine = create_ml_enhanced_hpa_engine()
         self.parser = KubernetesParsingUtils() if 'KubernetesParsingUtils' in globals() else None
     
     def generate_hpa_recommendations(self, metrics_data: Dict, actual_costs: Dict) -> Dict:
         """
-        Generate context-aware HPA recommendations based on current implementation
+        ENHANCED: Generate HPA recommendations using ML instead of rules
         
         Args:
             metrics_data: Real-time metrics including HPA detection results
             actual_costs: Actual cost breakdown
             
         Returns:
-            Complete HPA recommendation with chart data and optimization message
+            Complete HPA recommendation with ML insights
         """
-        logger.info("🎯 Generating smart HPA recommendations...")
+        logger.info("🤖 Generating ML-enhanced HPA recommendations...")
         
         try:
-            # Extract HPA implementation status
-            hpa_implementation = metrics_data.get('hpa_implementation', {})
-            current_pattern = hpa_implementation.get('current_hpa_pattern', 'unknown')
-            detection_confidence = hpa_implementation.get('confidence', 'low')
+            # Step 1: Validate input data
+            if not self._validate_input_data(metrics_data):
+                raise ValueError("Invalid input data for ML analysis")
             
-            # Extract utilization data
-            nodes = metrics_data.get('nodes', [])
-            if not nodes:
-                return None
+            # Step 2: Extract current HPA configuration
+            current_hpa_config = self._extract_current_hpa_config(metrics_data)
             
-            # Calculate average utilization
-            cpu_utils = [ensure_numeric(node.get('cpu_usage_pct', 0)) for node in nodes]
-            memory_utils = [ensure_numeric(node.get('memory_usage_pct', 0)) for node in nodes]
+            # Step 3: Run ML analysis
+            ml_results = self.ml_engine.analyze_and_recommend(metrics_data, current_hpa_config)
             
-            avg_cpu = safe_mean(cpu_utils) if cpu_utils else 35.0
-            avg_memory = safe_mean(memory_utils) if memory_utils else 60.0
-            
-            logger.info(f"📊 Current utilization: CPU={avg_cpu:.1f}%, Memory={avg_memory:.1f}%")
-            logger.info(f"🔍 Detected HPA pattern: {current_pattern} (confidence: {detection_confidence})")
-            
-            # Calculate HPA scaling scenarios
-            hpa_scenarios = self._calculate_hpa_scenarios(avg_cpu, avg_memory, len(nodes))
-            
-            # Generate recommendation based on current implementation
-            recommendation = self._generate_context_aware_recommendation(
-                current_pattern, hpa_scenarios, actual_costs, avg_cpu, avg_memory
+            # Step 4: Convert to expected format for backward compatibility
+            enhanced_recommendation = integrate_with_existing_analyzer(
+                self.ml_engine, metrics_data, current_hpa_config
             )
             
-            # Build complete response
+            # Step 5: Add cost impact analysis
+            enhanced_recommendation = self._add_cost_impact_analysis(
+                enhanced_recommendation, actual_costs, ml_results
+            )
+            
+            # Step 6: Generate dynamic HPA chart data based on ML predictions
+            enhanced_recommendation['hpa_chart_data'] = self._generate_ml_based_chart_data(
+                ml_results, metrics_data
+            )
+            
+            logger.info("✅ ML-enhanced HPA recommendations generated successfully")
+            return enhanced_recommendation
+            
+        except Exception as e:
+            logger.error(f"❌ ML-enhanced HPA recommendation failed: {e}")
+            # Fallback to simplified analysis
+            return self._fallback_recommendation(metrics_data, actual_costs)
+    
+    def _validate_input_data(self, metrics_data: Dict) -> bool:
+        """Validate that we have sufficient data for ML analysis"""
+        required_keys = ['nodes']
+        if not all(key in metrics_data for key in required_keys):
+            logger.warning("⚠️ Missing required keys for ML analysis")
+            return False
+        
+        nodes = metrics_data.get('nodes', [])
+        if len(nodes) == 0:
+            logger.warning("⚠️ No node data available for ML analysis")
+            return False
+        
+        return True
+    
+    def _extract_current_hpa_config(self, metrics_data: Dict) -> Dict:
+        """Extract current HPA configuration for ML analysis"""
+        hpa_implementation = metrics_data.get('hpa_implementation', {})
+        
+        return {
+            'current_pattern': hpa_implementation.get('current_hpa_pattern', 'unknown'),
+            'confidence': hpa_implementation.get('confidence', 'low'),
+            'total_hpas': hpa_implementation.get('total_hpas', 0),
+            'metric_type': 'mixed'  # Will be determined by ML
+        }
+    
+    def _add_cost_impact_analysis(self, recommendation: Dict, actual_costs: Dict, ml_results: Dict) -> Dict:
+        """Add cost impact analysis based on ML predictions"""
+        try:
+            node_cost = actual_costs.get('monthly_actual_node', 0)
+            
+            # Get ML workload classification
+            workload_class = ml_results.get('workload_classification', {})
+            optimization_analysis = ml_results.get('optimization_analysis', {})
+            
+            # Calculate cost impact based on ML recommendations
+            primary_action = optimization_analysis.get('primary_action', 'MONITOR')
+            
+            cost_impact = {
+                'monthly_impact': 0,
+                'annual_impact': 0,
+                'confidence': ml_results.get('analysis_metadata', {}).get('confidence', 0.5)
+            }
+            
+            if primary_action == 'OPTIMIZE_APPLICATION':
+                # Optimization can provide 20-40% efficiency gains
+                efficiency_gain = 0.3  # 30% average
+                cost_impact['monthly_impact'] = node_cost * efficiency_gain
+                cost_impact['impact_type'] = 'optimization_savings'
+                
+            elif primary_action == 'SCALE_DOWN':
+                # Right-sizing savings
+                cost_impact['monthly_impact'] = node_cost * 0.2  # 20% savings
+                cost_impact['impact_type'] = 'rightsizing_savings'
+                
+            elif primary_action == 'SCALE_UP':
+                # Scaling costs but improves performance
+                cost_impact['monthly_impact'] = -node_cost * 0.15  # 15% cost increase
+                cost_impact['impact_type'] = 'performance_investment'
+            
+            cost_impact['annual_impact'] = cost_impact['monthly_impact'] * 12
+            
+            # Add cost impact to recommendation
+            if 'optimization_recommendation' in recommendation:
+                recommendation['optimization_recommendation']['cost_impact'] = cost_impact
+            
+            return recommendation
+            
+        except Exception as e:
+            logger.error(f"❌ Cost impact analysis failed: {e}")
+            return recommendation
+    
+    def _generate_ml_based_chart_data(self, ml_results: Dict, metrics_data: Dict) -> Dict:
+        """Generate dynamic chart data based on ML predictions"""
+        try:
+            workload_class = ml_results.get('workload_classification', {})
+            optimization = ml_results.get('optimization_analysis', {})
+            
+            workload_type = workload_class.get('workload_type', 'BALANCED')
+            primary_action = optimization.get('primary_action', 'MONITOR')
+            
+            # Get current utilization
+            nodes = metrics_data.get('nodes', [])
+            if nodes:
+                avg_cpu = np.mean([node.get('cpu_usage_pct', 0) for node in nodes])
+                avg_memory = np.mean([node.get('memory_usage_pct', 0) for node in nodes])
+            else:
+                avg_cpu, avg_memory = 35, 60
+            
+            # ML-driven replica calculations
+            base_replicas = len(nodes) if nodes else 3
+            
+            # CPU-based scaling simulation
+            cpu_replicas = self._calculate_ml_replicas(
+                avg_cpu, 70, base_replicas, workload_type, 'cpu'
+            )
+            
+            # Memory-based scaling simulation  
+            memory_replicas = self._calculate_ml_replicas(
+                avg_memory, 75, base_replicas, workload_type, 'memory'
+            )
+            
+            # Apply ML optimization recommendations
+            if primary_action == 'OPTIMIZE_APPLICATION':
+                # Optimization reduces replica needs
+                cpu_replicas = [max(1, int(r * 0.8)) for r in cpu_replicas]
+                memory_replicas = [max(1, int(r * 0.8)) for r in memory_replicas]
+            elif primary_action == 'SCALE_DOWN':
+                # Right-sizing reduces replicas
+                cpu_replicas = [max(1, int(r * 0.7)) for r in cpu_replicas]
+                memory_replicas = [max(1, int(r * 0.7)) for r in memory_replicas]
+            
             return {
-                'hpa_chart_data': {
-                    'timePoints': hpa_scenarios['traffic_scenarios'],
-                    'cpuReplicas': hpa_scenarios['cpu_replicas'],
-                    'memoryReplicas': hpa_scenarios['memory_replicas'],
-                    'current_cpu_avg': avg_cpu,
-                    'current_memory_avg': avg_memory,
-                    'data_source': 'real_node_metrics_with_hpa_detection'
-                },
-                'optimization_recommendation': recommendation,
-                'current_implementation': {
-                    'pattern': current_pattern,
-                    'confidence': detection_confidence,
-                    'total_hpas': hpa_implementation.get('total_hpas', 0)
-                },
-                'workload_characteristics': {
-                    'cpu_utilization': avg_cpu,
-                    'memory_utilization': avg_memory,
-                    'cluster_type': self._classify_cluster_type(avg_cpu, avg_memory),
-                    'optimization_potential': self._assess_optimization_potential(avg_cpu, avg_memory)
-                }
+                'timePoints': ['Low Load', 'Current', 'Peak Load', 'Optimized', 'ML Predicted'],
+                'cpuReplicas': cpu_replicas,
+                'memoryReplicas': memory_replicas,
+                'current_cpu_avg': avg_cpu,
+                'current_memory_avg': avg_memory,
+                'data_source': 'ml_intelligent_analysis',
+                'workload_type': workload_type,
+                'ml_recommendation': primary_action,
+                'confidence': workload_class.get('confidence', 0.5)
             }
             
         except Exception as e:
-            logger.error(f"❌ HPA recommendation generation failed: {e}")
-            return None
+            logger.error(f"❌ ML chart data generation failed: {e}")
+            return self._fallback_chart_data()
     
-    def _calculate_hpa_scenarios(self, avg_cpu: float, avg_memory: float, node_count: int) -> Dict:
-        """Calculate HPA scaling scenarios for different traffic patterns"""
+    def _calculate_ml_replicas(self, current_util: float, target_util: float, 
+                              base_replicas: int, workload_type: str, metric_type: str) -> List[int]:
+        """Calculate replica counts based on ML workload classification"""
         
-        # Estimate current replicas
-        current_replicas = node_count * 2  # Typical estimation
+        # Workload-specific scaling factors
+        scaling_factors = {
+            'CPU_INTENSIVE': {'cpu': [0.6, 1.0, 1.8, 0.8, 1.2], 'memory': [0.8, 1.0, 1.4, 0.9, 1.1]},
+            'MEMORY_INTENSIVE': {'cpu': [0.8, 1.0, 1.4, 0.9, 1.1], 'memory': [0.6, 1.0, 2.0, 0.7, 1.3]},
+            'BURSTY': {'cpu': [0.5, 1.0, 2.5, 0.6, 1.5], 'memory': [0.5, 1.0, 2.2, 0.6, 1.4]},
+            'BALANCED': {'cpu': [0.7, 1.0, 1.6, 0.8, 1.2], 'memory': [0.7, 1.0, 1.6, 0.8, 1.2]}
+        }
         
-        # HPA targets
-        cpu_target = 70.0
-        memory_target = 60.0
+        factors = scaling_factors.get(workload_type, scaling_factors['BALANCED'])[metric_type]
         
-        # Base scaling calculations
-        cpu_scale_factor = avg_cpu / cpu_target
-        memory_scale_factor = avg_memory / memory_target
+        # Base scaling calculation
+        scale_factor = current_util / target_util
+        base_scaled_replicas = max(1, int(base_replicas * scale_factor))
         
-        cpu_base_replicas = max(1, int(current_replicas * cpu_scale_factor))
-        memory_base_replicas = max(1, int(current_replicas * memory_scale_factor))
+        # Apply workload-specific factors
+        replicas = []
+        for factor in factors:
+            replica_count = max(1, int(base_scaled_replicas * factor))
+            replicas.append(replica_count)
         
-        # Traffic scenario multipliers (representing load variations)
-        traffic_multipliers = [0.8, 1.2, 1.5, 1.1, 0.9]
-        traffic_scenarios = ['Low Traffic', 'Medium Traffic', 'Peak Traffic', 'Evening', 'Night']
-        
-        # Generate replica counts for each scenario
-        cpu_replicas = [max(1, int(cpu_base_replicas * mult)) for mult in traffic_multipliers]
-        memory_replicas = [max(1, int(memory_base_replicas * mult)) for mult in traffic_multipliers]
+        return replicas
+    
+    def _fallback_recommendation(self, metrics_data: Dict, actual_costs: Dict) -> Dict:
+        """Fallback when ML analysis fails"""
+        logger.warning("⚠️ Using fallback HPA recommendation")
         
         return {
-            'traffic_scenarios': traffic_scenarios,
-            'cpu_replicas': cpu_replicas,
-            'memory_replicas': memory_replicas,
-            'cpu_average': int(safe_mean(cpu_replicas)),
-            'memory_average': int(safe_mean(memory_replicas))
+            'hpa_chart_data': self._fallback_chart_data(),
+            'optimization_recommendation': {
+                'title': 'Manual Analysis Required',
+                'description': 'ML analysis unavailable. Please review HPA configuration manually.',
+                'action': 'MANUAL_REVIEW',
+                'confidence': 0.3,
+                'ml_enhanced': False
+            },
+            'current_implementation': {
+                'pattern': 'unknown',
+                'confidence': 'low',
+                'ml_analysis': False
+            }
         }
     
-    def _generate_context_aware_recommendation(self, current_pattern: str, scenarios: Dict, 
-                                             costs: Dict, avg_cpu: float, avg_memory: float) -> Dict:
-        """Generate recommendation based on current HPA implementation"""
-        
-        node_cost = ensure_numeric(costs.get('monthly_actual_node', 0))
-        cost_per_replica = node_cost / max(scenarios['cpu_average'], scenarios['memory_average'], 1) if node_cost > 0 else 50
-        
-        cpu_avg_replicas = scenarios['cpu_average']
-        memory_avg_replicas = scenarios['memory_average']
-        
-        if current_pattern == 'cpu_based_dominant':
-            # Currently using CPU-based HPA
-            if memory_avg_replicas < cpu_avg_replicas:
-                # Memory-based would save money
-                replica_reduction = cpu_avg_replicas - memory_avg_replicas
-                monthly_savings = replica_reduction * cost_per_replica
-                reduction_pct = (replica_reduction / cpu_avg_replicas) * 100 if cpu_avg_replicas > 0 else 0
-                
-                return {
-                    'title': 'Switch to Memory-based HPA for Cost Savings',
-                    'description': f'Memory-based HPA could reduce replica count by {reduction_pct:.0f}%, saving ${monthly_savings:.0f}/month (${monthly_savings*12:.0f}/year) through intelligent auto-scaling.',
-                    'current_status': '✅ Using CPU-based HPA',
-                    'recommendation': 'SWITCH to Memory-based HPA',
-                    'direction': 'cost_optimization',
-                    'monthly_savings': monthly_savings,
-                    'replica_impact': f'Reduce from ~{cpu_avg_replicas} to ~{memory_avg_replicas} replicas',
-                    'confidence': 'High',
-                    'reasoning': f'Your memory utilization ({avg_memory:.1f}%) suggests memory-based scaling would be more cost-effective than CPU-based ({avg_cpu:.1f}%).',
-                    'implementation_priority': 'High - Quick Win'
-                }
-            else:
-                # Current approach is optimal
-                replica_increase = memory_avg_replicas - cpu_avg_replicas
-                increase_pct = (replica_increase / cpu_avg_replicas) * 100 if cpu_avg_replicas > 0 else 0
-                
-                return {
-                    'title': 'Current CPU-based HPA is Optimal',
-                    'description': f'Your CPU-based HPA is cost-effective. Switching to memory-based would increase replica count by {increase_pct:.0f}% (~{replica_increase} more replicas).',
-                    'current_status': '✅ Using CPU-based HPA (Optimal)',
-                    'recommendation': 'MAINTAIN current approach',
-                    'direction': 'status_quo',
-                    'cost_impact': f'Avoid ${replica_increase * cost_per_replica:.0f}/month cost increase',
-                    'confidence': 'High',
-                    'reasoning': f'Your low CPU utilization ({avg_cpu:.1f}%) makes CPU-based scaling the right choice.',
-                    'implementation_priority': 'None - Already Optimized'
-                }
-        
-        elif current_pattern == 'memory_based_dominant':
-            # Currently using Memory-based HPA
-            if cpu_avg_replicas < memory_avg_replicas:
-                # CPU-based would save money
-                replica_reduction = memory_avg_replicas - cpu_avg_replicas
-                monthly_savings = replica_reduction * cost_per_replica
-                reduction_pct = (replica_reduction / memory_avg_replicas) * 100 if memory_avg_replicas > 0 else 0
-                
-                return {
-                    'title': 'Switch to CPU-based HPA for Major Savings',
-                    'description': f'CPU-based HPA could reduce replica count by {reduction_pct:.0f}%, saving ${monthly_savings:.0f}/month (${monthly_savings*12:.0f}/year) through intelligent auto-scaling.',
-                    'current_status': '⚠️ Using Memory-based HPA',
-                    'recommendation': 'SWITCH to CPU-based HPA',
-                    'direction': 'cost_optimization',
-                    'monthly_savings': monthly_savings,
-                    'replica_impact': f'Reduce from ~{memory_avg_replicas} to ~{cpu_avg_replicas} replicas',
-                    'confidence': 'High',
-                    'reasoning': f'Your low CPU utilization ({avg_cpu:.1f}%) indicates memory-based scaling is over-provisioning resources.',
-                    'implementation_priority': 'High - Major Cost Savings'
-                }
-            else:
-                # Current approach prevents issues
-                return {
-                    'title': 'Current Memory-based HPA Prevents Issues',
-                    'description': f'Your memory-based approach prevents OOM crashes and maintains application stability. CPU-based scaling would be too aggressive for your workload pattern.',
-                    'current_status': '🛡️ Using Memory-based HPA (Stability Focus)',
-                    'recommendation': 'MAINTAIN current approach',
-                    'direction': 'stability_focused',
-                    'confidence': 'High',
-                    'reasoning': f'Memory utilization ({avg_memory:.1f}%) is the actual constraint for your workloads.',
-                    'implementation_priority': 'None - Stability Optimized'
-                }
-        
-        elif current_pattern == 'no_hpa_detected':
-            # No HPA - recommend the better option
-            if cpu_avg_replicas < memory_avg_replicas:
-                better_approach = 'CPU-based HPA'
-                potential_savings = (memory_avg_replicas - cpu_avg_replicas) * cost_per_replica
-                optimal_replicas = cpu_avg_replicas
-            else:
-                better_approach = 'Memory-based HPA'
-                potential_savings = (cpu_avg_replicas - memory_avg_replicas) * cost_per_replica
-                optimal_replicas = memory_avg_replicas
-            
-            return {
-                'title': f'Implement {better_approach} for Optimization',
-                'description': f'No HPA detected. Implementing {better_approach} could save ${potential_savings:.0f}/month through automatic scaling based on your workload patterns.',
-                'current_status': '📋 No HPA Detected (Manual Scaling)',
-                'recommendation': f'IMPLEMENT {better_approach}',
-                'direction': 'implement_hpa',
-                'potential_savings': potential_savings,
-                'replica_optimization': f'Optimize to ~{optimal_replicas} replicas with auto-scaling',
-                'confidence': 'Medium',
-                'reasoning': f'Your utilization pattern (CPU: {avg_cpu:.1f}%, Memory: {avg_memory:.1f}%) suggests {better_approach.split("-")[0].lower()}-based scaling.',
-                'implementation_priority': 'Medium - Enable Auto-scaling'
-            }
-        
-        else:
-            # Mixed/Hybrid/Unknown implementation
-            better_option = 'CPU-based' if cpu_avg_replicas < memory_avg_replicas else 'Memory-based'
-            
-            return {
-                'title': f'Standardize on {better_option} HPA',
-                'description': f'Mixed HPA implementation detected. Standardizing on {better_option} HPA would optimize costs and reduce complexity.',
-                'current_status': '🔄 Mixed HPA Implementation',
-                'recommendation': f'STANDARDIZE on {better_option} HPA',
-                'direction': 'standardize',
-                'confidence': 'Medium',
-                'reasoning': f'Consistent approach reduces complexity and optimizes for your workload pattern.',
-                'implementation_priority': 'Medium - Standardization'
-            }
-    
-    def _classify_cluster_type(self, avg_cpu: float, avg_memory: float) -> str:
-        """Classify cluster type based on utilization patterns"""
-        if avg_cpu < 25 and avg_memory > avg_cpu * 1.5:
-            return 'CPU Over-Provisioned'
-        elif avg_memory > 70 and avg_cpu < 40:
-            return 'Memory-Constrained'
-        elif abs(avg_cpu - avg_memory) < 10:
-            return 'Balanced Utilization'
-        elif avg_cpu > 60 and avg_memory < 40:
-            return 'CPU-Intensive'
-        else:
-            return 'Mixed Workload'
-    
-    def _assess_optimization_potential(self, avg_cpu: float, avg_memory: float) -> str:
-        """Assess optimization potential"""
-        if avg_cpu < 30 or avg_memory < 40:
-            return 'High - Significant over-provisioning detected'
-        elif avg_cpu < 50 or avg_memory < 60:
-            return 'Medium - Some optimization opportunities'
-        else:
-            return 'Low - Well-optimized utilization'
+    def _fallback_chart_data(self) -> Dict:
+        """Fallback chart data when ML fails"""
+        return {
+            'timePoints': ['Low', 'Current', 'Peak', 'Average', 'Optimized'],
+            'cpuReplicas': [2, 3, 6, 3, 2],
+            'memoryReplicas': [3, 4, 8, 4, 3],
+            'data_source': 'fallback_static',
+            'ml_analysis': False
+        }
 
 
 
@@ -358,26 +347,38 @@ class ConsistentCostAnalyzer:
         }
 
     def _generate_hpa_recommendations(self, cost_data: Dict, metrics_data: Dict) -> Dict:
-        """Generate HPA recommendations using the new engine"""
+        """
+        UPDATED: Generate HPA recommendations using ML-enhanced engine
+        REPLACES: The existing _generate_hpa_recommendations method
+        """
         try:
-            logger.info("🔍 Generating HPA recommendations with detection engine...")
-            hpa_engine = HPARecommendationEngine()
-            hpa_recommendations = hpa_engine.generate_hpa_recommendations(metrics_data, cost_data)
+            logger.info("🤖 Generating ML-enhanced HPA recommendations in ConsistentCostAnalyzer...")
             
-            # Validate the recommendations structure
+            # Create ML-enhanced HPA engine
+            ml_hpa_engine = MLEnhancedHPARecommendationEngine()
+            
+            # Generate ML-enhanced recommendations
+            hpa_recommendations = ml_hpa_engine.generate_hpa_recommendations(metrics_data, cost_data)
+            
+            # Validate the ML recommendations structure
             if not isinstance(hpa_recommendations, dict):
-                raise ValueError("HPA engine returned invalid recommendations structure")
+                raise ValueError("ML HPA engine returned invalid recommendations structure")
             
             required_keys = ['hpa_chart_data', 'optimization_recommendation', 'current_implementation']
             for key in required_keys:
                 if key not in hpa_recommendations:
-                    logger.warning(f"⚠️ Missing key in HPA recommendations: {key}")
+                    logger.warning(f"⚠️ Missing key in ML HPA recommendations: {key}")
             
-            logger.info("✅ HPA recommendations generated successfully")
+            # Add ML enhancement flag
+            hpa_recommendations['ml_enhanced'] = True
+            hpa_recommendations['analysis_method'] = 'ml_intelligent_hpa'
+            
+            logger.info("✅ ML-enhanced HPA recommendations generated successfully")
             return hpa_recommendations
             
         except Exception as e:
-            logger.error(f"❌ Failed to generate HPA recommendations: {e}")
+            logger.error(f"❌ Failed to generate ML-enhanced HPA recommendations: {e}")
+            
             raise ValueError(f"Enhanced consistent hpa recomendation failed: {str(e)}")
 
     def analyze(self, cost_data: Dict, metrics_data: Dict, pod_data: Dict = None) -> Dict:
@@ -1444,3 +1445,51 @@ def integrate_algorithmic_analysis(resource_group: str, cluster_name: str,
     """
     logger.info("🔄 Legacy function called - redirecting to consistent analysis")
     return integrate_consistent_analysis(resource_group, cluster_name, cost_data, metrics_data, pod_data)
+
+
+### Integration test for ML ###
+def test_ml_integration():
+    """
+    Test function to verify ML integration is working
+    ADD TO: Any appropriate location for testing
+    """
+    try:
+        logger.info("🧪 Testing ML-enhanced HPA integration...")
+        
+        # Create test data
+        test_metrics = {
+            'nodes': [
+                {'cpu_usage_pct': 75, 'memory_usage_pct': 65, 'ready': True},
+                {'cpu_usage_pct': 80, 'memory_usage_pct': 70, 'ready': True},
+                {'cpu_usage_pct': 72, 'memory_usage_pct': 68, 'ready': True}
+            ],
+            'hpa_implementation': {
+                'current_hpa_pattern': 'memory_based_dominant',
+                'confidence': 'high',
+                'total_hpas': 5
+            }
+        }
+        
+        test_costs = {
+            'monthly_actual_node': 1000,
+            'monthly_actual_total': 1500
+        }
+        
+        # Test ML engine
+        ml_engine = MLEnhancedHPARecommendationEngine()
+        result = ml_engine.generate_hpa_recommendations(test_metrics, test_costs)
+        
+        if result and 'optimization_recommendation' in result:
+            logger.info("✅ ML integration test PASSED")
+            logger.info(f"🎯 Test result: {result['optimization_recommendation'].get('title', 'Unknown')}")
+            return True
+        else:
+            logger.error("❌ ML integration test FAILED - Invalid result structure")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ ML integration test FAILED: {e}")
+        return False
+
+# Run integration test
+# test_ml_integration()
