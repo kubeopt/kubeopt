@@ -6,14 +6,14 @@ import uuid
 import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
-from config import (
+from app.main.config import (
     logger, enhanced_cluster_manager, _analysis_lock, _analysis_sessions,
     implementation_generator
 )
-from cost_processor import get_aks_specific_cost_data, extract_cost_components
-from metrics_processor import get_aks_metrics_from_monitor
-from cache_manager import save_to_cache
-from utils import validate_cost_data
+from app.data.processing.cost_processor import get_aks_specific_cost_data, extract_cost_components
+from app.data.processing.metrics_processor import get_aks_metrics_from_monitor
+from app.services.cache_manager import save_to_cache
+from app.main.utils import validate_cost_data
 
 def run_consistent_analysis(resource_group: str, cluster_name: str, days: int = 30, enable_pod_analysis: bool = True) -> Dict[str, Any]:
     """

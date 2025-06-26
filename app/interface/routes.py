@@ -3,21 +3,28 @@ Flask Routes for AKS Cost Optimization Tool
 """
 
 import traceback
+import sys
+import os
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
-from config import (
+from flask import render_template, request, redirect, url_for, flash
+
+# Add the app directory to the path for imports
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from app.main.config import (
     logger, enhanced_cluster_manager, analysis_results, 
-    _analysis_lock, _analysis_sessions, analysis_status_tracker, alerts_manager
+    _analysis_lock, _analysis_sessions, analysis_status_tracker
 )
 from app.main.utils import format_currency, time_ago, environment_badge_class, status_indicator_class
-from app.interface.chart_generator import generate_insights
+from interface.chart_generator import generate_insights
 from app.services.cache_manager import (
     is_cache_valid, clear_analysis_cache, force_fresh_analysis_with_complete_cache_clear,
     load_from_cache, save_to_cache, analysis_cache
 )
 from app.services.background_processor import run_background_analysis, check_alerts_after_analysis
+from app.main.shared import _get_analysis_data
 
-def register_routes(app: Flask):
+def register_routes(app):
     """Register all routes with the Flask app"""
     
     # Template filters
@@ -224,7 +231,7 @@ def register_routes(app: Flask):
             
             # STEP 3: Run the FIXED analysis
             logger.info(f"🔄 Running COMPLETELY FIXED analysis for {cluster_id}")
-            from analysis_engine import run_completely_fixed_analysis
+            from app.data.processing.analysis_engine import run_completely_fixed_analysis
             
             result = run_completely_fixed_analysis(
                 resource_group, cluster_name, days, enable_pod_analysis
@@ -288,69 +295,69 @@ def register_routes(app: Flask):
             return redirect(url_for('cluster_portfolio'))
 
     # Helper functions for routes
-    def _get_analysis_data(cluster_id):
-        """HPA-aware analysis data loading with session priority"""
-        if not cluster_id:
-            logger.warning("⚠️ No cluster_id provided for analysis data")
-            return None, "no_cluster_id"
+    # def _get_analysis_data(cluster_id):
+    #     """HPA-aware analysis data loading with session priority"""
+    #     if not cluster_id:
+    #         logger.warning("⚠️ No cluster_id provided for analysis data")
+    #         return None, "no_cluster_id"
 
-        # PRIORITY 0: Check for fresh session data first (HIGHEST PRIORITY)
-        fresh_session_data = None
-        data_source = "none"
-        with _analysis_lock:
-            logger.info(f"🔍 CHART API: Checking {len(_analysis_sessions)} active sessions for cluster {cluster_id}")
-            for session_id, session_info in _analysis_sessions.items():
-                if (session_info.get('cluster_id') == cluster_id and 
-                    session_info.get('status') == 'completed' and 
-                    'results' in session_info):
-                    fresh_session_data = session_info['results']
-                    data_source = "fresh_session"
-                    logger.info(f"🎯 CHART API: Found fresh session data for {cluster_id} (session: {session_id[:8]})")
-                    break
+    #     # PRIORITY 0: Check for fresh session data first (HIGHEST PRIORITY)
+    #     fresh_session_data = None
+    #     data_source = "none"
+    #     with _analysis_lock:
+    #         logger.info(f"🔍 CHART API: Checking {len(_analysis_sessions)} active sessions for cluster {cluster_id}")
+    #         for session_id, session_info in _analysis_sessions.items():
+    #             if (session_info.get('cluster_id') == cluster_id and 
+    #                 session_info.get('status') == 'completed' and 
+    #                 'results' in session_info):
+    #                 fresh_session_data = session_info['results']
+    #                 data_source = "fresh_session"
+    #                 logger.info(f"🎯 CHART API: Found fresh session data for {cluster_id} (session: {session_id[:8]})")
+    #                 break
 
-        if fresh_session_data:
-            # Validate HPA recommendations in fresh data
-            if 'hpa_recommendations' in fresh_session_data:
-                logger.info(f"✅ CHART API: Using fresh session data with HPA for {cluster_id}")
-                # Optionally update cache with fresh data
-                save_to_cache(cluster_id, fresh_session_data)
-                return fresh_session_data, "fresh_session"
-            else:
-                logger.warning(f"⚠️ CHART API: Fresh session data missing HPA for {cluster_id}")
+    #     if fresh_session_data:
+    #         # Validate HPA recommendations in fresh data
+    #         if 'hpa_recommendations' in fresh_session_data:
+    #             logger.info(f"✅ CHART API: Using fresh session data with HPA for {cluster_id}")
+    #             # Optionally update cache with fresh data
+    #             save_to_cache(cluster_id, fresh_session_data)
+    #             return fresh_session_data, "fresh_session"
+    #         else:
+    #             logger.warning(f"⚠️ CHART API: Fresh session data missing HPA for {cluster_id}")
 
-        # PRIORITY 1: Cluster-specific cache with HPA validation
-        try:
-            cached_data = load_from_cache(cluster_id)
-            if cached_data and cached_data.get('total_cost', 0) > 0:
-                # Validate HPA recommendations exist
-                if 'hpa_recommendations' in cached_data:
-                    logger.info(f"✅ CACHE: Complete data with HPA for {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
-                    return cached_data, "cluster_cache"
-                else:
-                    logger.warning(f"⚠️ CACHE: Data exists but missing HPA for {cluster_id}")
-                    # Clear incomplete cache
-                    clear_analysis_cache(cluster_id)
-        except Exception as e:
-            logger.warning(f"⚠️ Cluster cache fetch failed for {cluster_id}: {e}")
+    #     # PRIORITY 1: Cluster-specific cache with HPA validation
+    #     try:
+    #         cached_data = load_from_cache(cluster_id)
+    #         if cached_data and cached_data.get('total_cost', 0) > 0:
+    #             # Validate HPA recommendations exist
+    #             if 'hpa_recommendations' in cached_data:
+    #                 logger.info(f"✅ CACHE: Complete data with HPA for {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
+    #                 return cached_data, "cluster_cache"
+    #             else:
+    #                 logger.warning(f"⚠️ CACHE: Data exists but missing HPA for {cluster_id}")
+    #                 # Clear incomplete cache
+    #                 clear_analysis_cache(cluster_id)
+    #     except Exception as e:
+    #         logger.warning(f"⚠️ Cluster cache fetch failed for {cluster_id}: {e}")
 
-        # PRIORITY 2: Database with HPA validation
-        try:
-            logger.info(f"🔄 Loading from database for cluster: {cluster_id}")
-            db_data = enhanced_cluster_manager.get_latest_analysis(cluster_id)
-            if db_data and db_data.get('total_cost', 0) > 0:
-                # Validate HPA recommendations in database data
-                if 'hpa_recommendations' in db_data:
-                    logger.info(f"✅ DATABASE: Complete data with HPA for {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
-                    # Cache the complete database data
-                    save_to_cache(cluster_id, db_data)
-                    return db_data, "cluster_database"
-                else:
-                    logger.warning(f"⚠️ DATABASE: Data exists but missing HPA for {cluster_id}")
-        except Exception as e:
-            logger.error(f"❌ Database error for cluster {cluster_id}: {e}")
+    #     # PRIORITY 2: Database with HPA validation
+    #     try:
+    #         logger.info(f"🔄 Loading from database for cluster: {cluster_id}")
+    #         db_data = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+    #         if db_data and db_data.get('total_cost', 0) > 0:
+    #             # Validate HPA recommendations in database data
+    #             if 'hpa_recommendations' in db_data:
+    #                 logger.info(f"✅ DATABASE: Complete data with HPA for {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
+    #                 # Cache the complete database data
+    #                 save_to_cache(cluster_id, db_data)
+    #                 return db_data, "cluster_database"
+    #             else:
+    #                 logger.warning(f"⚠️ DATABASE: Data exists but missing HPA for {cluster_id}")
+    #     except Exception as e:
+    #         logger.error(f"❌ Database error for cluster {cluster_id}: {e}")
 
-        logger.warning(f"⚠️ No complete analysis data (with HPA) found for cluster: {cluster_id}")
-        return None, "no_complete_data"
+    #     logger.warning(f"⚠️ No complete analysis data (with HPA) found for cluster: {cluster_id}")
+    #     return None, "no_complete_data"
 
     def _validate_analysis_results_comprehensive(session_results: dict, cluster_id: str, session_id: str) -> dict:
         """Comprehensive validation of analysis results"""
@@ -398,7 +405,3 @@ def register_routes(app: Flask):
             logger.error(f"❌ Analysis validation failed for {cluster_id} (session: {session_id[:8]}): {errors}")
         
         return validation_result
-
-    # Register more API routes here...
-    from app.interface.api_routes import register_api_routes
-    register_api_routes(app)

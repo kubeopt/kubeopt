@@ -6,15 +6,19 @@ memory-based HPA implementation and generalizable metrics collection.
 """
 
 import os
+import sys
 from flask import Flask
+
+# Add the app directory to Python path for imports
+app_dir = os.path.dirname(__file__)
+sys.path.insert(0, app_dir)
+
+# Import from the organized folder structure
 from config import (
     logger, enhanced_cluster_manager, analysis_cache, 
     initialize_database, implementation_generator,
     analysis_results
 )
-from app.interface.routes import register_routes
-from app.interface.api_routes import register_api_routes
-from app.services.alerts_integration import initialize_alerts_system, register_alerts_routes, get_alerts_manager
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='../frontend/static', template_folder='../frontend/templates')
@@ -31,6 +35,7 @@ def initialize_application():
         
         # Initialize alerts system
         logger.info("🔔 Initializing alerts system...")
+        from app.services.alerts_integration import initialize_alerts_system
         alerts_manager = initialize_alerts_system()
         
         # Initialize database management
@@ -55,13 +60,16 @@ def register_all_routes():
     try:
         logger.info("🛣️ Registering application routes...")
         
-        # Register main routes
+        # Register main routes (dashboard, portfolio)
+        from app.interface.routes import register_routes
         register_routes(app)
         
-        # Register API routes
+        # Register API routes (with unique function names)
+        from app.interface.api_routes import register_api_routes
         register_api_routes(app)
         
         # Register alerts routes
+        from services.alerts_integration import register_alerts_routes
         register_alerts_routes(app)
         
         # Additional utility routes
@@ -72,6 +80,8 @@ def register_all_routes():
         
     except Exception as e:
         logger.error(f"❌ Route registration failed: {e}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         return False
 
 def register_utility_routes():
@@ -93,7 +103,7 @@ def register_utility_routes():
         try:
             from flask import request, jsonify
             from datetime import datetime
-            from cache_manager import is_cache_valid
+            from services.cache_manager import is_cache_valid
             
             cluster_id = request.args.get('cluster_id')
             
@@ -153,7 +163,7 @@ def register_utility_routes():
         """Monitor active analysis sessions"""
         try:
             from flask import jsonify
-            from config import _analysis_lock, _analysis_sessions
+            from main.config import _analysis_lock, _analysis_sessions
             
             with _analysis_lock:
                 sessions = {
@@ -183,7 +193,7 @@ def register_utility_routes():
         """Get analysis status for multiple clusters"""
         try:
             from flask import request, jsonify
-            from config import analysis_status_tracker
+            from main.config import analysis_status_tracker
             import sqlite3
             
             request_data = request.get_json() or {}
