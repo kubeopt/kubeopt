@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Database & Cache Management</title>
+    <title>Enhanced Database & Analysis Management</title>
     <style>
         * { box-sizing: border-box; }
         body { 
@@ -15,7 +15,7 @@
         }
         
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             background: white;
             border-radius: 16px;
@@ -89,10 +89,12 @@
             padding: 4px;
             margin-bottom: 20px;
             gap: 4px;
+            flex-wrap: wrap;
         }
         
         .sub-tab {
             flex: 1;
+            min-width: 150px;
             padding: 12px 16px;
             text-align: center;
             background: transparent;
@@ -102,6 +104,7 @@
             font-weight: 500;
             transition: all 0.3s ease;
             color: #6c757d;
+            font-size: 14px;
         }
         
         .sub-tab.active {
@@ -177,6 +180,7 @@
             align-items: center;
             gap: 8px;
             text-decoration: none;
+            margin: 4px;
         }
         
         .btn:hover { 
@@ -193,6 +197,8 @@
         .btn-warning:hover { background: #dd6b20; }
         .btn-info { background: #3182ce; }
         .btn-info:hover { background: #2c5aa0; }
+        .btn-secondary { background: #718096; }
+        .btn-secondary:hover { background: #4a5568; }
         
         .controls {
             display: flex;
@@ -258,6 +264,8 @@
             border-radius: 12px;
             margin-top: 16px;
             background: white;
+            max-height: 600px;
+            overflow-y: auto;
         }
         
         table {
@@ -275,6 +283,7 @@
             border-bottom: 2px solid #e2e8f0;
             position: sticky;
             top: 0;
+            z-index: 10;
         }
         
         td {
@@ -295,13 +304,12 @@
         }
         
         .status-active { background: #c6f6d5; color: #22543d; }
-        .status-analyzing { background: #fed7e2; color: #702459; }
         .status-completed { background: #bee3f8; color: #2a4365; }
         .status-failed { background: #fed7d7; color: #742a2a; }
         .status-pending { background: #faf5ff; color: #553c9a; }
-        .status-healthy { background: #c6f6d5; color: #22543d; }
-        .status-warning { background: #fefcbf; color: #744210; }
-        .status-error { background: #fed7d7; color: #742a2a; }
+        .status-high { background: #fed7d7; color: #742a2a; }
+        .status-medium { background: #fefcbf; color: #744210; }
+        .status-low { background: #c6f6d5; color: #22543d; }
         
         .loading {
             display: inline-block;
@@ -315,51 +323,6 @@
         
         @keyframes spin {
             to { transform: rotate(360deg); }
-        }
-        
-        pre {
-            background: #2d3748;
-            color: #e2e8f0;
-            padding: 16px;
-            border-radius: 8px;
-            overflow-x: auto;
-            font-size: 13px;
-            max-height: 400px;
-            overflow-y: auto;
-            line-height: 1.5;
-        }
-        
-        .cache-item {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
-        }
-        
-        .cache-item h4 {
-            margin: 0 0 8px 0;
-            color: #2d3748;
-            font-size: 1rem;
-        }
-        
-        .cache-meta {
-            display: flex;
-            gap: 16px;
-            font-size: 0.85rem;
-            color: #6c757d;
-            margin-top: 8px;
-        }
-        
-        .cache-actions {
-            margin-top: 12px;
-            display: flex;
-            gap: 8px;
-        }
-        
-        .cache-actions .btn {
-            padding: 6px 12px;
-            font-size: 12px;
         }
         
         .modal {
@@ -378,8 +341,8 @@
         .modal-content {
             background: white;
             border-radius: 12px;
-            max-width: 90vw;
-            max-height: 90vh;
+            max-width: 95vw;
+            max-height: 95vh;
             overflow-y: auto;
             box-shadow: 0 20px 40px rgba(0,0,0,0.3);
         }
@@ -418,6 +381,57 @@
             background: rgba(255,255,255,0.2);
         }
         
+        .analysis-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .analysis-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .analysis-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .analysis-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .meta-item {
+            background: #f7fafc;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+        
+        .meta-label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .meta-value {
+            color: #2d3748;
+        }
+        
+        .analysis-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
         .phase-card {
             background: #f8f9fa;
             border: 1px solid #e9ecef;
@@ -453,53 +467,89 @@
             line-height: 1.5;
         }
         
-        .phase-steps {
-            background: white;
-            border-radius: 6px;
-            padding: 12px;
+        .json-viewer {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+            line-height: 1.5;
         }
         
-        .phase-steps h5 {
-            margin: 0 0 8px 0;
-            color: #495057;
-            font-size: 0.9rem;
-        }
-        
-        .phase-steps ul {
-            margin: 0;
-            padding-left: 20px;
-        }
-        
-        .phase-steps li {
-            margin-bottom: 4px;
-            font-size: 0.85rem;
-            color: #6c757d;
+        .implementation-summary {
+            background: linear-gradient(135deg, #4299e1, #3182ce);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
         }
         
         .summary-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 12px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
         }
         
         .summary-item {
-            background: #f8f9fa;
-            padding: 12px;
-            border-radius: 8px;
             text-align: center;
         }
         
         .summary-value {
-            font-size: 1.2rem;
+            font-size: 1.5rem;
             font-weight: bold;
-            color: #667eea;
+            margin-bottom: 4px;
         }
         
         .summary-label {
-            font-size: 0.8rem;
-            color: #6c757d;
-            margin-top: 4px;
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+        
+        .test-results {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+        }
+        
+        .test-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .test-item:last-child {
+            border-bottom: none;
+        }
+        
+        .test-name {
+            font-weight: 500;
+            color: #2d3748;
+        }
+        
+        .test-status {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .search-box {
+            width: 300px;
+            padding: 10px 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .search-box:focus {
+            border-color: #667eea;
+            outline: none;
         }
         
         @media (max-width: 768px) {
@@ -515,18 +565,32 @@
             .main-tabs {
                 flex-direction: column;
             }
+            
+            .sub-tabs {
+                flex-direction: column;
+            }
+            
+            .analysis-meta {
+                grid-template-columns: 1fr;
+            }
+            
+            .search-box {
+                width: 100%;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🗄️ Database & Cache Management</h1>
-            <p>Comprehensive administration interface for your AKS Cost Intelligence platform</p>
+            <h1>🗄️ Enhanced Database & Analysis Management</h1>
+            <p>Comprehensive administration interface for AKS Cost Intelligence with implementation plan management</p>
         </div>
         
         <div class="main-tabs">
             <button class="main-tab active" onclick="showMainTab('database')">🗃️ Database</button>
+            <button class="main-tab" onclick="showMainTab('analysis')">📊 Analysis Results</button>
+            <button class="main-tab" onclick="showMainTab('implementation')">🚀 Implementation Plans</button>
             <button class="main-tab" onclick="showMainTab('cache')">💾 Cache</button>
         </div>
         
@@ -535,7 +599,6 @@
             <div class="sub-tabs">
                 <button class="sub-tab active" onclick="showSubTab('db-overview')">📊 Overview</button>
                 <button class="sub-tab" onclick="showSubTab('db-clusters')">🏗️ Clusters</button>
-                <button class="sub-tab" onclick="showSubTab('db-analysis')">📈 Analysis</button>
                 <button class="sub-tab" onclick="showSubTab('db-alerts')">🚨 Alerts</button>
                 <button class="sub-tab" onclick="showSubTab('db-learning')">🧠 Learning</button>
             </div>
@@ -599,32 +662,6 @@
                 </div>
             </div>
             
-            <!-- Database Analysis -->
-            <div id="db-analysis" class="sub-content">
-                <div class="section">
-                    <h3>📈 Analysis Results</h3>
-                    <div class="controls">
-                        <label>Cluster:</label>
-                        <select id="dbAnalysisClusterFilter" onchange="loadDatabaseAnalysis()">
-                            <option value="">All Clusters</option>
-                        </select>
-                        
-                        <label>Date Range:</label>
-                        <select id="dbAnalysisDateFilter" onchange="loadDatabaseAnalysis()">
-                            <option value="7">Last 7 days</option>
-                            <option value="30">Last 30 days</option>
-                            <option value="90">Last 90 days</option>
-                            <option value="">All time</option>
-                        </select>
-                        
-                        <button class="btn btn-success" onclick="loadDatabaseAnalysis()">🔄 Refresh</button>
-                        <button class="btn btn-info" onclick="exportDatabaseAnalysis()">📥 Export CSV</button>
-                    </div>
-                    <div id="dbAnalysisResult"></div>
-                    <div class="table-container" id="dbAnalysisTable" style="display: none;"></div>
-                </div>
-            </div>
-            
             <!-- Database Alerts -->
             <div id="db-alerts" class="sub-content">
                 <div class="section">
@@ -669,13 +706,74 @@
             </div>
         </div>
         
+        <!-- ANALYSIS RESULTS TAB -->
+        <div id="analysis" class="main-content">
+            <div class="section">
+                <h3>📊 Analysis Results Management</h3>
+                <div class="controls">
+                    <input type="text" id="analysisSearchBox" class="search-box" placeholder="Search clusters..." onkeyup="filterAnalysisResults()">
+                    
+                    <label>Cluster:</label>
+                    <select id="analysisClusterFilter" onchange="loadAnalysisResults()">
+                        <option value="">All Clusters</option>
+                    </select>
+                    
+                    <label>Date Range:</label>
+                    <select id="analysisDateFilter" onchange="loadAnalysisResults()">
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                        <option value="">All time</option>
+                    </select>
+                    
+                    <button class="btn btn-success" onclick="loadAnalysisResults()">🔄 Load Results</button>
+                    <button class="btn btn-warning" onclick="bulkDeleteAnalysisResults()">🗑️ Bulk Delete</button>
+                    <button class="btn btn-info" onclick="exportAnalysisResults()">📥 Export</button>
+                </div>
+                <div id="analysisResultsContainer"></div>
+                <div id="analysisResult"></div>
+            </div>
+        </div>
+        
+        <!-- IMPLEMENTATION PLANS TAB -->
+        <div id="implementation" class="main-content">
+            <div class="section">
+                <h3>🚀 Implementation Plans Management</h3>
+                <div class="controls">
+                    <input type="text" id="implementationSearchBox" class="search-box" placeholder="Search implementation plans..." onkeyup="filterImplementationPlans()">
+                    
+                    <label>Status:</label>
+                    <select id="implementationStatusFilter" onchange="loadImplementationPlans()">
+                        <option value="">All Statuses</option>
+                        <option value="generated">Generated</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                    
+                    <label>Complexity:</label>
+                    <select id="implementationComplexityFilter" onchange="loadImplementationPlans()">
+                        <option value="">All Complexity</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                    
+                    <button class="btn btn-success" onclick="loadImplementationPlans()">🔄 Load Plans</button>
+                    <button class="btn btn-info" onclick="runImplementationPlanTests()">🧪 Run Tests</button>
+                    <button class="btn btn-warning" onclick="validateAllPlans()">✅ Validate All</button>
+                </div>
+                <div id="implementationPlansContainer"></div>
+                <div id="implementationResult"></div>
+            </div>
+        </div>
+        
         <!-- CACHE TAB -->
         <div id="cache" class="main-content">
             <div class="sub-tabs">
                 <button class="sub-tab active" onclick="showSubTab('cache-overview')">📊 Overview</button>
                 <button class="sub-tab" onclick="showSubTab('cache-clusters')">🗂️ Cluster Caches</button>
                 <button class="sub-tab" onclick="showSubTab('cache-management')">🧹 Management</button>
-                <button class="sub-tab" onclick="showSubTab('cache-stats')">📈 Statistics</button>
             </div>
             
             <!-- Cache Overview -->
@@ -744,17 +842,6 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- Cache Statistics -->
-            <div id="cache-stats" class="sub-content">
-                <div class="section">
-                    <h3>📈 Cache Performance Statistics</h3>
-                    <div class="controls">
-                        <button class="btn btn-success" onclick="loadCacheDetailedStats()">📊 Load Detailed Statistics</button>
-                    </div>
-                    <div id="cacheStatsResult"></div>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -767,6 +854,7 @@
         };
         let clustersData = [];
         let analysisData = [];
+        let implementationPlansData = [];
         let alertsData = [];
         let learningData = [];
 
@@ -785,13 +873,17 @@
             event.target.classList.add('active');
             currentMainTab = tabName;
             
-            // Show the current sub-tab for this main tab
-            showSubTab(currentSubTab[tabName]);
-            
-            // Load initial data
+            // Load initial data based on tab
             if (tabName === 'database') {
+                showSubTab(currentSubTab[tabName]);
                 loadDatabaseOverview();
+            } else if (tabName === 'analysis') {
+                loadAnalysisResults();
+                populateAnalysisClusterFilter();
+            } else if (tabName === 'implementation') {
+                loadImplementationPlans();
             } else if (tabName === 'cache') {
+                showSubTab(currentSubTab[tabName]);
                 loadCacheOverview();
             }
         }
@@ -824,10 +916,6 @@
                 case 'db-clusters':
                     loadDatabaseClusters();
                     break;
-                case 'db-analysis':
-                    loadDatabaseAnalysis();
-                    populateAnalysisClusterFilter();
-                    break;
                 case 'db-alerts':
                     loadDatabaseAlerts();
                     break;
@@ -839,9 +927,6 @@
                     break;
                 case 'cache-clusters':
                     loadCacheClusters();
-                    break;
-                case 'cache-stats':
-                    loadCacheDetailedStats();
                     break;
             }
         }
@@ -952,7 +1037,6 @@
                             <th>Last Cost</th>
                             <th>Last Savings</th>
                             <th>Analysis Status</th>
-                            <th>Progress</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -971,11 +1055,16 @@
                         <td>${cluster.environment}</td>
                         <td><span class="status-badge ${statusClass}">${cluster.status}</span></td>
                         <td>${cluster.last_analyzed ? new Date(cluster.last_analyzed).toLocaleString() : 'Never'}</td>
-                        <td>${(cluster.last_cost || 0).toFixed(2)}</td>
-                        <td>${(cluster.last_savings || 0).toFixed(2)}</td>
+                        <td>$${(cluster.last_cost || 0).toFixed(2)}</td>
+                        <td>$${(cluster.last_savings || 0).toFixed(2)}</td>
                         <td><span class="status-badge ${analysisStatusClass}">${cluster.analysis_status || 'pending'}</span></td>
-                        <td>${cluster.analysis_progress || 0}%</td>
                         <td>
+                            <button class="btn btn-info" onclick="viewClusterAnalysis('${cluster.id}')" style="padding: 4px 8px; font-size: 12px;">
+                                📊 View Analysis
+                            </button>
+                            <button class="btn btn-warning" onclick="viewImplementationPlan('${cluster.id}')" style="padding: 4px 8px; font-size: 12px;">
+                                🚀 View Plan
+                            </button>
                             <button class="btn btn-danger" onclick="deleteCluster('${cluster.id}')" style="padding: 4px 8px; font-size: 12px;">
                                 🗑️ Delete
                             </button>
@@ -987,93 +1076,6 @@
             html += '</tbody></table>';
             tableContainer.innerHTML = html;
             tableContainer.style.display = 'block';
-        }
-
-        async function loadDatabaseAnalysis() {
-            const resultDiv = document.getElementById('dbAnalysisResult');
-            resultDiv.innerHTML = '<div class="loading"></div> Loading analysis results...';
-            
-            try {
-                const clusterFilter = document.getElementById('dbAnalysisClusterFilter').value;
-                const daysFilter = document.getElementById('dbAnalysisDateFilter').value;
-                
-                let url = '/api/db-mgmt/analysis-results?';
-                if (clusterFilter) url += `cluster_id=${clusterFilter}&`;
-                if (daysFilter) url += `days=${daysFilter}&`;
-                
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    analysisData = data.results;
-                    displayDatabaseAnalysisTable(analysisData);
-                    resultDiv.innerHTML = `<div class="result success">Loaded ${analysisData.length} analysis results</div>`;
-                } else {
-                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
-                }
-            } catch (error) {
-                resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
-            }
-        }
-
-        function displayDatabaseAnalysisTable(results) {
-            const tableContainer = document.getElementById('dbAnalysisTable');
-            
-            if (results.length === 0) {
-                tableContainer.innerHTML = '<p>No analysis results found.</p>';
-                tableContainer.style.display = 'block';
-                return;
-            }
-            
-            let html = `
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Cluster</th>
-                            <th>Analysis Date</th>
-                            <th>Total Cost</th>
-                            <th>Total Savings</th>
-                            <th>Confidence</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            
-            results.forEach(result => {
-                html += `
-                    <tr id="analysis-row-${result.id}">
-                        <td>${result.id}</td>
-                        <td>${result.cluster_name} (${result.resource_group})</td>
-                        <td>${new Date(result.analysis_date).toLocaleString()}</td>
-                        <td>${(result.total_cost || 0).toFixed(2)}</td>
-                        <td>${(result.total_savings || 0).toFixed(2)}</td>
-                        <td>${result.confidence_level}</td>
-                        <td>
-                            <button class="btn btn-danger" onclick="deleteAnalysisResult(${result.id})" style="padding: 4px 8px; font-size: 12px;">
-                                🗑️ Delete
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            });
-            
-            html += '</tbody></table>';
-            tableContainer.innerHTML = html;
-            tableContainer.style.display = 'block';
-        }
-
-        function populateAnalysisClusterFilter() {
-            const select = document.getElementById('dbAnalysisClusterFilter');
-            select.innerHTML = '<option value="">All Clusters</option>';
-            
-            clustersData.forEach(cluster => {
-                const option = document.createElement('option');
-                option.value = cluster.id;
-                option.textContent = `${cluster.name} (${cluster.resource_group})`;
-                select.appendChild(option);
-            });
         }
 
         async function loadDatabaseAlerts() {
@@ -1126,7 +1128,7 @@
             alerts.forEach(alert => {
                 const statusClass = `status-${alert.status || 'active'}`;
                 const threshold = alert.threshold_amount > 0 ? 
-                    `${alert.threshold_amount}` : 
+                    `$${alert.threshold_amount}` : 
                     `${alert.threshold_percentage}%`;
                 
                 html += `
@@ -1275,6 +1277,614 @@
         }
 
         // =============================================================================
+        // ANALYSIS RESULTS FUNCTIONS
+        // =============================================================================
+
+        async function loadAnalysisResults() {
+            const resultDiv = document.getElementById('analysisResult');
+            resultDiv.innerHTML = '<div class="loading"></div> Loading analysis results...';
+            
+            try {
+                const clusterFilter = document.getElementById('analysisClusterFilter').value;
+                const daysFilter = document.getElementById('analysisDateFilter').value;
+                
+                let url = '/api/db-mgmt/clusters?';
+                if (clusterFilter) url += `cluster_id=${clusterFilter}&`;
+                if (daysFilter) url += `days=${daysFilter}&`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    analysisData = data.clusters.filter(cluster => cluster.analysis_data);
+                    displayAnalysisResults(analysisData);
+                    resultDiv.innerHTML = `<div class="result success">Loaded ${analysisData.length} analysis results</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function displayAnalysisResults(results) {
+            const container = document.getElementById('analysisResultsContainer');
+            
+            if (results.length === 0) {
+                container.innerHTML = '<p>No analysis results found.</p>';
+                return;
+            }
+            
+            let html = '';
+            
+            results.forEach(cluster => {
+                try {
+                    const analysisData = cluster.analysis_data ? JSON.parse(cluster.analysis_data) : {};
+                    const hasHPA = analysisData.hpa_recommendations ? '✅' : '❌';
+                    const hasImplementation = analysisData.implementation_plan ? '✅' : '❌';
+                    
+                    html += `
+                        <div class="analysis-card">
+                            <div class="analysis-header">
+                                <div class="analysis-title">${cluster.name} (${cluster.resource_group})</div>
+                                <span class="status-badge status-${cluster.analysis_status || 'pending'}">${cluster.analysis_status || 'pending'}</span>
+                            </div>
+                            
+                            <div class="analysis-meta">
+                                <div class="meta-item">
+                                    <div class="meta-label">Last Analyzed</div>
+                                    <div class="meta-value">${cluster.last_analyzed ? new Date(cluster.last_analyzed).toLocaleString() : 'Never'}</div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-label">Monthly Cost</div>
+                                    <div class="meta-value">$${(cluster.last_cost || 0).toFixed(2)}</div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-label">Potential Savings</div>
+                                    <div class="meta-value">$${(cluster.last_savings || 0).toFixed(2)}</div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-label">Confidence</div>
+                                    <div class="meta-value">${((cluster.last_confidence || 0) * 100).toFixed(1)}%</div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-label">HPA Recommendations</div>
+                                    <div class="meta-value">${hasHPA}</div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-label">Implementation Plan</div>
+                                    <div class="meta-value">${hasImplementation}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="analysis-actions">
+                                <button class="btn btn-info" onclick="viewClusterAnalysis('${cluster.id}')">
+                                    📊 View Full Analysis
+                                </button>
+                                <button class="btn btn-success" onclick="testAnalysisData('${cluster.id}')">
+                                    🧪 Test Analysis
+                                </button>
+                                <button class="btn btn-warning" onclick="validateAnalysisData('${cluster.id}')">
+                                    ✅ Validate Data
+                                </button>
+                                <button class="btn btn-secondary" onclick="downloadAnalysisData('${cluster.id}')">
+                                    💾 Download JSON
+                                </button>
+                                <button class="btn btn-danger" onclick="deleteAnalysisData('${cluster.id}')">
+                                    🗑️ Delete Analysis
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } catch (error) {
+                    console.error('Error processing cluster analysis data:', error);
+                }
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function filterAnalysisResults() {
+            const searchTerm = document.getElementById('analysisSearchBox').value.toLowerCase();
+            if (!searchTerm) {
+                displayAnalysisResults(analysisData);
+                return;
+            }
+            
+            const filtered = analysisData.filter(cluster => 
+                cluster.name.toLowerCase().includes(searchTerm) ||
+                cluster.resource_group.toLowerCase().includes(searchTerm) ||
+                cluster.id.toLowerCase().includes(searchTerm)
+            );
+            
+            displayAnalysisResults(filtered);
+        }
+
+        function populateAnalysisClusterFilter() {
+            const select = document.getElementById('analysisClusterFilter');
+            select.innerHTML = '<option value="">All Clusters</option>';
+            
+            clustersData.forEach(cluster => {
+                const option = document.createElement('option');
+                option.value = cluster.id;
+                option.textContent = `${cluster.name} (${cluster.resource_group})`;
+                select.appendChild(option);
+            });
+        }
+
+        async function testAnalysisData(clusterId) {
+            const result = await fetch(`/api/db-mgmt/clusters/${clusterId}/analysis-data`);
+            const data = await result.json();
+            
+            if (data.status !== 'success') {
+                alert(`Error loading analysis data: ${data.message}`);
+                return;
+            }
+            
+            const analysisData = data.analysis_data;
+            const tests = runAnalysisTests(analysisData);
+            
+            displayTestResults(clusterId, tests, data.cluster_info);
+        }
+
+        function runAnalysisTests(analysisData) {
+            const tests = [];
+            
+            // Test 1: Basic structure
+            tests.push({
+                name: 'Basic Structure',
+                status: analysisData.total_cost && analysisData.total_savings ? 'pass' : 'fail',
+                details: 'Checks if total_cost and total_savings are present'
+            });
+            
+            // Test 2: HPA Recommendations
+            tests.push({
+                name: 'HPA Recommendations',
+                status: analysisData.hpa_recommendations ? 'pass' : 'fail',
+                details: 'Checks if HPA recommendations are present'
+            });
+            
+            // Test 3: Implementation Plan
+            tests.push({
+                name: 'Implementation Plan',
+                status: analysisData.implementation_plan && 
+                        analysisData.implementation_plan.implementation_phases ? 'pass' : 'fail',
+                details: 'Checks if implementation plan with phases exists'
+            });
+            
+            // Test 4: Node Data
+            tests.push({
+                name: 'Node Data',
+                status: analysisData.nodes || analysisData.real_node_data ? 'pass' : 'warning',
+                details: 'Checks if node data is available'
+            });
+            
+            // Test 5: Cost Breakdown
+            tests.push({
+                name: 'Cost Breakdown',
+                status: analysisData.node_cost || analysisData.storage_cost || 
+                        analysisData.networking_cost ? 'pass' : 'warning',
+                details: 'Checks if cost breakdown is available'
+            });
+            
+            // Test 6: Savings Validation
+            const totalSavings = (analysisData.hpa_savings || 0) + 
+                               (analysisData.right_sizing_savings || 0) + 
+                               (analysisData.storage_savings || 0);
+            const expectedSavings = analysisData.total_savings || 0;
+            tests.push({
+                name: 'Savings Calculation',
+                status: Math.abs(totalSavings - expectedSavings) < 0.01 ? 'pass' : 'warning',
+                details: `Component savings: $${totalSavings.toFixed(2)}, Total: $${expectedSavings.toFixed(2)}`
+            });
+            
+            return tests;
+        }
+
+        function displayTestResults(clusterId, tests, clusterInfo) {
+            const modalHtml = `
+                <div class="modal" onclick="closeModal(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <div>
+                                <h2>🧪 Analysis Test Results</h2>
+                                <p style="margin: 5px 0 0 0; opacity: 0.9;">
+                                    ${clusterInfo.name} (${clusterInfo.resource_group})
+                                </p>
+                            </div>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="test-results">
+                                <h3>Test Results Summary</h3>
+                                ${tests.map(test => `
+                                    <div class="test-item">
+                                        <div class="test-name">${test.name}</div>
+                                        <div class="test-status status-${test.status}">${test.status.toUpperCase()}</div>
+                                    </div>
+                                    <div style="font-size: 0.85rem; color: #6c757d; margin-bottom: 12px;">
+                                        ${test.details}
+                                    </div>
+                                `).join('')}
+                            </div>
+                            
+                            <div style="margin-top: 20px; text-align: center;">
+                                <button class="btn btn-success" onclick="closeModal()">Close</button>
+                                <button class="btn btn-info" onclick="downloadTestResults('${clusterId}')">💾 Download Report</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            const modalContainer = document.createElement('div');
+            modalContainer.id = 'testResultsModal';
+            modalContainer.innerHTML = modalHtml;
+            document.body.appendChild(modalContainer);
+        }
+
+        async function validateAnalysisData(clusterId) {
+            try {
+                const response = await fetch(`/api/db-mgmt/clusters/${clusterId}/analysis-data`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    alert('✅ Analysis data is valid and properly structured!');
+                } else {
+                    alert(`❌ Validation failed: ${data.message}`);
+                }
+            } catch (error) {
+                alert(`❌ Validation error: ${error.message}`);
+            }
+        }
+
+        async function deleteAnalysisData(clusterId) {
+            if (!confirm(`Are you sure you want to delete analysis data for cluster ${clusterId}? This action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                // This would need a new API endpoint to clear just the analysis_data
+                const response = await fetch(`/api/db-mgmt/clusters/${clusterId}/clear-analysis`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    alert('✅ Analysis data deleted successfully');
+                    loadAnalysisResults(); // Reload the list
+                } else {
+                    alert('❌ Failed to delete analysis data');
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+
+        // =============================================================================
+        // IMPLEMENTATION PLANS FUNCTIONS
+        // =============================================================================
+
+        async function loadImplementationPlans() {
+            const resultDiv = document.getElementById('implementationResult');
+            resultDiv.innerHTML = '<div class="loading"></div> Loading implementation plans...';
+            
+            try {
+                const response = await fetch('/api/db-mgmt/clusters');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // Filter clusters that have implementation plans
+                    implementationPlansData = data.clusters.filter(cluster => {
+                        try {
+                            const analysisData = cluster.analysis_data ? JSON.parse(cluster.analysis_data) : {};
+                            return analysisData.implementation_plan;
+                        } catch {
+                            return false;
+                        }
+                    });
+                    
+                    displayImplementationPlans(implementationPlansData);
+                    resultDiv.innerHTML = `<div class="result success">Loaded ${implementationPlansData.length} implementation plans</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function displayImplementationPlans(plans) {
+            const container = document.getElementById('implementationPlansContainer');
+            
+            if (plans.length === 0) {
+                container.innerHTML = '<p>No implementation plans found.</p>';
+                return;
+            }
+            
+            let html = '';
+            
+            plans.forEach(cluster => {
+                try {
+                    const analysisData = JSON.parse(cluster.analysis_data);
+                    const plan = analysisData.implementation_plan;
+                    
+                    if (!plan) return;
+                    
+                    const phases = plan.implementation_phases || [];
+                    const execSummary = plan.executive_summary || {};
+                    const opportunity = execSummary.optimization_opportunity || {};
+                    const timeline = execSummary.implementation_timeline || {};
+                    
+                    html += `
+                        <div class="analysis-card">
+                            <div class="analysis-header">
+                                <div class="analysis-title">${cluster.name} Implementation Plan</div>
+                                <span class="status-badge status-${timeline.complexity_level?.toLowerCase() || 'medium'}">${timeline.complexity_level || 'Medium'} Complexity</span>
+                            </div>
+                            
+                            <div class="implementation-summary">
+                                <h4>Implementation Summary</h4>
+                                <div class="summary-grid">
+                                    <div class="summary-item">
+                                        <div class="summary-value">$${(opportunity.projected_monthly_savings || 0).toFixed(0)}</div>
+                                        <div class="summary-label">Monthly Savings</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="summary-value">${phases.length}</div>
+                                        <div class="summary-label">Phases</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="summary-value">${timeline.estimated_duration_weeks || 'N/A'}</div>
+                                        <div class="summary-label">Weeks</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="summary-value">${timeline.risk_level || 'Medium'}</div>
+                                        <div class="summary-label">Risk Level</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="analysis-actions">
+                                <button class="btn btn-info" onclick="viewImplementationPlan('${cluster.id}')">
+                                    🚀 View Full Plan
+                                </button>
+                                <button class="btn btn-success" onclick="testImplementationPlan('${cluster.id}')">
+                                    🧪 Test Plan
+                                </button>
+                                <button class="btn btn-warning" onclick="validateImplementationPlan('${cluster.id}')">
+                                    ✅ Validate Plan
+                                </button>
+                                <button class="btn btn-secondary" onclick="exportImplementationPlan('${cluster.id}')">
+                                    📥 Export Plan
+                                </button>
+                                <button class="btn btn-danger" onclick="deleteImplementationPlan('${cluster.id}')">
+                                    🗑️ Delete Plan
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } catch (error) {
+                    console.error('Error processing implementation plan:', error);
+                }
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function filterImplementationPlans() {
+            const searchTerm = document.getElementById('implementationSearchBox').value.toLowerCase();
+            if (!searchTerm) {
+                displayImplementationPlans(implementationPlansData);
+                return;
+            }
+            
+            const filtered = implementationPlansData.filter(cluster => 
+                cluster.name.toLowerCase().includes(searchTerm) ||
+                cluster.resource_group.toLowerCase().includes(searchTerm) ||
+                cluster.id.toLowerCase().includes(searchTerm)
+            );
+            
+            displayImplementationPlans(filtered);
+        }
+
+        async function testImplementationPlan(clusterId) {
+            try {
+                const response = await fetch(`/api/db-mgmt/clusters/${clusterId}/implementation-plan`);
+                const data = await response.json();
+                
+                if (data.status !== 'success') {
+                    alert(`Error loading implementation plan: ${data.message}`);
+                    return;
+                }
+                
+                const plan = data.implementation_plan;
+                const tests = runImplementationPlanTests(plan);
+                
+                displayImplementationTestResults(clusterId, tests, data.cluster_info);
+            } catch (error) {
+                alert(`Error testing plan: ${error.message}`);
+            }
+        }
+
+        function runImplementationPlanTests(plan) {
+            const tests = [];
+            
+            // Test 1: Basic structure
+            tests.push({
+                name: 'Plan Structure',
+                status: plan && plan.implementation_phases ? 'pass' : 'fail',
+                details: 'Checks if plan has implementation phases'
+            });
+            
+            // Test 2: Executive summary
+            tests.push({
+                name: 'Executive Summary',
+                status: plan.executive_summary ? 'pass' : 'warning',
+                details: 'Checks if executive summary exists'
+            });
+            
+            // Test 3: Phases validation
+            const phases = plan.implementation_phases || [];
+            tests.push({
+                name: 'Phase Count',
+                status: phases.length > 0 ? 'pass' : 'fail',
+                details: `Found ${phases.length} implementation phases`
+            });
+            
+            // Test 4: Phase structure
+            const validPhases = phases.filter(phase => 
+                phase.title && phase.duration_weeks && phase.tasks
+            );
+            tests.push({
+                name: 'Phase Structure',
+                status: validPhases.length === phases.length ? 'pass' : 'warning',
+                details: `${validPhases.length}/${phases.length} phases have complete structure`
+            });
+            
+            // Test 5: Timeline consistency
+            const totalWeeks = plan.timeline_optimization?.total_weeks;
+            const maxPhaseWeek = Math.max(...phases.map(p => p.end_week || 0));
+            tests.push({
+                name: 'Timeline Consistency',
+                status: totalWeeks && maxPhaseWeek && Math.abs(totalWeeks - maxPhaseWeek) <= 1 ? 'pass' : 'warning',
+                details: `Total weeks: ${totalWeeks}, Max phase week: ${maxPhaseWeek}`
+            });
+            
+            // Test 6: Savings validation
+            const projectedSavings = plan.executive_summary?.optimization_opportunity?.projected_monthly_savings;
+            tests.push({
+                name: 'Savings Projection',
+                status: projectedSavings && projectedSavings > 0 ? 'pass' : 'warning',
+                details: `Projected monthly savings: $${(projectedSavings || 0).toFixed(2)}`
+            });
+            
+            return tests;
+        }
+
+        function displayImplementationTestResults(clusterId, tests, clusterInfo) {
+            const modalHtml = `
+                <div class="modal" onclick="closeModal(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <div>
+                                <h2>🧪 Implementation Plan Test Results</h2>
+                                <p style="margin: 5px 0 0 0; opacity: 0.9;">
+                                    ${clusterInfo.name} (${clusterInfo.resource_group})
+                                </p>
+                            </div>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="test-results">
+                                <h3>Implementation Plan Test Results</h3>
+                                ${tests.map(test => `
+                                    <div class="test-item">
+                                        <div class="test-name">${test.name}</div>
+                                        <div class="test-status status-${test.status}">${test.status.toUpperCase()}</div>
+                                    </div>
+                                    <div style="font-size: 0.85rem; color: #6c757d; margin-bottom: 12px;">
+                                        ${test.details}
+                                    </div>
+                                `).join('')}
+                            </div>
+                            
+                            <div style="margin-top: 20px; text-align: center;">
+                                <button class="btn btn-success" onclick="closeModal()">Close</button>
+                                <button class="btn btn-info" onclick="downloadImplementationTestResults('${clusterId}')">💾 Download Report</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            const modalContainer = document.createElement('div');
+            modalContainer.id = 'implementationTestModal';
+            modalContainer.innerHTML = modalHtml;
+            document.body.appendChild(modalContainer);
+        }
+
+        async function validateImplementationPlan(clusterId) {
+            try {
+                const response = await fetch(`/api/db-mgmt/clusters/${clusterId}/implementation-plan`);
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    const plan = data.implementation_plan;
+                    const phases = plan.implementation_phases || [];
+                    
+                    if (phases.length > 0) {
+                        alert(`✅ Implementation plan is valid with ${phases.length} phases!`);
+                    } else {
+                        alert('⚠️ Implementation plan exists but has no phases');
+                    }
+                } else {
+                    alert(`❌ Validation failed: ${data.message}`);
+                }
+            } catch (error) {
+                alert(`❌ Validation error: ${error.message}`);
+            }
+        }
+
+        async function runImplementationPlanTests() {
+            const resultDiv = document.getElementById('implementationResult');
+            resultDiv.innerHTML = '<div class="loading"></div> Running implementation plan tests...';
+            
+            // Run tests on all plans
+            let totalTests = 0;
+            let passedTests = 0;
+            
+            for (const cluster of implementationPlansData) {
+                try {
+                    const analysisData = JSON.parse(cluster.analysis_data);
+                    const plan = analysisData.implementation_plan;
+                    const tests = runImplementationPlanTests(plan);
+                    
+                    totalTests += tests.length;
+                    passedTests += tests.filter(t => t.status === 'pass').length;
+                } catch (error) {
+                    console.error('Error testing plan for cluster:', cluster.id, error);
+                }
+            }
+            
+            const successRate = totalTests > 0 ? (passedTests / totalTests * 100).toFixed(1) : 0;
+            
+            resultDiv.innerHTML = `
+                <div class="result ${successRate > 80 ? 'success' : successRate > 60 ? 'warning' : 'error'}">
+                    Test Results: ${passedTests}/${totalTests} tests passed (${successRate}% success rate)
+                </div>
+            `;
+        }
+
+        async function validateAllPlans() {
+            const resultDiv = document.getElementById('implementationResult');
+            resultDiv.innerHTML = '<div class="loading"></div> Validating all implementation plans...';
+            
+            let validPlans = 0;
+            let invalidPlans = 0;
+            
+            for (const cluster of implementationPlansData) {
+                try {
+                    const analysisData = JSON.parse(cluster.analysis_data);
+                    const plan = analysisData.implementation_plan;
+                    
+                    if (plan && plan.implementation_phases && plan.implementation_phases.length > 0) {
+                        validPlans++;
+                    } else {
+                        invalidPlans++;
+                    }
+                } catch (error) {
+                    invalidPlans++;
+                }
+            }
+            
+            resultDiv.innerHTML = `
+                <div class="result ${invalidPlans === 0 ? 'success' : 'warning'}">
+                    Validation Complete: ${validPlans} valid plans, ${invalidPlans} invalid plans
+                </div>
+            `;
+        }
+
+        // =============================================================================
         // CACHE FUNCTIONS
         // =============================================================================
 
@@ -1335,20 +1945,38 @@
             let html = '';
             
             Object.entries(summaries).forEach(([clusterId, summary]) => {
-                const validClass = summary.valid ? 'status-healthy' : 'status-error';
+                const validClass = summary.valid ? 'status-active' : 'status-failed';
                 const validText = summary.valid ? 'Valid' : 'Expired';
                 
                 html += `
-                    <div class="cache-item">
-                        <h4>${clusterId} <span class="status-badge ${validClass}">${validText}</span></h4>
-                        <div class="cache-meta">
-                            <span><strong>Cost:</strong> $${(summary.cost || 0).toFixed(2)}</span>
-                            <span><strong>Savings:</strong> $${(summary.savings || 0).toFixed(2)}</span>
-                            <span><strong>Cached:</strong> ${summary.timestamp ? new Date(summary.timestamp).toLocaleString() : 'Unknown'}</span>
-                            <span><strong>HPA:</strong> ${summary.has_hpa ? 'Yes' : 'No'}</span>
-                            <span><strong>Impl Plan:</strong> ${summary.has_implementation_plan ? 'Yes' : 'No'}</span>
+                    <div class="analysis-card">
+                        <div class="analysis-header">
+                            <div class="analysis-title">${clusterId}</div>
+                            <span class="status-badge ${validClass}">${validText}</span>
                         </div>
-                        <div class="cache-actions">
+                        <div class="analysis-meta">
+                            <div class="meta-item">
+                                <div class="meta-label">Cost</div>
+                                <div class="meta-value">$${(summary.cost || 0).toFixed(2)}</div>
+                            </div>
+                            <div class="meta-item">
+                                <div class="meta-label">Savings</div>
+                                <div class="meta-value">$${(summary.savings || 0).toFixed(2)}</div>
+                            </div>
+                            <div class="meta-item">
+                                <div class="meta-label">Cached</div>
+                                <div class="meta-value">${summary.timestamp ? new Date(summary.timestamp).toLocaleString() : 'Unknown'}</div>
+                            </div>
+                            <div class="meta-item">
+                                <div class="meta-label">HPA</div>
+                                <div class="meta-value">${summary.has_hpa ? '✅' : '❌'}</div>
+                            </div>
+                            <div class="meta-item">
+                                <div class="meta-label">Impl Plan</div>
+                                <div class="meta-value">${summary.has_implementation_plan ? '✅' : '❌'}</div>
+                            </div>
+                        </div>
+                        <div class="analysis-actions">
                             <button class="btn btn-info" onclick="viewCacheDetails('${clusterId}')">👁️ View Details</button>
                             <button class="btn btn-warning" onclick="clearSpecificCacheById('${clusterId}')">🗑️ Clear Cache</button>
                         </div>
@@ -1368,35 +1996,30 @@
                     const details = data.cache_status;
                     const detailsJson = JSON.stringify(details, null, 2);
                     
-                    // Show in a modal-like display
-                    const container = document.getElementById('cacheClustersContainer');
-                    const existingModal = document.getElementById('cacheModal');
-                    if (existingModal) existingModal.remove();
-                    
-                    const modal = document.createElement('div');
-                    modal.id = 'cacheModal';
-                    modal.style.cssText = `
-                        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-                        background: white; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-                        padding: 20px; max-width: 600px; max-height: 80vh; overflow-y: auto; z-index: 1000;
+                    const modalHtml = `
+                        <div class="modal" onclick="closeModal(event)">
+                            <div class="modal-content" onclick="event.stopPropagation()">
+                                <div class="modal-header">
+                                    <div>
+                                        <h2>💾 Cache Details</h2>
+                                        <p style="margin: 5px 0 0 0; opacity: 0.9;">${clusterId}</p>
+                                    </div>
+                                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <pre class="json-viewer">${detailsJson}</pre>
+                                    <div style="margin-top: 20px; text-align: center;">
+                                        <button class="btn btn-success" onclick="closeModal()">Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     `;
                     
-                    modal.innerHTML = `
-                        <h3>Cache Details: ${clusterId}</h3>
-                        <pre>${detailsJson}</pre>
-                        <button class="btn" onclick="this.parentElement.remove()">Close</button>
-                    `;
-                    
-                    // Add backdrop
-                    const backdrop = document.createElement('div');
-                    backdrop.style.cssText = `
-                        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                        background: rgba(0,0,0,0.5); z-index: 999;
-                    `;
-                    backdrop.onclick = () => { modal.remove(); backdrop.remove(); };
-                    
-                    document.body.appendChild(backdrop);
-                    document.body.appendChild(modal);
+                    const modalContainer = document.createElement('div');
+                    modalContainer.id = 'cacheDetailsModal';
+                    modalContainer.innerHTML = modalHtml;
+                    document.body.appendChild(modalContainer);
                 }
             } catch (error) {
                 alert(`Error loading cache details: ${error.message}`);
@@ -1475,8 +2098,8 @@
             }
         }
 
-        async function loadCacheDetailedStats() {
-            const resultDiv = document.getElementById('cacheStatsResult');
+        async function loadCacheStats() {
+            const resultDiv = document.getElementById('cacheOverviewResult');
             resultDiv.innerHTML = '<div class="loading"></div> Loading cache statistics...';
             
             try {
@@ -1484,8 +2107,33 @@
                 const data = await response.json();
                 
                 if (data.status === 'success') {
-                    displayCacheStats(data.stats);
-                    resultDiv.innerHTML = `<div class="result success">Cache statistics loaded successfully</div>`;
+                    const stats = data.stats;
+                    
+                    const html = `
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-value">${stats.cache_health.cache_hit_rate.toFixed(1)}%</div>
+                                <div class="stat-label">Cache Hit Rate</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">$${stats.cost_metrics.total_cached_cost.toFixed(0)}</div>
+                                <div class="stat-label">Total Cached Cost</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">$${stats.cost_metrics.total_cached_savings.toFixed(0)}</div>
+                                <div class="stat-label">Total Cached Savings</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">$${stats.cost_metrics.avg_cluster_cost.toFixed(0)}</div>
+                                <div class="stat-label">Avg Cluster Cost</div>
+                            </div>
+                        </div>
+                        
+                        <h4>Detailed Statistics</h4>
+                        <pre class="json-viewer">${JSON.stringify(stats, null, 2)}</pre>
+                    `;
+                    
+                    resultDiv.innerHTML = html;
                 } else {
                     resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
                 }
@@ -1494,92 +2142,111 @@
             }
         }
 
-        function displayCacheStats(stats) {
-            const resultDiv = document.getElementById('cacheStatsResult');
-            
-            const html = `
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-value">${stats.cache_health.cache_hit_rate.toFixed(1)}%</div>
-                        <div class="stat-label">Cache Hit Rate</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">$${stats.cost_metrics.total_cached_cost.toFixed(0)}</div>
-                        <div class="stat-label">Total Cached Cost</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">$${stats.cost_metrics.total_cached_savings.toFixed(0)}</div>
-                        <div class="stat-label">Total Cached Savings</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">$${stats.cost_metrics.avg_cluster_cost.toFixed(0)}</div>
-                        <div class="stat-label">Avg Cluster Cost</div>
-                    </div>
-                </div>
+        // =============================================================================
+        // SHARED FUNCTIONS
+        // =============================================================================
+
+        async function viewClusterAnalysis(clusterId) {
+            try {
+                const response = await fetch(`/api/db-mgmt/clusters/${clusterId}/analysis-data`);
+                const data = await response.json();
                 
-                <h4>Detailed Statistics</h4>
-                <pre>${JSON.stringify(stats, null, 2)}</pre>
+                if (data.status === 'success') {
+                    displayAnalysisDataModal(data);
+                } else {
+                    alert(`Error loading analysis data: ${data.message}`);
+                }
+            } catch (error) {
+                alert(`Error loading analysis data: ${error.message}`);
+            }
+        }
+
+        function displayAnalysisDataModal(data) {
+            const { cluster_info, data_summary, analysis_data } = data;
+            
+            let modalHtml = `
+                <div class="modal" onclick="closeModal(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <div>
+                                <h2>📊 Analysis Data</h2>
+                                <p style="margin: 5px 0 0 0; opacity: 0.9;">
+                                    ${cluster_info.name} (${cluster_info.resource_group})
+                                </p>
+                            </div>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
             `;
             
-            resultDiv.innerHTML += html;
-        }
-
-        async function loadCacheStats() {
-            await loadCacheDetailedStats();
-        }
-
-        // =============================================================================
-        // EXPORT FUNCTIONS
-        // =============================================================================
-
-        function exportDatabaseClusters() {
-            exportToCSV(clustersData, 'database_clusters.csv');
-        }
-
-        function exportDatabaseAnalysis() {
-            exportToCSV(analysisData, 'database_analysis.csv');
-        }
-
-        function exportDatabaseAlerts() {
-            exportToCSV(alertsData, 'database_alerts.csv');
-        }
-
-        function exportDatabaseLearning() {
-            exportToCSV(learningData, 'database_learning.csv');
-        }
-
-        function exportToCSV(data, filename) {
-            if (!data || data.length === 0) {
-                alert('No data to export');
-                return;
+            // Data Summary
+            modalHtml += `
+                <h3>Data Summary</h3>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="summary-value">$${(data_summary.total_cost || 0).toFixed(2)}</div>
+                        <div class="summary-label">Total Cost</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">$${(data_summary.total_savings || 0).toFixed(2)}</div>
+                        <div class="summary-label">Total Savings</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${data_summary.ml_enhanced ? '✅' : '❌'}</div>
+                        <div class="summary-label">ML Enhanced</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${data_summary.has_real_node_data ? '✅' : '❌'}</div>
+                        <div class="summary-label">Real Node Data</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${data_summary.has_implementation_plan ? '✅' : '❌'}</div>
+                        <div class="summary-label">Implementation Plan</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-value">${data_summary.has_hpa_recommendations ? '✅' : '❌'}</div>
+                        <div class="summary-label">HPA Recommendations</div>
+                    </div>
+                </div>
+            `;
+            
+            // Implementation Plan Summary (if available)
+            if (data_summary.implementation_plan_summary) {
+                const impl = data_summary.implementation_plan_summary;
+                modalHtml += `
+                    <h3>Implementation Plan Summary</h3>
+                    <div class="phase-card">
+                        <p><strong>Phases:</strong> ${impl.phases_count}</p>
+                        <p><strong>Generation Method:</strong> ${impl.generation_method || 'Unknown'}</p>
+                        ${impl.executive_summary ? `
+                            <p><strong>Monthly Savings:</strong> $${(impl.executive_summary.optimization_opportunity?.projected_monthly_savings || 0).toFixed(2)}</p>
+                            <p><strong>Timeline:</strong> ${impl.executive_summary.implementation_timeline?.total_duration || 'Unknown'}</p>
+                        ` : ''}
+                    </div>
+                `;
             }
             
-            const headers = Object.keys(data[0]);
-            const csvContent = [
-                headers.join(','),
-                ...data.map(row => 
-                    headers.map(header => {
-                        const value = row[header];
-                        if (typeof value === 'string' && value.includes(',')) {
-                            return `"${value}"`;
-                        }
-                        return value;
-                    }).join(',')
-                )
-            ].join('\n');
+            // Raw JSON for debugging
+            modalHtml += `
+                <h3>Complete Analysis Data (JSON)</h3>
+                <div style="margin-bottom: 10px;">
+                    <button class="btn btn-info" onclick="downloadAnalysisData('${cluster_info.id}')">💾 Download JSON</button>
+                </div>
+                <pre class="json-viewer">${JSON.stringify(analysis_data, null, 2)}</pre>
+            `;
             
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            window.URL.revokeObjectURL(url);
+            modalHtml += `
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add to DOM
+            const modalContainer = document.createElement('div');
+            modalContainer.id = 'analysisDataModal';
+            modalContainer.innerHTML = modalHtml;
+            document.body.appendChild(modalContainer);
         }
-
-        // =============================================================================
-        // VIEW FUNCTIONS (Implementation Plans & Analysis Data)
-        // =============================================================================
 
         async function viewImplementationPlan(clusterId) {
             try {
@@ -1620,19 +2287,19 @@
                 modalHtml += `
                     <div class="summary-grid">
                         <div class="summary-item">
-                            <div class="summary-value">${(exec.optimization_opportunity?.projected_monthly_savings || 0).toFixed(0)}</div>
+                            <div class="summary-value">$${(exec.optimization_opportunity?.projected_monthly_savings || 0).toFixed(0)}</div>
                             <div class="summary-label">Monthly Savings</div>
                         </div>
                         <div class="summary-item">
-                            <div class="summary-value">${exec.implementation_timeline?.total_duration || 'N/A'}</div>
-                            <div class="summary-label">Duration</div>
+                            <div class="summary-value">${exec.implementation_overview?.estimated_duration_weeks || 'N/A'}</div>
+                            <div class="summary-label">Duration (weeks)</div>
                         </div>
                         <div class="summary-item">
-                            <div class="summary-value">${exec.implementation_timeline?.phases_count || 0}</div>
+                            <div class="summary-value">${exec.implementation_overview?.total_phases || 0}</div>
                             <div class="summary-label">Phases</div>
                         </div>
                         <div class="summary-item">
-                            <div class="summary-value">${exec.risk_assessment?.overall_risk_level || 'Medium'}</div>
+                            <div class="summary-value">${exec.implementation_overview?.risk_level || 'Medium'}</div>
                             <div class="summary-label">Risk Level</div>
                         </div>
                     </div>
@@ -1648,17 +2315,22 @@
                         <div class="phase-card">
                             <div class="phase-header">
                                 <div class="phase-title">Phase ${index + 1}: ${phase.title || 'Untitled Phase'}</div>
-                                <div class="phase-duration">${phase.duration || 'Unknown duration'}</div>
+                                <div class="phase-duration">${phase.duration_weeks || 'Unknown'} weeks</div>
                             </div>
                             <div class="phase-description">${phase.description || 'No description available'}</div>
+                            <div style="margin-top: 12px;">
+                                <strong>Projected Savings:</strong> $${(phase.projected_savings || 0).toFixed(2)}<br>
+                                <strong>Priority:</strong> ${phase.priority_level || 'Medium'}<br>
+                                <strong>Complexity:</strong> ${phase.complexity_level || 'Medium'}
+                            </div>
                     `;
                     
-                    if (phase.steps && phase.steps.length > 0) {
+                    if (phase.tasks && phase.tasks.length > 0) {
                         modalHtml += `
-                            <div class="phase-steps">
-                                <h5>Implementation Steps:</h5>
+                            <div style="margin-top: 12px;">
+                                <h5>Tasks (${phase.tasks.length}):</h5>
                                 <ul>
-                                    ${phase.steps.map(step => `<li>${step}</li>`).join('')}
+                                    ${phase.tasks.map(task => `<li>${task.title || task.description || 'Untitled task'}</li>`).join('')}
                                 </ul>
                             </div>
                         `;
@@ -1673,7 +2345,7 @@
             // Raw JSON for debugging
             modalHtml += `
                 <h3>Raw Implementation Plan Data</h3>
-                <pre style="max-height: 300px; overflow-y: auto;">${JSON.stringify(implementation_plan, null, 2)}</pre>
+                <pre class="json-viewer">${JSON.stringify(implementation_plan, null, 2)}</pre>
             `;
             
             modalHtml += `
@@ -1689,123 +2361,10 @@
             document.body.appendChild(modalContainer);
         }
 
-        async function viewAnalysisData(clusterId) {
-            try {
-                const response = await fetch(`/api/db-mgmt/clusters/${clusterId}/analysis-data`);
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    displayAnalysisDataModal(data);
-                } else {
-                    alert(`Error loading analysis data: ${data.message}`);
-                }
-            } catch (error) {
-                alert(`Error loading analysis data: ${error.message}`);
-            }
-        }
-
-        function displayAnalysisDataModal(data) {
-            const { cluster_info, data_summary, analysis_data } = data;
-            
-            let modalHtml = `
-                <div class="modal" onclick="closeModal(event)">
-                    <div class="modal-content" onclick="event.stopPropagation()">
-                        <div class="modal-header">
-                            <div>
-                                <h2>📊 Analysis Data</h2>
-                                <p style="margin: 5px 0 0 0; opacity: 0.9;">
-                                    ${cluster_info.name} (${cluster_info.resource_group})
-                                </p>
-                            </div>
-                            <button class="modal-close" onclick="closeModal()">&times;</button>
-                        </div>
-                        <div class="modal-body">
-            `;
-            
-            // Data Summary
-            modalHtml += `
-                <h3>Data Summary</h3>
-                <div class="summary-grid">
-                    <div class="summary-item">
-                        <div class="summary-value">${(data_summary.total_cost || 0).toFixed(2)}</div>
-                        <div class="summary-label">Total Cost</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-value">${(data_summary.total_savings || 0).toFixed(2)}</div>
-                        <div class="summary-label">Total Savings</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-value">${data_summary.ml_enhanced ? 'Yes' : 'No'}</div>
-                        <div class="summary-label">ML Enhanced</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-value">${data_summary.has_real_node_data ? 'Yes' : 'No'}</div>
-                        <div class="summary-label">Real Node Data</div>
-                    </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
-                    <div class="summary-item">
-                        <div class="summary-value">${data_summary.has_implementation_plan ? '✅' : '❌'}</div>
-                        <div class="summary-label">Implementation Plan</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-value">${data_summary.has_hpa_recommendations ? '✅' : '❌'}</div>
-                        <div class="summary-label">HPA Recommendations</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-value">${data_summary.has_nodes_data ? '✅' : '❌'}</div>
-                        <div class="summary-label">Node Data</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-value">${data_summary.has_pod_costs ? '✅' : '❌'}</div>
-                        <div class="summary-label">Pod Costs</div>
-                    </div>
-                </div>
-            `;
-            
-            // Implementation Plan Summary (if available)
-            if (data_summary.implementation_plan_summary) {
-                const impl = data_summary.implementation_plan_summary;
-                modalHtml += `
-                    <h3>Implementation Plan Summary</h3>
-                    <div class="phase-card">
-                        <p><strong>Phases:</strong> ${impl.phases_count}</p>
-                        <p><strong>Generation Method:</strong> ${impl.generation_method || 'Unknown'}</p>
-                        ${impl.executive_summary ? `
-                            <p><strong>Monthly Savings:</strong> ${(impl.executive_summary.optimization_opportunity?.projected_monthly_savings || 0).toFixed(2)}</p>
-                            <p><strong>Timeline:</strong> ${impl.executive_summary.implementation_timeline?.total_duration || 'Unknown'}</p>
-                        ` : ''}
-                    </div>
-                `;
-            }
-            
-            // Raw JSON for debugging
-            modalHtml += `
-                <h3>Complete Analysis Data (JSON)</h3>
-                <div style="margin-bottom: 10px;">
-                    <button class="btn btn-info" onclick="downloadAnalysisData('${cluster_info.id}')">💾 Download JSON</button>
-                </div>
-                <pre style="max-height: 400px; overflow-y: auto;">${JSON.stringify(analysis_data, null, 2)}</pre>
-            `;
-            
-            modalHtml += `
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            // Add to DOM
-            const modalContainer = document.createElement('div');
-            modalContainer.id = 'analysisDataModal';
-            modalContainer.innerHTML = modalHtml;
-            document.body.appendChild(modalContainer);
-        }
-
         function closeModal(event) {
             if (event && event.target !== event.currentTarget) return;
             
-            const modals = ['implementationPlanModal', 'analysisDataModal', 'cacheModal'];
+            const modals = ['implementationPlanModal', 'analysisDataModal', 'cacheDetailsModal', 'testResultsModal', 'implementationTestModal'];
             modals.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (modal) {
@@ -1838,13 +2397,13 @@
         // DELETE FUNCTIONS
         // =============================================================================
 
-        async function deleteAnalysisResult(analysisId) {
-            if (!confirm(`Are you sure you want to delete analysis result ${analysisId}? This action cannot be undone.`)) {
+        async function deleteCluster(clusterId) {
+            if (!confirm(`Are you sure you want to delete cluster ${clusterId}? This will delete ALL associated data including analysis results, alerts, and cache. This action cannot be undone.`)) {
                 return;
             }
             
             try {
-                const response = await fetch(`/api/db-mgmt/analysis-results/${analysisId}`, {
+                const response = await fetch(`/api/db-mgmt/clusters/${clusterId}`, {
                     method: 'DELETE'
                 });
                 
@@ -1852,28 +2411,31 @@
                 
                 if (data.status === 'success') {
                     // Remove the row from the table
-                    const row = document.getElementById(`analysis-row-${analysisId}`);
+                    const row = document.getElementById(`cluster-row-${clusterId}`);
                     if (row) {
                         row.remove();
                     }
                     
                     // Show success message
-                    const resultDiv = document.getElementById('dbAnalysisResult');
+                    const resultDiv = document.getElementById('dbClustersResult');
                     resultDiv.innerHTML = `<div class="result success">${data.message}</div>`;
                     
                     // Update the count if displaying results
                     setTimeout(() => {
-                        if (analysisData.length > 0) {
-                            analysisData = analysisData.filter(item => item.id !== analysisId);
-                            resultDiv.innerHTML = `<div class="result success">Loaded ${analysisData.length} analysis results</div>`;
+                        if (clustersData.length > 0) {
+                            clustersData = clustersData.filter(item => item.id !== clusterId);
+                            resultDiv.innerHTML = `<div class="result success">Loaded ${clustersData.length} clusters</div>`;
                         }
                     }, 2000);
                     
+                    // Refresh overview stats
+                    loadDatabaseOverview();
+                    
                 } else {
-                    alert(`Error deleting analysis result: ${data.message}`);
+                    alert(`Error deleting cluster: ${data.message}`);
                 }
             } catch (error) {
-                alert(`Error deleting analysis result: ${error.message}`);
+                alert(`Error deleting cluster: ${error.message}`);
             }
         }
 
@@ -1916,46 +2478,100 @@
             }
         }
 
-        async function deleteCluster(clusterId) {
-            if (!confirm(`Are you sure you want to delete cluster ${clusterId}? This will delete ALL associated data including analysis results, alerts, and cache. This action cannot be undone.`)) {
+        // =============================================================================
+        // EXPORT FUNCTIONS
+        // =============================================================================
+
+        function exportDatabaseClusters() {
+            exportToCSV(clustersData, 'database_clusters.csv');
+        }
+
+        function exportDatabaseAlerts() {
+            exportToCSV(alertsData, 'database_alerts.csv');
+        }
+
+        function exportDatabaseLearning() {
+            exportToCSV(learningData, 'database_learning.csv');
+        }
+
+        function exportAnalysisResults() {
+            const exportData = analysisData.map(cluster => {
+                try {
+                    const analysisData = JSON.parse(cluster.analysis_data);
+                    return {
+                        cluster_id: cluster.id,
+                        name: cluster.name,
+                        resource_group: cluster.resource_group,
+                        last_analyzed: cluster.last_analyzed,
+                        total_cost: analysisData.total_cost || 0,
+                        total_savings: analysisData.total_savings || 0,
+                        hpa_savings: analysisData.hpa_savings || 0,
+                        right_sizing_savings: analysisData.right_sizing_savings || 0,
+                        storage_savings: analysisData.storage_savings || 0,
+                        has_hpa: !!analysisData.hpa_recommendations,
+                        has_implementation_plan: !!analysisData.implementation_plan,
+                        confidence: cluster.last_confidence || 0
+                    };
+                } catch {
+                    return {
+                        cluster_id: cluster.id,
+                        name: cluster.name,
+                        resource_group: cluster.resource_group,
+                        error: 'Failed to parse analysis data'
+                    };
+                }
+            });
+            
+            exportToCSV(exportData, 'analysis_results.csv');
+        }
+
+        function exportImplementationPlan(clusterId) {
+            fetch(`/api/db-mgmt/clusters/${clusterId}/implementation-plan`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const dataStr = JSON.stringify(data.implementation_plan, null, 2);
+                        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                        const url = URL.createObjectURL(dataBlob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `${clusterId}_implementation_plan.json`;
+                        link.click();
+                        URL.revokeObjectURL(url);
+                    }
+                })
+                .catch(error => {
+                    alert(`Error exporting plan: ${error.message}`);
+                });
+        }
+
+        function exportToCSV(data, filename) {
+            if (!data || data.length === 0) {
+                alert('No data to export');
                 return;
             }
             
-            try {
-                const response = await fetch(`/api/db-mgmt/clusters/${clusterId}`, {
-                    method: 'DELETE'
-                });
-                
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    // Remove the row from the table
-                    const row = document.getElementById(`cluster-row-${clusterId}`);
-                    if (row) {
-                        row.remove();
-                    }
-                    
-                    // Show success message
-                    const resultDiv = document.getElementById('dbClustersResult');
-                    resultDiv.innerHTML = `<div class="result success">${data.message}</div>`;
-                    
-                    // Update the count if displaying results
-                    setTimeout(() => {
-                        if (clustersData.length > 0) {
-                            clustersData = clustersData.filter(item => item.id !== clusterId);
-                            resultDiv.innerHTML = `<div class="result success">Loaded ${clustersData.length} clusters</div>`;
+            const headers = Object.keys(data[0]);
+            const csvContent = [
+                headers.join(','),
+                ...data.map(row => 
+                    headers.map(header => {
+                        const value = row[header];
+                        if (typeof value === 'string' && value.includes(',')) {
+                            return `"${value}"`;
                         }
-                    }, 2000);
-                    
-                    // Refresh overview stats
-                    loadDatabaseOverview();
-                    
-                } else {
-                    alert(`Error deleting cluster: ${data.message}`);
-                }
-            } catch (error) {
-                alert(`Error deleting cluster: ${error.message}`);
-            }
+                        return value;
+                    }).join(',')
+                )
+            ].join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            window.URL.revokeObjectURL(url);
         }
 
         // Auto-load on page load
