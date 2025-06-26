@@ -1,30 +1,36 @@
 """
-API Routes for AKS Cost Optimization Tool
+API Routes for AKS Cost Optimization Tool - FIXED VERSION
 """
 
 import traceback
 from datetime import datetime
 from flask import request, jsonify
-from app.main.config import (
+import sys
+import os
+
+# Add the current directory to the path for imports
+current_dir = os.path.dirname(__file__)
+sys.path.append(current_dir)
+
+# FIXED IMPORTS - use relative imports for current structure
+from config import (
     logger, enhanced_cluster_manager, analysis_status_tracker, 
     _analysis_lock, _analysis_sessions, alerts_manager, analysis_cache
 )
 from app.interface.chart_data_api import chart_data_consistent
 from app.services.background_processor import run_background_analysis
+from shared import _get_analysis_data  # Import from shared module
 import threading
 
 def register_api_routes(app):
     """Register all API routes"""
     
     @app.route('/api/chart-data')
-    def chart_data():
-        """COMPLETELY FIXED Chart data API route - no global analysis_results dependency"""
+    def api_chart_data():
+        """COMPLETELY FIXED Chart data API route"""
         try:
             logger.info("📊 Chart data API called")
-            
-            # Call the comprehensive chart data function that handles all data sources
             return chart_data_consistent()
-                
         except Exception as e:
             logger.error(f"❌ ERROR in chart_data routing: {e}")
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
@@ -65,35 +71,8 @@ def register_api_routes(app):
                     'message': f'Cluster {cluster_id} not found'
                 }), 404
             
-            # Import the helper function
-            from routes import _get_analysis_data
-            from config import implementation_generator
-            from cache_manager import save_to_cache
-            
-            # PRIORITY 1: Check for fresh session data first
-            fresh_session_data = None
-            data_source = "none"
-            
-            with _analysis_lock:
-                for session_id, session_info in _analysis_sessions.items():
-                    if (session_info.get('cluster_id') == cluster_id and 
-                        session_info.get('status') == 'completed' and
-                        'results' in session_info):
-                        
-                        fresh_session_data = session_info['results']
-                        data_source = "fresh_session"
-                        logger.info(f"🎯 API: Found fresh session data for {cluster_id}")
-                        break
-            
-            current_analysis = None
-            
-            if fresh_session_data:
-                # Use fresh session data
-                current_analysis = fresh_session_data
-                logger.info(f"📋 API: Using fresh session data for implementation plan")
-            else:
-                # Fallback to cache/database
-                current_analysis, data_source = _get_analysis_data(cluster_id)
+            # Use the shared _get_analysis_data function
+            current_analysis, data_source = _get_analysis_data(cluster_id)
             
             if not current_analysis:
                 return jsonify({
@@ -114,6 +93,9 @@ def register_api_routes(app):
                 
                 logger.info(f"🔄 API: Regenerating implementation plan for {cluster_id}")
                 try:
+                    from app.main.config import implementation_generator
+                    from app.services.cache_manager import save_to_cache
+                    
                     current_analysis['cluster_name'] = cluster['name']
                     current_analysis['resource_group'] = cluster['resource_group']
                     
@@ -310,7 +292,7 @@ def register_api_routes(app):
 
     @app.route('/api/debug-analysis')
     def debug_analysis():
-        """Debug endpoint to check analysis results - FIXED to use cluster-specific data"""
+        """Debug endpoint to check analysis results"""
         try:
             # Try to get cluster ID from request
             cluster_id = request.args.get('cluster_id')
@@ -325,7 +307,6 @@ def register_api_routes(app):
             
             if cluster_id:
                 # Get cluster-specific data
-                from routes import _get_analysis_data
                 current_analysis, data_source = _get_analysis_data(cluster_id)
                 if current_analysis:
                     return jsonify({
@@ -366,8 +347,9 @@ def register_api_routes(app):
                 # GET: Show what would be cleared (status)
                 cluster_id = request.args.get('cluster_id')
                 
+                from app.services.cache_manager import is_cache_valid
+                
                 if cluster_id:
-                    from cache_manager import is_cache_valid
                     cache_exists = cluster_id in analysis_cache['clusters']
                     if cache_exists:
                         cluster_cache = analysis_cache['clusters'][cluster_id]
@@ -404,7 +386,7 @@ def register_api_routes(app):
                 data = request.get_json() or {}
                 cluster_id = data.get('cluster_id') or request.args.get('cluster_id')
                 
-                from cache_manager import clear_analysis_cache
+                from app.services.cache_manager import clear_analysis_cache
                 
                 if cluster_id:
                     if cluster_id in analysis_cache['clusters']:
@@ -432,117 +414,4 @@ def register_api_routes(app):
             return jsonify({
                 'status': 'error',
                 'message': str(e)
-            }), 500
-
-    # Alerts API routes
-    @app.route('/api/alerts', methods=['GET', 'POST'])
-    def alerts_api():
-        """Enhanced alerts API endpoint - COMPLETELY FIXED"""
-        try:
-            if not alerts_manager:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Alerts system not available'
-                }), 503
-                
-            if request.method == 'GET':
-                # Get all alerts with enhanced filtering
-                cluster_id = request.args.get('cluster_id')
-                status = request.args.get('status', 'active')
-                
-                logger.info(f"🔍 GET /api/alerts - cluster_id: {cluster_id}, status: {status}")
-                
-                try:
-                    # Call the alerts manager method
-                    alerts_data = alerts_manager.get_alerts_route(cluster_id)
-                    
-                    if alerts_data['status'] == 'success':
-                        alerts = alerts_data['alerts']
-                        
-                        # Additional status filtering if needed
-                        if status and status != 'all' and status != 'active':
-                            alerts = [a for a in alerts if a.get('status') == status]
-                        
-                        logger.info(f"✅ Returning {len(alerts)} alerts")
-                        
-                        return jsonify({
-                            'status': 'success',
-                            'alerts': alerts,
-                            'total': len(alerts),
-                            'cluster_id': cluster_id
-                        })
-                    else:
-                        logger.error(f"❌ Alerts manager returned error: {alerts_data}")
-                        return jsonify(alerts_data), 500
-                        
-                except Exception as manager_error:
-                    logger.error(f"❌ Error calling alerts manager: {manager_error}")
-                    logger.error(f"❌ Manager error traceback: {traceback.format_exc()}")
-                    return jsonify({
-                        'status': 'error',
-                        'message': f'Alerts manager error: {str(manager_error)}'
-                    }), 500
-                    
-            elif request.method == 'POST':
-                # Create new alert
-                data = request.get_json()
-                
-                if not data:
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'No data provided'
-                    }), 400
-                
-                logger.info(f"🔍 POST /api/alerts - data: {data}")
-                
-                # Enhanced validation
-                if not data.get('email'):
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'Email address is required'
-                    }), 400
-                
-                if not data.get('threshold_amount') and not data.get('threshold_percentage'):
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'Either threshold amount or percentage is required'
-                    }), 400
-                
-                # Auto-populate cluster info if cluster_id provided
-                cluster_id = data.get('cluster_id')
-                if cluster_id:
-                    cluster = enhanced_cluster_manager.get_cluster(cluster_id)
-                    if cluster:
-                        data['cluster_name'] = cluster['name']
-                        data['resource_group'] = cluster['resource_group']
-                        data['name'] = data.get('name', f"Budget Alert - {cluster['name']}")
-                
-                # Set default name if not provided
-                if not data.get('name'):
-                    data['name'] = f"Cost Alert - {data.get('cluster_name', 'Unknown')}"
-                
-                try:
-                    result = alerts_manager.create_alert_route(data)
-                    
-                    if result['status'] == 'success':
-                        logger.info(f"✅ Created alert: {result['alert_id']}")
-                        return jsonify(result)
-                    else:
-                        logger.error(f"❌ Failed to create alert: {result}")
-                        return jsonify(result), 400
-                        
-                except Exception as create_error:
-                    logger.error(f"❌ Error creating alert: {create_error}")
-                    logger.error(f"❌ Create error traceback: {traceback.format_exc()}")
-                    return jsonify({
-                        'status': 'error',
-                        'message': f'Failed to create alert: {str(create_error)}'
-                    }), 500
-                    
-        except Exception as e:
-            logger.error(f"❌ Error in alerts API: {e}")
-            logger.error(f"❌ API error traceback: {traceback.format_exc()}")
-            return jsonify({
-                'status': 'error',
-                'message': f'Internal server error: {str(e)}'
             }), 500

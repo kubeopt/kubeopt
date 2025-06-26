@@ -5,7 +5,8 @@ Alerts System Integration for AKS Cost Optimization
 import os
 import traceback
 from datetime import datetime
-from config import logger, enhanced_cluster_manager, ALERTS_AVAILABLE
+from flask import jsonify, request
+from app.main.config import logger, enhanced_cluster_manager, ALERTS_AVAILABLE
 
 # Global alerts manager
 alerts_manager = None
@@ -48,7 +49,7 @@ def register_alerts_routes(app):
         """Individual alert management - FIXED"""
         try:
             if not alerts_manager:
-                return app.jsonify({
+                return jsonify({
                     'status': 'error',
                     'message': 'Alerts system not available'
                 }), 503
@@ -59,20 +60,20 @@ def register_alerts_routes(app):
                     if alerts_data['status'] == 'success':
                         alert = next((a for a in alerts_data['alerts'] if a['id'] == alert_id), None)
                         if alert:
-                            return app.jsonify({
+                            return jsonify({
                                 'status': 'success',
                                 'alert': alert
                             })
                         else:
-                            return app.jsonify({
+                            return jsonify({
                                 'status': 'error',
                                 'message': 'Alert not found'
                             }), 404
                     else:
-                        return app.jsonify(alerts_data), 500
+                        return jsonify(alerts_data), 500
                 except Exception as get_error:
                     logger.error(f"❌ Error getting alert {alert_id}: {get_error}")
-                    return app.jsonify({
+                    return jsonify({
                         'status': 'error',
                         'message': f'Failed to get alert: {str(get_error)}'
                     }), 500
@@ -83,12 +84,12 @@ def register_alerts_routes(app):
                     result = alerts_manager.update_alert_route(alert_id, data)
                     
                     if result['status'] == 'success':
-                        return app.jsonify(result)
+                        return jsonify(result)
                     else:
-                        return app.jsonify(result), 400
+                        return jsonify(result), 400
                 except Exception as update_error:
                     logger.error(f"❌ Error updating alert {alert_id}: {update_error}")
-                    return app.jsonify({
+                    return jsonify({
                         'status': 'error',
                         'message': f'Failed to update alert: {str(update_error)}'
                     }), 500
@@ -96,17 +97,17 @@ def register_alerts_routes(app):
             elif app.request.method == 'DELETE':
                 try:
                     result = alerts_manager.delete_alert_route(alert_id)
-                    return app.jsonify(result)
+                    return jsonify(result)
                 except Exception as delete_error:
                     logger.error(f"❌ Error deleting alert {alert_id}: {delete_error}")
-                    return app.jsonify({
+                    return jsonify({
                         'status': 'error',
                         'message': f'Failed to delete alert: {str(delete_error)}'
                     }), 500
                 
         except Exception as e:
             logger.error(f"❌ Error in alert detail API: {e}")
-            return app.jsonify({
+            return jsonify({
                 'status': 'error',
                 'message': str(e)
             }), 500
@@ -116,17 +117,17 @@ def register_alerts_routes(app):
         """Test alert notification - FIXED"""
         try:
             if not alerts_manager:
-                return app.jsonify({
+                return jsonify({
                     'status': 'error',
                     'message': 'Alerts system not available'
                 }), 503
                 
             result = alerts_manager.test_alert_route(alert_id)
-            return app.jsonify(result)
+            return jsonify(result)
             
         except Exception as e:
             logger.error(f"❌ Error testing alert: {e}")
-            return app.jsonify({
+            return jsonify({
                 'status': 'error',
                 'message': str(e)
             }), 500
@@ -136,7 +137,7 @@ def register_alerts_routes(app):
         """Pause/unpause alert - FIXED"""
         try:
             if not alerts_manager:
-                return app.jsonify({
+                return jsonify({
                     'status': 'error',
                     'message': 'Alerts system not available'
                 }), 503
@@ -148,16 +149,16 @@ def register_alerts_routes(app):
             result = alerts_manager.update_alert_route(alert_id, {'status': status})
             
             if result['status'] == 'success':
-                return app.jsonify({
+                return jsonify({
                     'status': 'success',
                     'message': f'Alert {action}d successfully'
                 })
             else:
-                return app.jsonify(result), 400
+                return jsonify(result), 400
                 
         except Exception as e:
             logger.error(f"❌ Error pausing/resuming alert: {e}")
-            return app.jsonify({
+            return jsonify({
                 'status': 'error',
                 'message': str(e)
             }), 500
@@ -167,20 +168,20 @@ def register_alerts_routes(app):
         """Get alert trigger history - FIXED"""
         try:
             if not alerts_manager:
-                return app.jsonify({
+                return jsonify({
                     'status': 'error',
                     'message': 'Alerts system not available'
                 }), 503
                 
             # Return empty triggers for now (can be implemented later)
-            return app.jsonify({
+            return jsonify({
                 'status': 'success',
                 'triggers': []
             })
             
         except Exception as e:
             logger.error(f"❌ Error getting alert triggers: {e}")
-            return app.jsonify({
+            return jsonify({
                 'status': 'error',
                 'message': str(e)
             }), 500
@@ -196,7 +197,7 @@ def register_alerts_routes(app):
                     os.getenv('SMTP_PASSWORD')
                 )
                 
-                return app.jsonify({
+                return jsonify({
                     'status': 'success',
                     'email_configured': email_configured,
                     'smtp_server': os.getenv('SMTP_SERVER', 'smtp.gmail.com'),
@@ -205,14 +206,14 @@ def register_alerts_routes(app):
                 })
             
             elif app.request.method == 'POST':
-                return app.jsonify({
+                return jsonify({
                     'status': 'info',
                     'message': 'Email configuration should be set via environment variables'
                 })
                 
         except Exception as e:
             logger.error(f"❌ Error in email config API: {e}")
-            return app.jsonify({
+            return jsonify({
                 'status': 'error',
                 'message': str(e)
             }), 500
@@ -221,7 +222,7 @@ def register_alerts_routes(app):
     def alerts_system_status():
         """Get alerts system status for debugging - FIXED"""
         try:
-            return app.jsonify({
+            return jsonify({
                 'status': 'success',
                 'alerts_available': ALERTS_AVAILABLE,
                 'alerts_manager_initialized': alerts_manager is not None,
@@ -233,7 +234,7 @@ def register_alerts_routes(app):
             })
         except Exception as e:
             logger.error(f"❌ Error in alerts system status: {e}")
-            return app.jsonify({
+            return jsonify({
                 'status': 'error',
                 'message': str(e),
                 'timestamp': datetime.now().isoformat()

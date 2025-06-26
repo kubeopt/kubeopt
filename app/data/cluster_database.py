@@ -524,10 +524,11 @@ class EnhancedClusterManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT analysis_date, total_cost, total_savings, confidence_level
-                    FROM analysis_results 
-                    WHERE cluster_id = ? 
-                    ORDER BY analysis_date DESC 
+                    SELECT last_analyzed as analysis_date, last_cost as total_cost, 
+                        last_savings as total_savings, last_confidence as confidence_level
+                    FROM clusters 
+                    WHERE id = ? AND last_analyzed IS NOT NULL
+                    ORDER BY last_analyzed DESC 
                     LIMIT ?
                 ''', (cluster_id, limit))
                 
