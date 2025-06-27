@@ -126,7 +126,9 @@ class MLEnhancedHPARecommendationEngine:
                 consistent_recommendation = self._fix_ml_contradictions(
                     consistent_recommendation, ml_results
                 )
-            
+
+            hpa_efficiency = self._calculate_hpa_efficiency_percentage(ml_results, metrics_data)
+            consistent_recommendation['hpa_efficiency_percentage'] = hpa_efficiency
             logger.info("✅ ML-enhanced recommendations generated with verified consistency")
             return consistent_recommendation
             
@@ -134,6 +136,139 @@ class MLEnhancedHPARecommendationEngine:
             logger.error(f"❌ ML-enhanced HPA recommendation failed: {e}")
             raise ValueError(f"ML recommendation engine failed: {e}")
     
+    def _calculate_hpa_efficiency_percentage(self, ml_results: Dict, metrics_data: Dict) -> float:
+        """
+        Calculate HPA efficiency percentage based on current vs optimal resource usage
+        
+        Returns:
+            float: HPA efficiency percentage (0-100%)
+        """
+        try:
+            logger.info("🔍 Calculating HPA efficiency percentage...")
+            
+            # Get current utilization data
+            nodes = metrics_data.get('nodes', [])
+            if not nodes:
+                logger.warning("⚠️ No node data for HPA efficiency calculation")
+                return 0.0
+            
+            # Extract current utilization
+            cpu_utils = [node.get('cpu_usage_pct', 0) for node in nodes]
+            memory_utils = [node.get('memory_usage_pct', 0) for node in nodes]
+            
+            if not cpu_utils or not memory_utils:
+                return 0.0
+            
+            avg_cpu = np.mean(cpu_utils)
+            avg_memory = np.mean(memory_utils)
+            
+            # Get ML workload classification
+            workload_classification = ml_results.get('workload_classification', {})
+            workload_type = workload_classification.get('workload_type', 'BALANCED')
+            
+            # Define optimal targets based on workload type
+            if workload_type == 'CPU_INTENSIVE':
+                optimal_cpu_target = 75.0  # Higher CPU target for CPU-intensive workloads
+                optimal_memory_target = 65.0
+            elif workload_type == 'MEMORY_INTENSIVE':
+                optimal_cpu_target = 60.0
+                optimal_memory_target = 80.0  # Higher memory target
+            elif workload_type == 'BURSTY':
+                optimal_cpu_target = 65.0  # Lower targets for bursty workloads
+                optimal_memory_target = 70.0
+            elif workload_type == 'LOW_UTILIZATION':
+                optimal_cpu_target = 50.0  # Lower targets for under-utilized
+                optimal_memory_target = 55.0
+            else:  # BALANCED
+                optimal_cpu_target = 70.0
+                optimal_memory_target = 75.0
+            
+            # Check for extreme over-allocation (like your 3723% CPU case)
+            if avg_cpu > 200 or avg_memory > 200:
+                logger.warning(f"🔥 Extreme over-allocation detected: CPU={avg_cpu:.1f}%, Memory={avg_memory:.1f}%")
+                # For extreme cases, efficiency is nearly zero
+                return max(1.0, 100.0 / max(avg_cpu, avg_memory))
+            
+            # Calculate efficiency scores for CPU and Memory
+            cpu_efficiency = self._calculate_resource_efficiency(avg_cpu, optimal_cpu_target)
+            memory_efficiency = self._calculate_resource_efficiency(avg_memory, optimal_memory_target)
+            
+            # Check HPA implementation status
+            hpa_impl = metrics_data.get('hpa_implementation', {})
+            hpa_pattern = hpa_impl.get('current_hpa_pattern', 'no_hpa_detected')
+            
+            # Apply HPA implementation penalty/bonus
+            if hpa_pattern == 'no_hpa_detected':
+                hpa_implementation_factor = 0.5  # 50% penalty for no HPA
+                logger.info("📉 No HPA detected - applying 50% efficiency penalty")
+            elif hpa_pattern in ['cpu_based_dominant', 'memory_based_dominant']:
+                hpa_implementation_factor = 0.9  # Good implementation
+            elif hpa_pattern == 'hybrid_approach':
+                hpa_implementation_factor = 1.0  # Optimal implementation
+            else:
+                hpa_implementation_factor = 0.7  # Mixed/unknown implementation
+            
+            # Weighted combination (CPU: 60%, Memory: 40% for most workloads)
+            if workload_type == 'CPU_INTENSIVE':
+                combined_efficiency = (cpu_efficiency * 0.8 + memory_efficiency * 0.2)
+            elif workload_type == 'MEMORY_INTENSIVE':
+                combined_efficiency = (cpu_efficiency * 0.3 + memory_efficiency * 0.7)
+            else:
+                combined_efficiency = (cpu_efficiency * 0.6 + memory_efficiency * 0.4)
+            
+            # Apply HPA implementation factor
+            final_efficiency = combined_efficiency * hpa_implementation_factor
+            
+            # Ensure result is between 0-100%
+            result = max(0.0, min(100.0, final_efficiency))
+            
+            logger.info(f"✅ HPA Efficiency calculated: {result:.1f}%")
+            logger.info(f"   - CPU efficiency: {cpu_efficiency:.1f}% (actual: {avg_cpu:.1f}%, target: {optimal_cpu_target:.1f}%)")
+            logger.info(f"   - Memory efficiency: {memory_efficiency:.1f}% (actual: {avg_memory:.1f}%, target: {optimal_memory_target:.1f}%)")
+            logger.info(f"   - HPA implementation factor: {hpa_implementation_factor}")
+            logger.info(f"   - Workload type: {workload_type}")
+            
+            return result
+        
+        except Exception as e:
+            logger.error(f"❌ HPA efficiency calculation failed: {e}")
+            return 0.0
+
+    def _calculate_resource_efficiency(self, actual_utilization: float, target_utilization: float) -> float:
+        """
+        Calculate efficiency score for a single resource type
+        
+        Args:
+            actual_utilization: Current utilization percentage
+            target_utilization: Optimal target utilization percentage
+        
+        Returns:
+            float: Efficiency score (0-100%)
+        """
+        try:
+            if actual_utilization <= 0:
+                return 0.0
+            
+            # Calculate efficiency based on how close actual is to target
+            if actual_utilization <= target_utilization:
+                # Under-utilized: efficiency = actual/target * 100
+                efficiency = (actual_utilization / target_utilization) * 100
+            else:
+                # Over-utilized: penalize based on how much over
+                overage = actual_utilization - target_utilization
+                if overage <= 20:  # Small overage (up to 20% above target)
+                    efficiency = 100 - (overage * 2)  # 2% penalty per 1% overage
+                elif overage <= 50:  # Medium overage (20-50% above target)
+                    efficiency = 60 - ((overage - 20) * 1.5)  # Increasing penalty
+                else:  # Large overage (>50% above target)
+                    efficiency = max(1, 15 - (overage - 50) * 0.3)  # Severe penalty
+            
+            return max(0.0, min(100.0, efficiency))
+            
+        except Exception as e:
+            logger.error(f"❌ Resource efficiency calculation failed: {e}")
+            return 0.0
+
     def _extract_enterprise_features(self, metrics_data: Dict) -> Dict:
         """
         ENHANCED: Extract all 53 features that match your trained model
@@ -599,7 +734,17 @@ class ConsistentCostAnalyzer:
             
             # Generate ML-driven recommendations (no contradictions)
             hpa_recommendations = ml_hpa_engine.generate_hpa_recommendations(metrics_data, cost_data)
+
+            # Calculate HPA efficiency percentage
+            hpa_efficiency = ml_hpa_engine._calculate_hpa_efficiency_percentage(
+                hpa_recommendations.get('workload_characteristics', {}), 
+                metrics_data
+            )
             
+            # Include efficiency in recommendations
+            hpa_recommendations['hpa_efficiency_percentage'] = hpa_efficiency
+            
+                
             # Validate the recommendations are consistent
             if not isinstance(hpa_recommendations, dict):
                 raise ValueError("ML HPA engine returned invalid recommendations structure")
@@ -660,7 +805,8 @@ class ConsistentCostAnalyzer:
             logger.info("🎯 Generating HPA recommendations...")
             hpa_recommendations = self._generate_hpa_recommendations(actual_costs, metrics_data)
             logger.info(f"✅ HPA recommendations generated: {hpa_recommendations.get('optimization_recommendation', {}).get('title', 'Unknown')}")
-            
+            logger.info(f"✅ HPA efficiency percentage generated: {hpa_recommendations.get('hpa_efficiency_percentage', 0.0):.1f}%")
+
             # Step 9: Combine results with validation
             results = self._combine_and_validate_results(
                 actual_costs, current_usage, optimization, efficiency, confidence
@@ -669,6 +815,18 @@ class ConsistentCostAnalyzer:
             # Step 10: CRITICAL - Add HPA recommendations to results
             results['hpa_recommendations'] = hpa_recommendations
             logger.info("✅ HPA recommendations added to analysis results")
+
+            # Extract HPA efficiency from recommendations
+            results['hpa_efficiency'] = hpa_recommendations.get('hpa_efficiency_percentage', 0.0)
+
+            # ✅ Use ML-calculated optimization score
+            ml_metadata = hpa_recommendations.get('workload_characteristics', {}).get('analysis_metadata', {})
+            ml_confidence = ml_metadata.get('confidence', 0.5)
+            results['optimization_score'] = round(ml_confidence * 100)
+
+            logger.info("✅ HPA recommendations added to analysis results")
+            logger.info(f"✅ HPA Efficiency: {results['hpa_efficiency']:.1f}%")
+            logger.info(f"✅ HPA Optimization score: {results['optimization_score']:.1f}%")
             
             # Step 11: Final validation
             validation_result = self._final_validation(results)

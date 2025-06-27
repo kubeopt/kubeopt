@@ -1035,7 +1035,10 @@ class PerformanceAnomalyDetector:
         }
         
         # Decision logic for CPU
-        if cpu_util > 80 and cpu_variance > 1000:
+        if cpu_util > 100:  # This would catch your 3723% case
+            analysis['recommendation'] = 'OPTIMIZE_APPLICATION_CRITICAL'
+            analysis['reasoning'] = 'Extreme CPU over-allocation detected - app optimization required'
+        elif cpu_util > 80 and cpu_variance > 1000:
             analysis['recommendation'] = 'OPTIMIZE_APPLICATION'
             analysis['reasoning'] = 'High CPU with high variance suggests inefficient application code'
             analysis['confidence'] = 0.8

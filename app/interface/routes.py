@@ -231,9 +231,9 @@ def register_routes(app):
             
             # STEP 3: Run the FIXED analysis
             logger.info(f"🔄 Running COMPLETELY FIXED analysis for {cluster_id}")
-            from app.data.processing.analysis_engine import run_completely_fixed_analysis
+            from app.data.processing.analysis_engine import run_consistent_analysis
             
-            result = run_completely_fixed_analysis(
+            result = run_consistent_analysis(
                 resource_group, cluster_name, days, enable_pod_analysis
             )
             

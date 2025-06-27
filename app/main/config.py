@@ -35,7 +35,7 @@ analysis_results = {}
 # Enhanced global cache with TTL
 analysis_cache = {
     'clusters': {},  # {cluster_id: {'data': {}, 'timestamp': str, 'ttl_hours': int}}
-    'global_ttl_hours': 1
+    'global_ttl_hours': 0.25
 }
 
 # Initialize database components
