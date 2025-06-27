@@ -169,7 +169,8 @@ def register_routes(app):
                 'cluster_context': cluster,
                 'analysis_history': analysis_history,
                 'timestamp': datetime.now().strftime('%B %d, %Y %H:%M:%S'),
-                'data_source': data_source
+                'data_source': data_source,
+                'active_tab': 'dashboard'
             }
             
             # Add implementation plan debug info

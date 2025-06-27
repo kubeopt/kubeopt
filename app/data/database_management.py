@@ -1633,7 +1633,7 @@ def api_get_learning_data():
         data_type = request.args.get('type', 'implementation_results')
         
         # This would connect to the learning database
-        learning_db_path = 'app/data/database/optimization_learning.db'
+        learning_db_path = 'app/ml/data_feed/optimization_learning.db'
         
         if not os.path.exists(learning_db_path):
             return jsonify({
