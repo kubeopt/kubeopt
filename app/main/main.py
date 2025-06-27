@@ -338,6 +338,25 @@ def clear_global_analysis_cache():
     analysis_results.clear()
     logger.info("🧹 Cleared global analysis cache")
 
+import signal
+import sys
+
+def signal_handler(sig, frame):
+    """Handle Ctrl+C gracefully"""
+    logger.info("👋 Shutting down gracefully...")
+    
+    # Stop alerts manager
+    try:
+        from config import alerts_manager
+        if alerts_manager:
+            alerts_manager.stop_service()
+    except Exception as e:
+        logger.warning(f"⚠️ Alerts shutdown warning: {e}")
+    
+    logger.info("✅ Shutdown complete")
+    sys.exit(0)
+
+
 def main():
     """Main application entry point"""
     try:
@@ -371,6 +390,8 @@ def main():
         
     except KeyboardInterrupt:
         logger.info("👋 Application shutdown requested by user")
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
         return True
         
     except Exception as e:

@@ -53,6 +53,56 @@ def migrate_database_schema(db_path: str = '../data/database/clusters.db'):
         logger.error(f"❌ Database migration failed: {e}")
         return False
 
+def enhance_database_for_subscriptions(db_path: str = '../data/database/clusters.db'):
+    """Add subscription support to database schema"""
+    import sqlite3
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Check if subscription_id column exists
+            cursor.execute("PRAGMA table_info(clusters)")
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            
+            if 'subscription_id' not in existing_columns:
+                # Add subscription_id column
+                cursor.execute('''
+                    ALTER TABLE clusters 
+                    ADD COLUMN subscription_id TEXT DEFAULT NULL
+                ''')
+                logger.info("✅ Added subscription_id column to clusters table")
+            
+            if 'subscription_name' not in existing_columns:
+                # Add subscription_name for display purposes
+                cursor.execute('''
+                    ALTER TABLE clusters 
+                    ADD COLUMN subscription_name TEXT DEFAULT NULL
+                ''')
+                logger.info("✅ Added subscription_name column to clusters table")
+            
+            # Create subscription tracking table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS subscriptions (
+                    subscription_id TEXT PRIMARY KEY,
+                    subscription_name TEXT NOT NULL,
+                    is_default BOOLEAN DEFAULT 0,
+                    last_used TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            conn.commit()
+            logger.info("✅ Database enhanced for subscription management")
+            return True
+            
+    except Exception as e:
+        logger.error(f"❌ Database subscription enhancement failed: {e}")
+        return False
+
 def serialize_implementation_plan(plan_data):
     """Serialize implementation plan while preserving all ML/algorithmic data"""
     import pandas as pd
@@ -203,6 +253,65 @@ class EnhancedClusterManager:
             logger.error(f"❌ Database initialization failed: {e}")
             raise
 
+    def add_cluster_with_subscription(self, cluster_config: Dict, subscription_id: str, subscription_name: str) -> str:
+        """Add a new cluster with subscription context"""
+        try:
+            cluster_id = f"{cluster_config['resource_group']}_{cluster_config['cluster_name']}"
+            
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute('''
+                    INSERT OR REPLACE INTO clusters 
+                    (id, name, resource_group, environment, region, description, status, 
+                    subscription_id, subscription_name, created_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    cluster_id,
+                    cluster_config['cluster_name'],
+                    cluster_config['resource_group'],
+                    cluster_config.get('environment', 'development'),
+                    cluster_config.get('region', 'Unknown'),
+                    cluster_config.get('description', ''),
+                    'active',
+                    subscription_id,
+                    subscription_name,
+                    datetime.now().isoformat(),
+                    json.dumps(cluster_config.get('metadata', {}))
+                ))
+                conn.commit()
+                
+            logger.info(f"✅ Added cluster with subscription: {cluster_id} -> {subscription_name}")
+            return cluster_id
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to add cluster with subscription: {e}")
+            raise
+
+    def get_clusters_with_subscription_info(self) -> List[Dict]:
+        """Get all clusters with subscription information"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT c.*, s.subscription_name as sub_display_name
+                    FROM clusters c
+                    LEFT JOIN subscriptions s ON c.subscription_id = s.subscription_id
+                    WHERE c.status = 'active'
+                    ORDER BY s.subscription_name, c.created_at DESC
+                ''')
+                
+                clusters = []
+                for row in cursor.fetchall():
+                    cluster = dict(row)
+                    cluster['metadata'] = json.loads(cluster.get('metadata', '{}'))
+                    clusters.append(cluster)
+                
+                logger.info(f"📋 Retrieved {len(clusters)} clusters with subscription info")
+                return clusters
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to get clusters with subscription info: {e}")
+            return []
+    
     def add_cluster(self, cluster_config: Dict) -> str:
         """Add a new cluster configuration"""
         try:
@@ -352,6 +461,18 @@ class EnhancedClusterManager:
                     datetime.now().isoformat(),
                     json.dumps(serializable_data),
                     cluster_id
+                ))
+                conn.execute('''
+                    INSERT INTO analysis_results 
+                    (cluster_id, analysis_date, results, total_cost, total_savings, confidence_level)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (
+                    cluster_id,
+                    datetime.now().isoformat(),
+                    json.dumps(serializable_data),  # Store full analysis
+                    total_cost,
+                    total_savings, 
+                    confidence
                 ))
                 conn.commit()
 
@@ -524,11 +645,10 @@ class EnhancedClusterManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT last_analyzed as analysis_date, last_cost as total_cost, 
-                        last_savings as total_savings, last_confidence as confidence_level
-                    FROM clusters 
-                    WHERE id = ? AND last_analyzed IS NOT NULL
-                    ORDER BY last_analyzed DESC 
+                    SELECT analysis_date, total_cost, total_savings, confidence_level
+                    FROM analysis_results 
+                    WHERE cluster_id = ? 
+                    ORDER BY analysis_date DESC 
                     LIMIT ?
                 ''', (cluster_id, limit))
                 

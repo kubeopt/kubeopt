@@ -1145,23 +1145,20 @@ class AKSRealTimeMetricsFetcher:
 
     def _get_detailed_hpa_metrics(self) -> Dict:
         """
-        FIXED: Get detailed HPA metrics with better large output handling
-        Addresses the 524KB JSON parsing issue from your logs
+        Get detailed HPA metrics with better large output handling
         """
         try:
-            logger.info("📈 Collecting HPA metrics with FIXED large output handling...")
+            logger.info("📈 Collecting HPA metrics with large output handling...")
             
             # STRATEGY 1: Try custom columns first (most reliable for large clusters)
             logger.info("🔧 Trying custom columns approach for HPA data...")
-            custom_cmd = ('kubectl get hpa --all-namespaces '
-                        '--output=custom-columns='
+            # Your exact working command (simplified)
+            custom_cmd = ('kubectl get hpa --all-namespaces -o custom-columns='
                         '"NAMESPACE:.metadata.namespace,'
                         'NAME:.metadata.name,'
-                        'CURRENT_CPU:.status.currentMetrics[?(@.type==\\"Resource\\")].resource.current.averageUtilization,'
-                        'TARGET_CPU:.spec.metrics[?(@.type==\\"Resource\\")].resource.target.averageUtilization,'
-                        'MIN:.spec.minReplicas,'
-                        'MAX:.spec.maxReplicas,'
-                        'REPLICAS:.status.currentReplicas"')
+                        'CPU_CURRENT:.status.currentMetrics[0].resource.current.averageUtilization,'
+                        'CPU_TARGET:.spec.metrics[0].resource.target.averageUtilization"')
+            
             
             hpa_output = self.execute_kubectl_command(custom_cmd, timeout=120)
             
@@ -1171,11 +1168,12 @@ class AKSRealTimeMetricsFetcher:
                 'total_hpas': 0,
                 'high_cpu_hpas': [],
                 'hpa_details': [],
-                'parsing_method': 'failed'
+                'parsing_method': 'custom_cmd'
             }
             
             if hpa_output and len(hpa_output.strip()) > 0:
-                hpa_analysis.update(self._parse_hpa_custom_columns(hpa_output))
+                hpa_analysis.update(self._parse_hpa_metrics(hpa_output))
+                #hpa_analysis.update(self._parse_hpa_custom_columns(hpa_output))
                 
                 # If custom columns worked, we're done
                 if hpa_analysis['total_hpas'] > 0:
@@ -1216,6 +1214,97 @@ class AKSRealTimeMetricsFetcher:
                 'parsing_method': 'failed'
             }
 
+    def _parse_hpa_metrics(self, hpa_output: str) -> Dict:
+        """
+        Parse HPA metrics using the working kubectl command format
+        """
+        try:
+            lines = hpa_output.strip().split('\n')
+            
+            hpa_details = []
+            high_cpu_hpas = []
+            total_cpu_utilization = 0
+            workload_count = 0
+            
+            # Skip header line
+            for line in lines[1:] if len(lines) > 1 else []:
+                if not line.strip():
+                    continue
+                    
+                parts = line.split()
+                if len(parts) >= 4:
+                    namespace = parts[0]
+                    name = parts[1]
+                    current_cpu_str = parts[2]
+                    target_cpu_str = parts[3]
+                    
+                    # Skip <none> values
+                    if current_cpu_str == '<none>' or target_cpu_str == '<none>':
+                        continue
+                    
+                    try:
+                        current_cpu = float(current_cpu_str)
+                        target_cpu = float(target_cpu_str)
+                        
+                        hpa_detail = {
+                            'namespace': namespace,
+                            'name': name,
+                            'current_cpu': current_cpu,
+                            'target_cpu': target_cpu,
+                            'cpu_ratio': current_cpu / target_cpu if target_cpu > 0 else 0
+                        }
+                        
+                        hpa_details.append(hpa_detail)
+                        total_cpu_utilization += current_cpu
+                        workload_count += 1
+                        
+                        # DETECT HIGH CPU (your 3723% case)
+                        if current_cpu > 150:  # >150% = optimization candidate
+                            severity = 'critical' if current_cpu > 1000 else 'high'
+                            high_cpu_hpas.append({
+                                'namespace': namespace,
+                                'name': name,
+                                'cpu_utilization': current_cpu,
+                                'target_cpu': target_cpu,
+                                'severity': severity,
+                                'recommendation': 'OPTIMIZE_APPLICATION' if current_cpu > 300 else 'INVESTIGATE'
+                            })
+                            
+                            logger.info(f"🔥 HIGH CPU WORKLOAD: {namespace}/{name} = {current_cpu}% (target: {target_cpu}%)")
+                    
+                    except (ValueError, TypeError):
+                        logger.debug(f"Could not parse CPU values: {current_cpu_str}, {target_cpu_str}")
+                        continue
+            
+            # Calculate average from REAL workload data
+            avg_cpu = total_cpu_utilization / workload_count if workload_count > 0 else 0
+            
+            # Determine pattern based on REAL data
+            if workload_count == 0:
+                pattern = 'no_hpa_detected'
+                confidence = 'high'
+            else:
+                pattern = 'workload_based_analysis'
+                confidence = 'high'
+            
+            logger.info(f"✅ WORKING PARSER: {workload_count} workloads, avg CPU: {avg_cpu:.1f}%")
+            logger.info(f"✅ High CPU workloads detected: {len(high_cpu_hpas)}")
+            
+            return {
+                'current_hpa_pattern': pattern,
+                'confidence': confidence,
+                'total_hpas': workload_count,
+                'high_cpu_hpas': high_cpu_hpas,
+                'hpa_details': hpa_details,
+                'average_cpu_utilization': avg_cpu,
+                'max_cpu_utilization': max([h['current_cpu'] for h in hpa_details]) if hpa_details else 0,
+                'parsing_method': 'working_command_parser',
+                'workload_data_available': True
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Working HPA parser failed: {e}")
+            return {'total_hpas': 0, 'parsing_method': 'working_parser_failed'}
 
     def _get_detailed_pod_metrics(self) -> Dict:
         """Get detailed pod-level metrics for ML analysis"""
