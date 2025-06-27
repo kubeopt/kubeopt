@@ -256,7 +256,7 @@ def _build_enhanced_response_data(current_analysis: Dict[str, Any],
                                 cost_metrics: Dict[str, float], 
                                 data_source: str, 
                                 cluster_id: str) -> Dict[str, Any]:
-    """FIXED: Build comprehensive response data with proper error handling"""
+    """Build comprehensive response data"""
     
     # Ensure node data is available in multiple locations for compatibility
     node_data = current_analysis.get('nodes') or current_analysis.get('node_metrics') or current_analysis.get('real_node_data') or []
@@ -288,7 +288,11 @@ def _build_enhanced_response_data(current_analysis: Dict[str, Any],
             'storage_savings': ensure_float(current_analysis.get('storage_savings', 0)),
             'savings_percentage': ensure_float(current_analysis.get('savings_percentage', 0)),
             'annual_savings': ensure_float(current_analysis.get('annual_savings', 0)),
-            'hpa_reduction': ensure_float(current_analysis.get('hpa_reduction', 0)),
+            'hpa_reduction': ensure_float(
+                current_analysis.get('hpa_reduction', 0) or 
+                current_analysis.get('hpa_efficiency', 0) or
+                current_analysis.get('hpa_efficiency_percentage', 0)
+            ),
             'cpu_gap': ensure_float(current_analysis.get('cpu_gap', 0)),
             'memory_gap': ensure_float(current_analysis.get('memory_gap', 0))
         },
