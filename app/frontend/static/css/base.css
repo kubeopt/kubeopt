@@ -7,6 +7,8 @@
 @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700;800;900&display=swap');
 
 /* ===== CSS CUSTOM PROPERTIES ===== */
+
+
 :root {
     /* SPACING */
     --spacing-xs: 0.25rem;     /* 4px */
@@ -127,6 +129,7 @@
 }
 
 /* ===== DARK MODE SUPPORT ===== */
+
 [data-theme="dark"] {
     --glass-bg-primary: #1a1a1a;
     --glass-bg-secondary: #2a2a2a;
@@ -1660,7 +1663,7 @@ p {
 
 .bg-info {
     background: rgba(0, 122, 255, 0.2) !important;
-    color: var(--accent-blue) !important;
+    color: #233a29 !important;
     border-color: rgba(0, 122, 255, 0.3) !important;
 }
 
@@ -1671,7 +1674,7 @@ p {
 
 .bg-success {
     background: rgba(52, 199, 89, 0.2) !important;
-    color: var(--accent-green) !important;
+    color: #233a29 !important;
     border-color: rgba(52, 199, 89, 0.3) !important;
 }
 
@@ -3083,6 +3086,9 @@ p {
 .mb-4 { margin-bottom: var(--spacing-xl) !important; }
 .py-5 { padding-top: var(--spacing-3xl) !important; padding-bottom: var(--spacing-3xl) !important; }
 .p-4 { padding: var(--spacing-xl) !important; }
+.mb-3 { margin-bottom: var(--spacing-xl) !important; }
+.mb-2 { margin-bottom: var(--spacing-xl) !important; }
+.mb-1 { margin-bottom: var(--spacing-xl) !important; }
 
 /* ===== PHASE CARDS ===== */
 .phase-card {
