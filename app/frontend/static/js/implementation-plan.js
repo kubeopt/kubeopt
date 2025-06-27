@@ -74,7 +74,7 @@ export function displayImplementationPlan(planData) {
     const html = `
     <!-- Hero Header -->
     <div class="card border-0 shadow-lg mb-4">
-        <div class="card-body text-white">
+        <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
                     <h3 class="mb-2">

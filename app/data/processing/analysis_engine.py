@@ -140,25 +140,28 @@ class AKSAnalysisEngine:
             return self._handle_error(e, session_id, config.analysis_type, log_prefix)
     
     def _get_cost_data(self, resource_group: str, cluster_name: str, days: int, 
-                                   session_id: str, log_prefix: str, subscription_id: str = None) -> tuple:
-        """Extract and process cost data with subscription context"""
-        logger.info(f"📊 Session {session_id[:8]}: Fetching cost baseline for subscription {subscription_id or 'current'}...")
+                  session_id: str, log_prefix: str, cluster_id: str = None) -> tuple:
+        """Get cost data using subscription detection"""
+        
+        logger.info(f"📊 Session {session_id[:8]}: cost data fetch for {cluster_name}")
         
         # Calculate date range
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
         
-        # Get cost data with subscription context
+        # Use smart cost fetching with cluster_id for DB lookup
         cost_df = get_aks_specific_cost_data(
-            resource_group, cluster_name, start_date, end_date, subscription_id
+            resource_group, cluster_name, start_date, end_date, cluster_id
         )
         
         if cost_df is None or cost_df.empty:
-            raise ValueError("❌ No cost data available")
+            error_msg = f"No cost data available for {cluster_name}. Check subscription access and cluster existence."
+            logger.error(f"❌ {error_msg}")
+            raise ValueError(error_msg)
         
+        # Rest of your existing logic...
         total_period_cost = float(cost_df['Cost'].sum())
         
-        # Calculate monthly equivalent
         if days == 30:
             monthly_equivalent_cost = total_period_cost
             cost_label = f"Monthly Baseline ({days}-day actual)"
@@ -170,10 +173,6 @@ class AKSAnalysisEngine:
         cost_components = extract_cost_components(cost_df, days, monthly_equivalent_cost)
         cost_components = validate_cost_data(cost_components)
         
-        # Add subscription metadata to cost components
-        cost_components['subscription_id'] = cost_df.attrs.get('subscription_id')
-        
-        # Return raw cost_df as well for pod analysis
         return cost_components, cost_label, total_period_cost, cost_df
     
     def _get_metrics_data(self, resource_group: str, cluster_name: str, 

@@ -252,6 +252,116 @@ class EnhancedClusterManager:
         except Exception as e:
             logger.error(f"❌ Database initialization failed: {e}")
             raise
+    
+    def detect_and_update_cluster_subscriptions(self):
+        """Detect and update subscription info for existing clusters"""
+        logger.info("🔍 Detecting subscription info for existing clusters...")
+        
+        try:
+            # Get all clusters without subscription info
+            clusters_to_update = []
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT id, name, resource_group 
+                    FROM clusters 
+                    WHERE (subscription_id IS NULL OR subscription_id = '') 
+                    AND status = 'active'
+                ''')
+                clusters_to_update = [dict(row) for row in cursor.fetchall()]
+            
+            if not clusters_to_update:
+                logger.info("✅ All clusters already have subscription info")
+                return True
+            
+            logger.info(f"🔍 Found {len(clusters_to_update)} clusters to update")
+            
+            # Import subscription manager
+            from app.services.subscription_manager import AzureSubscriptionManager
+            sub_manager = AzureSubscriptionManager()
+            
+            updated_count = 0
+            
+            for cluster in clusters_to_update:
+                cluster_id = cluster['id']
+                cluster_name = cluster['name']
+                resource_group = cluster['resource_group']
+                
+                logger.info(f"🔍 Detecting subscription for cluster: {cluster_name}")
+                
+                # Find the subscription containing this cluster
+                subscription_id = sub_manager.find_cluster_subscription(resource_group, cluster_name)
+                
+                if subscription_id:
+                    # Get subscription name
+                    subscription_name = "Unknown"
+                    try:
+                        sub_info = sub_manager.get_subscription_info(subscription_id)
+                        if sub_info:
+                            subscription_name = sub_info['subscription_name']
+                    except:
+                        pass
+                    
+                    # Update the cluster with subscription info
+                    with sqlite3.connect(self.db_path) as conn:
+                        conn.execute('''
+                            UPDATE clusters 
+                            SET subscription_id = ?, subscription_name = ?
+                            WHERE id = ?
+                        ''', (subscription_id, subscription_name, cluster_id))
+                        conn.commit()
+                    
+                    logger.info(f"✅ Updated {cluster_name} -> {subscription_name}")
+                    updated_count += 1
+                else:
+                    logger.warning(f"⚠️ Could not find subscription for cluster: {cluster_name}")
+            
+            logger.info(f"✅ Updated {updated_count} clusters with subscription info")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error detecting cluster subscriptions: {e}")
+            return False
+
+    def get_cluster_subscription_info(self, cluster_id: str) -> Optional[Dict]:
+        """Get stored subscription info for a cluster"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT subscription_id, subscription_name 
+                    FROM clusters 
+                    WHERE id = ?
+                ''', (cluster_id,))
+                
+                row = cursor.fetchone()
+                if row and row['subscription_id']:
+                    return {
+                        'subscription_id': row['subscription_id'],
+                        'subscription_name': row['subscription_name'] or 'Unknown'
+                    }
+                
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error getting cluster subscription info: {e}")
+            return None
+
+    def update_cluster_subscription_info(self, cluster_id: str, subscription_id: str, subscription_name: str):
+        """Update cluster with its actual subscription information"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute('''
+                    UPDATE clusters 
+                    SET subscription_id = ?, subscription_name = ?
+                    WHERE id = ?
+                ''', (subscription_id, subscription_name, cluster_id))
+                conn.commit()
+                
+            logger.info(f"✅ Updated cluster {cluster_id} subscription info: {subscription_name}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to update cluster subscription info: {e}")
 
     def add_cluster_with_subscription(self, cluster_config: Dict, subscription_id: str, subscription_name: str) -> str:
         """Add a new cluster with subscription context"""

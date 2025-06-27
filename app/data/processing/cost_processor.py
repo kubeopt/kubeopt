@@ -140,7 +140,7 @@ def categorize_resource(resource_type, service_name):
     
     return category, subcategory
 
-def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_date):
+def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_date, cluster_id=None):
     """Get AKS-specific cost data for a specific date range"""
     logger.info(f"Fetching AKS-specific cost data for {cluster_name} from {start_date} to {end_date}")
     
