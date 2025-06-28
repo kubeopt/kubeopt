@@ -68,7 +68,8 @@ class SelfLearningWorkloadClassifier:
             "avg_memory_gap", "max_memory_gap", "memory_gap_variance", "overall_efficiency_score",
             "hour_of_day", "is_business_hours", "is_weekend", "is_peak_hours", "hour_sin", "hour_cos",
             "day_sin", "day_cos", "node_readiness_ratio", "cpu_distribution_fairness",
-            "memory_distribution_fairness", "cluster_size", "cluster_size_normalized"
+            "memory_distribution_fairness", "cluster_size", "cluster_size_normalized",
+            "cpu_extreme_detected", "memory_extreme_detected", "max_cpu_actual", "max_memory_actual"
         ]
         
         # Load existing models
@@ -230,48 +231,77 @@ class SelfLearningWorkloadClassifier:
             return self._get_default_feature_dataframe()
 
     def _calculate_statistical_features(self, cpu_utils: List[float], memory_utils: List[float]) -> Dict[str, float]:
-        """Calculate comprehensive statistical features"""
+        """FIXED: Calculate comprehensive statistical features with extreme value handling"""
         try:
             cpu_array = np.array(cpu_utils)
             memory_array = np.array(memory_utils)
             
-            # Basic statistics
+            # CRITICAL FIX: Detect and handle extreme values properly
+            cpu_extreme = np.any(cpu_array > 200)
+            memory_extreme = np.any(memory_array > 200)
+            
+            if cpu_extreme:
+                logger.warning(f"🔥 EXTREME CPU VALUES DETECTED: {cpu_array}")
+                # Cap extreme values for statistical calculations but preserve in max
+                cpu_stats_array = np.clip(cpu_array, 0, 200)
+                cpu_max_actual = float(np.max(cpu_array))  # Preserve actual max
+            else:
+                cpu_stats_array = cpu_array
+                cpu_max_actual = float(np.max(cpu_array))
+                
+            if memory_extreme:
+                logger.warning(f"🔥 EXTREME MEMORY VALUES DETECTED: {memory_array}")
+                memory_stats_array = np.clip(memory_array, 0, 200)
+                memory_max_actual = float(np.max(memory_array))
+            else:
+                memory_stats_array = memory_array
+                memory_max_actual = float(np.max(memory_array))
+            
+            # Basic statistics with capped values for stability
             features = {
-                'cpu_mean': float(np.mean(cpu_array)),
-                'memory_mean': float(np.mean(memory_array)),
-                'cpu_std': float(np.std(cpu_array)),
-                'memory_std': float(np.std(memory_array)),
-                'cpu_var': float(np.var(cpu_array)),
-                'memory_var': float(np.var(memory_array)),
+                'cpu_mean': float(np.mean(cpu_stats_array)),
+                'memory_mean': float(np.mean(memory_stats_array)),
+                'cpu_std': float(np.std(cpu_stats_array)),
+                'memory_std': float(np.std(memory_stats_array)),
+                'cpu_var': float(np.var(cpu_stats_array)),
+                'memory_var': float(np.var(memory_stats_array)),
                 'cpu_min': float(np.min(cpu_array)),
-                'cpu_max': float(np.max(cpu_array)),
+                'cpu_max': cpu_max_actual,  # Use actual max values
                 'memory_min': float(np.min(memory_array)),
-                'memory_max': float(np.max(memory_array))
+                'memory_max': memory_max_actual  # Use actual max values
             }
             
-            # Percentiles
+            # Percentiles with capped values
             features.update({
-                'cpu_p75': float(np.percentile(cpu_array, 75)),
-                'cpu_p95': float(np.percentile(cpu_array, 95)),
-                'cpu_p99': float(np.percentile(cpu_array, 99)),
-                'memory_p75': float(np.percentile(memory_array, 75)),
-                'memory_p95': float(np.percentile(memory_array, 95)),
-                'memory_p99': float(np.percentile(memory_array, 99))
+                'cpu_p75': float(np.percentile(cpu_stats_array, 75)),
+                'cpu_p95': float(np.percentile(cpu_stats_array, 95)),
+                'cpu_p99': float(np.percentile(cpu_stats_array, 99)),
+                'memory_p75': float(np.percentile(memory_stats_array, 75)),
+                'memory_p95': float(np.percentile(memory_stats_array, 95)),
+                'memory_p99': float(np.percentile(memory_stats_array, 99))
             })
             
             # Range and coefficient of variation
             features.update({
-                'cpu_range': float(np.max(cpu_array) - np.min(cpu_array)),
-                'memory_range': float(np.max(memory_array) - np.min(memory_array)),
-                'cpu_cv': float(np.std(cpu_array) / max(np.mean(cpu_array), 1e-6)),
-                'memory_cv': float(np.std(memory_array) / max(np.mean(memory_array), 1e-6))
+                'cpu_range': float(np.max(cpu_stats_array) - np.min(cpu_stats_array)),
+                'memory_range': float(np.max(memory_stats_array) - np.min(memory_stats_array)),
+                'cpu_cv': float(np.std(cpu_stats_array) / max(np.mean(cpu_stats_array), 1e-6)),
+                'memory_cv': float(np.std(memory_stats_array) / max(np.mean(memory_stats_array), 1e-6))
             })
             
             # Cross-resource features
             features.update({
-                'cpu_memory_ratio': float(np.mean(cpu_array) / max(np.mean(memory_array), 1e-6)),
-                'cpu_memory_correlation': float(np.corrcoef(cpu_array, memory_array)[0, 1]) if len(cpu_array) > 1 else 0.0,
-                'resource_imbalance': float(abs(np.mean(cpu_array) - np.mean(memory_array)))
+                'cpu_memory_ratio': float(np.mean(cpu_stats_array) / max(np.mean(memory_stats_array), 1e-6)),
+                'cpu_memory_correlation': float(np.corrcoef(cpu_stats_array, memory_stats_array)[0, 1]) if len(cpu_stats_array) > 1 else 0.0,
+                'resource_imbalance': float(abs(np.mean(cpu_stats_array) - np.mean(memory_stats_array)))
+            })
+            
+            # Add extreme value flags
+            features.update({
+                'cpu_extreme_detected': float(cpu_extreme),
+                'memory_extreme_detected': float(memory_extreme),
+                'max_cpu_actual': cpu_max_actual,
+                'max_memory_actual': memory_max_actual
             })
             
             return features
@@ -507,7 +537,7 @@ class SelfLearningWorkloadClassifier:
             return 0.2  # Default to moderate inequality
 
     def _get_safe_default(self, feature_name: str) -> float:
-        """Get safe default values for features"""
+        """FIXED: Get safe default values including new extreme detection features"""
         defaults = {
             'cpu_mean': 35.0, 'memory_mean': 60.0,
             'cpu_std': 10.0, 'memory_std': 15.0,
@@ -533,7 +563,10 @@ class SelfLearningWorkloadClassifier:
             'hour_sin': 0.0, 'hour_cos': 1.0, 'day_sin': 0.0, 'day_cos': 1.0,
             'node_readiness_ratio': 1.0,
             'cpu_distribution_fairness': 0.8, 'memory_distribution_fairness': 0.8,
-            'cluster_size': 3.0, 'cluster_size_normalized': 0.3
+            'cluster_size': 3.0, 'cluster_size_normalized': 0.3,
+            # NEW: Extreme detection defaults
+            'cpu_extreme_detected': 0.0, 'memory_extreme_detected': 0.0,
+            'max_cpu_actual': 70.0, 'max_memory_actual': 80.0
         }
         return defaults.get(feature_name, 0.0)
 
@@ -614,8 +647,12 @@ class SelfLearningWorkloadClassifier:
             logger.error(f"❌ Classification failed: {e}")
             return self._ml_enhanced_rule_classification(features_df)
 
+    # ============================================================================
+    # FIX 1: Enhanced Rule-Based Classification (workload_performance_analyzer.py)
+    # ============================================================================
+
     def _ml_enhanced_rule_classification(self, features_df: pd.DataFrame) -> Dict[str, Any]:
-        """Enhanced rule-based classification with rich insights"""
+        """FIXED: Enhanced rule-based classification with proper extreme case handling"""
         try:
             features = features_df.iloc[0] if not features_df.empty else {}
             
@@ -625,35 +662,83 @@ class SelfLearningWorkloadClassifier:
             memory_cv = features.get('memory_cv', 0.25)
             burst_freq = features.get('cpu_burst_frequency', 0.1)
             efficiency = features.get('overall_efficiency_score', 0.6)
+            cpu_max = features.get('cpu_max', cpu_mean)
+            memory_max = features.get('memory_max', memory_mean)
             
-            # Enhanced rule-based classification
-            if cpu_mean > 70 and memory_mean < 50:
+            # CRITICAL FIX: Handle extreme over-allocation first
+            if cpu_mean > 200 or cpu_max > 500:
+                workload_type = 'CPU_INTENSIVE'
+                confidence = 0.95
+                logger.info(f"🔥 EXTREME CPU DETECTED: mean={cpu_mean:.1f}%, max={cpu_max:.1f}%")
+            elif memory_mean > 200 or memory_max > 500:
+                workload_type = 'MEMORY_INTENSIVE'
+                confidence = 0.95
+                logger.info(f"🔥 EXTREME MEMORY DETECTED: mean={memory_mean:.1f}%, max={memory_max:.1f}%")
+            
+            # High utilization cases (above normal ranges)
+            elif cpu_mean > 90:
+                if memory_mean > 80:
+                    # Both high - determine dominant resource
+                    if cpu_mean > memory_mean * 1.2:
+                        workload_type = 'CPU_INTENSIVE'
+                    elif memory_mean > cpu_mean * 1.2:
+                        workload_type = 'MEMORY_INTENSIVE'
+                    else:
+                        workload_type = 'BURSTY'  # High load with both resources stressed
+                    confidence = 0.9
+                else:
+                    workload_type = 'CPU_INTENSIVE'
+                    confidence = 0.85
+            elif memory_mean > 90:
+                workload_type = 'MEMORY_INTENSIVE'
+                confidence = 0.85
+            
+            # Medium-high utilization with resource dominance
+            elif cpu_mean > 70 and memory_mean < 50:
                 workload_type = 'CPU_INTENSIVE'
                 confidence = 0.8
             elif memory_mean > 80 and cpu_mean < 40:
                 workload_type = 'MEMORY_INTENSIVE'
                 confidence = 0.8
-            elif burst_freq > 0.3 or cpu_cv > 0.5:
+            
+            # Bursty patterns (high variability or burst frequency)
+            elif burst_freq > 0.3 or cpu_cv > 0.5 or memory_cv > 0.5:
                 workload_type = 'BURSTY'
                 confidence = 0.75
-            elif cpu_mean < 30 and memory_mean < 40:
+            
+            # Low utilization (both resources underused)
+            elif cpu_mean < 25 and memory_mean < 35:
                 workload_type = 'LOW_UTILIZATION'
                 confidence = 0.85
+            
+            # Moderate utilization with efficiency check
+            elif efficiency < 0.4:
+                # Poor efficiency suggests optimization opportunity
+                if cpu_mean > memory_mean:
+                    workload_type = 'CPU_INTENSIVE'
+                else:
+                    workload_type = 'MEMORY_INTENSIVE'
+                confidence = 0.7
+            
+            # Default balanced case
             else:
                 workload_type = 'BALANCED'
                 confidence = 0.6
             
+            logger.info(f"🧠 CLASSIFICATION: {workload_type} (CPU:{cpu_mean:.1f}%, MEM:{memory_mean:.1f}%, confidence:{confidence:.2f})")
+            
             return {
                 'workload_type': workload_type,
                 'confidence': confidence,
-                'method': 'enhanced_rule_based_with_learning',
+                'method': 'enhanced_rule_based_with_extreme_handling',
                 'ml_enhanced': True,
                 'feature_count': len(features_df.columns),
                 'self_learning_enabled': self.enable_self_learning,
                 'feature_insights': self._extract_feature_insights(features_df),
                 'pattern_strength': confidence,
                 'alternative_patterns': [],
-                'confidence_level': self._categorize_confidence(confidence)
+                'confidence_level': self._categorize_confidence(confidence),
+                'classification_reasoning': f'CPU:{cpu_mean:.1f}%, Memory:{memory_mean:.1f}%, Efficiency:{efficiency:.2f}'
             }
             
         except Exception as e:
@@ -1978,7 +2063,133 @@ class SelfLearningIntelligentHPAEngine:
         """Export learning history"""
         return self.workload_classifier.export_learning_data(format)
 
-
+def test_extreme_case_classification():
+    """Test function to validate extreme case handling"""
+    try:
+        logger.info("🧪 Testing extreme case classification fixes...")
+        
+        # Test Case 1: Extreme CPU case (like your 1255% scenario)
+        extreme_cpu_metrics = {
+            'nodes': [
+                {'cpu_usage_pct': 1255, 'memory_usage_pct': 65, 'status': 'Ready'},
+                {'cpu_usage_pct': 800, 'memory_usage_pct': 70, 'status': 'Ready'},
+                {'cpu_usage_pct': 1100, 'memory_usage_pct': 68, 'status': 'Ready'}
+            ],
+            'hpa_implementation': {
+                'current_hpa_pattern': 'cpu_based_hpa',
+                'confidence': 'high',
+                'total_hpas': 5
+            }
+        }
+        
+        # Test Case 2: Normal utilization case
+        normal_metrics = {
+            'nodes': [
+                {'cpu_usage_pct': 45, 'memory_usage_pct': 60, 'status': 'Ready'},
+                {'cpu_usage_pct': 50, 'memory_usage_pct': 65, 'status': 'Ready'},
+                {'cpu_usage_pct': 40, 'memory_usage_pct': 62, 'status': 'Ready'}
+            ],
+            'hpa_implementation': {
+                'current_hpa_pattern': 'memory_based_hpa',
+                'confidence': 'medium',
+                'total_hpas': 2
+            }
+        }
+        
+        # Initialize engines
+        from app.ml.workload_performance_analyzer import create_comprehensive_self_learning_hpa_engine
+        
+        engine = create_comprehensive_self_learning_hpa_engine(
+            model_path="app/ml/data_feed",
+            enable_self_learning=True
+        )
+        
+        # Test extreme case
+        print("\n=== TESTING EXTREME CPU CASE ===")
+        extreme_result = engine.analyze_and_recommend_with_comprehensive_insights(
+            metrics_data=extreme_cpu_metrics,
+            current_hpa_config={},
+            cluster_id="test-extreme-cpu"
+        )
+        
+        extreme_workload_type = extreme_result['workload_classification']['workload_type']
+        extreme_confidence = extreme_result['workload_classification']['confidence']
+        extreme_chart = extreme_result.get('hpa_chart_data', {})
+        
+        print(f"Extreme CPU Classification: {extreme_workload_type} (confidence: {extreme_confidence:.2f})")
+        print(f"CPU Replicas: {extreme_chart.get('cpuReplicas', [])}")
+        print(f"Memory Replicas: {extreme_chart.get('memoryReplicas', [])}")
+        print(f"Chart Differential: {extreme_chart.get('scaling_differential', 0):.2f}")
+        
+        # Test normal case
+        print("\n=== TESTING NORMAL UTILIZATION CASE ===")
+        normal_result = engine.analyze_and_recommend_with_comprehensive_insights(
+            metrics_data=normal_metrics,
+            current_hpa_config={},
+            cluster_id="test-normal"
+        )
+        
+        normal_workload_type = normal_result['workload_classification']['workload_type']
+        normal_confidence = normal_result['workload_classification']['confidence']
+        normal_chart = normal_result.get('hpa_chart_data', {})
+        
+        print(f"Normal Classification: {normal_workload_type} (confidence: {normal_confidence:.2f})")
+        print(f"CPU Replicas: {normal_chart.get('cpuReplicas', [])}")
+        print(f"Memory Replicas: {normal_chart.get('memoryReplicas', [])}")
+        print(f"Chart Differential: {normal_chart.get('scaling_differential', 0):.2f}")
+        
+        # Validation checks
+        validation_results = []
+        
+        # Check 1: Extreme CPU should be classified as CPU_INTENSIVE
+        if extreme_workload_type == 'CPU_INTENSIVE':
+            validation_results.append("✅ Extreme CPU correctly classified as CPU_INTENSIVE")
+        else:
+            validation_results.append(f"❌ Extreme CPU incorrectly classified as {extreme_workload_type}")
+        
+        # Check 2: Chart data should be different for CPU vs Memory
+        extreme_cpu_replicas = extreme_chart.get('cpuReplicas', [])
+        extreme_memory_replicas = extreme_chart.get('memoryReplicas', [])
+        
+        if extreme_cpu_replicas != extreme_memory_replicas:
+            validation_results.append("✅ Extreme case shows different CPU vs Memory scaling")
+        else:
+            validation_results.append("❌ Extreme case shows identical CPU vs Memory scaling")
+        
+        # Check 3: Normal case should also show differentiation
+        normal_cpu_replicas = normal_chart.get('cpuReplicas', [])
+        normal_memory_replicas = normal_chart.get('memoryReplicas', [])
+        
+        if normal_cpu_replicas != normal_memory_replicas:
+            validation_results.append("✅ Normal case shows different CPU vs Memory scaling")
+        else:
+            validation_results.append("❌ Normal case shows identical CPU vs Memory scaling")
+        
+        # Check 4: Confidence should be reasonable
+        if extreme_confidence > 0.8:
+            validation_results.append("✅ Extreme case has high confidence")
+        else:
+            validation_results.append(f"⚠️ Extreme case has lower confidence: {extreme_confidence:.2f}")
+        
+        print("\n=== VALIDATION RESULTS ===")
+        for result in validation_results:
+            print(result)
+        
+        # Overall assessment
+        passed_checks = sum(1 for r in validation_results if r.startswith("✅"))
+        total_checks = len(validation_results)
+        
+        if passed_checks == total_checks:
+            print(f"\n🎉 ALL FIXES WORKING: {passed_checks}/{total_checks} checks passed")
+            return True
+        else:
+            print(f"\n⚠️ PARTIAL SUCCESS: {passed_checks}/{total_checks} checks passed")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Test failed with error: {e}")
+        return False
+    
 def create_comprehensive_self_learning_hpa_engine(model_path: str = None, enable_self_learning: bool = True):
     """
     Create comprehensive self-learning HPA engine with rich insights

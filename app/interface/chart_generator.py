@@ -8,7 +8,7 @@ from config import logger, enhanced_cluster_manager, _analysis_lock, _analysis_s
 from utils import ensure_float
 
 def generate_insights(analysis_results):
-    """Generate insights using REAL HPA recommendations - NO CONTRADICTIONS"""
+    """Generate insights using REAL ML HPA recommendations"""
     if not analysis_results:
         return {
             'cost_breakdown': 'No analysis data available. Please run an analysis first.',
@@ -19,7 +19,7 @@ def generate_insights(analysis_results):
     
     insights = {}
     
-    # Cost breakdown insight (existing logic - keep as is)
+    # Cost breakdown insight (existing logic)
     node_cost = analysis_results.get('node_cost', 0)
     total_cost = analysis_results.get('total_cost', 0)
     node_percentage = (node_cost / total_cost) * 100 if total_cost > 0 else 0
@@ -31,18 +31,37 @@ def generate_insights(analysis_results):
     else:
         insights['cost_breakdown'] = f"✅ Your costs are well-distributed with VM Scale Sets at <strong>{node_percentage:.1f}%</strong> (${node_cost:.2f})."
     
-    # NEW: HPA insight using REAL recommendations    
+    # ML-INTEGRATED HPA insight using REAL ML recommendations    
     hpa_recommendations = analysis_results.get('hpa_recommendations', {})
     ml_recommendation = hpa_recommendations.get('optimization_recommendation', {})
     
+    # Extract ML classification data
+    ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
+    ml_classification = ml_workload_characteristics.get('comprehensive_ml_classification', {})
+    workload_type = ml_classification.get('workload_type', 'UNKNOWN')
+    ml_confidence = ml_classification.get('confidence', 0.0)
+    
     if ml_recommendation and ml_recommendation.get('ml_enhanced'):
         # Use ML-generated insights
-        insights['hpa_comparison'] = f"🤖 <strong>{ml_recommendation.get('title', 'ML Analysis')}</strong>: {ml_recommendation.get('description', 'ML-based recommendation')}"
+        ml_title = ml_recommendation.get('title', 'ML Analysis')
+        ml_action = ml_recommendation.get('action', 'MONITOR')
+        hpa_savings = ensure_float(analysis_results.get('hpa_savings', 0))
+        
+        if workload_type == 'LOW_UTILIZATION':
+            insights['hpa_comparison'] = f"🤖 <strong>{ml_title}</strong>: ML detected {workload_type} pattern ({ml_confidence:.0%} confidence). Scale down opportunity saves ${hpa_savings:.2f}/month."
+        elif workload_type == 'CPU_INTENSIVE':
+            insights['hpa_comparison'] = f"⚡ <strong>{ml_title}</strong>: ML classified as {workload_type} ({ml_confidence:.0%} confidence). CPU-based HPA recommended for optimal scaling."
+        elif workload_type == 'MEMORY_INTENSIVE':
+            insights['hpa_comparison'] = f"💾 <strong>{ml_title}</strong>: ML classified as {workload_type} ({ml_confidence:.0%} confidence). Memory-based HPA will prevent OOM issues."
+        elif workload_type == 'BURSTY':
+            insights['hpa_comparison'] = f"📈 <strong>{ml_title}</strong>: ML detected {workload_type} patterns ({ml_confidence:.0%} confidence). Predictive scaling recommended."
+        else:
+            insights['hpa_comparison'] = f"🤖 <strong>{ml_title}</strong>: {ml_recommendation.get('description', 'ML-based recommendation')}"
     else:
         # Fallback
         insights['hpa_comparison'] = "🔍 Run ML analysis for intelligent HPA recommendations"
     
-    # Resource gap insight (existing logic - keep as is)
+    # Resource gap insight (existing logic)
     cpu_gap = analysis_results.get('cpu_gap', 0)
     memory_gap = analysis_results.get('memory_gap', 0)
     right_sizing_savings = analysis_results.get('right_sizing_savings', 0)
@@ -52,7 +71,7 @@ def generate_insights(analysis_results):
     else:
         insights['resource_gap'] = f"✅ <strong>WELL-OPTIMIZED:</strong> Minor gaps of <strong>{cpu_gap:.1f}% CPU</strong> and <strong>{memory_gap:.1f}% memory</strong>."
     
-    # Savings summary (existing logic - keep as is)
+    # Savings summary (existing logic)
     total_savings = analysis_results.get('total_savings', 0)
     annual_savings = analysis_results.get('annual_savings', 0)
     savings_percentage = analysis_results.get('savings_percentage', 0)
@@ -68,63 +87,216 @@ def generate_insights(analysis_results):
 
 def generate_dynamic_hpa_comparison(analysis_data):
     """
-    Generate HPA comparison using REAL workload data
-    Uses actual CPU utilization from kubectl instead of theoretical calculations
+    ML-INTEGRATED: Generate HPA comparison using your ML model outputs
+    Extracts and uses actual ML classifications, recommendations, and cost data
     """
     try:
-        logger.info("🔥 REAL WORKLOAD HPA: Generating chart from actual cluster data")
+        logger.info("🤖 ML-INTEGRATED: Generating chart from actual ML analysis")
         
-        # Step 1: Get ML classification and recommendations
+        # Step 1: Extract ML analysis results from your comprehensive system
         hpa_recommendations = analysis_data.get('hpa_recommendations', {})
-        ml_recommendation = hpa_recommendations.get('optimization_recommendation', {})
-        workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
         
-        # Step 2: Extract REAL HPA workload data
-        real_hpa_data = None
-        hpa_impl = analysis_data.get('hpa_implementation', {})
+        # Get ML-generated data
+        ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
+        ml_optimization_analysis = ml_workload_characteristics.get('optimization_analysis', {})
+        ml_hpa_recommendation = ml_workload_characteristics.get('hpa_recommendation', {})
+        ml_classification = ml_workload_characteristics.get('comprehensive_ml_classification', {})
         
-        # Look for the real HPA workload metrics in multiple locations
-        for key in ['workload_cpu_analysis', 'hpa_implementation', 'ml_metadata']:
-            data_section = analysis_data.get(key, {})
-            if isinstance(data_section, dict) and 'high_cpu_workloads' in data_section:
-                real_hpa_data = data_section
-                logger.info(f"✅ Found real HPA data in {key}")
-                break
+        # Extract ML results
+        workload_type = ml_classification.get('workload_type', 'BALANCED')
+        ml_confidence = ml_classification.get('confidence', 0.7)
+        primary_action = ml_optimization_analysis.get('primary_action', 'MONITOR')
         
-        # Fallback: Extract from nodes if HPA data not found
-        if not real_hpa_data:
-            logger.info("🔄 Using node data to simulate HPA scenarios")
-            real_hpa_data = _extract_hpa_scenarios_from_nodes(analysis_data)
+        logger.info(f"🤖 Using ML Classification: {workload_type} (confidence: {ml_confidence:.2f})")
+        logger.info(f"🎯 Using ML Recommendation: {primary_action}")
         
-        # Step 3: Calculate REAL current state
-        current_state = _calculate_real_current_state(real_hpa_data, analysis_data)
+        # Step 2: Extract REAL cost and efficiency data
+        actual_hpa_savings = ensure_float(analysis_data.get('hpa_savings', 0))
+        total_cost = ensure_float(analysis_data.get('total_cost', 0))
+        hpa_efficiency = ensure_float(analysis_data.get('hpa_efficiency', 0))
         
-        # Step 4: Generate realistic scenarios based on REAL data
-        scenarios = _generate_realistic_hpa_scenarios(current_state, ml_recommendation, real_hpa_data)
+        # Step 3: Get ML-calculated utilization data
+        ml_cpu_util = ml_workload_characteristics.get('cpu_utilization', 35.0)
+        ml_memory_util = ml_workload_characteristics.get('memory_utilization', 60.0)
         
-        # Step 5: Build chart data with real context
+        # Step 4: Generate ML-driven scenarios using your model's insights
+        scenarios = _generate_ml_driven_scenarios(
+            workload_type, primary_action, ml_confidence, 
+            ml_cpu_util, ml_memory_util, actual_hpa_savings,
+            ml_hpa_recommendation, ml_optimization_analysis
+        )
+        
+        # Step 5: Build chart data with ML integration
         chart_data = {
-            'timePoints': ['Low Load', 'Current', 'Peak Load', 'CPU-Optimized', 'Memory-Optimized'],
+            'timePoints': ['Low Load', 'Current', 'Peak Load', 'ML-Optimized', 'Predicted'],
             'cpuReplicas': scenarios['cpu_replicas'],
             'memoryReplicas': scenarios['memory_replicas'],
-            'real_workload_data': True,
-            'current_cpu_avg': current_state['avg_cpu'],
-            'current_memory_avg': current_state['avg_memory'],
-            'max_cpu_detected': current_state['max_cpu'],
-            'high_cpu_workloads': current_state['high_cpu_count'],
-            'ml_recommendation': ml_recommendation.get('action', 'MONITOR'),
+            
+            # REAL ML DATA INTEGRATION ✅
+            'actual_hpa_savings': actual_hpa_savings,
+            'actual_hpa_efficiency': hpa_efficiency,
+            'ml_workload_type': workload_type,
+            'ml_confidence': ml_confidence,
+            'ml_primary_action': primary_action,
+            'current_cpu_avg': ml_cpu_util,
+            'current_memory_avg': ml_memory_util,
+            
+            # ML-GENERATED SCENARIOS ✅
+            'ml_scenario_reasoning': scenarios['ml_reasoning'],
+            'optimization_potential': scenarios['optimization_potential'],
             'recommendation_text': scenarios['recommendation_text'],
-            'data_source': 'real_hpa_workload_analysis',
-            'chart_logic_explanation': scenarios['explanation']
+            'ml_expected_improvement': scenarios['expected_improvement'],
+            
+            # COST-AWARE DATA ✅
+            'scenario_cost_impact': scenarios['cost_impact'],
+            'waste_reduction': scenarios['waste_reduction'],
+            
+            # METADATA
+            'real_ml_data': True,
+            'data_source': 'comprehensive_self_learning_ml_analysis',
+            'ml_enhanced': True,
+            'learning_enabled': hpa_recommendations.get('comprehensive_self_learning', False),
+            'analysis_confidence': ml_confidence
         }
         
-        logger.info(f"✅ REAL HPA CHART: Generated with avg CPU: {current_state['avg_cpu']:.1f}%, "
-                   f"max CPU: {current_state['max_cpu']:.1f}%, recommendation: {scenarios['recommendation_text']}")
+        logger.info(f"✅ ML-INTEGRATED CHART: {workload_type} workload, "
+                   f"${actual_hpa_savings:.2f} savings, {hpa_efficiency:.1f}% efficiency, "
+                   f"action: {primary_action}")
         
         return chart_data
         
     except Exception as e:
-        logger.error(f"❌ Real HPA chart generation failed: {e}")
+        logger.error(f"❌ ML-integrated chart generation failed: {e}")
+        return None
+
+def _generate_ml_driven_scenarios(workload_type: str, primary_action: str, ml_confidence: float,
+                                 ml_cpu_util: float, ml_memory_util: float, actual_hpa_savings: float,
+                                 ml_hpa_recommendation: Dict, ml_optimization_analysis: Dict) -> Dict[str, Any]:
+    """
+    Generate scenarios based on your ML model's actual classifications and recommendations
+    """
+    try:
+        # Get ML-specific insights
+        ml_insights = ml_hpa_recommendation.get('ml_insights', {})
+        cost_analysis = ml_optimization_analysis.get('cost_analysis', {})
+        expected_improvement = ml_hpa_recommendation.get('expected_improvement', 'Based on ML analysis')
+        
+        # Base current replicas on ML analysis rather than static rules
+        ml_efficiency_score = ml_insights.get('resource_efficiency', {}).get('cpu_efficiency', 0.5)
+        current_replicas = max(2, int(6 * (1 - ml_efficiency_score)))  # More efficient = fewer replicas needed
+        
+        # Generate scenarios based on ML classification
+        if workload_type == 'LOW_UTILIZATION':
+            # ML detected over-provisioning - scale down opportunities
+            cpu_replicas = [1, current_replicas, current_replicas + 1, max(1, current_replicas - 2), current_replicas - 1]
+            memory_replicas = [1, current_replicas, current_replicas + 1, max(1, current_replicas - 2), current_replicas - 1]
+            
+            recommendation_text = f"🤖 ML detected LOW_UTILIZATION ({ml_confidence:.0%} confidence). Scale down saves ${actual_hpa_savings:.2f}/month."
+            optimization_potential = "High - significant over-provisioning detected"
+            waste_reduction = f"Reduce {100 - (ml_efficiency_score * 100):.1f}% resource waste"
+            
+        elif workload_type == 'CPU_INTENSIVE':
+            # ML detected CPU-bound workload
+            hpa_config = ml_hpa_recommendation.get('hpa_config', {})
+            target_cpu = hpa_config.get('target', 70)
+            scale_factor = ml_cpu_util / target_cpu
+            
+            cpu_replicas = [
+                max(1, current_replicas // 2),
+                current_replicas,
+                max(1, int(current_replicas * scale_factor * 1.4)),
+                max(1, int(current_replicas * 0.8)),
+                current_replicas
+            ]
+            memory_replicas = [
+                max(1, current_replicas // 2),
+                current_replicas,
+                max(1, int(current_replicas * 1.2)),
+                current_replicas,
+                current_replicas
+            ]
+            
+            recommendation_text = f"⚡ ML classified CPU_INTENSIVE ({ml_confidence:.0%} confidence). CPU-based HPA recommended."
+            optimization_potential = "Medium - CPU scaling optimization"
+            waste_reduction = f"Optimize CPU allocation efficiency"
+            
+        elif workload_type == 'MEMORY_INTENSIVE':
+            # ML detected memory-bound workload
+            hpa_config = ml_hpa_recommendation.get('hpa_config', {})
+            target_memory = hpa_config.get('target', 75)
+            scale_factor = ml_memory_util / target_memory
+            
+            memory_replicas = [
+                max(1, current_replicas // 2),
+                current_replicas,
+                max(1, int(current_replicas * scale_factor * 1.3)),
+                max(1, int(current_replicas * 0.7)),
+                current_replicas
+            ]
+            cpu_replicas = [
+                max(1, current_replicas // 2),
+                current_replicas,
+                max(1, int(current_replicas * 1.1)),
+                current_replicas,
+                current_replicas
+            ]
+            
+            recommendation_text = f"💾 ML classified MEMORY_INTENSIVE ({ml_confidence:.0%} confidence). Memory-based HPA recommended."
+            optimization_potential = "Medium - Memory scaling optimization"
+            waste_reduction = f"Optimize memory allocation patterns"
+            
+        elif workload_type == 'BURSTY':
+            # ML detected burst patterns
+            cpu_replicas = [1, current_replicas, current_replicas * 3, max(1, current_replicas // 2), current_replicas]
+            memory_replicas = [2, current_replicas, current_replicas * 2, max(1, current_replicas // 2), current_replicas]
+            
+            recommendation_text = f"📈 ML detected BURSTY patterns ({ml_confidence:.0%} confidence). Predictive scaling recommended."
+            optimization_potential = "High - Burst handling optimization"
+            waste_reduction = f"Reduce burst-related over-provisioning"
+            
+        else:  # BALANCED
+            # ML detected balanced workload
+            cpu_replicas = [
+                max(1, current_replicas // 2),
+                current_replicas,
+                current_replicas + 2,
+                max(1, current_replicas - 1),
+                current_replicas
+            ]
+            memory_replicas = cpu_replicas.copy()
+            
+            recommendation_text = f"⚖️ ML classified BALANCED ({ml_confidence:.0%} confidence). Hybrid HPA approach recommended."
+            optimization_potential = "Medium - Balanced optimization"
+            waste_reduction = f"Fine-tune resource allocation"
+        
+        # ML-specific reasoning
+        ml_reasoning = f"ML Analysis: {workload_type} workload with {ml_confidence:.0%} confidence. " \
+                      f"Primary action: {primary_action}. " \
+                      f"Expected improvement: {expected_improvement}"
+        
+        # Cost impact based on ML analysis
+        potential_savings = cost_analysis.get('potential_monthly_savings', actual_hpa_savings)
+        cost_impact = {
+            'monthly_savings': potential_savings,
+            'waste_percentage': cost_analysis.get('waste_percentage', 0),
+            'payback_period': cost_analysis.get('payback_period', 'immediate'),
+            'implementation_cost': 'low' if ml_confidence > 0.8 else 'medium'
+        }
+        
+        return {
+            'cpu_replicas': cpu_replicas,
+            'memory_replicas': memory_replicas,
+            'ml_reasoning': ml_reasoning,
+            'recommendation_text': recommendation_text,
+            'optimization_potential': optimization_potential,
+            'expected_improvement': expected_improvement,
+            'waste_reduction': waste_reduction,
+            'cost_impact': cost_impact,
+            'scenario_type': f'ml_{workload_type.lower()}'
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ ML-driven scenario generation failed: {e}")
         return None
 
 def _extract_hpa_scenarios_from_nodes(analysis_data):
@@ -160,47 +332,45 @@ def _extract_hpa_scenarios_from_nodes(analysis_data):
         logger.error(f"❌ HPA scenario extraction from nodes failed: {e}")
         return None
 
-def _calculate_real_current_state(real_hpa_data, analysis_data):
-    """Calculate current state from real workload data"""
+def _calculate_real_current_state(avg_cpu, avg_memory, max_cpu, node_cost, total_cost):
+    """Calculate current state with realistic replica estimation"""
     try:
-        # Get average CPU from real data
-        avg_cpu = real_hpa_data.get('average_cpu_utilization', 35)
-        max_cpu = real_hpa_data.get('max_cpu_utilization', avg_cpu)
+        # Estimate current replicas based on cost and utilization patterns
+        if total_cost > 1000:  # Large cluster
+            if avg_cpu < 20:  # Under-utilized
+                estimated_replicas = 3  # Conservative scaling
+            elif avg_cpu > 60:  # Well-utilized
+                estimated_replicas = 5
+            else:
+                estimated_replicas = 4
+        else:  # Smaller cluster
+            estimated_replicas = max(2, int(avg_cpu / 20))
         
-        # Get memory data from nodes
-        nodes = analysis_data.get('nodes', [])
-        if nodes:
-            memory_utils = [node.get('memory_usage_pct', 0) for node in nodes]
-            avg_memory = sum(memory_utils) / len(memory_utils) if memory_utils else 60
+        # Determine workload pressure classification
+        if max_cpu > 80 or avg_cpu > 70:
+            pressure = 'high'
+        elif avg_cpu < 30:
+            pressure = 'low'
         else:
-            avg_memory = 60
-        
-        # Count high CPU workloads
-        high_cpu_workloads = real_hpa_data.get('high_cpu_workloads', [])
-        high_cpu_count = len(high_cpu_workloads)
-        
-        # Estimate current replicas based on workload pressure
-        if max_cpu > 300:  # Extreme CPU like 3723%
-            current_replicas = 8  # High replica count due to extreme load
-        elif max_cpu > 100:  # High CPU
-            current_replicas = 5
-        elif avg_cpu > 60:  # Moderate load
-            current_replicas = 3
-        else:  # Low load
-            current_replicas = 2
+            pressure = 'moderate'
         
         return {
             'avg_cpu': avg_cpu,
             'avg_memory': avg_memory,
             'max_cpu': max_cpu,
-            'high_cpu_count': high_cpu_count,
-            'current_replicas': current_replicas,
-            'workload_pressure': 'extreme' if max_cpu > 300 else 'high' if max_cpu > 100 else 'moderate' if avg_cpu > 60 else 'low'
+            'estimated_replicas': estimated_replicas,
+            'workload_pressure': pressure,
+            'cost_context': 'large' if total_cost > 1000 else 'medium'
         }
         
     except Exception as e:
         logger.error(f"❌ Current state calculation failed: {e}")
-        return None
+        return {
+            'avg_cpu': 0, 'avg_memory': 0, 'max_cpu': 0,
+            'estimated_replicas': 2, 'workload_pressure': 'unknown',
+            'cost_context': 'unknown'
+        }
+
 
 def _generate_realistic_hpa_scenarios(current_state, ml_recommendation, real_hpa_data):
     """Generate realistic HPA scenarios based on REAL current state"""

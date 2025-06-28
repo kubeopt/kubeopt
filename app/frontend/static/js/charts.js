@@ -653,6 +653,8 @@ export function createHPAComparisonChart(data, isRealData) {
     const ctx = canvas.getContext('2d');
     const colors = getChartColors();
 
+    console.log('🤖 Creating HPA chart with ML data:', data);
+
     const config = {
         type: 'bar',
         data: {
@@ -668,7 +670,7 @@ export function createHPAComparisonChart(data, isRealData) {
                 {
                     label: 'Memory-based HPA',
                     data: data.memoryReplicas || [],
-                    backgroundColor: 'rgba(46, 204, 113, 0.7)',
+                    backgroundColor: 'rgba(32, 77, 51, 0.7)',
                     borderColor: '#2ecc71',
                     borderWidth: 2
                 }
@@ -678,7 +680,31 @@ export function createHPAComparisonChart(data, isRealData) {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { labels: { color: colors.textColor } }
+                legend: { labels: { color: colors.textColor } },
+                // ADD ML TOOLTIP WITH REAL DATA ✅
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(context) {
+                            const tooltipLines = [];
+                            
+                            // Add ML data to tooltips
+                            if (data.ml_workload_type) {
+                                tooltipLines.push(`ML Classification: ${data.ml_workload_type}`);
+                            }
+                            if (data.ml_confidence) {
+                                tooltipLines.push(`ML Confidence: ${(data.ml_confidence * 100).toFixed(0)}%`);
+                            }
+                            if (data.actual_hpa_savings) {
+                                tooltipLines.push(`Potential Savings: $${data.actual_hpa_savings.toFixed(2)}/month`);
+                            }
+                            if (data.actual_hpa_efficiency) {
+                                tooltipLines.push(`Current Efficiency: ${data.actual_hpa_efficiency.toFixed(1)}%`);
+                            }
+                            
+                            return tooltipLines;
+                        }
+                    }
+                }
             },
             scales: {
                 x: {
@@ -700,6 +726,43 @@ export function createHPAComparisonChart(data, isRealData) {
     };
 
     AppState.chartInstances['hpaComparisonChart'] = new Chart(ctx, config);
+    
+    // ADD ML RECOMMENDATION DISPLAY ✅
+    updateHPARecommendationText(data);
+    console.log('✅ HPA chart created with ML integration');
+}
+
+function updateHPARecommendationText(data) {
+    // Update optimization potential section
+    const optimizationSection = document.querySelector('.optimization-potential');
+    if (optimizationSection && data.recommendation_text) {
+        const existingText = optimizationSection.querySelector('p');
+        if (existingText) {
+            existingText.innerHTML = data.recommendation_text;
+        } else {
+            optimizationSection.innerHTML += `<p class="ml-recommendation">${data.recommendation_text}</p>`;
+        }
+    }
+    
+    // Update any HPA insight elements
+    const hpaInsightElements = document.querySelectorAll('#hpa-insight, .hpa-insight');
+    hpaInsightElements.forEach(element => {
+        if (data.recommendation_text) {
+            element.innerHTML = data.recommendation_text;
+            element.classList.add('ml-enhanced');
+        }
+    });
+    
+    // Update savings display with real ML data
+    if (data.actual_hpa_savings) {
+        const savingsElements = document.querySelectorAll('#hpa-savings, .hpa-savings-amount');
+        savingsElements.forEach(element => {
+            element.textContent = `$${data.actual_hpa_savings.toFixed(2)}`;
+            element.classList.add('real-ml-data');
+        });
+    }
+    
+    console.log('✅ Updated HPA recommendation text with ML data');
 }
 
 /**
