@@ -1,4 +1,14 @@
 {
+  "accuracy": 0.9442424242424242,
+  "training_samples": 2475,
+  "test_samples": 825,
+  "classes": [
+    "BALANCED",
+    "BURSTY",
+    "CPU_INTENSIVE",
+    "LOW_UTILIZATION",
+    "MEMORY_INTENSIVE"
+  ],
   "features": [
     "cpu_mean",
     "memory_mean",
@@ -54,28 +64,7 @@
     "cluster_size",
     "cluster_size_normalized"
   ],
-  "classes": [
-    "BALANCED",
-    "BURSTY",
-    "CPU_INTENSIVE",
-    "LOW_UTILIZATION",
-    "MEMORY_INTENSIVE"
-  ],
-  "n_features": 53,
-  "model_type": "RandomForestClassifier",
-  "created_date": "2025-06-27T21:50:08.175263",
-  "training_accuracy": 1.0,
-  "test_accuracy": 1.0,
-  "cv_mean": 1.0,
-  "cv_std": 0.0,
-  "best_hyperparameters": {
-    "max_depth": 15,
-    "max_features": "sqrt",
-    "min_samples_leaf": 1,
-    "min_samples_split": 2,
-    "n_estimators": 200
-  },
-  "sklearn_version": "1.0+",
-  "training_approach": "enhanced_with_hyperparameter_tuning",
-  "expected_confidence_range": "0.75-0.95"
+  "training_timestamp": "2025-06-28T00:11:09.953284",
+  "model_type": "realistic_random_forest",
+  "overfitting_prevented": true
 }
