@@ -219,13 +219,32 @@ def _validate_chart_data_requirements(current_analysis: Dict, cluster_id: str) -
     logger.info(f"✅ Chart data validation passed for {cluster_id}")
     return None
 
+# ==============================================================================
+# CORRECT APPROACH: Update your EXISTING functions in chart_data_api.py
+# ==============================================================================
+
+# 1. UPDATE your existing _extract_cost_metrics() function:
 def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) -> Dict[str, float]:
-    """Extract and validate cost metrics from analysis data"""
+    """Extract and validate cost metrics from analysis data - ML INTEGRATED"""
     
     monthly_cost = ensure_float(current_analysis.get('total_cost', 0))
     monthly_savings = ensure_float(current_analysis.get('total_savings', 0))
     
-    logger.info(f"📊 Extracting metrics from {data_source}: cost=${monthly_cost:.2f}, savings=${monthly_savings:.2f}")
+    # UPDATED: Extract HPA savings from ML analysis (this was the missing piece!)
+    hpa_savings = ensure_float(current_analysis.get('hpa_savings', 0))
+    
+    # Also check ML-specific locations if not found
+    if hpa_savings == 0:
+        hpa_recommendations = current_analysis.get('hpa_recommendations', {})
+        if hpa_recommendations:
+            # Try to extract from ML analysis structure
+            ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
+            ml_optimization_analysis = ml_workload_characteristics.get('optimization_analysis', {})
+            ml_cost_analysis = ml_optimization_analysis.get('cost_analysis', {})
+            hpa_savings = ensure_float(ml_cost_analysis.get('potential_monthly_savings', 0))
+    
+    logger.info(f"📊 Extracting metrics from {data_source}: cost=${monthly_cost:.2f}, "
+               f"total_savings=${monthly_savings:.2f}, hpa_savings=${hpa_savings:.2f}")
     
     # Get individual cost components
     cost_components = {
@@ -237,9 +256,9 @@ def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) ->
         'other_cost': ensure_float(current_analysis.get('other_cost', 0))
     }
     
-    # Validate and fix cost components if necessary
+    # Validate and fix cost components if necessary (existing logic)
     component_total = sum(cost_components.values())
-    if abs(component_total - monthly_cost) > (monthly_cost * 0.01):  # 1% tolerance
+    if abs(component_total - monthly_cost) > (monthly_cost * 0.01):
         logger.warning(f"⚠️ Cost mismatch: components={component_total:.2f}, total={monthly_cost:.2f}")
         if component_total > 0:
             adjustment_factor = monthly_cost / component_total
@@ -249,6 +268,7 @@ def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) ->
     return {
         'monthly_cost': monthly_cost,
         'monthly_savings': monthly_savings,
+        'hpa_savings': hpa_savings,  # ✅ NOW INCLUDES ML HPA SAVINGS
         **cost_components
     }
 
@@ -283,7 +303,7 @@ def _build_enhanced_response_data(current_analysis: Dict[str, Any],
             'analysis_period_days': analysis_period_days,
             'cost_label': current_analysis.get('cost_label', f'{analysis_period_days}-day baseline'),
             'total_savings': cost_metrics['monthly_savings'],
-            'hpa_savings': ensure_float(current_analysis.get('hpa_savings', 0)),
+            'hpa_savings': cost_metrics.get('hpa_savings', 0),
             'right_sizing_savings': ensure_float(current_analysis.get('right_sizing_savings', 0)),
             'storage_savings': ensure_float(current_analysis.get('storage_savings', 0)),
             'savings_percentage': ensure_float(current_analysis.get('savings_percentage', 0)),
@@ -314,7 +334,7 @@ def _build_enhanced_response_data(current_analysis: Dict[str, Any],
         'savingsBreakdown': {
             'categories': ['Memory-based HPA', 'Right-sizing', 'Storage Optimization'],
             'values': [
-                ensure_float(current_analysis.get('hpa_savings', 0)),
+                cost_metrics.get('hpa_savings', 0),
                 ensure_float(current_analysis.get('right_sizing_savings', 0)),
                 ensure_float(current_analysis.get('storage_savings', 0))
             ]
@@ -375,17 +395,27 @@ def _extract_hpa_implementation_safely(current_analysis: Dict) -> Dict:
         }
 
 def _add_charts_with_error_handling(response_data: Dict, current_analysis: Dict, cluster_id: str):
-    """FIXED: Add charts with comprehensive error handling"""
+    """UPDATED: Add charts with comprehensive error handling - ML INTEGRATED"""
     
-    # HPA comparison chart
+    # HPA comparison chart - USING ML-INTEGRATED FUNCTION ✅
     try:
         response_data['hpaComparison'] = generate_dynamic_hpa_comparison(current_analysis)
-        logger.info("✅ Generated HPA comparison chart")
+        logger.info("✅ Generated HPA comparison chart with ML data")
+        
+        # Log the actual ML values being sent to frontend ✅
+        hpa_chart = response_data['hpaComparison']
+        if hpa_chart:
+            logger.info(f"📊 HPA CHART DATA: savings=${hpa_chart.get('actual_hpa_savings', 0):.2f}, "
+                       f"efficiency={hpa_chart.get('actual_hpa_efficiency', 0):.1f}%, "
+                       f"ml_workload={hpa_chart.get('ml_workload_type', 'unknown')}, "
+                       f"ml_confidence={hpa_chart.get('ml_confidence', 0):.2f}, "
+                       f"real_ml_data={hpa_chart.get('real_ml_data', False)}")
+        
     except Exception as hpa_error:
         logger.error(f"❌ HPA comparison generation failed: {hpa_error}")
         response_data['hpaComparison'] = None
     
-    # Node utilization chart
+    # Node utilization chart (existing logic unchanged)
     try:
         response_data['nodeUtilization'] = generate_node_utilization_data(current_analysis)
         logger.info("✅ Generated node utilization chart")
@@ -393,7 +423,7 @@ def _add_charts_with_error_handling(response_data: Dict, current_analysis: Dict,
         logger.error(f"❌ Node utilization generation failed: {node_error}")
         response_data['nodeUtilization'] = None
     
-    # Trend data (optional)
+    # Trend data (existing logic unchanged)
     try:
         response_data['trendData'] = generate_dynamic_trend_data(cluster_id, current_analysis)
         logger.info("✅ Generated trend data")
@@ -406,14 +436,13 @@ def _add_charts_with_error_handling(response_data: Dict, current_analysis: Dict,
             'error': str(trend_error)
         }
     
-    # Add pod cost data if available
+    # Add pod cost data if available (existing logic unchanged)
     if current_analysis.get('has_pod_costs'):
         logger.info("✅ Pod cost data found, generating charts")
         try:
             _add_pod_cost_data(response_data, current_analysis)
         except Exception as pod_error:
             logger.warning(f"⚠️ Failed to add pod cost data: {pod_error}")
-            # Pod data is optional
 
 def _add_pod_cost_data(response_data: Dict[str, Any], current_analysis: Dict[str, Any]) -> None:
     """Add pod cost related data to response - FIXED to use current_analysis"""

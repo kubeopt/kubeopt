@@ -6,6 +6,450 @@
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='static/css/smooth.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='static/css/alerts.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='static/css/enhanced-dashboard.css') }}">
+<style>
+/* Additional inline styles for enhanced UI */
+.analysis-progress {
+    display: none;
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    background: linear-gradient(135deg, rgba(0, 123, 255, 0.05), rgba(0, 123, 255, 0.02));
+    border-radius: 12px;
+    border: 1px solid rgba(0, 123, 255, 0.2);
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+}
+
+.analysis-progress.active {
+    display: block;
+    animation: fadeInUp 0.5s ease-out;
+}
+
+.progress-bar {
+    height: 12px;
+    background: #e9ecef;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+    position: relative;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #007bff, #28a745, #20c997);
+    border-radius: 6px;
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    width: 0%;
+    box-shadow: 0 1px 3px rgba(0, 123, 255, 0.3);
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: progressShimmer 2s ease-in-out infinite;
+}
+
+@keyframes progressShimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.progress-text {
+    text-align: center;
+    font-size: 1rem;
+    color: #495057;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.enhanced-form {
+    background: linear-gradient(135deg, #ffffff, #f8f9fa);
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.smooth-input {
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    padding: 0.875rem 1.25rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 1rem;
+    background: #ffffff;
+}
+
+.smooth-input:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.25rem rgba(0, 123, 255, 0.25);
+    transform: translateY(-1px);
+    background: #ffffff;
+}
+
+.form-hint {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.5rem;
+    font-style: italic;
+}
+
+.metric-card {
+    background: linear-gradient(135deg, #ffffff, #f8f9fa);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 20px;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #007bff, #6610f2);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.6s ease-out;
+}
+
+.metric-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+}
+
+.metric-card:hover::before {
+    transform: scaleX(1);
+}
+
+.savings-card {
+    background: linear-gradient(135deg, #ffffff, #f0fff4);
+    border-color: rgba(40, 167, 69, 0.2);
+}
+
+.savings-card::before {
+    background: linear-gradient(90deg, #28a745, #20c997);
+}
+
+.metric-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #007bff, #6610f2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+    color: white;
+    font-size: 2rem;
+    transition: all 0.4s ease;
+    position: relative;
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+}
+
+.savings-card .metric-icon {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+
+.metric-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    transition: all 0.3s ease;
+    position: relative;
+    color: #2d3748;
+}
+
+.metric-label {
+    font-size: 1rem;
+    color: #6c757d;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.insight-box {
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.06), rgba(40, 167, 69, 0.02));
+    border: 1px solid rgba(40, 167, 69, 0.25);
+    border-left: 5px solid #28a745;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.1);
+}
+
+.insight-box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #28a745, transparent);
+    transform: translateX(-100%);
+    transition: transform 0.8s ease-out;
+}
+
+.insight-box.loaded::before {
+    transform: translateX(0);
+}
+
+.insight-box.loaded {
+    border-left-color: #28a745;
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(40, 167, 69, 0.03));
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.15);
+}
+
+.chart-container {
+    position: relative;
+    height: 380px;
+    margin: 1.5rem 0;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #ffffff, #f8f9fa);
+    border-radius: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.hpa-chart-container {
+    height: 420px;
+}
+
+.ml-classification-badge {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #6f42c1, #e83e8c);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 25px;
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 10;
+    animation: badgeSlideIn 0.8s ease-out;
+    box-shadow: 0 3px 12px rgba(111, 66, 193, 0.4);
+}
+
+.ml-workload-badge {
+    background: linear-gradient(135deg, #17a2b8, #20c997);
+}
+
+@keyframes badgeSlideIn {
+    0% { opacity: 0; transform: translateX(30px) scale(0.8); }
+    100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+.cluster-context-header {
+    background: linear-gradient(135deg, #007bff, #6610f2);
+    color: white;
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+    box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.cluster-context-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="rgba(255,255,255,0.1)"/><circle cx="80" cy="80" r="2" fill="rgba(255,255,255,0.1)"/><circle cx="40" cy="70" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="70" cy="30" r="1" fill="rgba(255,255,255,0.1)"/></svg>');
+    animation: float 20s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+.nav-pills {
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 50px;
+    padding: 0.75rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.nav-pills .nav-link {
+    border-radius: 30px;
+    margin: 0 0.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    font-weight: 500;
+    padding: 1rem 2rem;
+}
+
+.nav-pills .nav-link::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #007bff, #6610f2);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 30px;
+}
+
+.nav-pills .nav-link.active::before {
+    opacity: 1;
+}
+
+.nav-pills .nav-link i,
+.nav-pills .nav-link span {
+    position: relative;
+    z-index: 1;
+}
+
+.nav-pills .nav-link:hover:not(.active) {
+    background: rgba(0, 123, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.nav-pills .nav-link.active {
+    color: white;
+}
+
+.smooth-btn {
+    position: relative;
+    overflow: hidden;
+    border-radius: 10px;
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 2px solid transparent;
+}
+
+.smooth-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.6s ease;
+}
+
+.smooth-btn:hover::before {
+    left: 100%;
+}
+
+.smooth-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.loading-text {
+    color: #6c757d;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 2rem;
+    background: rgba(0, 123, 255, 0.03);
+    border-radius: 10px;
+    border: 1px dashed rgba(0, 123, 255, 0.2);
+}
+
+.loading-text i {
+    animation: spin 1s linear infinite;
+    color: #007bff;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.savings-breakdown-mini {
+    background: rgba(40, 167, 69, 0.05);
+    border: 1px solid rgba(40, 167, 69, 0.2);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-top: 1.25rem;
+}
+
+.savings-breakdown-mini .d-flex {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(40, 167, 69, 0.1);
+}
+
+.savings-breakdown-mini .d-flex:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+@media (max-width: 768px) {
+    .cluster-context-header {
+        padding: 1.5rem 0;
+    }
+    
+    .metric-card {
+        padding: 1.5rem 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .metric-icon {
+        width: 70px;
+        height: 70px;
+        font-size: 1.75rem;
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+    }
+    
+    .chart-container {
+        height: 300px;
+        padding: 1rem;
+    }
+    
+    .hpa-chart-container {
+        height: 340px;
+    }
+    
+    .form-grid {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+    
+    .nav-pills .nav-link {
+        padding: 0.75rem 1.5rem;
+        margin: 0.25rem;
+    }
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -16,13 +460,13 @@
     <div class="container">
         <div class="d-flex align-items-center justify-content-between w-100 flex-wrap">
             <div class="d-flex align-items-center gap-3">
-                <a href="/" class="btn btn-outline-secondary btn-sm smooth-btn">
+                <a href="/" class="btn btn-outline-light btn-sm smooth-btn">
                     <i class="fas fa-arrow-left me-2"></i>
                     <span class="btn-text">Back to Portfolio</span>
                 </a>
                 <div class="cluster-info">
                     <h4 class="mb-0">
-                        <i class="fas fa-dharmachakra me-2 text-primary"></i>
+                        <i class="fas fa-dharmachakra me-2"></i>
                         {{ cluster.name }}
                     </h4>
                     <div class="d-flex align-items-center gap-2 mt-1">
@@ -30,26 +474,26 @@
                             {{ cluster.environment.upper() if cluster.environment else 'UNKNOWN' }}
                         </span>
                         {% if cluster.region %}
-                        <span class="text-muted">{{ cluster.region }}</span>
+                        <span class="text-light opacity-75">{{ cluster.region }}</span>
                         {% endif %}
                     </div>
                 </div>
             </div>
             
             <div class="d-flex gap-2">
-                <button class="btn btn-outline-secondary btn-sm smooth-btn" onclick="compareWithOtherClusters()">
+                <button class="btn btn-outline-light btn-sm smooth-btn" onclick="compareWithOtherClusters()">
                     <i class="fas fa-balance-scale me-1"></i>
                     <span class="btn-text">Compare</span>
                 </button>
-                <button class="btn btn-outline-secondary btn-sm smooth-btn" onclick="cloneClusterSettings()">
+                <button class="btn btn-outline-light btn-sm smooth-btn" onclick="cloneClusterSettings()">
                     <i class="fas fa-copy me-1"></i>
                     <span class="btn-text">Clone</span>
                 </button>
-                <button class="btn btn-outline-primary btn-sm smooth-btn" onclick="exportClusterReport()">
+                <button class="btn btn-light btn-sm smooth-btn" onclick="exportClusterReport()">
                     <i class="fas fa-download me-1"></i>
                     <span class="btn-text">Export</span>
                 </button>
-                <button class="btn btn-outline-danger btn-sm smooth-btn" onclick="deleteCurrentCluster('{{ cluster.id }}')">
+                <button class="btn btn-outline-light btn-sm smooth-btn text-danger border-danger" onclick="deleteCurrentCluster('{{ cluster.id }}')">
                     <i class="fas fa-trash me-1"></i>
                     <span class="btn-text">Delete</span>
                 </button>
@@ -57,8 +501,8 @@
         </div>
         
         {% if cluster.description %}
-        <div class="mt-2">
-            <small class="text-muted">{{ cluster.description }}</small>
+        <div class="mt-3">
+            <small class="text-light opacity-75">{{ cluster.description }}</small>
         </div>
         {% endif %}
     </div>
@@ -67,37 +511,18 @@
 <!-- No Cluster Context -->
 <div class="cluster-context-header">
     <div class="container text-center">
-        <a href="/" class="btn btn-outline-primary btn-sm smooth-btn">
+        <a href="/" class="btn btn-light btn-sm smooth-btn">
             <i class="fas fa-th me-2"></i>
             <span class="btn-text">View All Clusters</span>
         </a>
-        <span class="text-muted ms-2">General dashboard view</span>
+        <span class="text-light opacity-75 ms-2">General dashboard view</span>
     </div>
 </div>
 {% endif %}
 
-<!-- Enhanced Header -->
-<!-- <div class="container mt-4 mb-4">
-    <div class="card">
-        <div class="card-header">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <h2 class="mb-1">
-                        <i class="fas fa-dharmachakra me-2"></i>
-                        {% if cluster %}{{ cluster.name }} Analysis{% else %}AKS Cost Intelligence{% endif %}
-                    </h2>
-                    <p class="mb-0 opacity-90">
-                        {% if cluster %}Cost optimization analysis for this cluster{% else %}Intelligent cloud cost optimization platform{% endif %}
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div> -->
-
 <!-- Enhanced Tab Navigation with Smooth Transitions -->
 <div class="container mb-4">
-    <div class="card">
+    <div class="card border-0 shadow-sm">
         <div class="card-body py-3">
             <ul class="nav nav-pills justify-content-center" id="main-tabs" role="tablist">
                 <li class="nav-item" role="presentation">
@@ -138,12 +563,15 @@
             <div class="row">
                 <!-- Enhanced Analysis Form -->
                 <div class="col-lg-8">
-                    <div class="card">
-                        <div class="card-header">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-gradient-primary text-white">
                             <h5 class="mb-0">
                                 <i class="fas fa-search me-2"></i>
-                                Cost Optimization Analysis
+                                AI-Powered Cost Optimization Analysis
                             </h5>
+                            <p class="mb-0 small opacity-90">
+                                Machine learning analysis of your AKS cluster costs and optimization opportunities
+                            </p>
                         </div>
                         <div class="card-body">
                             <form id="analysisForm" action="/analyze" method="POST" class="enhanced-form needs-validation" novalidate>
@@ -154,7 +582,7 @@
                                 <div class="form-grid">
                                     <div class="form-group">
                                         <label for="resource_group" class="form-label">
-                                            <i class="fas fa-folder-open me-2"></i>Resource Group
+                                            <i class="fas fa-folder-open me-2 text-primary"></i>Resource Group
                                             <span class="text-danger">*</span>
                                         </label>
                                         <input type="text"
@@ -172,7 +600,7 @@
 
                                     <div class="form-group">
                                         <label for="cluster_name" class="form-label">
-                                            <i class="fas fa-dharmachakra me-2"></i>Cluster Name
+                                            <i class="fas fa-dharmachakra me-2 text-primary"></i>Cluster Name
                                             <span class="text-danger">*</span>
                                         </label>
                                         <input type="text"
@@ -190,14 +618,14 @@
 
                                     <div class="form-group">
                                         <label for="days" class="form-label">
-                                            <i class="fas fa-calendar-alt me-2"></i>Analysis Period
+                                            <i class="fas fa-calendar-alt me-2 text-primary"></i>Analysis Period
                                         </label>
                                         <select class="form-select smooth-input" id="days" name="days">
                                             <option value="7">Last 7 days</option>
                                             <option value="30" selected>Last 30 days</option>
                                             <option value="90">Last 90 days</option>
                                         </select>
-                                        <div class="form-hint">Select time period for analysis</div>
+                                        <div class="form-hint">Select time period for ML analysis</div>
                                     </div>
                                 </div>
                                 
@@ -205,10 +633,10 @@
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="enable_pod_analysis" name="enable_pod_analysis" checked>
                                         <label class="form-check-label" for="enable_pod_analysis">
-                                            <strong>Enable Deep Pod Analysis</strong>
+                                            <strong><i class="fas fa-layer-group me-2 text-info"></i>Enable Deep Pod Analysis</strong>
                                         </label>
                                         <div class="form-hint">
-                                            Analyze costs at namespace and workload level (adds 30-60 seconds)
+                                            Analyze costs at namespace and workload level using ML classification (adds 30-60 seconds)
                                         </div>
                                     </div>
                                 </div>
@@ -217,7 +645,7 @@
                                     <button type="submit" class="btn btn-primary btn-lg smooth-btn" id="analyzeBtn">
                                         <span class="btn-content">
                                             <i class="fas fa-play me-2"></i>
-                                            <span class="btn-text">Start Analysis</span>
+                                            <span class="btn-text">Start AI Analysis</span>
                                         </span>
                                         <div class="btn-loader d-none">
                                             <i class="fas fa-spinner fa-spin me-2"></i>
@@ -229,7 +657,10 @@
                                         <div class="progress-bar">
                                             <div class="progress-fill" id="progressFill"></div>
                                         </div>
-                                        <div class="progress-text" id="progressText">Initializing analysis...</div>
+                                        <div class="progress-text" id="progressText">
+                                            <i class="fas fa-brain me-2"></i>
+                                            <span>Initializing AI analysis...</span>
+                                        </div>
                                     </div>
                                 </div>
                             </form>
@@ -239,61 +670,61 @@
 
                 <!-- Enhanced Info Sidebar -->
                 <div class="col-lg-4">
-                    <div class="card h-100">
-                        <div class="card-header">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-header bg-light">
                             <h6 class="mb-0">
-                                <i class="fas fa-lightbulb me-2"></i>Analysis Overview
+                                <i class="fas fa-lightbulb me-2 text-warning"></i>Analysis Overview
                             </h6>
                         </div>
                         <div class="card-body">
                             {% if cluster and cluster.last_analyzed %}
-                            <div class="alert alert-info">
+                            <div class="alert alert-info border-0">
                                 <h6><i class="fas fa-info-circle me-2"></i>Previous Analysis</h6>
                                 <p class="mb-1">Last Cost: <strong>${{ cluster.last_cost|round(2) if cluster.last_cost else 0 }}</strong></p>
                                 <p class="mb-0">Potential Savings: <strong>${{ cluster.last_savings|round(2) if cluster.last_savings else 0 }}</strong></p>
                             </div>
                             {% endif %}
                             
-                            <div class="d-flex align-items-center mb-3">
+                            <div class="d-flex align-items-center mb-3 p-3 bg-light rounded">
                                 <div class="me-3">
-                                    <i class="fas fa-memory text-primary" style="font-size: 1.5rem;"></i>
+                                    <i class="fas fa-memory text-primary" style="font-size: 2rem;"></i>
                                 </div>
                                 <div>
                                     <h6 class="mb-1">Memory-based HPA</h6>
-                                    <small class="text-muted">Optimize replica scaling</small>
+                                    <small class="text-muted">AI-optimized replica scaling</small>
                                 </div>
                             </div>
                             
-                            <div class="d-flex align-items-center mb-3">
+                            <div class="d-flex align-items-center mb-3 p-3 bg-light rounded">
                                 <div class="me-3">
-                                    <i class="fas fa-microchip text-warning" style="font-size: 1.5rem;"></i>
+                                    <i class="fas fa-microchip text-warning" style="font-size: 2rem;"></i>
                                 </div>
                                 <div>
-                                    <h6 class="mb-1">Resource Right-sizing</h6>
-                                    <small class="text-muted">Eliminate over-provisioning</small>
+                                    <h6 class="mb-1">ML Right-sizing</h6>
+                                    <small class="text-muted">Eliminate over-provisioning with AI</small>
                                 </div>
                             </div>
                             
-                            <div class="d-flex align-items-center mb-3">
+                            <div class="d-flex align-items-center mb-3 p-3 bg-light rounded">
                                 <div class="me-3">
-                                    <i class="fas fa-hdd text-success" style="font-size: 1.5rem;"></i>
+                                    <i class="fas fa-hdd text-success" style="font-size: 2rem;"></i>
                                 </div>
                                 <div>
-                                    <h6 class="mb-1">Storage Optimization</h6>
-                                    <small class="text-muted">Optimize disk usage</small>
+                                    <h6 class="mb-1">Smart Storage</h6>
+                                    <small class="text-muted">AI-driven storage optimization</small>
                                 </div>
                             </div>
 
-                            <div class="saving-box mt-4">
-                                <h6>Expected Results</h6>
+                            <div class="savings-box mt-4 p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded">
+                                <h6 class="text-success"><i class="fas fa-chart-line me-2"></i>Expected Results</h6>
                                 <div class="row text-center">
                                     <div class="col-6">
-                                        <div class="metric-value" style="font-size: 1.5rem;">30-75%</div>
-                                        <div class="metric-label">Cost Reduction</div>
+                                        <div class="metric-value text-success" style="font-size: 1.75rem;">30-75%</div>
+                                        <div class="metric-label small">Cost Reduction</div>
                                     </div>
                                     <div class="col-6">
-                                        <div class="metric-value" style="font-size: 1.5rem;">&lt; 5min</div>
-                                        <div class="metric-label">Analysis Time</div>
+                                        <div class="metric-value text-info" style="font-size: 1.75rem;">&lt; 5min</div>
+                                        <div class="metric-label small">Analysis Time</div>
                                     </div>
                                 </div>
                             </div>
@@ -327,9 +758,9 @@
                             <i class="fas fa-piggy-bank"></i>
                         </div>
                         <div class="metric-value text-success" id="potential-savings" data-metric="savings">--</div>
-                        <div class="metric-label">Potential Savings</div>
+                        <div class="metric-label">AI-Predicted Savings</div>
                         <div class="text-muted small mt-2">
-                            <i class="fas fa-info-circle me-1"></i>
+                            <i class="fas fa-brain me-1"></i>
                             <span id="savings-percentage">Run analysis to view</span>
                         </div>
                     </div>
@@ -343,8 +774,8 @@
                         <div class="metric-value text-info" id="hpa-efficiency">--</div>
                         <div class="metric-label">HPA Efficiency</div>
                         <div class="text-muted small mt-2">
-                            <i class="fas fa-info-circle me-1"></i>
-                            <span>Run analysis to view</span>
+                            <i class="fas fa-robot me-1"></i>
+                            <span>ML-optimized scaling</span>
                         </div>
                     </div>
                 </div>
@@ -355,10 +786,10 @@
                             <i class="fas fa-star"></i>
                         </div>
                         <div class="metric-value text-warning" id="optimization-score">--</div>
-                        <div class="metric-label">Optimization Score</div>
+                        <div class="metric-label">AI Optimization Score</div>
                         <div class="text-muted small mt-2">
-                            <i class="fas fa-info-circle me-1"></i>
-                            <span id="optimization-score">Run analysis to view</span>
+                            <i class="fas fa-trophy me-1"></i>
+                            <span>Overall efficiency rating</span>
                         </div>
                     </div>
                 </div>
@@ -367,16 +798,19 @@
             <!-- Enhanced Charts Section -->
             <div class="row mb-4">
                 <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-gradient-primary text-white">
                             <div class="d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0">Cost Analysis Results{% if cluster %} - {{ cluster.name }}{% endif %}</h5>
+                                <h5 class="mb-0">
+                                    <i class="fas fa-chart-line me-2"></i>
+                                    Cost Trend Analysis{% if cluster %} - {{ cluster.name }}{% endif %}
+                                </h5>
                                 <div class="d-flex gap-2">
-                                    <button class="btn btn-outline-secondary btn-sm smooth-btn" onclick="refreshChartsSmooth()">
+                                    <button class="btn btn-outline-light btn-sm smooth-btn" onclick="refreshChartsSmooth()">
                                         <i class="fas fa-sync-alt me-1"></i>
                                         <span class="btn-text">Refresh</span>
                                     </button>
-                                    <button class="btn btn-outline-primary btn-sm smooth-btn" onclick="exportReport()">
+                                    <button class="btn btn-light btn-sm smooth-btn" onclick="exportReport()">
                                         <i class="fas fa-download me-1"></i>
                                         <span class="btn-text">Export</span>
                                     </button>
@@ -395,10 +829,10 @@
             <!-- Enhanced Cost dashboards -->
             <div class="row mb-4">
                 <div class="col-lg-6">
-                    <div class="card h-100">
-                        <div class="card-header">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-header bg-light">
                             <h6 class="mb-0">
-                                <i class="fas fa-chart-pie me-2"></i>Cost Distribution
+                                <i class="fas fa-chart-pie me-2 text-primary"></i>Cost Distribution Analysis
                             </h6>
                         </div>
                         <div class="card-body">
@@ -406,11 +840,11 @@
                                 <canvas id="costBreakdownChart"></canvas>
                             </div>
                             <div class="insight-box mt-3" id="cost-insight-box">
-                                <h6><i class="fas fa-lightbulb me-2"></i>Key Insight</h6>
+                                <h6><i class="fas fa-lightbulb me-2 text-warning"></i>AI Insight</h6>
                                 <p class="mb-0" id="cost-insight">
                                     <span class="loading-text">
-                                        <i class="fas fa-spinner fa-spin me-2"></i>
-                                        Analyzing cost distribution...
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <span>Analyzing cost distribution with machine learning...</span>
                                     </span>
                                 </p>
                             </div>
@@ -419,22 +853,25 @@
                 </div>
 
                 <div class="col-lg-6">
-                    <div class="card h-100">
-                        <div class="card-header">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-header bg-light">
                             <h6 class="mb-0">
-                                <i class="fas fa-chart-line me-2"></i>HPA Optimization Impact
+                                <i class="fas fa-chart-line me-2 text-success"></i>HPA Optimization Impact
                             </h6>
                         </div>
                         <div class="card-body">
-                            <div class="chart-container">
+                            <div class="chart-container hpa-chart-container position-relative">
                                 <canvas id="hpaComparisonChart"></canvas>
+                                <div class="ml-classification-badge ml-workload-badge" id="ml-workload-badge" style="display: none;">
+                                    ML: <span id="ml-workload-display">Analyzing...</span>
+                                </div>
                             </div>
                             <div class="insight-box mt-3" id="hpa-insight-box">
-                                <h6><i class="fas fa-rocket me-2"></i>Optimization Potential</h6>
+                                <h6><i class="fas fa-rocket me-2 text-success"></i>ML Optimization Potential</h6>
                                 <p class="mb-0" id="hpa-insight">
                                     <span class="loading-text">
-                                        <i class="fas fa-spinner fa-spin me-2"></i>
-                                        Calculating HPA optimization potential...
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <span>Calculating AI-powered HPA optimization potential...</span>
                                     </span>
                                 </p>
                             </div>
@@ -446,13 +883,13 @@
             <!-- Enhanced Pod Cost Analysis Section -->
             <div class="row mb-4" id="pod-cost-section" style="display: none;">
                 <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-gradient-info text-white">
                             <div class="d-flex justify-content-between align-items-center">
                                 <h5 class="mb-0">
-                                    <i class="fas fa-layer-group me-2"></i>Deep Cost Analysis
+                                    <i class="fas fa-layer-group me-2"></i>Deep AI Cost Analysis
                                 </h5>
-                                <div id="pod-analysis-badge" class="badge bg-success">
+                                <div id="pod-analysis-badge" class="badge bg-light text-dark">
                                     Container Level Analysis
                                 </div>
                             </div>
@@ -460,13 +897,13 @@
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-lg-6">
-                                    <h6><i class="fas fa-chart-pie me-2"></i>Cost by Namespace</h6>
+                                    <h6><i class="fas fa-chart-pie me-2 text-info"></i>Cost by Namespace</h6>
                                     <div class="chart-container">
                                         <canvas id="namespaceCostChart"></canvas>
                                     </div>
                                 </div>
                                 <div class="col-lg-6">
-                                    <h6><i class="fas fa-chart-bar me-2"></i>Top Workloads</h6>
+                                    <h6><i class="fas fa-chart-bar me-2 text-info"></i>Top Workloads</h6>
                                     <div class="chart-container">
                                         <canvas id="workloadCostChart"></canvas>
                                     </div>
@@ -495,7 +932,7 @@
                                 <div class="col-md-3">
                                     <div class="metric-card savings-card">
                                         <div class="metric-value" id="analysis-accuracy" data-metric="accuracy">High</div>
-                                        <div class="metric-label">Analysis Accuracy</div>
+                                        <div class="metric-label">AI Analysis Accuracy</div>
                                     </div>
                                 </div>
                             </div>
@@ -506,10 +943,10 @@
 
             <div class="row mb-4">
                 <div class="col-lg-8">
-                    <div class="card h-100">
-                        <div class="card-header">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-header bg-light">
                             <h6 class="mb-0">
-                                <i class="fas fa-server me-2"></i>Node Resource Utilization
+                                <i class="fas fa-server me-2 text-secondary"></i>Node Resource Utilization
                             </h6>
                         </div>
                         <div class="card-body">
@@ -519,12 +956,14 @@
                             <div class="row mt-3">
                                 <div class="col-md-6">
                                     <div class="small text-muted">
-                                        <strong>CPU Gap:</strong> <span id="cpu-gap-display">--</span>%
+                                        <strong><i class="fas fa-microchip me-1"></i>CPU Gap:</strong> 
+                                        <span id="cpu-gap-display" class="text-warning">--</span>%
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="small text-muted">
-                                        <strong>Memory Gap:</strong> <span id="memory-gap-display">--</span>%
+                                        <strong><i class="fas fa-memory me-1"></i>Memory Gap:</strong> 
+                                        <span id="memory-gap-display" class="text-info">--</span>%
                                     </div>
                                 </div>
                             </div>
@@ -533,10 +972,10 @@
                 </div>
 
                 <div class="col-lg-4">
-                    <div class="card h-100">
-                        <div class="card-header">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-header bg-light">
                             <h6 class="mb-0">
-                                <i class="fas fa-bullseye me-2"></i>Savings Breakdown
+                                <i class="fas fa-bullseye me-2 text-success"></i>AI Savings Breakdown
                             </h6>
                         </div>
                         <div class="card-body">
@@ -546,19 +985,19 @@
                             <div class="row mt-3 text-center">
                                 <div class="col-12">
                                     <div class="metric-value text-success" id="monthly-savings" data-metric="monthly-savings">--</div>
-                                    <div class="metric-label">Monthly Target</div>
+                                    <div class="metric-label">Monthly AI Target</div>
                                     <div class="mt-2">
                                         <div class="savings-breakdown-mini">
                                             <div class="d-flex justify-content-between">
-                                                <small class="text-muted">HPA:</small>
+                                                <small class="text-muted"><i class="fas fa-expand-arrows-alt me-1"></i>HPA:</small>
                                                 <small id="hpa-savings-mini" class="text-success">$--</small>
                                             </div>
                                             <div class="d-flex justify-content-between">
-                                                <small class="text-muted">Right-sizing:</small>
+                                                <small class="text-muted"><i class="fas fa-microchip me-1"></i>Right-sizing:</small>
                                                 <small id="rightsizing-savings-mini" class="text-success">$--</small>
                                             </div>
                                             <div class="d-flex justify-content-between">
-                                                <small class="text-muted">Storage:</small>
+                                                <small class="text-muted"><i class="fas fa-hdd me-1"></i>Storage:</small>
                                                 <small id="storage-savings-mini" class="text-success">$--</small>
                                             </div>
                                         </div>
@@ -573,15 +1012,24 @@
             <!-- Enhanced Insights Section -->
             <div class="row mb-4">
                 <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-gradient-warning text-dark">
                             <h5 class="card-title mb-0">
-                                <i class="fas fa-lightbulb me-2"></i>Analysis Insights
+                                <i class="fas fa-lightbulb me-2"></i>AI-Powered Analysis Insights
                             </h5>
+                            <p class="mb-0 small opacity-75">
+                                Machine learning recommendations based on your cluster's usage patterns
+                            </p>
                         </div>
                         <div class="card-body">
                             <div id="insights-container">
                                 <!-- Insights will be dynamically generated here -->
+                                <div class="text-center py-4">
+                                    <div class="loading-text">
+                                        <i class="fas fa-brain"></i>
+                                        <span>AI analysis will generate personalized insights here...</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -592,11 +1040,11 @@
         <!-- Enhanced Implementation Tab with Smooth Loading -->
         <div class="tab-pane fade {% if active_tab == 'implementation' %}show active{% endif %}" id="implementation" role="tabpanel">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header bg-gradient-success text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-rocket me-2"></i>Implementation Guide
+                        <i class="fas fa-rocket me-2"></i>AI Implementation Guide
                     </h5>
-                    <p class="mb-0 small opacity-90">Your personalized AKS optimization roadmap</p>
+                    <p class="mb-0 small opacity-90">Your personalized AKS optimization roadmap powered by machine learning</p>
                 </div>
                 <div class="card-body p-0">
                     <!-- Enhanced implementation container with smooth loading -->
@@ -607,322 +1055,238 @@
             </div>
         </div>
 
-        
-                        
-
-                <!-- Enhanced Alerts Tab -->
-                                <!-- Enhanced Alerts Tab with Fixed Layout -->
-                <div class="tab-pane fade {% if active_tab == 'alerts' %}show active{% endif %}" id="alerts" role="tabpanel">
-                    <div class="alerts-tab-container">
-                        <div class="row">
-                            <!-- Left Column - Alerts Configuration -->
-                            <div class="col-lg-8 col-xl-8">
-                                <!-- Budget Alert Form -->
-                                <div class="alerts-form-section">
-                                    <div class="alerts-form-header">
-                                        <h5 class="mb-0">
-                                            <i class="fas fa-bell me-2"></i>Budget Monitoring & Alerts
-                                        </h5>
-                                        <p class="mb-0 small opacity-90 mt-2">
-                                            Set up intelligent budget alerts to monitor your AKS spending and get notified
-                                            before you exceed your monthly budget threshold.
-                                        </p>
-                                    </div>
-                                    <div class="alerts-form-body">
-                                        
-
-                                        <!-- Enhanced Budget Alert Form -->
-                                        <form id="budget-alert-form" class="budget-alert-form">
-                                            <div class="row">
-                                                <div class="col-md-4">
-                                                    <div class="form-group">
-                                                        <label for="budget-amount" class="form-label">
-                                                            <i class="fas fa-dollar-sign"></i>Monthly Budget
-                                                        </label>
-                                                        <div class="input-group">
-                                                            <span class="input-group-text">$</span>
-                                                            <input type="number" class="form-control" 
-                                                                id="budget-amount" name="threshold_amount"
-                                                                required min="1" step="0.01" placeholder="5000">
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <div class="form-group">
-                                                        <label for="alert-email" class="form-label">
-                                                            <i class="fas fa-at"></i>Alert Email
-                                                        </label>
-                                                        <input type="email" class="form-control" 
-                                                            id="alert-email" name="email"
-                                                            required placeholder="admin@company.com">
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <div class="form-group">
-                                                        <label for="alert-threshold" class="form-label">
-                                                            <i class="fas fa-percentage"></i>Alert Threshold
-                                                        </label>
-                                                        <select class="form-select" id="alert-threshold" name="threshold_percentage">
-                                                            <option value="75">75% - Early Warning</option>
-                                                            <option value="80" selected>80% - Recommended</option>
-                                                            <option value="90">90% - Critical</option>
-                                                            <option value="100">100% - Emergency</option>
-                                                        </select>
-                                                    </div>
+        <!-- Enhanced Alerts Tab -->
+        <div class="tab-pane fade {% if active_tab == 'alerts' %}show active{% endif %}" id="alerts" role="tabpanel">
+            <div class="alerts-tab-container">
+                <div class="row">
+                    <!-- Left Column - Alerts Configuration -->
+                    <div class="col-lg-8 col-xl-8">
+                        <!-- Budget Alert Form -->
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-gradient-danger text-white">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-bell me-2"></i>Smart Budget Monitoring & Alerts
+                                </h5>
+                                <p class="mb-0 small opacity-90 mt-2">
+                                    Set up intelligent budget alerts with AI-powered cost predictions to monitor your AKS spending
+                                </p>
+                            </div>
+                            <div class="card-body">
+                                <!-- Enhanced Budget Alert Form -->
+                                <form id="budget-alert-form" class="enhanced-form">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="budget-amount" class="form-label">
+                                                    <i class="fas fa-dollar-sign text-success"></i>Monthly Budget
+                                                </label>
+                                                <div class="input-group">
+                                                    <span class="input-group-text">$</span>
+                                                    <input type="number" class="form-control smooth-input" 
+                                                        id="budget-amount" name="threshold_amount"
+                                                        required min="1" step="0.01" placeholder="5000">
                                                 </div>
                                             </div>
-
-                                            <div class="d-grid">
-                                                <button type="submit" class="btn setup-alert-btn">
-                                                    <i class="fas fa-bell me-2"></i>
-                                                    <span class="btn-text">Setup Alert</span>
-                                                </button>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="alert-email" class="form-label">
+                                                    <i class="fas fa-at text-info"></i>Alert Email
+                                                </label>
+                                                <input type="email" class="form-control smooth-input" 
+                                                    id="alert-email" name="email"
+                                                    required placeholder="admin@company.com">
                                             </div>
-                                        </form>
-                                        <!-- Email Configuration Status -->
-                                        <div class="email-config-status">
-                                            <i class="fas fa-spinner fa-spin me-1"></i>Checking email configuration...
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="form-group">
+                                                <label for="alert-threshold" class="form-label">
+                                                    <i class="fas fa-percentage text-warning"></i>Alert Threshold
+                                                </label>
+                                                <select class="form-select smooth-input" id="alert-threshold" name="threshold_percentage">
+                                                    <option value="75">75% - Early Warning</option>
+                                                    <option value="80" selected>80% - Recommended</option>
+                                                    <option value="90">90% - Critical</option>
+                                                    <option value="100">100% - Emergency</option>
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
+
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-danger btn-lg smooth-btn">
+                                            <i class="fas fa-bell me-2"></i>
+                                            <span class="btn-text">Setup AI Alert</span>
+                                        </button>
+                                    </div>
+                                </form>
+                                <!-- Email Configuration Status -->
+                                <div class="email-config-status mt-3 p-3 bg-light rounded">
+                                    <i class="fas fa-spinner fa-spin me-1"></i>Checking email configuration...
                                 </div>
-<div style="padding:5px"></div>
-                                <!-- Active Alerts List -->
-                                <div class="active-alerts-section">
-                                    <div class="active-alerts-header">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <h6 class="mb-0">
-                                                <i class="fas fa-list me-2"></i>Active Alerts
-                                                <span class="badge bg-primary ms-2 alerts-counter">0</span>
-                                            </h6>
-                                            <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-outline-secondary active" onclick="filterAlerts('all')">All</button>
-                                                <button class="btn btn-outline-success" onclick="filterAlerts('active')">Active</button>
-                                                <button class="btn btn-outline-warning" onclick="filterAlerts('paused')">Paused</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="active-alerts-body">
-                                        <div id="alerts-list-container">
-                                            <!-- Alerts will be loaded here dynamically -->
-                                            <div class="alerts-loading">
-                                                <i class="fas fa-spinner fa-spin"></i>
-                                                <p>Loading alerts...</p>
-                                            </div>
-                                        </div>
+                            </div>
+                        </div>
+
+                        <div style="padding:10px"></div>
+
+                        <!-- Active Alerts List -->
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-light">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-list me-2"></i>Active Alerts
+                                        <span class="badge bg-primary ms-2 alerts-counter">0</span>
+                                    </h6>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-secondary active" onclick="filterAlerts('all')">All</button>
+                                        <button class="btn btn-outline-success" onclick="filterAlerts('active')">Active</button>
+                                        <button class="btn btn-outline-warning" onclick="filterAlerts('paused')">Paused</button>
                                     </div>
                                 </div>
                             </div>
-
-                            
-
-                            <!-- Right Column - Guidelines & Status -->
-                                        <div class="col-lg-4">
-                                            <div class="alerts-sidebar-content">
-                                                <!-- Your existing Pro Tip card -->
-                                                <div class="card mb-4">
-                                                    <div class="card-header">
-                                                        
-                                                    </div>
-                                                    <div class="card-body">
-                                                        <h6 class="mb-0">
-                                                            <i class="fas fa-lightbulb me-2"></i>Pro Tip
-                                                        </h6>
-                                                        <p class="mb-0">
-                                                            Set your alert threshold to 75% to get early warnings and have time
-                                                            to implement optimizations before budget overrun.
-                                                        </p>
-                                                        <p style="padding:5px;"></p>
-                                                        <h6 class="mb-0">
-                                                            <i class="fas fa-chart-line me-2"></i>Best Practices
-                                                        </h6>
-                                                        <ul class="list-unstyled">
-                                                            <li class="mb-2">
-                                                                <i class="fas fa-check text-success me-2"></i>
-                                                                Set multiple thresholds (75%, 90%, 100%)
-                                                            </li>
-                                                            <li class="mb-2">
-                                                                <i class="fas fa-check text-success me-2"></i>
-                                                                Use different emails for different severity levels
-                                                            </li>
-                                                            <li class="mb-2">
-                                                                <i class="fas fa-check text-success me-2"></i>
-                                                                Test alerts monthly to ensure they work
-                                                            </li>
-                                                            <li class="mb-2">
-                                                                <i class="fas fa-check text-success me-2"></i>
-                                                                Monitor both absolute costs and growth rates
-                                                            </li>
-                                                        </ul>
-                                                        <p style="padding:5px;"></p>
-                                                        <h6 class="mb-0">
-                                                            <i class="fas fa-envelope me-2"></i>Email Configuration
-                                                        </h6>
-                                                        <p class="mb-2 small">
-                                                            To enable email notifications, configure SMTP settings via environment variables:
-                                                        </p>
-                                                        <ul class="small mb-0">
-                                                            <li><code>SMTP_SERVER</code></li>
-                                                            <li><code>SMTP_USERNAME</code></li>
-                                                            <li><code>SMTP_PASSWORD</code></li>
-                                                        </ul>
-                                                    </div>
-                                                </div>
-
-                                                
-                                                
-                                                    
-                                                
-                                            </div>
-                                        </div>
-
-                                    <!-- Alert Activity (if space allows) -->
-                                    <div class="card">
-                                        <div class="card-header">
-                                            <h6 class="mb-0">
-                                                <i class="fas fa-history me-2"></i>Recent Activity
-                                            </h6>
-                                        </div>
-                                        <div class="card-body">
-                                            <div id="alert-triggers-container" class="alert-triggers-container">
-                                                <!-- Alert triggers will be loaded here -->
-                                                <div class="text-center text-muted py-3">
-                                                    <i class="fas fa-clock me-2"></i>
-                                                    <small>No recent alert activity</small>
-                                                </div>
-                                            </div>
+                            <div class="card-body">
+                                <div id="alerts-list-container">
+                                    <!-- Alerts will be loaded here dynamically -->
+                                    <div class="alerts-loading">
+                                        <div class="loading-text">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                            <span>Loading alerts...</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Enhanced Action Buttons for Alerts -->
-                <div class="container mt-4">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="row align-items-center">
-                                <div class="col-lg-8">
-                                    <h5 class="mb-1">
-                                        <i class="fas fa-shield-alt me-2"></i>
-                                        Budget Protection Active
-                                    </h5>
-                                    <p class="text-muted mb-0">
-                                        <span id="alerts-action-description">
-                                            Your alerts are monitoring this cluster for cost threshold breaches.
-                                        </span>
+                    <!-- Right Column - Guidelines & Status -->
+                    <div class="col-lg-4">
+                        <div class="alerts-sidebar-content">
+                            <!-- Pro Tips Card -->
+                            <div class="card mb-4 border-0 shadow-sm">
+                                <div class="card-header bg-gradient-info text-white">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-lightbulb me-2"></i>AI Pro Tips
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-3">
+                                        <strong>Smart Thresholds:</strong> Our AI recommends setting alerts at 75% to get early warnings 
+                                        and have time to implement optimizations before budget overrun.
                                     </p>
+                                    
+                                    <h6 class="mb-2">
+                                        <i class="fas fa-chart-line me-2 text-primary"></i>Best Practices
+                                    </h6>
+                                    <ul class="list-unstyled">
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success me-2"></i>
+                                            Set multiple AI-powered thresholds (75%, 90%, 100%)
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success me-2"></i>
+                                            Use different emails for different severity levels
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success me-2"></i>
+                                            Test alerts monthly with ML predictions
+                                        </li>
+                                        <li class="mb-2">
+                                            <i class="fas fa-check text-success me-2"></i>
+                                            Monitor both costs and AI growth rate predictions
+                                        </li>
+                                    </ul>
+                                    
+                                    <h6 class="mb-2">
+                                        <i class="fas fa-envelope me-2 text-warning"></i>Email Configuration
+                                    </h6>
+                                    <p class="mb-2 small">
+                                        To enable email notifications, configure SMTP settings via environment variables:
+                                    </p>
+                                    <ul class="small mb-0">
+                                        <li><code>SMTP_SERVER</code></li>
+                                        <li><code>SMTP_USERNAME</code></li>
+                                        <li><code>SMTP_PASSWORD</code></li>
+                                    </ul>
                                 </div>
-                                <div class="col-lg-4 text-lg-end">
-                                    <div class="d-flex gap-2 justify-content-lg-end">
-                                        <button class="btn btn-outline-primary smooth-btn" onclick="showAdvancedAlertsModal()">
-                                            <i class="fas fa-cog me-2"></i>
-                                            <span class="btn-text">Advanced</span>
-                                        </button>
-                                        <button class="btn btn-outline-secondary smooth-btn" onclick="loadAlerts()">
-                                            <i class="fas fa-sync me-2"></i>
-                                            <span class="btn-text">Refresh</span>
-                                        </button>
+                            </div>
+
+                            <!-- Alert Activity -->
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-history me-2"></i>Recent AI Activity
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="alert-triggers-container" class="alert-triggers-container">
+                                        <!-- Alert triggers will be loaded here -->
+                                        <div class="text-center text-muted py-3">
+                                            <i class="fas fa-clock me-2"></i>
+                                            <small>No recent alert activity</small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-
-                <!-- Enhanced JavaScript for alert filtering -->
-                <script>
-                function filterAlerts(status) {
-                    const buttons = document.querySelectorAll('.btn-group .btn');
-                    buttons.forEach(btn => btn.classList.remove('active'));
-                    
-                    event.target.classList.add('active');
-                    
-                    const alertItems = document.querySelectorAll('.alert-item');
-                    alertItems.forEach(item => {
-                        const alertStatus = item.dataset.status || 'active';
-                        if (status === 'all' || alertStatus === status) {
-                            item.style.display = 'block';
-                            item.style.animation = 'fadeIn 0.3s ease-in';
-                        } else {
-                            item.style.display = 'none';
-                        }
-                    });
-                }
-
-                // Enhanced notification integration
-                function checkForAlertTriggers() {
-                    fetch('/api/alerts/triggers')
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.status === 'success' && data.triggers.length > 0) {
-                                displayAlertTriggers(data.triggers);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error loading alert triggers:', error);
-                        });
-                }
-
-                function displayAlertTriggers(triggers) {
-                    const container = document.getElementById('alert-triggers-container');
-                    if (!container) return;
-                    
-                    if (triggers.length === 0) {
-                        container.innerHTML = `
-                            <div class="text-center text-muted py-3">
-                                <i class="fas fa-check-circle me-2"></i>
-                                <small>No alerts triggered recently</small>
-                            </div>
-                        `;
-                        return;
-                    }
-                    
-                    const triggersHTML = triggers.slice(0, 5).map(trigger => `
-                        <div class="alert-trigger-item border-bottom pb-2 mb-2">
-                            <div class="d-flex justify-content-between">
-                                <small class="fw-bold">${escapeHtml(trigger.alert_name)}</small>
-                                <small class="text-muted">${formatDateTime(trigger.triggered_at)}</small>
-                            </div>
-                            <div class="small text-muted mt-1">
-                                Cost: $${trigger.current_cost.toLocaleString()} / Threshold: $${trigger.threshold.toLocaleString()}
-                            </div>
-                            ${!trigger.acknowledged ? '<span class="badge bg-warning text-dark small">New</span>' : ''}
+        <!-- Enhanced Action Buttons for Alerts -->
+        <div class="container mt-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-lg-8">
+                            <h5 class="mb-1">
+                                <i class="fas fa-shield-alt me-2 text-success"></i>
+                                AI Budget Protection Active
+                            </h5>
+                            <p class="text-muted mb-0">
+                                <span id="alerts-action-description">
+                                    Your intelligent alerts are monitoring this cluster with AI-powered cost predictions and threshold detection.
+                                </span>
+                            </p>
                         </div>
-                    `).join('');
-                    
-                    container.innerHTML = triggersHTML;
-                }
-
-                // Load alert triggers on page load
-                document.addEventListener('DOMContentLoaded', function() {
-                    setTimeout(checkForAlertTriggers, 1000);
-                });
-                </script>
+                        <div class="col-lg-4 text-lg-end">
+                            <div class="d-flex gap-2 justify-content-lg-end">
+                                <button class="btn btn-outline-primary smooth-btn" onclick="showAdvancedAlertsModal()">
+                                    <i class="fas fa-cog me-2"></i>
+                                    <span class="btn-text">Advanced</span>
+                                </button>
+                                <button class="btn btn-outline-secondary smooth-btn" onclick="loadAlerts()">
+                                    <i class="fas fa-sync me-2"></i>
+                                    <span class="btn-text">Refresh</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <!-- Enhanced Action Panel -->
 <div class="container mt-4">
-    <div class="card">
+    <div class="card border-0 shadow-sm bg-gradient-primary text-white">
         <div class="card-body">
             <div class="row align-items-center">
                 <div class="col-lg-8">
-                    <h5 class="mb-1">Ready to optimize your {% if cluster %}{{ cluster.name }} cluster{% else %}AKS cluster{% endif %}?</h5>
-                    <p class="text-muted mb-0">
-                        <span id="action-description">Run analysis to discover potential cost savings and optimization opportunities.</span>
-                        <span id="savings-summary" class="d-none">Based on analysis, potential savings of <strong id="action-savings">$607.19/month</strong> identified.</span>
+                    <h5 class="mb-1">Ready to optimize your {% if cluster %}{{ cluster.name }} cluster{% else %}AKS cluster{% endif %} with AI?</h5>
+                    <p class="mb-0 opacity-90">
+                        <span id="action-description">Run AI analysis to discover intelligent cost savings and ML-powered optimization opportunities.</span>
+                        <span id="savings-summary" class="d-none">Based on AI analysis, potential savings of <strong id="action-savings">$607.19/month</strong> identified.</span>
                     </p>
                 </div>
                 <div class="col-lg-4 text-lg-end">
                     <div class="d-flex gap-2 justify-content-lg-end">
-                        <button class="btn btn-success smooth-btn" id="deployBtn" onclick="deployOptimizations()" disabled>
+                        <button class="btn btn-success btn-lg smooth-btn" id="deployBtn" onclick="deployOptimizations()" disabled>
                             <i class="fas fa-rocket me-2"></i>
-                            <span class="btn-text">Deploy</span>
+                            <span class="btn-text">Deploy AI</span>
                         </button>
-                        <button class="btn btn-outline-primary smooth-btn" id="scheduleBtn" onclick="scheduleOptimization()" disabled>
+                        <button class="btn btn-outline-light smooth-btn" id="scheduleBtn" onclick="scheduleOptimization()" disabled>
                             <i class="fas fa-calendar me-2"></i>
                             <span class="btn-text">Schedule</span>
                         </button>
@@ -935,8 +1299,8 @@
 
 <!-- Enhanced Delete Confirmation Modal -->
 <div class="modal fade" id="deleteCurrentClusterModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
             <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title">
                     <i class="fas fa-exclamation-triangle me-2"></i>Delete Cluster
@@ -949,16 +1313,16 @@
                         <i class="fas fa-trash fa-3x text-danger"></i>
                     </div>
                     <h5>Are you sure you want to delete this cluster?</h5>
-                    <p class="text-muted">This action cannot be undone. All analysis data will be permanently removed.</p>
+                    <p class="text-muted">This action cannot be undone. All AI analysis data will be permanently removed.</p>
                     {% if cluster %}
-                    <div class="alert alert-warning">
+                    <div class="alert alert-warning border-0">
                         <strong>Cluster:</strong> {{ cluster.name }}<br>
                         <strong>Resource Group:</strong> {{ cluster.resource_group }}
                     </div>
                     {% endif %}
                 </div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer border-0">
                 <button type="button" class="btn btn-secondary smooth-btn" data-bs-dismiss="modal">
                     <span class="btn-text">Cancel</span>
                 </button>
@@ -983,11 +1347,82 @@
 <!-- Include enhanced smooth transitions -->
 <script src="{{ url_for('static', filename='js/smooth.js') }}"></script>
 
+<!-- Include alerts functionality -->
 <script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
+
+<!-- Include UI enhancements -->
+<script src="{{ url_for('static', filename='js/ui-enhancements.js') }}"></script>
 
 <script>
 /**
- * Dashboard-specific functions that couldn't be moved to modules
+ * Enhanced alert filtering with smooth animations
+ */
+function filterAlerts(status) {
+    const buttons = document.querySelectorAll('.btn-group .btn');
+    buttons.forEach(btn => btn.classList.remove('active'));
+    
+    event.target.classList.add('active');
+    
+    const alertItems = document.querySelectorAll('.alert-item');
+    alertItems.forEach(item => {
+        const alertStatus = item.dataset.status || 'active';
+        if (status === 'all' || alertStatus === status) {
+            item.style.display = 'block';
+            item.style.animation = 'fadeIn 0.3s ease-in';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * Enhanced notification integration
+ */
+function checkForAlertTriggers() {
+    fetch('/api/alerts/triggers')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success' && data.triggers.length > 0) {
+                displayAlertTriggers(data.triggers);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading alert triggers:', error);
+        });
+}
+
+function displayAlertTriggers(triggers) {
+    const container = document.getElementById('alert-triggers-container');
+    if (!container) return;
+    
+    if (triggers.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-3">
+                <i class="fas fa-check-circle me-2"></i>
+                <small>No alerts triggered recently</small>
+            </div>
+        `;
+        return;
+    }
+    
+    const triggersHTML = triggers.slice(0, 5).map(trigger => `
+        <div class="alert-trigger-item border-bottom pb-2 mb-2">
+            <div class="d-flex justify-content-between">
+                <small class="fw-bold">${escapeHtml(trigger.alert_name)}</small>
+                <small class="text-muted">${formatDateTime(trigger.triggered_at)}</small>
+            </div>
+            <div class="small text-muted mt-1">
+                Cost: $${trigger.current_cost.toLocaleString()} / Threshold: $${trigger.threshold.toLocaleString()}
+            </div>
+            ${!trigger.acknowledged ? '<span class="badge bg-warning text-dark small">New</span>' : ''}
+        </div>
+    `).join('');
+    
+    container.innerHTML = triggersHTML;
+}
+
+/**
+ * Dashboard-specific functions with enhanced UI
  */
 function deleteCurrentCluster(clusterId) {
     // Validate cluster context if available
@@ -1011,110 +1446,58 @@ function deleteCurrentCluster(clusterId) {
 }
 
 /**
- * Placeholder functions for future features
+ * Enhanced placeholder functions for future features
  */
 function compareWithOtherClusters() {
-    if (window.smoothNotificationManager) {
-        window.smoothNotificationManager.show('Cross-cluster comparison feature coming soon!', 'info');
+    if (window.enhancedNotifications) {
+        window.enhancedNotifications.show('AI cross-cluster comparison feature coming soon!', 'info');
     } else {
         alert('Cross-cluster comparison feature coming soon!');
     }
 }
 
 function cloneClusterSettings() {
-    if (window.smoothNotificationManager) {
-        window.smoothNotificationManager.show('Clone cluster settings feature coming soon!', 'info');
+    if (window.enhancedNotifications) {
+        window.enhancedNotifications.show('AI clone cluster settings feature coming soon!', 'info');
     } else {
         alert('Clone cluster settings feature coming soon!');
     }
 }
 
 function exportClusterReport() {
-    if (window.smoothNotificationManager) {
-        window.smoothNotificationManager.show('Export report feature coming soon!', 'info');
+    if (window.enhancedNotifications) {
+        window.enhancedNotifications.show('AI export report feature coming soon!', 'info');
     } else {
         alert('Export report feature coming soon!');
     }
 }
 
 function exportReport() {
-    if (window.smoothNotificationManager) {
-        window.smoothNotificationManager.show('Export feature coming soon!', 'info');
+    if (window.enhancedNotifications) {
+        window.enhancedNotifications.show('AI export feature coming soon!', 'info');
     } else {
         alert('Export feature coming soon!');
     }
 }
 
 function deployOptimizations() {
-    if (window.smoothNotificationManager) {
-        window.smoothNotificationManager.show('Deploy optimizations feature coming soon!', 'info');
+    if (window.enhancedNotifications) {
+        window.enhancedNotifications.show('AI deploy optimizations feature coming soon!', 'info');
     } else {
         alert('Deploy optimizations feature coming soon!');
     }
 }
 
 function scheduleOptimization() {
-    if (window.smoothNotificationManager) {
-        window.smoothNotificationManager.show('Schedule optimization feature coming soon!', 'info');
+    if (window.enhancedNotifications) {
+        window.enhancedNotifications.show('AI schedule optimization feature coming soon!', 'info');
     } else {
         alert('Schedule optimization feature coming soon!');
     }
 }
 
 /**
- * Setup cluster-specific polling for dashboard
- */
-function setupDashboardPolling() {
-    const getCurrentClusterId = window.getCurrentClusterId;
-    const makeClusterAwareAPICall = window.makeClusterAwareAPICall || fetch;
-    
-    if (!getCurrentClusterId) {
-        console.warn('⚠️ Cluster isolation not available - skipping polling setup');
-        return;
-    }
-    
-    const clusterId = getCurrentClusterId();
-    
-    if (!clusterId) {
-        console.error('❌ Cannot setup polling without cluster ID');
-        return;
-    }
-    
-    console.log(`🔄 Setting up dashboard polling for cluster: ${clusterId}`);
-    
-    // Clear any existing timers
-    if (window.dashboardTimers) {
-        window.dashboardTimers.forEach(timer => clearInterval(timer));
-        window.dashboardTimers = [];
-    }
-    
-    // Poll cache status every 30 seconds for THIS cluster only
-    const cacheTimer = setInterval(() => {
-        const currentClusterId = getCurrentClusterId();
-        if (currentClusterId === clusterId) {
-            makeClusterAwareAPICall('/api/cache/status')
-                .then(response => response.json())
-                .then(data => {
-                    console.log('✅ Cache status for current cluster:', data);
-                })
-                .catch(error => {
-                    console.error('Cache status error:', error);
-                });
-        } else {
-            console.log(`🛑 Stopping polling for ${clusterId} - cluster changed to ${currentClusterId}`);
-            clearInterval(cacheTimer);
-        }
-    }, 30000);
-    
-    // Store timer for cleanup
-    if (!window.dashboardTimers) {
-        window.dashboardTimers = [];
-    }
-    window.dashboardTimers.push(cacheTimer);
-}
-
-/**
- * Initialize cluster-specific dashboard
+ * Enhanced dashboard initialization
  */
 function initializeDashboard() {
     const getCurrentClusterId = window.getCurrentClusterId;
@@ -1141,13 +1524,7 @@ function initializeDashboard() {
         return;
     }
     
-    console.log(`🎯 Initializing dashboard for cluster: ${clusterId}`);
-    
-    // Clear any old timers that might reference other clusters
-    if (window.dashboardTimers) {
-        window.dashboardTimers.forEach(timer => clearInterval(timer));
-        window.dashboardTimers = [];
-    }
+    console.log(`🎯 Initializing enhanced dashboard for cluster: ${clusterId}`);
     
     // Initialize with cluster-specific data
     if (typeof window.initializeCharts === 'function') {
@@ -1157,24 +1534,26 @@ function initializeDashboard() {
     if (typeof window.loadImplementationPlan === 'function') {
         window.loadImplementationPlan();
     }
-    
-    // Set up cluster-specific polling
-    setupDashboardPolling();
 }
 
 // ============================================================================
-// EVENT LISTENERS
+// ENHANCED EVENT LISTENERS
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🎯 Initializing cluster-isolated dashboard...');
+    console.log('🎯 Initializing enhanced cluster-isolated dashboard...');
     
-    // Wait a moment for modules to load
+    // Initialize UI enhancements first
+    if (typeof window.initializeEnhancedUI === 'function') {
+        window.initializeEnhancedUI();
+    }
+    
+    // Wait a moment for modules to load, then initialize dashboard
     setTimeout(() => {
         initializeDashboard();
-    }, 100);
+    }, 200);
     
-    // Confirm deletion handler with cluster validation
+    // Enhanced confirm deletion handler with cluster validation
     const confirmDeleteBtn = document.getElementById('confirmCurrentDeleteBtn');
     if (confirmDeleteBtn) {
         confirmDeleteBtn.addEventListener('click', function() {
@@ -1198,8 +1577,8 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    if (window.smoothNotificationManager) {
-                        window.smoothNotificationManager.show('Cluster deleted successfully!', 'success');
+                    if (window.enhancedNotifications) {
+                        window.enhancedNotifications.show('Cluster deleted successfully!', 'success');
                     }
                     
                     setTimeout(() => {
@@ -1211,8 +1590,8 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error('Delete error:', error);
-                if (window.smoothNotificationManager) {
-                    window.smoothNotificationManager.show('Failed to delete cluster: ' + error.message, 'error');
+                if (window.enhancedNotifications) {
+                    window.enhancedNotifications.show('Failed to delete cluster: ' + error.message, 'error');
                 }
             })
             .finally(() => {
@@ -1222,15 +1601,52 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+    
+    // Load alert triggers on page load
+    setTimeout(checkForAlertTriggers, 1000);
 });
 
-// Handle browser back/forward
+// Handle browser back/forward with enhanced transitions
 window.addEventListener('popstate', function() {
-    console.log('🔄 URL changed - reinitializing cluster dashboard...');
+    console.log('🔄 URL changed - reinitializing enhanced cluster dashboard...');
     initializeDashboard();
 });
 
-// Log initialization
-console.log('📊 Simplified cluster-isolated dashboard JavaScript loaded');
+// Enhanced escape key handler
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        // Close any open modals with enhanced animation
+        const modals = document.querySelectorAll('.modal.show');
+        modals.forEach(modal => {
+            const modalInstance = bootstrap.Modal.getInstance(modal);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+        });
+    }
+});
+
+// Enhanced utility functions
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+function formatDateTime(dateStr) {
+    try {
+        return new Date(dateStr).toLocaleString();
+    } catch (e) {
+        return dateStr;
+    }
+}
+
+// Log enhanced initialization
+console.log('🎨 Enhanced cluster-isolated dashboard JavaScript loaded with AI features');
 </script>
 {% endblock %}

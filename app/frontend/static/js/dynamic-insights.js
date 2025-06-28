@@ -14,10 +14,11 @@ import { getInsightIcon } from './utils.js';
  * Enhanced dynamic insights generator using REAL analysis data
  */
 export function generateRealDynamicInsights(data) {
-    console.log('🧠 Generating REAL dynamic insights from analysis data:', data);
+    console.log('🧠 Generating REAL dynamic insights from ML analysis data:', data);
     
     const metrics = data.metrics || {};
     const costBreakdown = data.costBreakdown || {};
+    const hpaComparison = data.hpaComparison || {};
     const insights = {};
     
     // ============================================================================
@@ -49,103 +50,233 @@ export function generateRealDynamicInsights(data) {
         }
         
         insights.cost = `${topCostCategory} accounts for ${percentage}% of your monthly budget ($${topCostValue.toLocaleString()}). ${categoryAdvice}.`;
-        
-    } else if (metrics.total_cost && metrics.total_cost > 0) {
-        // Fallback with total cost data
-        const monthlyCost = Math.round(metrics.total_cost);
-        insights.cost = `Current monthly spend is $${monthlyCost.toLocaleString()}. Primary optimization opportunities identified in compute resources.`;
-        
-    } else {
-        insights.cost = `Cost analysis completed. Review the breakdown above to identify your highest spending categories.`;
     }
     
     // ============================================================================
-    // HPA INSIGHT - DYNAMIC FROM REAL DATA
+    // ML-INTEGRATED HPA INSIGHT (PRIMARY)
     // ============================================================================
     
-    const hpaReduction = metrics.hpa_reduction || metrics.hpa_efficiency || 0;
-    const hpaSavings = metrics.hpa_savings || 0;
-    const totalSavings = metrics.total_savings || 0;
-    
-    if (hpaReduction > 0 && hpaSavings > 0) {
-        // Real HPA data available
-        const reductionPct = Math.round(hpaReduction);
-        const monthlySavings = Math.round(hpaSavings);
-        const annualSavings = Math.round(monthlySavings * 12);
+    if (hpaComparison.ml_workload_type && hpaComparison.recommendation_text) {
+        // Use ML classification and recommendation directly
+        const workloadType = hpaComparison.ml_workload_type;
+        const mlConfidence = hpaComparison.ml_confidence || 0;
+        const savings = hpaComparison.actual_hpa_savings || 0;
+        const efficiency = hpaComparison.actual_hpa_efficiency || 0;
         
-        insights.hpa = `Memory-based HPA optimization could reduce replica count by ${reductionPct}%, saving $${monthlySavings.toLocaleString()}/month ($${annualSavings.toLocaleString()}/year) through intelligent auto-scaling.`;
+        // Create rich ML-based insight
+        const confidenceText = mlConfidence > 0.9 ? 'Very High' : 
+                              mlConfidence > 0.8 ? 'High' : 
+                              mlConfidence > 0.7 ? 'Good' : 'Medium';
         
-    } else if (totalSavings > 0) {
-        // Estimate HPA portion from total savings
-        const estimatedHpaSavings = Math.round(totalSavings * 0.3); // Assume 30% from HPA
-        insights.hpa = `HPA optimization represents significant opportunity. Estimated potential savings of $${estimatedHpaSavings.toLocaleString()}/month through improved auto-scaling efficiency.`;
-        
-    } else if (metrics.cpu_gap || metrics.memory_gap) {
-        // Use resource gap data
-        const cpuGap = metrics.cpu_gap || 0;
-        const memoryGap = metrics.memory_gap || 0;
-        const avgGap = Math.round((cpuGap + memoryGap) / 2);
-        
-        if (avgGap > 20) {
-            insights.hpa = `Resource utilization shows ${avgGap}% efficiency gap. Memory-based HPA could significantly optimize replica scaling.`;
-        } else {
-            insights.hpa = `Resource utilization is well-optimized. Monitor scaling patterns to maintain efficiency as workload demands change.`;
+        let workloadDescription = '';
+        switch (workloadType) {
+            case 'LOW_UTILIZATION':
+                workloadDescription = 'over-provisioned resources with significant waste detected';
+                break;
+            case 'CPU_INTENSIVE':
+                workloadDescription = 'CPU-bound workload requiring responsive scaling';
+                break;
+            case 'MEMORY_INTENSIVE':
+                workloadDescription = 'memory-bound workload needing careful allocation';
+                break;
+            case 'BURSTY':
+                workloadDescription = 'variable traffic patterns requiring predictive scaling';
+                break;
+            case 'BALANCED':
+                workloadDescription = 'well-balanced resource usage across CPU and memory';
+                break;
+            default:
+                workloadDescription = 'specialized workload pattern';
         }
         
-    } else {
-        insights.hpa = `HPA analysis in progress. Memory-based scaling optimization opportunities will be identified.`;
+        insights.hpa = `🤖 <strong>ML Analysis (${confidenceText} Confidence)</strong>: Classified as <strong>${workloadType}</strong> - ${workloadDescription}. ${hpaComparison.recommendation_text}`;
+        
+        console.log(`✅ Generated ML-integrated HPA insight: ${workloadType} with $${savings} savings`);
     }
     
     // ============================================================================
-    // ADDITIONAL DYNAMIC INSIGHTS
+    // ML CLASSIFICATION INSIGHT
     // ============================================================================
     
-    // Right-sizing insight
+    if (hpaComparison.ml_workload_type) {
+        const workloadType = hpaComparison.ml_workload_type;
+        const confidence = hpaComparison.ml_confidence || 0;
+        const efficiency = hpaComparison.actual_hpa_efficiency || 0;
+        
+        let actionableAdvice = '';
+        let urgencyLevel = '';
+        let expectedImpact = '';
+        
+        switch (workloadType) {
+            case 'LOW_UTILIZATION':
+                actionableAdvice = 'Immediate scale-down opportunities identified. Reduce resource requests to eliminate waste.';
+                urgencyLevel = 'High Priority';
+                expectedImpact = 'Significant cost reduction with no performance impact';
+                break;
+            case 'CPU_INTENSIVE':
+                actionableAdvice = 'Implement CPU-based HPA with aggressive scaling policies. Monitor for CPU bottlenecks.';
+                urgencyLevel = 'Medium Priority';
+                expectedImpact = 'Improved responsiveness and automatic scaling';
+                break;
+            case 'MEMORY_INTENSIVE':
+                actionableAdvice = 'Deploy memory-based HPA to prevent OOM kills. Consider memory-optimized instance types.';
+                urgencyLevel = 'High Priority';
+                expectedImpact = 'Reduced application crashes and better stability';
+                break;
+            case 'BURSTY':
+                actionableAdvice = 'Implement predictive scaling with custom metrics. Consider scheduled scaling for known patterns.';
+                urgencyLevel = 'Medium Priority';
+                expectedImpact = 'Better handling of traffic spikes and cost optimization';
+                break;
+            case 'BALANCED':
+                actionableAdvice = 'Fine-tune existing HPA configurations. Implement hybrid CPU+Memory scaling approach.';
+                urgencyLevel = 'Low Priority';
+                expectedImpact = 'Optimized resource allocation and scaling precision';
+                break;
+        }
+        
+        insights.ml_classification = `🎯 <strong>${urgencyLevel}:</strong> ${workloadType} workload detected with ${(confidence * 100).toFixed(0)}% confidence (Efficiency: ${efficiency.toFixed(1)}%). ${actionableAdvice} <em>${expectedImpact}</em>.`;
+    }
+    
+    // ============================================================================
+    // COST OPTIMIZATION INSIGHTS
+    // ============================================================================
+    
+    // Right-sizing insight with ML context
     if (metrics.right_sizing_savings > 0) {
         const rightSizingSavings = Math.round(metrics.right_sizing_savings);
-        insights.rightsizing = `Right-sizing recommendations could save $${rightSizingSavings.toLocaleString()}/month by matching resource allocation to actual usage patterns.`;
+        const cpuGap = metrics.cpu_gap || 0;
+        const memoryGap = metrics.memory_gap || 0;
+        
+        insights.rightsizing = `💡 <strong>Right-sizing Opportunity:</strong> ${cpuGap.toFixed(1)}% CPU gap and ${memoryGap.toFixed(1)}% memory gap detected. ML-guided resource optimization could save <strong>$${rightSizingSavings.toLocaleString()}/month</strong>.`;
     }
     
-    // Storage insight
+    // Storage insight with specific recommendations
     if (metrics.storage_savings > 0) {
         const storageSavings = Math.round(metrics.storage_savings);
-        insights.storage = `Storage optimization could save $${storageSavings.toLocaleString()}/month through tier optimization and cleanup automation.`;
+        insights.storage = `💾 <strong>Storage Optimization:</strong> ML analysis identified $${storageSavings.toLocaleString()}/month savings through automated tier management, volume cleanup, and snapshot optimization.`;
     }
     
-    // Overall optimization insight
-    if (totalSavings > 0) {
+    // Overall optimization summary with ML confidence
+    if (metrics.total_savings > 0) {
         const savingsPct = metrics.savings_percentage || 0;
-        const monthlySavings = Math.round(totalSavings);
-        const annualSavings = Math.round(totalSavings * 12);
+        const monthlySavings = Math.round(metrics.total_savings);
+        const annualSavings = Math.round(metrics.total_savings * 12);
+        const confidenceLevel = metrics.analysis_confidence || 0;
         
-        insights.overall = `Total optimization potential: ${Math.round(savingsPct)}% reduction ($${monthlySavings.toLocaleString()}/month, $${annualSavings.toLocaleString()}/year) through comprehensive resource optimization.`;
+        let confidenceText = confidenceLevel > 0.8 ? 'High-Confidence' : 
+                            confidenceLevel > 0.6 ? 'Validated' : 'Estimated';
+        
+        insights.overall = `🚀 <strong>${confidenceText} ML Analysis:</strong> Total optimization potential of <strong>${Math.round(savingsPct)}%</strong> identified. Monthly savings: <strong>$${monthlySavings.toLocaleString()}</strong> | Annual impact: <strong>$${annualSavings.toLocaleString()}</strong>.`;
     }
     
-    // Performance insight
-    if (metrics.performance_score || metrics.optimization_score) {
-        const score = metrics.performance_score || metrics.optimization_score || 0;
-        if (score >= 80) {
-            insights.performance = `Excellent cluster performance score of ${Math.round(score)}%. Minor optimizations available to maintain peak efficiency.`;
-        } else if (score >= 60) {
-            insights.performance = `Good cluster performance score of ${Math.round(score)}%. Several optimization opportunities identified for improvement.`;
+    // ============================================================================
+    // PERFORMANCE & EFFICIENCY INSIGHTS
+    // ============================================================================
+    
+    // Performance insight based on ML analysis
+    if (hpaComparison.actual_hpa_efficiency !== undefined) {
+        const efficiency = hpaComparison.actual_hpa_efficiency;
+        const wasteDetected = 100 - efficiency;
+        
+        if (efficiency > 80) {
+            insights.performance = `✅ <strong>High Efficiency:</strong> Current HPA efficiency of ${efficiency.toFixed(1)}% indicates well-optimized resource allocation. Monitor for drift.`;
+        } else if (efficiency > 50) {
+            insights.performance = `⚠️ <strong>Optimization Needed:</strong> HPA efficiency of ${efficiency.toFixed(1)}% shows ${wasteDetected.toFixed(1)}% resource waste. Immediate optimization recommended.`;
         } else {
-            insights.performance = `Performance score of ${Math.round(score)}% indicates significant optimization potential. Comprehensive improvements recommended.`;
+            insights.performance = `🚨 <strong>Critical Inefficiency:</strong> Only ${efficiency.toFixed(1)}% HPA efficiency detected. ${wasteDetected.toFixed(1)}% resource waste requires urgent attention.`;
         }
     }
     
-    // Security insight
-    if (metrics.security_score) {
-        const secScore = metrics.security_score;
-        if (secScore >= 90) {
-            insights.security = `Strong security posture with ${Math.round(secScore)}% compliance. Continue monitoring for emerging threats.`;
-        } else if (secScore >= 70) {
-            insights.security = `Good security baseline at ${Math.round(secScore)}%. Address identified vulnerabilities to strengthen protection.`;
+    // Resource utilization pattern insight
+    if (hpaComparison.current_cpu_avg !== undefined && hpaComparison.current_memory_avg !== undefined) {
+        const cpuUtil = hpaComparison.current_cpu_avg;
+        const memoryUtil = hpaComparison.current_memory_avg;
+        const resourceBalance = Math.abs(cpuUtil - memoryUtil);
+        
+        if (resourceBalance > 30) {
+            const dominantResource = cpuUtil > memoryUtil ? 'CPU' : 'Memory';
+            const dominantValue = Math.max(cpuUtil, memoryUtil);
+            const underutilizedResource = cpuUtil < memoryUtil ? 'CPU' : 'Memory';
+            const underutilizedValue = Math.min(cpuUtil, memoryUtil);
+            
+            insights.resource_balance = `⚖️ <strong>Resource Imbalance:</strong> ${dominantResource} utilization (${dominantValue.toFixed(1)}%) significantly exceeds ${underutilizedResource} (${underutilizedValue.toFixed(1)}%). Consider ${dominantResource.toLowerCase()}-optimized scaling strategies.`;
         } else {
-            insights.security = `Security score of ${Math.round(secScore)}% requires immediate attention. Implement recommended security improvements.`;
+            insights.resource_balance = `⚖️ <strong>Balanced Resources:</strong> CPU (${cpuUtil.toFixed(1)}%) and Memory (${memoryUtil.toFixed(1)}%) utilization are well-balanced. Current allocation strategy is appropriate.`;
         }
     }
     
-    console.log('✅ Generated REAL dynamic insights:', insights);
+    // ============================================================================
+    // PREDICTIVE INSIGHTS
+    // ============================================================================
+    
+    // Growth prediction based on current patterns
+    if (metrics.total_cost > 0) {
+        const currentCost = metrics.total_cost;
+        const potentialSavings = metrics.total_savings || 0;
+        const optimizedCost = currentCost - potentialSavings;
+        const annualCostWithoutOptimization = currentCost * 12;
+        const annualCostWithOptimization = optimizedCost * 12;
+        
+        insights.prediction = `📈 <strong>12-Month Projection:</strong> Without optimization: $${annualCostWithoutOptimization.toLocaleString()}/year. With ML-guided optimization: $${annualCostWithOptimization.toLocaleString()}/year. <strong>Net benefit: $${(annualCostWithoutOptimization - annualCostWithOptimization).toLocaleString()}</strong>.`;
+    }
+    
+    // ============================================================================
+    // ACTIONABLE RECOMMENDATIONS
+    // ============================================================================
+    
+    // Immediate actions based on ML analysis
+    if (hpaComparison.ml_workload_type) {
+        const workloadType = hpaComparison.ml_workload_type;
+        let immediateActions = [];
+        
+        switch (workloadType) {
+            case 'LOW_UTILIZATION':
+                immediateActions = [
+                    'Scale down over-provisioned deployments',
+                    'Reduce resource requests by 30-50%',
+                    'Implement cluster autoscaling',
+                    'Enable vertical pod autoscaling'
+                ];
+                break;
+            case 'CPU_INTENSIVE':
+                immediateActions = [
+                    'Deploy CPU-based HPA configurations',
+                    'Set CPU target utilization to 70%',
+                    'Monitor for CPU throttling',
+                    'Consider CPU-optimized node types'
+                ];
+                break;
+            case 'MEMORY_INTENSIVE':
+                immediateActions = [
+                    'Implement memory-based HPA',
+                    'Set memory target utilization to 75%',
+                    'Enable memory optimization',
+                    'Monitor for OOM kills'
+                ];
+                break;
+            case 'BURSTY':
+                immediateActions = [
+                    'Implement predictive autoscaling',
+                    'Configure scheduled scaling',
+                    'Set up custom metrics monitoring',
+                    'Enable burst-friendly scaling policies'
+                ];
+                break;
+            case 'BALANCED':
+                immediateActions = [
+                    'Fine-tune existing HPA policies',
+                    'Implement multi-metric scaling',
+                    'Optimize scaling thresholds',
+                    'Enable advanced scaling behaviors'
+                ];
+                break;
+        }
+        
+        insights.actions = `🎯 <strong>Immediate Actions for ${workloadType}:</strong> ${immediateActions.slice(0, 3).join(' • ')}. Implement these changes within 48 hours for optimal impact.`;
+    }
+    
+    console.log('✅ Generated comprehensive ML-integrated insights:', Object.keys(insights));
     return insights;
 }
 
