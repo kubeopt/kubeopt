@@ -144,107 +144,141 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
     """Get AKS-specific cost data for a specific date range"""
     logger.info(f"Fetching AKS-specific cost data for {cluster_name} from {start_date} to {end_date}")
     
-    try:
-        # Format dates
-        start_date_str = start_date.strftime("%Y-%m-%d")
-        end_date_str = end_date.strftime("%Y-%m-%d")
-        
-        logger.info(f"Using date range: {start_date_str} to {end_date_str}")
-        
-        # Get subscription ID
-        sub_cmd = "az account show --query id -o tsv"
-        sub_result = subprocess.run(sub_cmd, shell=True, check=True, capture_output=True, text=True)
-        subscription_id = sub_result.stdout.strip()
-        
-        if not subscription_id:
-            logger.error("Failed to retrieve subscription ID")
-            return None
-        
-        # Get the node resource group
-        node_rg_cmd = f"az aks show --resource-group {resource_group} --name {cluster_name} --query nodeResourceGroup -o tsv"
-        node_rg_result = subprocess.run(node_rg_cmd, shell=True, check=True, capture_output=True, text=True)
-        node_resource_group = node_rg_result.stdout.strip()
-        
-        logger.info(f"Using node resource group: {node_resource_group}")
-        
-        # Create cost query
-        cost_query = {
-            "type": "ActualCost",
-            "timeframe": "Custom",
-            "timePeriod": {
-                "from": start_date_str,
-                "to": end_date_str
-            },
-            "dataset": {
-                "granularity": "Daily",
-                "aggregation": {
-                    "totalCost": {
-                        "name": "PreTaxCost",
-                        "function": "Sum"
-                    }
+    # ✅ ADD: Enhanced headers for rate limit management
+    max_retries = 3
+    base_delay = 5
+    
+    for attempt in range(max_retries):
+        try:
+            # Format dates
+            start_date_str = start_date.strftime("%Y-%m-%d")
+            end_date_str = end_date.strftime("%Y-%m-%d")
+            
+            logger.info(f"Using date range: {start_date_str} to {end_date_str}")
+            
+            # Get subscription ID
+            sub_cmd = "az account show --query id -o tsv"
+            sub_result = subprocess.run(sub_cmd, shell=True, check=True, capture_output=True, text=True)
+            subscription_id = sub_result.stdout.strip()
+            
+            if not subscription_id:
+                logger.error("Failed to retrieve subscription ID")
+                return None
+            
+            # Get the node resource group
+            node_rg_cmd = f"az aks show --resource-group {resource_group} --name {cluster_name} --query nodeResourceGroup -o tsv"
+            node_rg_result = subprocess.run(node_rg_cmd, shell=True, check=True, capture_output=True, text=True)
+            node_resource_group = node_rg_result.stdout.strip()
+            
+            logger.info(f"Using node resource group: {node_resource_group}")
+            
+            # Create cost query
+            cost_query = {
+                "type": "ActualCost",
+                "timeframe": "Custom",
+                "timePeriod": {
+                    "from": start_date_str,
+                    "to": end_date_str
                 },
-                "grouping": [
-                    {"type": "Dimension", "name": "ResourceType"},
-                    {"type": "Dimension", "name": "ResourceGroupName"},
-                    {"type": "Dimension", "name": "ServiceName"},
-                    {"type": "Dimension", "name": "ResourceId"}
-                ],
-                "filter": {
-                    "dimensions": {
-                        "name": "ResourceGroupName",
-                        "operator": "In",
-                        "values": [resource_group, node_resource_group]
+                "dataset": {
+                    "granularity": "Daily",
+                    "aggregation": {
+                        "totalCost": {
+                            "name": "PreTaxCost",
+                            "function": "Sum"
+                        }
+                    },
+                    "grouping": [
+                        {"type": "Dimension", "name": "ResourceType"},
+                        {"type": "Dimension", "name": "ResourceGroupName"},
+                        {"type": "Dimension", "name": "ServiceName"},
+                        {"type": "Dimension", "name": "ResourceId"}
+                    ],
+                    "filter": {
+                        "dimensions": {
+                            "name": "ResourceGroupName",
+                            "operator": "In",
+                            "values": [resource_group, node_resource_group]
+                        }
                     }
                 }
             }
-        }
-        
-        # Save query to temp file
-        query_file = f'aks_cost_query_{int(time.time())}.json'
-        with open(query_file, 'w', encoding='utf-8') as f:
-            json.dump(cost_query, f, indent=2)
-        
-        try:
-            # Execute the REST API call
-            api_cmd = f"""
-            az rest --method POST \
-            --uri "https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.CostManagement/query?api-version=2023-11-01" \
-            --body @{query_file} \
-            --output json
-            """
             
-            logger.info("Executing AKS-specific Cost Management API query")
-            api_result = subprocess.run(api_cmd, shell=True, check=True, capture_output=True, text=True)
+            # Save query to temp file
+            query_file = f'aks_cost_query_{int(time.time())}.json'
+            with open(query_file, 'w', encoding='utf-8') as f:
+                json.dump(cost_query, f, indent=2)
             
-            cost_data = json.loads(api_result.stdout)
-            logger.info("Successfully parsed cost API response")
-            
-            # Process the data and create DataFrame
-            cost_df = process_aks_cost_data(cost_data)
-            
-            # Add metadata
-            cost_df.attrs['start_date'] = start_date_str
-            cost_df.attrs['end_date'] = end_date_str
-            cost_df.attrs['data_source'] = 'Azure Cost Management API'
-            
-            return cost_df
-        
-        finally:
-            # Clean up temp file
             try:
-                if os.path.exists(query_file):
-                    os.remove(query_file)
-            except Exception as file_e:
-                logger.warning(f"Failed to remove temporary query file: {file_e}")
-    
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Command failed with return code {e.returncode}")
-        logger.error(f"STDERR: {e.stderr}")
-        return None
+                # Execute the REST API call
+                # ✅ ENHANCED: Add rate limit headers
+                api_cmd = f"""
+                az rest --method POST \
+                --uri "https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.CostManagement/query?api-version=2023-03-01" \
+                --headers "ClientType=AKSCostOptimizer-v2.0" "x-ms-command-name=AKSCostOptimizer" \
+                --body @{query_file} \
+                --output json
+                """
+                
+                logger.info(f"💰 COST-FIRST: Executing cost API call (attempt {attempt + 1}/{max_retries})")
+                api_result = subprocess.run(api_cmd, shell=True, check=True, capture_output=True, text=True, timeout=60)
+            
+                cost_data = json.loads(api_result.stdout)
+                logger.info("Successfully parsed cost API response")
+                
+                # Process the data and create DataFrame
+                cost_df = process_aks_cost_data(cost_data)
+                
+                # Add metadata
+                cost_df.attrs['start_date'] = start_date_str
+                cost_df.attrs['end_date'] = end_date_str
+                cost_df.attrs['data_source'] = 'Azure Cost Management API'
+                
+                return cost_df
+            
+            except subprocess.CalledProcessError as e:
+                if "429" in e.stderr or "Too Many Requests" in e.stderr:
+                    if attempt < max_retries - 1:
+                        retry_delay = base_delay * (2 ** attempt)
+                        logger.warning(f"⚠️ COST-FIRST: Rate limited, retrying in {retry_delay}s (attempt {attempt + 1})")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        logger.error(f"❌ COST-FIRST: Rate limit exceeded after {max_retries} attempts")
+                        raise Exception("Cost API rate limit exceeded - please try again later")
+                else:
+                    logger.error(f"❌ COST-FIRST: API error: {e.stderr}")
+                    raise
+                
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"⚠️ COST-FIRST: Attempt {attempt + 1} failed: {e}, retrying...")
+                    time.sleep(base_delay)
+                    continue
+                else:
+                    logger.error(f"❌ COST-FIRST: All attempts failed: {e}")
+                    raise
+            
+            finally:
+                # Clean up temp file
+                try:
+                    if os.path.exists(query_file):
+                        os.remove(query_file)
+                except Exception as file_e:
+                    logger.warning(f"Failed to remove temporary query file: {file_e}")
         
-    except Exception as e:
-        logger.error(f"Error fetching AKS-specific cost data: {str(e)}")
-        return None
+        except Exception as outer_e:
+            if attempt < max_retries - 1:
+                logger.warning(f"⚠️ COST-FIRST: Outer attempt {attempt + 1} failed: {outer_e}, retrying...")
+                time.sleep(base_delay)
+                continue
+            else:
+                logger.error(f"❌ COST-FIRST: All retry attempts exhausted: {outer_e}")
+                return None
+    
+    # This should only be reached if all retries are exhausted
+    logger.error("❌ COST-FIRST: All retry attempts exhausted")
+    return None
 
 def log_cost_details(cost_df):
     """Log detailed breakdown of costs for debugging"""

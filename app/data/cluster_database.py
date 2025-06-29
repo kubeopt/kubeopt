@@ -1,4 +1,5 @@
-# cluster_database.py - Enhanced Cluster Manager with SQLite
+# cluster_database.py - Complete Enhanced Cluster Manager with Multi-Subscription Support
+
 import sqlite3
 import json
 import logging
@@ -6,13 +7,12 @@ from datetime import datetime, timedelta
 import traceback
 from typing import Any, Dict, List, Optional
 import os
-from app.ml.implementation_generator import AKSImplementationGenerator
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 def migrate_database_schema(db_path: str = '../data/database/clusters.db'):
     """Migrate database schema to include analysis_data column and other required columns"""
-    import sqlite3
-    import logging
-    
     logger = logging.getLogger(__name__)
     
     try:
@@ -53,54 +53,130 @@ def migrate_database_schema(db_path: str = '../data/database/clusters.db'):
         logger.error(f"❌ Database migration failed: {e}")
         return False
 
-def enhance_database_for_subscriptions(db_path: str = '../data/database/clusters.db'):
-    """Add subscription support to database schema"""
-    import sqlite3
-    import logging
-    
+def migrate_database_for_multi_subscription(db_path: str = '../data/database/clusters.db'):
+    """Comprehensive database migration for multi-subscription support"""
     logger = logging.getLogger(__name__)
     
     try:
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
             
-            # Check if subscription_id column exists
+            # Check current schema
             cursor.execute("PRAGMA table_info(clusters)")
             existing_columns = {row[1] for row in cursor.fetchall()}
             
-            if 'subscription_id' not in existing_columns:
-                # Add subscription_id column
-                cursor.execute('''
-                    ALTER TABLE clusters 
-                    ADD COLUMN subscription_id TEXT DEFAULT NULL
-                ''')
-                logger.info("✅ Added subscription_id column to clusters table")
+            # Define all required columns for multi-subscription support
+            required_columns = {
+                'subscription_id': 'TEXT DEFAULT NULL',
+                'subscription_name': 'TEXT DEFAULT NULL',
+                'analysis_data': 'TEXT',
+                'last_confidence': 'REAL DEFAULT 0',
+                'analysis_status': 'TEXT DEFAULT "pending"',
+                'analysis_progress': 'INTEGER DEFAULT 0',
+                'analysis_message': 'TEXT DEFAULT ""',
+                'analysis_started_at': 'TIMESTAMP NULL',
+                'auto_analyze_enabled': 'BOOLEAN DEFAULT 1',
+                'subscription_context_verified': 'BOOLEAN DEFAULT 0',
+                'subscription_last_validated': 'TIMESTAMP NULL'
+            }
             
-            if 'subscription_name' not in existing_columns:
-                # Add subscription_name for display purposes
-                cursor.execute('''
-                    ALTER TABLE clusters 
-                    ADD COLUMN subscription_name TEXT DEFAULT NULL
-                ''')
-                logger.info("✅ Added subscription_name column to clusters table")
+            # Add missing columns
+            columns_added = 0
+            for column_name, column_def in required_columns.items():
+                if column_name not in existing_columns:
+                    try:
+                        alter_sql = f"ALTER TABLE clusters ADD COLUMN {column_name} {column_def}"
+                        cursor.execute(alter_sql)
+                        logger.info(f"✅ Added column: {column_name}")
+                        columns_added += 1
+                    except sqlite3.OperationalError as e:
+                        if "duplicate column name" not in str(e).lower():
+                            logger.error(f"❌ Failed to add column {column_name}: {e}")
             
-            # Create subscription tracking table
+            # Create subscription management table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS subscriptions (
                     subscription_id TEXT PRIMARY KEY,
                     subscription_name TEXT NOT NULL,
+                    tenant_id TEXT,
+                    state TEXT DEFAULT 'Enabled',
                     is_default BOOLEAN DEFAULT 0,
                     last_used TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    last_validated TIMESTAMP,
+                    validation_status TEXT DEFAULT 'unknown',
+                    cluster_count INTEGER DEFAULT 0,
+                    total_cost REAL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
             
+            # Create subscription analysis sessions table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS subscription_analysis_sessions (
+                    session_id TEXT PRIMARY KEY,
+                    cluster_id TEXT NOT NULL,
+                    subscription_id TEXT NOT NULL,
+                    resource_group TEXT NOT NULL,
+                    cluster_name TEXT NOT NULL,
+                    analysis_type TEXT DEFAULT 'completely_fixed',
+                    status TEXT DEFAULT 'pending',
+                    progress INTEGER DEFAULT 0,
+                    message TEXT DEFAULT '',
+                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP NULL,
+                    thread_id INTEGER,
+                    subscription_context_set BOOLEAN DEFAULT 0,
+                    results_size INTEGER DEFAULT 0,
+                    FOREIGN KEY (cluster_id) REFERENCES clusters (id),
+                    FOREIGN KEY (subscription_id) REFERENCES subscriptions (subscription_id)
+                )
+            ''')
+            
+            # Create subscription performance tracking table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS subscription_performance (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    subscription_id TEXT NOT NULL,
+                    metric_name TEXT NOT NULL,
+                    metric_value REAL NOT NULL,
+                    measured_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (subscription_id) REFERENCES subscriptions (subscription_id)
+                )
+            ''')
+            
+            # Create indexes for performance
+            indexes_to_create = [
+                'CREATE INDEX IF NOT EXISTS idx_clusters_subscription_id ON clusters(subscription_id)',
+                'CREATE INDEX IF NOT EXISTS idx_clusters_analysis_status ON clusters(analysis_status)',
+                'CREATE INDEX IF NOT EXISTS idx_subscription_sessions_cluster ON subscription_analysis_sessions(cluster_id)',
+                'CREATE INDEX IF NOT EXISTS idx_subscription_sessions_subscription ON subscription_analysis_sessions(subscription_id)',
+                'CREATE INDEX IF NOT EXISTS idx_subscription_sessions_status ON subscription_analysis_sessions(status)',
+                'CREATE INDEX IF NOT EXISTS idx_subscription_performance_sub ON subscription_performance(subscription_id)',
+                'CREATE INDEX IF NOT EXISTS idx_subscription_performance_metric ON subscription_performance(metric_name)'
+            ]
+            
+            for index_sql in indexes_to_create:
+                try:
+                    cursor.execute(index_sql)
+                except sqlite3.OperationalError:
+                    pass  # Index might already exist
+            
             conn.commit()
-            logger.info("✅ Database enhanced for subscription management")
+            
+            if columns_added > 0:
+                logger.info(f"✅ Multi-subscription database migration completed: {columns_added} columns added")
+            
+            # Verify migration
+            cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")
+            table_count = cursor.fetchone()[0]
+            logger.info(f"✅ Database has {table_count} tables after migration")
+            
             return True
             
     except Exception as e:
-        logger.error(f"❌ Database subscription enhancement failed: {e}")
+        logger.error(f"❌ Multi-subscription database migration failed: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         return False
 
 def serialize_implementation_plan(plan_data):
@@ -160,46 +236,35 @@ def deserialize_implementation_plan(serialized_data):
             return obj
     
     return deserialize_object(serialized_data)
-    
-logger = logging.getLogger(__name__)
 
-# ==================================================================================================
-#
-# ==================================================================================================
-
-class EnhancedClusterManager:
-    """Enhanced cluster manager with SQLite database for enterprise use"""
+class EnhancedMultiSubscriptionClusterManager:
+    """Complete enhanced cluster manager with comprehensive multi-subscription support"""
     
     def __init__(self, db_path='app/data/database/clusters.db'):
         self.db_path = db_path
+        self.logger = logging.getLogger(__name__)
+        
+        # Initialize database with complete schema
         self.init_database()
-        # Enhance schema for auto-analysis
-        self.enhance_database_for_auto_analysis()
+        
+        # Run all migrations
+        migrate_database_schema(self.db_path)
+        migrate_database_for_multi_subscription(self.db_path)
+        
         # Clean up any stale analyses on startup
         self.cleanup_stale_analyses()
+        
+        # Initialize subscription tracking
+        self.initialize_subscription_tracking()
 
-    def touch_cluster(self, cluster_id: str):
-        """Update cluster timestamp to invalidate cache"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute('''
-                    UPDATE clusters 
-                    SET last_analyzed = ? 
-                    WHERE id = ?
-                ''', (datetime.now().isoformat(), cluster_id))
-                conn.commit()
-                logger.info(f"✅ Updated timestamp for cluster {cluster_id}")
-        except Exception as e:
-            logger.error(f"❌ Failed to touch cluster {cluster_id}: {e}")
-                
     def init_database(self):
-        """Initialize SQLite database with proper schema including analysis_data"""
+        """Initialize SQLite database with complete multi-subscription schema"""
         try:
-            # First run migration to ensure schema is up to date
-            migrate_database_schema(self.db_path)
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
             
             with sqlite3.connect(self.db_path) as conn:
-                # Create clusters table with ALL required columns
+                # Create main clusters table with ALL required columns
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS clusters (
                         id TEXT PRIMARY KEY,
@@ -221,10 +286,15 @@ class EnhancedClusterManager:
                         analysis_progress INTEGER DEFAULT 0,
                         analysis_message TEXT DEFAULT '',
                         analysis_started_at TIMESTAMP,
-                        auto_analyze_enabled BOOLEAN DEFAULT 1
+                        auto_analyze_enabled BOOLEAN DEFAULT 1,
+                        subscription_id TEXT DEFAULT NULL,
+                        subscription_name TEXT DEFAULT NULL,
+                        subscription_context_verified BOOLEAN DEFAULT 0,
+                        subscription_last_validated TIMESTAMP NULL
                     )
                 ''')
                 
+                # Create analysis results table
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS analysis_results (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -238,26 +308,200 @@ class EnhancedClusterManager:
                     )
                 ''')
                 
-                conn.execute('''
-                    CREATE INDEX IF NOT EXISTS idx_cluster_id ON analysis_results(cluster_id);
-                ''')
-                
-                conn.execute('''
-                    CREATE INDEX IF NOT EXISTS idx_analysis_date ON analysis_results(analysis_date);
-                ''')
+                # Create indexes
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_cluster_id ON analysis_results(cluster_id)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_analysis_date ON analysis_results(analysis_date)')
                 
                 conn.commit()
-                logger.info("✅ Database initialized successfully with complete schema")
+                self.logger.info("✅ Complete multi-subscription database initialized successfully")
                 
         except Exception as e:
-            logger.error(f"❌ Database initialization failed: {e}")
+            self.logger.error(f"❌ Database initialization failed: {e}")
             raise
-    
+
+    def touch_cluster(self, cluster_id: str):
+        """Update cluster timestamp to invalidate cache"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute('''
+                    UPDATE clusters 
+                    SET last_analyzed = ? 
+                    WHERE id = ?
+                ''', (datetime.now().isoformat(), cluster_id))
+                conn.commit()
+                self.logger.info(f"✅ Updated timestamp for cluster {cluster_id}")
+        except Exception as e:
+            self.logger.error(f"❌ Failed to touch cluster {cluster_id}: {e}")
+
+    def cleanup_stale_analyses(self, max_age_hours: int = 4):
+        """Clean up stale analysis sessions (both general and subscription-specific)"""
+        try:
+            cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+            cleaned_count = 0
+            
+            with sqlite3.connect(self.db_path) as conn:
+                # Clean up stale cluster analyses
+                cursor = conn.execute('''
+                    SELECT id FROM clusters 
+                    WHERE analysis_status IN ('running', 'analyzing', 'pending') 
+                    AND analysis_started_at IS NOT NULL
+                    AND analysis_started_at < ?
+                ''', (cutoff_time.isoformat(),))
+                
+                stale_clusters = [row[0] for row in cursor.fetchall()]
+                
+                if stale_clusters:
+                    # Update stale cluster analyses
+                    conn.execute('''
+                        UPDATE clusters 
+                        SET analysis_status = 'failed',
+                            analysis_progress = 0,
+                            analysis_message = 'Analysis timed out and was cleaned up'
+                        WHERE analysis_status IN ('running', 'analyzing', 'pending') 
+                        AND analysis_started_at < ?
+                    ''', (cutoff_time.isoformat(),))
+                    
+                    cleaned_count += len(stale_clusters)
+                
+                conn.commit()
+            
+            # Also clean up stale subscription sessions
+            subscription_cleaned = self.cleanup_stale_subscription_sessions(max_age_hours)
+            cleaned_count += subscription_cleaned
+            
+            if cleaned_count > 0:
+                self.logger.info(f"🧹 Cleaned up {cleaned_count} stale analysis sessions")
+            
+            return cleaned_count
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error cleaning up stale analyses: {e}")
+            return 0
+
+    def cleanup_stale_subscription_sessions(self, max_age_hours: int = 4):
+        """Clean up stale subscription analysis sessions"""
+        try:
+            cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+            
+            with sqlite3.connect(self.db_path) as conn:
+                # Find stale sessions
+                cursor = conn.execute('''
+                    SELECT session_id, cluster_id FROM subscription_analysis_sessions 
+                    WHERE status IN ('running', 'pending') 
+                    AND started_at < ?
+                ''', (cutoff_time.isoformat(),))
+                
+                stale_sessions = cursor.fetchall()
+                
+                if stale_sessions:
+                    # Update stale sessions
+                    conn.execute('''
+                        UPDATE subscription_analysis_sessions 
+                        SET status = 'failed', 
+                            message = 'Session timed out and was cleaned up',
+                            completed_at = ?
+                        WHERE status IN ('running', 'pending') 
+                        AND started_at < ?
+                    ''', (datetime.now().isoformat(), cutoff_time.isoformat()))
+                    
+                    # Also update corresponding clusters
+                    for session_id, cluster_id in stale_sessions:
+                        conn.execute('''
+                            UPDATE clusters 
+                            SET analysis_status = 'failed',
+                                analysis_progress = 0,
+                                analysis_message = 'Analysis session timed out'
+                            WHERE id = ?
+                        ''', (cluster_id,))
+                    
+                    conn.commit()
+                    
+                    self.logger.info(f"🧹 Cleaned up {len(stale_sessions)} stale subscription analysis sessions")
+                    return len(stale_sessions)
+                
+                return 0
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error cleaning up stale subscription sessions: {e}")
+            return 0
+
+    def initialize_subscription_tracking(self):
+        """Initialize subscription tracking and discovery"""
+        try:
+            self.logger.info("🌐 Initializing subscription tracking...")
+            
+            # Try to import subscription manager, but handle gracefully if not available
+            try:
+                from app.services.subscription_manager import azure_subscription_manager
+                
+                # Get all available subscriptions
+                subscriptions = azure_subscription_manager.get_available_subscriptions(force_refresh=True)
+                
+                # Update subscriptions table
+                with sqlite3.connect(self.db_path) as conn:
+                    for sub in subscriptions:
+                        conn.execute('''
+                            INSERT OR REPLACE INTO subscriptions 
+                            (subscription_id, subscription_name, tenant_id, state, is_default, last_validated, validation_status)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ''', (
+                            sub.subscription_id,
+                            sub.subscription_name,
+                            sub.tenant_id,
+                            sub.state,
+                            sub.is_default,
+                            datetime.now().isoformat(),
+                            'active'
+                        ))
+                    
+                    conn.commit()
+                
+                self.logger.info(f"✅ Initialized tracking for {len(subscriptions)} subscriptions")
+                
+            except ImportError:
+                self.logger.warning("⚠️ Subscription manager not available, skipping subscription discovery")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Failed to initialize subscription tracking: {e}")
+            
+            # Auto-detect subscription info for existing clusters
+            self.detect_and_update_cluster_subscriptions()
+            
+        except Exception as e:
+            self.logger.error(f"❌ Failed to initialize subscription tracking: {e}")
+
+    def get_clusters_by_subscription(self, subscription_id: str) -> List[Dict]:
+        """Get all clusters for a specific subscription (required by api_routes.py)"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT * FROM clusters 
+                    WHERE subscription_id = ? AND status = 'active'
+                    ORDER BY created_at DESC
+                ''', (subscription_id,))
+                
+                clusters = []
+                for row in cursor.fetchall():
+                    cluster = dict(row)
+                    cluster['metadata'] = json.loads(cluster.get('metadata', '{}'))
+                    clusters.append(cluster)
+                
+                self.logger.info(f"📊 Found {len(clusters)} clusters in subscription {subscription_id[:8] if subscription_id else 'unknown'}")
+                return clusters
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error getting clusters for subscription {subscription_id}: {e}")
+            return []
+
+    def get_all_clusters(self) -> List[Dict]:
+        """Get all clusters (alias for list_clusters for compatibility)"""
+        return self.list_clusters()
+
     def detect_and_update_cluster_subscriptions(self):
         """Detect and update subscription info for existing clusters"""
-        logger.info("🔍 Detecting subscription info for existing clusters...")
-        
         try:
+            self.logger.info("🔍 Detecting subscription info for existing clusters...")
+            
             # Get all clusters without subscription info
             clusters_to_update = []
             with sqlite3.connect(self.db_path) as conn:
@@ -271,97 +515,477 @@ class EnhancedClusterManager:
                 clusters_to_update = [dict(row) for row in cursor.fetchall()]
             
             if not clusters_to_update:
-                logger.info("✅ All clusters already have subscription info")
+                self.logger.info("✅ All clusters already have subscription info")
                 return True
             
-            logger.info(f"🔍 Found {len(clusters_to_update)} clusters to update")
+            self.logger.info(f"🔍 Found {len(clusters_to_update)} clusters to update")
             
-            # Import subscription manager
-            from app.services.subscription_manager import AzureSubscriptionManager
-            sub_manager = AzureSubscriptionManager()
-            
-            updated_count = 0
-            
-            for cluster in clusters_to_update:
-                cluster_id = cluster['id']
-                cluster_name = cluster['name']
-                resource_group = cluster['resource_group']
+            # Try to import subscription manager
+            try:
+                from app.services.subscription_manager import AzureSubscriptionManager
+                sub_manager = AzureSubscriptionManager()
                 
-                logger.info(f"🔍 Detecting subscription for cluster: {cluster_name}")
+                updated_count = 0
                 
-                # Find the subscription containing this cluster
-                subscription_id = sub_manager.find_cluster_subscription(resource_group, cluster_name)
-                
-                if subscription_id:
-                    # Get subscription name
-                    subscription_name = "Unknown"
-                    try:
-                        sub_info = sub_manager.get_subscription_info(subscription_id)
-                        if sub_info:
-                            subscription_name = sub_info['subscription_name']
-                    except:
-                        pass
+                for cluster in clusters_to_update:
+                    cluster_id = cluster['id']
+                    cluster_name = cluster['name']
+                    resource_group = cluster['resource_group']
                     
-                    # Update the cluster with subscription info
-                    with sqlite3.connect(self.db_path) as conn:
-                        conn.execute('''
-                            UPDATE clusters 
-                            SET subscription_id = ?, subscription_name = ?
-                            WHERE id = ?
-                        ''', (subscription_id, subscription_name, cluster_id))
-                        conn.commit()
+                    self.logger.info(f"🔍 Detecting subscription for cluster: {cluster_name}")
                     
-                    logger.info(f"✅ Updated {cluster_name} -> {subscription_name}")
-                    updated_count += 1
-                else:
-                    logger.warning(f"⚠️ Could not find subscription for cluster: {cluster_name}")
-            
-            logger.info(f"✅ Updated {updated_count} clusters with subscription info")
-            return True
+                    # Find the subscription containing this cluster
+                    subscription_id = sub_manager.find_cluster_subscription(resource_group, cluster_name)
+                    
+                    if subscription_id:
+                        # Get subscription name
+                        subscription_name = "Unknown"
+                        try:
+                            sub_info = sub_manager.get_subscription_info(subscription_id)
+                            if sub_info:
+                                subscription_name = sub_info['subscription_name']
+                        except:
+                            pass
+                        
+                        # Update the cluster with subscription info
+                        with sqlite3.connect(self.db_path) as conn:
+                            conn.execute('''
+                                UPDATE clusters 
+                                SET subscription_id = ?, subscription_name = ?
+                                WHERE id = ?
+                            ''', (subscription_id, subscription_name, cluster_id))
+                            conn.commit()
+                        
+                        self.logger.info(f"✅ Updated {cluster_name} -> {subscription_name}")
+                        updated_count += 1
+                    else:
+                        self.logger.warning(f"⚠️ Could not find subscription for cluster: {cluster_name}")
+                
+                self.logger.info(f"✅ Updated {updated_count} clusters with subscription info")
+                return True
+                
+            except ImportError:
+                self.logger.warning("⚠️ Subscription manager not available for auto-detection")
+                return False
             
         except Exception as e:
-            logger.error(f"❌ Error detecting cluster subscriptions: {e}")
+            self.logger.error(f"❌ Error detecting cluster subscriptions: {e}")
             return False
 
-    def get_cluster_subscription_info(self, cluster_id: str) -> Optional[Dict]:
-        """Get stored subscription info for a cluster"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.execute('''
-                    SELECT subscription_id, subscription_name 
-                    FROM clusters 
-                    WHERE id = ?
-                ''', (cluster_id,))
-                
-                row = cursor.fetchone()
-                if row and row['subscription_id']:
-                    return {
-                        'subscription_id': row['subscription_id'],
-                        'subscription_name': row['subscription_name'] or 'Unknown'
-                    }
-                
-                return None
-                
-        except Exception as e:
-            logger.error(f"❌ Error getting cluster subscription info: {e}")
-            return None
+    # ========================================
+    # Multi-Subscription Methods
+    # ========================================
 
-    def update_cluster_subscription_info(self, cluster_id: str, subscription_id: str, subscription_name: str):
-        """Update cluster with its actual subscription information"""
+    def add_cluster_with_subscription_validation(self, cluster_config: Dict, subscription_id: str, subscription_name: str) -> str:
+        """Add a new cluster with comprehensive subscription validation"""
+        try:
+            cluster_id = f"{cluster_config['resource_group']}_{cluster_config['cluster_name']}"
+            
+            # Try to import and validate, but handle gracefully if not available
+            validation_result = {'valid': True, 'cluster_info': {}}
+            
+            try:
+                from app.services.subscription_manager import azure_subscription_manager
+                
+                # Validate cluster access
+                validation_result = azure_subscription_manager.validate_cluster_access(
+                    subscription_id, 
+                    cluster_config['resource_group'], 
+                    cluster_config['cluster_name']
+                )
+                
+                if not validation_result['valid']:
+                    raise ValueError(f"Cluster validation failed: {validation_result['error']}")
+                    
+            except ImportError:
+                self.logger.warning("⚠️ Subscription manager not available for validation")
+            
+            with sqlite3.connect(self.db_path) as conn:
+                # Insert cluster with subscription context
+                conn.execute('''
+                    INSERT OR REPLACE INTO clusters 
+                    (id, name, resource_group, environment, region, description, status, 
+                    subscription_id, subscription_name, subscription_context_verified, 
+                    subscription_last_validated, created_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    cluster_id,
+                    cluster_config['cluster_name'],
+                    cluster_config['resource_group'],
+                    cluster_config.get('environment', 'development'),
+                    cluster_config.get('region', 'Unknown'),
+                    cluster_config.get('description', ''),
+                    'active',
+                    subscription_id,
+                    subscription_name,
+                    True,  # subscription_context_verified
+                    datetime.now().isoformat(),
+                    datetime.now().isoformat(),
+                    json.dumps({
+                        **cluster_config.get('metadata', {}),
+                        'cluster_validation': validation_result.get('cluster_info', {}),
+                        'subscription_validation_timestamp': datetime.now().isoformat()
+                    })
+                ))
+                
+                # Update subscription cluster count
+                conn.execute('''
+                    UPDATE subscriptions 
+                    SET cluster_count = (
+                        SELECT COUNT(*) FROM clusters WHERE subscription_id = ? AND status = 'active'
+                    ),
+                    last_used = ?,
+                    updated_at = ?
+                    WHERE subscription_id = ?
+                ''', (subscription_id, datetime.now().isoformat(), datetime.now().isoformat(), subscription_id))
+                
+                conn.commit()
+                
+            self.logger.info(f"✅ Added cluster with validated subscription: {cluster_id} -> {subscription_name}")
+            return cluster_id
+            
+        except Exception as e:
+            self.logger.error(f"❌ Failed to add cluster with subscription validation: {e}")
+            raise
+
+    def track_subscription_analysis_session(self, session_data: Dict) -> bool:
+        """Track subscription-aware analysis session"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute('''
-                    UPDATE clusters 
-                    SET subscription_id = ?, subscription_name = ?
-                    WHERE id = ?
-                ''', (subscription_id, subscription_name, cluster_id))
+                    INSERT OR REPLACE INTO subscription_analysis_sessions
+                    (session_id, cluster_id, subscription_id, resource_group, cluster_name,
+                     analysis_type, status, progress, message, started_at, thread_id, subscription_context_set)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    session_data.get('session_id'),
+                    session_data.get('cluster_id'),
+                    session_data.get('subscription_id'),
+                    session_data.get('resource_group'),
+                    session_data.get('cluster_name'),
+                    session_data.get('analysis_type', 'completely_fixed'),
+                    session_data.get('status', 'running'),
+                    session_data.get('progress', 0),
+                    session_data.get('message', ''),
+                    session_data.get('started_at'),
+                    session_data.get('thread_id'),
+                    session_data.get('subscription_context_set', False)
+                ))
                 conn.commit()
                 
-            logger.info(f"✅ Updated cluster {cluster_id} subscription info: {subscription_name}")
+            self.logger.info(f"✅ Tracked subscription analysis session: {session_data.get('session_id', 'unknown')[:8]}")
+            return True
             
         except Exception as e:
-            logger.error(f"❌ Failed to update cluster subscription info: {e}")
+            self.logger.error(f"❌ Failed to track subscription analysis session: {e}")
+            return False
+
+    def update_subscription_analysis_session(self, session_id: str, updates: Dict) -> bool:
+        """Update subscription analysis session"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # Build dynamic update query
+                set_clauses = []
+                values = []
+                
+                for key, value in updates.items():
+                    if key in ['status', 'progress', 'message', 'completed_at', 'results_size']:
+                        set_clauses.append(f"{key} = ?")
+                        values.append(value)
+                
+                if set_clauses:
+                    values.append(session_id)
+                    query = f"UPDATE subscription_analysis_sessions SET {', '.join(set_clauses)} WHERE session_id = ?"
+                    conn.execute(query, values)
+                    conn.commit()
+                    
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to update subscription analysis session: {e}")
+            return False
+
+    def get_subscription_analysis_sessions(self, subscription_id: Optional[str] = None, 
+                                          status: Optional[str] = None) -> List[Dict]:
+        """Get subscription analysis sessions with filtering"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                
+                where_clauses = []
+                params = []
+                
+                if subscription_id:
+                    where_clauses.append("subscription_id = ?")
+                    params.append(subscription_id)
+                
+                if status:
+                    where_clauses.append("status = ?")
+                    params.append(status)
+                
+                where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+                
+                cursor = conn.execute(f'''
+                    SELECT * FROM subscription_analysis_sessions
+                    {where_sql}
+                    ORDER BY started_at DESC
+                    LIMIT 50
+                ''', params)
+                
+                return [dict(row) for row in cursor.fetchall()]
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error getting subscription analysis sessions: {e}")
+            return []
+
+    def get_subscription_performance_metrics(self, subscription_id: str, 
+                                           hours_back: int = 24) -> Dict[str, List]:
+        """Get performance metrics for subscription"""
+        try:
+            cutoff_time = datetime.now() - timedelta(hours=hours_back)
+            
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT metric_name, metric_value, measured_at
+                    FROM subscription_performance
+                    WHERE subscription_id = ? AND measured_at > ?
+                    ORDER BY measured_at DESC
+                ''', (subscription_id, cutoff_time.isoformat()))
+                
+                metrics = {}
+                for row in cursor.fetchall():
+                    metric_name = row['metric_name']
+                    if metric_name not in metrics:
+                        metrics[metric_name] = []
+                    
+                    metrics[metric_name].append({
+                        'value': row['metric_value'],
+                        'timestamp': row['measured_at']
+                    })
+                
+                return metrics
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error getting subscription performance metrics: {e}")
+            return {}
+
+    def record_subscription_performance_metric(self, subscription_id: str, 
+                                             metric_name: str, metric_value: float) -> bool:
+        """Record a performance metric for subscription"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute('''
+                    INSERT INTO subscription_performance
+                    (subscription_id, metric_name, metric_value, measured_at)
+                    VALUES (?, ?, ?, ?)
+                ''', (subscription_id, metric_name, metric_value, datetime.now().isoformat()))
+                conn.commit()
+                
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ Failed to record subscription performance metric: {e}")
+            return False
+
+    def get_subscription_portfolio_summary(self) -> Dict:
+        """Get comprehensive portfolio summary with subscription breakdown"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                
+                # Overall portfolio metrics
+                cursor = conn.execute('''
+                    SELECT 
+                        COUNT(*) as total_clusters,
+                        COUNT(DISTINCT subscription_id) as total_subscriptions,
+                        SUM(last_cost) as total_monthly_cost,
+                        SUM(last_savings) as total_potential_savings,
+                        AVG(CASE WHEN last_cost > 0 THEN (last_savings/last_cost)*100 ELSE 0 END) as avg_optimization_pct
+                    FROM clusters 
+                    WHERE status = 'active'
+                ''')
+                
+                portfolio_summary = dict(cursor.fetchone())
+                
+                # Subscription breakdown
+                cursor = conn.execute('''
+                    SELECT 
+                        c.subscription_id,
+                        c.subscription_name,
+                        COUNT(*) as cluster_count,
+                        SUM(c.last_cost) as subscription_cost,
+                        SUM(c.last_savings) as subscription_savings,
+                        AVG(CASE WHEN c.last_cost > 0 THEN (c.last_savings/c.last_cost)*100 ELSE 0 END) as avg_optimization_pct,
+                        s.state as subscription_state,
+                        s.last_validated
+                    FROM clusters c
+                    LEFT JOIN subscriptions s ON c.subscription_id = s.subscription_id
+                    WHERE c.status = 'active'
+                    GROUP BY c.subscription_id, c.subscription_name
+                    ORDER BY subscription_cost DESC
+                ''')
+                
+                subscription_breakdown = [dict(row) for row in cursor.fetchall()]
+                
+                # Analysis status by subscription
+                cursor = conn.execute('''
+                    SELECT 
+                        subscription_id,
+                        analysis_status,
+                        COUNT(*) as count
+                    FROM clusters 
+                    WHERE status = 'active' AND subscription_id IS NOT NULL
+                    GROUP BY subscription_id, analysis_status
+                ''')
+                
+                analysis_status_by_subscription = {}
+                for row in cursor.fetchall():
+                    sub_id = row['subscription_id']
+                    if sub_id not in analysis_status_by_subscription:
+                        analysis_status_by_subscription[sub_id] = {}
+                    analysis_status_by_subscription[sub_id][row['analysis_status']] = row['count']
+                
+                # Recent analysis activity
+                cursor = conn.execute('''
+                    SELECT COUNT(*) as recent_analyses
+                    FROM clusters 
+                    WHERE status = 'active' 
+                    AND last_analyzed > datetime('now', '-7 days')
+                ''')
+                
+                recent_analyses = cursor.fetchone()['recent_analyses']
+                
+                # Environments across subscriptions
+                cursor = conn.execute('''
+                    SELECT DISTINCT environment 
+                    FROM clusters 
+                    WHERE status = 'active'
+                ''')
+                environments = [row[0] for row in cursor.fetchall()]
+                
+                return {
+                    **portfolio_summary,
+                    'total_monthly_cost': portfolio_summary['total_monthly_cost'] or 0,
+                    'total_potential_savings': portfolio_summary['total_potential_savings'] or 0,
+                    'avg_optimization_pct': portfolio_summary['avg_optimization_pct'] or 0,
+                    'subscription_breakdown': subscription_breakdown,
+                    'analysis_status_by_subscription': analysis_status_by_subscription,
+                    'recent_analyses': recent_analyses,
+                    'environments': environments,
+                    'last_updated': datetime.now().isoformat(),
+                    'multi_subscription_enabled': True
+                }
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to get subscription portfolio summary: {e}")
+            return {
+                'total_clusters': 0,
+                'total_subscriptions': 0,
+                'total_monthly_cost': 0,
+                'total_potential_savings': 0,
+                'avg_optimization_pct': 0,
+                'subscription_breakdown': [],
+                'analysis_status_by_subscription': {},
+                'recent_analyses': 0,
+                'environments': [],
+                'last_updated': datetime.now().isoformat(),
+                'multi_subscription_enabled': True
+            }
+
+    def validate_all_subscription_contexts(self) -> Dict[str, bool]:
+        """Validate subscription contexts for all clusters"""
+        try:
+            validation_results = {}
+            
+            # Try to import subscription manager
+            try:
+                from app.services.subscription_manager import azure_subscription_manager
+                
+                with sqlite3.connect(self.db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.execute('''
+                        SELECT id, name, resource_group, subscription_id, subscription_name
+                        FROM clusters 
+                        WHERE status = 'active' AND subscription_id IS NOT NULL
+                    ''')
+                    
+                    clusters = cursor.fetchall()
+                    
+                    for cluster in clusters:
+                        cluster_id = cluster['id']
+                        subscription_id = cluster['subscription_id']
+                        
+                        try:
+                            # Validate cluster access in subscription
+                            validation_result = azure_subscription_manager.validate_cluster_access(
+                                subscription_id, cluster['resource_group'], cluster['name']
+                            )
+                            
+                            validation_results[cluster_id] = validation_result['valid']
+                            
+                            # Update database with validation result
+                            conn.execute('''
+                                UPDATE clusters 
+                                SET subscription_context_verified = ?,
+                                    subscription_last_validated = ?
+                                WHERE id = ?
+                            ''', (validation_result['valid'], datetime.now().isoformat(), cluster_id))
+                            
+                        except Exception as cluster_error:
+                            self.logger.error(f"❌ Validation failed for cluster {cluster_id}: {cluster_error}")
+                            validation_results[cluster_id] = False
+                    
+                    conn.commit()
+                    
+                valid_count = sum(1 for valid in validation_results.values() if valid)
+                total_count = len(validation_results)
+                
+                self.logger.info(f"✅ Subscription validation complete: {valid_count}/{total_count} clusters valid")
+                
+            except ImportError:
+                self.logger.warning("⚠️ Subscription manager not available for validation")
+                return {}
+            
+            return validation_results
+            
+        except Exception as e:
+            self.logger.error(f"❌ Failed to validate subscription contexts: {e}")
+            return {}
+
+    # ========================================
+    # Core Cluster Management Methods
+    # ========================================
+
+    def add_cluster(self, cluster_config: Dict) -> str:
+        """Add a new cluster configuration"""
+        try:
+            cluster_id = f"{cluster_config['resource_group']}_{cluster_config['cluster_name']}"
+            
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute('''
+                    INSERT OR REPLACE INTO clusters 
+                    (id, name, resource_group, environment, region, description, status, created_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    cluster_id,
+                    cluster_config['cluster_name'],
+                    cluster_config['resource_group'],
+                    cluster_config.get('environment', 'development'),
+                    cluster_config.get('region', 'Unknown'),
+                    cluster_config.get('description', ''),
+                    'active',
+                    datetime.now().isoformat(),
+                    json.dumps(cluster_config.get('metadata', {}))
+                ))
+                conn.commit()
+                
+            self.logger.info(f"✅ Added cluster: {cluster_id}")
+            return cluster_id
+            
+        except Exception as e:
+            self.logger.error(f"❌ Failed to add cluster: {e}")
+            raise
 
     def add_cluster_with_subscription(self, cluster_config: Dict, subscription_id: str, subscription_name: str) -> str:
         """Add a new cluster with subscription context"""
@@ -389,12 +1013,54 @@ class EnhancedClusterManager:
                 ))
                 conn.commit()
                 
-            logger.info(f"✅ Added cluster with subscription: {cluster_id} -> {subscription_name}")
+            self.logger.info(f"✅ Added cluster with subscription: {cluster_id} -> {subscription_name}")
             return cluster_id
             
         except Exception as e:
-            logger.error(f"❌ Failed to add cluster with subscription: {e}")
+            self.logger.error(f"❌ Failed to add cluster with subscription: {e}")
             raise
+
+    def get_cluster(self, cluster_id: str) -> Optional[Dict]:
+        """Get cluster configuration"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT * FROM clusters WHERE id = ?
+                ''', (cluster_id,))
+                
+                row = cursor.fetchone()
+                if row:
+                    cluster = dict(row)
+                    cluster['metadata'] = json.loads(cluster.get('metadata', '{}'))
+                    return cluster
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to get cluster {cluster_id}: {e}")
+            return None
+
+    def list_clusters(self) -> List[Dict]:
+        """List all configured clusters"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT * FROM clusters ORDER BY created_at DESC
+                ''')
+                
+                clusters = []
+                for row in cursor.fetchall():
+                    cluster = dict(row)
+                    cluster['metadata'] = json.loads(cluster.get('metadata', '{}'))
+                    clusters.append(cluster)
+                
+                self.logger.info(f"📋 Listed {len(clusters)} clusters")
+                return clusters
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to list clusters: {e}")
+            return []
 
     def get_clusters_with_subscription_info(self) -> List[Dict]:
         """Get all clusters with subscription information"""
@@ -415,87 +1081,55 @@ class EnhancedClusterManager:
                     cluster['metadata'] = json.loads(cluster.get('metadata', '{}'))
                     clusters.append(cluster)
                 
-                logger.info(f"📋 Retrieved {len(clusters)} clusters with subscription info")
+                self.logger.info(f"📋 Retrieved {len(clusters)} clusters with subscription info")
                 return clusters
                 
         except Exception as e:
-            logger.error(f"❌ Failed to get clusters with subscription info: {e}")
+            self.logger.error(f"❌ Failed to get clusters with subscription info: {e}")
             return []
-    
-    def add_cluster(self, cluster_config: Dict) -> str:
-        """Add a new cluster configuration"""
-        try:
-            cluster_id = f"{cluster_config['resource_group']}_{cluster_config['cluster_name']}"
-            
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute('''
-                    INSERT OR REPLACE INTO clusters 
-                    (id, name, resource_group, environment, region, description, status, created_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    cluster_id,
-                    cluster_config['cluster_name'],
-                    cluster_config['resource_group'],
-                    cluster_config.get('environment', 'development'),
-                    cluster_config.get('region', 'Unknown'),
-                    cluster_config.get('description', ''),
-                    'active',
-                    datetime.now().isoformat(),
-                    json.dumps(cluster_config.get('metadata', {}))
-                ))
-                conn.commit()
-                
-            logger.info(f"✅ Added cluster: {cluster_id}")
-            return cluster_id
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to add cluster: {e}")
-            raise
-    
-    def get_cluster(self, cluster_id: str) -> Optional[Dict]:
-        """Get cluster configuration"""
+
+    def get_cluster_subscription_info(self, cluster_id: str) -> Optional[Dict]:
+        """Get stored subscription info for a cluster"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT * FROM clusters WHERE id = ?
+                    SELECT subscription_id, subscription_name 
+                    FROM clusters 
+                    WHERE id = ?
                 ''', (cluster_id,))
                 
                 row = cursor.fetchone()
-                if row:
-                    cluster = dict(row)
-                    cluster['metadata'] = json.loads(cluster.get('metadata', '{}'))
-                    return cluster
+                if row and row['subscription_id']:
+                    return {
+                        'subscription_id': row['subscription_id'],
+                        'subscription_name': row['subscription_name'] or 'Unknown'
+                    }
+                
                 return None
                 
         except Exception as e:
-            logger.error(f"❌ Failed to get cluster {cluster_id}: {e}")
+            self.logger.error(f"❌ Error getting cluster subscription info: {e}")
             return None
-    
-    def list_clusters(self) -> List[Dict]:
-        """List all configured clusters"""
+
+    def update_cluster_subscription_info(self, cluster_id: str, subscription_id: str, subscription_name: str):
+        """Update cluster with its actual subscription information"""
         try:
             with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.execute('''
-                    SELECT * FROM clusters ORDER BY created_at DESC
-                ''')
+                conn.execute('''
+                    UPDATE clusters 
+                    SET subscription_id = ?, subscription_name = ?
+                    WHERE id = ?
+                ''', (subscription_id, subscription_name, cluster_id))
+                conn.commit()
                 
-                clusters = []
-                for row in cursor.fetchall():
-                    cluster = dict(row)
-                    cluster['metadata'] = json.loads(cluster.get('metadata', '{}'))
-                    clusters.append(cluster)
-                
-                logger.info(f"📋 Listed {len(clusters)} clusters")
-                return clusters
-                
+            self.logger.info(f"✅ Updated cluster {cluster_id} subscription info: {subscription_name}")
+            
         except Exception as e:
-            logger.error(f"❌ Failed to list clusters: {e}")
-            return []
-    
+            self.logger.error(f"❌ Failed to update cluster subscription info: {e}")
+
     def update_cluster_analysis(self, cluster_id: str, analysis_data: dict):
-        """FIXED: Update cluster with analysis results - preserves implementation plan"""
+        """Update cluster with analysis results - preserves implementation plan"""
         try:
             enhanced_analysis_data = analysis_data.copy()
             
@@ -504,7 +1138,7 @@ class EnhancedClusterManager:
             for key in ['nodes', 'node_metrics', 'real_node_data']:
                 if enhanced_analysis_data.get(key) and len(enhanced_analysis_data[key]) > 0:
                     has_node_data = True
-                    logger.info(f"✅ DB SAVE: Found node data in {key} ({len(enhanced_analysis_data[key])} nodes)")
+                    self.logger.info(f"✅ DB SAVE: Found node data in {key} ({len(enhanced_analysis_data[key])} nodes)")
                     break
             
             enhanced_analysis_data['has_real_node_data'] = has_node_data
@@ -524,21 +1158,20 @@ class EnhancedClusterManager:
             # CRITICAL: Generate implementation plan BEFORE serialization
             if 'implementation_plan' not in enhanced_analysis_data:
                 try:
-                    
+                    from app.ml.implementation_generator import AKSImplementationGenerator
                     implementation_generator = AKSImplementationGenerator()
                     implementation_plan = implementation_generator.generate_implementation_plan(enhanced_analysis_data)
                     enhanced_analysis_data['implementation_plan'] = implementation_plan
-                    logger.info("✅ Generated implementation plan for database")
+                    self.logger.info("✅ Generated implementation plan for database")
                     
                     # Validate the plan has phases
                     if implementation_plan and 'implementation_phases' in implementation_plan:
                         phases_count = len(implementation_plan['implementation_phases'])
-                        logger.info(f"✅ Implementation plan has {phases_count} phases")
+                        self.logger.info(f"✅ Implementation plan has {phases_count} phases")
                         
                 except Exception as impl_error:
-                    logger.error(f"❌ Failed to generate implementation plan: {impl_error}")
-                    import traceback
-                    logger.error(f"❌ Traceback: {traceback.format_exc()}")
+                    self.logger.error(f"❌ Failed to generate implementation plan: {impl_error}")
+                    self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
             
             # Use specialized serialization for implementation plan
             serializable_data = serialize_implementation_plan(enhanced_analysis_data)
@@ -548,17 +1181,16 @@ class EnhancedClusterManager:
             confidence = float(serializable_data.get('analysis_confidence', 0))
             
             if 'hpa_recommendations' not in analysis_data:
-                logger.warning(f"⚠️ DB SAVE: No HPA recommendations for {cluster_id}")
-                # Continue saving but log the issue
+                self.logger.warning(f"⚠️ DB SAVE: No HPA recommendations for {cluster_id}")
             else:
-                logger.info(f"✅ DB SAVE: HPA recommendations found for {cluster_id}")
+                self.logger.info(f"✅ DB SAVE: HPA recommendations found for {cluster_id}")
                 
                 # Validate HPA structure
                 hpa_recs = analysis_data['hpa_recommendations']
                 if isinstance(hpa_recs, dict) and 'optimization_recommendation' in hpa_recs:
-                    logger.info(f"✅ DB SAVE: HPA structure validated for {cluster_id}")
+                    self.logger.info(f"✅ DB SAVE: HPA structure validated for {cluster_id}")
                 else:
-                    logger.warning(f"⚠️ DB SAVE: HPA structure incomplete for {cluster_id}")
+                    self.logger.warning(f"⚠️ DB SAVE: HPA structure incomplete for {cluster_id}")
 
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute('''
@@ -586,22 +1218,15 @@ class EnhancedClusterManager:
                 ))
                 conn.commit()
 
-            # Ensure HPA data is in the JSON that gets saved
-            if 'hpa_recommendations' in analysis_data:
-                logger.info(f"✅ DB SAVE: Saving analysis with HPA recommendations for {cluster_id}")
-            else:
-                logger.warning(f"⚠️ DB SAVE: Saving analysis WITHOUT HPA recommendations for {cluster_id}")
-            
-            logger.info(f"✅ Updated cluster analysis with implementation plan: {cluster_id}")
+            self.logger.info(f"✅ Updated cluster analysis with implementation plan: {cluster_id}")
             
         except Exception as e:
-            logger.error(f"❌ Failed to update cluster analysis: {e}")
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            self.logger.error(f"❌ Failed to update cluster analysis: {e}")
+            self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
             raise
 
     def get_latest_analysis(self, cluster_id: str) -> Optional[Dict[str, Any]]:
-        """FIXED: Get latest analysis with proper implementation plan deserialization"""
+        """Get latest analysis with proper implementation plan deserialization"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
@@ -641,14 +1266,12 @@ class EnhancedClusterManager:
                                 analysis_data['nodes'] = node_data
                                 analysis_data['node_metrics'] = node_data
                                 analysis_data['real_node_data'] = node_data
-                                     # Validate HPA recommendations
                         
+                        # Validate HPA recommendations
                         if 'hpa_recommendations' not in analysis_data:
-                            logger.warning(f"⚠️ DB LOAD: No HPA recommendations for {cluster_id}")
-                            # Return data anyway, but log the issue
+                            self.logger.warning(f"⚠️ DB LOAD: No HPA recommendations for {cluster_id}")
                         else:
-                            logger.info(f"✅ DB LOAD: HPA recommendations found for {cluster_id}")
-                    
+                            self.logger.info(f"✅ DB LOAD: HPA recommendations found for {cluster_id}")
                         
                         # CRITICAL: Validate implementation plan structure
                         if 'implementation_plan' in analysis_data:
@@ -656,161 +1279,25 @@ class EnhancedClusterManager:
                             if isinstance(impl_plan, dict) and 'implementation_phases' in impl_plan:
                                 phases = impl_plan['implementation_phases']
                                 if isinstance(phases, list) and len(phases) > 0:
-                                    logger.info(f"✅ DB LOAD: Implementation plan has {len(phases)} phases")
+                                    self.logger.info(f"✅ DB LOAD: Implementation plan has {len(phases)} phases")
                                 else:
-                                    logger.warning("⚠️ DB LOAD: Implementation plan phases are empty")
+                                    self.logger.warning("⚠️ DB LOAD: Implementation plan phases are empty")
                             else:
-                                logger.warning("⚠️ DB LOAD: Implementation plan missing phases structure")
+                                self.logger.warning("⚠️ DB LOAD: Implementation plan missing phases structure")
                         
-                        logger.info(f"📦 Loaded COMPLETE analysis from database: {cluster_id}")
-                           
+                        self.logger.info(f"📦 Loaded COMPLETE analysis from database: {cluster_id}")
                         return analysis_data
                         
                     except json.JSONDecodeError as e:
-                        logger.error(f"❌ Failed to decode analysis data: {e}")
+                        self.logger.error(f"❌ Failed to decode analysis data: {e}")
                         return None
                 else:
-                    logger.info(f"ℹ️ No analysis data found for cluster: {cluster_id}")
+                    self.logger.info(f"ℹ️ No analysis data found for cluster: {cluster_id}")
                     return None
                     
         except Exception as e:
-            logger.error(f"❌ Database error getting analysis: {e}")
+            self.logger.error(f"❌ Database error getting analysis: {e}")
             return None
-    
-    def get_portfolio_summary(self) -> Dict:
-        """Get portfolio-wide summary statistics"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.execute('''
-                    SELECT 
-                        COUNT(*) as total_clusters,
-                        SUM(last_cost) as total_monthly_cost,
-                        SUM(last_savings) as total_potential_savings,
-                        AVG(CASE WHEN last_cost > 0 THEN (last_savings/last_cost)*100 ELSE 0 END) as avg_optimization_pct
-                    FROM clusters 
-                    WHERE status = 'active'
-                ''')
-                
-                row = cursor.fetchone()
-                if row:
-                    summary = dict(row)
-                    summary['total_monthly_cost'] = summary['total_monthly_cost'] or 0
-                    summary['total_potential_savings'] = summary['total_potential_savings'] or 0
-                    summary['avg_optimization_pct'] = summary['avg_optimization_pct'] or 0
-                    summary['last_updated'] = datetime.now().isoformat()
-                    
-                    # Get environments
-                    env_cursor = conn.execute('SELECT DISTINCT environment FROM clusters WHERE status = "active"')
-                    summary['environments'] = [row[0] for row in env_cursor.fetchall()]
-                    
-                    return summary
-                
-            return {
-                'total_clusters': 0,
-                'total_monthly_cost': 0,
-                'total_potential_savings': 0,
-                'avg_optimization_pct': 0,
-                'environments': [],
-                'last_updated': datetime.now().isoformat()
-            }
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to get portfolio summary: {e}")
-            return {
-                'total_clusters': 0,
-                'total_monthly_cost': 0,
-                'total_potential_savings': 0,
-                'avg_optimization_pct': 0,
-                'environments': [],
-                'last_updated': datetime.now().isoformat()
-            }
-    
-    def remove_cluster(self, cluster_id: str) -> bool:
-        """Remove a cluster and all its analysis data"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                # Remove analysis results first
-                conn.execute('DELETE FROM analysis_results WHERE cluster_id = ?', (cluster_id,))
-                
-                # Remove cluster
-                cursor = conn.execute('DELETE FROM clusters WHERE id = ?', (cluster_id,))
-                
-                conn.commit()
-                
-                if cursor.rowcount > 0:
-                    logger.info(f"✅ Removed cluster: {cluster_id}")
-                    return True
-                else:
-                    logger.warning(f"⚠️ Cluster not found: {cluster_id}")
-                    return False
-                    
-        except Exception as e:
-            logger.error(f"❌ Failed to remove cluster {cluster_id}: {e}")
-            return False
-    
-    def get_analysis_history(self, cluster_id: str, limit: int = 10) -> List[Dict]:
-        """Get analysis history for a cluster"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.execute('''
-                    SELECT analysis_date, total_cost, total_savings, confidence_level
-                    FROM analysis_results 
-                    WHERE cluster_id = ? 
-                    ORDER BY analysis_date DESC 
-                    LIMIT ?
-                ''', (cluster_id, limit))
-                
-                return [dict(row) for row in cursor.fetchall()]
-                
-        except Exception as e:
-            logger.error(f"❌ Failed to get analysis history for {cluster_id}: {e}")
-            return []
-    
-    def cleanup_old_analyses(self, days_to_keep: int = 90):
-        """Clean up old analysis results to maintain database size"""
-        try:
-            cutoff_date = datetime.now() - timedelta(days=days_to_keep)
-            
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute('''
-                    DELETE FROM analysis_results 
-                    WHERE analysis_date < ? 
-                    AND id NOT IN (
-                        SELECT id FROM analysis_results 
-                        WHERE cluster_id IN (
-                            SELECT cluster_id FROM analysis_results 
-                            GROUP BY cluster_id 
-                            ORDER BY analysis_date DESC 
-                            LIMIT 1
-                        )
-                    )
-                ''', (cutoff_date.isoformat(),))
-                
-                conn.commit()
-                logger.info(f"🧹 Cleaned up {cursor.rowcount} old analysis records")
-                
-        except Exception as e:
-            logger.error(f"❌ Failed to cleanup old analyses: {e}")
-
-        
-    # Enhanced cluster_database.py - Add these methods to your EnhancedClusterManager class
-
-    def enhance_database_for_auto_analysis(self):
-        """Enhanced method that uses the migration function"""
-        try:
-            # Use the standardized migration function
-            migration_success = migrate_database_schema(self.db_path)
-            
-            if migration_success:
-                logger.info("✅ Database schema enhanced for auto-analysis via migration")
-            else:
-                logger.warning("⚠️ Some database schema enhancements may have failed")
-                
-        except Exception as e:
-            logger.error(f"❌ Database schema enhancement failed: {e}")
-            raise
 
     def update_analysis_status(self, cluster_id: str, status: str, progress: int = 0, message: str = ""):
         """Update analysis status for a cluster"""
@@ -833,10 +1320,10 @@ class EnhancedClusterManager:
                     ''', (status, progress, message, cluster_id))
                 
                 conn.commit()
-                logger.info(f"✅ Updated analysis status for {cluster_id}: {status} ({progress}%)")
+                self.logger.info(f"✅ Updated analysis status for {cluster_id}: {status} ({progress}%)")
                 
         except Exception as e:
-            logger.error(f"❌ Failed to update analysis status: {e}")
+            self.logger.error(f"❌ Failed to update analysis status: {e}")
             raise
 
     def get_analysis_status(self, cluster_id: str) -> Optional[Dict]:
@@ -866,7 +1353,7 @@ class EnhancedClusterManager:
                 return None
                 
         except Exception as e:
-            logger.error(f"❌ Error getting analysis status for {cluster_id}: {e}")
+            self.logger.error(f"❌ Error getting analysis status for {cluster_id}: {e}")
             return None
 
     def get_clusters_by_status(self, status: str) -> List[Dict]:
@@ -889,7 +1376,7 @@ class EnhancedClusterManager:
                 return clusters
                 
         except Exception as e:
-            logger.error(f"❌ Error getting clusters by status {status}: {e}")
+            self.logger.error(f"❌ Error getting clusters by status {status}: {e}")
             return []
 
     def get_analysis_queue_status(self) -> Dict:
@@ -942,45 +1429,57 @@ class EnhancedClusterManager:
                 }
                 
         except Exception as e:
-            logger.error(f"❌ Error getting analysis queue status: {e}")
+            self.logger.error(f"❌ Error getting analysis queue status: {e}")
             return {}
 
-    def cleanup_stale_analyses(self, max_age_hours: int = 2):
-        """Clean up analyses that have been running too long (likely stale)"""
+    def get_portfolio_summary(self) -> Dict:
+        """Get portfolio-wide summary statistics"""
         try:
-            cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
-            
             with sqlite3.connect(self.db_path) as conn:
-                # Find stale analyzing clusters
+                conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT id, name FROM clusters 
-                    WHERE analysis_status = 'analyzing' 
-                    AND analysis_started_at < ?
-                ''', (cutoff_time.isoformat(),))
+                    SELECT 
+                        COUNT(*) as total_clusters,
+                        SUM(last_cost) as total_monthly_cost,
+                        SUM(last_savings) as total_potential_savings,
+                        AVG(CASE WHEN last_cost > 0 THEN (last_savings/last_cost)*100 ELSE 0 END) as avg_optimization_pct
+                    FROM clusters 
+                    WHERE status = 'active'
+                ''')
                 
-                stale_clusters = cursor.fetchall()
-                
-                if stale_clusters:
-                    # Reset stale analyses
-                    conn.execute('''
-                        UPDATE clusters 
-                        SET analysis_status = 'failed', 
-                            analysis_progress = 0,
-                            analysis_message = 'Analysis timed out and was reset'
-                        WHERE analysis_status = 'analyzing' 
-                        AND analysis_started_at < ?
-                    ''', (cutoff_time.isoformat(),))
+                row = cursor.fetchone()
+                if row:
+                    summary = dict(row)
+                    summary['total_monthly_cost'] = summary['total_monthly_cost'] or 0
+                    summary['total_potential_savings'] = summary['total_potential_savings'] or 0
+                    summary['avg_optimization_pct'] = summary['avg_optimization_pct'] or 0
+                    summary['last_updated'] = datetime.now().isoformat()
                     
-                    conn.commit()
+                    # Get environments
+                    env_cursor = conn.execute('SELECT DISTINCT environment FROM clusters WHERE status = "active"')
+                    summary['environments'] = [row[0] for row in env_cursor.fetchall()]
                     
-                    logger.info(f"🧹 Cleaned up {len(stale_clusters)} stale analyses")
-                    return len(stale_clusters)
+                    return summary
                 
-                return 0
-                
+            return {
+                'total_clusters': 0,
+                'total_monthly_cost': 0,
+                'total_potential_savings': 0,
+                'avg_optimization_pct': 0,
+                'environments': [],
+                'last_updated': datetime.now().isoformat()
+            }
+            
         except Exception as e:
-            logger.error(f"❌ Error cleaning up stale analyses: {e}")
-            return 0
+            self.logger.error(f"❌ Failed to get portfolio summary: {e}")
+            return {
+                'total_clusters': 0,
+                'total_monthly_cost': 0,
+                'total_potential_savings': 0,
+                'avg_optimization_pct': 0,
+                'environments': [],
+                'last_updated': datetime.now().isoformat()
+            }
 
     def get_enhanced_portfolio_summary(self) -> Dict:
         """Get enhanced portfolio summary with analysis status"""
@@ -1045,7 +1544,7 @@ class EnhancedClusterManager:
                 }
                 
         except Exception as e:
-            logger.error(f"❌ Error getting enhanced portfolio summary: {e}")
+            self.logger.error(f"❌ Error getting enhanced portfolio summary: {e}")
             return {
                 'total_clusters': 0,
                 'total_monthly_cost': 0,
@@ -1057,10 +1556,77 @@ class EnhancedClusterManager:
                 'last_updated': datetime.now().isoformat()
             }
 
+    def remove_cluster(self, cluster_id: str) -> bool:
+        """Remove a cluster and all its analysis data"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # Remove analysis results first
+                conn.execute('DELETE FROM analysis_results WHERE cluster_id = ?', (cluster_id,))
+                
+                # Remove cluster
+                cursor = conn.execute('DELETE FROM clusters WHERE id = ?', (cluster_id,))
+                
+                conn.commit()
+                
+                if cursor.rowcount > 0:
+                    self.logger.info(f"✅ Removed cluster: {cluster_id}")
+                    return True
+                else:
+                    self.logger.warning(f"⚠️ Cluster not found: {cluster_id}")
+                    return False
+                    
+        except Exception as e:
+            self.logger.error(f"❌ Failed to remove cluster {cluster_id}: {e}")
+            return False
+
+    def get_analysis_history(self, cluster_id: str, limit: int = 10) -> List[Dict]:
+        """Get analysis history for a cluster"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT analysis_date, total_cost, total_savings, confidence_level
+                    FROM analysis_results 
+                    WHERE cluster_id = ? 
+                    ORDER BY analysis_date DESC 
+                    LIMIT ?
+                ''', (cluster_id, limit))
+                
+                return [dict(row) for row in cursor.fetchall()]
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to get analysis history for {cluster_id}: {e}")
+            return []
+
+    def cleanup_old_analyses(self, days_to_keep: int = 90):
+        """Clean up old analysis results to maintain database size"""
+        try:
+            cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute('''
+                    DELETE FROM analysis_results 
+                    WHERE analysis_date < ? 
+                    AND id NOT IN (
+                        SELECT id FROM analysis_results 
+                        WHERE cluster_id IN (
+                            SELECT cluster_id FROM analysis_results 
+                            GROUP BY cluster_id 
+                            ORDER BY analysis_date DESC 
+                            LIMIT 1
+                        )
+                    )
+                ''', (cutoff_date.isoformat(),))
+                
+                conn.commit()
+                self.logger.info(f"🧹 Cleaned up {cursor.rowcount} old analysis records")
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to cleanup old analyses: {e}")
 
 
 # Migration function to convert from JSON to SQLite
-def migrate_from_json(json_file_path: str, db_manager: EnhancedClusterManager):
+def migrate_from_json(json_file_path: str, db_manager: EnhancedMultiSubscriptionClusterManager):
     """Migrate existing clusters.json data to SQLite database"""
     try:
         if os.path.exists(json_file_path):
@@ -1090,3 +1656,6 @@ def migrate_from_json(json_file_path: str, db_manager: EnhancedClusterManager):
     except Exception as e:
         logger.error(f"❌ Migration failed: {e}")
         raise
+
+# For backward compatibility, create an alias
+EnhancedClusterManager = EnhancedMultiSubscriptionClusterManager
