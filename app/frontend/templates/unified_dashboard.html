@@ -8,7 +8,123 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='static/css/alerts.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='static/css/enhanced-dashboard.css') }}">
 <style>
-/* Additional inline styles for enhanced UI */
+/* Enhanced Multi-Subscription Dashboard Styles */
+.subscription-context-header {
+    background: linear-gradient(135deg, #6610f2, #007bff);
+    color: white;
+    padding: 1rem 0;
+    margin-bottom: 1rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(102, 16, 242, 0.2);
+}
+
+.subscription-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.subscription-badge-large {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+    font-size: 0.875rem;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+}
+
+.subscription-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+.subscription-status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #28a745;
+    animation: pulse 2s infinite;
+}
+
+/* Updated cluster context header for multi-subscription */
+.cluster-context-header {
+    background: linear-gradient(135deg, #007bff, #6610f2);
+    color: white;
+    padding: 2rem 0;
+    margin-bottom: 2rem;
+    box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.cluster-context-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="rgba(255,255,255,0.1)"/><circle cx="80" cy="80" r="2" fill="rgba(255,255,255,0.1)"/><circle cx="40" cy="70" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="70" cy="30" r="1" fill="rgba(255,255,255,0.1)"/></svg>');
+    animation: float 20s ease-in-out infinite;
+}
+
+/* Enhanced navigation pills - ANALYSIS TAB REMOVED */
+.nav-pills {
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 50px;
+    padding: 0.75rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.nav-pills .nav-link {
+    border-radius: 30px;
+    margin: 0 0.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    font-weight: 500;
+    padding: 1rem 2rem;
+}
+
+.nav-pills .nav-link::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #007bff, #6610f2);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 30px;
+}
+
+.nav-pills .nav-link.active::before {
+    opacity: 1;
+}
+
+.nav-pills .nav-link i,
+.nav-pills .nav-link span {
+    position: relative;
+    z-index: 1;
+}
+
+.nav-pills .nav-link:hover:not(.active) {
+    background: rgba(0, 123, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.nav-pills .nav-link.active {
+    color: white;
+}
+
+/* Analysis progress and loading states */
 .analysis-progress {
     display: none;
     margin-top: 1.5rem;
@@ -71,44 +187,39 @@
     gap: 0.5rem;
 }
 
-.enhanced-form {
-    background: linear-gradient(135deg, #ffffff, #f8f9fa);
-    border-radius: 16px;
-    padding: 2rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-    border: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-.smooth-input {
-    border: 2px solid #e9ecef;
-    border-radius: 10px;
-    padding: 0.875rem 1.25rem;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    font-size: 1rem;
-    background: #ffffff;
-}
-
-.smooth-input:focus {
-    border-color: #007bff;
-    box-shadow: 0 0 0 0.25rem rgba(0, 123, 255, 0.25);
-    transform: translateY(-1px);
-    background: #ffffff;
-}
-
-.form-hint {
+/* Subscription metadata display */
+.subscription-metadata {
+    background: linear-gradient(135deg, rgba(102, 16, 242, 0.06), rgba(102, 16, 242, 0.02));
+    border: 1px solid rgba(102, 16, 242, 0.2);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
     font-size: 0.875rem;
-    color: #6c757d;
-    margin-top: 0.5rem;
-    font-style: italic;
 }
 
+.subscription-metadata-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+
+.subscription-metadata-item:last-child {
+    margin-bottom: 0;
+}
+
+.subscription-metadata-label {
+    font-weight: 600;
+    color: #6610f2;
+}
+
+.subscription-metadata-value {
+    font-family: 'SF Mono', 'Monaco', 'Cascadia Code', monospace;
+    color: #495057;
+    font-weight: 500;
+}
+
+/* Enhanced metric cards */
 .metric-card {
     background: linear-gradient(135deg, #ffffff, #f8f9fa);
     border: 1px solid rgba(0, 0, 0, 0.08);
@@ -152,296 +263,21 @@
     background: linear-gradient(90deg, #28a745, #20c997);
 }
 
-.metric-icon {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #007bff, #6610f2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 1.5rem;
-    color: white;
-    font-size: 2rem;
-    transition: all 0.4s ease;
-    position: relative;
-    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
-}
-
-.savings-card .metric-icon {
-    background: linear-gradient(135deg, #28a745, #20c997);
-    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
-}
-
-.metric-value {
-    font-size: 2.5rem;
-    font-weight: 700;
-    margin-bottom: 0.75rem;
-    transition: all 0.3s ease;
-    position: relative;
-    color: #2d3748;
-}
-
-.metric-label {
-    font-size: 1rem;
-    color: #6c757d;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-}
-
-.insight-box {
-    background: linear-gradient(135deg, rgba(40, 167, 69, 0.06), rgba(40, 167, 69, 0.02));
-    border: 1px solid rgba(40, 167, 69, 0.25);
-    border-left: 5px solid #28a745;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.1);
-}
-
-.insight-box::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, #28a745, transparent);
-    transform: translateX(-100%);
-    transition: transform 0.8s ease-out;
-}
-
-.insight-box.loaded::before {
-    transform: translateX(0);
-}
-
-.insight-box.loaded {
-    border-left-color: #28a745;
-    background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(40, 167, 69, 0.03));
-    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.15);
-}
-
-.chart-container {
-    position: relative;
-    height: 380px;
-    margin: 1.5rem 0;
-    padding: 1.5rem;
-    background: linear-gradient(135deg, #ffffff, #f8f9fa);
-    border-radius: 16px;
-    border: 1px solid rgba(0, 0, 0, 0.05);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-.hpa-chart-container {
-    height: 420px;
-}
-
-.ml-classification-badge {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: linear-gradient(135deg, #6f42c1, #e83e8c);
-    color: white;
-    padding: 8px 16px;
-    border-radius: 25px;
-    font-size: 12px;
-    font-weight: 600;
-    z-index: 10;
-    animation: badgeSlideIn 0.8s ease-out;
-    box-shadow: 0 3px 12px rgba(111, 66, 193, 0.4);
-}
-
-.ml-workload-badge {
-    background: linear-gradient(135deg, #17a2b8, #20c997);
-}
-
-@keyframes badgeSlideIn {
-    0% { opacity: 0; transform: translateX(30px) scale(0.8); }
-    100% { opacity: 1; transform: translateX(0) scale(1); }
-}
-
-.cluster-context-header {
-    background: linear-gradient(135deg, #007bff, #6610f2);
-    color: white;
-    padding: 2rem 0;
-    margin-bottom: 2rem;
-    box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
-    position: relative;
-    overflow: hidden;
-}
-
-.cluster-context-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="rgba(255,255,255,0.1)"/><circle cx="80" cy="80" r="2" fill="rgba(255,255,255,0.1)"/><circle cx="40" cy="70" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="70" cy="30" r="1" fill="rgba(255,255,255,0.1)"/></svg>');
-    animation: float 20s ease-in-out infinite;
-}
-
-@keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
-}
-
-.nav-pills {
-    background: rgba(0, 0, 0, 0.04);
-    border-radius: 50px;
-    padding: 0.75rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.nav-pills .nav-link {
-    border-radius: 30px;
-    margin: 0 0.5rem;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
-    font-weight: 500;
-    padding: 1rem 2rem;
-}
-
-.nav-pills .nav-link::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, #007bff, #6610f2);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    border-radius: 30px;
-}
-
-.nav-pills .nav-link.active::before {
-    opacity: 1;
-}
-
-.nav-pills .nav-link i,
-.nav-pills .nav-link span {
-    position: relative;
-    z-index: 1;
-}
-
-.nav-pills .nav-link:hover:not(.active) {
-    background: rgba(0, 123, 255, 0.1);
-    transform: translateY(-2px);
-}
-
-.nav-pills .nav-link.active {
-    color: white;
-}
-
-.smooth-btn {
-    position: relative;
-    overflow: hidden;
-    border-radius: 10px;
-    font-weight: 500;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border: 2px solid transparent;
-}
-
-.smooth-btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    transition: left 0.6s ease;
-}
-
-.smooth-btn:hover::before {
-    left: 100%;
-}
-
-.smooth-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-}
-
-.loading-text {
-    color: #6c757d;
-    font-style: italic;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 2rem;
-    background: rgba(0, 123, 255, 0.03);
-    border-radius: 10px;
-    border: 1px dashed rgba(0, 123, 255, 0.2);
-}
-
-.loading-text i {
-    animation: spin 1s linear infinite;
-    color: #007bff;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.savings-breakdown-mini {
-    background: rgba(40, 167, 69, 0.05);
-    border: 1px solid rgba(40, 167, 69, 0.2);
-    border-radius: 10px;
-    padding: 1.25rem;
-    margin-top: 1.25rem;
-}
-
-.savings-breakdown-mini .d-flex {
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid rgba(40, 167, 69, 0.1);
-}
-
-.savings-breakdown-mini .d-flex:last-child {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    border-bottom: none;
-}
-
+/* Enhanced responsive design */
 @media (max-width: 768px) {
     .cluster-context-header {
         padding: 1.5rem 0;
     }
     
+    .subscription-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
     .metric-card {
         padding: 1.5rem 1rem;
         margin-bottom: 1.5rem;
-    }
-    
-    .metric-icon {
-        width: 70px;
-        height: 70px;
-        font-size: 1.75rem;
-    }
-    
-    .metric-value {
-        font-size: 2rem;
-    }
-    
-    .chart-container {
-        height: 300px;
-        padding: 1rem;
-    }
-    
-    .hpa-chart-container {
-        height: 340px;
-    }
-    
-    .form-grid {
-        grid-template-columns: 1fr;
-        gap: 1.25rem;
     }
     
     .nav-pills .nav-link {
@@ -455,7 +291,7 @@
 {% block content %}
 
 {% if cluster %}
-<!-- Enhanced Cluster Context Header -->
+<!-- Enhanced Cluster Context Header with Subscription Info -->
 <div class="cluster-context-header">
     <div class="container">
         <div class="d-flex align-items-center justify-content-between w-100 flex-wrap">
@@ -474,13 +310,17 @@
                             {{ cluster.environment.upper() if cluster.environment else 'UNKNOWN' }}
                         </span>
                         {% if cluster.region %}
-                        <span class="text-light opacity-75">{{ cluster.region }}</span>
+                        <span class="opacity-75">{{ cluster.region }}</span>
                         {% endif %}
                     </div>
                 </div>
             </div>
             
             <div class="d-flex gap-2">
+                <button class="btn btn-success btn-sm smooth-btn" onclick="triggerAnalysis('{{ cluster.id }}')">
+                    <i class="fas fa-play me-1"></i>
+                    <span class="btn-text">Analyze</span>
+                </button>
                 <button class="btn btn-outline-light btn-sm smooth-btn" onclick="compareWithOtherClusters()">
                     <i class="fas fa-balance-scale me-1"></i>
                     <span class="btn-text">Compare</span>
@@ -500,13 +340,45 @@
             </div>
         </div>
         
-        {% if cluster.description %}
+       
+        <!-- Subscription Context Display -->
+{% if subscription_info or cluster.subscription_id %}
+<div class="container mb-3">
+    <div class="subscription-context-header">
+         {% if cluster.description %}
         <div class="mt-3">
-            <small class="text-light opacity-75">{{ cluster.description }}</small>
+            <small class="opacity-75">{{ cluster.description }}</small>
         </div>
         {% endif %}
+        <div class="container">
+            
+            <div class="subscription-info">
+                <div class="subscription-details">
+                    <i class="fas fa-cloud me-2"></i>
+                    <!-- <strong>Subscription:</strong> -->
+                    <span class="subscription-badge-large">
+                        {% if subscription_info %}
+                            {{ subscription_info.subscription_name }}
+                        {% elif cluster.subscription_name %}
+                            {{ cluster.subscription_name }}
+                        {% else %}
+                            Unknown Subscription
+                        {% endif %}
+                        
+                        {% if cluster.subscription_id %}
+                        <small class="ms-2 opacity-75">({{ cluster.subscription_id }})</small>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="subscription-status">
+                    <div class="subscription-status-indicator"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+{% endif %}
+
 {% else %}
 <!-- No Cluster Context -->
 <div class="cluster-context-header">
@@ -515,24 +387,22 @@
             <i class="fas fa-th me-2"></i>
             <span class="btn-text">View All Clusters</span>
         </a>
-        <span class="text-light opacity-75 ms-2">General dashboard view</span>
+        <span class="opacity-75 ms-2">General dashboard view</span>
     </div>
 </div>
 {% endif %}
+    </div>
+</div>
 
-<!-- Enhanced Tab Navigation with Smooth Transitions -->
+
+
+<!-- Enhanced Tab Navigation - ANALYSIS TAB REMOVED -->
 <div class="container mb-4">
     <div class="card border-0 shadow-sm">
         <div class="card-body py-3">
             <ul class="nav nav-pills justify-content-center" id="main-tabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link {% if active_tab == 'analysis' %}active{% elif not active_tab %}active{% endif %}" 
-                            id="analysis-tab" data-bs-toggle="pill" data-bs-target="#analysis" type="button" role="tab">
-                        <i class="fas fa-search me-2"></i>Analysis
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link {% if active_tab == 'dashboard' %}active{% endif %}" 
+                    <button class="nav-link {% if active_tab == 'dashboard' or not active_tab %}active{% endif %}" 
                             id="dashboard-tab" data-bs-toggle="pill" data-bs-target="#dashboard" type="button" role="tab">
                         <i class="fas fa-chart-line me-2"></i>Dashboard
                     </button>
@@ -554,188 +424,40 @@
     </div>
 </div>
 
-<!-- Enhanced Tab Content with Smooth Transitions -->
+<!-- Enhanced Tab Content with Multi-Subscription Support -->
 <div class="container">
     <div class="tab-content" id="main-tab-content">
 
-        <!-- Analysis Tab -->
-        <div class="tab-pane fade {% if active_tab == 'analysis' or not active_tab %}show active{% endif %}" id="analysis" role="tabpanel">
-            <div class="row">
-                <!-- Enhanced Analysis Form -->
-                <div class="col-lg-8">
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-header bg-gradient-primary text-white">
-                            <h5 class="mb-0">
-                                <i class="fas fa-search me-2"></i>
-                                AI-Powered Cost Optimization Analysis
-                            </h5>
-                            <p class="mb-0 small opacity-90">
-                                Machine learning analysis of your AKS cluster costs and optimization opportunities
-                            </p>
+        <!-- Enhanced Dashboard Tab (Now Default) -->
+        <div class="tab-pane fade {% if active_tab == 'dashboard' or not active_tab %}show active{% endif %}" id="dashboard" role="tabpanel">
+            
+            <!-- Subscription Metadata Display -->
+            <!-- {% if subscription_metadata %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="subscription-metadata">
+                        <h6 class="mb-2">
+                            <i class="fas fa-info-circle me-2"></i>Analysis Subscription Context
+                        </h6>
+                        <div class="subscription-metadata-item">
+                            <span class="subscription-metadata-label">Subscription:</span>
+                            <span class="subscription-metadata-value">{{ subscription_metadata.get('subscription_name', 'Unknown') }}</span>
                         </div>
-                        <div class="card-body">
-                            <form id="analysisForm" action="/analyze" method="POST" class="enhanced-form needs-validation" novalidate>
-                                {% if cluster %}
-                                <input type="hidden" name="redirect_to_cluster" value="true">
-                                {% endif %}
-                                
-                                <div class="form-grid">
-                                    <div class="form-group">
-                                        <label for="resource_group" class="form-label">
-                                            <i class="fas fa-folder-open me-2 text-primary"></i>Resource Group
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        <input type="text"
-                                               class="form-control smooth-input"
-                                               id="resource_group"
-                                               name="resource_group"
-                                               placeholder="e.g., rg-production-eastus"
-                                               value="{{ cluster.resource_group if cluster else request.form.get('resource_group', '') }}"
-                                               {% if cluster %}readonly{% endif %}
-                                               required>
-                                        <div class="form-hint">
-                                            {% if cluster %}Pre-filled from cluster context{% else %}Enter your Azure resource group name{% endif %}
-                                        </div>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label for="cluster_name" class="form-label">
-                                            <i class="fas fa-dharmachakra me-2 text-primary"></i>Cluster Name
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        <input type="text"
-                                               class="form-control smooth-input"
-                                               id="cluster_name"
-                                               name="cluster_name"
-                                               placeholder="e.g., aks-production-eastus"
-                                               value="{{ cluster.name if cluster else request.form.get('cluster_name', '') }}"
-                                               {% if cluster %}readonly{% endif %}
-                                               required>
-                                        <div class="form-hint">
-                                            {% if cluster %}Pre-filled from cluster context{% else %}Enter your AKS cluster name{% endif %}
-                                        </div>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label for="days" class="form-label">
-                                            <i class="fas fa-calendar-alt me-2 text-primary"></i>Analysis Period
-                                        </label>
-                                        <select class="form-select smooth-input" id="days" name="days">
-                                            <option value="7">Last 7 days</option>
-                                            <option value="30" selected>Last 30 days</option>
-                                            <option value="90">Last 90 days</option>
-                                        </select>
-                                        <div class="form-hint">Select time period for ML analysis</div>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="enable_pod_analysis" name="enable_pod_analysis" checked>
-                                        <label class="form-check-label" for="enable_pod_analysis">
-                                            <strong><i class="fas fa-layer-group me-2 text-info"></i>Enable Deep Pod Analysis</strong>
-                                        </label>
-                                        <div class="form-hint">
-                                            Analyze costs at namespace and workload level using ML classification (adds 30-60 seconds)
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="d-grid">
-                                    <button type="submit" class="btn btn-primary btn-lg smooth-btn" id="analyzeBtn">
-                                        <span class="btn-content">
-                                            <i class="fas fa-play me-2"></i>
-                                            <span class="btn-text">Start AI Analysis</span>
-                                        </span>
-                                        <div class="btn-loader d-none">
-                                            <i class="fas fa-spinner fa-spin me-2"></i>
-                                            <span>Analyzing...</span>
-                                        </div>
-                                    </button>
-
-                                    <div class="analysis-progress" id="analysisProgress">
-                                        <div class="progress-bar">
-                                            <div class="progress-fill" id="progressFill"></div>
-                                        </div>
-                                        <div class="progress-text" id="progressText">
-                                            <i class="fas fa-brain me-2"></i>
-                                            <span>Initializing AI analysis...</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </form>
+                        <div class="subscription-metadata-item">
+                            <span class="subscription-metadata-label">Analysis Session:</span>
+                            <span class="subscription-metadata-value">{{ subscription_metadata.get('analysis_session_id', 'N/A') }}</span>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Enhanced Info Sidebar -->
-                <div class="col-lg-4">
-                    <div class="card h-100 border-0 shadow-sm">
-                        <div class="card-header bg-light">
-                            <h6 class="mb-0">
-                                <i class="fas fa-lightbulb me-2 text-warning"></i>Analysis Overview
-                            </h6>
+                        {% if subscription_metadata.get('cluster_validation') %}
+                        <div class="subscription-metadata-item">
+                            <span class="subscription-metadata-label">Cluster State:</span>
+                            <span class="subscription-metadata-value">{{ subscription_metadata.cluster_validation.get('provisioningState', 'Unknown') }}</span>
                         </div>
-                        <div class="card-body">
-                            {% if cluster and cluster.last_analyzed %}
-                            <div class="alert alert-info border-0">
-                                <h6><i class="fas fa-info-circle me-2"></i>Previous Analysis</h6>
-                                <p class="mb-1">Last Cost: <strong>${{ cluster.last_cost|round(2) if cluster.last_cost else 0 }}</strong></p>
-                                <p class="mb-0">Potential Savings: <strong>${{ cluster.last_savings|round(2) if cluster.last_savings else 0 }}</strong></p>
-                            </div>
-                            {% endif %}
-                            
-                            <div class="d-flex align-items-center mb-3 p-3 bg-light rounded">
-                                <div class="me-3">
-                                    <i class="fas fa-memory text-primary" style="font-size: 2rem;"></i>
-                                </div>
-                                <div>
-                                    <h6 class="mb-1">Memory-based HPA</h6>
-                                    <small class="text-muted">AI-optimized replica scaling</small>
-                                </div>
-                            </div>
-                            
-                            <div class="d-flex align-items-center mb-3 p-3 bg-light rounded">
-                                <div class="me-3">
-                                    <i class="fas fa-microchip text-warning" style="font-size: 2rem;"></i>
-                                </div>
-                                <div>
-                                    <h6 class="mb-1">ML Right-sizing</h6>
-                                    <small class="text-muted">Eliminate over-provisioning with AI</small>
-                                </div>
-                            </div>
-                            
-                            <div class="d-flex align-items-center mb-3 p-3 bg-light rounded">
-                                <div class="me-3">
-                                    <i class="fas fa-hdd text-success" style="font-size: 2rem;"></i>
-                                </div>
-                                <div>
-                                    <h6 class="mb-1">Smart Storage</h6>
-                                    <small class="text-muted">AI-driven storage optimization</small>
-                                </div>
-                            </div>
-
-                            <div class="savings-box mt-4 p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded">
-                                <h6 class="text-success"><i class="fas fa-chart-line me-2"></i>Expected Results</h6>
-                                <div class="row text-center">
-                                    <div class="col-6">
-                                        <div class="metric-value text-success" style="font-size: 1.75rem;">30-75%</div>
-                                        <div class="metric-label small">Cost Reduction</div>
-                                    </div>
-                                    <div class="col-6">
-                                        <div class="metric-value text-info" style="font-size: 1.75rem;">&lt; 5min</div>
-                                        <div class="metric-label small">Analysis Time</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
-        </div>
-
-        <!-- Enhanced Dashboard Tab -->
-        <div class="tab-pane fade {% if active_tab == 'dashboard' %}show active{% endif %}" id="dashboard" role="tabpanel">
+            {% endif %} -->
+            
             <!-- Enhanced Metrics Row with Smooth Animations -->
             <div class="row mb-4" id="metrics-row">
                 <div class="col-lg-3 col-md-6 mb-3">
@@ -1276,7 +998,7 @@
                 <div class="col-lg-8">
                     <h5 class="mb-1">Ready to optimize your {% if cluster %}{{ cluster.name }} cluster{% else %}AKS cluster{% endif %} with AI?</h5>
                     <p class="mb-0 opacity-90">
-                        <span id="action-description">Run AI analysis to discover intelligent cost savings and ML-powered optimization opportunities.</span>
+                        <span id="action-description">Click "Analyze" above to discover intelligent cost savings and ML-powered optimization opportunities.</span>
                         <span id="savings-summary" class="d-none">Based on AI analysis, potential savings of <strong id="action-savings">$607.19/month</strong> identified.</span>
                     </p>
                 </div>
@@ -1317,7 +1039,10 @@
                     {% if cluster %}
                     <div class="alert alert-warning border-0">
                         <strong>Cluster:</strong> {{ cluster.name }}<br>
-                        <strong>Resource Group:</strong> {{ cluster.resource_group }}
+                        <strong>Resource Group:</strong> {{ cluster.resource_group }}<br>
+                        {% if cluster.subscription_name %}
+                        <strong>Subscription:</strong> {{ cluster.subscription_name }}
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -1351,124 +1076,466 @@
 <script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
 
 <!-- Include UI enhancements -->
-<script src="{{ url_for('static', filename='js/ui-enhancements.js') }}"></script>
+<!-- <script src="{{ url_for('static', filename='js/enhanced-ui.js') }}"></script> -->
 
 <script>
 /**
- * Enhanced alert filtering with smooth animations
+ * Enhanced Multi-Subscription Dashboard Functions
  */
-function filterAlerts(status) {
-    const buttons = document.querySelectorAll('.btn-group .btn');
-    buttons.forEach(btn => btn.classList.remove('active'));
+
+// function triggerAnalysis(clusterId) {
     
-    event.target.classList.add('active');
+//     // Show loading state
+//     const analyzeButton = document.querySelector(`button[onclick="triggerAnalysis('${clusterId}')"]`);
+//     if (analyzeButton) {
+//         analyzeButton.disabled = true;
+//         analyzeButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i><span>Starting...</span>';
+//     }
     
-    const alertItems = document.querySelectorAll('.alert-item');
-    alertItems.forEach(item => {
-        const alertStatus = item.dataset.status || 'active';
-        if (status === 'all' || alertStatus === status) {
-            item.style.display = 'block';
-            item.style.animation = 'fadeIn 0.3s ease-in';
+//     // Show progress indicator
+//     const progressIndicator = document.getElementById('analysisProgress');
+//     if (progressIndicator) {
+//         progressIndicator.classList.add('active');
+//         progressIndicator.querySelector('#progressText span').textContent = 'Initializing subscription-aware analysis...';
+//     }
+    
+//     // Make API call to trigger analysis
+//     fetch(`/api/clusters/${clusterId}/analyze`, {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/json'
+//         },
+//         body: JSON.stringify({
+//             days: 30,
+//             enable_pod_analysis: true
+//         })
+//     })
+//     .then(response => response.json())
+//     .then(data => {
+//         if (data.status === 'success') {
+//             // Show success message with subscription context
+//             const subscriptionName = data.subscription_id ? `in subscription ${data.subscription_id.slice(0, 8)}` : '';
+            
+//             if (window.enhancedNotifications) {
+//                 window.enhancedNotifications.show(
+//                     'Analysis Started!', 
+//                     `Subscription-aware 30-day analysis started ${subscriptionName}`, 
+//                     'success'
+//                 );
+//             }
+            
+//             // Start polling for progress
+//             pollAnalysisProgress(clusterId);
+            
+//         } else {
+//             throw new Error(data.message || 'Failed to start analysis');
+//         }
+//     })
+//     .catch(error => {
+//         console.error('Analysis trigger error:', error);
+        
+//         if (window.enhancedNotifications) {
+//             window.enhancedNotifications.show(
+//                 'Analysis Failed', 
+//                 error.message, 
+//                 'error'
+//             );
+//         }
+        
+//         // Reset button state
+//         if (analyzeButton) {
+//             analyzeButton.disabled = false;
+//             analyzeButton.innerHTML = '<i class="fas fa-play me-1"></i><span>Analyze</span>';
+//         }
+        
+//         // Hide progress indicator
+//         if (progressIndicator) {
+//             progressIndicator.classList.remove('active');
+//         }
+//     });
+// }
+
+function pollAnalysisProgress(clusterId) {
+    console.log(`🔄 Starting analysis polling for cluster: ${clusterId}`);
+    
+    const pollInterval = setInterval(() => {
+        fetch(`/api/clusters/${clusterId}/analysis-status`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`📊 Polling response:`, data);
+                
+                // ✅ FIXED: Check if this is a valid API response first
+                if (data && typeof data === 'object') {
+                    // Extract actual analysis state - be more flexible with status checking
+                    const analysisStatus = data.analysis_status || data.status || 'pending';
+                    const progress = Math.max(0, Math.min(100, data.progress || 0));
+                    const message = data.message || 'Analyzing...';
+                    
+                    console.log(`📊 Analysis status=${analysisStatus}, progress=${progress}%, message="${message}"`);
+                    
+                    // ✅ CRITICAL FIX: Check if message contains progress keywords (this is NOT an error)
+                    const isProgressMessage = message && (
+                        message.toLowerCase().includes('calculating') ||
+                        message.toLowerCase().includes('analyzing') ||
+                        message.toLowerCase().includes('optimization') ||
+                        message.toLowerCase().includes('ml-powered') ||
+                        message.toLowerCase().includes('opportunities') ||
+                        message.includes('[gp-') || // Subscription prefix indicates progress
+                        message.includes('[rg-') || // Resource group prefix indicates progress
+                        progress > 0 || 
+                        analysisStatus === 'analyzing' ||
+                        analysisStatus === 'running'
+                    );
+                    
+                    // Update progress UI
+                    updateProgressUI(progress, message);
+                    
+                    // ✅ FIXED: Proper completion detection - check multiple possible completion states
+                    if (analysisStatus === 'completed' || analysisStatus === 'success' || 
+                        (analysisStatus === 'finished') || 
+                        (progress >= 100 && message.toLowerCase().includes('complete'))) {
+                        
+                        console.log(`✅ Analysis completed for ${clusterId}`);
+                        clearInterval(pollInterval);
+                        
+                        if (window.enhancedNotifications) {
+                            window.enhancedNotifications.show(
+                                'Analysis Complete!', 
+                                'Analysis completed successfully', 
+                                'success'
+                            );
+                        }
+                        
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                        
+                    } else if (isProgressMessage || 
+                               ['analyzing', 'running', 'pending', 'in_progress', 'processing'].includes(analysisStatus)) {
+                        
+                        // ✅ FIXED: These are normal progress states - continue polling, NO ERROR LOGGING
+                        console.log(`⏳ Analysis continuing - ${analysisStatus}: ${message}`);
+                        // Keep polling - this is normal progress
+                        
+                    } else if (analysisStatus === 'failed' || analysisStatus === 'error' || 
+                               (data.status === 'error' && !isProgressMessage)) {
+                        
+                        console.log(`❌ Analysis actually failed for ${clusterId}`);
+                        clearInterval(pollInterval);
+                        handleAnalysisFailure(clusterId, data);
+                        
+                    } else {
+                        // ✅ FIXED: For unknown states, continue polling but log for debugging
+                        console.log(`⚠️ Unknown analysis status (continuing): ${analysisStatus} - ${message}`);
+                        // Continue polling for unknown status (don't fail immediately)
+                    }
+                    
+                } else {
+                    // ✅ FIXED: Only treat actual malformed responses as errors
+                    console.error(`❌ Malformed API response for ${clusterId}:`, data);
+                    clearInterval(pollInterval);
+                    handleAnalysisFailure(clusterId, {
+                        message: 'Invalid API response format',
+                        type: 'api_error'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error(`❌ Network error for ${clusterId}:`, error);
+                clearInterval(pollInterval);
+                handleAnalysisFailure(clusterId, {
+                    message: `Network error: ${error.message}`,
+                    type: 'network_error'
+                });
+            });
+    }, 20000); // Poll every 20 seconds
+    
+    // Safety timeout - 10 minutes
+    setTimeout(() => {
+        console.warn(`⚠️ Analysis timeout for ${clusterId} after 10 minutes`);
+        clearInterval(pollInterval);
+        handleAnalysisFailure(clusterId, {
+            message: 'Analysis timed out after 10 minutes',
+            type: 'timeout'
+        });
+    }, 600000);
+}
+
+function showCompletionNotification(data) {
+    if (window.enhancedNotifications) {
+        const subscriptionName = data.subscription_name || 'Unknown';
+        window.enhancedNotifications.show(
+            'Analysis Complete!', 
+            `Multi-subscription analysis completed for ${subscriptionName}`, 
+            'success'
+        );
+    }
+}
+
+function handleAnalysisFailure(clusterId, errorData) {
+    console.log(`🔧 FIXED: Handling analysis failure for ${clusterId}:`, errorData);
+    
+    // Reset all UI elements
+    resetAnalysisUIComplete(clusterId);
+    
+    // Show appropriate error notification
+    const errorMessage = errorData.message || 'Analysis failed unexpectedly';
+    const errorType = errorData.type || 'unknown';
+    
+    let notificationTitle = 'Analysis Failed';
+    if (errorType === 'timeout') {
+        notificationTitle = 'Analysis Timed Out';
+    } else if (errorType === 'network_error') {
+        notificationTitle = 'Network Error';
+    }
+    
+    if (window.enhancedNotifications) {
+        window.enhancedNotifications.show(
+            notificationTitle,
+            errorMessage,
+            'error',
+            8000
+        );
+    } else {
+        alert(`${notificationTitle}: ${errorMessage}`);
+    }
+    
+    // Enable retry functionality
+    enableRetryButton(clusterId);
+}
+
+function resetAnalysisUIComplete(clusterId) {
+    console.log(`🔄 FIXED: Resetting all UI elements for ${clusterId}`);
+    
+    // Reset analyze button
+    const analyzeButton = document.querySelector(`button[onclick*="triggerAnalysis('${clusterId}')"]`) ||
+                         document.querySelector(`button[onclick*="analyzeCluster('${clusterId}')"]`);
+    
+    if (analyzeButton) {
+        analyzeButton.disabled = false;
+        analyzeButton.classList.remove('loading', 'analyzing');
+        analyzeButton.innerHTML = '<i class="fas fa-play me-1"></i><span class="btn-text">Analyze (30d)</span>';
+    }
+    
+    // Hide progress indicator
+    const progressIndicator = document.getElementById('analysisProgress');
+    if (progressIndicator) {
+        progressIndicator.classList.remove('active');
+    }
+    
+    // Reset progress bar
+    const progressFill = document.getElementById('progressFill');
+    if (progressFill) {
+        progressFill.style.width = '0%';
+    }
+    
+    const progressText = document.getElementById('progressText');
+    if (progressText) {
+        const textSpan = progressText.querySelector('span');
+        if (textSpan) {
+            textSpan.textContent = 'Ready to analyze...';
+        }
+    }
+    
+    console.log(`✅ FIXED: UI reset complete for ${clusterId}`);
+}
+
+function updateClusterCardFailureStatus(clusterId) {
+    const statusInfo = document.querySelector(`.status-info[data-cluster-id="${clusterId}"]`);
+    if (statusInfo) {
+        // Hide analyzing elements
+        const analyzingIcon = statusInfo.querySelector('.analyzing-icon');
+        const analyzingText = statusInfo.querySelector('.analyzing-text');
+        if (analyzingIcon) analyzingIcon.style.display = 'none';
+        if (analyzingText) analyzingText.style.display = 'none';
+        
+        // Show failure status
+        const clockIcon = statusInfo.querySelector('.fa-clock');
+        const statusText = statusInfo.querySelector('.status-text');
+        if (clockIcon) {
+            clockIcon.style.display = 'inline-block';
+            clockIcon.className = 'fas fa-exclamation-triangle warning-icon';
+        }
+        if (statusText) {
+            statusText.style.display = 'inline-block';
+            statusText.textContent = 'Failed';
+            statusText.style.color = '#dc3545'; // Red color
+        }
+        
+        console.log(`✅ Updated cluster card status to failed for ${clusterId}`);
+    }
+}
+
+function enableRetryButton(clusterId) {
+    const analyzeButton = document.querySelector(`button[onclick*="triggerAnalysis('${clusterId}')"]`) ||
+                         document.querySelector(`button[onclick*="analyzeCluster('${clusterId}')"]`);
+    
+    if (analyzeButton) {
+        analyzeButton.innerHTML = '<i class="fas fa-redo me-1"></i><span class="btn-text">Retry Analysis</span>';
+        analyzeButton.classList.add('btn-warning');
+        analyzeButton.classList.remove('btn-success');
+    }
+}
+
+// Enhanced trigger analysis function with better error handling
+function triggerAnalysis(clusterId) {
+    console.log(`🚀 Triggering analysis for ${clusterId}`);
+    
+    const analyzeButton = document.querySelector(`button[onclick*="triggerAnalysis('${clusterId}')"]`);
+    if (analyzeButton) {
+        analyzeButton.disabled = true;
+        analyzeButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i><span>Starting...</span>';
+    }
+    
+    const progressIndicator = document.getElementById('analysisProgress');
+    if (progressIndicator) {
+        progressIndicator.classList.add('active');
+        const progressText = progressIndicator.querySelector('#progressText span');
+        if (progressText) {
+            progressText.textContent = 'Initializing analysis...';
+        }
+    }
+    
+    fetch(`/api/clusters/${clusterId}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 30, enable_pod_analysis: true })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            if (window.enhancedNotifications) {
+                window.enhancedNotifications.show('Analysis Started!', 'Analysis initiated successfully', 'success');
+            }
+            pollAnalysisProgress(clusterId);
         } else {
-            item.style.display = 'none';
+            throw new Error(data.message || 'Failed to start analysis');
+        }
+    })
+    .catch(error => {
+        console.error('Analysis trigger error:', error);
+        
+        // ✅ ENHANCED: Comprehensive failure handling
+        resetAnalysisUI(clusterId);
+        
+        if (window.enhancedNotifications) {
+            window.enhancedNotifications.show('Analysis Failed', error.message, 'error');
+        } else {
+            alert(`Analysis Failed: ${error.message}`);
         }
     });
 }
 
-/**
- * Enhanced notification integration
- */
-function checkForAlertTriggers() {
-    fetch('/api/alerts/triggers')
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success' && data.triggers.length > 0) {
-                displayAlertTriggers(data.triggers);
+///// come here for checking, and go back 
+
+function updateProgressUI(progress, message) {
+    const validProgress = Math.max(0, Math.min(100, progress || 0));
+    
+    // Update progress bar
+    const progressFill = document.getElementById('progressFill');
+    if (progressFill) {
+        progressFill.style.width = `${validProgress}%`;
+    }
+    
+    // Update progress text
+    const progressText = document.getElementById('progressText');
+    if (progressText) {
+        const textSpan = progressText.querySelector('span');
+        if (textSpan) {
+            // ✅ FIXED: Clean up subscription prefixes for display
+            let cleanMessage = message;
+            if (cleanMessage) {
+                // Remove "[gp-dpl-mad-sbx-2]" style prefixes
+                cleanMessage = cleanMessage.replace(/^\[[\w-]+\]\s*/, '');
+                // Remove "Session xyz:" prefixes  
+                cleanMessage = cleanMessage.replace(/^Session\s+\w+:\s*/, '');
+                // Remove "Progress X% -" prefixes
+                cleanMessage = cleanMessage.replace(/^Progress\s+\d+%\s*-\s*/, '');
+                // Capitalize first letter
+                if (cleanMessage && cleanMessage.length > 0) {
+                    cleanMessage = cleanMessage.charAt(0).toUpperCase() + cleanMessage.slice(1);
+                }
             }
-        })
-        .catch(error => {
-            console.error('Error loading alert triggers:', error);
-        });
+            textSpan.textContent = cleanMessage || 'Analyzing...';
+        }
+    }
+    
+    // Update percentage display if exists
+    const progressPercentage = document.getElementById('progressPercentage');
+    if (progressPercentage) {
+        progressPercentage.textContent = `${validProgress}%`;
+    }
+    
+    console.log(`📊 FIXED: Updated UI - ${validProgress}% - "${message}"`);
 }
 
-function displayAlertTriggers(triggers) {
-    const container = document.getElementById('alert-triggers-container');
-    if (!container) return;
-    
-    if (triggers.length === 0) {
-        container.innerHTML = `
-            <div class="text-center text-muted py-3">
-                <i class="fas fa-check-circle me-2"></i>
-                <small>No alerts triggered recently</small>
-            </div>
-        `;
-        return;
+function resetAnalysisUI(clusterId) {
+    // Reset analyze button
+    const analyzeButton = document.querySelector(`button[onclick*="triggerAnalysis('${clusterId}')"]`);
+    if (analyzeButton) {
+        analyzeButton.disabled = false;
+        analyzeButton.innerHTML = '<i class="fas fa-redo me-1"></i><span class="btn-text">Retry Analysis</span>';
+        analyzeButton.classList.add('btn-warning');
+        analyzeButton.classList.remove('btn-success');
     }
     
-    const triggersHTML = triggers.slice(0, 5).map(trigger => `
-        <div class="alert-trigger-item border-bottom pb-2 mb-2">
-            <div class="d-flex justify-content-between">
-                <small class="fw-bold">${escapeHtml(trigger.alert_name)}</small>
-                <small class="text-muted">${formatDateTime(trigger.triggered_at)}</small>
-            </div>
-            <div class="small text-muted mt-1">
-                Cost: $${trigger.current_cost.toLocaleString()} / Threshold: $${trigger.threshold.toLocaleString()}
-            </div>
-            ${!trigger.acknowledged ? '<span class="badge bg-warning text-dark small">New</span>' : ''}
-        </div>
-    `).join('');
+    // Hide progress indicator
+    const progressIndicator = document.getElementById('analysisProgress');
+    if (progressIndicator) {
+        progressIndicator.classList.remove('active');
+    }
     
-    container.innerHTML = triggersHTML;
+    // Reset cluster card if on portfolio page
+    const clusterCard = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+    if (clusterCard) {
+        clusterCard.classList.remove('analyzing');
+        
+        const analyzeBtn = clusterCard.querySelector('.analyze-btn');
+        if (analyzeBtn) {
+            analyzeBtn.classList.remove('analyzing');
+            analyzeBtn.disabled = false;
+            
+            const playIcon = analyzeBtn.querySelector('.fa-play');
+            const spinner = analyzeBtn.querySelector('.analyzing-spinner');
+            if (playIcon) playIcon.style.display = 'block';
+            if (spinner) spinner.style.display = 'none';
+        }
+    }
 }
 
-/**
- * Dashboard-specific functions with enhanced UI
- */
-function deleteCurrentCluster(clusterId) {
-    // Validate cluster context if available
-    if (window.validateClusterContext && !window.validateClusterContext('deleteCurrentCluster')) {
-        console.error('❌ BLOCKED: deleteCurrentCluster - invalid cluster context');
-        return;
-    }
-    
-    // Double-check cluster ID matches current context
-    const currentClusterId = window.getCurrentClusterId ? window.getCurrentClusterId() : null;
-    if (currentClusterId && clusterId !== currentClusterId) {
-        console.error(`❌ CLUSTER MISMATCH: Trying to delete ${clusterId} but current is ${currentClusterId}`);
-        return;
-    }
-    
-    const modal = new bootstrap.Modal(document.getElementById('deleteCurrentClusterModal'));
-    modal.show();
-    
-    // Store cluster ID for deletion
-    window.currentClusterToDelete = clusterId;
-}
+window.pollAnalysisProgress = pollAnalysisProgress;
+
+console.log('✅ FIXED: Analysis polling function updated with proper error handling');
 
 /**
  * Enhanced placeholder functions for future features
  */
 function compareWithOtherClusters() {
     if (window.enhancedNotifications) {
-        window.enhancedNotifications.show('AI cross-cluster comparison feature coming soon!', 'info');
+        window.enhancedNotifications.show('AI cross-subscription cluster comparison feature coming soon!', 'info');
     } else {
-        alert('Cross-cluster comparison feature coming soon!');
+        alert('Cross-subscription cluster comparison feature coming soon!');
     }
 }
 
 function cloneClusterSettings() {
     if (window.enhancedNotifications) {
-        window.enhancedNotifications.show('AI clone cluster settings feature coming soon!', 'info');
+        window.enhancedNotifications.show('AI clone cluster settings across subscriptions feature coming soon!', 'info');
     } else {
-        alert('Clone cluster settings feature coming soon!');
+        alert('Clone cluster settings across subscriptions feature coming soon!');
     }
 }
 
 function exportClusterReport() {
     if (window.enhancedNotifications) {
-        window.enhancedNotifications.show('AI export report feature coming soon!', 'info');
+        window.enhancedNotifications.show('AI export multi-subscription report feature coming soon!', 'info');
     } else {
-        alert('Export report feature coming soon!');
+        alert('Export multi-subscription report feature coming soon!');
     }
 }
 
@@ -1482,9 +1549,9 @@ function exportReport() {
 
 function deployOptimizations() {
     if (window.enhancedNotifications) {
-        window.enhancedNotifications.show('AI deploy optimizations feature coming soon!', 'info');
+        window.enhancedNotifications.show('AI deploy optimizations across subscriptions feature coming soon!', 'info');
     } else {
-        alert('Deploy optimizations feature coming soon!');
+        alert('Deploy optimizations across subscriptions feature coming soon!');
     }
 }
 
@@ -1497,7 +1564,7 @@ function scheduleOptimization() {
 }
 
 /**
- * Enhanced dashboard initialization
+ * Enhanced dashboard initialization with multi-subscription support
  */
 function initializeDashboard() {
     const getCurrentClusterId = window.getCurrentClusterId;
@@ -1524,7 +1591,7 @@ function initializeDashboard() {
         return;
     }
     
-    console.log(`🎯 Initializing enhanced dashboard for cluster: ${clusterId}`);
+    console.log(`🌐 Initializing enhanced multi-subscription dashboard for cluster: ${clusterId}`);
     
     // Initialize with cluster-specific data
     if (typeof window.initializeCharts === 'function') {
@@ -1541,7 +1608,7 @@ function initializeDashboard() {
 // ============================================================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🎯 Initializing enhanced cluster-isolated dashboard...');
+    console.log('🌐 Initializing enhanced multi-subscription cluster dashboard...');
     
     // Initialize UI enhancements first
     if (typeof window.initializeEnhancedUI === 'function') {
@@ -1553,7 +1620,7 @@ document.addEventListener('DOMContentLoaded', function() {
         initializeDashboard();
     }, 200);
     
-    // Enhanced confirm deletion handler with cluster validation
+    // Enhanced confirm deletion handler with subscription validation
     const confirmDeleteBtn = document.getElementById('confirmCurrentDeleteBtn');
     if (confirmDeleteBtn) {
         confirmDeleteBtn.addEventListener('click', function() {
@@ -1578,7 +1645,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.status === 'success') {
                     if (window.enhancedNotifications) {
-                        window.enhancedNotifications.show('Cluster deleted successfully!', 'success');
+                        const subscriptionInfo = data.subscription_info || '';
+                        window.enhancedNotifications.show(
+                            'Cluster Deleted!', 
+                            `Cluster deleted successfully${subscriptionInfo}`, 
+                            'success'
+                        );
                     }
                     
                     setTimeout(() => {
@@ -1601,52 +1673,15 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
-    // Load alert triggers on page load
-    setTimeout(checkForAlertTriggers, 1000);
 });
 
 // Handle browser back/forward with enhanced transitions
 window.addEventListener('popstate', function() {
-    console.log('🔄 URL changed - reinitializing enhanced cluster dashboard...');
+    console.log('🔄 URL changed - reinitializing enhanced multi-subscription cluster dashboard...');
     initializeDashboard();
 });
 
-// Enhanced escape key handler
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        // Close any open modals with enhanced animation
-        const modals = document.querySelectorAll('.modal.show');
-        modals.forEach(modal => {
-            const modalInstance = bootstrap.Modal.getInstance(modal);
-            if (modalInstance) {
-                modalInstance.hide();
-            }
-        });
-    }
-});
-
-// Enhanced utility functions
-function escapeHtml(text) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
-}
-
-function formatDateTime(dateStr) {
-    try {
-        return new Date(dateStr).toLocaleString();
-    } catch (e) {
-        return dateStr;
-    }
-}
-
 // Log enhanced initialization
-console.log('🎨 Enhanced cluster-isolated dashboard JavaScript loaded with AI features');
+console.log('🌐 Enhanced multi-subscription cluster dashboard JavaScript loaded with AI features');
 </script>
 {% endblock %}

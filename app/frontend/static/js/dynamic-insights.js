@@ -606,7 +606,7 @@ if (typeof window !== 'undefined') {
     window.generateRealDynamicInsights = generateRealDynamicInsights;
     window.updateRealDynamicInsights = updateRealDynamicInsights;
     window.generateInsightSummary = generateInsightSummary;
-    window.createInsightNotification = createInsightNotification;
+    //window.createInsightNotification = createInsightNotification;
     window.showInsightLoadingStates = showInsightLoadingStates;
 }
 

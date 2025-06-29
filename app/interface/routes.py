@@ -1,12 +1,13 @@
 """
-Flask Routes for AKS Cost Optimization Tool
+Updated Flask Routes for Multi-Subscription AKS Cost Optimization Tool
 """
 
+import subprocess
 import traceback
 import sys
 import os
 from datetime import datetime
-from flask import render_template, request, redirect, url_for, flash
+from flask import jsonify, render_template, request, redirect, url_for, flash
 
 # Add the app directory to the path for imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -23,9 +24,11 @@ from app.services.cache_manager import (
 )
 from app.services.background_processor import run_background_analysis, check_alerts_after_analysis
 from app.main.shared import _get_analysis_data
+from app.services.subscription_manager import azure_subscription_manager
+from app.data.processing.analysis_engine import multi_subscription_analysis_engine
 
 def register_routes(app):
-    """Register all routes with the Flask app"""
+    """Register all routes with the Flask app - now with multi-subscription support"""
     
     # Template filters
     app.template_filter('format_currency')(format_currency)
@@ -36,12 +39,19 @@ def register_routes(app):
     @app.route('/')
     @app.route('/clusters')
     def cluster_portfolio():
-        """Enhanced multi-cluster portfolio management page with SQLite backend"""
+        """Enhanced multi-subscription cluster portfolio management page"""
         try:
-            logger.info("🏠 Loading enhanced cluster portfolio page")
+            logger.info("🏠 Loading enhanced multi-subscription cluster portfolio page")
             
-            clusters = enhanced_cluster_manager.list_clusters()
+            # Detect and update subscription info for existing clusters
+            enhanced_cluster_manager.detect_and_update_cluster_subscriptions()
+            
+            # Get clusters with subscription info
+            clusters = enhanced_cluster_manager.get_clusters_with_subscription_info()
             portfolio_summary = enhanced_cluster_manager.get_portfolio_summary()
+            
+            # Get available subscriptions for dropdown
+            available_subscriptions = azure_subscription_manager.get_available_subscriptions()
             
             # Add analysis status for each cluster
             for cluster in clusters:
@@ -54,19 +64,44 @@ def register_routes(app):
                         cluster['analysis_age_days'] = (datetime.now() - last_analyzed.replace(tzinfo=None)).days
                     except:
                         cluster['analysis_age_days'] = 999
+                
+                # Add subscription display info
+                if cluster.get('subscription_id'):
+                    cluster['subscription_display'] = f"{cluster.get('subscription_name', 'Unknown')} ({cluster['subscription_id'][:8]})"
+                else:
+                    cluster['subscription_display'] = 'Unknown Subscription'
             
-            logger.info(f"📊 Enhanced Portfolio: {len(clusters)} clusters, ${portfolio_summary.get('total_monthly_cost', 0):.2f} total cost")
+            # Group clusters by subscription for better organization
+            clusters_by_subscription = {}
+            for cluster in clusters:
+                sub_id = cluster.get('subscription_id', 'unknown')
+                sub_name = cluster.get('subscription_name', 'Unknown Subscription')
+                
+                if sub_id not in clusters_by_subscription:
+                    clusters_by_subscription[sub_id] = {
+                        'subscription_name': sub_name,
+                        'subscription_id': sub_id,
+                        'clusters': []
+                    }
+                clusters_by_subscription[sub_id]['clusters'].append(cluster)
+            
+            logger.info(f"📊 Enhanced Multi-Subscription Portfolio: {len(clusters)} clusters across {len(clusters_by_subscription)} subscriptions, ${portfolio_summary.get('total_monthly_cost', 0):.2f} total cost")
             
             return render_template('cluster_portfolio.html', 
                                  clusters=clusters,
-                                 portfolio_summary=portfolio_summary)
+                                 clusters_by_subscription=clusters_by_subscription,
+                                 available_subscriptions=available_subscriptions,
+                                 portfolio_summary=portfolio_summary,
+                                 multi_subscription_enabled=True)
                                  
         except Exception as e:
-            logger.error(f"❌ Error loading enhanced portfolio: {e}")
+            logger.error(f"❌ Error loading enhanced multi-subscription portfolio: {e}")
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
             
             return render_template('cluster_portfolio.html', 
                                  clusters=[],
+                                 clusters_by_subscription={},
+                                 available_subscriptions=[],
                                  portfolio_summary={
                                     'total_clusters': 0, 
                                     'total_monthly_cost': 0, 
@@ -75,56 +110,19 @@ def register_routes(app):
                                     'environments': [],
                                     'last_updated': datetime.now().isoformat()
                                  },
-                                 error_message="Failed to load cluster portfolio")
+                                 multi_subscription_enabled=True,
+                                 error_message="Failed to load multi-subscription cluster portfolio")
 
     @app.route('/dashboard')
     def unified_dashboard():
-        """Original unified dashboard - FIXED to avoid global dependency"""
-        logger.warning("⚠️ /dashboard route accessed - this is deprecated, use cluster-specific dashboards")
-        
-        # Try to get any recent cluster data
-        try:
-            clusters = enhanced_cluster_manager.list_clusters()
-            if clusters:
-                # Get the most recently analyzed cluster
-                recent_cluster = max(
-                    (c for c in clusters if c.get('last_analyzed')), 
-                    key=lambda x: x.get('last_analyzed', ''), 
-                    default=None
-                )
-                
-                if recent_cluster:
-                    cluster_id = recent_cluster['id']
-                    current_analysis, data_source = _get_analysis_data(cluster_id)
-                    
-                    if current_analysis and current_analysis.get('total_cost', 0) > 0:
-                        context = {
-                            'results': current_analysis,
-                            'has_analysis_data': True,
-                            'cluster_context': recent_cluster,
-                            'timestamp': datetime.now().strftime('%B %d, %Y %H:%M:%S'),
-                            'data_source': f'Most recent cluster analysis ({data_source})',
-                            'deprecated_warning': True
-                        }
-                        return render_template('unified_dashboard.html', **context)
-        except Exception as e:
-            logger.error(f"Error loading recent cluster data: {e}")
-        
-        # No cluster data available
-        context = {
-            'results': {},
-            'has_analysis_data': False,
-            'timestamp': datetime.now().strftime('%B %d, %Y %H:%M:%S'),
-            'data_source': 'No analysis data available',
-            'cluster_context': None,
-            'deprecated_warning': True
-        }
-        
-        return render_template('unified_dashboard.html', **context)
+        """DEPRECATED: Original unified dashboard - redirect to portfolio"""
+        logger.warning("⚠️ /dashboard route accessed - redirecting to multi-subscription portfolio")
+        flash('The unified dashboard has been deprecated. Use individual cluster dashboards for better multi-subscription support.', 'info')
+        return redirect(url_for('cluster_portfolio'))
 
     @app.route('/cluster/<cluster_id>')
     def single_cluster_dashboard(cluster_id: str):
-        """FIXED: Dashboard with session data priority"""
+        """Enhanced cluster dashboard with subscription awareness"""
         global analysis_results
         
         try:
@@ -134,7 +132,12 @@ def register_routes(app):
                 flash(f'Cluster {cluster_id} not found', 'error')
                 return redirect(url_for('cluster_portfolio'))
             
-            logger.info(f"📊 Dashboard access for {cluster_id} - USING FIXED SESSION PRIORITY")
+            logger.info(f"📊 Multi-subscription dashboard access for {cluster_id}")
+            
+            # Get subscription info
+            subscription_info = None
+            if cluster.get('subscription_id'):
+                subscription_info = azure_subscription_manager.get_subscription_info(cluster['subscription_id'])
             
             # Use the FIXED _get_analysis_data function that checks sessions first
             cached_analysis, data_source = _get_analysis_data(cluster_id)
@@ -144,6 +147,11 @@ def register_routes(app):
                 logger.info(f"📊 DASHBOARD: Using data from {data_source}")
                 logger.info(f"📊 DASHBOARD: Cost=${cached_analysis.get('total_cost', 0):.2f}, "
                            f"HPA={bool(cached_analysis.get('hpa_recommendations'))}")
+                
+                # Check for subscription metadata in analysis
+                subscription_metadata = cached_analysis.get('subscription_metadata', {})
+                if subscription_metadata:
+                    logger.info(f"📊 DASHBOARD: Analysis has subscription metadata for {subscription_metadata.get('subscription_name', 'Unknown')}")
                 
                 # Validate implementation plan exists
                 if 'implementation_plan' in cached_analysis:
@@ -161,7 +169,7 @@ def register_routes(app):
             # Get analysis history
             analysis_history = enhanced_cluster_manager.get_analysis_history(cluster_id, limit=5)
             
-            # Build context
+            # Build context with subscription info
             context = {
                 'cluster': cluster,
                 'results': cached_analysis or {},
@@ -170,7 +178,10 @@ def register_routes(app):
                 'analysis_history': analysis_history,
                 'timestamp': datetime.now().strftime('%B %d, %Y %H:%M:%S'),
                 'data_source': data_source,
-                'active_tab': 'dashboard'
+                'active_tab': 'dashboard',
+                'subscription_info': subscription_info,
+                'multi_subscription_enabled': True,
+                'subscription_metadata': cached_analysis.get('subscription_metadata', {}) if cached_analysis else {}
             }
             
             # Add implementation plan debug info
@@ -186,182 +197,116 @@ def register_routes(app):
                 context['impl_plan_phases'] = 0
                 context['impl_plan_status'] = 'missing'
             
-            logger.info(f"📊 DASHBOARD CONTEXT: {data_source}, impl_plan: {context['impl_plan_status']} ({context['impl_plan_phases']} phases)")
+            logger.info(f"📊 MULTI-SUB DASHBOARD CONTEXT: {data_source}, subscription: {cluster.get('subscription_name', 'Unknown')}, impl_plan: {context['impl_plan_status']} ({context['impl_plan_phases']} phases)")
             
             return render_template('unified_dashboard.html', **context)
             
         except Exception as e:
-            logger.error(f"❌ Error loading cluster dashboard {cluster_id}: {e}")
+            logger.error(f"❌ Error loading multi-subscription cluster dashboard {cluster_id}: {e}")
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
             flash(f'Error loading cluster dashboard: {str(e)}', 'error')
             return redirect(url_for('cluster_portfolio'))
 
-    @app.route('/analyze', methods=['POST'])
-    def completely_fixed_analyze_route():
-        """COMPLETELY FIXED: Enhanced analyze route with all fixes integrated"""
+    # REMOVED: /analyze route - analysis is now handled through cluster cards only
+    # This supports the requirement to remove the analysis tab and default to 30 days
+
+    @app.route('/cluster/<cluster_id>/remove', methods=['DELETE'])
+    def remove_cluster_route(cluster_id: str):
+        """Remove cluster with subscription awareness"""
         try:
-            # Extract form data
-            resource_group = request.form.get('resource_group')
-            cluster_name = request.form.get('cluster_name')
-            days = int(request.form.get('days', 30))
-            enable_pod_analysis = request.form.get('enable_pod_analysis') == 'on'
-            redirect_to_cluster = request.form.get('redirect_to_cluster', 'false') == 'true'
-            cluster_id = f"{resource_group}_{cluster_name}"
-
-            if not resource_group or not cluster_name:
-                flash('Resource group and cluster name are required', 'error')
-                return redirect(url_for('cluster_portfolio'))
-
-            logger.info(f"🚀 COMPLETELY FIXED ANALYSIS: Starting for {cluster_id}")
-
-            # STEP 1: Complete cache clearing for fresh analysis
-            force_fresh_analysis_with_complete_cache_clear(cluster_id)
-
-            # STEP 2: Auto-add cluster if not exists
-            existing_cluster = enhanced_cluster_manager.get_cluster(cluster_id)
-            if not existing_cluster:
-                cluster_config = {
-                    'cluster_name': cluster_name,
-                    'resource_group': resource_group,
-                    'environment': 'unknown',
-                    'region': 'Unknown',
-                    'description': f'Auto-added from analysis request on {datetime.now().strftime("%Y-%m-%d %H:%M")}'
-                }
-                cluster_id = enhanced_cluster_manager.add_cluster(cluster_config)
-                logger.info(f"🆕 Auto-added cluster {cluster_id}")
+            cluster = enhanced_cluster_manager.get_cluster(cluster_id)
+            if not cluster:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Cluster {cluster_id} not found'
+                }), 404
             
-            # STEP 3: Run the FIXED analysis
-            logger.info(f"🔄 Running COMPLETELY FIXED analysis for {cluster_id}")
-            from app.data.processing.analysis_engine import run_consistent_analysis
+            # Log subscription context
+            subscription_info = ""
+            if cluster.get('subscription_id'):
+                subscription_info = f" from subscription {cluster.get('subscription_name', 'Unknown')}"
             
-            result = run_consistent_analysis(
-                resource_group, cluster_name, days, enable_pod_analysis
-            )
+            success = enhanced_cluster_manager.remove_cluster(cluster_id)
             
-            if result['status'] == 'success':
-                # STEP 4: Process successful results
-                session_results = result['results']
-                session_id = result['session_id']
+            if success:
+                # Clear any cached data for this cluster
+                clear_analysis_cache(cluster_id)
                 
-                # STEP 5: Comprehensive validation
-                validation_result = _validate_analysis_results_comprehensive(session_results, cluster_id, session_id)
-                if not validation_result['valid']:
-                    flash(f'❌ Analysis validation failed: {validation_result["errors"]}', 'error')
-                    return redirect(url_for('cluster_portfolio'))
+                # Clean up session data
+                with _analysis_lock:
+                    sessions_to_remove = []
+                    for session_id, session_info in _analysis_sessions.items():
+                        if session_info.get('cluster_id') == cluster_id:
+                            sessions_to_remove.append(session_id)
+                    
+                    for session_id in sessions_to_remove:
+                        del _analysis_sessions[session_id]
                 
-                # STEP 6: Save with fixed cache system
-                logger.info(f"💾 Saving FIXED analysis results for {cluster_id}")
+                logger.info(f"✅ Removed cluster {cluster_id}{subscription_info}")
                 
-                # Save to database
-                enhanced_cluster_manager.update_cluster_analysis(cluster_id, session_results)
-                
-                # Save to cache with validation
-                cache_success = save_to_cache(cluster_id, session_results)
-                if not cache_success:
-                    logger.warning(f"⚠️ Cache save failed for {cluster_id}, but analysis succeeded")
-                
-                # STEP 7: Extract results for display
-                monthly_cost = session_results.get('total_cost', 0)
-                monthly_savings = session_results.get('total_savings', 0)
-                confidence = session_results.get('analysis_confidence', 0)
-                
-                # STEP 8: Check alerts after successful analysis
-                check_alerts_after_analysis(cluster_id, session_results)
-                
-                # STEP 9: Generate success message
-                success_msg = (
-                    f'🎯 COMPLETELY FIXED Analysis Complete for {cluster_name}! '
-                    f'${monthly_cost:.0f}/month baseline, ${monthly_savings:.0f}/month savings potential '
-                    f'| Confidence: {confidence:.2f} | Session: {session_id[:8]} | ML-Enhanced: ✅'
-                )
-                
-                flash(success_msg, 'success')
-                
-                # STEP 10: Redirect logic
-                if redirect_to_cluster or existing_cluster:
-                    return redirect(url_for('single_cluster_dashboard', cluster_id=cluster_id))
-                else:
-                    return redirect(url_for('cluster_portfolio'))
+                return jsonify({
+                    'status': 'success',
+                    'message': f'Cluster {cluster["name"]} removed successfully',
+                    'cluster_id': cluster_id,
+                    'subscription_info': subscription_info
+                })
             else:
-                # Handle analysis failure
-                error_message = result.get('message', 'Unknown error')
-                session_id = result.get('session_id', 'unknown')
-                flash(f'❌ FIXED analysis failed (session {session_id[:8]}): {error_message}', 'error')
-                return redirect(url_for('cluster_portfolio'))
-
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to remove cluster {cluster_id}'
+                }), 500
+                
         except Exception as e:
-            logger.error(f"❌ COMPLETELY FIXED analysis route failed: {e}")
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            flash(f'❌ Analysis failed: {str(e)}', 'error')
+            logger.error(f"❌ Error removing cluster {cluster_id}: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Error removing cluster: {str(e)}'
+            }), 500
+
+    @app.route('/subscription-management')
+    def subscription_management():
+        """Subscription management interface"""
+        try:
+            logger.info("🌐 Loading subscription management interface")
+            
+            # Get all available subscriptions
+            subscriptions = azure_subscription_manager.get_available_subscriptions(force_refresh=True)
+            
+            # Get current subscription
+            current_subscription_id = azure_subscription_manager.get_current_subscription()
+            
+            # Get cluster distribution by subscription
+            clusters = enhanced_cluster_manager.get_clusters_with_subscription_info()
+            
+            subscription_stats = {}
+            for cluster in clusters:
+                sub_id = cluster.get('subscription_id', 'unknown')
+                if sub_id not in subscription_stats:
+                    subscription_stats[sub_id] = {
+                        'cluster_count': 0,
+                        'total_cost': 0,
+                        'total_savings': 0,
+                        'subscription_name': cluster.get('subscription_name', 'Unknown')
+                    }
+                
+                subscription_stats[sub_id]['cluster_count'] += 1
+                subscription_stats[sub_id]['total_cost'] += cluster.get('last_cost', 0)
+                subscription_stats[sub_id]['total_savings'] += cluster.get('last_savings', 0)
+            
+            return render_template('subscription_management.html',
+                                 subscriptions=subscriptions,
+                                 current_subscription_id=current_subscription_id,
+                                 subscription_stats=subscription_stats,
+                                 total_subscriptions=len(subscriptions))
+                                 
+        except Exception as e:
+            logger.error(f"❌ Error loading subscription management: {e}")
+            flash(f'Error loading subscription management: {str(e)}', 'error')
             return redirect(url_for('cluster_portfolio'))
 
-    # Helper functions for routes
-    # def _get_analysis_data(cluster_id):
-    #     """HPA-aware analysis data loading with session priority"""
-    #     if not cluster_id:
-    #         logger.warning("⚠️ No cluster_id provided for analysis data")
-    #         return None, "no_cluster_id"
-
-    #     # PRIORITY 0: Check for fresh session data first (HIGHEST PRIORITY)
-    #     fresh_session_data = None
-    #     data_source = "none"
-    #     with _analysis_lock:
-    #         logger.info(f"🔍 CHART API: Checking {len(_analysis_sessions)} active sessions for cluster {cluster_id}")
-    #         for session_id, session_info in _analysis_sessions.items():
-    #             if (session_info.get('cluster_id') == cluster_id and 
-    #                 session_info.get('status') == 'completed' and 
-    #                 'results' in session_info):
-    #                 fresh_session_data = session_info['results']
-    #                 data_source = "fresh_session"
-    #                 logger.info(f"🎯 CHART API: Found fresh session data for {cluster_id} (session: {session_id[:8]})")
-    #                 break
-
-    #     if fresh_session_data:
-    #         # Validate HPA recommendations in fresh data
-    #         if 'hpa_recommendations' in fresh_session_data:
-    #             logger.info(f"✅ CHART API: Using fresh session data with HPA for {cluster_id}")
-    #             # Optionally update cache with fresh data
-    #             save_to_cache(cluster_id, fresh_session_data)
-    #             return fresh_session_data, "fresh_session"
-    #         else:
-    #             logger.warning(f"⚠️ CHART API: Fresh session data missing HPA for {cluster_id}")
-
-    #     # PRIORITY 1: Cluster-specific cache with HPA validation
-    #     try:
-    #         cached_data = load_from_cache(cluster_id)
-    #         if cached_data and cached_data.get('total_cost', 0) > 0:
-    #             # Validate HPA recommendations exist
-    #             if 'hpa_recommendations' in cached_data:
-    #                 logger.info(f"✅ CACHE: Complete data with HPA for {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
-    #                 return cached_data, "cluster_cache"
-    #             else:
-    #                 logger.warning(f"⚠️ CACHE: Data exists but missing HPA for {cluster_id}")
-    #                 # Clear incomplete cache
-    #                 clear_analysis_cache(cluster_id)
-    #     except Exception as e:
-    #         logger.warning(f"⚠️ Cluster cache fetch failed for {cluster_id}: {e}")
-
-    #     # PRIORITY 2: Database with HPA validation
-    #     try:
-    #         logger.info(f"🔄 Loading from database for cluster: {cluster_id}")
-    #         db_data = enhanced_cluster_manager.get_latest_analysis(cluster_id)
-    #         if db_data and db_data.get('total_cost', 0) > 0:
-    #             # Validate HPA recommendations in database data
-    #             if 'hpa_recommendations' in db_data:
-    #                 logger.info(f"✅ DATABASE: Complete data with HPA for {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
-    #                 # Cache the complete database data
-    #                 save_to_cache(cluster_id, db_data)
-    #                 return db_data, "cluster_database"
-    #             else:
-    #                 logger.warning(f"⚠️ DATABASE: Data exists but missing HPA for {cluster_id}")
-    #     except Exception as e:
-    #         logger.error(f"❌ Database error for cluster {cluster_id}: {e}")
-
-    #     logger.warning(f"⚠️ No complete analysis data (with HPA) found for cluster: {cluster_id}")
-    #     return None, "no_complete_data"
-
-    def _validate_analysis_results_comprehensive(session_results: dict, cluster_id: str, session_id: str) -> dict:
-        """Comprehensive validation of analysis results"""
+    # Helper function for validation
+    def _validate_subscription_aware_analysis_results(session_results: dict, cluster_id: str, session_id: str, subscription_id: str) -> dict:
+        """Comprehensive validation of subscription-aware analysis results"""
         errors = []
         
         # Check core data
@@ -382,6 +327,13 @@ def register_routes(app):
         if not session_results.get('ml_enhanced'):
             errors.append("Analysis not ML-enhanced")
         
+        # Check subscription metadata
+        subscription_metadata = session_results.get('subscription_metadata', {})
+        if not subscription_metadata.get('subscription_id'):
+            errors.append("Missing subscription metadata")
+        elif subscription_metadata['subscription_id'] != subscription_id:
+            errors.append("Subscription metadata mismatch")
+        
         # Check implementation plan
         impl_plan = session_results.get('implementation_plan')
         if not impl_plan or not isinstance(impl_plan, dict):
@@ -394,15 +346,76 @@ def register_routes(app):
             'errors': errors,
             'cluster_id': cluster_id,
             'session_id': session_id[:8],
+            'subscription_id': subscription_id[:8],
             'total_cost': session_results.get('total_cost', 0),
             'node_count': len(session_results.get('nodes', [])),
             'has_hpa': bool(session_results.get('hpa_recommendations')),
-            'ml_enhanced': session_results.get('ml_enhanced', False)
+            'ml_enhanced': session_results.get('ml_enhanced', False),
+            'subscription_aware': bool(subscription_metadata)
         }
         
         if validation_result['valid']:
-            logger.info(f"✅ Analysis validation passed for {cluster_id} (session: {session_id[:8]})")
+            logger.info(f"✅ Subscription-aware analysis validation passed for {cluster_id} (session: {session_id[:8]}, sub: {subscription_id[:8]})")
         else:
-            logger.error(f"❌ Analysis validation failed for {cluster_id} (session: {session_id[:8]}): {errors}")
+            logger.error(f"❌ Subscription-aware analysis validation failed for {cluster_id} (session: {session_id[:8]}, sub: {subscription_id[:8]}): {errors}")
         
         return validation_result
+
+    # Additional utility routes
+    @app.route('/api/subscription-health')
+    def subscription_health():
+        """Check health of all subscriptions"""
+        try:
+            subscriptions = azure_subscription_manager.get_available_subscriptions()
+            health_status = []
+            
+            for sub in subscriptions:
+                # Quick health check - try to list resource groups
+                try:
+                    result = subprocess.run([
+                        'az', 'group', 'list',
+                        '--subscription', sub.subscription_id,
+                        '--query', 'length(@)',
+                        '--output', 'tsv'
+                    ], capture_output=True, text=True, timeout=10)
+                    
+                    if result.returncode == 0:
+                        rg_count = int(result.stdout.strip())
+                        health_status.append({
+                            'subscription_id': sub.subscription_id,
+                            'subscription_name': sub.subscription_name,
+                            'status': 'healthy',
+                            'resource_group_count': rg_count,
+                            'is_default': sub.is_default
+                        })
+                    else:
+                        health_status.append({
+                            'subscription_id': sub.subscription_id,
+                            'subscription_name': sub.subscription_name,
+                            'status': 'error',
+                            'error': result.stderr.strip(),
+                            'is_default': sub.is_default
+                        })
+                        
+                except Exception as e:
+                    health_status.append({
+                        'subscription_id': sub.subscription_id,
+                        'subscription_name': sub.subscription_name,
+                        'status': 'unreachable',
+                        'error': str(e),
+                        'is_default': sub.is_default
+                    })
+            
+            return jsonify({
+                'status': 'success',
+                'subscription_health': health_status,
+                'total_subscriptions': len(health_status),
+                'healthy_subscriptions': len([s for s in health_status if s['status'] == 'healthy'])
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error checking subscription health: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
