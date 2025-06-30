@@ -64,9 +64,10 @@ class KubernetesParsingUtils:
 class AKSRealTimeMetricsFetcher:
     """Enhanced AKS Real-time Metrics Collection with ML Capabilities"""
     
-    def __init__(self, resource_group: str, cluster_name: str):
+    def __init__(self, resource_group: str, cluster_name: str, subscription_id:str):
         self.resource_group = resource_group
         self.cluster_name = cluster_name
+        self.subscription_id = subscription_id
         self.connection_verified = False
         self.parser = KubernetesParsingUtils()
 
@@ -476,11 +477,12 @@ class AKSRealTimeMetricsFetcher:
             return clean_output
 
     def verify_cluster_connection(self) -> bool:
-        """Verify AKS cluster connectivity with enhanced debugging"""
+        """Verify AKS cluster connectivity with subscription context"""
         try:
-            logger.info(f"Verifying connection to AKS cluster {self.cluster_name}")
+            subscription_info = f" in subscription {self.subscription_id[:8]}" if self.subscription_id else ""
+            logger.info(f"Verifying connection to AKS cluster {self.cluster_name}{subscription_info}")
             
-            # First check if we can access the cluster
+            # Build verification command with subscription context
             cmd = [
                 'az', 'aks', 'command', 'invoke',
                 '--resource-group', self.resource_group,
@@ -488,7 +490,11 @@ class AKSRealTimeMetricsFetcher:
                 '--command', 'kubectl cluster-info'
             ]
             
-            logger.info(f"🔧 DEBUG: Executing verification command: {' '.join(cmd)}")
+            # Add subscription context if available
+            if self.subscription_id:
+                cmd.extend(['--subscription', self.subscription_id])
+            
+            logger.info(f"🔧 DEBUG: Executing verification command with subscription context")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             
             logger.info(f"🔧 DEBUG: Return code: {result.returncode}")
@@ -498,17 +504,21 @@ class AKSRealTimeMetricsFetcher:
             if result.returncode == 0 and result.stdout.strip():
                 # Check if the output contains cluster info (even with metadata)
                 if "Kubernetes control plane" in result.stdout or "Kubernetes master" in result.stdout:
-                    logger.info("✅ Successfully connected to AKS cluster")
+                    logger.info(f"✅ Successfully connected to AKS cluster{subscription_info}")
                     self.connection_verified = True
                     return True
                 else:
-                    logger.warning("⚠️ Connected but no cluster info found")
+                    logger.warning(f"⚠️ Connected but no cluster info found{subscription_info}")
                     # Still consider it successful if we got a response
                     self.connection_verified = True
                     return True
             else:
-                logger.error(f"❌ Failed to verify cluster connection. Return code: {result.returncode}")
-                logger.error(f"❌ STDERR: {result.stderr}")
+                if "ResourceGroupNotFound" in result.stderr and self.subscription_id:
+                    logger.error(f"❌ Cluster verification failed: Resource group not found in subscription {self.subscription_id[:8]}")
+                    logger.error(f"❌ Please verify the subscription ID and resource group are correct")
+                else:
+                    logger.error(f"❌ Failed to verify cluster connection. Return code: {result.returncode}")
+                    logger.error(f"❌ STDERR: {result.stderr}")
                 return False
                 
         except subprocess.TimeoutExpired:
@@ -519,7 +529,7 @@ class AKSRealTimeMetricsFetcher:
             return False
 
     def execute_kubectl_command(self, kubectl_cmd: str, timeout: int = 60) -> Optional[str]:
-        """Execute kubectl command with proper output cleaning"""
+        """Execute kubectl command with subscription context if available"""
         try:
             cmd = [
                 'az', 'aks', 'command', 'invoke',
@@ -527,6 +537,13 @@ class AKSRealTimeMetricsFetcher:
                 '--name', self.cluster_name,
                 '--command', kubectl_cmd
             ]
+            
+            # ADD EXPLICIT SUBSCRIPTION if available (this uses self.subscription_id)
+            if self.subscription_id:
+                cmd.extend(['--subscription', self.subscription_id])
+                logger.debug(f"🌐 Using subscription context: {self.subscription_id[:8]} for command: {kubectl_cmd}")
+            else:
+                logger.debug(f"⚠️ Using legacy execution (no subscription context) for command: {kubectl_cmd}")
             
             logger.info(f"🔧 DEBUG: Executing: {kubectl_cmd}")
             start_time = time.time()
@@ -541,6 +558,15 @@ class AKSRealTimeMetricsFetcher:
                 logger.warning(f"🔧 DEBUG: STDERR: {result.stderr}")
             
             if result.returncode != 0:
+                # Enhanced error reporting for subscription context issues
+                if "ResourceGroupNotFound" in result.stderr:
+                    if self.subscription_id:
+                        logger.error(f"❌ Resource group '{self.resource_group}' not found in subscription {self.subscription_id[:8]}")
+                        logger.error(f"❌ This indicates a subscription context issue or incorrect subscription")
+                    else:
+                        logger.error(f"❌ Resource group '{self.resource_group}' not found")
+                        logger.error(f"❌ No subscription context provided - this may cause conflicts")
+                
                 logger.error(f"❌ Command failed with return code {result.returncode}")
                 logger.error(f"❌ STDERR: {result.stderr}")
                 return None
@@ -1972,7 +1998,7 @@ class AKSRealTimeMetricsFetcher:
 # MAIN INTEGRATION FUNCTIONS
 # ============================================================================
 
-def get_aks_realtime_metrics(resource_group: str, cluster_name: str) -> Dict[str, Any]:
+def get_aks_realtime_metrics(resource_group: str, cluster_name: str, subscription_id: str) -> Dict[str, Any]:
     """
     Enhanced main integration function with better error handling
     
@@ -1988,7 +2014,7 @@ def get_aks_realtime_metrics(resource_group: str, cluster_name: str) -> Dict[str
     logger.info(f"🎯 Starting enhanced AKS metrics collection for {cluster_name}")
     
     try:
-        fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name)
+        fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name, subscription_id)
         result = fetcher.get_comprehensive_metrics()
         
         if result.get('status') == 'success':

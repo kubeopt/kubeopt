@@ -1,10 +1,11 @@
 """
-AKS Pod Cost Analyzer - Enhanced Version
-========================================
+AKS Pod Cost Analyzer - Enhanced Version with Subscription Awareness
+===================================================================
 Distributes actual costs from Azure billing across pods, namespaces, and workloads.
 Provides cost attribution and breakdown for billing transparency.
 
 INTEGRATION: Works with aks-realtime-metrics.py to provide complete cost+usage picture
+ENHANCED: Now includes subscription-aware kubectl execution to prevent context conflicts
 """
 
 # ============================================================================
@@ -136,52 +137,172 @@ class KubernetesParsingUtils:
         return False
 
 # ============================================================================
-# CORE POD COST ANALYZER
+# SUBSCRIPTION-AWARE KUBECTL EXECUTOR
 # ============================================================================
 
-class PodCostAnalyzer:
+class SubscriptionAwareKubectlExecutor:
     """
-    Main Pod Cost Distribution Engine
+    Subscription-aware kubectl executor to prevent context conflicts
+    Ensures each analysis thread operates in its own subscription context
+    """
     
-    PURPOSE: Distributes actual node costs across pods and namespaces
-    INTEGRATION: Uses kubectl via 'az aks command invoke' for private clusters
-    """
-
-    def __init__(self, resource_group: str, cluster_name: str):
-        """
-        Initialize Pod Cost Analyzer
-        
-        Args:
-            resource_group: Azure resource group name
-            cluster_name: AKS cluster name
-        """
+    def __init__(self, resource_group: str, cluster_name: str, subscription_id: str):
         self.resource_group = resource_group
         self.cluster_name = cluster_name
-        self.timeout = 30  # Command timeout in seconds
+        self.subscription_id = subscription_id
+        self.timeout = 120  # Default timeout
         
-        # Initialize shared utilities
-        self.parser = KubernetesParsingUtils()
-
-    # ------------------------------------------------------------------------
-    # KUBECTL COMMAND EXECUTION
-    # ------------------------------------------------------------------------
-
-    def _safe_kubectl_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[str]:
+        logger.info(f"🌐 Created subscription-aware kubectl executor for {cluster_name} in subscription {subscription_id[:8]}")
+    
+    def execute_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[str]:
         """
-        Execute kubectl commands via az aks command invoke (for private clusters)
-        
-        Args:
-            kubectl_cmd: The kubectl command to execute
-            timeout: Command timeout in seconds
-            
-        Returns:
-            Command output or None if failed
+        Execute kubectl command with explicit subscription context
+        Prevents subscription context conflicts during parallel analysis
         """
         if timeout is None:
             timeout = self.timeout
             
         try:
-            # Build the full Azure CLI command
+            # Build command with explicit subscription context
+            cmd = [
+                'az', 'aks', 'command', 'invoke',
+                '--resource-group', self.resource_group,
+                '--name', self.cluster_name,
+                '--subscription', self.subscription_id,  # EXPLICIT subscription prevents conflicts
+                '--command', kubectl_cmd
+            ]
+            
+            logger.debug(f"🔧 Subscription {self.subscription_id[:8]}: Executing kubectl: {kubectl_cmd}")
+            start_time = time.time()
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            execution_time = time.time() - start_time
+            
+            if result.returncode != 0:
+                # Check for subscription context errors specifically
+                if "ResourceGroupNotFound" in result.stderr:
+                    logger.error(f"❌ Resource group not found in subscription {self.subscription_id[:8]} - context issue detected")
+                    logger.error(f"❌ Command: {kubectl_cmd}")
+                    logger.error(f"❌ Error: {result.stderr}")
+                else:
+                    logger.warning(f"⚠️ kubectl command failed (exit {result.returncode}): {kubectl_cmd}")
+                    logger.warning(f"Error: {result.stderr}")
+                return None
+            
+            output = result.stdout.strip()
+            if not output or output == "null":
+                logger.warning(f"Empty response from: {kubectl_cmd}")
+                return None
+            
+            # Clean output from Azure CLI metadata
+            clean_output = self._clean_output(output)
+            logger.debug(f"🔧 Subscription {self.subscription_id[:8]}: Command completed in {execution_time:.2f}s")
+            
+            return clean_output
+            
+        except subprocess.TimeoutExpired:
+            logger.error(f"⏰ kubectl command timeout ({timeout}s) in subscription {self.subscription_id[:8]}: {kubectl_cmd}")
+            return None
+        except Exception as e:
+            logger.error(f"❌ kubectl execution error in subscription {self.subscription_id[:8]}: {e}")
+            return None
+    
+    def execute_with_fallback(self, primary_cmd: str, fallback_cmd: str = None, timeout: int = None) -> Optional[str]:
+        """Execute kubectl command with fallback option"""
+        # Try primary command
+        result = self.execute_command(primary_cmd, timeout)
+        if result:
+            return result
+        
+        # Try fallback if provided
+        if fallback_cmd:
+            logger.info(f"🔄 Subscription {self.subscription_id[:8]}: Primary command failed, trying fallback...")
+            return self.execute_command(fallback_cmd, timeout)
+        
+        return None
+    
+    def _clean_output(self, raw_output: str) -> str:
+        """Clean kubectl output from Azure CLI metadata"""
+        if not raw_output:
+            return ""
+        
+        lines = raw_output.split('\n')
+        clean_lines = []
+        
+        for line in lines:
+            # Skip Azure CLI command metadata
+            if any(skip_pattern in line.lower() for skip_pattern in [
+                'command started at', 'command finished at', 'exitcode=',
+                'command started', 'command finished'
+            ]):
+                continue
+            clean_lines.append(line)
+        
+        return '\n'.join(clean_lines).strip()
+
+# ============================================================================
+# CORE POD COST ANALYZER (Enhanced with Subscription Awareness)
+# ============================================================================
+
+class PodCostAnalyzer:
+    """
+    Main Pod Cost Distribution Engine - Enhanced with Subscription Awareness
+    
+    PURPOSE: Distributes actual node costs across pods and namespaces
+    INTEGRATION: Uses subscription-aware kubectl for parallel analysis safety
+    """
+
+    def __init__(self, resource_group: str, cluster_name: str, subscription_id: str = None):
+        """
+        Initialize Pod Cost Analyzer with optional subscription awareness
+        
+        Args:
+            resource_group: Azure resource group name
+            cluster_name: AKS cluster name
+            subscription_id: Azure subscription ID (for subscription-aware execution)
+        """
+        self.resource_group = resource_group
+        self.cluster_name = cluster_name
+        self.subscription_id = subscription_id
+        self.timeout = 30  # Command timeout in seconds
+        
+        # Initialize shared utilities
+        self.parser = KubernetesParsingUtils()
+        
+        # Create subscription-aware executor if subscription_id provided
+        if subscription_id:
+            self.kubectl_executor = SubscriptionAwareKubectlExecutor(resource_group, cluster_name, subscription_id)
+            logger.info(f"🌐 Pod analyzer using subscription-aware execution: {subscription_id[:8]}")
+        else:
+            self.kubectl_executor = None
+            logger.info("⚠️ Pod analyzer using legacy execution (no subscription context)")
+
+    # ------------------------------------------------------------------------
+    # KUBECTL COMMAND EXECUTION (Enhanced with Subscription Awareness)
+    # ------------------------------------------------------------------------
+
+    def _safe_kubectl_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[str]:
+        """
+        Execute kubectl commands with subscription awareness when available
+        Falls back to legacy method if no subscription context provided
+        """
+        if timeout is None:
+            timeout = self.timeout
+        
+        # Use subscription-aware executor if available
+        if self.kubectl_executor:
+            return self.kubectl_executor.execute_command(kubectl_cmd, timeout)
+        
+        # Fall back to legacy method (original implementation)
+        return self._legacy_kubectl_command(kubectl_cmd, timeout)
+    
+    def _legacy_kubectl_command(self, kubectl_cmd: str, timeout: int) -> Optional[str]:
+        """
+        Legacy kubectl execution method (without subscription context)
+        Kept for backward compatibility
+        """
+        try:
+            # Build the full Azure CLI command (without explicit subscription)
             full_cmd = [
                 'az', 'aks', 'command', 'invoke',
                 '--resource-group', self.resource_group,
@@ -189,7 +310,7 @@ class PodCostAnalyzer:
                 '--command', kubectl_cmd
             ]
             
-            logger.debug(f"Executing kubectl: {kubectl_cmd}")
+            logger.debug(f"Executing kubectl (legacy): {kubectl_cmd}")
             
             result = subprocess.run(
                 full_cmd,
@@ -602,7 +723,8 @@ class PodCostAnalyzer:
         Returns:
             Cost analysis results or None if failed
         """
-        logger.info(f"🔍 Starting pod cost analysis for {self.cluster_name}")
+        subscription_info = f" in subscription {self.subscription_id[:8]}" if self.subscription_id else ""
+        logger.info(f"🔍 Starting pod cost analysis for {self.cluster_name}{subscription_info}")
         logger.info(f"💰 Total node cost to distribute: ${total_node_cost:.2f}")
         
         start_time = time.time()
@@ -615,6 +737,7 @@ class PodCostAnalyzer:
                 logger.info(f"✅ Container usage analysis completed in {time.time() - start_time:.1f}s")
                 result['analysis_method'] = 'container_usage'
                 result['accuracy_level'] = 'Very High'
+                result['subscription_aware'] = self.subscription_id is not None
                 return result
 
             # Method 2: Pod resource analysis with YAML+fallback (good accuracy)
@@ -624,6 +747,7 @@ class PodCostAnalyzer:
                 logger.info(f"✅ Pod resource analysis completed in {time.time() - start_time:.1f}s")
                 result['analysis_method'] = 'pod_resources_robust'
                 result['accuracy_level'] = 'High'
+                result['subscription_aware'] = self.subscription_id is not None
                 return result
 
             # Method 3: Pod count analysis (basic accuracy)
@@ -633,6 +757,7 @@ class PodCostAnalyzer:
                 logger.info(f"✅ Pod count analysis completed in {time.time() - start_time:.1f}s")
                 result['analysis_method'] = 'pod_count_robust'
                 result['accuracy_level'] = 'Good'
+                result['subscription_aware'] = self.subscription_id is not None
                 return result
 
             logger.error("❌ All analysis methods failed")
@@ -837,7 +962,7 @@ class PodCostAnalyzer:
 
             logger.info(f"📊 Namespaces with pods: {len(namespace_data)}")
             
-            # NAMESPACES (with zero pods) - but don't give them cost
+            # Add empty namespaces (with zero pods) - but don't give them cost
             for namespace in all_namespaces:
                 if namespace not in namespace_data:
                     namespace_data[namespace] = {
@@ -871,7 +996,7 @@ class PodCostAnalyzer:
                     cost_share = (weighted_pods / total_weighted_pods) * total_cost if total_weighted_pods > 0 else 0
                     namespace_costs[namespace] = max(cost_share, 0.01)  # Minimum $0.01
                 else:
-                    #Empty namespace gets $0.00 (but is still counted)
+                    # Empty namespace gets $0.00 (but is still counted)
                     namespace_costs[namespace] = 0.00
 
             logger.info(f"📊 FINAL namespace analysis: Distributed ${total_cost:.2f} across {len(active_namespaces)} active namespaces")
@@ -992,28 +1117,32 @@ class WorkloadCostAnalyzer:
     
     PURPOSE: Maps pod costs to specific workloads (Deployments, StatefulSets, DaemonSets)
     INTEGRATION: Extends PodCostAnalyzer results to workload granularity
+    ENHANCED: Now includes subscription-aware execution
     """
 
-    def __init__(self, resource_group: str, cluster_name: str):
-        """Initialize workload analyzer with shared pod analyzer"""
+    def __init__(self, resource_group: str, cluster_name: str, subscription_id: str = None):
+        """Initialize workload analyzer with subscription-aware pod analyzer"""
         self.resource_group = resource_group
         self.cluster_name = cluster_name
-        self.pod_analyzer = PodCostAnalyzer(resource_group, cluster_name)
+        self.subscription_id = subscription_id
+        
+        # Create subscription-aware pod analyzer
+        self.pod_analyzer = PodCostAnalyzer(resource_group, cluster_name, subscription_id)
 
     # ------------------------------------------------------------------------
     # KUBECTL DELEGATION (reuse PodCostAnalyzer methods)
     # ------------------------------------------------------------------------
 
     def _safe_kubectl_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[str]:
-        """Delegate to pod_analyzer's method to avoid duplication"""
+        """Delegate to pod_analyzer's subscription-aware method"""
         return self.pod_analyzer._safe_kubectl_command(kubectl_cmd, timeout)
 
     def _safe_kubectl_yaml_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[Dict]:
-        """Delegate to pod_analyzer's method to avoid duplication"""
+        """Delegate to pod_analyzer's subscription-aware method"""
         return self.pod_analyzer._safe_kubectl_yaml_command(kubectl_cmd, timeout)
 
     def _fallback_to_text_parsing(self, kubectl_cmd: str) -> Optional[Dict]:
-        """Delegate to pod_analyzer's method to avoid duplication"""
+        """Delegate to pod_analyzer's method"""
         return self.pod_analyzer._fallback_to_text_parsing(kubectl_cmd)
 
     # ------------------------------------------------------------------------
@@ -1030,7 +1159,8 @@ class WorkloadCostAnalyzer:
         Returns:
             Complete workload cost mapping
         """
-        logger.info("🚀 Starting workload cost analysis...")
+        subscription_info = f" in subscription {self.subscription_id[:8]}" if self.subscription_id else ""
+        logger.info(f"🚀 Starting workload cost analysis{subscription_info}...")
         
         try:
             # Step 1: Get workload information using robust methods
@@ -1062,7 +1192,8 @@ class WorkloadCostAnalyzer:
                 'analysis_method': pod_analysis.get('analysis_method', 'workload_mapping_robust'),
                 'accuracy_level': pod_analysis.get('accuracy_level', 'High'),
                 'total_pods_analyzed': pod_analysis.get('total_pods_analyzed', len(all_workloads)),
-                'total_namespaces': len(namespace_costs)
+                'total_namespaces': len(namespace_costs),
+                'subscription_aware': self.subscription_id is not None
             }
 
             logger.info(f"✅ Workload analysis complete: {len(workload_costs)} workloads, {len(namespace_costs)} namespaces")
@@ -1192,26 +1323,116 @@ class WorkloadCostAnalyzer:
         return workload_costs
 
 # ============================================================================
-# MAIN INTEGRATION FUNCTION
+# SUBSCRIPTION-AWARE INTEGRATION FUNCTIONS
 # ============================================================================
 
-def get_enhanced_pod_cost_breakdown(resource_group: str, cluster_name: str, total_node_cost: float) -> Optional[Dict]:
+def get_subscription_aware_pod_cost_breakdown(resource_group: str, cluster_name: str, 
+                                                    total_node_cost: float, subscription_id: str) -> Optional[Dict]:
     """
-    MAIN INTEGRATION FUNCTION for app.py
+    SUBSCRIPTION-AWARE INTEGRATION FUNCTION
     
-    Provides complete pod and workload cost breakdown for AKS Cost Intelligence
+    Provides complete pod and workload cost breakdown with subscription context isolation
     
     Args:
         resource_group: Azure resource group name
         cluster_name: AKS cluster name  
         total_node_cost: Total monthly node cost from Azure billing
+        subscription_id: Azure subscription ID for context isolation
+        
+    Returns:
+        Complete cost breakdown or None if analysis fails
+        
+    INTEGRATION: Called by analysis_engine.py during subscription-aware analysis
+    """
+    # Validate subscription ID format
+    from utils import validate_subscription_id_format
+    
+    if not validate_subscription_id_format(subscription_id):
+        logger.error(f"❌ Invalid subscription ID for pod analysis: {subscription_id}")
+        return {'success': False, 'error': 'Invalid subscription ID'}
+    
+    logger.info(f"🔍 Starting subscription-aware pod cost analysis for {cluster_name}")
+    logger.info(f"💰 Distributing ${total_node_cost:.2f} across pods and workloads")
+    logger.info(f"🌐 Using subscription context: {subscription_id[:8]}")
+    
+    try:
+        # Attempt workload-level analysis first (most detailed) with subscription awareness
+        workload_analyzer = WorkloadCostAnalyzer(resource_group, cluster_name, subscription_id)
+        
+        workload_result = workload_analyzer.analyze_workload_costs(total_node_cost)
+        
+        if workload_result:
+            logger.info(f"✅ Subscription-aware workload analysis successful")
+            return {
+                'analysis_type': 'workload',
+                'success': True,
+                'subscription_id': subscription_id,
+                'subscription_aware': True,
+                **workload_result
+            }
+
+        # Fallback to pod-level analysis with subscription awareness
+        pod_analyzer = PodCostAnalyzer(resource_group, cluster_name, subscription_id)
+        pod_result = pod_analyzer.analyze_pod_costs(total_node_cost)
+        
+        if pod_result:
+            logger.info(f"✅ Subscription-aware pod analysis successful")
+            return {
+                'analysis_type': 'pod',
+                'success': True,
+                'subscription_id': subscription_id,
+                'subscription_aware': True,
+                **pod_result
+            }
+
+        logger.warning("⚠️ Subscription-aware pod cost analysis not available")
+        return {
+            'success': False,
+            'error': 'No analysis methods succeeded',
+            'subscription_id': subscription_id,
+            'subscription_aware': True
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Subscription-aware pod cost analysis failed: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'subscription_id': subscription_id,
+            'subscription_aware': True
+        }
+
+# ============================================================================
+# MAIN INTEGRATION FUNCTION (Enhanced with Subscription Support)
+# ============================================================================
+
+def get_enhanced_pod_cost_breakdown(resource_group: str, cluster_name: str, total_node_cost: float, 
+                                   subscription_id: str = None) -> Optional[Dict]:
+    """
+    MAIN INTEGRATION FUNCTION for app.py - Enhanced with Subscription Support
+    
+    Provides complete pod and workload cost breakdown for AKS Cost Intelligence
+    Automatically uses subscription-aware execution if subscription_id provided
+    
+    Args:
+        resource_group: Azure resource group name
+        cluster_name: AKS cluster name  
+        total_node_cost: Total monthly node cost from Azure billing
+        subscription_id: Optional Azure subscription ID for subscription-aware execution
         
     Returns:
         Complete cost breakdown or None if analysis fails
         
     INTEGRATION: Called by app.py during cost analysis pipeline
     """
-    logger.info(f"🔍 Starting enhanced pod cost analysis")
+    # Use subscription-aware version if subscription_id provided
+    if subscription_id:
+        return get_subscription_aware_pod_cost_breakdown(
+            resource_group, cluster_name, total_node_cost, subscription_id
+        )
+    
+    # Fall back to legacy implementation for backward compatibility
+    logger.info(f"🔍 Starting enhanced pod cost analysis (legacy mode)")
     logger.info(f"💰 Distributing ${total_node_cost:.2f} across pods and workloads")
     
     try:
@@ -1225,6 +1446,7 @@ def get_enhanced_pod_cost_breakdown(resource_group: str, cluster_name: str, tota
             return {
                 'analysis_type': 'workload',
                 'success': True,
+                'subscription_aware': False,
                 **workload_result
             }
 
@@ -1237,6 +1459,7 @@ def get_enhanced_pod_cost_breakdown(resource_group: str, cluster_name: str, tota
             return {
                 'analysis_type': 'pod',
                 'success': True,
+                'subscription_aware': False,
                 **pod_result
             }
 
@@ -1252,25 +1475,32 @@ def get_enhanced_pod_cost_breakdown(resource_group: str, cluster_name: str, tota
 # ============================================================================
 
 """
-INTEGRATION WITH aks-realtime-metrics.py:
+ENHANCED INTEGRATION WITH SUBSCRIPTION AWARENESS:
 
-This file (pod_cost_analyzer.py) handles COST DISTRIBUTION:
+This enhanced file now provides SUBSCRIPTION-AWARE COST DISTRIBUTION:
 - Takes actual costs from Azure billing
-- Distributes costs across namespaces/workloads  
-- Provides cost attribution ("who spent what")
+- Distributes costs across namespaces/workloads with subscription context
+- Prevents subscription context conflicts during parallel analysis
+- Provides cost attribution ("who spent what") with subscription isolation
 
-The aks-realtime-metrics.py handles USAGE METRICS:
-- Collects current CPU/memory utilization
-- Provides data for optimization algorithms
-- Shows performance patterns ("what resources are being used")
+USAGE PATTERNS:
 
-SHARED UTILITIES:
-- KubernetesParsingUtils class provides common CPU/memory parsing
-- Both files can use these utilities to avoid code duplication
+1. Subscription-Aware Analysis (recommended for parallel execution):
+   result = get_enhanced_pod_cost_breakdown(rg, cluster, cost, subscription_id)
+
+2. Legacy Analysis (backward compatibility):
+   result = get_enhanced_pod_cost_breakdown(rg, cluster, cost)
+
+3. Direct Subscription-Aware Analysis:
+   result = get_enhanced_pod_cost_breakdown(rg, cluster, cost, sub_id)
+
+INTEGRATION WITH aks-realtime-metrics.py:
+- Both files now support subscription-aware execution
+- Can be safely run in parallel without context conflicts
 - Consistent kubectl command execution patterns
 
-DATA FLOW:
-Azure Billing → pod_cost_analyzer.py → Cost breakdown by workload
-Azure Monitor → aks-realtime-metrics.py → Usage patterns  
-Both → algorithmic_cost_analyzer.py → Optimization recommendations
+SUBSCRIPTION CONFLICT RESOLUTION:
+- Each analysis thread operates with explicit subscription context
+- kubectl commands include --subscription parameter
+- No more "ResourceGroupNotFound" errors during parallel analysis
 """

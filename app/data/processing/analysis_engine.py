@@ -322,25 +322,25 @@ class MultiSubscriptionAnalysisEngine:
         self, resource_group: str, cluster_name: str, days: int, 
         enable_pod_analysis: bool, session_id: str, log_prefix: str, config: AnalysisConfig
     ) -> Dict[str, Any]:
-        """Execute the core analysis logic (same as before but with session context)"""
+        """Execute the core analysis logic with subscription context"""
         
         cluster_id = f"{resource_group}_{cluster_name}"
         
         try:
-            # Step 1: Get cost data
+            # Step 1: Get cost data with subscription context
             cost_components, cost_label, total_period_cost, cost_df = self._get_cost_data(
-                resource_group, cluster_name, days, session_id, log_prefix, cluster_id
+                resource_group, cluster_name, days, session_id, log_prefix, cluster_id, config
             )
             
-            # Step 2: Get metrics data
+            # Step 2: Get metrics data with subscription context
             metrics_data, real_node_metrics = self._get_metrics_data(
                 resource_group, cluster_name, config, session_id, log_prefix
             )
             
-            # Step 3: Get pod analysis (if enabled)
+            # Step 3: Get pod analysis with subscription context (UPDATED)
             pod_data = self._get_pod_analysis(
                 resource_group, cluster_name, enable_pod_analysis, 
-                cost_df, session_id, log_prefix
+                cost_df, session_id, log_prefix, config.subscription_id  # Pass subscription_id
             )
             
             # Step 4: Run ML-enhanced algorithmic analysis
@@ -433,17 +433,26 @@ class MultiSubscriptionAnalysisEngine:
     
     # Include the existing helper methods with subscription awareness
     def _get_cost_data(self, resource_group: str, cluster_name: str, days: int, 
-                      session_id: str, log_prefix: str, cluster_id: str = None) -> tuple:
+                  session_id: str, log_prefix: str, cluster_id: str = None, 
+                  config: Optional[AnalysisConfig] = None) -> tuple:
         """Get cost data with current subscription context"""
         logger.info(f"📊 Session {session_id}: cost data fetch for {cluster_name} in current subscription context")
+        
+        # 🔥 GET SUBSCRIPTION ID from config
+        subscription_id = None
+        if config and hasattr(config, 'subscription_id'):
+            subscription_id = config.subscription_id
+            logger.info(f"📊 Using subscription {subscription_id[:8]} from config")
+
+        logger.info(f" Using {cluster_name} in current subscription({subscription_id}) context")
         
         # Calculate date range
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
         
-        # Use smart cost fetching with cluster_id for DB lookup
+        # 🔥 PASS SUBSCRIPTION ID to cost fetching
         cost_df = get_aks_specific_cost_data(
-            resource_group, cluster_name, start_date, end_date, cluster_id
+            resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id
         )
         
         if cost_df is None or cost_df.empty:
@@ -467,12 +476,14 @@ class MultiSubscriptionAnalysisEngine:
         return cost_components, cost_label, total_period_cost, cost_df
     
     def _get_metrics_data(self, resource_group: str, cluster_name: str, 
-                         config: AnalysisConfig, session_id: str, log_prefix: str) -> tuple:
+                     config: AnalysisConfig, session_id: str, log_prefix: str) -> tuple:
         """Get ML-ready metrics with subscription context"""
-        logger.info(f"📈 Session {session_id}: Fetching ML-ready metrics in subscription context...")
+        logger.info(f"📈 Session {session_id}: Fetching ML-ready metrics with subscription context...")
         
         from app.analytics.aks_realtime_metrics import AKSRealTimeMetricsFetcher
-        enhanced_fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name)
+        
+        # UPDATED: Pass subscription_id to the metrics fetcher
+        enhanced_fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name, config.subscription_id)
         
         metrics_data = None
         
@@ -511,9 +522,10 @@ class MultiSubscriptionAnalysisEngine:
     
     # Continue with the remaining helper methods from the original analysis engine...
     def _get_pod_analysis(self, resource_group: str, cluster_name: str, 
-                         enable_pod_analysis: bool, cost_df,
-                         session_id: str, log_prefix: str) -> Optional[Dict]:
-        """Run pod-level cost analysis if enabled"""
+                     enable_pod_analysis: bool, cost_df,
+                     session_id: str, log_prefix: str, 
+                     subscription_id: str = None) -> Optional[Dict]:
+        """Run pod-level cost analysis if enabled with subscription context"""
         if not enable_pod_analysis:
             return None
         
@@ -527,16 +539,22 @@ class MultiSubscriptionAnalysisEngine:
             logger.info(f"⏭️ Session {session_id}: Skipping pod analysis - no node costs")
             return None
         
-        logger.info(f"🔍 Session {session_id}: Running pod analysis with node cost: ${actual_node_cost_for_pod_analysis:.2f}")
+        logger.info(f"🔍 Session {session_id}: Running subscription-aware pod analysis with node cost: ${actual_node_cost_for_pod_analysis:.2f}")
         
         try:
+            # Import the enhanced pod cost analyzer
             from app.analytics.pod_cost_analyzer import get_enhanced_pod_cost_breakdown
+            
+            # Call with subscription_id parameter (the function will auto-detect subscription support)
             pod_cost_result = get_enhanced_pod_cost_breakdown(
-                resource_group, cluster_name, actual_node_cost_for_pod_analysis
+                resource_group, 
+                cluster_name, 
+                actual_node_cost_for_pod_analysis, 
+                subscription_id  # Pass subscription_id for context isolation
             )
             
             if pod_cost_result and pod_cost_result.get('success'):
-                logger.info(f"✅ Session {session_id}: Pod analysis completed")
+                logger.info(f"✅ Session {session_id}: Subscription-aware pod analysis completed")
                 return pod_cost_result
             else:
                 logger.warning(f"⚠️ Session {session_id}: Pod analysis returned no results")
@@ -616,8 +634,31 @@ class MultiSubscriptionAnalysisEngine:
             
             if 'namespace_costs' in pod_data:
                 final_results['namespace_costs'] = pod_data['namespace_costs']
-            elif 'namespace_summary' in pod_data:
-                final_results['namespace_costs'] = pod_data['namespace_summary']
+                # 🔥 ADD THIS: Generate chart data for UI
+                namespace_costs = pod_data['namespace_costs']
+                if namespace_costs and len(namespace_costs) > 0:
+                    final_results['namespaceData'] = {
+                        'labels': list(namespace_costs.keys()),
+                        'values': list(namespace_costs.values())
+                    }
+                    logger.info(f"✅ Session {session_id}: Generated namespace chart data for {len(namespace_costs)} namespaces")
+
+        # 🔥 ADD THIS: Generate workload chart data
+        if 'workload_costs' in pod_data:
+            workload_costs = pod_data['workload_costs']
+            if workload_costs and len(workload_costs) > 0:
+                # Get top 10 workloads by cost
+                sorted_workloads = sorted(workload_costs.items(), key=lambda x: x[1].get('cost', 0), reverse=True)[:10]
+                
+                final_results['workloadData'] = {
+                    'labels': [workload[0] for workload in sorted_workloads],
+                    'values': [workload[1].get('cost', 0) for workload in sorted_workloads],
+                    'types': [workload[1].get('type', 'Unknown') for workload in sorted_workloads]
+                }
+                logger.info(f"✅ Session {session_id}: Generated workload chart data for {len(sorted_workloads)} workloads")
+
+        elif 'namespace_summary' in pod_data:
+            final_results['namespace_costs'] = pod_data['namespace_summary']
         else:
             final_results['has_pod_costs'] = False
         

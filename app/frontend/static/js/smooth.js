@@ -130,57 +130,51 @@ class SmoothTabManager {
     }
     
     handleTabTransition(targetTab, tabElement) {
-        if (SmoothState.isTransitioning) return;
-        
-        SmoothState.isTransitioning = true;
-        SmoothState.currentTab = targetTab;
-        
-        // Add loading state to tab
-        const originalText = tabElement.innerHTML;
-        tabElement.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>${tabElement.textContent.trim()}`;
-        
-        // Hide current content smoothly
-        const currentActivePane = document.querySelector('.tab-pane.show.active');
-        if (currentActivePane) {
-            currentActivePane.style.transition = 'all 0.3s ease';
-            currentActivePane.style.transform = 'translateY(-20px)';
-            currentActivePane.style.opacity = '0';
-        }
-        
-        setTimeout(() => {
-            tabElement.innerHTML = originalText;
-            this.prepareTabContent(targetTab);
-        }, SmoothConfig.TAB_TRANSITION_DELAY);
+    if (SmoothState.isTransitioning) return;
+    
+    SmoothState.isTransitioning = true;
+    SmoothState.currentTab = targetTab;
+    
+    // Don't modify tab text during transition - this causes issues
+    // Just handle the content transition
+    
+    // Hide current content smoothly
+    const currentActivePane = document.querySelector('.tab-pane.show.active');
+    if (currentActivePane && currentActivePane !== document.querySelector(targetTab)) {
+        currentActivePane.style.transition = 'opacity 0.2s ease';
+        currentActivePane.style.opacity = '0';
     }
     
+    // Prepare the target tab content immediately
+    this.prepareTabContent(targetTab);
+}
+    
     handleTabShown(targetTab) {
-        setTimeout(() => {
-            // Animate in new content
-            const newActivePane = document.querySelector(targetTab);
-            if (newActivePane) {
-                newActivePane.style.transform = 'translateY(0)';
-                newActivePane.style.opacity = '1';
-            }
-            
-            // Tab-specific initialization
-            switch (targetTab) {
-                case '#dashboard':
-                    this.initializeDashboardTab();
-                    break;
-                case '#implementation':
-                    this.initializeImplementationTab();
-                    break;
-                case '#analysis':
-                    this.initializeAnalysisTab();
-                    break;
-                case '#alerts':
-                    this.initializeAlertsTab();
-                    break;
-            }
-            
-            SmoothState.isTransitioning = false;
-        }, 100);
+    // Immediately show new content without delay
+    const newActivePane = document.querySelector(targetTab);
+    if (newActivePane) {
+        newActivePane.style.transition = 'opacity 0.3s ease';
+        newActivePane.style.opacity = '1';
+        newActivePane.style.transform = 'none'; // Remove transform issues
     }
+    
+    // Tab-specific initialization with minimal delay
+    setTimeout(() => {
+        switch (targetTab) {
+            case '#dashboard':
+                this.initializeDashboardTab();
+                break;
+            case '#implementation':
+                this.initializeImplementationTab();
+                break;
+            case '#alerts':
+                this.initializeAlertsTab();
+                break;
+        }
+        
+        SmoothState.isTransitioning = false;
+    }, 50); // Reduced from 100ms to 50ms
+}
     
     prepareTabContent(targetTab) {
         const tabPane = document.querySelector(targetTab);

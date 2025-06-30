@@ -30,6 +30,15 @@ class NotificationManager {
     }
     
     show(message, type = 'info', duration = AppConfig.NOTIFICATION_DURATION) {
+        // FIXED: Ensure duration is always a number
+        let numericDuration = duration;
+        if (typeof duration === 'string') {
+            numericDuration = parseInt(duration, 10);
+            if (isNaN(numericDuration)) {
+                numericDuration = AppConfig.NOTIFICATION_DURATION || 5000;
+            }
+        }
+        
         const toastElement = document.createElement('div');
         toastElement.className = `toast align-items-center text-white bg-${this.getBootstrapColor(type)} border-0`;
         toastElement.setAttribute('role', 'alert');
@@ -57,24 +66,71 @@ class NotificationManager {
         this.container.appendChild(toastElement);
         
         if (window.bootstrap && bootstrap.Toast) {
-            const toast = new bootstrap.Toast(toastElement, {
-                autohide: duration > 0,
-                delay: duration
-            });
-            toast.show();
-            
-            toastElement.addEventListener('hidden.bs.toast', () => {
-                if (toastElement.parentNode) {
-                    toastElement.parentNode.removeChild(toastElement);
-                }
-            });
+            try {
+                // FIXED: Pass numeric duration and proper options
+                const toastOptions = {
+                    autohide: numericDuration > 0,
+                    delay: numericDuration // This must be a number, not a string
+                };
+                
+                console.log(`Creating Bootstrap Toast with options:`, toastOptions);
+                
+                const toast = new bootstrap.Toast(toastElement, toastOptions);
+                toast.show();
+                
+                toastElement.addEventListener('hidden.bs.toast', () => {
+                    if (toastElement.parentNode) {
+                        toastElement.parentNode.removeChild(toastElement);
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Bootstrap Toast error:', error);
+                // Fallback if Bootstrap Toast fails
+                this.fallbackToast(toastElement, numericDuration);
+            }
         } else {
             // Fallback if Bootstrap is not available
+            this.fallbackToast(toastElement, numericDuration);
+        }
+    }
+    
+    fallbackToast(toastElement, duration) {
+        // Manual fade-in effect
+        toastElement.style.opacity = '0';
+        toastElement.style.transform = 'translateX(100%)';
+        toastElement.style.transition = 'all 0.3s ease';
+        
+        setTimeout(() => {
+            toastElement.style.opacity = '1';
+            toastElement.style.transform = 'translateX(0)';
+        }, 100);
+        
+        // Auto-remove after duration
+        if (duration > 0) {
             setTimeout(() => {
-                if (toastElement.parentNode) {
-                    toastElement.parentNode.removeChild(toastElement);
-                }
+                toastElement.style.opacity = '0';
+                toastElement.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    if (toastElement.parentNode) {
+                        toastElement.parentNode.removeChild(toastElement);
+                    }
+                }, 300);
             }, duration);
+        }
+        
+        // Manual close button functionality
+        const closeBtn = toastElement.querySelector('.btn-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                toastElement.style.opacity = '0';
+                toastElement.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    if (toastElement.parentNode) {
+                        toastElement.parentNode.removeChild(toastElement);
+                    }
+                }, 300);
+            });
         }
     }
     
@@ -103,19 +159,38 @@ class NotificationManager {
 const notificationManager = new NotificationManager();
 
 /**
- * Global notification function
+ * Global notification function (FIXED)
  */
 export function showNotification(message, type = 'info', duration = AppConfig.NOTIFICATION_DURATION) {
-    notificationManager.show(message, type, duration);
+    // FIXED: Ensure duration is numeric before passing to manager
+    let numericDuration = duration;
+    if (typeof duration === 'string') {
+        numericDuration = parseInt(duration, 10);
+        if (isNaN(numericDuration)) {
+            numericDuration = AppConfig.NOTIFICATION_DURATION || 5000;
+        }
+    }
+    
+    console.log(`Showing notification: ${message} (type: ${type}, duration: ${numericDuration})`);
+    notificationManager.show(message, type, numericDuration);
 }
 
 // Alias for compatibility
 export const showToast = showNotification;
 
 /**
- * Enhanced notification with custom positioning
+ * Enhanced notification with custom positioning (FIXED)
  */
 export function showNotificationFixed(message, type = 'info', duration = 5000) {
+    // FIXED: Ensure duration is numeric
+    let numericDuration = duration;
+    if (typeof duration === 'string') {
+        numericDuration = parseInt(duration, 10);
+        if (isNaN(numericDuration)) {
+            numericDuration = 5000;
+        }
+    }
+    
     // Remove existing notifications
     document.querySelectorAll('.notification-toast').forEach(toast => toast.remove());
     
@@ -156,7 +231,7 @@ export function showNotificationFixed(message, type = 'info', duration = 5000) {
     }, 100);
     
     // Auto-remove
-    if (duration > 0) {
+    if (numericDuration > 0) {
         setTimeout(() => {
             toast.style.opacity = '0';
             toast.style.transform = 'translateX(100%)';
@@ -165,12 +240,12 @@ export function showNotificationFixed(message, type = 'info', duration = 5000) {
                     toast.parentNode.removeChild(toast);
                 }
             }, 300);
-        }, duration);
+        }, numericDuration);
     }
 }
 
 /**
- * Show loading notification
+ * Show loading notification (FIXED)
  */
 export function showLoadingNotification(message) {
     const loadingId = 'loading-notification-' + Date.now();
@@ -217,7 +292,7 @@ export function showLoadingNotification(message) {
 }
 
 /**
- * Show progress notification with steps
+ * Show progress notification with steps (FIXED)
  */
 export function showProgressNotification(steps, currentStep = 0) {
     const progressId = 'progress-notification-' + Date.now();
@@ -288,11 +363,36 @@ export function showProgressNotification(steps, currentStep = 0) {
     };
 }
 
+// FIXED: Enhanced global showNotification function for backward compatibility
+function createGlobalShowNotification() {
+    return function(title, message, type = 'info', duration = 5000) {
+        // Handle both old format (title, message) and new format (message only)
+        let finalMessage = message ? `${title}: ${message}` : title;
+        
+        // FIXED: Ensure duration is numeric
+        let numericDuration = duration;
+        if (typeof duration === 'string') {
+            numericDuration = parseInt(duration, 10);
+            if (isNaN(numericDuration)) {
+                numericDuration = 5000;
+            }
+        }
+        
+        console.log(`Global showNotification called: ${finalMessage} (type: ${type}, duration: ${numericDuration})`);
+        
+        // Use the notification manager
+        notificationManager.show(finalMessage, type, numericDuration);
+    };
+}
+
 // Make functions available globally for backward compatibility
 if (typeof window !== 'undefined') {
-    window.showNotification = showNotification;
+    window.showNotification = createGlobalShowNotification();
     window.showToast = showToast;
     window.showNotificationFixed = showNotificationFixed;
     window.showLoadingNotification = showLoadingNotification;
     window.showProgressNotification = showProgressNotification;
+    window.notificationManager = notificationManager;
+    
+    console.log('✅ Fixed notification system loaded - Bootstrap Toast compatible');
 }

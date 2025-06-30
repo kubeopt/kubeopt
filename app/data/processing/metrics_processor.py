@@ -3,7 +3,9 @@ Metrics Data Processing for AKS Cost Optimization
 """
 
 from datetime import datetime
+
 from config import logger
+import config
 from utils import safe_mean
 
 def get_aks_metrics_from_monitor(resource_group, cluster_name, start_date, end_date):
@@ -18,7 +20,12 @@ def get_aks_metrics_from_monitor(resource_group, cluster_name, start_date, end_d
         from app.analytics.aks_realtime_metrics import get_aks_realtime_metrics
         
         logger.info("🚀 Attempting real-time kubectl metrics collection...")
-        realtime_metrics = get_aks_realtime_metrics(resource_group, cluster_name)
+        subscription_id = None
+        if config and hasattr(config, 'subscription_id'):
+            subscription_id = config.subscription_id
+            logger.info(f"📊 Using subscription {subscription_id[:8]} from config")
+
+        realtime_metrics = get_aks_realtime_metrics(resource_group, cluster_name, subscription_id)
         
         if (realtime_metrics and 
             realtime_metrics.get('status') == 'success' and 
