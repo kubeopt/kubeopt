@@ -469,6 +469,11 @@ export function initializeNavigation() {
  * Setup navigation event listeners
  */
 function setupNavigationEvents() {
+
+    if (window.smoothUIManager) {
+        console.log('🔄 Skipping ui-navigation events - smooth.js is active');
+        return;
+    }
     // Track navigation timing
     const navigationStartTime = performance.now();
     
