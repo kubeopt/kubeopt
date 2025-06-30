@@ -225,26 +225,58 @@ def _validate_chart_data_requirements(current_analysis: Dict, cluster_id: str) -
 
 # 1. UPDATE your existing _extract_cost_metrics() function:
 def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) -> Dict[str, float]:
-    """Extract and validate cost metrics from analysis data - ML INTEGRATED"""
+    """FIXED: Extract and validate cost metrics including proper HPA efficiency"""
     
     monthly_cost = ensure_float(current_analysis.get('total_cost', 0))
     monthly_savings = ensure_float(current_analysis.get('total_savings', 0))
     
-    # UPDATED: Extract HPA savings from ML analysis (this was the missing piece!)
+    # Extract HPA savings from ML analysis
     hpa_savings = ensure_float(current_analysis.get('hpa_savings', 0))
     
     # Also check ML-specific locations if not found
     if hpa_savings == 0:
         hpa_recommendations = current_analysis.get('hpa_recommendations', {})
         if hpa_recommendations:
-            # Try to extract from ML analysis structure
             ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
             ml_optimization_analysis = ml_workload_characteristics.get('optimization_analysis', {})
             ml_cost_analysis = ml_optimization_analysis.get('cost_analysis', {})
             hpa_savings = ensure_float(ml_cost_analysis.get('potential_monthly_savings', 0))
     
+    # CRITICAL FIX: Extract HPA efficiency from multiple sources
+    hpa_efficiency = 0.0
+    hpa_recommendations = current_analysis.get('hpa_recommendations', {})
+    
+    # Try multiple efficiency sources
+    efficiency_sources = [
+        current_analysis.get('hpa_efficiency_percentage'),
+        current_analysis.get('hpa_efficiency'),
+        current_analysis.get('hpa_reduction'),
+        hpa_recommendations.get('hpa_efficiency_percentage'),
+        hpa_recommendations.get('hpa_efficiency'),
+    ]
+    
+    # Also check within ML workload characteristics
+    if hpa_recommendations:
+        ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
+        efficiency_sources.extend([
+            ml_workload_characteristics.get('hpa_efficiency_percentage'),
+            ml_workload_characteristics.get('efficiency_score'),
+        ])
+    
+    for eff_val in efficiency_sources:
+        if eff_val is not None and eff_val > 0:
+            hpa_efficiency = ensure_float(eff_val)
+            logger.info(f"✅ Found HPA efficiency: {hpa_efficiency:.1f}%")
+            break
+    
+    # If still zero, calculate from savings
+    if hpa_efficiency == 0.0 and hpa_savings > 0 and monthly_cost > 0:
+        hpa_efficiency = min(50.0, (hpa_savings / monthly_cost) * 100)
+        logger.info(f"🔧 Calculated HPA efficiency from savings: {hpa_efficiency:.1f}%")
+    
     logger.info(f"📊 Extracting metrics from {data_source}: cost=${monthly_cost:.2f}, "
-               f"total_savings=${monthly_savings:.2f}, hpa_savings=${hpa_savings:.2f}")
+               f"total_savings=${monthly_savings:.2f}, hpa_savings=${hpa_savings:.2f}, "
+               f"hpa_efficiency={hpa_efficiency:.1f}%")
     
     # Get individual cost components
     cost_components = {
@@ -256,7 +288,7 @@ def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) ->
         'other_cost': ensure_float(current_analysis.get('other_cost', 0))
     }
     
-    # Validate and fix cost components if necessary (existing logic)
+    # Validate and fix cost components if necessary
     component_total = sum(cost_components.values())
     if abs(component_total - monthly_cost) > (monthly_cost * 0.01):
         logger.warning(f"⚠️ Cost mismatch: components={component_total:.2f}, total={monthly_cost:.2f}")
@@ -268,7 +300,8 @@ def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) ->
     return {
         'monthly_cost': monthly_cost,
         'monthly_savings': monthly_savings,
-        'hpa_savings': hpa_savings,  # ✅ NOW INCLUDES ML HPA SAVINGS
+        'hpa_savings': hpa_savings,
+        'hpa_efficiency': hpa_efficiency,  # ADDED: Include HPA efficiency
         **cost_components
     }
 
@@ -308,11 +341,9 @@ def _build_enhanced_response_data(current_analysis: Dict[str, Any],
             'storage_savings': ensure_float(current_analysis.get('storage_savings', 0)),
             'savings_percentage': ensure_float(current_analysis.get('savings_percentage', 0)),
             'annual_savings': ensure_float(current_analysis.get('annual_savings', 0)),
-            'hpa_reduction': ensure_float(
-                current_analysis.get('hpa_reduction', 0) or 
-                current_analysis.get('hpa_efficiency', 0) or
-                current_analysis.get('hpa_efficiency_percentage', 0)
-            ),
+            'hpa_efficiency': cost_metrics.get('hpa_efficiency', 0),
+            'hpa_reduction': cost_metrics.get('hpa_efficiency', 0),
+            'hpa_efficiency_percentage': cost_metrics.get('hpa_efficiency', 0),
             'cpu_gap': ensure_float(current_analysis.get('cpu_gap', 0)),
             'memory_gap': ensure_float(current_analysis.get('memory_gap', 0))
         },

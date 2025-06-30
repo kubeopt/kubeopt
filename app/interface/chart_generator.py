@@ -88,7 +88,7 @@ def generate_insights(analysis_results):
 def generate_dynamic_hpa_comparison(analysis_data):
     """
     ML-INTEGRATED: Generate HPA comparison using your ML model outputs
-    Extracts and uses actual ML classifications, recommendations, and cost data
+    FIXED: Properly extract HPA efficiency from ML analysis
     """
     try:
         logger.info("🤖 ML-INTEGRATED: Generating chart from actual ML analysis")
@@ -113,7 +113,28 @@ def generate_dynamic_hpa_comparison(analysis_data):
         # Step 2: Extract REAL cost and efficiency data
         actual_hpa_savings = ensure_float(analysis_data.get('hpa_savings', 0))
         total_cost = ensure_float(analysis_data.get('total_cost', 0))
-        hpa_efficiency = ensure_float(analysis_data.get('hpa_efficiency', 0))
+        
+        # CRITICAL FIX: Extract HPA efficiency from multiple sources
+        hpa_efficiency = 0.0
+        efficiency_sources = [
+            analysis_data.get('hpa_efficiency'),
+            analysis_data.get('hpa_efficiency_percentage'), 
+            hpa_recommendations.get('hpa_efficiency_percentage'),
+            hpa_recommendations.get('hpa_efficiency'),
+            ml_workload_characteristics.get('hpa_efficiency_percentage')
+        ]
+        
+        for eff_val in efficiency_sources:
+            if eff_val is not None and eff_val > 0:
+                hpa_efficiency = ensure_float(eff_val)
+                logger.info(f"✅ Found HPA efficiency: {hpa_efficiency:.1f}%")
+                break
+        
+        if hpa_efficiency == 0.0 and actual_hpa_savings > 0:
+            # Calculate efficiency from savings if not found
+            if total_cost > 0:
+                hpa_efficiency = min(50.0, (actual_hpa_savings / total_cost) * 100)
+                logger.info(f"🔧 Calculated HPA efficiency from savings: {hpa_efficiency:.1f}%")
         
         # Step 3: Get ML-calculated utilization data
         ml_cpu_util = ml_workload_characteristics.get('cpu_utilization', 35.0)
