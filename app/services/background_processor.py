@@ -196,6 +196,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
                 subscription_id, 'total_savings_identified', analysis_results_data.get('total_savings', 0)
             )
             
+            logger.info(f"DEBUG: From BackgroundProcessor - HPA efficiency: {analysis_results_data.get('hpa_efficiency', 0):.1f}%")
             logger.info(f"✅ Subscription-aware background analysis completed for {cluster_id} in {subscription_name}")
             
             # Check alerts after successful analysis

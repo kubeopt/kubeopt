@@ -355,9 +355,12 @@ class MultiSubscriptionAnalysisEngine:
                 real_node_metrics, pod_data, resource_group, cluster_name,
                 session_id, config, self.session_metadata[config.analysis_type]
             )
+
+            logger.info(f"DEBUG:HPA efficiency: {final_results.get('hpa_efficiency', 0):.1f}%")
             
             # Step 6: Generate implementation plan
             self._generate_implementation_plan(final_results, session_id, log_prefix)
+
             
             logger.info(f"🎉 Session {session_id}: MULTI-SUBSCRIPTION ANALYSIS COMPLETED")
             
@@ -580,6 +583,8 @@ class MultiSubscriptionAnalysisEngine:
                 metrics_data=metrics_data,
                 pod_data=pod_data
             )
+
+            logger.info(f"DEBUG: HPA efficiency Found: {consistent_results.get('hpa_efficiency', 0):.1f}%")
             
             if 'hpa_recommendations' not in consistent_results:
                 raise ValueError("ML algorithmic analysis failed to generate HPA recommendations")
@@ -673,7 +678,9 @@ class MultiSubscriptionAnalysisEngine:
             'ml_enhanced': True,
             config.analysis_type.value: True
         })
-        
+
+        logger.info(f"DEBUG:HPA efficiency: {final_results.get('hpa_efficiency', 0):.1f}%")
+
         return final_results
     
     def _generate_implementation_plan(self, results: Dict, session_id: str, log_prefix: str) -> None:

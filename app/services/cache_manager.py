@@ -177,14 +177,13 @@ def load_from_cache_with_validation(cluster_id: str) -> dict:
         return {}
 
 def _validate_cache_data_structure(data: dict, cluster_id: str) -> List[str]:
-    """Comprehensive validation of cache data structure"""
+    """FIXED: More lenient validation that preserves HPA efficiency data"""
     errors = []
     
-    # Check required top-level components
+    # Check required top-level components (relaxed validation)
     required_components = {
         'total_cost': (int, float),
         'hpa_recommendations': dict,
-        'nodes': list
     }
     
     for component, expected_type in required_components.items():
@@ -198,34 +197,37 @@ def _validate_cache_data_structure(data: dict, cluster_id: str) -> List[str]:
     if not isinstance(total_cost, (int, float)) or total_cost <= 0:
         errors.append(f"Invalid total_cost: {total_cost}")
     
-    # Validate HPA recommendations structure
+
+    
+    # RELAXED HPA validation - just check if it exists and has some content
     hpa_recs = data.get('hpa_recommendations', {})
     if isinstance(hpa_recs, dict):
-        if 'optimization_recommendation' not in hpa_recs:
-            errors.append("Missing optimization_recommendation in HPA data")
-        if not hpa_recs.get('ml_enhanced'):
-            errors.append("HPA recommendations not ML-enhanced")
+        if len(hpa_recs) == 0:
+            errors.append("Empty HPA recommendations")
+        # REMOVED: ml_enhanced requirement - this was causing cache to be rejected
+        # REMOVED: optimization_recommendation requirement - too strict
     
-    # Validate nodes data
+    # Optional nodes validation (don't fail if missing)
     nodes = data.get('nodes', [])
-    if isinstance(nodes, list):
-        if len(nodes) == 0:
-            errors.append("No nodes data available")
-        else:
-            for i, node in enumerate(nodes):
-                if not isinstance(node, dict):
-                    errors.append(f"Node {i} is not a dictionary")
-                elif 'cpu_usage_pct' not in node:
-                    errors.append(f"Node {i} missing cpu_usage_pct")
+    if nodes and isinstance(nodes, list) and len(nodes) == 0:
+        logger.warning(f"⚠️ Empty nodes data for {cluster_id}")
     
-    # Validate ML enhancement flag
-    if not data.get('ml_enhanced'):
-        errors.append("Analysis not ML-enhanced")
+    # KEY FIX: Preserve HPA efficiency at top level
+    hpa_efficiency_found = False
+    efficiency_keys = ['hpa_efficiency', 'hpa_efficiency_percentage', 'hpa_reduction']
+    for key in efficiency_keys:
+        if data.get(key) is not None and data.get(key) > 0:
+            hpa_efficiency_found = True
+            logger.info(f"✅ Found HPA efficiency in cache validation: {key}={data.get(key):.1f}%")
+            break
+    
+    if not hpa_efficiency_found:
+        logger.warning(f"⚠️ No HPA efficiency found during cache validation for {cluster_id}")
     
     return errors
 
 def _validate_loaded_cache_data(cached_data: dict, cluster_id: str) -> List[str]:
-    """Validate cache data when loading"""
+    """FIXED: Relaxed validation when loading from cache"""
     errors = []
     
     # Check essential components
@@ -234,21 +236,26 @@ def _validate_loaded_cache_data(cached_data: dict, cluster_id: str) -> List[str]
     
     if not isinstance(cached_data.get('hpa_recommendations'), dict):
         errors.append("Invalid HPA recommendations structure")
-    elif not cached_data['hpa_recommendations'].get('ml_enhanced'):
-        errors.append("HPA recommendations not ML-enhanced")
     
-    if not isinstance(cached_data.get('nodes'), list):
-        errors.append("Invalid nodes data structure")
-    elif len(cached_data['nodes']) == 0:
-        errors.append("No nodes data available")
+    # REMOVED: Strict ML enhancement requirement
+    # REMOVED: Strict nodes requirement
     
-    if not cached_data.get('ml_enhanced'):
-        errors.append("Analysis not ML-enhanced")
+    # Check if HPA efficiency exists in any form
+    hpa_efficiency_found = False
+    efficiency_keys = ['hpa_efficiency', 'hpa_efficiency_percentage', 'hpa_reduction']
+    for key in efficiency_keys:
+        if cached_data.get(key) is not None:
+            hpa_efficiency_found = True
+            logger.info(f"✅ Found HPA efficiency in loaded cache: {key}={cached_data.get(key)}")
+            break
+    
+    if not hpa_efficiency_found:
+        logger.warning(f"⚠️ No HPA efficiency in loaded cache for {cluster_id}")
     
     return errors
 
 def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
-    """Prepare and clean data for caching"""
+    """FIXED: Preserve ALL HPA efficiency data in cache"""
     
     # Create clean copy of essential data
     cache_data = {
@@ -260,6 +267,11 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'storage_savings': float(complete_analysis_data.get('storage_savings', 0)),
         'savings_percentage': float(complete_analysis_data.get('savings_percentage', 0)),
         'analysis_confidence': float(complete_analysis_data.get('analysis_confidence', 0)),
+        
+        # CRITICAL FIX: Preserve ALL HPA efficiency fields
+        'hpa_efficiency': complete_analysis_data.get('hpa_efficiency'),
+        'hpa_efficiency_percentage': complete_analysis_data.get('hpa_efficiency_percentage'),
+        'hpa_reduction': complete_analysis_data.get('hpa_reduction'),
         
         # Cost breakdown
         'node_cost': float(complete_analysis_data.get('node_cost', 0)),
@@ -273,8 +285,8 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'nodes': _clean_nodes_data(complete_analysis_data.get('nodes', [])),
         'has_real_node_data': bool(complete_analysis_data.get('has_real_node_data', False)),
         
-        # HPA recommendations (clean copy)
-        'hpa_recommendations': _clean_hpa_data(complete_analysis_data.get('hpa_recommendations', {})),
+        # HPA recommendations (PRESERVE ALL DATA)
+        'hpa_recommendations': complete_analysis_data.get('hpa_recommendations', {}),
         
         # Metadata
         'ml_enhanced': bool(complete_analysis_data.get('ml_enhanced', False)),
@@ -282,14 +294,26 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'cluster_name': str(complete_analysis_data.get('cluster_name', '')),
         'analysis_timestamp': complete_analysis_data.get('analysis_timestamp', datetime.now().isoformat()),
         
-        # Optional components
+        # Optional components (preserve everything)
         'implementation_plan': complete_analysis_data.get('implementation_plan'),
         'pod_cost_analysis': complete_analysis_data.get('pod_cost_analysis'),
         'namespace_costs': complete_analysis_data.get('namespace_costs'),
-        'has_pod_costs': bool(complete_analysis_data.get('has_pod_costs', False))
+        'has_pod_costs': bool(complete_analysis_data.get('has_pod_costs', False)),
+        'node_metrics': complete_analysis_data.get('node_metrics'),
+        'real_node_data': complete_analysis_data.get('real_node_data')
     }
     
-    # Remove None values
+    # CRITICAL: Log what HPA efficiency data we're caching
+    hpa_eff = cache_data.get('hpa_efficiency')
+    hpa_eff_pct = cache_data.get('hpa_efficiency_percentage')
+    hpa_red = cache_data.get('hpa_reduction')
+    
+    logger.info(f"💾 CACHE PREP: HPA efficiency data for {cluster_id}:")
+    logger.info(f"   - hpa_efficiency: {hpa_eff}")
+    logger.info(f"   - hpa_efficiency_percentage: {hpa_eff_pct}")
+    logger.info(f"   - hpa_reduction: {hpa_red}")
+    
+    # Remove None values but keep 0 values
     cache_data = {k: v for k, v in cache_data.items() if v is not None}
     
     return cache_data

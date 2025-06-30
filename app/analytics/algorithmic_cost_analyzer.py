@@ -157,6 +157,8 @@ class MLEnhancedHPARecommendationEngine:
             efficiency_score = workload_characteristics.get('efficiency_score', 0.6)
             workload_type = workload_classification.get('workload_type', 'BALANCED')
             
+            logger.info(f"🔍 ML Data: CPU={cpu_utilization:.1f}%, Memory={memory_utilization:.1f}%, Type={workload_type}")
+            
             # CRITICAL FIX: Handle extreme over-allocation cases properly
             if cpu_utilization > 200 or memory_utilization > 200:
                 logger.warning(f"🔥 Extreme over-allocation detected: CPU={cpu_utilization:.1f}%, Memory={memory_utilization:.1f}%")
@@ -171,6 +173,7 @@ class MLEnhancedHPARecommendationEngine:
                 logger.info(f"✅ High utilization efficiency: {high_util_efficiency:.1f}%")
                 return high_util_efficiency
             
+            # CRITICAL FIX: For normal cases, use a proper calculation
             # Use ML-determined optimization potential
             cost_analysis = optimization_analysis.get('cost_analysis', {})
             waste_percentage = cost_analysis.get('waste_percentage', 20.0)
@@ -178,7 +181,7 @@ class MLEnhancedHPARecommendationEngine:
             # Calculate efficiency based on ML analysis
             base_efficiency = max(0, 100.0 - waste_percentage)
             
-            # Apply workload-specific adjustments with better targets
+            # CRITICAL FIX: Apply workload-specific adjustments with better targets
             if workload_type == 'CPU_INTENSIVE':
                 # CPU-intensive workloads: focus more on CPU efficiency
                 cpu_efficiency = self._calculate_resource_efficiency(cpu_utilization, 75.0)
@@ -197,9 +200,18 @@ class MLEnhancedHPARecommendationEngine:
                 # Bursty workloads should show some efficiency potential
                 combined_efficiency = max(15.0, combined_efficiency)
             elif workload_type == 'LOW_UTILIZATION':
-                # Low utilization: efficiency is inherently low but should show optimization potential
-                combined_efficiency = min(40.0, base_efficiency)
-                combined_efficiency = max(10.0, combined_efficiency)  # Minimum efficiency for low util
+                # CRITICAL FIX: Low utilization should show HIGHER efficiency potential, not lower
+                # This is probably where your bug is!
+                cpu_efficiency = self._calculate_resource_efficiency(cpu_utilization, 70.0)
+                memory_efficiency = self._calculate_resource_efficiency(memory_utilization, 75.0)
+                combined_efficiency = (cpu_efficiency * 0.5 + memory_efficiency * 0.5)
+                
+                # LOW_UTILIZATION should have HIGHER efficiency potential because there's more waste
+                # Instead of setting it low, calculate based on how much we can improve
+                underutilization_bonus = max(0, (70 - cpu_utilization) + (75 - memory_utilization)) / 2
+                combined_efficiency = min(40.0, combined_efficiency + underutilization_bonus)
+                
+                logger.info(f"🔧 LOW_UTILIZATION efficiency: base={combined_efficiency:.1f}%, bonus={underutilization_bonus:.1f}%")
             else:  # BALANCED
                 cpu_efficiency = self._calculate_resource_efficiency(cpu_utilization, 70.0)
                 memory_efficiency = self._calculate_resource_efficiency(memory_utilization, 75.0)
@@ -680,14 +692,18 @@ class ConsistentCostAnalyzer:
             # Generate comprehensive ML-driven recommendations
             hpa_recommendations = ml_hpa_engine.generate_hpa_recommendations(metrics_data, cost_data)
 
-            # Calculate comprehensive HPA efficiency percentage
+            # CRITICAL FIX: Calculate comprehensive HPA efficiency percentage
             hpa_efficiency = ml_hpa_engine._calculate_comprehensive_hpa_efficiency(
                 hpa_recommendations.get('workload_characteristics', {}), 
                 metrics_data
             )
             
-            # Include efficiency in recommendations
+            # CRITICAL FIX: Ensure efficiency is properly included
             hpa_recommendations['hpa_efficiency_percentage'] = hpa_efficiency
+            hpa_recommendations['hpa_efficiency'] = hpa_efficiency  # Also add this key
+            
+            # Log the calculated efficiency for debugging
+            logger.info(f"✅ HPA efficiency calculated: {hpa_efficiency:.1f}%")
             
             # Validate the recommendations are consistent
             if not isinstance(hpa_recommendations, dict):
@@ -711,6 +727,7 @@ class ConsistentCostAnalyzer:
         except Exception as e:
             logger.error(f"❌ Failed to generate comprehensive self-learning HPA recommendations: {e}")
             raise ValueError(f"Comprehensive self-learning ML HPA recommendation failed: {str(e)}")
+
 
     def analyze(self, cost_data: Dict, metrics_data: Dict, pod_data: Dict = None) -> Dict:
         """ENHANCED: Main analysis function with comprehensive self-learning HPA recommendations"""
@@ -748,7 +765,7 @@ class ConsistentCostAnalyzer:
             
             # Step 8: CRITICAL - Generate comprehensive self-learning HPA recommendations
             logger.info("🎯 Generating comprehensive self-learning HPA recommendations...")
-            hpa_recommendations = self._generate_hpa_recommendations(actual_costs, metrics_data)
+            hpa_recommendations = self._generate_hpa_recommendations(cost_data, metrics_data)
             logger.info(f"✅ Comprehensive HPA recommendations generated: {hpa_recommendations.get('optimization_recommendation', {}).get('title', 'Unknown')}")
             logger.info(f"✅ Comprehensive HPA efficiency percentage generated: {hpa_recommendations.get('hpa_efficiency_percentage', 0.0):.1f}%")
 
@@ -762,15 +779,35 @@ class ConsistentCostAnalyzer:
             logger.info("✅ Comprehensive HPA recommendations added to analysis results")
 
             # Extract HPA efficiency with proper type conversion
-            hpa_efficiency_raw = hpa_recommendations.get('hpa_efficiency_percentage', 0.0)
+            hpa_efficiency_raw = None
+    
+            # Try multiple sources for HPA efficiency
+            efficiency_sources = [
+                ('hpa_efficiency_percentage', hpa_recommendations.get('hpa_efficiency_percentage')),
+                ('hpa_efficiency', hpa_recommendations.get('hpa_efficiency')),
+                ('workload_characteristics', hpa_recommendations.get('workload_characteristics', {}).get('hpa_efficiency_percentage')),
+                ('optimization_analysis', hpa_recommendations.get('workload_characteristics', {}).get('optimization_analysis', {}).get('efficiency_percentage'))
+            ]
             
-            # Convert numpy types to regular Python float if needed
+            # Ensure it's within reasonable bounds
+            for source_name, efficiency_value in efficiency_sources:
+                if efficiency_value is not None and efficiency_value != 0:
+                    hpa_efficiency_raw = efficiency_value
+                    logger.info(f"✅ Found HPA efficiency from {source_name}: {hpa_efficiency_raw}")
+                    break
+    
+            # Convert to proper float
             try:
-                if hasattr(hpa_efficiency_raw, 'item'):
-                    hpa_efficiency = float(hpa_efficiency_raw.item())
+                if hpa_efficiency_raw is not None:
+                    if hasattr(hpa_efficiency_raw, 'item'):
+                        hpa_efficiency = float(hpa_efficiency_raw.item())
+                    else:
+                        hpa_efficiency = float(hpa_efficiency_raw)
                 else:
-                    hpa_efficiency = float(hpa_efficiency_raw)
-            except (AttributeError, ValueError, TypeError):
+                    logger.warning("⚠️ No HPA efficiency found in any source, using 0.0")
+                    hpa_efficiency = 0.0
+            except (AttributeError, ValueError, TypeError) as e:
+                logger.error(f"❌ Error converting HPA efficiency: {e}")
                 hpa_efficiency = 0.0
             
             # Ensure it's within reasonable bounds
