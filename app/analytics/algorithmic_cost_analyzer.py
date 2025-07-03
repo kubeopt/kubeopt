@@ -313,6 +313,51 @@ class MLEnhancedHPARecommendationEngine:
             logger.info(f"🤖 Comprehensive ML Classification: {workload_type} (confidence: {confidence:.2f})")
             logger.info(f"🎯 Comprehensive ML Recommendation: {primary_action}")
             
+            # ===== NEW: EXTRACT AND PRESERVE HIGH CPU WORKLOAD DATA =====
+            high_cpu_workloads = []
+            max_cpu_utilization = 0
+            avg_cpu_utilization = 0
+            
+            # Extract from metrics_data HPA implementation
+            if metrics_data and 'hpa_implementation' in metrics_data:
+                hpa_data = metrics_data['hpa_implementation']
+                high_cpu_hpas = hpa_data.get('high_cpu_hpas', [])
+                
+                logger.info(f"🔍 EXTRACTING: Found {len(high_cpu_hpas)} high CPU HPAs in metrics_data")
+                
+                for hpa in high_cpu_hpas:
+                    high_cpu_workload = {
+                        'name': hpa.get('name', 'unknown'),
+                        'namespace': hpa.get('namespace', 'unknown'),
+                        'cpu_utilization': float(hpa.get('cpu_utilization', 0)),
+                        'target': float(hpa.get('target_cpu', 80)),
+                        'severity': hpa.get('severity', 'medium')
+                    }
+                    high_cpu_workloads.append(high_cpu_workload)
+                    max_cpu_utilization = max(max_cpu_utilization, high_cpu_workload['cpu_utilization'])
+                    
+                    logger.info(f"🔥 PRESERVED HIGH CPU WORKLOAD: {high_cpu_workload['namespace']}/{high_cpu_workload['name']} = {high_cpu_workload['cpu_utilization']}%")
+            
+            # Also check workload_cpu_analysis if available
+            if metrics_data and 'workload_cpu_analysis' in metrics_data:
+                workload_analysis = metrics_data['workload_cpu_analysis']
+                existing_high_cpu = workload_analysis.get('high_cpu_workloads', [])
+                
+                for workload in existing_high_cpu:
+                    if not any(w['name'] == workload.get('name') and w['namespace'] == workload.get('namespace') for w in high_cpu_workloads):
+                        high_cpu_workloads.append({
+                            'name': workload.get('name', 'unknown'),
+                            'namespace': workload.get('namespace', 'unknown'),
+                            'cpu_utilization': float(workload.get('cpu_utilization', 0)),
+                            'target': 80.0,
+                            'severity': workload.get('severity', 'medium')
+                        })
+            
+            # Calculate averages
+            if high_cpu_workloads:
+                avg_cpu_utilization = sum([w['cpu_utilization'] for w in high_cpu_workloads]) / len(high_cpu_workloads)
+                logger.info(f"✅ HIGH CPU SUMMARY: {len(high_cpu_workloads)} workloads, max: {max_cpu_utilization:.1f}%, avg: {avg_cpu_utilization:.1f}%")
+            
             # Get current utilization for chart calculations
             nodes = metrics_data.get('nodes', [])
             if nodes:
@@ -349,7 +394,12 @@ class MLEnhancedHPARecommendationEngine:
                     'workload_characteristics': workload_characteristics,
                     'workload_type': workload_type,
                     'confidence': confidence,
-                    'primary_action': primary_action
+                    'primary_action': primary_action,
+                    # ===== CRITICAL: ADD HIGH CPU WORKLOAD DATA HERE =====
+                    'high_cpu_workloads': high_cpu_workloads,
+                    'max_cpu_utilization': max_cpu_utilization,
+                    'average_cpu_utilization': avg_cpu_utilization,
+                    'high_cpu_count': len(high_cpu_workloads)
                 },
                 'ml_enhanced': True,
                 'comprehensive_self_learning': True,

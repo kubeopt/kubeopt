@@ -37,7 +37,7 @@ analysis_results = {}
 analysis_cache = {
     'clusters': {},  # {cluster_id: {'data': {}, 'timestamp': str, 'ttl_hours': int, 'subscription_id': str}}
     'subscriptions': {},  # {subscription_id: {'clusters': [], 'last_updated': str}}
-    'global_ttl_hours': 0.25,
+    'global_ttl_hours': 0.10,
     'subscription_isolation_enabled': True
 }
 
