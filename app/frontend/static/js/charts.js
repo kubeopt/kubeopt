@@ -1,8 +1,8 @@
 /**
  * ============================================================================
- * AKS COST INTELLIGENCE - CHART MANAGEMENT
+ * ENHANCED AKS COST INTELLIGENCE - COMPLETE CHART MANAGEMENT WITH CPU WORKLOAD ANALYSIS
  * ============================================================================
- * Chart initialization, data handling, and visualization management
+ * Comprehensive chart initialization, data handling, and CPU workload visualization management
  * ============================================================================
  */
 
@@ -10,14 +10,14 @@ import { AppState, AppConfig } from './config.js';
 import { showNotification } from './notifications.js';
 import { getChartColors, formatValue, calculateOptimizationScore, getAccuracyBadgeClass } from './utils.js';
 
-
-// Global cluster state with validation
+// Enhanced global cluster state with CPU metrics
 window.currentClusterState = {
     clusterId: null,
     clusterName: null,
     resourceGroup: null,
     lastUpdated: null,
-    validated: false
+    validated: false,
+    cpuMetrics: null
 };
 
 /**
@@ -80,7 +80,7 @@ export function validateClusterContext(actionName) {
 }
 
 /**
- * CRITICAL: Make cluster-aware API calls
+ * ENHANCED: Make cluster-aware API calls with CPU data handling
  */
 export function makeClusterAwareAPICall(endpoint, options = {}) {
     const clusterId = getCurrentClusterId();
@@ -113,10 +113,10 @@ export function makeClusterAwareAPICall(endpoint, options = {}) {
 }
 
 /**
- * FIXED: Initializes all dashboard charts with cluster isolation + insights
+ * ENHANCED: Initialize charts with comprehensive CPU data handling and cluster isolation
  */
 export function initializeCharts() {
-    console.log('📊 Initializing charts with cluster isolation...');
+    console.log('📊 Initializing enhanced charts with CPU workload analysis and cluster isolation...');
     
     if (!validateClusterContext('initializeCharts')) {
         console.error('❌ BLOCKED: initializeCharts - invalid cluster context');
@@ -125,14 +125,13 @@ export function initializeCharts() {
     
     makeClusterAwareAPICall('/api/chart-data')
         .then(response => {
-            console.log('📡 Cluster-isolated chart data response status:', response.status);
+            console.log('📡 Enhanced chart data response status:', response.status);
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             return response.json();
         })
         .then(data => {
-            console.log('📈 Cluster-isolated chart data received:', data);
+            console.log('📈 Enhanced chart data received with CPU analysis:', data);
             
-            // Validate the response
             if (data.status !== 'success') {
                 throw new Error(data.message || 'Invalid API response');
             }
@@ -141,43 +140,35 @@ export function initializeCharts() {
                 throw new Error('No metrics data in response');
             }
             
-            // Log the actual values we're working with
-            console.log('💰 Cost:', data.metrics.total_cost);
-            console.log('💵 Savings:', data.metrics.total_savings);
+            // Enhanced metrics update with CPU data
+            updateDashboardMetricsWithCPU(data.metrics, data.cpuWorkloadMetrics);
             
-            // Update metrics FIRST
-            updateDashboardMetrics(data.metrics);
+            // Create all charts with CPU awareness
+            createAllChartsWithCPU(data);
             
-            // Then create charts
-            createAllCharts(data);
-            
-            // FIXED: Update insights using the same data (NO DUPLICATE API CALL)
+            // Update insights with CPU considerations
             if (typeof window.updateRealDynamicInsights === 'function') {
-                console.log('📊 Updating insights with chart data...');
+                console.log('📊 Updating insights with CPU-aware chart data...');
                 window.updateRealDynamicInsights(data);
             }
             
-            // Clear loading states after successful chart creation
+            // Clear loading states and show CPU metrics
             setTimeout(() => {
                 clearLoadingStates();
-                //updateDataSourceIndicator(data.metadata || {});
+                displayCPUWorkloadStatus(data.cpuWorkloadMetrics);
                 
-                // Create insight notifications if available
                 if (typeof window.createInsightNotification === 'function') {
                     const insights = window.generateRealDynamicInsights ? window.generateRealDynamicInsights(data) : {};
                     window.createInsightNotification(insights);
                 }
             }, 1000);
             
-            console.log('✅ Cluster-isolated charts AND insights initialized successfully');
+            console.log('✅ Enhanced charts with CPU workload analysis initialized successfully');
         })
         .catch(error => {
-            console.error('❌ Cluster-isolated chart initialization failed:', error);
-            showChartError('Unable to load data for current cluster: ' + error.message);
-            
-            // Don't fall back to sample data - show the error
-            const errorMessage = `Failed to load analysis data for current cluster: ${error.message}. Please run analysis first.`;
-            showNotification(errorMessage, 'error');
+            console.error('❌ Enhanced chart initialization failed:', error);
+            showChartError('Unable to load analysis data for current cluster: ' + error.message);
+            showNotification('Analysis Required', 'Please run analysis first to view data.', 'warning');
         });
 }
 
@@ -203,30 +194,801 @@ export function refreshChartsSmooth() {
             body: JSON.stringify({ cluster_id: clusterId })
         }).then(() => {
             console.log(`🧹 Cleared cache for cluster: ${clusterId}`);
-            
-            // Now refresh charts
             initializeCharts();
         }).catch(error => {
             console.error('Cache clear error:', error);
-            // Still try to refresh charts
             initializeCharts();
         });
     }
 }
 
-// Make cluster isolation functions globally available
-if (typeof window !== 'undefined') {
-    window.getCurrentClusterId = getCurrentClusterId;
-    window.validateClusterContext = validateClusterContext;
-    window.makeClusterAwareAPICall = makeClusterAwareAPICall;
-    window.refreshChartsSmooth = refreshChartsSmooth;
+/**
+ * ENHANCED: Update dashboard metrics including CPU workload data
+ */
+export function updateDashboardMetricsWithCPU(metrics, cpuWorkloadMetrics) {
+    console.log('📊 Updating metrics with CPU workload data:', { metrics, cpuWorkloadMetrics });
+    
+    // Standard metrics update
+    updateDashboardMetrics(metrics);
+    
+    // Enhanced CPU metrics update
+    if (cpuWorkloadMetrics) {
+        updateCPUMetrics(cpuWorkloadMetrics);
+        
+        // Store CPU metrics globally for other components
+        window.currentClusterState.cpuMetrics = cpuWorkloadMetrics;
+    }
 }
 
 /**
- * Updates dashboard metrics with animation
+ * ENHANCED: Update CPU metrics in dashboard
+ */
+function updateCPUMetrics(cpuMetrics) {
+    console.log('🔧 Updating CPU metrics:', cpuMetrics);
+    
+    // Update average CPU utilization
+    updateMetricElement('#average-cpu-utilization', cpuMetrics.average_cpu_utilization, 'percentage');
+    updateMetricElement('.avg-cpu-value', cpuMetrics.average_cpu_utilization, 'percentage');
+    
+    // Update max CPU utilization with severity styling
+    const maxCpuValue = cpuMetrics.max_cpu_utilization || 0;
+    updateMetricElement('#max-cpu-utilization', maxCpuValue, 'percentage');
+    updateMetricElement('.max-cpu-value', maxCpuValue, 'percentage');
+    
+    // Add severity styling for max CPU
+    const maxCpuElements = document.querySelectorAll('#max-cpu-utilization, .max-cpu-value');
+    maxCpuElements.forEach(element => {
+        if (element) {
+            element.className = 'metric-value';
+            if (maxCpuValue > 500) {
+                element.classList.add('text-danger');
+                element.style.fontWeight = 'bold';
+            } else if (maxCpuValue > 200) {
+                element.classList.add('text-warning');
+            } else if (maxCpuValue > 100) {
+                element.classList.add('text-info');
+            }
+        }
+    });
+    
+    // Update high CPU workloads count
+    const highCpuCount = cpuMetrics.high_cpu_count || 0;
+    updateMetricElement('#high-cpu-workloads-count', highCpuCount, 'number');
+    updateMetricElement('.high-cpu-count', highCpuCount, 'number');
+    
+    // Add alert styling if there are high CPU workloads
+    const highCpuElements = document.querySelectorAll('#high-cpu-workloads-count, .high-cpu-count');
+    highCpuElements.forEach(element => {
+        if (element && highCpuCount > 0) {
+            element.className = 'metric-value text-danger';
+            element.style.fontWeight = 'bold';
+        }
+    });
+    
+    console.log('✅ CPU metrics updated in dashboard');
+}
+
+/**
+ * ENHANCED: Display CPU workload status throughout the UI
+ */
+function displayCPUWorkloadStatus(cpuMetrics) {
+    console.log('🔧 Displaying CPU workload status:', cpuMetrics);
+    
+    if (!cpuMetrics) {
+        console.warn('⚠️ No CPU metrics available for display');
+        return;
+    }
+    
+    // Show/hide high CPU alert sections
+    if (cpuMetrics.has_high_cpu_workloads) {
+        showHighCPUAlerts(cpuMetrics);
+    } else {
+        hideHighCPUAlerts();
+    }
+    
+    // Update CPU status in action panel
+    updateActionPanelCPUStatus(cpuMetrics);
+    
+    // Update HPA section with CPU considerations
+    updateHPASectionCPUWarnings(cpuMetrics);
+    
+    // Display CPU metrics in dedicated sections
+    createCPUMetricsDisplay(cpuMetrics);
+}
+
+/**
+ * ENHANCED: Show high CPU alerts throughout the UI
+ */
+function showHighCPUAlerts(cpuMetrics) {
+    console.log('🚨 Showing high CPU alerts:', cpuMetrics);
+    
+    // Show high CPU alert section
+    const alertSection = document.getElementById('high-cpu-alert-section');
+    if (alertSection) {
+        alertSection.style.display = 'block';
+        alertSection.style.animation = 'fadeInUp 0.5s ease-out';
+        
+        // Update count badge
+        const countBadge = document.getElementById('high-cpu-count-badge');
+        if (countBadge) {
+            countBadge.textContent = cpuMetrics.high_cpu_count;
+        }
+    }
+    
+    // Show CPU alert badge in HPA section
+    const cpuAlertBadge = document.getElementById('cpu-alert-badge');
+    if (cpuAlertBadge) {
+        cpuAlertBadge.style.display = 'inline-block';
+        cpuAlertBadge.innerHTML = `<i class="fas fa-exclamation-triangle me-1"></i>${cpuMetrics.high_cpu_count} CPU Issue${cpuMetrics.high_cpu_count > 1 ? 's' : ''}`;
+    }
+    
+    // Show CPU workload warning in HPA insight box
+    const cpuWarning = document.getElementById('cpu-workload-warning');
+    if (cpuWarning) {
+        cpuWarning.style.display = 'block';
+    }
+    
+    // Create floating alert notification
+    createFloatingCPUAlert(cpuMetrics);
+}
+
+/**
+ * ENHANCED: Hide high CPU alerts when not needed
+ */
+function hideHighCPUAlerts() {
+    const alertSection = document.getElementById('high-cpu-alert-section');
+    if (alertSection) {
+        alertSection.style.display = 'none';
+    }
+    
+    const cpuAlertBadge = document.getElementById('cpu-alert-badge');
+    if (cpuAlertBadge) {
+        cpuAlertBadge.style.display = 'none';
+    }
+    
+    const cpuWarning = document.getElementById('cpu-workload-warning');
+    if (cpuWarning) {
+        cpuWarning.style.display = 'none';
+    }
+}
+
+/**
+ * ENHANCED: Create floating CPU alert notification
+ */
+function createFloatingCPUAlert(cpuMetrics) {
+    // Remove any existing alerts
+    const existingAlert = document.querySelector('.floating-cpu-alert');
+    if (existingAlert) {
+        existingAlert.remove();
+    }
+    
+    const alertContainer = document.createElement('div');
+    alertContainer.className = 'floating-cpu-alert';
+    alertContainer.style.cssText = `
+        position: fixed;
+        top: 100px;
+        right: 20px;
+        z-index: 1000;
+        max-width: 400px;
+    `;
+
+    const severityClass = getSeverityAlertClass(cpuMetrics.severity_level);
+    const severityIcon = getSeverityIcon(cpuMetrics.severity_level);
+
+    alertContainer.innerHTML = `
+        <div class="alert ${severityClass} alert-dismissible fade show border-0 shadow-lg" role="alert">
+            <div class="d-flex align-items-start">
+                <div class="me-3">
+                    <i class="${severityIcon} fa-2x"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="alert-heading mb-2">High CPU Workloads Detected</h6>
+                    <p class="mb-2">
+                        <strong>${cpuMetrics.high_cpu_count}</strong> workload${cpuMetrics.high_cpu_count > 1 ? 's are' : ' is'} 
+                        running with excessive CPU utilization up to <strong>${cpuMetrics.max_cpu_utilization.toFixed(0)}%</strong>.
+                    </p>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-dark" onclick="scrollToCPUSection()">
+                            View Details
+                        </button>
+                        <button class="btn btn-sm btn-dark" onclick="generateCPUOptimizationPlan()">
+                            Fix Now
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+
+    document.body.appendChild(alertContainer);
+
+    // Auto-remove after 10 seconds
+    setTimeout(() => {
+        if (alertContainer.parentNode) {
+            alertContainer.parentNode.removeChild(alertContainer);
+        }
+    }, 10000);
+}
+
+/**
+ * ENHANCED: Create dedicated CPU metrics display
+ */
+function createCPUMetricsDisplay(cpuMetrics) {
+    console.log('📊 Creating CPU metrics display');
+    
+    // Find or create CPU metrics container
+    let cpuContainer = document.getElementById('cpu-metrics-container');
+    if (!cpuContainer) {
+        cpuContainer = document.createElement('div');
+        cpuContainer.id = 'cpu-metrics-container';
+        cpuContainer.className = 'col-12 mb-4';
+        
+        // Insert after metrics row
+        const metricsRow = document.getElementById('metrics-row');
+        if (metricsRow && metricsRow.parentNode) {
+            metricsRow.parentNode.insertBefore(cpuContainer, metricsRow.nextSibling);
+        }
+    }
+    
+    const hasHighCPU = cpuMetrics.has_high_cpu_workloads;
+    const severityClass = hasHighCPU ? getSeverityCSSClass(cpuMetrics.severity_level) : 'border-success';
+    const statusIcon = hasHighCPU ? 'fas fa-exclamation-triangle' : 'fas fa-check-circle';
+    const statusText = hasHighCPU ? 'Issues Detected' : 'Normal Operation';
+    
+    cpuContainer.innerHTML = `
+        <div class="card border-0 shadow-sm ${severityClass}">
+            <div class="card-header ${hasHighCPU ? 'bg-gradient-warning' : 'bg-gradient-success'} text-dark">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="${statusIcon} me-2"></i>
+                        CPU Workload Analysis - ${statusText}
+                    </h6>
+                    <div class="cpu-metrics-badges">
+                        <span class="badge ${hasHighCPU ? 'bg-danger' : 'bg-success'}">
+                            ${cpuMetrics.high_cpu_count} High CPU Workload${cpuMetrics.high_cpu_count !== 1 ? 's' : ''}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="cpu-metric-item text-center">
+                            <div class="metric-value ${cpuMetrics.average_cpu_utilization > 70 ? 'text-warning' : 'text-success'}" 
+                                 id="cpu-avg-display">
+                                ${cpuMetrics.average_cpu_utilization.toFixed(1)}%
+                            </div>
+                            <div class="metric-label">Average CPU</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="cpu-metric-item text-center">
+                            <div class="metric-value ${cpuMetrics.max_cpu_utilization > 200 ? 'text-danger' : cpuMetrics.max_cpu_utilization > 100 ? 'text-warning' : 'text-success'}" 
+                                 id="cpu-max-display">
+                                ${cpuMetrics.max_cpu_utilization.toFixed(1)}%
+                            </div>
+                            <div class="metric-label">Max CPU</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="cpu-metric-item text-center">
+                            <div class="metric-value ${hasHighCPU ? 'text-danger' : 'text-success'}" 
+                                 id="cpu-workloads-display">
+                                ${cpuMetrics.high_cpu_count}
+                            </div>
+                            <div class="metric-label">High CPU Workloads</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="cpu-metric-item text-center">
+                            <div class="metric-value text-info" id="cpu-status-display">
+                                ${cpuMetrics.severity_level.toUpperCase()}
+                            </div>
+                            <div class="metric-label">Status Level</div>
+                        </div>
+                    </div>
+                </div>
+                
+                ${hasHighCPU ? `
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="alert alert-warning border-0 mb-0">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong><i class="fas fa-lightbulb me-2"></i>Recommendation:</strong>
+                                    High CPU workloads should be optimized at the application level before implementing HPA scaling.
+                                </div>
+                                <div class="cpu-action-buttons">
+                                    <button class="btn btn-sm btn-warning me-2" onclick="generateCPUOptimizationPlan()">
+                                        <i class="fas fa-cog me-1"></i>Optimize
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="exportCPUReport()">
+                                        <i class="fas fa-download me-1"></i>Report
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                ` : `
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="alert alert-success border-0 mb-0">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>CPU Usage Optimal:</strong> All workloads are operating within normal CPU usage ranges.
+                        </div>
+                    </div>
+                </div>
+                `}
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * ENHANCED: Update action panel with CPU status
+ */
+function updateActionPanelCPUStatus(cpuMetrics) {
+    const cpuWarning = document.getElementById('cpu-action-warning');
+    const cpuOptimizeBtn = document.getElementById('cpuOptimizeBtn');
+    const deployBtn = document.getElementById('deployBtn');
+    
+    if (cpuMetrics.has_high_cpu_workloads) {
+        if (cpuWarning) {
+            cpuWarning.classList.remove('d-none');
+            cpuWarning.innerHTML = `
+                <br><i class="fas fa-exclamation-triangle me-1"></i>
+                <strong>High CPU Alert:</strong> ${cpuMetrics.high_cpu_count} workload(s) with CPU up to ${cpuMetrics.max_cpu_utilization.toFixed(0)}% - optimize applications first.
+            `;
+        }
+        if (cpuOptimizeBtn) {
+            cpuOptimizeBtn.style.display = 'inline-block';
+        }
+        if (deployBtn) {
+            deployBtn.disabled = true;
+            deployBtn.title = 'Optimize high CPU workloads first';
+        }
+    } else {
+        if (cpuWarning) {
+            cpuWarning.classList.add('d-none');
+        }
+        if (cpuOptimizeBtn) {
+            cpuOptimizeBtn.style.display = 'none';
+        }
+        if (deployBtn) {
+            deployBtn.disabled = false;
+            deployBtn.title = '';
+        }
+    }
+}
+
+/**
+ * ENHANCED: Update HPA section with CPU warnings
+ */
+function updateHPASectionCPUWarnings(cpuMetrics) {
+    const hpaInsightBox = document.getElementById('hpa-insight-box');
+    if (!hpaInsightBox) return;
+    
+    // Find or create CPU warning element
+    let cpuWarningElement = hpaInsightBox.querySelector('.cpu-workload-warning');
+    if (!cpuWarningElement) {
+        cpuWarningElement = document.createElement('div');
+        cpuWarningElement.className = 'cpu-workload-warning mt-2';
+        cpuWarningElement.id = 'cpu-workload-warning';
+        hpaInsightBox.appendChild(cpuWarningElement);
+    }
+    
+    if (cpuMetrics.has_high_cpu_workloads) {
+        cpuWarningElement.style.display = 'block';
+        cpuWarningElement.innerHTML = `
+            <div class="alert alert-warning border-0 mb-0">
+                <small>
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    <strong>High CPU Alert:</strong> ${cpuMetrics.high_cpu_count} workload(s) detected with excessive CPU usage (up to ${cpuMetrics.max_cpu_utilization.toFixed(0)}%). Optimize applications before implementing HPA.
+                </small>
+            </div>
+        `;
+    } else {
+        cpuWarningElement.style.display = 'none';
+    }
+}
+
+/**
+ * ENHANCED: Create all charts with CPU awareness and improved layout
+ */
+export function createAllChartsWithCPU(data) {
+    console.log('🎨 Creating all charts with enhanced CPU analysis and improved layout...');
+    
+    try {
+        destroyAllCharts();
+        
+        const metadata = data.metadata || {};
+        const isRealData = metadata.is_real_data === true || 
+                          metadata.force_real_data === true ||
+                          parseFloat(metadata.total_cost_verification?.replace(/[^0-9.]/g, '') || '0') > 100;
+
+        // Create charts with improved sizing and layout
+        if (data.costBreakdown?.values?.length) {
+            createCostBreakdownChart(data.costBreakdown, isRealData);
+        }
+        
+        if (data.hpaComparison) {
+            createEnhancedHPAComparisonChart(data.hpaComparison, isRealData);
+        }
+        
+        if (data.nodeUtilization) {
+            createEnhancedNodeUtilizationChart(data.nodeUtilization, isRealData);
+        }
+        
+        if (data.savingsBreakdown) {
+            createSavingsBreakdownChart(data.savingsBreakdown, isRealData);
+        }
+        
+        if (data.trendData?.labels && data.trendData?.datasets) {
+            createMainTrendChart(data.trendData, isRealData);
+        }
+        
+        // Enhanced pod cost charts
+        if (data.podCostBreakdown?.labels?.length) {
+            createNamespaceCostChart(data.podCostBreakdown);
+            const podSection = document.getElementById('pod-cost-section');
+            if (podSection) podSection.style.display = 'block';
+        }
+        
+        if (data.workloadCosts?.workloads?.length > 0) {
+            createWorkloadCostChart(data.workloadCosts);
+        }
+        
+        // Update insights with CPU considerations
+        if (data.insights) {
+            updateInsightsWithCPU(data.insights);
+        }
+        
+        // Update pod cost metrics if available
+        if (data.namespaceDistribution || data.workloadCosts || data.podCostBreakdown) {
+            updatePodCostMetrics(data);
+        }
+        
+        console.log('✅ All charts created with enhanced CPU analysis and improved layout');
+        
+    } catch (error) {
+        console.error('❌ Error building enhanced charts:', error);
+        showChartError('Failed to render charts: ' + error.message);
+    }
+}
+
+/**
+ * ENHANCED: Create HPA comparison chart with better CPU integration
+ */
+export function createEnhancedHPAComparisonChart(data, isRealData) {
+    const canvas = document.getElementById('hpaComparisonChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const colors = getChartColors();
+
+    console.log('🤖 Creating enhanced HPA chart with comprehensive CPU data:', data);
+
+    // Enhanced chart configuration with better responsiveness
+    const config = {
+        type: 'bar',
+        data: {
+            labels: data.timePoints || [],
+            datasets: [
+                {
+                    label: 'CPU-based HPA',
+                    data: data.cpuReplicas || [],
+                    backgroundColor: 'rgba(231, 76, 60, 0.7)',
+                    borderColor: '#e74c3c',
+                    borderWidth: 2
+                },
+                {
+                    label: 'Memory-based HPA',
+                    data: data.memoryReplicas || [],
+                    backgroundColor: 'rgba(46, 204, 113, 0.7)',
+                    borderColor: '#2ecc71',
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { 
+                    labels: { color: colors.textColor },
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(context) {
+                            const tooltipLines = [];
+                            
+                            // Add ML data to tooltips
+                            if (data.ml_workload_type) {
+                                tooltipLines.push(`ML Classification: ${data.ml_workload_type}`);
+                            }
+                            if (data.ml_confidence) {
+                                tooltipLines.push(`ML Confidence: ${(data.ml_confidence * 100).toFixed(0)}%`);
+                            }
+                            if (data.actual_hpa_savings) {
+                                tooltipLines.push(`Potential Savings: $${data.actual_hpa_savings.toFixed(2)}/month`);
+                            }
+                            if (data.actual_hpa_efficiency) {
+                                tooltipLines.push(`Current Efficiency: ${data.actual_hpa_efficiency.toFixed(1)}%`);
+                            }
+                            
+                            // Enhanced CPU workload information in tooltips
+                            if (data.cpu_workload_metrics) {
+                                const cpuMetrics = data.cpu_workload_metrics;
+                                tooltipLines.push(`Average CPU: ${cpuMetrics.average_cpu_utilization.toFixed(1)}%`);
+                                tooltipLines.push(`Max CPU: ${cpuMetrics.max_cpu_utilization.toFixed(1)}%`);
+                                
+                                if (cpuMetrics.has_high_cpu_workloads) {
+                                    tooltipLines.push(`⚠️ ${cpuMetrics.high_cpu_count} high CPU workload(s) - optimize before scaling`);
+                                }
+                            }
+                            
+                            return tooltipLines;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: colors.textColor },
+                    grid: { color: colors.gridColor }
+                },
+                y: {
+                    ticks: { color: colors.textColor },
+                    grid: { color: colors.gridColor },
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Replica Count',
+                        color: colors.textColor
+                    }
+                }
+            }
+        }
+    };
+
+    AppState.chartInstances['hpaComparisonChart'] = new Chart(ctx, config);
+    
+    // Update ML workload badge with enhanced CPU info
+    updateMLWorkloadBadgeWithCPU(data);
+    
+    // Update HPA recommendation text with CPU considerations
+    updateHPARecommendationTextWithCPU(data);
+    
+    console.log('✅ Enhanced HPA chart created with comprehensive CPU integration');
+}
+
+/**
+ * ENHANCED: Update ML workload badge with CPU information
+ */
+function updateMLWorkloadBadgeWithCPU(data) {
+    const badge = document.getElementById('ml-workload-badge');
+    if (!badge) return;
+
+    let badgeText = 'Analyzing...';
+    let badgeClass = 'ml-workload-badge';
+
+    if (data.ml_workload_type) {
+        badgeText = data.ml_workload_type;
+        
+        // Enhanced CPU alert integration
+        if (data.cpu_workload_metrics?.has_high_cpu_workloads) {
+            const cpuCount = data.cpu_workload_metrics.high_cpu_count;
+            const maxCpu = data.cpu_workload_metrics.max_cpu_utilization;
+            
+            badgeText += ` + CPU ALERT (${cpuCount} workload${cpuCount > 1 ? 's' : ''}, max: ${maxCpu.toFixed(0)}%)`;
+            badgeClass += ' cpu-alert';
+            badge.style.backgroundColor = '#dc3545';
+            badge.style.color = 'white';
+            badge.style.fontWeight = 'bold';
+            badge.style.animation = 'pulse-alert 2s infinite';
+        } else {
+            // Show average CPU for normal cases
+            const avgCpu = data.cpu_workload_metrics?.average_cpu_utilization || 0;
+            if (avgCpu > 0) {
+                badgeText += ` (Avg CPU: ${avgCpu.toFixed(1)}%)`;
+            }
+        }
+    }
+
+    badge.textContent = badgeText;
+    badge.className = badgeClass;
+    badge.style.display = 'block';
+}
+
+/**
+ * ENHANCED: Update HPA recommendation with comprehensive CPU considerations
+ */
+function updateHPARecommendationTextWithCPU(data) {
+    // Update optimization potential section
+    const optimizationSection = document.querySelector('.optimization-potential');
+    if (optimizationSection && data.recommendation_text) {
+        const existingText = optimizationSection.querySelector('p');
+        if (existingText) {
+            existingText.innerHTML = data.recommendation_text;
+        } else {
+            optimizationSection.innerHTML += `<p class="ml-recommendation">${data.recommendation_text}</p>`;
+        }
+    }
+    
+    // Update HPA insight elements with CPU-aware content
+    const hpaInsightElements = document.querySelectorAll('#hpa-insight, .hpa-insight');
+    hpaInsightElements.forEach(element => {
+        if (data.recommendation_text) {
+            element.innerHTML = data.recommendation_text;
+            element.classList.add('ml-enhanced');
+            
+            // Add CPU warning class if high CPU detected
+            if (data.cpu_workload_metrics?.has_high_cpu_workloads) {
+                element.classList.add('has-cpu-warning');
+            }
+        }
+    });
+    
+    // Update savings display with real ML data
+    if (data.actual_hpa_savings) {
+        const savingsElements = document.querySelectorAll('#hpa-savings, .hpa-savings-amount');
+        savingsElements.forEach(element => {
+            element.textContent = `$${data.actual_hpa_savings.toFixed(2)}`;
+            element.classList.add('real-ml-data');
+        });
+    }
+    
+    console.log('✅ Updated HPA recommendation text with comprehensive CPU data');
+}
+
+/**
+ * ENHANCED: Create node utilization chart with better layout and CPU awareness
+ */
+export function createEnhancedNodeUtilizationChart(data, isRealData) {
+    const canvas = document.getElementById('nodeUtilizationChart');
+    if (!canvas) {
+        console.warn('⚠️ Node utilization chart canvas not found');
+        return;
+    }
+
+    console.log('🔧 Creating enhanced node utilization chart:', data);
+
+    const ctx = canvas.getContext('2d');
+    const colors = getChartColors();
+    
+    // Enhanced data validation and processing
+    const nodes = data.nodes || [];
+    const cpuRequest = data.cpuRequest || [];
+    const cpuActual = data.cpuActual || [];
+    const memoryRequest = data.memoryRequest || [];
+    const memoryActual = data.memoryActual || [];
+    
+    if (nodes.length === 0) {
+        canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No node utilization data available</div>';
+        return;
+    }
+    
+    // Process data arrays
+    let finalNodes = nodes;
+    let finalCpuRequest = cpuRequest;
+    let finalCpuActual = cpuActual;
+    let finalMemoryRequest = memoryRequest;
+    let finalMemoryActual = memoryActual;
+    
+    // Extract data from object format if needed
+    if (cpuRequest.length === 0 && typeof nodes[0] === 'object') {
+        finalNodes = nodes.map(node => node.name || node.node_name || 'Unknown');
+        finalCpuRequest = nodes.map(node => parseFloat(node.cpu_request_pct || node.cpu_request || 0));
+        finalCpuActual = nodes.map(node => parseFloat(node.cpu_usage_pct || node.cpu_actual || 0));
+        finalMemoryRequest = nodes.map(node => parseFloat(node.memory_request_pct || node.memory_request || 0));
+        finalMemoryActual = nodes.map(node => parseFloat(node.memory_usage_pct || node.memory_actual || 0));
+    }
+    
+    // Enhanced chart configuration with better responsiveness
+    const config = {
+        type: 'bar',
+        data: {
+            labels: finalNodes,
+            datasets: [
+                {
+                    label: 'CPU Request %',
+                    data: finalCpuRequest,
+                    backgroundColor: 'rgba(52, 152, 219, 0.3)',
+                    borderColor: '#3498db',
+                    borderWidth: 2,
+                    order: 2
+                },
+                {
+                    label: 'CPU Actual %',
+                    data: finalCpuActual,
+                    backgroundColor: 'rgba(231, 76, 60, 0.7)',
+                    borderColor: '#e74c3c',
+                    borderWidth: 2,
+                    order: 1
+                },
+                {
+                    label: 'Memory Request %',
+                    data: finalMemoryRequest,
+                    backgroundColor: 'rgba(155, 89, 182, 0.3)',
+                    borderColor: '#9b59b6',
+                    borderWidth: 2,
+                    order: 4
+                },
+                {
+                    label: 'Memory Actual %',
+                    data: finalMemoryActual,
+                    backgroundColor: 'rgba(46, 204, 113, 0.7)',
+                    borderColor: '#2ecc71',
+                    borderWidth: 2,
+                    order: 3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { 
+                    labels: { color: colors.textColor },
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { 
+                        color: colors.textColor,
+                        maxRotation: 45
+                    },
+                    grid: { color: colors.gridColor }
+                },
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        color: colors.textColor,
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    grid: { color: colors.gridColor },
+                    title: {
+                        display: true,
+                        text: 'Utilization %',
+                        color: colors.textColor
+                    }
+                }
+            },
+            animation: {
+                duration: 1000,
+                easing: 'easeInOutQuart'
+            }
+        }
+    };
+
+    // Destroy existing chart if it exists
+    if (AppState.chartInstances['nodeUtilizationChart']) {
+        AppState.chartInstances['nodeUtilizationChart'].destroy();
+    }
+
+    AppState.chartInstances['nodeUtilizationChart'] = new Chart(ctx, config);
+    console.log('✅ Enhanced node utilization chart created successfully');
+}
+
+/**
+ * Updates dashboard metrics with animation and comprehensive element targeting
  */
 export function updateDashboardMetrics(metrics) {
-    console.log('📊 Updating metrics with comprehensive element targeting:', metrics);
+    console.log('📊 Updating comprehensive dashboard metrics:', metrics);
     
     // Validate metrics object
     if (!metrics || typeof metrics !== 'object') {
@@ -394,6 +1156,32 @@ function animateMetricUpdate(metric, delay) {
 }
 
 /**
+ * Utility function to update metric elements
+ */
+function updateMetricElement(selector, value, format) {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach(element => {
+        if (element) {
+            let displayValue;
+            switch (format) {
+                case 'currency':
+                    displayValue = '$' + (value || 0).toLocaleString();
+                    break;
+                case 'percentage':
+                    displayValue = (value || 0).toFixed(1) + '%';
+                    break;
+                case 'number':
+                    displayValue = (value || 0).toString();
+                    break;
+                default:
+                    displayValue = value || '--';
+            }
+            element.textContent = displayValue;
+        }
+    });
+}
+
+/**
  * Updates cost trend indicator
  */
 function updateCostTrend(metrics) {
@@ -410,96 +1198,120 @@ function updateCostTrend(metrics) {
 }
 
 /**
- * Updates data source indicator
+ * Updates insights section with CPU integration
  */
-// export function updateDataSourceIndicator(metadata) {
-//     const isRealData = !metadata.is_sample_data;
-//     let indicator = document.querySelector('#data-source-indicator');
+function updateInsightsWithCPU(insights) {
+    const container = document.querySelector('#insights-container');
+    if (!container) return;
     
-//     if (!indicator) {
-//         indicator = document.createElement('div');
-//         indicator.id = 'data-source-indicator';
-//         indicator.className = 'data-source-indicator';
-//         document.body.appendChild(indicator);
-//     }
+    let insightElements = [];
     
-//     // Better positioning to avoid overlap
-//     indicator.style.cssText = `
-//         position: fixed;
-//         top: 140px;
-//         right: 20px;
-//         z-index: 999;
-//         max-width: 200px;
-//     `;
+    // Process all insights including CPU-specific ones
+    Object.entries(insights).forEach(([key, value]) => {
+        const title = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        
+        // Special handling for CPU workload status
+        if (key === 'cpu_workload_status') {
+            insightElements.unshift(`
+                <div class="insight-item mb-3 cpu-workload-insight priority-insight">
+                    <div class="alert alert-info border-0">
+                        <h6 class="alert-heading">
+                            <i class="fas fa-microchip me-2"></i>
+                            CPU Workload Analysis
+                        </h6>
+                        <p class="mb-0">${value}</p>
+                    </div>
+                </div>
+            `);
+        } else {
+            insightElements.push(`
+                <div class="insight-item mb-3">
+                    <h6>${title}</h6>
+                    <p>${value}</p>
+                </div>
+            `);
+        }
+    });
     
-//     indicator.innerHTML = `
-//         <div class="data-source-badge ${isRealData ? 'real-data' : 'sample-data'}">
-//             <i class="fas fa-${isRealData ? 'cloud' : 'flask'}"></i>
-//             <span>${isRealData ? 'Live Azure Data' : 'Demo Mode'}</span>
-//             <small>${metadata.data_source || ''}</small>
-//         </div>
-//     `;
-// }
+    container.innerHTML = insightElements.join('');
+    console.log('✅ Insights updated with CPU workload considerations');
+}
 
 /**
- * Creates all charts from provided data
+ * Updates pod cost metrics in the dashboard
  */
-export function createAllCharts(data) {
-    console.log('🎨 Creating all charts...');
+function updatePodCostMetrics(data) {
+    console.log('📊 Updating pod cost metrics with data:', data);
     
-    try {
-        destroyAllCharts();
-        
-        const metadata = data.metadata || {};
-        const isRealData = metadata.is_real_data === true || 
-                          metadata.force_real_data === true ||
-                          parseFloat(metadata.total_cost_verification?.replace(/[^0-9.]/g, '') || '0') > 100;
-
-        // Create individual charts
-        if (data.costBreakdown?.values?.length) {
-            createCostBreakdownChart(data.costBreakdown, isRealData);
+    if (!data) {
+        console.warn('No data provided to updatePodCostMetrics');
+        return;
+    }
+    
+    // Calculate top namespace cost
+    let topNamespaceCost = 0;
+    if (data.namespaceDistribution && data.namespaceDistribution.costs) {
+        topNamespaceCost = Math.max(...data.namespaceDistribution.costs);
+    } else if (data.podCostBreakdown && data.podCostBreakdown.values) {
+        topNamespaceCost = Math.max(...data.podCostBreakdown.values);
+    }
+    
+    // Get namespace count
+    let namespaceCount = 0;
+    if (data.namespaceDistribution && data.namespaceDistribution.namespaces) {
+        namespaceCount = data.namespaceDistribution.namespaces.length;
+    } else if (data.podCostBreakdown && data.podCostBreakdown.labels) {
+        namespaceCount = data.podCostBreakdown.labels.length;
+    }
+    
+    // Get workload count
+    let workloadCount = 0;
+    if (data.workloadCosts && data.workloadCosts.workloads) {
+        workloadCount = data.workloadCosts.workloads.length;
+    }
+    
+    // Get analysis accuracy
+    let accuracy = 'Unknown';
+    if (data.podCostBreakdown && data.podCostBreakdown.accuracy_level) {
+        accuracy = data.podCostBreakdown.accuracy_level;
+    }
+    
+    console.log(`Updating metrics: topCost=${topNamespaceCost}, namespaces=${namespaceCount}, workloads=${workloadCount}, accuracy=${accuracy}`);
+    
+    // Update the metrics
+    const updates = [
+        { sel: '#top-namespace-cost', val: topNamespaceCost, fmt: 'currency' },
+        { sel: '#total-namespaces', val: namespaceCount, fmt: 'number' },
+        { sel: '#total-workloads', val: workloadCount, fmt: 'number' },
+        { sel: '#analysis-accuracy', val: accuracy, fmt: 'text' }
+    ];
+    
+    updates.forEach(update => {
+        const element = document.querySelector(update.sel);
+        if (element) {
+            let displayValue;
+            if (update.fmt === 'currency') {
+                displayValue = '$' + (update.val || 0).toLocaleString();
+            } else if (update.fmt === 'number') {
+                displayValue = (update.val || 0).toString();
+            } else {
+                displayValue = update.val || 'Unknown';
+            }
+            
+            element.textContent = displayValue;
+            console.log(`Updated ${update.sel} to: ${displayValue}`);
+        } else {
+            console.warn(`Element not found: ${update.sel}`);
         }
-        
-        if (data.hpaComparison) {
-            createHPAComparisonChart(data.hpaComparison, isRealData);
+    });
+    
+    // Show the pod cost section if we have data
+    if (topNamespaceCost > 0 || namespaceCount > 0) {
+        const podSection = document.getElementById('pod-cost-section');
+        if (podSection) {
+            podSection.style.display = 'block';
+            console.log('Pod cost section made visible');
         }
-        
-        if (data.nodeUtilization) {
-            createNodeUtilizationChart(data.nodeUtilization, isRealData);
-        }
-        
-        if (data.savingsBreakdown) {
-            createSavingsBreakdownChart(data.savingsBreakdown, isRealData);
-        }
-        
-        if (data.trendData?.labels && data.trendData?.datasets) {
-            createMainTrendChart(data.trendData, isRealData);
-        }
-        
-        if (data.podCostBreakdown?.labels?.length) {
-            createNamespaceCostChart(data.podCostBreakdown);
-            const podSection = document.getElementById('pod-cost-section');
-            if (podSection) podSection.style.display = 'block';
-        }
-        
-        if (data.workloadCosts?.workloads?.length > 0) {
-            createWorkloadCostChart(data.workloadCosts);
-        }
-        
-        if (data.insights) {
-            updateInsights(data.insights);
-        }
-        
-        // Update pod cost metrics if available
-        if (data.namespaceDistribution || data.workloadCosts || data.podCostBreakdown) {
-            updatePodCostMetrics(data);
-        }
-        
-        console.log('✅ All charts creation completed');
-        
-    } catch (error) {
-        console.error('❌ Error building charts:', error);
-        showChartError('Failed to render charts: ' + error.message);
     }
 }
 
@@ -641,294 +1453,6 @@ export function createMainTrendChart(data, isRealData) {
     };
 
     AppState.chartInstances['mainTrendChart'] = new Chart(ctx, config);
-}
-
-/**
- * Creates HPA comparison chart
- */
-export function createHPAComparisonChart(data, isRealData) {
-    const canvas = document.getElementById('hpaComparisonChart');
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    const colors = getChartColors();
-
-    console.log('🤖 Creating HPA chart with ML data:', data);
-
-    const config = {
-        type: 'bar',
-        data: {
-            labels: data.timePoints || [],
-            datasets: [
-                {
-                    label: 'CPU-based HPA',
-                    data: data.cpuReplicas || [],
-                    backgroundColor: 'rgba(231, 76, 60, 0.7)',
-                    borderColor: '#e74c3c',
-                    borderWidth: 2
-                },
-                {
-                    label: 'Memory-based HPA',
-                    data: data.memoryReplicas || [],
-                    backgroundColor: 'rgba(32, 77, 51, 0.7)',
-                    borderColor: '#2ecc71',
-                    borderWidth: 2
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { labels: { color: colors.textColor } },
-                // ADD ML TOOLTIP WITH REAL DATA ✅
-                tooltip: {
-                    callbacks: {
-                        afterLabel: function(context) {
-                            const tooltipLines = [];
-                            
-                            // Add ML data to tooltips
-                            if (data.ml_workload_type) {
-                                tooltipLines.push(`ML Classification: ${data.ml_workload_type}`);
-                            }
-                            if (data.ml_confidence) {
-                                tooltipLines.push(`ML Confidence: ${(data.ml_confidence * 100).toFixed(0)}%`);
-                            }
-                            if (data.actual_hpa_savings) {
-                                tooltipLines.push(`Potential Savings: $${data.actual_hpa_savings.toFixed(2)}/month`);
-                            }
-                            if (data.actual_hpa_efficiency) {
-                                tooltipLines.push(`Current Efficiency: ${data.actual_hpa_efficiency.toFixed(1)}%`);
-                            }
-                            
-                            return tooltipLines;
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    ticks: { color: colors.textColor },
-                    grid: { color: colors.gridColor }
-                },
-                y: {
-                    ticks: { color: colors.textColor },
-                    grid: { color: colors.gridColor },
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Replica Count',
-                        color: colors.textColor
-                    }
-                }
-            }
-        }
-    };
-
-    AppState.chartInstances['hpaComparisonChart'] = new Chart(ctx, config);
-    
-    // ADD ML RECOMMENDATION DISPLAY ✅
-    updateHPARecommendationText(data);
-    console.log('✅ HPA chart created with ML integration');
-}
-
-function updateHPARecommendationText(data) {
-    // Update optimization potential section
-    const optimizationSection = document.querySelector('.optimization-potential');
-    if (optimizationSection && data.recommendation_text) {
-        const existingText = optimizationSection.querySelector('p');
-        if (existingText) {
-            existingText.innerHTML = data.recommendation_text;
-        } else {
-            optimizationSection.innerHTML += `<p class="ml-recommendation">${data.recommendation_text}</p>`;
-        }
-    }
-    
-    // Update any HPA insight elements
-    const hpaInsightElements = document.querySelectorAll('#hpa-insight, .hpa-insight');
-    hpaInsightElements.forEach(element => {
-        if (data.recommendation_text) {
-            element.innerHTML = data.recommendation_text;
-            element.classList.add('ml-enhanced');
-        }
-    });
-    
-    // Update savings display with real ML data
-    if (data.actual_hpa_savings) {
-        const savingsElements = document.querySelectorAll('#hpa-savings, .hpa-savings-amount');
-        savingsElements.forEach(element => {
-            element.textContent = `$${data.actual_hpa_savings.toFixed(2)}`;
-            element.classList.add('real-ml-data');
-        });
-    }
-    
-    console.log('✅ Updated HPA recommendation text with ML data');
-}
-
-/**
- * Creates node utilization chart
- */
-export function createNodeUtilizationChart(data, isRealData) {
-    const canvas = document.getElementById('nodeUtilizationChart');
-    if (!canvas) {
-        console.warn('⚠️ Node utilization chart canvas not found');
-        return;
-    }
-
-    console.log('🔧 Creating node utilization chart with data:', data);
-
-    const ctx = canvas.getContext('2d');
-    const colors = getChartColors();
-    
-    // Enhanced data validation and processing
-    const nodes = data.nodes || [];
-    const cpuRequest = data.cpuRequest || [];
-    const cpuActual = data.cpuActual || [];
-    const memoryRequest = data.memoryRequest || [];
-    const memoryActual = data.memoryActual || [];
-    
-    console.log(`🔧 Raw data arrays:`, {
-        nodesLength: nodes.length,
-        cpuRequestLength: cpuRequest.length,
-        cpuActualLength: cpuActual.length,
-        memoryRequestLength: memoryRequest.length,
-        memoryActualLength: memoryActual.length
-    });
-    
-    // If arrays are empty but we have node names, this means the data structure is different
-    if (nodes.length === 0) {
-        console.warn('⚠️ No node data available for chart');
-        canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No node utilization data available</div>';
-        return;
-    }
-    
-    // If the utilization arrays are empty, extract data from a different structure
-    let finalNodes = nodes;
-    let finalCpuRequest = cpuRequest;
-    let finalCpuActual = cpuActual;
-    let finalMemoryRequest = memoryRequest;
-    let finalMemoryActual = memoryActual;
-    
-    // Check if data is in a different format (like from the consistent analysis)
-    if (cpuRequest.length === 0 && typeof nodes[0] === 'object') {
-        console.log('🔧 Extracting data from object format nodes');
-        
-        finalNodes = nodes.map(node => node.name || node.node_name || 'Unknown');
-        finalCpuRequest = nodes.map(node => parseFloat(node.cpu_request_pct || node.cpu_request || 0));
-        finalCpuActual = nodes.map(node => parseFloat(node.cpu_usage_pct || node.cpu_actual || 0));
-        finalMemoryRequest = nodes.map(node => parseFloat(node.memory_request_pct || node.memory_request || 0));
-        finalMemoryActual = nodes.map(node => parseFloat(node.memory_usage_pct || node.memory_actual || 0));
-        
-        console.log('🔧 Extracted data:', {
-            nodes: finalNodes,
-            cpuRequest: finalCpuRequest,
-            cpuActual: finalCpuActual,
-            memoryRequest: finalMemoryRequest,
-            memoryActual: finalMemoryActual
-        });
-    }
-    
-    // Validate we have actual data
-    if (finalNodes.length === 0 || finalCpuActual.every(val => val === 0)) {
-        console.warn('⚠️ No valid utilization data found');
-        canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No valid node utilization data found</div>';
-        return;
-    }
-
-    const config = {
-        type: 'bar',
-        data: {
-            labels: finalNodes,
-            datasets: [
-                {
-                    label: 'CPU Request %',
-                    data: finalCpuRequest,
-                    backgroundColor: 'rgba(52, 152, 219, 0.3)',
-                    borderColor: '#3498db',
-                    borderWidth: 2,
-                    order: 2
-                },
-                {
-                    label: 'CPU Actual %',
-                    data: finalCpuActual,
-                    backgroundColor: 'rgba(231, 76, 60, 0.7)',
-                    borderColor: '#e74c3c',
-                    borderWidth: 2,
-                    order: 1
-                },
-                {
-                    label: 'Memory Request %',
-                    data: finalMemoryRequest,
-                    backgroundColor: 'rgba(155, 89, 182, 0.3)',
-                    borderColor: '#9b59b6',
-                    borderWidth: 2,
-                    order: 4
-                },
-                {
-                    label: 'Memory Actual %',
-                    data: finalMemoryActual,
-                    backgroundColor: 'rgba(46, 204, 113, 0.7)',
-                    borderColor: '#2ecc71',
-                    borderWidth: 2,
-                    order: 3
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { 
-                    labels: { color: colors.textColor },
-                    position: 'top'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `${context.dataset.label}: ${context.parsed.y.toFixed(1)}%`;
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    ticks: { 
-                        color: colors.textColor,
-                        maxRotation: 45
-                    },
-                    grid: { color: colors.gridColor }
-                },
-                y: {
-                    beginAtZero: true,
-                    max: 100,
-                    ticks: {
-                        color: colors.textColor,
-                        callback: function(value) {
-                            return value + '%';
-                        }
-                    },
-                    grid: { color: colors.gridColor },
-                    title: {
-                        display: true,
-                        text: 'Utilization %',
-                        color: colors.textColor
-                    }
-                }
-            },
-            animation: {
-                duration: 1000,
-                easing: 'easeInOutQuart'
-            }
-        }
-    };
-
-    // Destroy existing chart if it exists
-    if (AppState.chartInstances['nodeUtilizationChart']) {
-        AppState.chartInstances['nodeUtilizationChart'].destroy();
-    }
-
-    AppState.chartInstances['nodeUtilizationChart'] = new Chart(ctx, config);
-    console.log('✅ Node utilization chart created successfully with real data');
 }
 
 /**
@@ -1193,99 +1717,6 @@ export function createWorkloadCostChart(data) {
 }
 
 /**
- * Updates insights section
- */
-function updateInsights(insights) {
-    const container = document.querySelector('#insights-container');
-    if (!container) return;
-    
-    const insightElements = Object.entries(insights).map(([key, value]) => {
-        const title = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        return `<div class="insight-item mb-3"><h6>${title}</h6><p>${value}</p></div>`;
-    });
-    
-    container.innerHTML = insightElements.join('');
-}
-
-/**
- * Updates pod cost metrics in the dashboard
- */
-function updatePodCostMetrics(data) {
-    console.log('📊 Updating pod cost metrics with data:', data);
-    
-    if (!data) {
-        console.warn('No data provided to updatePodCostMetrics');
-        return;
-    }
-    
-    // Calculate top namespace cost
-    let topNamespaceCost = 0;
-    if (data.namespaceDistribution && data.namespaceDistribution.costs) {
-        topNamespaceCost = Math.max(...data.namespaceDistribution.costs);
-    } else if (data.podCostBreakdown && data.podCostBreakdown.values) {
-        topNamespaceCost = Math.max(...data.podCostBreakdown.values);
-    }
-    
-    // Get namespace count
-    let namespaceCount = 0;
-    if (data.namespaceDistribution && data.namespaceDistribution.namespaces) {
-        namespaceCount = data.namespaceDistribution.namespaces.length;
-    } else if (data.podCostBreakdown && data.podCostBreakdown.labels) {
-        namespaceCount = data.podCostBreakdown.labels.length;
-    }
-    
-    // Get workload count
-    let workloadCount = 0;
-    if (data.workloadCosts && data.workloadCosts.workloads) {
-        workloadCount = data.workloadCosts.workloads.length;
-    }
-    
-    // Get analysis accuracy
-    let accuracy = 'Unknown';
-    if (data.podCostBreakdown && data.podCostBreakdown.accuracy_level) {
-        accuracy = data.podCostBreakdown.accuracy_level;
-    }
-    
-    console.log(`Updating metrics: topCost=${topNamespaceCost}, namespaces=${namespaceCount}, workloads=${workloadCount}, accuracy=${accuracy}`);
-    
-    // Update the metrics
-    const updates = [
-        { sel: '#top-namespace-cost', val: topNamespaceCost, fmt: 'currency' },
-        { sel: '#total-namespaces', val: namespaceCount, fmt: 'number' },
-        { sel: '#total-workloads', val: workloadCount, fmt: 'number' },
-        { sel: '#analysis-accuracy', val: accuracy, fmt: 'text' }
-    ];
-    
-    updates.forEach(update => {
-        const element = document.querySelector(update.sel);
-        if (element) {
-            let displayValue;
-            if (update.fmt === 'currency') {
-                displayValue = '$' + (update.val || 0).toLocaleString();
-            } else if (update.fmt === 'number') {
-                displayValue = (update.val || 0).toString();
-            } else {
-                displayValue = update.val || 'Unknown';
-            }
-            
-            element.textContent = displayValue;
-            console.log(`Updated ${update.sel} to: ${displayValue}`);
-        } else {
-            console.warn(`Element not found: ${update.sel}`);
-        }
-    });
-    
-    // Show the pod cost section if we have data
-    if (topNamespaceCost > 0 || namespaceCount > 0) {
-        const podSection = document.getElementById('pod-cost-section');
-        if (podSection) {
-            podSection.style.display = 'block';
-            console.log('Pod cost section made visible');
-        }
-    }
-}
-
-/**
  * Shows chart error message with retry option
  */
 export function showChartError(message) {
@@ -1316,8 +1747,8 @@ export function clearLoadingStates() {
     
     // Clear insight loading states
     const insightElements = [
-        { selector: '#cost-insight', defaultText: 'VM Scale Sets consume 68% of your monthly budget. Consider implementing right-sizing recommendations.' },
-        { selector: '#hpa-insight', defaultText: 'Memory-based HPA could reduce replica count by 23%, saving approximately $140/month.' }
+        { selector: '#cost-insight', defaultText: 'VM Scale Sets consume the majority of your monthly budget. Consider implementing right-sizing recommendations.' },
+        { selector: '#hpa-insight', defaultText: 'ML analysis suggests potential CPU/Memory optimization opportunities.' }
     ];
     
     insightElements.forEach(({ selector, defaultText }) => {
@@ -1351,13 +1782,81 @@ export function clearLoadingStates() {
     });
 }
 
-// Make functions available globally for backward compatibility
+/**
+ * Utility functions for CSS classes and icons
+ */
+function getSeverityAlertClass(severity) {
+    const classes = {
+        'critical': 'alert-danger',
+        'high': 'alert-warning',
+        'medium': 'alert-info',
+        'low': 'alert-secondary',
+        'none': 'alert-success'
+    };
+    return classes[severity] || 'alert-secondary';
+}
+
+function getSeverityCSSClass(severity) {
+    const classes = {
+        'critical': 'border-danger',
+        'high': 'border-warning',
+        'medium': 'border-info',
+        'low': 'border-secondary',
+        'none': 'border-success'
+    };
+    return classes[severity] || 'border-secondary';
+}
+
+function getSeverityIcon(severity) {
+    const icons = {
+        'critical': 'fas fa-exclamation-triangle text-danger',
+        'high': 'fas fa-exclamation-circle text-warning',
+        'medium': 'fas fa-info-circle text-info',
+        'low': 'fas fa-info text-secondary',
+        'none': 'fas fa-check-circle text-success'
+    };
+    return icons[severity] || 'fas fa-info';
+}
+
+/**
+ * Global action functions for CPU optimization
+ */
+window.scrollToCPUSection = function() {
+    const section = document.getElementById('cpu-metrics-container') || 
+                   document.getElementById('high-cpu-alert-section');
+    if (section) {
+        section.scrollIntoView({ behavior: 'smooth' });
+    }
+};
+
+window.generateCPUOptimizationPlan = function() {
+    showNotification('CPU Optimization Plan', 'Generating optimization recommendations for high CPU workloads...', 'info');
+};
+
+window.exportCPUReport = function() {
+    showNotification('Export CPU Report', 'Exporting CPU workload analysis report...', 'info');
+};
+
+// Make all functions available globally for backward compatibility and cluster isolation
 if (typeof window !== 'undefined') {
+    // Core functions
+    window.getCurrentClusterId = getCurrentClusterId;
+    window.validateClusterContext = validateClusterContext;
+    window.makeClusterAwareAPICall = makeClusterAwareAPICall;
+    window.refreshChartsSmooth = refreshChartsSmooth;
+    
+    // Chart functions
     window.initializeCharts = initializeCharts;
     window.updateDashboardMetrics = updateDashboardMetrics;
-    //window.updateDataSourceIndicator = updateDataSourceIndicator;
-    window.createAllCharts = createAllCharts;
+    window.updateDashboardMetricsWithCPU = updateDashboardMetricsWithCPU;
+    window.createAllChartsWithCPU = createAllChartsWithCPU;
     window.destroyAllCharts = destroyAllCharts;
     window.clearLoadingStates = clearLoadingStates;
     window.showChartError = showChartError;
+    
+    // CPU-specific functions
+    window.updateCPUMetrics = updateCPUMetrics;
+    window.displayCPUWorkloadStatus = displayCPUWorkloadStatus;
 }
+
+console.log('✅ Enhanced AKS Cost Intelligence charts.js with comprehensive CPU workload support and cluster isolation loaded');

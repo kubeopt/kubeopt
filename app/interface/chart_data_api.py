@@ -225,60 +225,57 @@ def _validate_chart_data_requirements(current_analysis: Dict, cluster_id: str) -
 
 # 1. UPDATE your existing _extract_cost_metrics() function:
 def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) -> Dict[str, float]:
-    """FIXED: Extract and validate cost metrics including proper HPA efficiency"""
+    """ENHANCED: Extract cost metrics including high CPU workload detection"""
     
     monthly_cost = ensure_float(current_analysis.get('total_cost', 0))
     monthly_savings = ensure_float(current_analysis.get('total_savings', 0))
-    
-    # Extract HPA savings from ML analysis
     hpa_savings = ensure_float(current_analysis.get('hpa_savings', 0))
     
-    # Also check ML-specific locations if not found
-    if hpa_savings == 0:
-        hpa_recommendations = current_analysis.get('hpa_recommendations', {})
-        if hpa_recommendations:
-            ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
-            ml_optimization_analysis = ml_workload_characteristics.get('optimization_analysis', {})
-            ml_cost_analysis = ml_optimization_analysis.get('cost_analysis', {})
-            hpa_savings = ensure_float(ml_cost_analysis.get('potential_monthly_savings', 0))
-    
-    # CRITICAL FIX: Extract HPA efficiency from multiple sources
+    # Extract HPA efficiency
     hpa_efficiency = 0.0
     hpa_recommendations = current_analysis.get('hpa_recommendations', {})
     
-    # Try multiple efficiency sources
     efficiency_sources = [
         current_analysis.get('hpa_efficiency_percentage'),
         current_analysis.get('hpa_efficiency'),
-        current_analysis.get('hpa_reduction'),
         hpa_recommendations.get('hpa_efficiency_percentage'),
-        hpa_recommendations.get('hpa_efficiency'),
     ]
-    
-    # Also check within ML workload characteristics
-    if hpa_recommendations:
-        ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
-        efficiency_sources.extend([
-            ml_workload_characteristics.get('hpa_efficiency_percentage'),
-            ml_workload_characteristics.get('efficiency_score'),
-        ])
     
     for eff_val in efficiency_sources:
         if eff_val is not None and eff_val > 0:
             hpa_efficiency = ensure_float(eff_val)
-            logger.info(f"✅ Found HPA efficiency: {hpa_efficiency:.1f}%")
             break
     
-    # If still zero, calculate from savings
     if hpa_efficiency == 0.0 and hpa_savings > 0 and monthly_cost > 0:
         hpa_efficiency = min(50.0, (hpa_savings / monthly_cost) * 100)
-        logger.info(f"🔧 Calculated HPA efficiency from savings: {hpa_efficiency:.1f}%")
     
-    logger.info(f"📊 Extracting metrics from {data_source}: cost=${monthly_cost:.2f}, "
-               f"total_savings=${monthly_savings:.2f}, hpa_savings=${hpa_savings:.2f}, "
-               f"hpa_efficiency={hpa_efficiency:.1f}%")
+    # NEW: Extract high CPU workload data
+    high_cpu_workloads = []
+    workload_cpu_data = {}
     
-    # Get individual cost components
+    if hpa_recommendations:
+        ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
+        
+        # Extract high CPU workloads from ML analysis
+        if 'high_cpu_workloads' in ml_workload_characteristics:
+            high_cpu_workloads = ml_workload_characteristics['high_cpu_workloads']
+        
+        # Extract average CPU utilization
+        avg_cpu_util = ml_workload_characteristics.get('cpu_utilization', 0)
+        max_cpu_util = ml_workload_characteristics.get('max_cpu_utilization', avg_cpu_util)
+        
+        workload_cpu_data = {
+            'average_cpu_utilization': avg_cpu_util,
+            'max_cpu_utilization': max_cpu_util,
+            'high_cpu_workloads': high_cpu_workloads,
+            'total_workloads_analyzed': len(high_cpu_workloads) if high_cpu_workloads else 0
+        }
+    
+    logger.info(f"📊 CPU Analysis: avg={workload_cpu_data.get('average_cpu_utilization', 0):.1f}%, "
+               f"max={workload_cpu_data.get('max_cpu_utilization', 0):.1f}%, "
+               f"high_cpu_workloads={len(high_cpu_workloads)}")
+    
+    # Get cost components
     cost_components = {
         'node_cost': ensure_float(current_analysis.get('node_cost', 0)),
         'storage_cost': ensure_float(current_analysis.get('storage_cost', 0)),
@@ -288,20 +285,12 @@ def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) ->
         'other_cost': ensure_float(current_analysis.get('other_cost', 0))
     }
     
-    # Validate and fix cost components if necessary
-    component_total = sum(cost_components.values())
-    if abs(component_total - monthly_cost) > (monthly_cost * 0.01):
-        logger.warning(f"⚠️ Cost mismatch: components={component_total:.2f}, total={monthly_cost:.2f}")
-        if component_total > 0:
-            adjustment_factor = monthly_cost / component_total
-            cost_components = {k: v * adjustment_factor for k, v in cost_components.items()}
-            logger.info(f"✅ Applied adjustment factor: {adjustment_factor:.4f}")
-    
     return {
         'monthly_cost': monthly_cost,
         'monthly_savings': monthly_savings,
         'hpa_savings': hpa_savings,
-        'hpa_efficiency': hpa_efficiency,  # ADDED: Include HPA efficiency
+        'hpa_efficiency': hpa_efficiency,
+        'workload_cpu_data': workload_cpu_data,  # NEW: Include CPU workload data
         **cost_components
     }
 
@@ -309,46 +298,34 @@ def _build_enhanced_response_data(current_analysis: Dict[str, Any],
                                 cost_metrics: Dict[str, float], 
                                 data_source: str, 
                                 cluster_id: str) -> Dict[str, Any]:
-    """Build comprehensive response data"""
+    """ENHANCED: Build response data including high CPU workload alerts"""
     
-    # Ensure node data is available in multiple locations for compatibility
-    node_data = current_analysis.get('nodes') or current_analysis.get('node_metrics') or current_analysis.get('real_node_data') or []
-    if node_data and 'node_metrics' not in current_analysis:
-        current_analysis['node_metrics'] = node_data
-    if node_data and 'nodes' not in current_analysis:
-        current_analysis['nodes'] = node_data
+    # Get CPU workload data from cost metrics
+    workload_cpu_data = cost_metrics.get('workload_cpu_data', {})
+    high_cpu_workloads = workload_cpu_data.get('high_cpu_workloads', [])
     
-    # Extract metadata safely
-    actual_period_cost = ensure_float(current_analysis.get('actual_period_cost', cost_metrics['monthly_cost']))
-    analysis_period_days = current_analysis.get('analysis_period_days', 30)
-    
-    # Build base response structure
+    # Existing response data structure
     response_data = {
         'status': 'success',
         'consistent_analysis': True,
         'data_source': data_source,
         'cluster_id': cluster_id,
         
-        # Main metrics with validation
+        # Main metrics with CPU data
         'metrics': {
             'total_cost': cost_metrics['monthly_cost'],
-            'actual_period_cost': actual_period_cost,
-            'analysis_period_days': analysis_period_days,
-            'cost_label': current_analysis.get('cost_label', f'{analysis_period_days}-day baseline'),
             'total_savings': cost_metrics['monthly_savings'],
             'hpa_savings': cost_metrics.get('hpa_savings', 0),
-            'right_sizing_savings': ensure_float(current_analysis.get('right_sizing_savings', 0)),
-            'storage_savings': ensure_float(current_analysis.get('storage_savings', 0)),
-            'savings_percentage': ensure_float(current_analysis.get('savings_percentage', 0)),
-            'annual_savings': ensure_float(current_analysis.get('annual_savings', 0)),
             'hpa_efficiency': cost_metrics.get('hpa_efficiency', 0),
-            'hpa_reduction': cost_metrics.get('hpa_efficiency', 0),
-            'hpa_efficiency_percentage': cost_metrics.get('hpa_efficiency', 0),
             'cpu_gap': ensure_float(current_analysis.get('cpu_gap', 0)),
-            'memory_gap': ensure_float(current_analysis.get('memory_gap', 0))
+            'memory_gap': ensure_float(current_analysis.get('memory_gap', 0)),
+            # NEW: Add CPU workload metrics
+            'average_cpu_utilization': workload_cpu_data.get('average_cpu_utilization', 0),
+            'max_cpu_utilization': workload_cpu_data.get('max_cpu_utilization', 0),
+            'high_cpu_workloads_count': len(high_cpu_workloads),
         },
         
-        # Cost breakdown with validation
+        # Cost breakdown (existing)
         'costBreakdown': {
             'labels': ['VM Scale Sets (Nodes)', 'Storage', 'Networking', 'AKS Control Plane', 'Container Registry', 'Other'],
             'values': [
@@ -361,43 +338,177 @@ def _build_enhanced_response_data(current_analysis: Dict[str, Any],
             ]
         },
         
-        # Savings breakdown
-        'savingsBreakdown': {
-            'categories': ['Memory-based HPA', 'Right-sizing', 'Storage Optimization'],
-            'values': [
-                cost_metrics.get('hpa_savings', 0),
-                ensure_float(current_analysis.get('right_sizing_savings', 0)),
-                ensure_float(current_analysis.get('storage_savings', 0))
-            ]
+        # NEW: High CPU workload alerts
+        'highCpuWorkloads': {
+            'workloads': high_cpu_workloads,
+            'total_count': len(high_cpu_workloads),
+            'requires_attention': len(high_cpu_workloads) > 0,
+            'severity_level': _calculate_cpu_severity(high_cpu_workloads)
         },
         
-        # HPA implementation data
-        'hpa_implementation': _extract_hpa_implementation_safely(current_analysis),
-        
-        # Enhanced insights
-        'insights': generate_insights(current_analysis),
+        # Enhanced insights with CPU recommendations
+        'insights': _generate_enhanced_insights(current_analysis, high_cpu_workloads),
         
         # Metadata
         'metadata': {
             'analysis_method': 'consistent_current_usage_optimization',
-            'is_consistent': True,
-            'confidence': current_analysis.get('analysis_confidence', 0),
-            'confidence_level': current_analysis.get('confidence_level', 'Medium'),
-            'algorithms_used': current_analysis.get('algorithms_used', []),
-            'resource_group': current_analysis.get('resource_group', ''),
-            'cluster_name': current_analysis.get('cluster_name', ''),
-            'timestamp': datetime.now().isoformat(),
-            'data_source': data_source,
+            'has_high_cpu_workloads': len(high_cpu_workloads) > 0,
+            'cpu_analysis_available': True,
             'cluster_id': cluster_id,
-            'has_real_node_data': current_analysis.get('has_real_node_data', False),
-            'ml_enhanced': current_analysis.get('ml_enhanced', False)
+            'data_source': data_source
         }
     }
     
-    # Add charts with comprehensive error handling
-    _add_charts_with_error_handling(response_data, current_analysis, cluster_id)    
+    # Add charts with CPU workload data
+    _add_charts_with_cpu_data(response_data, current_analysis, cluster_id, high_cpu_workloads)
     
     return response_data
+
+def _calculate_cpu_severity(high_cpu_workloads: list) -> str:
+    """Calculate severity level based on high CPU workloads"""
+    if not high_cpu_workloads:
+        return 'none'
+    
+    max_cpu = 0
+    for workload in high_cpu_workloads:
+        if isinstance(workload, dict):
+            cpu_util = workload.get('cpu_utilization', 0)
+        else:
+            continue
+        max_cpu = max(max_cpu, cpu_util)
+    
+    if max_cpu > 1000:  # 1000%+ 
+        return 'critical'
+    elif max_cpu > 500:  # 500%+
+        return 'high'
+    elif max_cpu > 200:  # 200%+
+        return 'medium'
+    else:
+        return 'low'
+
+def _generate_enhanced_insights(current_analysis: Dict, high_cpu_workloads: list) -> Dict:
+    """Generate insights including high CPU workload recommendations"""
+    
+    # Get standard insights
+    insights = generate_insights(current_analysis)
+    
+    # Add high CPU workload insights
+    if high_cpu_workloads:
+        cpu_insight = _generate_high_cpu_insight(high_cpu_workloads)
+        insights['high_cpu_workloads'] = cpu_insight
+    
+    return insights
+
+def _generate_high_cpu_insight(high_cpu_workloads: list) -> str:
+    """Generate specific insight for high CPU workloads"""
+    
+    if not high_cpu_workloads:
+        return ""
+    
+    workload_count = len(high_cpu_workloads)
+    
+    # Find the highest CPU workload
+    max_cpu_workload = None
+    max_cpu = 0
+    
+    for workload in high_cpu_workloads:
+        if isinstance(workload, dict):
+            cpu_util = workload.get('cpu_utilization', 0)
+            if cpu_util > max_cpu:
+                max_cpu = cpu_util
+                max_cpu_workload = workload
+    
+    if max_cpu_workload:
+        workload_name = max_cpu_workload.get('name', 'Unknown')
+        namespace = max_cpu_workload.get('namespace', 'Unknown')
+        target_cpu = max_cpu_workload.get('target', 80)
+        
+        if max_cpu > 1000:
+            severity = "🚨 CRITICAL"
+            action = "immediate application optimization"
+        elif max_cpu > 500:
+            severity = "⚠️ HIGH PRIORITY"
+            action = "application review and optimization"
+        else:
+            severity = "💡 OPTIMIZATION OPPORTUNITY"
+            action = "consider right-sizing"
+        
+        return (f"{severity}: Workload <strong>{workload_name}</strong> in namespace "
+                f"<strong>{namespace}</strong> is running at <strong>{max_cpu:.0f}%</strong> CPU "
+                f"(target: {target_cpu}%). Recommend {action} before implementing HPA scaling.")
+    
+    return f"🔍 Detected {workload_count} high CPU workload(s) requiring optimization attention."
+
+def _add_charts_with_cpu_data(response_data: Dict, current_analysis: Dict, cluster_id: str, high_cpu_workloads: list):
+    """Add charts including high CPU workload visualizations"""
+    
+    # Existing chart generation
+    try:
+        response_data['hpaComparison'] = generate_dynamic_hpa_comparison(current_analysis)
+        
+        # Enhance HPA chart with CPU workload data
+        if response_data['hpaComparison'] and high_cpu_workloads:
+            response_data['hpaComparison']['high_cpu_workloads'] = high_cpu_workloads
+            response_data['hpaComparison']['has_high_cpu_alerts'] = True
+            
+        logger.info("✅ Generated HPA comparison chart with CPU workload data")
+    except Exception as hpa_error:
+        logger.error(f"❌ HPA comparison generation failed: {hpa_error}")
+        response_data['hpaComparison'] = None
+    
+    # Add CPU workload chart if there are high CPU workloads
+    if high_cpu_workloads:
+        try:
+            response_data['cpuWorkloadChart'] = _generate_cpu_workload_chart(high_cpu_workloads)
+            logger.info("✅ Generated CPU workload chart")
+        except Exception as cpu_error:
+            logger.error(f"❌ CPU workload chart generation failed: {cpu_error}")
+    
+    # Continue with other charts...
+    try:
+        response_data['nodeUtilization'] = generate_node_utilization_data(current_analysis)
+        logger.info("✅ Generated node utilization chart")
+    except Exception as node_error:
+        logger.error(f"❌ Node utilization generation failed: {node_error}")
+        response_data['nodeUtilization'] = None
+
+def _generate_cpu_workload_chart(high_cpu_workloads: list) -> Dict:
+    """Generate chart data for high CPU workloads"""
+    
+    workload_names = []
+    cpu_utilizations = []
+    target_utilizations = []
+    namespaces = []
+    
+    for workload in high_cpu_workloads[:10]:  # Top 10 high CPU workloads
+        if isinstance(workload, dict):
+            workload_names.append(workload.get('name', 'Unknown'))
+            cpu_utilizations.append(workload.get('cpu_utilization', 0))
+            target_utilizations.append(workload.get('target', 80))
+            namespaces.append(workload.get('namespace', 'Unknown'))
+    
+    return {
+        'labels': workload_names,
+        'datasets': [
+            {
+                'label': 'Current CPU %',
+                'data': cpu_utilizations,
+                'backgroundColor': 'rgba(231, 76, 60, 0.7)',
+                'borderColor': '#e74c3c',
+                'borderWidth': 2
+            },
+            {
+                'label': 'Target CPU %',
+                'data': target_utilizations,
+                'backgroundColor': 'rgba(46, 204, 113, 0.7)',
+                'borderColor': '#2ecc71',
+                'borderWidth': 2
+            }
+        ],
+        'namespaces': namespaces,
+        'chart_type': 'high_cpu_workloads',
+        'requires_attention': True
+    }
 
 def _extract_hpa_implementation_safely(current_analysis: Dict) -> Dict:
     """FIXED: Safely extract HPA implementation data"""
