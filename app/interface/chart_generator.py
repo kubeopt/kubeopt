@@ -267,27 +267,8 @@ def _extract_cpu_workload_data_comprehensive(analysis_data):
                     except (ValueError, TypeError):
                         continue
             
-            # Create synthetic high CPU workload based on known patterns from logs
             if max_workload_cpu is None:
-                # We know there's a high CPU workload, so create it
-                cpu_workload_data = {
-                    'has_high_cpu_workloads': True,
-                    'high_cpu_count': 1,
-                    'max_cpu_utilization': 1250.0,
-                    'average_cpu_utilization': 13.3,  # From logs: "avg CPU: 13.3%"
-                    'severity_level': 'critical',
-                    'high_cpu_workloads': [
-                        {
-                            'name': 'customer-sim-management-drm-system',
-                            'namespace': 'madapi-dev',
-                            'cpu_utilization': 1250.0,
-                            'target': 80.0,
-                            'severity': 'critical'
-                        }
-                    ],
-                    'data_source': 'log_pattern_reconstruction'
-                }
-                logger.info("✅ Created CPU workload data based on log patterns")
+                logger.info("⚠️  No CPU workload data found")
             else:
                 cpu_workload_data['max_cpu_utilization'] = max_workload_cpu
                 if max_workload_cpu > 200:
@@ -398,9 +379,6 @@ def _extract_high_cpu_workload_data(analysis_data, ml_workload_characteristics):
         
         # Method 4: Look in the raw analysis data for any high CPU indicators
         else:
-            # Check if there are any indicators of high CPU workloads in the logs or data
-            # This would be based on the patterns we see in the logs like:
-            # "🔥 HIGH CPU WORKLOAD: madapi-dev/customer-sim-management-drm-system = 1250.0%"
             high_cpu_workloads = _reconstruct_high_cpu_workloads_from_analysis(analysis_data)
         
         # Validate and clean the high CPU workloads data
@@ -449,18 +427,8 @@ def _reconstruct_high_cpu_workloads_from_analysis(analysis_data):
                             'severity': 'high'
                         })
         
-        # If no direct data, create a synthetic high CPU workload based on the log patterns
-        # This is based on the log entry: "🔥 HIGH CPU WORKLOAD: madapi-dev/customer-sim-management-drm-system = 1250.0%"
-        if not high_cpu_workloads:
-            # Create a synthetic entry based on the known pattern from logs
-            high_cpu_workloads.append({
-                'name': 'customer-sim-management-drm-system',
-                'namespace': 'madapi-dev',
-                'cpu_utilization': 1250.0,
-                'target': 80.0,
-                'severity': 'critical'
-            })
-            logger.info("✅ Created synthetic high CPU workload entry based on analysis patterns")
+        if not high_cpu_workloads:            
+            logger.info("INFO: We dint have any High CPU workloads for now")
         
         return high_cpu_workloads
         

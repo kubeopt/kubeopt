@@ -555,7 +555,8 @@ def register_api_routes(app):
                     implementation_plan = fresh_plan
                     
                     # Update cache and database
-                    save_to_cache(cluster_id, current_analysis)
+                    subscription_id = azure_subscription_manager.get_current_subscription()
+                    save_to_cache(cluster_id, current_analysis, subscription_id)
                     enhanced_cluster_manager.update_cluster_analysis(cluster_id, current_analysis)
                     
                     logger.info(f"✅ API: Regenerated implementation plan for {cluster_id}")
@@ -1022,7 +1023,8 @@ def get_cluster_analysis_data(cluster_id):
             # Cache for future requests using existing cache manager
             if CACHE_MANAGER_AVAILABLE:
                 try:
-                    save_to_cache(cluster_id, current_analysis)
+                    subscription_id = azure_subscription_manager.get_current_subscription()
+                    save_to_cache(cluster_id, current_analysis, subscription_id)
                     logger.info(f"💾 Cached analysis data for: {cluster_id}")
                 except Exception as cache_error:
                     logger.warning(f"⚠️ Could not cache data for {cluster_id}: {cache_error}")
@@ -1080,15 +1082,15 @@ def extract_comprehensive_cpu_metrics(analysis_data):
             if result:
                 return result
             else:
-                logger.warning("⚠️ CPU workload function returned None, using fallback")
+                logger.warning("⚠️ CPU workload function returned None")
         except ImportError as import_error:
             logger.warning(f"⚠️ Could not import CPU workload function: {import_error}")
         except Exception as cpu_error:
             logger.error(f"❌ Error in CPU workload extraction: {cpu_error}")
         
         # Fallback: extract basic CPU info from analysis_data
-        logger.info("🔄 Using fallback CPU metrics extraction")
-        return extract_fallback_cpu_metrics(analysis_data)
+        logger.info(" ⚠️ CPU workload function returned No data")
+        return None
         
     except Exception as e:
         logger.error(f"❌ Error extracting CPU metrics: {e}")
@@ -1226,7 +1228,7 @@ def generate_savings_breakdown_data(analysis_data):
             ('HPA Optimization', analysis_data.get('hpa_savings', 0)),
             ('Right-sizing', analysis_data.get('right_sizing_savings', 0)),
             ('Storage Optimization', analysis_data.get('storage_savings', 0)),
-            ('CPU Optimization', analysis_data.get('cpu_optimization_savings', 0))  # NEW: CPU-specific savings
+            ('CPU Optimization', analysis_data.get('cpu_optimization_savings', 0))
         ]
         
         # Filter out zero values

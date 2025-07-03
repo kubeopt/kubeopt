@@ -1419,7 +1419,7 @@ class AKSRealTimeMetricsFetcher:
                 analysis['max_workload_cpu'] = max_hpa_cpu
                 
                 # Categorize the CPU scenario
-                if max_hpa_cpu > 1000:  # > 1000% (like your 3723% case)
+                if max_hpa_cpu > 1000:
                     analysis['recommendation_category'] = 'OPTIMIZE_APPLICATION_CRITICAL'
                 elif max_hpa_cpu > 500:
                     analysis['recommendation_category'] = 'OPTIMIZE_APPLICATION'

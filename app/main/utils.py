@@ -1,6 +1,7 @@
 """
 Enhanced Utility Functions for AKS Cost Optimization Tool
 Added subscription-aware kubectl execution to prevent context conflicts
+Updated with enhanced cost validation matching the enhanced categorization
 """
 
 import statistics
@@ -12,7 +13,7 @@ from contextlib import contextmanager
 from config import logger
 
 # ============================================================================
-# EXISTING UTILITY FUNCTIONS (unchanged)
+# EXISTING UTILITY FUNCTIONS
 # ============================================================================
 
 def convert_k8s_memory_to_bytes(mem_str):
@@ -53,28 +54,69 @@ def safe_mean(values):
         return 0.0
 
 def validate_cost_data(cost_components):
-    """Validate that cost components add up correctly"""
+    """Enhanced validation that matches the enhanced cost categorization"""
     try:
+        # Enhanced validation with all new categories
         component_sum = (
             cost_components.get('node_cost', 0) +
             cost_components.get('storage_cost', 0) +
             cost_components.get('networking_cost', 0) +
             cost_components.get('control_plane_cost', 0) +
             cost_components.get('registry_cost', 0) +
-            cost_components.get('other_cost', 0)
+            cost_components.get('other_cost', 0) +
+            # NEW Enhanced categories
+            cost_components.get('application_services_cost', 0) +
+            cost_components.get('data_services_cost', 0) +
+            cost_components.get('integration_services_cost', 0) +
+            cost_components.get('devops_cost', 0) +
+            cost_components.get('backup_recovery_cost', 0) +
+            cost_components.get('governance_cost', 0) +
+            cost_components.get('support_management_cost', 0) +
+            # Enhanced add-on services
+            cost_components.get('monitoring_cost', 0) +
+            cost_components.get('security_cost', 0) +
+            cost_components.get('keyvault_cost', 0)
         )
         
         total_cost = cost_components.get('total_cost', 0)
         
         # Allow for small rounding differences (1%)
         if abs(component_sum - total_cost) > (total_cost * 0.01):
-            logger.warning(f"Cost validation warning: components sum ${component_sum:.2f} != total ${total_cost:.2f}")
+            logger.warning(f"Enhanced cost validation warning: components sum ${component_sum:.2f} != total ${total_cost:.2f}")
+            logger.warning(f"Difference: ${abs(component_sum - total_cost):.2f} ({abs(component_sum - total_cost)/total_cost*100:.1f}%)")
+            
+            # Enhanced debugging - show what's contributing to costs
+            logger.info("💰 Cost breakdown for validation:")
+            for category, cost in [
+                ('node_cost', cost_components.get('node_cost', 0)),
+                ('storage_cost', cost_components.get('storage_cost', 0)),
+                ('networking_cost', cost_components.get('networking_cost', 0)),
+                ('control_plane_cost', cost_components.get('control_plane_cost', 0)),
+                ('registry_cost', cost_components.get('registry_cost', 0)),
+                ('application_services_cost', cost_components.get('application_services_cost', 0)),
+                ('data_services_cost', cost_components.get('data_services_cost', 0)),
+                ('integration_services_cost', cost_components.get('integration_services_cost', 0)),
+                ('devops_cost', cost_components.get('devops_cost', 0)),
+                ('backup_recovery_cost', cost_components.get('backup_recovery_cost', 0)),
+                ('governance_cost', cost_components.get('governance_cost', 0)),
+                ('support_management_cost', cost_components.get('support_management_cost', 0)),
+                ('monitoring_cost', cost_components.get('monitoring_cost', 0)),
+                ('security_cost', cost_components.get('security_cost', 0)),
+                ('keyvault_cost', cost_components.get('keyvault_cost', 0)),
+                ('other_cost', cost_components.get('other_cost', 0))
+            ]:
+                if cost > 0:
+                    logger.info(f"  - {category}: ${cost:.2f}")
+            
             # Fix by adjusting the total to match components
             cost_components['total_cost'] = component_sum
+            logger.info(f"✅ Enhanced validation: Adjusted total cost to match components: ${component_sum:.2f}")
+        else:
+            logger.info(f"✅ Enhanced cost validation passed: ${component_sum:.2f} = ${total_cost:.2f}")
             
         return cost_components
     except Exception as e:
-        logger.error(f"Cost validation error: {e}")
+        logger.error(f"Enhanced cost validation error: {e}")
         return cost_components
 
 def format_currency(amount):

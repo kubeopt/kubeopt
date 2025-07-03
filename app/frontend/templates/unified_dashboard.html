@@ -359,7 +359,7 @@
               'UNKNOWN' }}
             </span>
             {% if cluster.region %}
-            <span class="opacity-75">{{ cluster.region }}</span>
+            <span class="text-info">{{ cluster.region }}</span>
             {% endif %}
           </div>
         </div>
@@ -392,7 +392,7 @@
   {% if subscription_info or cluster.subscription_id %}
   <div class="container mt-3">
     <div class="d-flex align-items-center gap-3">
-      <i class="fas fa-cloud subscription-icon"></i>
+      <i class="fas fa-cloud subscription-icon" style="color: #2ecc71;"></i>
       <span class="subscription-badge-small">
         {% if subscription_info %} {{ subscription_info.subscription_name }} {%
         elif cluster.subscription_name %} {{ cluster.subscription_name }} {%
@@ -732,14 +732,14 @@
                       </span>
                     </h6>
                     <!-- Enhanced CPU Alert Badge -->
-                    <span
+                    <!-- <span
                       class="cpu-alert-badge"
                       id="cpu-alert-badge"
                       style="display: none;"
                     >
                       <i class="fas fa-exclamation-triangle me-1"></i>CPU Issues
                       Detected
-                    </span>
+                    </span> -->
                     <!-- <div class="card border-0 shadow-sm chart-card"> -->
                     <!-- <div class="card-header bg-gradient-success text-white"> -->
                     <!-- <div class="d-flex justify-content-between align-items-center"> -->
@@ -759,16 +759,11 @@
                         ML: <span id="ml-workload-display">Analyzing...</span>
                       </div>
                     </div>
+
+                    
                     <!-- </div> -->
                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Enhanced Insight Box with CPU Considerations -->
-        <div class="insight-box mt-3" id="hpa-insight-box">
+                  <div class="insight-box mt-3" id="hpa-insight-box">
           <h6>
             <i class="fas fa-rocket me-2 text-success"></i>Optimization
             Potential
@@ -789,6 +784,16 @@
             <!-- CPU warning content will be inserted here -->
           </div>
         </div>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+          
+        </div>
+
+        <!-- Enhanced Insight Box with CPU Considerations -->
+        
       </div>
 
       <!-- Pod Cost Analysis Section -->
@@ -891,7 +896,7 @@
         style="display: none;"
       >
         <div class="col-12">
-          <div class="card border-0 shadow-sm border-danger">
+          <div class="card border-0 shadow-sm border-danger" style="display: none;">
             <div class="card-header bg-gradient-danger text-white">
               <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
