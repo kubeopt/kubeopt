@@ -525,46 +525,86 @@ class MultiSubscriptionAnalysisEngine:
     
     # Continue with the remaining helper methods from the original analysis engine...
     def _get_pod_analysis(self, resource_group: str, cluster_name: str, 
-                     enable_pod_analysis: bool, cost_df,
-                     session_id: str, log_prefix: str, 
-                     subscription_id: str = None) -> Optional[Dict]:
-        """Run pod-level cost analysis if enabled with subscription context"""
+                 enable_pod_analysis: bool, cost_df,
+                 session_id: str, log_prefix: str, 
+                 subscription_id: str = None) -> Optional[Dict]:
+        """Run pod-level cost analysis with COMPLETE cost breakdown (FIXED)"""
         if not enable_pod_analysis:
             return None
         
         try:
-            actual_node_cost_for_pod_analysis = float(cost_df[cost_df['Category'] == 'Node Pools']['Cost'].sum())
-        except Exception as cost_extract_error:
-            logger.error(f"❌ Session {session_id}: Failed to extract node costs: {cost_extract_error}")
-            return None
-        
-        if actual_node_cost_for_pod_analysis <= 0:
-            logger.info(f"⏭️ Session {session_id}: Skipping pod analysis - no node costs")
-            return None
-        
-        logger.info(f"🔍 Session {session_id}: Running subscription-aware pod analysis with node cost: ${actual_node_cost_for_pod_analysis:.2f}")
-        
-        try:
-            # Import the enhanced pod cost analyzer
-            from app.analytics.pod_cost_analyzer import get_enhanced_pod_cost_breakdown
+            # Get total cost from DataFrame
+            total_cost = float(cost_df['Cost'].sum())
             
-            # Call with subscription_id parameter (the function will auto-detect subscription support)
-            pod_cost_result = get_enhanced_pod_cost_breakdown(
-                resource_group, 
-                cluster_name, 
-                actual_node_cost_for_pod_analysis, 
-                subscription_id  # Pass subscription_id for context isolation
-            )
+            if total_cost <= 0:
+                logger.info(f"⏭️ Session {session_id}: Skipping pod analysis - no costs to distribute")
+                return None
             
-            if pod_cost_result and pod_cost_result.get('success'):
-                logger.info(f"✅ Session {session_id}: Subscription-aware pod analysis completed")
-                return pod_cost_result
-            else:
-                logger.warning(f"⚠️ Session {session_id}: Pod analysis returned no results")
+            # 🔥 FIXED: Build cost breakdown with ONLY component costs (no total)
+            cost_breakdown = {}
+            
+            # Extract core cost components safely
+            try:
+                cost_breakdown['node_cost'] = float(cost_df[cost_df['Category'] == 'Node Pools']['Cost'].sum())
+            except:
+                cost_breakdown['node_cost'] = 0.0
+                
+            try:
+                cost_breakdown['storage_cost'] = float(cost_df[cost_df['Category'] == 'Storage']['Cost'].sum())
+            except:
+                cost_breakdown['storage_cost'] = 0.0
+                
+            try:
+                cost_breakdown['networking_cost'] = float(cost_df[cost_df['Category'] == 'Networking']['Cost'].sum())
+            except:
+                cost_breakdown['networking_cost'] = 0.0
+                
+            try:
+                cost_breakdown['control_plane_cost'] = float(cost_df[cost_df['Category'] == 'AKS Control Plane']['Cost'].sum())
+            except:
+                cost_breakdown['control_plane_cost'] = 0.0
+                
+            try:
+                cost_breakdown['registry_cost'] = float(cost_df[cost_df['Category'] == 'Container Registry']['Cost'].sum())
+            except:
+                cost_breakdown['registry_cost'] = 0.0
+                
+            # Calculate other costs (everything else)
+            categorized_cost = sum(cost_breakdown.values())
+            cost_breakdown['other_cost'] = max(0.0, total_cost - categorized_cost)
+            
+            # 🔥 REMOVED: Don't include 'total_cost' in the breakdown to avoid doubling
+            # cost_breakdown['total_cost'] = total_cost  # ← REMOVED THIS LINE
+            
+            logger.info(f"🔍 Session {session_id}: Running subscription-aware pod analysis with COMPLETE cost breakdown: ${total_cost:.2f}")
+            logger.info(f"💰 Session {session_id}: Cost components - Node: ${cost_breakdown['node_cost']:.2f}, Storage: ${cost_breakdown['storage_cost']:.2f}, Networking: ${cost_breakdown['networking_cost']:.2f}, Control Plane: ${cost_breakdown['control_plane_cost']:.2f}, Other: ${cost_breakdown['other_cost']:.2f}")
+            
+            try:
+                # Import the enhanced pod cost analyzer
+                from app.analytics.pod_cost_analyzer import get_enhanced_pod_cost_breakdown
+                
+                # 🔥 FIXED: Pass clean numeric cost breakdown (components only)
+                pod_cost_result = get_enhanced_pod_cost_breakdown(
+                    resource_group, 
+                    cluster_name, 
+                    cost_breakdown,  # ← Only component costs, no total
+                    subscription_id
+                )
+                
+                if pod_cost_result and pod_cost_result.get('success'):
+                    logger.info(f"✅ Session {session_id}: Subscription-aware pod analysis completed with full cost distribution")
+                    logger.info(f"📊 Session {session_id}: Distributed ${total_cost:.2f} across namespaces and workloads")
+                    return pod_cost_result
+                else:
+                    logger.warning(f"⚠️ Session {session_id}: Pod analysis returned no results")
+                    return None
+                    
+            except Exception as pod_error:
+                logger.error(f"❌ Session {session_id}: Pod analysis error: {pod_error}")
                 return None
                 
-        except Exception as pod_error:
-            logger.error(f"❌ Session {session_id}: Pod analysis error: {pod_error}")
+        except Exception as cost_extract_error:
+            logger.error(f"❌ Session {session_id}: Failed to extract complete cost breakdown: {cost_extract_error}")
             return None
     
     def _run_ml_analysis(self, resource_group: str, cluster_name: str, 

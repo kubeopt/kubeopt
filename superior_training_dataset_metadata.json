@@ -1,0 +1,28 @@
+{
+  "total_samples": 1000,
+  "features": 73,
+  "generated_at": "2025-07-04T00:05:29.085480",
+  "success_rate": 0.686,
+  "archetype_distribution": {
+    "tech_giant": 153,
+    "financial_enterprise": 147,
+    "growth_stage_startup": 137,
+    "early_stage_startup": 113,
+    "ecommerce_platform": 71,
+    "ml_research_lab": 60,
+    "media_streaming": 59,
+    "iot_platform": 58,
+    "gaming_platform": 58,
+    "healthcare_platform": 44,
+    "edge_case_extreme_under_provisioning": 18,
+    "edge_case_disaster_recovery_test": 13,
+    "edge_case_legacy_nightmare": 13,
+    "edge_case_team_turnover": 12,
+    "edge_case_compliance_lockdown": 11,
+    "edge_case_vendor_migration": 8,
+    "edge_case_multi_tenant_complexity": 7,
+    "edge_case_massive_over_provisioning": 7,
+    "edge_case_migration_in_progress": 6,
+    "edge_case_budget_freeze": 5
+  }
+}
