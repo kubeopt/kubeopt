@@ -21,6 +21,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, asdict
 import logging
 
+from app.ml.ml_integration import MLLearningIntegrationMixin
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -112,13 +114,14 @@ class ClusterDNA:
 # ENHANCED CLUSTER DNA ANALYZER (Your original + temporal intelligence)
 # ============================================================================
 
-class ClusterDNAAnalyzer:
+class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
     """
     ENHANCED: Your original analyzer with temporal intelligence
     100% backward compatible - all your existing code still works!
     """
     
     def __init__(self, enable_temporal_intelligence: bool = True):
+        super().__init__()
         # Your original analyzers
         self.cost_patterns = CostPatternAnalyzer()
         self.efficiency_analyzer = EfficiencyPatternAnalyzer()
@@ -238,6 +241,13 @@ class ClusterDNAAnalyzer:
         logger.info(f"⭐ Uniqueness Score: {uniqueness_score:.2f}")
         if temporal_patterns:
             logger.info(f"🕒 Temporal Intelligence: ENABLED with {len(optimization_windows)} windows")
+
+        if self._learning_enabled:
+            self.report_outcome_for_learning('dna_analysis_completed', {
+                'cluster_name': analysis_results.get('cluster_name', 'unknown'),
+                'cluster_personality': cluster_dna.cluster_personality,
+                'uniqueness_score': cluster_dna.uniqueness_score
+            })
         
         return cluster_dna
     
