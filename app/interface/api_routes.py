@@ -481,9 +481,9 @@ def register_api_routes(app):
 
     @app.route('/api/implementation-plan')
     def get_implementation_plan():
-        """COMPLETELY FIXED: Implementation plan API with subscription awareness"""
+        """FIXED: Implementation plan API with better error handling"""
         try:
-            logger.info("📋 Implementation plan API called with subscription support")
+            logger.info("📋 Implementation plan API called")
             
             # Extract cluster ID
             cluster_id = request.args.get('cluster_id')
@@ -502,7 +502,7 @@ def register_api_routes(app):
                     'message': 'No cluster ID provided for implementation plan'
                 }), 400
             
-            # Get cluster info with subscription context
+            # Get cluster info
             cluster = enhanced_cluster_manager.get_cluster(cluster_id)
             if not cluster:
                 return jsonify({
@@ -510,7 +510,7 @@ def register_api_routes(app):
                     'message': f'Cluster {cluster_id} not found'
                 }), 404
             
-            # Use the shared _get_analysis_data function
+            # Get analysis data
             current_analysis, data_source = _get_analysis_data(cluster_id)
             
             if not current_analysis:
@@ -521,80 +521,129 @@ def register_api_routes(app):
                     'data_source': data_source
                 }), 404
             
-            # Get implementation plan
+            # Validate analysis data has required fields
+            required_fields = ['total_cost', 'total_savings']
+            missing_fields = [field for field in required_fields if field not in current_analysis]
+            
+            if missing_fields:
+                logger.error(f"❌ Analysis data missing required fields: {missing_fields}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Analysis data incomplete. Missing: {", ".join(missing_fields)}',
+                    'missing_fields': missing_fields
+                }), 500
+            
+            # Add cluster metadata to analysis data
+            current_analysis['cluster_name'] = cluster['name']
+            current_analysis['resource_group'] = cluster['resource_group']
+            
+            # Get existing implementation plan
             implementation_plan = current_analysis.get('implementation_plan')
             
-            # ALWAYS regenerate if missing or invalid
-            if (not implementation_plan or 
+            # Check if we need to generate/regenerate the plan
+            needs_generation = (
+                not implementation_plan or 
                 not isinstance(implementation_plan, dict) or 
                 'implementation_phases' not in implementation_plan or
-                not implementation_plan['implementation_phases']):
-                
-                logger.info(f"🔄 API: Regenerating implementation plan for {cluster_id}")
+                not implementation_plan['implementation_phases'] or
+                not isinstance(implementation_plan['implementation_phases'], list) or
+                len(implementation_plan['implementation_phases']) == 0
+            )
+            
+            if needs_generation:
+                logger.info(f"🔄 API: Generating implementation plan for {cluster_id}")
                 try:
                     from app.main.config import implementation_generator
                     from app.services.cache_manager import save_to_cache
                     
-                    current_analysis['cluster_name'] = cluster['name']
-                    current_analysis['resource_group'] = cluster['resource_group']
-                    
+                    # Generate fresh plan
                     fresh_plan = implementation_generator.generate_implementation_plan(current_analysis)
                     
-                    if isinstance(fresh_plan, dict):
-                        fresh_plan['cluster_metadata'] = {
-                            'cluster_name': cluster['name'],
-                            'resource_group': cluster['resource_group'],
-                            'cluster_id': cluster_id,
-                            'subscription_id': cluster.get('subscription_id'),
-                            'subscription_name': cluster.get('subscription_name'),
-                            'generated_at': datetime.now().isoformat(),
-                            'api_regenerated': True
-                        }
+                    # Validate the generated plan
+                    if not isinstance(fresh_plan, dict):
+                        logger.error(f"❌ Generator returned {type(fresh_plan)}, expected dict")
+                        raise ValueError(f"Generator returned invalid type: {type(fresh_plan)}")
                     
+                    if 'implementation_phases' not in fresh_plan:
+                        logger.error(f"❌ Generated plan missing 'implementation_phases'")
+                        logger.error(f"❌ Generated plan keys: {list(fresh_plan.keys())}")
+                        raise ValueError("Generated plan missing 'implementation_phases'")
+                    
+                    phases = fresh_plan['implementation_phases']
+                    if not isinstance(phases, list) or len(phases) == 0:
+                        logger.error(f"❌ Implementation phases invalid: {type(phases)}, length: {len(phases) if isinstance(phases, list) else 'N/A'}")
+                        raise ValueError("Implementation phases must be a non-empty list")
+                    
+                    # Add API metadata
+                    fresh_plan['api_metadata'] = {
+                        'data_source': data_source,
+                        'cluster_id': cluster_id,
+                        'cluster_name': cluster['name'],
+                        'resource_group': cluster['resource_group'],
+                        'subscription_id': cluster.get('subscription_id'),
+                        'subscription_name': cluster.get('subscription_name'),
+                        'phases_count': len(phases),
+                        'api_generated_at': datetime.now().isoformat(),
+                        'total_cost': current_analysis.get('total_cost', 0),
+                        'total_savings': current_analysis.get('total_savings', 0)
+                    }
+                    
+                    # Update cache and database
                     current_analysis['implementation_plan'] = fresh_plan
                     implementation_plan = fresh_plan
                     
-                    # Update cache and database
-                    subscription_id = azure_subscription_manager.get_current_subscription()
-                    save_to_cache(cluster_id, current_analysis, subscription_id)
-                    enhanced_cluster_manager.update_cluster_analysis(cluster_id, current_analysis)
-                    
-                    logger.info(f"✅ API: Regenerated implementation plan for {cluster_id}")
+                    try:
+                        subscription_id = azure_subscription_manager.get_current_subscription()
+                        save_to_cache(cluster_id, current_analysis, subscription_id)
+                        enhanced_cluster_manager.update_cluster_analysis(cluster_id, current_analysis)
+                        logger.info(f"✅ API: Saved regenerated implementation plan for {cluster_id}")
+                    except Exception as save_error:
+                        logger.warning(f"⚠️ Failed to save regenerated plan: {save_error}")
                     
                 except Exception as gen_error:
-                    logger.error(f"❌ API: Failed to regenerate implementation plan: {gen_error}")
+                    logger.error(f"❌ API: Failed to generate implementation plan: {gen_error}")
+                    logger.error(f"❌ Traceback: {traceback.format_exc()}")
                     return jsonify({
                         'status': 'error',
-                        'message': f'Failed to generate implementation plan: {str(gen_error)}'
+                        'message': f'Failed to generate implementation plan: {str(gen_error)}',
+                        'error_details': {
+                            'cluster_id': cluster_id,
+                            'data_source': data_source,
+                            'analysis_keys': list(current_analysis.keys()),
+                            'error_type': type(gen_error).__name__
+                        }
                     }), 500
+            else:
+                logger.info(f"✅ API: Using existing implementation plan for {cluster_id}")
             
-            # Final validation
-            if not isinstance(implementation_plan, dict) or 'implementation_phases' not in implementation_plan:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Implementation plan has invalid structure'
-                }), 500
-            
+            # Final validation before returning
             phases = implementation_plan['implementation_phases']
             if not isinstance(phases, list) or len(phases) == 0:
+                logger.error(f"❌ Final validation failed - phases: {type(phases)}, count: {len(phases) if isinstance(phases, list) else 'N/A'}")
                 return jsonify({
                     'status': 'error',
-                    'message': 'Implementation plan has no valid phases'
+                    'message': 'Implementation plan validation failed',
+                    'validation_details': {
+                        'phases_type': str(type(phases)),
+                        'phases_count': len(phases) if isinstance(phases, list) else 'N/A',
+                        'plan_keys': list(implementation_plan.keys())
+                    }
                 }), 500
             
-            # Add API metadata with subscription info
-            implementation_plan['api_metadata'] = {
-                'data_source': data_source,
-                'cluster_id': cluster_id,
-                'cluster_name': cluster['name'],
-                'resource_group': cluster['resource_group'],
-                'subscription_id': cluster.get('subscription_id'),
-                'subscription_name': cluster.get('subscription_name'),
-                'phases_count': len(phases),
-                'api_called_at': datetime.now().isoformat(),
-                'total_cost': current_analysis.get('total_cost', 0),
-                'total_savings': current_analysis.get('total_savings', 0)
-            }
+            # Ensure API metadata exists
+            if 'api_metadata' not in implementation_plan:
+                implementation_plan['api_metadata'] = {
+                    'data_source': data_source,
+                    'cluster_id': cluster_id,
+                    'cluster_name': cluster['name'],
+                    'resource_group': cluster['resource_group'],
+                    'subscription_id': cluster.get('subscription_id'),
+                    'subscription_name': cluster.get('subscription_name'),
+                    'phases_count': len(phases),
+                    'api_called_at': datetime.now().isoformat(),
+                    'total_cost': current_analysis.get('total_cost', 0),
+                    'total_savings': current_analysis.get('total_savings', 0)
+                }
             
             logger.info(f"✅ API: Returning implementation plan for {cluster_id}: {len(phases)} phases from {data_source}")
             
@@ -602,9 +651,11 @@ def register_api_routes(app):
             
         except Exception as e:
             logger.error(f"❌ Error in implementation plan API: {e}")
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return jsonify({
                 'status': 'error',
-                'message': f'Implementation plan API error: {str(e)}'
+                'message': f'Implementation plan API error: {str(e)}',
+                'error_type': type(e).__name__
             }), 500
 
     @app.route('/api/clusters', methods=['GET', 'POST'])
