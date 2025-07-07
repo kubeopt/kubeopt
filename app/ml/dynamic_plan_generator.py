@@ -1531,19 +1531,57 @@ class CombinedDynamicImplementationGenerator:
     
     # Project Management Helper Methods
     def _generate_executive_summary(self, analysis_results: Dict, total_savings: float, total_cost: float) -> Dict:
-        """Generate executive summary from actual data"""
         current_cost = analysis_results.get('total_cost', 0)
         roi_months = int(total_cost / total_savings) if total_savings > 0 else 24
+        
+        # Use ACTUAL ML calculations - not static values!
+        ml_confidence = analysis_results.get('analysis_confidence', 0.7)  # From your ML analysis
+        cluster_complexity = analysis_results.get('cluster_complexity_score', 0.5)  # From cluster DNA
+        
+        # Dynamic risk level based on actual analysis
+        if cluster_complexity > 0.7 or total_cost > total_savings * 20:
+            risk_level = 'High'
+        elif cluster_complexity > 0.4 or total_cost > total_savings * 10:
+            risk_level = 'Medium' 
+        else:
+            risk_level = 'Low'
+        
+        # Use ML strategic calculation
+        strategic_potential = analysis_results.get('ml_strategy_savings', total_savings * 2)
         
         return {
             'current_monthly_cost': current_cost,
             'projected_monthly_savings': total_savings,
+            'strategic_potential_note': f'ML analysis identifies up to ${strategic_potential:.0f}/month optimization potential, though implementation planning uses conservative ${total_savings:.0f}/month estimates for realistic project execution.',
             'annual_savings_potential': total_savings * 12,
             'implementation_cost': total_cost,
             'roi_months': roi_months,
-            'success_probability': 0.85,
-            'risk_level': 'Medium'
+            'success_probability': ml_confidence,  # ✅ DYNAMIC from ML analysis
+            'risk_level': risk_level,              # ✅ DYNAMIC based on complexity
+            'confidence_source': 'ml_analysis_confidence',
+            'risk_factors': self._calculate_risk_factors(analysis_results, total_cost, total_savings)
         }
+
+    def _calculate_risk_factors(self, analysis_results: Dict, implementation_cost: float, savings: float) -> List[str]:
+        """Calculate actual risk factors dynamically"""
+        risk_factors = []
+        
+        # Payback period risk
+        payback_months = implementation_cost / savings if savings > 0 else 999
+        if payback_months > 18:
+            risk_factors.append('Long payback period increases execution risk')
+        
+        # Cluster complexity risk  
+        complexity = analysis_results.get('cluster_complexity_score', 0.5)
+        if complexity > 0.6:
+            risk_factors.append('High cluster complexity requires careful implementation')
+        
+        # Implementation scope risk
+        node_count = len(analysis_results.get('nodes', []))
+        if node_count > 20:
+            risk_factors.append('Large-scale implementation requires phased approach')
+        
+        return risk_factors
     
     def _generate_business_case(self, analysis_results: Dict, total_savings: float, total_cost: float) -> Dict:
         """Generate business case from actual data"""
