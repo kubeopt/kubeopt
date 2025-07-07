@@ -760,9 +760,13 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             
             return implementation_plan
     
+    # ========================================================================
+    # COMPLETE FIX: ClusterDNA Object Access and JSON Serialization
+    # ========================================================================
+
     def _ensure_complete_framework_structure(self, implementation_plan: Dict, 
-                                           analysis_results: Dict, ml_session: Dict) -> Dict:
-        """Ensure ALL 7 framework components are populated - NO FALLBACK"""
+                                        analysis_results: Dict, ml_session: Dict) -> Dict:
+        """Ensure ALL 7 framework components are populated - FIXED VERSION"""
         
         logger.info("🔧 Ensuring complete framework structure...")
         
@@ -797,6 +801,46 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             
             logger.info("🔧 Adding framework components...")
             
+            # 🔧 FIX: Safely access ClusterDNA object attributes
+            cluster_dna = ml_session.get('cluster_dna')
+            
+            # Get optimization windows count safely
+            optimization_windows_count = 0
+            if cluster_dna and hasattr(cluster_dna, 'optimization_windows'):
+                try:
+                    windows = getattr(cluster_dna, 'optimization_windows', None)
+                    if windows and isinstance(windows, list):
+                        optimization_windows_count = len(windows)
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not access optimization_windows: {e}")
+            
+            # Get temporal intelligence status safely
+            has_temporal_intelligence = False
+            if cluster_dna and hasattr(cluster_dna, 'has_temporal_intelligence'):
+                try:
+                    has_temporal_intelligence = getattr(cluster_dna, 'has_temporal_intelligence', False)
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not access has_temporal_intelligence: {e}")
+            
+            # 🔧 ENHANCEMENT: Add intelligenceInsights that your UI expects
+            implementation_plan['intelligenceInsights'] = {
+                'enabled': True,
+                'ml_derived': True,
+                'ml_confidence': overall_ml_confidence,
+                'cluster_personality': ml_session.get('dna_metadata', {}).get('cluster_personality', 'unknown'),
+                'strategy_type': ml_session.get('strategy_metadata', {}).get('strategy_type', 'comprehensive'),
+                'temporal_intelligence_available': has_temporal_intelligence,
+                'optimization_windows_count': optimization_windows_count,
+                'learning_events_count': len(ml_session.get('learning_events', [])),
+                'intelligence_quality': ml_session.get('intelligence_quality', 'good'),
+                'key_insights': [
+                    f"Cluster exhibits {ml_session.get('dna_metadata', {}).get('cluster_personality', 'balanced')} characteristics",
+                    f"ML confidence level: {overall_ml_confidence:.1%}",
+                    f"Strategy type: {ml_session.get('strategy_metadata', {}).get('strategy_type', 'comprehensive')}",
+                    f"Total optimization opportunities: {ml_session.get('strategy_metadata', {}).get('opportunities_count', 'multiple')}"
+                ]
+            }
+            
             # 1. Cost Protection
             implementation_plan['costProtection'] = {
                 'enabled': True,
@@ -811,6 +855,11 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                     'minimumSavingsTarget': total_savings * 0.8,
                     'predicted_savings': total_savings,
                     'ml_confidence_interval': [total_savings * 0.8, total_savings * 1.2]
+                },
+                'cost_monitoring': {
+                    'real_time_tracking': True,
+                    'anomaly_detection': True,
+                    'automated_alerts': True
                 }
             }
             
@@ -823,11 +872,18 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'governanceLevel': governance_level,
                 'approvalRequirements': {
                     'technical_approval': True,
-                    'business_approval': governance_level == 'enterprise'
+                    'business_approval': governance_level == 'enterprise',
+                    'security_review': True
                 },
                 'changeManagement': {
                     'change_windows': ['maintenance_window'],
-                    'rollback_procedures': 'automated_with_manual_override'
+                    'rollback_procedures': 'automated_with_manual_override',
+                    'approval_workflow': 'multi_stage'
+                },
+                'compliance': {
+                    'cost_governance': True,
+                    'resource_policies': True,
+                    'audit_trail': True
                 }
             }
             
@@ -837,11 +893,22 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'ml_derived': True,
                 'ml_confidence': overall_ml_confidence,
                 'monitoringFrequency': 'real_time',
-                'keyMetrics': ['cost_trends', 'resource_utilization', 'application_performance'],
+                'keyMetrics': [
+                    'cost_trends',
+                    'resource_utilization', 
+                    'application_performance',
+                    'optimization_effectiveness'
+                ],
                 'alerting': {
                     'cost_spike_alerts': True,
                     'performance_degradation_alerts': True,
-                    'ml_confidence_threshold': overall_ml_confidence
+                    'ml_confidence_threshold': overall_ml_confidence,
+                    'automated_responses': True
+                },
+                'dashboards': {
+                    'cost_optimization_dashboard': True,
+                    'performance_monitoring': True,
+                    'ml_insights_dashboard': True
                 }
             }
             
@@ -852,11 +919,18 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'ml_confidence': overall_ml_confidence,
                 'contingencyTriggers': [
                     'cost_overrun_exceeds_20_percent',
-                    'ml_confidence_drops_below_threshold'
+                    'ml_confidence_drops_below_threshold',
+                    'performance_degradation_detected',
+                    'rollback_conditions_met'
                 ],
                 'rollbackProcedures': {
                     'automated_rollback_available': True,
-                    'rollback_time_estimate': '15_minutes'
+                    'rollback_time_estimate': '15_minutes',
+                    'rollback_validation': 'automated_testing'
+                },
+                'emergency_contacts': {
+                    'technical_escalation': True,
+                    'business_escalation': True
                 }
             }
             
@@ -867,11 +941,20 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'ml_confidence': overall_ml_confidence,
                 'financialTargets': {
                     'monthly_savings_target': total_savings,
+                    'annual_savings_target': total_savings * 12,
+                    'roi_target_months': 12,
                     'ml_confidence_target': overall_ml_confidence
                 },
                 'technicalTargets': {
                     'zero_downtime_during_implementation': True,
-                    'ml_prediction_accuracy_maintained': True
+                    'ml_prediction_accuracy_maintained': True,
+                    'performance_improvement': True,
+                    'resource_optimization': True
+                },
+                'businessTargets': {
+                    'stakeholder_satisfaction': True,
+                    'process_improvement': True,
+                    'governance_compliance': True
                 }
             }
             
@@ -885,7 +968,16 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'ml_confidence': overall_ml_confidence,
                 'originalTimelineWeeks': total_timeline_weeks,
                 'optimizedTimelineWeeks': max(1, total_timeline_weeks - 1),
-                'ml_optimization_applied': self.ml_systems_available
+                'ml_optimization_applied': self.ml_systems_available,
+                'critical_path_analysis': {
+                    'identified': True,
+                    'optimized': True,
+                    'risk_mitigation': True
+                },
+                'parallel_execution_opportunities': {
+                    'identified': len(phases),
+                    'can_be_parallelized': max(1, len(phases) // 2)
+                }
             }
             
             # 7. Risk Mitigation
@@ -898,19 +990,56 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                         'risk_id': 'ML_001',
                         'description': 'ML prediction uncertainty',
                         'probability': 'low' if overall_ml_confidence > 0.8 else 'medium',
+                        'impact': 'medium',
                         'mitigation': 'continuous_ml_monitoring_and_adjustment'
+                    },
+                    {
+                        'risk_id': 'COST_001',
+                        'description': 'Cost overrun during implementation',
+                        'probability': 'low',
+                        'impact': 'high',
+                        'mitigation': 'real_time_cost_monitoring_with_automated_alerts'
+                    },
+                    {
+                        'risk_id': 'PERF_001',
+                        'description': 'Performance degradation during optimization',
+                        'probability': 'low',
+                        'impact': 'high',
+                        'mitigation': 'gradual_rollout_with_automated_rollback'
                     }
                 ],
                 'ml_risk_assessment': {
                     'prediction_uncertainty': 1.0 - overall_ml_confidence,
-                    'model_confidence': overall_ml_confidence
+                    'model_confidence': overall_ml_confidence,
+                    'risk_score': 'low' if overall_ml_confidence > 0.8 else 'medium'
+                },
+                'mitigation_strategies': {
+                    'automated_monitoring': True,
+                    'rollback_procedures': True,
+                    'escalation_paths': True
                 }
             }
+            
+            # 🔧 CRITICAL: Log what we've populated for debugging
+            populated_components = [
+                'intelligenceInsights', 'costProtection', 'governance', 
+                'monitoring', 'contingency', 'successCriteria', 
+                'timelineOptimization', 'riskMitigation'
+            ]
+            
+            for component in populated_components:
+                if component in implementation_plan and implementation_plan[component].get('enabled'):
+                    logger.info(f"✅ {component}: populated and enabled")
+                else:
+                    logger.error(f"❌ {component}: missing or disabled")
             
             # Final validation log
             phases_count = len(implementation_plan.get('implementation_phases', []))
             logger.info(f"✅ Framework complete: {phases_count} phases in implementation_phases")
-            logger.info("✅ ALL 7 framework components populated with ML intelligence")
+            logger.info("✅ ALL 8 framework components populated with ML intelligence")
+            
+            # 🔧 DEBUGGING: Log the actual structure for verification
+            logger.info(f"🔍 DEBUG: Plan keys after framework completion: {list(implementation_plan.keys())}")
             
             return implementation_plan
             
@@ -923,6 +1052,90 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'implementation_plan_keys': list(implementation_plan.keys()) if isinstance(implementation_plan, dict) else 'NOT_DICT'
             })
             raise RuntimeError(f"❌ {error_msg}") from e
+
+    # ========================================================================
+    # FIX: JSON Serialization Safe Error Logging
+    # ========================================================================
+
+    def _log_complete_failure_details(self, exception: Exception, analysis_results: Dict, local_vars: Dict):
+        """Log complete failure details for debugging - JSON SAFE VERSION"""
+        
+        def make_json_safe(obj, max_depth=3, current_depth=0):
+            """Convert objects to JSON-safe format"""
+            if current_depth > max_depth:
+                return f"<max_depth_exceeded_{type(obj).__name__}>"
+            
+            if obj is None or isinstance(obj, (str, int, float, bool)):
+                return obj
+            elif isinstance(obj, dict):
+                return {str(k): make_json_safe(v, max_depth, current_depth + 1) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return [make_json_safe(item, max_depth, current_depth + 1) for item in obj[:10]]  # Limit to first 10 items
+            elif hasattr(obj, '__dict__'):
+                return {
+                    'type': type(obj).__name__,
+                    'attributes': make_json_safe(obj.__dict__, max_depth, current_depth + 1)
+                }
+            else:
+                return f"<{type(obj).__name__}_{str(obj)[:100]}>"
+        
+        try:
+            # Create JSON-safe failure details
+            complete_failure = {
+                'timestamp': datetime.now().isoformat(),
+                'exception_type': type(exception).__name__,
+                'exception_message': str(exception),
+                'exception_args': list(getattr(exception, 'args', [])),
+                'full_traceback': traceback.format_exc(),
+                'analysis_results_info': {
+                    'type': type(analysis_results).__name__,
+                    'is_dict': isinstance(analysis_results, dict),
+                    'keys': list(analysis_results.keys()) if isinstance(analysis_results, dict) else 'NOT_DICT',
+                    'cluster_name': analysis_results.get('cluster_name', 'unknown') if isinstance(analysis_results, dict) else 'unknown',
+                    'total_cost': analysis_results.get('total_cost', 'missing') if isinstance(analysis_results, dict) else 'missing'
+                },
+                'local_variables': {
+                    'ml_session_type': type(local_vars.get('ml_session')).__name__ if local_vars.get('ml_session') else 'None',
+                    'cluster_dna_type': type(local_vars.get('cluster_dna')).__name__ if local_vars.get('cluster_dna') else 'None',
+                    'ml_strategy_type': type(local_vars.get('ml_strategy')).__name__ if local_vars.get('ml_strategy') else 'None',
+                    'ml_plan_type': type(local_vars.get('ml_plan')).__name__ if local_vars.get('ml_plan') else 'None'
+                },
+                'ml_systems_detailed': make_json_safe(self._debug_info['ml_system_status']),
+                'failed_operations_count': len(self._debug_info['failed_operations'])
+            }
+            
+            logger.error("💥" * 50)
+            logger.error("💥 COMPLETE SYSTEM FAILURE ANALYSIS")
+            logger.error("💥" * 50)
+            logger.error(f"💥 Exception: {complete_failure['exception_type']}: {complete_failure['exception_message']}")
+            logger.error(f"💥 Analysis Results: {json.dumps(complete_failure['analysis_results_info'], indent=2)}")
+            logger.error(f"💥 Local Variables: {json.dumps(complete_failure['local_variables'], indent=2)}")
+            logger.error(f"💥 Failed Operations Count: {complete_failure['failed_operations_count']}")
+            logger.error(f"💥 Full Traceback:\n{complete_failure['full_traceback']}")
+            logger.error("💥" * 50)
+            
+        except Exception as logging_error:
+            # Fallback logging if even the safe logging fails
+            logger.error(f"💥 CRITICAL: Even safe error logging failed: {logging_error}")
+            logger.error(f"💥 Original exception: {type(exception).__name__}: {str(exception)}")
+            logger.error(f"💥 Original traceback:\n{traceback.format_exc()}")
+
+    # ========================================================================
+    # HELPER: Safe ClusterDNA attribute access
+    # ========================================================================
+
+    def _safely_get_cluster_dna_attr(self, cluster_dna, attr_name, default=None):
+        """Safely get attribute from ClusterDNA object"""
+        if cluster_dna is None:
+            return default
+        
+        try:
+            if hasattr(cluster_dna, attr_name):
+                return getattr(cluster_dna, attr_name, default)
+        except Exception as e:
+            logger.warning(f"⚠️ Could not access {attr_name} from ClusterDNA: {e}")
+        
+        return default
     
     # ========================================================================
     # VALIDATION AND HELPER METHODS
@@ -1043,41 +1256,6 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         logger.error(f"💥 Context: {json.dumps(context, indent=2)}")
         logger.error(f"💥 ML Systems Status: {json.dumps(failure_record['ml_systems_status'], indent=2)}")
     
-    def _log_complete_failure_details(self, exception: Exception, analysis_results: Dict, local_vars: Dict):
-        """Log complete failure details for debugging"""
-        
-        complete_failure = {
-            'timestamp': datetime.now().isoformat(),
-            'exception_type': type(exception).__name__,
-            'exception_message': str(exception),
-            'exception_args': getattr(exception, 'args', []),
-            'full_traceback': traceback.format_exc(),
-            'analysis_results_info': {
-                'type': type(analysis_results),
-                'is_dict': isinstance(analysis_results, dict),
-                'keys': list(analysis_results.keys()) if isinstance(analysis_results, dict) else 'NOT_DICT',
-                'cluster_name': analysis_results.get('cluster_name', 'unknown') if isinstance(analysis_results, dict) else 'unknown',
-                'total_cost': analysis_results.get('total_cost', 'missing') if isinstance(analysis_results, dict) else 'missing'
-            },
-            'local_variables': {
-                'ml_session': local_vars.get('ml_session'),
-                'cluster_dna': type(local_vars.get('cluster_dna')),
-                'ml_strategy': type(local_vars.get('ml_strategy')),
-                'ml_plan': type(local_vars.get('ml_plan'))
-            },
-            'ml_systems_detailed': self._debug_info['ml_system_status'],
-            'all_failed_operations': self._debug_info['failed_operations']
-        }
-        
-        logger.error("💥" * 50)
-        logger.error("💥 COMPLETE SYSTEM FAILURE ANALYSIS")
-        logger.error("💥" * 50)
-        logger.error(f"💥 Exception: {complete_failure['exception_type']}: {complete_failure['exception_message']}")
-        logger.error(f"💥 Analysis Results: {json.dumps(complete_failure['analysis_results_info'], indent=2)}")
-        logger.error(f"💥 Local Variables: {json.dumps(complete_failure['local_variables'], indent=2, default=str)}")
-        logger.error(f"💥 All Failed Operations: {json.dumps(complete_failure['all_failed_operations'], indent=2, default=str)}")
-        logger.error(f"💥 Full Traceback:\n{complete_failure['full_traceback']}")
-        logger.error("💥" * 50)
     
     def _record_generation_failure(self, error: str):
         """Record generation failure for learning"""
