@@ -30,7 +30,7 @@ class NotificationManager {
     }
     
     show(message, type = 'info', duration = AppConfig.NOTIFICATION_DURATION) {
-        // FIXED: Ensure duration is always a number
+        //  Ensure duration is always a number
         let numericDuration = duration;
         if (typeof duration === 'string') {
             numericDuration = parseInt(duration, 10);
@@ -67,7 +67,7 @@ class NotificationManager {
         
         if (window.bootstrap && bootstrap.Toast) {
             try {
-                // FIXED: Pass numeric duration and proper options
+                //  Pass numeric duration and proper options
                 const toastOptions = {
                     autohide: numericDuration > 0,
                     delay: numericDuration // This must be a number, not a string
@@ -162,7 +162,7 @@ const notificationManager = new NotificationManager();
  * Global notification function (FIXED)
  */
 export function showNotification(message, type = 'info', duration = AppConfig.NOTIFICATION_DURATION) {
-    // FIXED: Ensure duration is numeric before passing to manager
+    //  Ensure duration is numeric before passing to manager
     let numericDuration = duration;
     if (typeof duration === 'string') {
         numericDuration = parseInt(duration, 10);
@@ -182,7 +182,7 @@ export const showToast = showNotification;
  * Enhanced notification with custom positioning (FIXED)
  */
 export function showNotificationFixed(message, type = 'info', duration = 5000) {
-    // FIXED: Ensure duration is numeric
+    //  Ensure duration is numeric
     let numericDuration = duration;
     if (typeof duration === 'string') {
         numericDuration = parseInt(duration, 10);
@@ -363,13 +363,13 @@ export function showProgressNotification(steps, currentStep = 0) {
     };
 }
 
-// FIXED: Enhanced global showNotification function for backward compatibility
+//  Enhanced global showNotification function for backward compatibility
 function createGlobalShowNotification() {
     return function(title, message, type = 'info', duration = 5000) {
         // Handle both old format (title, message) and new format (message only)
         let finalMessage = message ? `${title}: ${message}` : title;
         
-        // FIXED: Ensure duration is numeric
+        //  Ensure duration is numeric
         let numericDuration = duration;
         if (typeof duration === 'string') {
             numericDuration = parseInt(duration, 10);

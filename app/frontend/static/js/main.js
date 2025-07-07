@@ -23,7 +23,7 @@ import './dynamic-insights.js';
 import './css-injection.js';
 
 /**
- * ✅ FIXED: Ensure functions are available both as imports and globals
+ * ✅  Ensure functions are available both as imports and globals
  */
 function ensureGlobalFunctions() {
     console.log('🔧 Ensuring functions are globally available...');
@@ -108,7 +108,7 @@ function setupKeyboardShortcuts() {
 }
 
 /**
- * ✅ FIXED: Enhanced tab switching with guaranteed module loading
+ * ✅  Enhanced tab switching with guaranteed module loading
  */
 function setupTabHandlers() {
     const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');
@@ -135,7 +135,7 @@ function setupTabHandlers() {
                 setTimeout(() => {
                     console.log('🔄 Attempting to load implementation plan...');
                     
-                    // ✅ FIXED: Use the imported function directly first
+                    // ✅  Use the imported function directly first
                     try {
                         if (typeof loadImplementationPlan === 'function') {
                             console.log('✅ Using imported loadImplementationPlan');
@@ -160,7 +160,7 @@ function setupTabHandlers() {
 }
 
 /**
- * ✅ FIXED: Fallback function if implementation plan fails to load
+ * ✅  Fallback function if implementation plan fails to load
  */
 function showImplementationFallback() {
     const container = document.getElementById('implementation-plan-container');
@@ -192,7 +192,7 @@ function showImplementationFallback() {
 }
 
 /**
- * ✅ FIXED: Force load implementation plan function
+ * ✅  Force load implementation plan function
  */
 function forceLoadImplementationPlan() {
     console.log('🔄 Force loading implementation plan...');
@@ -264,7 +264,7 @@ function showWelcomeMessage() {
 }
 
 /**
- * ✅ FIXED: Initialize content based on current active tab
+ * ✅  Initialize content based on current active tab
  */
 function initializeActiveTabContent() {
     const activeTab = document.querySelector('.tab-pane.active');
@@ -296,7 +296,7 @@ function initializeActiveTabContent() {
 }
 
 /**
- * ✅ FIXED: Main initialization function without module loading timeout
+ * ✅  Main initialization function without module loading timeout
  */
 async function initializeDashboard() {
     console.log('🚀 Initializing AKS Cost Intelligence Dashboard (FIXED VERSION)');
@@ -315,7 +315,7 @@ async function initializeDashboard() {
         // Step 1: Configuration loaded (already done by imports)
         progress.updateStep(0);
         
-        // Step 2: ✅ FIXED: Ensure global functions are available immediately
+        // Step 2: ✅  Ensure global functions are available immediately
         progress.updateStep(1);
         ensureGlobalFunctions();
         
@@ -340,7 +340,7 @@ async function initializeDashboard() {
         setupKeyboardShortcuts();
         setupErrorHandling();
         
-        // Step 6: ✅ FIXED: Initialize content based on current active tab
+        // Step 6: ✅  Initialize content based on current active tab
         progress.updateStep(5);
         initializeActiveTabContent();
         
@@ -388,7 +388,7 @@ function scheduleOptimization() {
     showNotification('Scheduling feature coming soon!', 'info');
 }
 
-// ✅ FIXED: Make functions available globally for HTML onclick handlers
+// ✅  Make functions available globally for HTML onclick handlers
 if (typeof window !== 'undefined') {
     // Core functions
     window.initializeDashboard = initializeDashboard;
@@ -398,7 +398,7 @@ if (typeof window !== 'undefined') {
     window.deployOptimizations = deployOptimizations;
     window.scheduleOptimization = scheduleOptimization;
     
-    // ✅ FIXED: Implementation plan functions
+    // ✅  Implementation plan functions
     window.forceLoadImplementationPlan = forceLoadImplementationPlan;
     window.showImplementationFallback = showImplementationFallback;
     
@@ -411,7 +411,7 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * ✅ FIXED: Initialize when DOM is ready
+ * ✅  Initialize when DOM is ready
  */
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {

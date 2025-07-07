@@ -1531,7 +1531,7 @@ const AnalysisStateManager = {
             AppState.analyzingClusters.add(clusterId);
             clusterCard.classList.add('analyzing');
             
-            // ✅ FIXED: Better button state management
+            // ✅  Better button state management
             if (analyzeBtn) {
                 analyzeBtn.classList.add('analyzing');
                 analyzeBtn.disabled = true;
@@ -1559,7 +1559,7 @@ const AnalysisStateManager = {
                 console.log(`✅ Button state set to analyzing for ${clusterId}`);
             }
             
-            // ✅ FIXED: Better status info management
+            // ✅  Better status info management
             if (statusInfo) {
                 // Hide existing status elements
                 const existingIcons = statusInfo.querySelectorAll('.fa-clock, .fa-check-circle, .success-icon, .warning-icon');
@@ -1600,7 +1600,7 @@ const AnalysisStateManager = {
             AppState.analyzingClusters.delete(clusterId);
             clusterCard.classList.remove('analyzing');
             
-            // ✅ FIXED: Reset button state
+            // ✅  Reset button state
             if (analyzeBtn) {
                 analyzeBtn.classList.remove('analyzing');
                 analyzeBtn.disabled = false;
@@ -1619,7 +1619,7 @@ const AnalysisStateManager = {
                 console.log(`✅ Button state reset for ${clusterId}`);
             }
             
-            // ✅ FIXED: Reset status info
+            // ✅  Reset status info
             if (statusInfo) {
                 // Hide analyzing elements
                 const analyzingIcon = statusInfo.querySelector('.analyzing-icon');
@@ -2058,7 +2058,7 @@ const CounterManager = {
         const counters = document.querySelectorAll('.metric-value[data-target]');
         counters.forEach(counter => {
             const target = parseFloat(counter.getAttribute('data-target'));
-            // ✅ FIXED: Proper string formatting for includes()
+            // ✅  Proper string formatting for includes()
             const isDollar = counter.textContent.includes('$'); 
             const isPercent = counter.textContent.includes('%');
             
@@ -2087,7 +2087,7 @@ const CounterManager = {
                 value = current.toFixed(1); // Keep decimal for percentages
             }
             
-            // ✅ FIXED: Correct dollar sign formatting
+            // ✅  Correct dollar sign formatting
             element.textContent = (isDollar ? '$' : '') + value + (isPercent ? '%' : '');
             
             if (progress < 1) {
@@ -2308,10 +2308,10 @@ const ClusterManager = {
 
         console.log(`🚀 Starting analysis for cluster: ${clusterName} (ID: ${clusterId})`);
 
-        // ✅ FIXED: Set analyzing state IMMEDIATELY
+        // ✅  Set analyzing state IMMEDIATELY
         AnalysisStateManager.setAnalyzing(clusterId, true);
         
-        // ✅ FIXED: Show loading after a brief delay to let UI update
+        // ✅  Show loading after a brief delay to let UI update
         setTimeout(() => {
             LoadingManager.show(`Analyzing "${clusterName}"...`);
         }, 100);
@@ -2339,7 +2339,7 @@ const ClusterManager = {
             if (data.status === 'success') {
                 console.log(`✅ Analysis completed successfully for ${clusterName}`);
                 
-                // ✅ FIXED: Complete the analysis state FIRST
+                // ✅  Complete the analysis state FIRST
                 AnalysisStateManager.setAnalyzing(clusterId, false);
                 LoadingManager.hide();
                 
@@ -2351,7 +2351,7 @@ const ClusterManager = {
                 //     5000
                 // );
                 
-                // ✅ FIXED: Add click handler to redirect to results instead of auto-redirect
+                // ✅  Add click handler to redirect to results instead of auto-redirect
                 const clusterCardElement = document.querySelector(`[data-cluster-id="${clusterId}"]`);
                 if (clusterCardElement) {
                     // Add a visual indicator that results are ready
@@ -2404,7 +2404,7 @@ const ClusterManager = {
         } catch (error) {
             console.error('❌ Analysis failed:', error);
             
-            // ✅ FIXED: Reset state on error
+            // ✅  Reset state on error
             AnalysisStateManager.setAnalyzing(clusterId, false);
             LoadingManager.hide();
             
