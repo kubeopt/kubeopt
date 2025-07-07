@@ -1093,10 +1093,10 @@ def _generate_realistic_hpa_scenarios(current_state, ml_recommendation, real_hpa
 
 def generate_node_utilization_data(analysis_data):
     """
-    COMPLETELY FIXED: Generate node utilization data with intelligent request estimation
+    COMPLETELY  Generate node utilization data with intelligent request estimation
     """
     try:
-        logger.info("🔧 FIXED: Generating node utilization data for charts")
+        logger.info("🔧  Generating node utilization data for charts")
         logger.info(f"🔧 Available keys: {list(analysis_data.keys()) if analysis_data else 'None'}")
         
         # Step 1: Validate we have real node data flag

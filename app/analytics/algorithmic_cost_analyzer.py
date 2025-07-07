@@ -142,7 +142,7 @@ class MLEnhancedHPARecommendationEngine:
             raise ValueError(f"Comprehensive ML recommendation engine failed: {e}")
     
     def _calculate_comprehensive_hpa_efficiency(self, ml_results: Dict, metrics_data: Dict) -> float:
-        """FIXED: Calculate HPA efficiency with proper extreme value handling"""
+        """ Calculate HPA efficiency with proper extreme value handling"""
         try:
             logger.info("🔍 Calculating comprehensive HPA efficiency...")
             
@@ -414,7 +414,7 @@ class MLEnhancedHPARecommendationEngine:
                                         avg_cpu: float, avg_memory: float, current_replicas: int,
                                         hpa_recommendation: Dict) -> Dict:
         """
-        FIXED: Generate chart data with proper CPU vs Memory differentiation
+         Generate chart data with proper CPU vs Memory differentiation
         """
         # Get HPA configuration from ML recommendation
         hpa_config = hpa_recommendation.get('hpa_config', {})
@@ -468,7 +468,7 @@ class MLEnhancedHPARecommendationEngine:
             recommended_approach = 'memory'
             
         elif workload_type == 'LOW_UTILIZATION':
-            # FIXED: Even low utilization should show different CPU vs Memory patterns
+            #  Even low utilization should show different CPU vs Memory patterns
             # CPU-based scaling for low utilization (more conservative)
             cpu_replicas = [
                 max(1, current_replicas - 1), 

@@ -281,7 +281,7 @@ export function generateRealDynamicInsights(data) {
 }
 
 /**
- * FIXED: Update insights using data passed from charts.js (NO API CALL)
+ *  Update insights using data passed from charts.js (NO API CALL)
  */
 export function updateRealDynamicInsights(data) {
     console.log('📊 Updating insights with REAL dynamic content from:', data);
@@ -514,7 +514,7 @@ export function showInsightLoadingStates() {
 }
 
 /**
- * FIXED: No more function overriding - work with charts.js
+ *  No more function overriding - work with charts.js
  */
 export function initializeInsightsSystem() {
     console.log('🚀 Initializing insights system (no API duplicates)...');

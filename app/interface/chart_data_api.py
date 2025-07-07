@@ -19,7 +19,7 @@ from app.main.shared import _get_analysis_data
 def chart_data_consistent():
     """COMPLETELY FIXED Chart data generation with proper error handling and validation"""
     try:
-        logger.info("📊 FIXED: Chart data API called with enhanced validation")
+        logger.info("📊  Chart data API called with enhanced validation")
         
         # Extract cluster ID with better error handling
         cluster_id = _extract_cluster_id()
@@ -170,7 +170,7 @@ def _extract_cluster_id() -> Optional[str]:
 #     return None, "no_complete_data"
 
 def _validate_chart_data_requirements(current_analysis: Dict, cluster_id: str) -> Optional[tuple]:
-    """FIXED: Comprehensive validation of chart data requirements"""
+    """ Comprehensive validation of chart data requirements"""
     
     # Check total cost
     total_cost = current_analysis.get('total_cost', 0)
@@ -511,7 +511,7 @@ def _generate_cpu_workload_chart(high_cpu_workloads: list) -> Dict:
     }
 
 def _extract_hpa_implementation_safely(current_analysis: Dict) -> Dict:
-    """FIXED: Safely extract HPA implementation data"""
+    """ Safely extract HPA implementation data"""
     try:
         hpa_recs = current_analysis.get('hpa_recommendations', {})
         current_impl = hpa_recs.get('current_implementation', {})

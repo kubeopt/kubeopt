@@ -231,7 +231,7 @@ class SelfLearningWorkloadClassifier:
             return self._get_default_feature_dataframe()
 
     def _calculate_statistical_features(self, cpu_utils: List[float], memory_utils: List[float]) -> Dict[str, float]:
-        """FIXED: Calculate comprehensive statistical features with extreme value handling"""
+        """ Calculate comprehensive statistical features with extreme value handling"""
         try:
             cpu_array = np.array(cpu_utils)
             memory_array = np.array(memory_utils)
@@ -537,7 +537,7 @@ class SelfLearningWorkloadClassifier:
             return 0.2  # Default to moderate inequality
 
     def _get_safe_default(self, feature_name: str) -> float:
-        """FIXED: Get safe default values including new extreme detection features"""
+        """ Get safe default values including new extreme detection features"""
         defaults = {
             'cpu_mean': 35.0, 'memory_mean': 60.0,
             'cpu_std': 10.0, 'memory_std': 15.0,
@@ -652,7 +652,7 @@ class SelfLearningWorkloadClassifier:
     # ============================================================================
 
     def _ml_enhanced_rule_classification(self, features_df: pd.DataFrame) -> Dict[str, Any]:
-        """FIXED: Enhanced rule-based classification with proper extreme case handling"""
+        """ Enhanced rule-based classification with proper extreme case handling"""
         try:
             features = features_df.iloc[0] if not features_df.empty else {}
             

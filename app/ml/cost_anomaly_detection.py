@@ -96,7 +96,7 @@ class AnomalyDetectionModel:
 
 class RealTimeCostAnomalyDetector:
     """
-    FIXED: Real-time cost anomaly detection with robust error handling
+     Real-time cost anomaly detection with robust error handling
     """
     
     def __init__(self, detection_interval_seconds: int = 300):  # 5 minutes default
@@ -133,7 +133,7 @@ class RealTimeCostAnomalyDetector:
         logger.info("🚀 Starting real-time cost anomaly monitoring")
         
         try:
-            # FIXED: Initialize models with safe data validation
+            #  Initialize models with safe data validation
             self._initialize_anomaly_models_safe(cluster_info)
             
             # Setup default guardrails
@@ -166,7 +166,7 @@ class RealTimeCostAnomalyDetector:
         """Feed real-time cost data to the detector with input validation"""
         
         try:
-            # FIXED: Validate and sanitize input data
+            #  Validate and sanitize input data
             sanitized_data = self._sanitize_cost_data(cost_data)
             
             # Process and normalize cost data
@@ -191,7 +191,7 @@ class RealTimeCostAnomalyDetector:
         logger.info(f"🔮 Predicting cost spikes for next {prediction_horizon_minutes} minutes")
         
         try:
-            # FIXED: Sanitize input metrics
+            #  Sanitize input metrics
             sanitized_metrics = self._sanitize_cost_data(current_metrics)
             
             # Extract current trend
@@ -244,7 +244,7 @@ class RealTimeCostAnomalyDetector:
         logger.info(f"🛡️ Implementing cost guardrails for ${cost_budget_monthly:.2f}/month budget")
         
         try:
-            # FIXED: Validate budget input
+            #  Validate budget input
             if not self._is_valid_budget(cost_budget_monthly):
                 logger.warning("⚠️ Invalid budget provided, using default guardrails")
                 cost_budget_monthly = 1000.0  # Default fallback
@@ -305,7 +305,7 @@ class RealTimeCostAnomalyDetector:
                     guardrail_id="rate_based_spike",
                     name="Spending Rate Spike Detection",
                     threshold_type="rate",
-                    threshold_value=max(hourly_budget * 2, 10.0),  # FIXED: Ensure minimum threshold
+                    threshold_value=max(hourly_budget * 2, 10.0),  #  Ensure minimum threshold
                     time_window_minutes=30,
                     warning_actions=["rate_spike_alert"],
                     enforcement_actions=["investigate_spike"],
@@ -380,7 +380,7 @@ class RealTimeCostAnomalyDetector:
     # ========================================================================
     
     def _sanitize_cost_data(self, cost_data: Dict) -> Dict:
-        """FIXED: Sanitize cost data to prevent infinity/NaN issues"""
+        """ Sanitize cost data to prevent infinity/NaN issues"""
         
         sanitized = {}
         
@@ -427,7 +427,7 @@ class RealTimeCostAnomalyDetector:
         return sanitized
     
     def _is_valid_budget(self, budget: float) -> bool:
-        """FIXED: Validate budget value"""
+        """ Validate budget value"""
         try:
             return (isinstance(budget, (int, float)) and 
                     np.isfinite(budget) and 
@@ -437,7 +437,7 @@ class RealTimeCostAnomalyDetector:
             return False
     
     def _initialize_anomaly_models_safe(self, cluster_info: Dict):
-        """FIXED: Initialize anomaly detection models with safe data handling"""
+        """ Initialize anomaly detection models with safe data handling"""
         
         logger.info("🤖 Initializing anomaly detection models safely")
         
@@ -446,11 +446,11 @@ class RealTimeCostAnomalyDetector:
             isolation_forest = IsolationForest(
                 contamination=0.1,  # Expect 10% anomalies
                 random_state=42,
-                n_estimators=50,    # FIXED: Reduced for stability
-                max_samples=100     # FIXED: Limited for safety
+                n_estimators=50,    #  Reduced for stability
+                max_samples=100     #  Limited for safety
             )
             
-            # FIXED: Create safe training data
+            #  Create safe training data
             training_data = self._generate_safe_training_data(cluster_info)
             
             # Validate training data
@@ -485,30 +485,30 @@ class RealTimeCostAnomalyDetector:
             logger.info("📊 Continuing with statistical anomaly detection only")
     
     def _generate_safe_training_data(self, cluster_info: Dict) -> np.ndarray:
-        """FIXED: Generate safe synthetic training data"""
+        """ Generate safe synthetic training data"""
         
         try:
-            # FIXED: Extract and validate cluster characteristics
+            #  Extract and validate cluster characteristics
             total_cost = cluster_info.get('total_cost', 1000.0)
             nodes = cluster_info.get('nodes', [])
-            node_count = max(1, len(nodes))  # FIXED: Ensure minimum of 1
+            node_count = max(1, len(nodes))  #  Ensure minimum of 1
             
-            # FIXED: Sanitize cost value
+            #  Sanitize cost value
             if not np.isfinite(total_cost) or total_cost <= 0:
                 total_cost = 1000.0
                 logger.warning("⚠️ Invalid total_cost, using default: 1000.0")
             
             # Ensure reasonable bounds
-            total_cost = max(100.0, min(total_cost, 100000.0))  # FIXED: Bounded between $100-$100k
+            total_cost = max(100.0, min(total_cost, 100000.0))  #  Bounded between $100-$100k
             
             # Generate normal operating patterns
-            n_samples = 200  # FIXED: Reduced sample size for stability
+            n_samples = 200  #  Reduced sample size for stability
             
             # Feature 1: Total cost (with controlled variation)
             cost_base = total_cost
-            cost_variation = max(10.0, total_cost * 0.1)  # FIXED: Minimum variation of $10
+            cost_variation = max(10.0, total_cost * 0.1)  #  Minimum variation of $10
             costs = np.random.normal(cost_base, cost_variation, n_samples)
-            costs = np.clip(costs, cost_base * 0.5, cost_base * 2.0)  # FIXED: Bounded variation
+            costs = np.clip(costs, cost_base * 0.5, cost_base * 2.0)  #  Bounded variation
             
             # Feature 2: Cost per node
             cost_per_node = costs / node_count
@@ -522,8 +522,8 @@ class RealTimeCostAnomalyDetector:
             day_effect = np.where(day_of_week < 5, 1.0, 0.8)  # Weekday vs weekend
             
             # Feature 5: Cost rate (controlled change over time)
-            cost_rates = np.random.normal(0, max(1.0, cost_base * 0.02), n_samples)  # FIXED: Controlled rate
-            cost_rates = np.clip(cost_rates, -cost_base * 0.1, cost_base * 0.1)  # FIXED: Bounded rates
+            cost_rates = np.random.normal(0, max(1.0, cost_base * 0.02), n_samples)  #  Controlled rate
+            cost_rates = np.clip(cost_rates, -cost_base * 0.1, cost_base * 0.1)  #  Bounded rates
             
             # Combine features
             training_data = np.column_stack([
@@ -534,17 +534,18 @@ class RealTimeCostAnomalyDetector:
                 cost_rates
             ])
             
-            # FIXED: Final validation and cleaning
+            #  Final validation and cleaning
             training_data = np.nan_to_num(training_data, nan=cost_base, posinf=cost_base*2, neginf=cost_base*0.5)
             
             return training_data
             
         except Exception as e:
             logger.error(f"❌ Safe training data generation failed: {e}")
-            return self._generate_fallback_training_data()
+            return None
+            #return self._generate_fallback_training_data()
     
     def _generate_fallback_training_data(self) -> np.ndarray:
-        """FIXED: Generate minimal fallback training data"""
+        """ Generate minimal fallback training data"""
         
         # Ultra-safe fallback data
         n_samples = 100
@@ -568,7 +569,7 @@ class RealTimeCostAnomalyDetector:
         return training_data
     
     def _validate_training_data(self, training_data: np.ndarray) -> bool:
-        """FIXED: Validate training data for ML model"""
+        """ Validate training data for ML model"""
         
         try:
             # Check for basic properties
@@ -664,7 +665,7 @@ class RealTimeCostAnomalyDetector:
         return anomalies
     
     def _extract_features_for_ml(self, data_points: List[Dict]) -> Optional[np.ndarray]:
-        """FIXED: Extract features with safe handling"""
+        """ Extract features with safe handling"""
         
         try:
             if len(data_points) < 5:
@@ -1035,7 +1036,7 @@ class AutomatedResponseSystem:
 def setup_real_time_cost_anomaly_detection(cluster_info: Dict, 
                                           cost_budget_monthly: Optional[float] = None) -> RealTimeCostAnomalyDetector:
     """
-    FIXED: Setup real-time cost anomaly detection with safe handling
+     Setup real-time cost anomaly detection with safe handling
     """
     
     try:
