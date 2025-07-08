@@ -73,7 +73,7 @@ class AKSRealTimeMetricsFetcher:
 
     def _process_enhanced_node_data(self, top_nodes_output: str, node_info_json: str, pod_resources: Dict) -> Dict:
         """
-        FIXED: Process enhanced node data with resource requests
+         Process enhanced node data with resource requests
         """
         try:
             logger.info("🔧 Processing enhanced node data with resource requests...")
@@ -189,10 +189,10 @@ class AKSRealTimeMetricsFetcher:
         
     def _get_enhanced_node_resource_data(self) -> Dict[str, Any]:
         """
-        FIXED: Get comprehensive node data including resource requests/limits
+         Get comprehensive node data including resource requests/limits
         """
         try:
-            logger.info("📊 FIXED: Fetching enhanced node resource data...")
+            logger.info("📊  Fetching enhanced node resource data...")
             
             # Step 1: Get node usage (existing)
             top_nodes = self.execute_kubectl_command("kubectl top nodes --no-headers", timeout=60)
@@ -212,10 +212,10 @@ class AKSRealTimeMetricsFetcher:
         
     def _get_pod_resource_requests_by_node(self) -> Dict[str, Dict]:
         """
-        COMPLETELY FIXED: Pod resource requests with better JSON handling
+        COMPLETELY  Pod resource requests with better JSON handling
         """
         try:
-            logger.info("🔍 FIXED: Fetching pod resource requests with enhanced parsing...")
+            logger.info("🔍  Fetching pod resource requests with enhanced parsing...")
             
             # Method 1: Try getting resource requests directly (more efficient)
             try:
@@ -223,7 +223,7 @@ class AKSRealTimeMetricsFetcher:
                 
                 describe_output = self.execute_kubectl_command(describe_cmd, timeout=60)
                 if describe_output:
-                    logger.info("✅ FIXED: Using custom columns approach for resource requests")
+                    logger.info("✅  Using custom columns approach for resource requests")
                     return self._parse_custom_columns_resource_requests(describe_output)
             except Exception as custom_error:
                 logger.warning(f"⚠️ Custom columns approach failed: {custom_error}")
@@ -234,17 +234,17 @@ class AKSRealTimeMetricsFetcher:
                 basic_output = self.execute_kubectl_command(basic_cmd, timeout=60)
                 
                 if basic_output:
-                    logger.info("✅ FIXED: Using basic pod listing for resource estimation")
+                    logger.info("✅  Using basic pod listing for resource estimation")
                     return self._estimate_resource_requests_from_basic_data(basic_output)
             except Exception as basic_error:
                 logger.warning(f"⚠️ Basic pod listing failed: {basic_error}")
             
             # Method 3: Final fallback - return empty but valid structure
-            logger.warning("⚠️ FIXED: All pod resource collection methods failed, using empty structure")
+            logger.warning("⚠️  All pod resource collection methods failed, using empty structure")
             return {}
             
         except Exception as e:
-            logger.error(f"❌ FIXED: Pod resource requests collection failed: {e}")
+            logger.error(f"❌  Pod resource requests collection failed: {e}")
             return {}
 
     def _estimate_resource_requests_from_basic_data(self, output: str) -> Dict[str, Dict]:
@@ -285,7 +285,7 @@ class AKSRealTimeMetricsFetcher:
                     'estimation_method': 'basic_pod_count'
                 }
             
-            logger.info(f"✅ FIXED: Estimated resources for {len(node_resources)} nodes")
+            logger.info(f"✅  Estimated resources for {len(node_resources)} nodes")
             return node_resources
             
         except Exception as e:
@@ -334,7 +334,7 @@ class AKSRealTimeMetricsFetcher:
                             'memory_request_bytes': memory_bytes
                         })
             
-            logger.info(f"✅ FIXED: Parsed resource requests for {len(node_resources)} nodes")
+            logger.info(f"✅  Parsed resource requests for {len(node_resources)} nodes")
             return node_resources
             
         except Exception as e:
@@ -347,7 +347,7 @@ class AKSRealTimeMetricsFetcher:
         Use this instead of the failing _get_detailed_hpa_metrics method
         """
         try:
-            logger.info("🔍 FIXED: Getting HPA metrics with high CPU detection...")
+            logger.info("🔍  Getting HPA metrics with high CPU detection...")
             
             # Try the most reliable method first
             result = self._get_detailed_hpa_metrics()
@@ -1481,25 +1481,25 @@ class AKSRealTimeMetricsFetcher:
 
     def get_ml_ready_metrics(self) -> Dict[str, Any]:
         """
-        COMPLETELY FIXED: Get ML-ready metrics with all fixes applied
+        COMPLETELY  Get ML-ready metrics with all fixes applied
         """
         try:
-            logger.info("🤖 COMPLETELY FIXED: Collecting ML-ready metrics...")
+            logger.info("🤖 COMPLETELY  Collecting ML-ready metrics...")
             
             # Step 1: Get enhanced node-level metrics
             try:
                 node_metrics = self._get_enhanced_node_resource_data()
-                logger.info("✅ FIXED: Got enhanced node metrics")
+                logger.info("✅  Got enhanced node metrics")
             except Exception as node_error:
                 logger.warning(f"⚠️ Enhanced node metrics failed: {node_error}")
                 # Fallback to basic node metrics
                 node_metrics = self.get_node_metrics()
-                logger.info("✅ FIXED: Using basic node metrics as fallback")
+                logger.info("✅  Using basic node metrics as fallback")
             
             # Step 2: Get HPA metrics with FIXED method name
             try:
                 hpa_metrics = self._get_detailed_hpa_metrics()
-                logger.info("✅ FIXED: Got HPA metrics with corrected method")
+                logger.info("✅  Got HPA metrics with corrected method")
             except Exception as hpa_error:
                 logger.warning(f"⚠️ HPA metrics failed: {hpa_error}")
                 hpa_metrics = {
@@ -1512,7 +1512,7 @@ class AKSRealTimeMetricsFetcher:
             # Step 3: Get pod-level resource consumption with FIXED parsing
             try:
                 pod_metrics = self._get_detailed_pod_metrics()
-                logger.info("✅ FIXED: Got pod metrics")
+                logger.info("✅  Got pod metrics")
             except Exception as pod_error:
                 logger.warning(f"⚠️ Pod metrics failed: {pod_error}")
                 pod_metrics = {'pods': [], 'namespace_aggregates': {}, 'total_pods': 0}
@@ -1520,7 +1520,7 @@ class AKSRealTimeMetricsFetcher:
             # Step 4: Analyze high CPU workloads (existing method)
             try:
                 high_cpu_analysis = self._analyze_high_cpu_workloads(hpa_metrics, pod_metrics)
-                logger.info("✅ FIXED: Completed high CPU analysis")
+                logger.info("✅  Completed high CPU analysis")
             except Exception as cpu_error:
                 logger.warning(f"⚠️ High CPU analysis failed: {cpu_error}")
                 high_cpu_analysis = {
@@ -1563,12 +1563,12 @@ class AKSRealTimeMetricsFetcher:
             }
             
             total_nodes = len(ml_ready_data['nodes'])
-            logger.info(f"✅ COMPLETELY FIXED: ML-ready metrics collected - {total_nodes} nodes")
+            logger.info(f"✅ COMPLETELY  ML-ready metrics collected - {total_nodes} nodes")
             
             return ml_ready_data
             
         except Exception as e:
-            logger.error(f"❌ COMPLETELY FIXED: ML-ready metrics collection failed: {e}")
+            logger.error(f"❌ COMPLETELY  ML-ready metrics collection failed: {e}")
             raise ValueError(f"Failed to collect completely fixed ML-ready metrics: {e}")
 
 

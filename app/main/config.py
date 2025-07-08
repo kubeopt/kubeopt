@@ -33,6 +33,15 @@ _analysis_lock = threading.Lock()
 analysis_status_tracker = {}
 analysis_results = {}
 
+try:
+    from app.analytics.aks_config_fetcher import create_cluster_config_fetcher
+    CLUSTER_CONFIG_AVAILABLE = True
+    logger.info("✅ Cluster configuration fetcher available")
+except ImportError as e:
+    CLUSTER_CONFIG_AVAILABLE = False
+    logger.warning(f"⚠️ Cluster configuration fetcher not available: {e}")
+
+
 # Enhanced global cache with multi-subscription support
 analysis_cache = {
     'clusters': {},  # {cluster_id: {'data': {}, 'timestamp': str, 'ttl_hours': int, 'subscription_id': str}}
@@ -369,5 +378,6 @@ __all__ = [
     '_analysis_lock',
     'initialize_application_with_multi_subscription',
     'get_multi_subscription_status',
-    'validate_multi_subscription_configuration'
+    'validate_multi_subscription_configuration',
+    'CLUSTER_CONFIG_AVAILABLE'
 ]
