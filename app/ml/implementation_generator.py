@@ -54,6 +54,183 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         
         logger.info("✅ AKS Implementation Generator ready with cluster config integration")
         logger.info(f"🔧 ML Systems Available: {self.ml_systems_available}")
+
+
+    def _generate_organization_recommendations(self, raw_patterns: Dict) -> List[str]:
+        """Generate organization recommendations based on detected patterns"""
+        
+        recommendations = []
+        
+        try:
+            security_level = raw_patterns.get('security_level', 'unknown')
+            environment_type = raw_patterns.get('environment_type', 'unknown')
+            deployment_maturity = raw_patterns.get('deployment_maturity', 'unknown')
+            naming_convention = raw_patterns.get('naming_convention', 'unknown')
+            
+            # Security recommendations
+            if security_level == 'basic':
+                recommendations.append("Implement more comprehensive RBAC policies for enhanced security")
+                recommendations.append("Consider implementing network policies for workload isolation")
+            
+            # Environment recommendations
+            if environment_type == 'production':
+                recommendations.append("Use conservative scaling policies for production stability")
+                recommendations.append("Implement comprehensive monitoring and alerting")
+            elif environment_type == 'development':
+                recommendations.append("Optimize for cost over availability in development environment")
+                recommendations.append("Use aggressive scaling policies to minimize costs")
+            
+            # Maturity recommendations
+            if deployment_maturity == 'low':
+                recommendations.append("Implement Horizontal Pod Autoscalers for better resource utilization")
+                recommendations.append("Consider using StatefulSets for stateful applications")
+            elif deployment_maturity == 'high':
+                recommendations.append("Optimize existing scaling policies for better efficiency")
+                recommendations.append("Implement advanced monitoring and observability")
+            
+            # Naming recommendations
+            if naming_convention == 'basic':
+                recommendations.append("Standardize naming conventions across resources")
+                recommendations.append("Implement environment prefixes for better resource organization")
+            
+            logger.info(f"📋 Generated {len(recommendations)} organization recommendations")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Organization recommendations generation failed: {e}")
+            recommendations.append("Unable to generate specific recommendations - implement basic optimization practices")
+        
+        return recommendations
+
+    def _calculate_intelligent_command_distribution(self, all_commands: List[Dict], 
+                                                phases: List[Dict], 
+                                                comprehensive_state: Dict) -> Dict[int, Tuple[int, int]]:
+        """Calculate intelligent command distribution based on state analysis"""
+        
+        distribution = {}
+        
+        try:
+            # Categorize commands by priority and complexity
+            high_priority_commands = []
+            medium_priority_commands = []
+            low_priority_commands = []
+            
+            for i, cmd in enumerate(all_commands):
+                risk_level = cmd.get('risk_level', 'Medium')
+                optimization_category = cmd.get('optimization_category', 'general_optimization')
+                
+                if risk_level == 'High' or 'high_impact' in optimization_category:
+                    high_priority_commands.append(i)
+                elif risk_level == 'Medium' or 'medium_impact' in optimization_category:
+                    medium_priority_commands.append(i)
+                else:
+                    low_priority_commands.append(i)
+            
+            # Distribute commands across phases intelligently
+            num_phases = len(phases)
+            
+            if num_phases >= 3:
+                # Phase 1: High priority commands (preparation and critical optimizations)
+                distribution[0] = (0, len(high_priority_commands))
+                
+                # Phase 2: Medium priority commands (main optimizations)
+                start_idx = len(high_priority_commands)
+                distribution[1] = (start_idx, start_idx + len(medium_priority_commands))
+                
+                # Phase 3+: Low priority commands distributed across remaining phases
+                start_idx = len(high_priority_commands) + len(medium_priority_commands)
+                remaining_phases = num_phases - 2
+                commands_per_remaining_phase = len(low_priority_commands) // max(remaining_phases, 1)
+                
+                for i in range(remaining_phases):
+                    phase_idx = i + 2
+                    phase_start = start_idx + (i * commands_per_remaining_phase)
+                    phase_end = phase_start + commands_per_remaining_phase
+                    if i == remaining_phases - 1:  # Last phase gets remaining commands
+                        phase_end = len(all_commands)
+                    distribution[phase_idx] = (phase_start, phase_end)
+            
+            else:
+                # Simple distribution for fewer phases
+                commands_per_phase = len(all_commands) // num_phases
+                for i in range(num_phases):
+                    start_idx = i * commands_per_phase
+                    end_idx = start_idx + commands_per_phase
+                    if i == num_phases - 1:  # Last phase gets remaining commands
+                        end_idx = len(all_commands)
+                    distribution[i] = (start_idx, end_idx)
+            
+            logger.info(f"🎯 Intelligent command distribution: {len(high_priority_commands)} high, {len(medium_priority_commands)} medium, {len(low_priority_commands)} low priority")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Intelligent command distribution failed: {e}")
+            # Fallback to simple distribution
+            commands_per_phase = len(all_commands) // len(phases)
+            distribution = {i: (i * commands_per_phase, (i + 1) * commands_per_phase) 
+                        for i in range(len(phases))}
+        
+        return distribution
+
+    def _extract_cluster_intelligence_for_commands(self, cluster_config: Dict) -> Dict[str, Any]:
+        """Extract cluster intelligence specifically for command generation"""
+        
+        intelligence = {}
+        
+        try:
+            # Extract workload information for targeted commands
+            workload_resources = cluster_config.get('workload_resources', {})
+            scaling_resources = cluster_config.get('scaling_resources', {})
+            
+            deployments = workload_resources.get('deployments', {}).get('item_count', 0)
+            statefulsets = workload_resources.get('statefulsets', {}).get('item_count', 0)
+            daemonsets = workload_resources.get('daemonsets', {}).get('item_count', 0)
+            hpas = scaling_resources.get('horizontalpodautoscalers', {}).get('item_count', 0)
+            
+            total_workloads = deployments + statefulsets + daemonsets
+            
+            intelligence['total_workloads'] = total_workloads
+            intelligence['deployments'] = deployments
+            intelligence['statefulsets'] = statefulsets
+            intelligence['daemonsets'] = daemonsets
+            intelligence['existing_hpas'] = hpas
+            intelligence['hpa_coverage'] = (hpas / max(total_workloads, 1)) * 100
+            
+            # Extract actual workload names for targeted commands
+            intelligence['real_workload_names'] = []
+            if 'deployments' in workload_resources and 'items' in workload_resources['deployments']:
+                for deployment in workload_resources['deployments']['items'][:10]:  # Top 10
+                    name = deployment.get('metadata', {}).get('name', '')
+                    namespace = deployment.get('metadata', {}).get('namespace', 'default')
+                    if name:
+                        intelligence['real_workload_names'].append(f"{namespace}/{name}")
+            
+            # Extract namespace information
+            namespaces = cluster_config.get('fetch_metrics', {}).get('total_namespaces', 0)
+            intelligence['namespace_count'] = namespaces
+            
+            # Extract real namespace names
+            intelligence['real_namespaces'] = self.command_generator._get_real_namespaces_from_config(cluster_config)
+            
+            # Command generation implications
+            intelligence['command_implications'] = []
+            
+            if total_workloads > 50:
+                intelligence['command_implications'].append('batch_processing_recommended')
+            
+            if hpas == 0:
+                intelligence['command_implications'].append('clean_hpa_implementation')
+            elif hpas > 0:
+                intelligence['command_implications'].append('hpa_migration_required')
+            
+            if namespaces > 10:
+                intelligence['command_implications'].append('namespace_coordination_required')
+            
+            logger.info(f"🔧 Command Intelligence: {total_workloads} workloads, {hpas} HPAs, {namespaces} namespaces")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error extracting cluster intelligence for commands: {e}")
+            intelligence['error'] = str(e)
+        
+        return intelligence    
     
     def generate_implementation_plan(self, analysis_results: Dict, 
                                    historical_data: Optional[Dict] = None,
@@ -224,11 +401,110 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             raise
     
-    def _fetch_and_analyze_cluster_config(self, resource_group: str, cluster_name: str, 
-                                         subscription_id: str, ml_session: Dict) -> Dict[str, Any]:
+
+    def _perform_comprehensive_state_analysis(self, cluster_config: Dict, ml_session: Dict) -> Dict:
         """
-        Fetch and analyze current cluster configuration
-        NEW PHASE: Gets real cluster config for ML analysis
+        Comprehensive state analysis with proper aggregation
+        """
+        if not cluster_config or cluster_config.get('status') != 'completed':
+            return {'analysis_available': False, 'reason': 'cluster_config_unavailable'}
+        
+        comprehensive_state = {
+            'analysis_available': True,
+            'total_optimization_opportunities': 0,  # Initialize as int
+            'state_categories': {}
+        }
+        
+        try:
+            # Each analysis returns a dict, extract optimization potential as int
+            hpa_state = self._analyze_current_hpa_state(cluster_config)
+            comprehensive_state['hpa_state'] = hpa_state
+            hpa_opportunities = hpa_state.get('summary', {}).get('optimization_potential', 0)
+            if isinstance(hpa_opportunities, (int, float)):
+                comprehensive_state['total_optimization_opportunities'] += int(hpa_opportunities)
+            
+            rightsizing_state = self._analyze_current_resource_allocation(cluster_config)
+            comprehensive_state['rightsizing_state'] = rightsizing_state
+            rightsizing_opportunities = rightsizing_state.get('optimization_potential', {}).get('workloads_to_optimize', 0)
+            if isinstance(rightsizing_opportunities, (int, float)):
+                comprehensive_state['total_optimization_opportunities'] += int(rightsizing_opportunities)
+            
+            storage_state = self._analyze_current_storage_config(cluster_config)
+            comprehensive_state['storage_state'] = storage_state
+            storage_opportunities = len(storage_state.get('optimization_opportunities', []))
+            comprehensive_state['total_optimization_opportunities'] += storage_opportunities
+            
+            network_state = self._analyze_current_network_policies(cluster_config)
+            comprehensive_state['networking_state'] = network_state
+            network_opportunities = len(network_state.get('optimization_opportunities', []))
+            comprehensive_state['total_optimization_opportunities'] += network_opportunities
+            
+            security_state = self._analyze_current_security_posture(cluster_config)
+            comprehensive_state['security_state'] = security_state
+            security_opportunities = len(security_state.get('optimization_opportunities', []))
+            comprehensive_state['total_optimization_opportunities'] += security_opportunities
+            
+            organization_patterns = self.command_generator._detect_organization_patterns(cluster_config)
+            comprehensive_state['organization_patterns'] = organization_patterns
+            
+            comprehensive_state['analysis_timestamp'] = datetime.now().isoformat()
+            
+            logger.info(f"🔍 Comprehensive state analysis completed for cluster with {cluster_config.get('fetch_metrics', {}).get('successful_fetches', 0)} resources")
+            logger.info(f"🎯 Total optimization opportunities: {comprehensive_state['total_optimization_opportunities']}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Comprehensive state analysis failed: {e}")
+            comprehensive_state['analysis_error'] = str(e)
+            comprehensive_state['analysis_available'] = False
+        
+        return comprehensive_state
+
+    def _detect_organization_patterns_from_config(self, cluster_config: Dict) -> Dict:
+        """
+        NEW: Enhanced organization pattern detection for ML learning
+        """
+        logger.info("🏢 Detecting organization patterns from cluster configuration...")
+        
+        org_patterns = {
+            'detected_patterns': [],
+            'confidence_scores': {},
+            'recommendations': []
+        }
+        
+        try:
+            # Use command generator's pattern detection if available
+            if hasattr(self, 'command_generator') and self.command_generator:
+                if hasattr(self.command_generator, '_detect_organization_patterns'):
+                    raw_patterns = self.command_generator._detect_organization_patterns(cluster_config)
+                    
+                    # Convert to ML-friendly format
+                    for pattern_type, pattern_value in raw_patterns.items():
+                        if pattern_value != 'unknown' and pattern_value:
+                            org_patterns['detected_patterns'].append({
+                                'type': pattern_type,
+                                'value': pattern_value,
+                                'confidence': self._calculate_pattern_confidence(pattern_type, pattern_value)
+                            })
+                    
+                    # Generate ML recommendations based on patterns
+                    org_patterns['recommendations'] = self._generate_organization_recommendations(raw_patterns)
+                    
+                    logger.info(f"🎯 Organization patterns detected: {len(org_patterns['detected_patterns'])} patterns")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Organization pattern detection failed: {e}")
+            org_patterns['detection_error'] = str(e)
+        
+        return org_patterns
+
+
+
+
+    def _fetch_and_analyze_cluster_config(self, resource_group: str, cluster_name: str, 
+                                     subscription_id: str, ml_session: Dict) -> Dict[str, Any]:
+        """
+        comprehensive state analysis integration
+
         """
         try:
             if not subscription_id:
@@ -240,27 +516,40 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             
             logger.info(f"🔍 Fetching real cluster configuration for {cluster_name}")
             
-
             from app.analytics.aks_config_fetcher import create_cluster_config_fetcher
-              
-            # Create fetcher and get configuration
+            
+            # Your existing cluster config fetching
             fetcher = create_cluster_config_fetcher(resource_group, cluster_name, subscription_id)
             cluster_config = fetcher.fetch_raw_cluster_configuration(enable_parallel_fetch=True)
             
             if cluster_config.get('status') == 'completed':
                 logger.info(f"✅ Cluster config fetched: {cluster_config.get('fetch_metrics', {}).get('successful_fetches', 0)} resources")
                 
-                # Store in ML session for other phases
+                # Your existing config storage
                 ml_session['cluster_config'] = cluster_config
                 ml_session['config_insights'] = self._extract_config_insights(cluster_config)
                 
-                # Record config fetch event
+                # NEW: Add comprehensive state analysis
+                logger.info("🔍 Performing comprehensive cluster state analysis...")
+                comprehensive_state = self._perform_comprehensive_state_analysis(cluster_config, ml_session)
+                ml_session['comprehensive_state'] = comprehensive_state
+                
+                # NEW: Add organization pattern detection
+                org_patterns = self._detect_organization_patterns_from_config(cluster_config)
+                ml_session['organization_patterns'] = org_patterns
+                
+                # Enhanced learning event
                 ml_session['learning_events'].append({
-                    'event': 'cluster_config_fetched',
+                    'event': 'enhanced_cluster_config_fetched',
                     'resources_fetched': cluster_config.get('fetch_metrics', {}).get('successful_fetches', 0),
                     'fetch_duration': cluster_config.get('fetch_metrics', {}).get('fetch_duration_seconds', 0),
+                    'state_analysis_available': comprehensive_state.get('analysis_available', False),
+                    'organization_patterns_detected': len(org_patterns.get('detected_patterns', [])),
+                    'optimization_opportunities_identified': comprehensive_state.get('total_optimization_opportunities', 0),
                     'success': True
                 })
+                
+                logger.info(f"🎯 Enhanced config analysis: {comprehensive_state.get('total_optimization_opportunities', 0)} optimization opportunities identified")
                 
                 return cluster_config
             else:
@@ -268,7 +557,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 return cluster_config
                 
         except Exception as e:
-            logger.error(f"❌ Cluster config fetch failed: {e}")
+            logger.error(f"❌ Enhanced cluster config fetch failed: {e}")
             return {
                 'fetch_error': str(e),
                 'status': 'failed'
@@ -525,11 +814,360 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             logger.error(f"❌ Enhanced plan generation failed: {e}")
             raise RuntimeError(f"❌ Enhanced plan generation failed: {e}") from e
     
+    def _create_enhanced_execution_plan(self, state_driven_commands: List, analysis_results: Dict, comprehensive_state: Dict) -> Any:
+        """Create enhanced execution plan from state-driven commands"""
+        
+        try:
+            from dataclasses import dataclass
+            from typing import List as TypingList
+            
+            @dataclass
+            class EnhancedExecutionPlan:
+                plan_id: str
+                state_driven: bool
+                preparation_commands: TypingList
+                optimization_commands: TypingList
+                validation_commands: TypingList
+                total_commands: int
+                success_probability: float
+                
+            return EnhancedExecutionPlan(
+                plan_id=f"state-driven-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                state_driven=True,
+                preparation_commands=state_driven_commands[:2],
+                optimization_commands=state_driven_commands[2:],
+                validation_commands=[],
+                total_commands=len(state_driven_commands),
+                success_probability=0.85
+            )
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Enhanced execution plan creation failed: {e}")
+            return None
+
+    def _generate_state_driven_execution_plan(self, ml_strategy: Any, cluster_dna: Any, 
+                                        analysis_results: Dict, cluster_config: Dict,
+                                        comprehensive_state: Dict, organization_patterns: Dict) -> Any:
+        """
+        Generate execution plan using comprehensive state analysis
+        """
+        logger.info("🎯 Generating state-driven execution plan...")
+        
+        try:
+            # Check if command generator supports state-driven generation
+            if hasattr(self.command_generator, '_generate_state_driven_commands'):
+                
+                # Build enhanced variable context with state intelligence
+                enhanced_variable_context = self._build_enhanced_variable_context(
+                    analysis_results, cluster_dna, cluster_config, comprehensive_state, organization_patterns
+                )
+                
+                # Generate state-driven commands
+                state_driven_commands = self.command_generator._generate_state_driven_commands(
+                    comprehensive_state, enhanced_variable_context, 
+                    self._extract_cluster_intelligence_for_commands(cluster_config)
+                )
+                
+                # Create enhanced execution plan
+                execution_plan = self._create_enhanced_execution_plan(
+                    state_driven_commands, analysis_results, comprehensive_state
+                )
+                
+                logger.info(f"✅ State-driven execution plan generated with {len(state_driven_commands)} commands")
+                return execution_plan
+            
+            else:
+                # Fallback to standard generation
+                logger.info("📊 Falling back to standard execution plan generation...")
+                return self.command_generator.generate_comprehensive_execution_plan(
+                    ml_strategy, cluster_dna, analysis_results, cluster_config
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ State-driven execution plan generation failed: {e}")
+            raise
+
+    def _calculate_pattern_confidence(self, pattern_type: str, pattern_value: str) -> float:
+        """Calculate confidence score for detected organization pattern"""
+        
+        confidence_scores = {
+            'security_level': {'enterprise': 0.9, 'standard': 0.8, 'basic': 0.7},
+            'environment_type': {'production': 0.9, 'staging': 0.8, 'development': 0.7},
+            'deployment_maturity': {'high': 0.9, 'medium': 0.7, 'low': 0.5}
+        }
+        
+        return confidence_scores.get(pattern_type, {}).get(pattern_value, 0.5)
+
+    def _extract_pattern_value(self, organization_patterns: Dict, pattern_type: str) -> str:
+        """Extract pattern value from organization patterns"""
+        
+        for pattern in organization_patterns.get('detected_patterns', []):
+            if pattern.get('type') == pattern_type:
+                return pattern.get('value', 'unknown')
+        
+        return 'unknown'
+
+    def _classify_command_optimization_category(self, cmd: Any, comprehensive_state: Dict) -> str:
+        """Classify command based on state analysis"""
+        
+        subcategory = getattr(cmd, 'subcategory', 'general')
+        
+        if 'hpa' in subcategory.lower():
+            hpa_opportunities = comprehensive_state.get('hpa_state', {}).get('summary', {}).get('optimization_potential', 0)
+            return f'hpa_optimization_high_impact' if hpa_opportunities > 5 else 'hpa_optimization_standard'
+        elif 'rightsizing' in subcategory.lower():
+            rightsizing_opportunities = len(comprehensive_state.get('rightsizing_state', {}).get('overprovisioned_workloads', []))
+            return f'rightsizing_high_impact' if rightsizing_opportunities > 10 else 'rightsizing_standard'
+        else:
+            return 'general_optimization'
+
+    def _estimate_command_impact(self, cmd: Any, comprehensive_state: Dict) -> str:
+        """Estimate command impact based on state analysis"""
+        
+        risk_level = getattr(cmd, 'risk_level', 'Medium')
+        subcategory = getattr(cmd, 'subcategory', 'general')
+        
+        if risk_level == 'High':
+            return 'high_impact'
+        elif 'hpa' in subcategory.lower() and comprehensive_state.get('hpa_state', {}).get('summary', {}).get('optimization_potential', 0) > 5:
+            return 'high_impact'
+        elif risk_level == 'Medium':
+            return 'medium_impact'
+        else:
+            return 'low_impact'
+
+
+    def _map_commands_to_phases_with_state_intelligence(self, implementation_plan: Dict, 
+                                                  execution_plan: Any, cluster_config: Dict,
+                                                  comprehensive_state: Optional[Dict]) -> Dict:
+        """
+        command mapping with state intelligence
+        """
+        phases = implementation_plan.get('implementation_phases', [])
+        
+        if not execution_plan or not phases:
+            return implementation_plan
+        
+        try:
+            # Your existing command extraction logic
+            all_commands = []
+            
+            for attr in ['preparation_commands', 'optimization_commands', 'validation_commands']:
+                if hasattr(execution_plan, attr):
+                    commands = getattr(execution_plan, attr) or []
+                    for cmd in commands:
+                        command_dict = {
+                            'id': getattr(cmd, 'id', f'cmd-{len(all_commands)}'),
+                            'title': getattr(cmd, 'description', 'ML Generated Command'),
+                            'command': getattr(cmd, 'command', ''),
+                            'category': getattr(cmd, 'category', 'optimization'),
+                            'description': getattr(cmd, 'description', 'ML generated command'),
+                            'estimated_duration_minutes': getattr(cmd, 'estimated_duration_minutes', 30),
+                            'risk_level': getattr(cmd, 'risk_level', 'Medium'),
+                            'config_aware': True
+                        }
+                        
+                        # NEW: Add state intelligence metadata
+                        if comprehensive_state and comprehensive_state.get('analysis_available'):
+                            command_dict['state_driven'] = True
+                            command_dict['optimization_category'] = self._classify_command_optimization_category(cmd, comprehensive_state)
+                            command_dict['expected_impact'] = self._estimate_command_impact(cmd, comprehensive_state)
+                        
+                        all_commands.append(command_dict)
+            
+            # Enhanced command distribution with state intelligence
+            if all_commands and phases:
+                if comprehensive_state and comprehensive_state.get('analysis_available'):
+                    # Intelligent command distribution based on state analysis
+                    command_distribution = self._calculate_intelligent_command_distribution(
+                        all_commands, phases, comprehensive_state
+                    )
+                else:
+                    # Your existing distribution logic
+                    commands_per_phase = max(1, len(all_commands) // len(phases))
+                    command_distribution = {i: (i * commands_per_phase, (i + 1) * commands_per_phase) 
+                                        for i in range(len(phases))}
+                
+                for i, phase in enumerate(phases):
+                    if i in command_distribution:
+                        start_idx, end_idx = command_distribution[i]
+                        phase['commands'] = all_commands[start_idx:end_idx]
+                        
+                        # Enhanced phase metadata
+                        phase['config_enhanced'] = True
+                        phase['state_driven'] = comprehensive_state is not None
+                        phase['command_count'] = len(phase['commands'])
+                        phase['estimated_total_duration'] = sum(cmd.get('estimated_duration_minutes', 30) for cmd in phase['commands'])
+            
+            logger.info(f"✅ Enhanced command mapping completed: {len(all_commands)} commands distributed across {len(phases)} phases")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Enhanced command mapping failed: {e}")
+        
+        return implementation_plan
+        
+    
+    def _build_enhanced_variable_context(self, analysis_results: Dict, cluster_dna: Any,
+                                   cluster_config: Dict, comprehensive_state: Dict,
+                                   organization_patterns: Dict) -> Dict:
+        """
+        Build enhanced variable context with state intelligence
+        """
+        # Start with your existing variable context method from command generator
+        if hasattr(self.command_generator, '_build_comprehensive_variable_context'):
+            base_context = self.command_generator._build_comprehensive_variable_context(
+                analysis_results, cluster_dna, cluster_config
+            )
+        else:
+            base_context = {}
+        
+        # Enhance with state analysis
+        if comprehensive_state.get('analysis_available'):
+            base_context['state_analysis'] = {
+                'hpa_optimization_opportunities': len(comprehensive_state.get('hpa_state', {}).get('suboptimal_hpas', [])),
+                'rightsizing_opportunities': len(comprehensive_state.get('rightsizing_state', {}).get('overprovisioned_workloads', [])),
+                'total_optimization_opportunities': comprehensive_state.get('total_optimization_opportunities', 0)
+            }
+        
+        # Enhance with organization patterns
+        if organization_patterns.get('detected_patterns'):
+            base_context['organization_intelligence'] = {
+                'detected_patterns': len(organization_patterns['detected_patterns']),
+                'security_level': self._extract_pattern_value(organization_patterns, 'security_level'),
+                'environment_type': self._extract_pattern_value(organization_patterns, 'environment_type'),
+                'deployment_maturity': self._extract_pattern_value(organization_patterns, 'deployment_maturity')
+            }
+        
+        return base_context
+    
+
+
+    def _map_commands_to_phases_with_deployment_focus(self, implementation_plan: Dict, 
+                                            execution_plan: Any, cluster_config: Dict,
+                                            comprehensive_state: Optional[Dict]) -> Dict:
+        """
+        Map commands with focus on deployment/apply commands
+        """
+        phases = implementation_plan.get('implementation_phases', [])
+        
+        if not execution_plan or not phases:
+            return implementation_plan
+        
+        try:
+            # Extract all deployment commands
+            all_commands = []
+            
+            for attr in ['preparation_commands', 'optimization_commands', 'validation_commands']:
+                if hasattr(execution_plan, attr):
+                    commands = getattr(execution_plan, attr) or []
+                    for cmd in commands:
+                        command_dict = {
+                            'id': getattr(cmd, 'id', f'cmd-{len(all_commands)}'),
+                            'title': getattr(cmd, 'description', 'ML Generated Command'),
+                            'command': getattr(cmd, 'command', ''),
+                            'category': getattr(cmd, 'category', 'optimization'),
+                            'description': getattr(cmd, 'description', 'ML generated command'),
+                            'estimated_duration_minutes': getattr(cmd, 'estimated_duration_minutes', 30),
+                            'risk_level': getattr(cmd, 'risk_level', 'Medium'),
+                            'config_aware': True,
+                            'yaml_content': getattr(cmd, 'yaml_content', None)
+                        }
+                        
+                        # ENHANCED: Categorize command type for better phase mapping
+                        command_text = command_dict['command'].lower()
+                        if 'kubectl apply' in command_text or 'kubectl patch' in command_text:
+                            command_dict['command_type'] = 'deployment'
+                            command_dict['priority'] = 'high'
+                        elif 'kubectl get' in command_text or 'echo' in command_text:
+                            command_dict['command_type'] = 'validation'
+                            command_dict['priority'] = 'low'
+                        else:
+                            command_dict['command_type'] = 'mixed'
+                            command_dict['priority'] = 'medium'
+                        
+                        # Add state intelligence if available
+                        if comprehensive_state and comprehensive_state.get('analysis_available'):
+                            command_dict['state_driven'] = True
+                            command_dict['optimization_category'] = self._classify_command_optimization_category(cmd, comprehensive_state)
+                            command_dict['expected_impact'] = self._estimate_command_impact(cmd, comprehensive_state)
+                        
+                        all_commands.append(command_dict)
+            
+            # ENHANCED: Prioritize deployment commands in early phases
+            if all_commands and phases:
+                # Sort commands: deployment commands first, then validation
+                deployment_commands = [cmd for cmd in all_commands if cmd.get('command_type') == 'deployment']
+                validation_commands = [cmd for cmd in all_commands if cmd.get('command_type') == 'validation']
+                mixed_commands = [cmd for cmd in all_commands if cmd.get('command_type') == 'mixed']
+                
+                # Redistribute with deployment focus
+                if len(phases) >= 3:
+                    # Phase 1: Preparation (validation)
+                    phases[0]['commands'] = validation_commands[:3]
+                    phases[0]['command_focus'] = 'preparation'
+                    
+                    # Phase 2-4: Main deployment commands
+                    deployment_per_phase = len(deployment_commands) // min(3, len(phases) - 1)
+                    for i in range(1, min(4, len(phases))):
+                        start_idx = (i - 1) * deployment_per_phase
+                        end_idx = start_idx + deployment_per_phase
+                        if i == min(3, len(phases) - 1):  # Last deployment phase gets remaining
+                            end_idx = len(deployment_commands)
+                        
+                        phases[i]['commands'] = deployment_commands[start_idx:end_idx]
+                        phases[i]['command_focus'] = 'deployment'
+                        phases[i]['deployment_command_count'] = len(deployment_commands[start_idx:end_idx])
+                    
+                    # Remaining phases: validation and mixed
+                    for i in range(min(4, len(phases)), len(phases)):
+                        remaining_commands = validation_commands[3:] + mixed_commands
+                        if remaining_commands:
+                            commands_per_phase = len(remaining_commands) // max(1, len(phases) - 3)
+                            start_idx = (i - 3) * commands_per_phase
+                            end_idx = start_idx + commands_per_phase
+                            phases[i]['commands'] = remaining_commands[start_idx:end_idx]
+                            phases[i]['command_focus'] = 'validation'
+                else:
+                    # Simple distribution for fewer phases
+                    for i, phase in enumerate(phases):
+                        commands_per_phase = len(all_commands) // len(phases)
+                        start_idx = i * commands_per_phase
+                        end_idx = start_idx + commands_per_phase
+                        if i == len(phases) - 1:  # Last phase gets remaining
+                            end_idx = len(all_commands)
+                        
+                        phase['commands'] = all_commands[start_idx:end_idx]
+                
+                # Add enhanced metadata
+                total_deployment_commands = len(deployment_commands)
+                total_validation_commands = len(validation_commands)
+                
+                for i, phase in enumerate(phases):
+                    phase['config_enhanced'] = True
+                    phase['state_driven'] = comprehensive_state is not None
+                    phase['command_count'] = len(phase.get('commands', []))
+                    phase['estimated_total_duration'] = sum(cmd.get('estimated_duration_minutes', 30) for cmd in phase.get('commands', []))
+                    
+                    # Add deployment metrics
+                    phase_deployment_count = len([cmd for cmd in phase.get('commands', []) if cmd.get('command_type') == 'deployment'])
+                    phase['deployment_commands'] = phase_deployment_count
+                    phase['validation_commands'] = len(phase.get('commands', [])) - phase_deployment_count
+            
+            logger.info(f"✅ Enhanced command mapping: {len(deployment_commands)} deployment, {len(validation_commands)} validation commands")
+            logger.info(f"📊 Deployment commands distributed across {len(phases)} phases")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Enhanced command mapping failed: {e}")
+        
+        return implementation_plan
+
     def _ml_integrate_executable_commands(self, implementation_plan: Dict, analysis_results: Dict, 
-                                                    ml_strategy: Any, ml_session: Dict, 
-                                                    cluster_config: Dict) -> Dict:
-        """Integrate commands with cluster config context"""
-        logger.info("🛠️ ML Command Integration with Cluster Config Context...")
+                                ml_strategy: Any, ml_session: Dict, 
+                                cluster_config: Dict) -> Dict:
+        """
+        Enhanced ML Command Integration with proper state-driven deployment commands
+        """
+        logger.info("🛠️ Enhanced ML Command Integration with State-Driven Deployment Commands...")
         
         if implementation_plan is None:
             raise ValueError("❌ Cannot integrate commands - implementation_plan is None")
@@ -545,51 +1183,79 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             return implementation_plan
         
         try:
-            # Get cluster_dna from session
             cluster_dna = ml_session.get('cluster_dna')
             if cluster_dna is None:
                 logger.warning("⚠️ cluster_dna not found in session - using limited command generation")
             
-            # Enhance command generator with cluster config
-            if hasattr(self.command_generator, 'set_cluster_config'):
-                self.command_generator.set_cluster_config(cluster_config)
+            # ENHANCED: Check for comprehensive state analysis
+            comprehensive_state = ml_session.get('comprehensive_state')
+            organization_patterns = ml_session.get('organization_patterns')
             
-            # Generate execution plan with config context
-            execution_plan = self.command_generator.generate_comprehensive_execution_plan(
-                ml_strategy, cluster_dna, analysis_results, cluster_config
-            )
+            # PRIORITY: Use comprehensive state-driven commands if available
+            if comprehensive_state and comprehensive_state.get('analysis_available'):
+                logger.info("🎯 Using COMPREHENSIVE STATE-DRIVEN command generation...")
+                
+                # Set cluster config for enhanced commands
+                if hasattr(self.command_generator, 'set_cluster_config'):
+                    self.command_generator.set_cluster_config(cluster_config)
+                
+                # Generate state-driven execution plan with DEPLOYMENT commands
+                execution_plan = self._generate_state_driven_execution_plan(
+                    ml_strategy, cluster_dna, analysis_results, cluster_config, 
+                    comprehensive_state, organization_patterns
+                )
+                
+                command_generation_method = 'state_driven_comprehensive_DEPLOYMENT'
+                
+            else:
+                logger.info("📊 Using standard cluster intelligence command generation...")
+                
+                # Fallback to existing command generation
+                if hasattr(self.command_generator, 'set_cluster_config'):
+                    self.command_generator.set_cluster_config(cluster_config)
+                
+                execution_plan = self.command_generator.generate_comprehensive_execution_plan(
+                    ml_strategy, cluster_dna, analysis_results, cluster_config
+                )
+                
+                command_generation_method = 'standard_cluster_intelligence'
             
             if execution_plan is None:
                 logger.warning("⚠️ Command generator returned None - proceeding without commands")
                 ml_session['learning_events'].append({
                     'event': 'command_generation_none',
                     'reason': 'execution_plan_none',
+                    'method': command_generation_method,
                     'success': True
                 })
                 ml_session['ml_confidence_levels']['command_generation'] = 0.5
                 return implementation_plan
             
-            # Map commands to phases with config intelligence
-            implementation_plan = self._map_commands_to_phases(
-                implementation_plan, execution_plan, cluster_config
+            # ENHANCED: Map commands with deployment focus
+            implementation_plan = self._map_commands_to_phases_with_deployment_focus(
+                implementation_plan, execution_plan, cluster_config, comprehensive_state
             )
             
             confidence = getattr(execution_plan, 'success_probability', 0.8)
             command_count = self._count_total_commands(execution_plan)
             
-            # Record config-enhanced command event
+            # Enhanced learning event
             ml_session['learning_events'].append({
-                'event': 'command_generation',
+                'event': 'enhanced_deployment_command_generation',
                 'confidence': confidence,
                 'command_count': command_count,
+                'generation_method': command_generation_method,
+                'state_analysis_used': comprehensive_state is not None,
+                'organization_patterns_applied': organization_patterns is not None,
                 'config_enhanced': True,
+                'deployment_commands_generated': True,
                 'success': True
             })
             
             ml_session['ml_confidence_levels']['command_generation'] = confidence
             
             total_commands = sum(len(phase.get('commands', [])) for phase in implementation_plan.get('implementation_phases', []))
-            logger.info(f"✅ Config-Enhanced Commands: {total_commands} integrated ({confidence:.1%})")
+            logger.info(f"✅ Enhanced DEPLOYMENT Commands: {total_commands} integrated using {command_generation_method} ({confidence:.1%})")
             
             return implementation_plan
             
@@ -597,7 +1263,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             logger.warning(f"⚠️ Enhanced command integration failed: {e}")
             
             ml_session['learning_events'].append({
-                'event': 'command_generation_failed',
+                'event': 'enhanced_command_generation_failed',
                 'error': str(e),
                 'success': False
             })
@@ -605,6 +1271,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             
             return implementation_plan
     
+
     def _ensure_complete_framework_structure(self, implementation_plan: Dict, 
                                                        analysis_results: Dict, ml_session: Dict,
                                                        cluster_config: Dict) -> Dict:
