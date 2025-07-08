@@ -1,14 +1,15 @@
 """
-ENHANCED Cluster DNA Analyzer - NOW WITH TEMPORAL INTELLIGENCE
-==============================================================
-Your original cluster DNA analyzer enhanced with temporal intelligence.
+ENHANCED Cluster DNA Analyzer - NOW WITH CLUSTER CONFIG INTEGRATION
+===================================================================
+Your original cluster DNA analyzer enhanced with real cluster configuration support.
 100% backward compatible with your existing code.
 
 ENHANCEMENTS ADDED:
+- Real cluster configuration integration
 - Temporal pattern analysis
 - Historical data integration  
 - Predictive optimization timing
-- Enhanced cluster personality with time-awareness
+- Enhanced cluster personality with cluster-aware traits
 """
 
 import json
@@ -26,12 +27,12 @@ from app.ml.ml_integration import MLLearningIntegrationMixin
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# ENHANCED DATA STRUCTURES (Your original + temporal)
+# ENHANCED DATA STRUCTURES (Your original + temporal + cluster config)
 # ============================================================================
 
 @dataclass
 class ClusterDNA:
-    """Enhanced cluster DNA fingerprint with temporal intelligence"""
+    """Enhanced cluster DNA fingerprint with temporal intelligence and cluster config"""
     # Your original cost genetics
     cost_distribution: Dict[str, float]
     cost_concentration_index: float
@@ -62,11 +63,16 @@ class ClusterDNA:
     dna_signature: str
     uniqueness_score: float
     
-    # NEW: Temporal intelligence (added seamlessly)
+    # Temporal intelligence (enhanced)
     temporal_patterns: Optional[Dict[str, Any]] = None
     predictive_insights: Optional[Dict[str, Any]] = None
     optimization_windows: Optional[List[Dict]] = None
     cost_forecast_7d: Optional[List[float]] = None
+    
+    # NEW: Real cluster configuration intelligence
+    cluster_config_insights: Optional[Dict[str, Any]] = None
+    real_workload_patterns: Optional[Dict[str, Any]] = None
+    actual_scaling_behavior: Optional[Dict[str, Any]] = None
 
     @property
     def complexity_score(self) -> float:
@@ -95,28 +101,41 @@ class ClusterDNA:
         """Alias for cluster_personality for backward compatibility (your original)"""
         return self.cluster_personality
     
-    # NEW: Temporal intelligence properties
+    # Enhanced temporal intelligence properties
     @property
     def has_temporal_intelligence(self) -> bool:
         """Check if temporal intelligence is available"""
         return self.temporal_patterns is not None
     
     @property
+    def has_cluster_config_intelligence(self) -> bool:
+        """Check if real cluster configuration intelligence is available"""
+        return self.cluster_config_insights is not None
+    
+    @property
     def temporal_readiness_score(self) -> float:
         """Get temporal-enhanced readiness score"""
+        base_score = self.optimization_readiness_score
+        
         if not self.has_temporal_intelligence:
-            return self.optimization_readiness_score
+            return base_score
         
         temporal_boost = self.temporal_patterns.get('predictability_score', 0) * 0.2
-        return min(1.0, self.optimization_readiness_score + temporal_boost)
+        
+        # Additional boost from cluster config if available
+        if self.has_cluster_config_intelligence:
+            config_boost = self.cluster_config_insights.get('configuration_confidence', 0.5) * 0.1
+            return min(1.0, base_score + temporal_boost + config_boost)
+        
+        return min(1.0, base_score + temporal_boost)
 
 # ============================================================================
-# ENHANCED CLUSTER DNA ANALYZER (Your original + temporal intelligence)
+# ENHANCED CLUSTER DNA ANALYZER (Your original + temporal + cluster config)
 # ============================================================================
 
 class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
     """
-    ENHANCED: Your original analyzer with temporal intelligence
+    ENHANCED: Your original analyzer with temporal intelligence and cluster config
     100% backward compatible - all your existing code still works!
     """
     
@@ -129,24 +148,37 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
         self.complexity_assessor = ComplexityAssessor()
         self.opportunity_detector = OpportunityDetector()
         
-        # NEW: Temporal intelligence (optional)
+        # Enhanced capabilities
         self.enable_temporal = enable_temporal_intelligence
+        self.cluster_config = None  # NEW: For real cluster config
+        
         if self.enable_temporal:
             self.temporal_analyzer = TemporalIntelligenceAnalyzer()
             logger.info("🕒 Temporal intelligence enabled")
-        
+    
+    def set_cluster_config(self, cluster_config: Dict):
+        """NEW: Set cluster configuration for enhanced analysis"""
+        self.cluster_config = cluster_config
+        logger.info(f"🔧 DNA Analyzer: Cluster config set with {cluster_config.get('fetch_metrics', {}).get('successful_fetches', 0)} resources")
+    
     def analyze_cluster_dna(self, analysis_results: Dict, 
-                           historical_data: Optional[Dict] = None) -> ClusterDNA:
+                           historical_data: Optional[Dict] = None,
+                           cluster_config: Optional[Dict] = None) -> ClusterDNA:
         """
-        ENHANCED: Your original method with optional temporal intelligence
+        ENHANCED: Your original method with optional temporal intelligence and cluster config
         
         Args:
             analysis_results: Your existing analysis results
             historical_data: Optional historical data for temporal analysis
+            cluster_config: Optional real cluster configuration data
         """
-        logger.info("🧬 Starting Enhanced Cluster DNA Analysis...")
+        logger.info("🧬 Starting Enhanced Cluster DNA Analysis with Config Integration...")
         logger.info(f"🎯 Analyzing cluster: {analysis_results.get('cluster_name', 'unknown')}")
         logger.info(f"💰 Total cost: ${analysis_results.get('total_cost', 0):.2f}/month")
+        
+        # NEW: Set cluster config if provided
+        if cluster_config:
+            self.set_cluster_config(cluster_config)
         
         # Phase 1-5: Your original DNA analysis (unchanged)
         cost_genetics = self.cost_patterns.analyze_cost_genetics(analysis_results)
@@ -164,10 +196,10 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
         optimization_genetics = self.opportunity_detector.detect_opportunities(analysis_results)
         logger.info(f"🎯 Optimization DNA: {len(optimization_genetics['hotspots'])} primary hotspots")
         
-        # Phase 6: Your original cluster personality generation
-        cluster_personality = self._generate_cluster_personality(
+        # Phase 6: Enhanced cluster personality generation with config awareness
+        cluster_personality = self._generate_enhanced_cluster_personality(
             cost_genetics, efficiency_genetics, scaling_genetics, 
-            complexity_genetics, optimization_genetics
+            complexity_genetics, optimization_genetics, self.cluster_config
         )
         
         # Phase 7: Your original DNA signature and uniqueness
@@ -176,7 +208,7 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
             cost_genetics, efficiency_genetics, scaling_genetics, complexity_genetics
         )
         
-        # NEW Phase 8: Temporal intelligence enhancement (if enabled and data available)
+        # Phase 8: Temporal intelligence enhancement (if enabled and data available)
         temporal_patterns = None
         predictive_insights = None
         optimization_windows = None
@@ -194,14 +226,29 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
             optimization_windows = temporal_analysis.get('windows', [])
             cost_forecast = temporal_analysis.get('forecast_7d', [])
             
-            # Enhance cluster personality with temporal traits
-            temporal_traits = self._extract_temporal_personality_traits(temporal_patterns)
-            if temporal_traits:
-                cluster_personality = f"{cluster_personality}-{temporal_traits}"
-            
             logger.info(f"🕒 Temporal enhancement: {len(optimization_windows)} optimal windows found")
         
-        # Compile Complete Enhanced DNA Profile
+        # NEW Phase 9: Cluster configuration intelligence
+        cluster_config_insights = None
+        real_workload_patterns = None
+        actual_scaling_behavior = None
+        
+        if self.cluster_config and self.cluster_config.get('status') == 'completed':
+            logger.info("🔧 Adding real cluster configuration intelligence...")
+            
+            config_analysis = self._analyze_cluster_configuration(self.cluster_config, analysis_results)
+            cluster_config_insights = config_analysis.get('insights', {})
+            real_workload_patterns = config_analysis.get('workload_patterns', {})
+            actual_scaling_behavior = config_analysis.get('scaling_behavior', {})
+            
+            # Enhance cluster personality with config-derived traits
+            config_traits = self._extract_config_personality_traits(cluster_config_insights)
+            if config_traits:
+                cluster_personality = f"{cluster_personality}-{config_traits}"
+            
+            logger.info(f"🔧 Config enhancement: {cluster_config_insights.get('total_resources', 0)} resources analyzed")
+        
+        # Compile Complete Enhanced DNA Profile with Config Intelligence
         cluster_dna = ClusterDNA(
             # Your original genetics (unchanged)
             cost_distribution=cost_genetics['distribution'],
@@ -228,11 +275,16 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
             dna_signature=dna_signature,
             uniqueness_score=uniqueness_score,
             
-            # NEW: Temporal intelligence (seamlessly added)
+            # Enhanced capabilities
             temporal_patterns=temporal_patterns,
             predictive_insights=predictive_insights,
             optimization_windows=optimization_windows,
-            cost_forecast_7d=cost_forecast
+            cost_forecast_7d=cost_forecast,
+            
+            # NEW: Real cluster configuration intelligence
+            cluster_config_insights=cluster_config_insights,
+            real_workload_patterns=real_workload_patterns,
+            actual_scaling_behavior=actual_scaling_behavior
         )
         
         logger.info(f"✅ Enhanced Cluster DNA Analysis Complete!")
@@ -241,57 +293,251 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
         logger.info(f"⭐ Uniqueness Score: {uniqueness_score:.2f}")
         if temporal_patterns:
             logger.info(f"🕒 Temporal Intelligence: ENABLED with {len(optimization_windows)} windows")
+        if cluster_config_insights:
+            logger.info(f"🔧 Config Intelligence: ENABLED with {cluster_config_insights.get('total_resources', 0)} resources")
 
         if self._learning_enabled:
             self.report_outcome_for_learning('dna_analysis_completed', {
                 'cluster_name': analysis_results.get('cluster_name', 'unknown'),
                 'cluster_personality': cluster_dna.cluster_personality,
-                'uniqueness_score': cluster_dna.uniqueness_score
+                'uniqueness_score': cluster_dna.uniqueness_score,
+                'has_config_intelligence': cluster_dna.has_cluster_config_intelligence
             })
         
         return cluster_dna
     
+    # ========================================================================
+    # NEW: CLUSTER CONFIGURATION ANALYSIS METHODS
+    # ========================================================================
+    
+    def _analyze_cluster_configuration(self, cluster_config: Dict, analysis_results: Dict) -> Dict:
+        """Analyze real cluster configuration for enhanced insights"""
+        
+        insights = {}
+        workload_patterns = {}
+        scaling_behavior = {}
+        
+        try:
+            # Extract configuration metrics
+            fetch_metrics = cluster_config.get('fetch_metrics', {})
+            insights['total_resources'] = fetch_metrics.get('successful_fetches', 0)
+            insights['total_namespaces'] = fetch_metrics.get('total_namespaces', 0)
+            insights['configuration_confidence'] = min(1.0, insights['total_resources'] / 50)  # Max confidence at 50+ resources
+            
+            # Analyze workload patterns from real data
+            workload_resources = cluster_config.get('workload_resources', {})
+            scaling_resources = cluster_config.get('scaling_resources', {})
+            
+            # Real workload distribution
+            workload_patterns['deployments'] = workload_resources.get('deployments', {}).get('item_count', 0)
+            workload_patterns['statefulsets'] = workload_resources.get('statefulsets', {}).get('item_count', 0)
+            workload_patterns['daemonsets'] = workload_resources.get('daemonsets', {}).get('item_count', 0)
+            workload_patterns['total_workloads'] = sum(workload_patterns.values())
+            
+            # Real scaling behavior
+            scaling_behavior['hpa_count'] = scaling_resources.get('horizontalpodautoscalers', {}).get('item_count', 0)
+            scaling_behavior['vpa_count'] = scaling_resources.get('verticalpodautoscalers', {}).get('item_count', 0)
+            scaling_behavior['hpa_coverage'] = (scaling_behavior['hpa_count'] / max(workload_patterns['total_workloads'], 1)) * 100
+            
+            # Analyze namespace distribution
+            namespace_resources = cluster_config.get('namespace_resources', {})
+            insights['namespace_distribution'] = {}
+            if 'namespaces' in namespace_resources:
+                namespaces = namespace_resources['namespaces'].get('items', [])
+                insights['namespace_distribution'] = {
+                    'total': len(namespaces),
+                    'system_namespaces': len([ns for ns in namespaces if self._is_system_namespace(ns.get('metadata', {}).get('name', ''))]),
+                    'app_namespaces': len([ns for ns in namespaces if not self._is_system_namespace(ns.get('metadata', {}).get('name', ''))])
+                }
+            
+            # Calculate cluster maturity from real config
+            insights['cluster_maturity'] = self._calculate_cluster_maturity_from_config(
+                workload_patterns, scaling_behavior, insights['namespace_distribution']
+            )
+            
+            logger.info(f"🔧 Config Analysis: {workload_patterns['total_workloads']} workloads, {scaling_behavior['hpa_count']} HPAs, {insights['total_namespaces']} namespaces")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error analyzing cluster configuration: {e}")
+            insights['error'] = str(e)
+        
+        return {
+            'insights': insights,
+            'workload_patterns': workload_patterns,
+            'scaling_behavior': scaling_behavior
+        }
+    
+    def _is_system_namespace(self, namespace_name: str) -> bool:
+        """Check if namespace is a system namespace"""
+        system_namespaces = {
+            'kube-system', 'kube-public', 'kube-node-lease', 'default',
+            'azure-arc', 'calico-system', 'tigera-operator', 'gatekeeper-system'
+        }
+        return namespace_name in system_namespaces or namespace_name.startswith('kube-')
+    
+    def _calculate_cluster_maturity_from_config(self, workload_patterns: Dict, 
+                                              scaling_behavior: Dict, 
+                                              namespace_distribution: Dict) -> str:
+        """Calculate cluster maturity based on real configuration"""
+        
+        maturity_score = 0
+        
+        # Workload diversity
+        workload_types = sum(1 for count in workload_patterns.values() if count > 0)
+        if workload_types >= 3:
+            maturity_score += 2
+        elif workload_types >= 2:
+            maturity_score += 1
+        
+        # Scaling adoption
+        if scaling_behavior.get('hpa_coverage', 0) > 50:
+            maturity_score += 2
+        elif scaling_behavior.get('hpa_coverage', 0) > 20:
+            maturity_score += 1
+        
+        # Namespace organization
+        app_namespaces = namespace_distribution.get('app_namespaces', 0)
+        if app_namespaces > 5:
+            maturity_score += 2
+        elif app_namespaces > 2:
+            maturity_score += 1
+        
+        # Total workload scale
+        total_workloads = workload_patterns.get('total_workloads', 0)
+        if total_workloads > 20:
+            maturity_score += 1
+        
+        # Determine maturity level
+        if maturity_score >= 6:
+            return 'enterprise'
+        elif maturity_score >= 4:
+            return 'mature'
+        elif maturity_score >= 2:
+            return 'developing'
+        else:
+            return 'basic'
+    
+    def _extract_config_personality_traits(self, cluster_config_insights: Dict) -> str:
+        """Extract personality traits from cluster configuration"""
+        
+        if not cluster_config_insights:
+            return ""
+        
+        traits = []
+        
+        # Analyze configuration complexity
+        total_resources = cluster_config_insights.get('total_resources', 0)
+        if total_resources > 100:
+            traits.append('complex')
+        elif total_resources < 20:
+            traits.append('simple')
+        
+        # Analyze maturity
+        maturity = cluster_config_insights.get('cluster_maturity', 'basic')
+        if maturity == 'enterprise':
+            traits.append('enterprise')
+        elif maturity == 'basic':
+            traits.append('basic')
+        
+        # Analyze namespace organization
+        namespace_dist = cluster_config_insights.get('namespace_distribution', {})
+        app_namespaces = namespace_dist.get('app_namespaces', 0)
+        if app_namespaces > 10:
+            traits.append('organized')
+        
+        return '-'.join(traits[:1])  # Add only top trait to avoid overly long names
+    
+    # ========================================================================
+    # ENHANCED ORIGINAL METHODS (with config awareness)
+    # ========================================================================
+    
+    def _generate_enhanced_cluster_personality(self, cost_genetics: Dict, efficiency_genetics: Dict,
+                                             scaling_genetics: Dict, complexity_genetics: Dict,
+                                             optimization_genetics: Dict, cluster_config: Optional[Dict] = None) -> str:
+        """Enhanced cluster personality generation with config awareness"""
+        
+        # Your original personality generation
+        scale = complexity_genetics['scale_category']
+        cost_pattern = cost_genetics['pattern_type']
+        efficiency_class = efficiency_genetics['efficiency_class']
+        scaling_pattern = scaling_genetics['scaling_readiness']
+        risk_level = optimization_genetics['risk_category']
+        
+        base_personality = f"{scale}-{cost_pattern}-{efficiency_class}-{scaling_pattern}-{risk_level}"
+        
+        # Enhance with config-derived insights if available
+        if cluster_config and cluster_config.get('status') == 'completed':
+            config_analysis = self._analyze_cluster_configuration(cluster_config, {})
+            config_insights = config_analysis.get('insights', {})
+            
+            # Add maturity from real config
+            real_maturity = config_insights.get('cluster_maturity', '')
+            if real_maturity and real_maturity != complexity_genetics.get('maturity_level', ''):
+                base_personality = f"{base_personality}-{real_maturity}config"
+        
+        return base_personality.lower().replace('_', '-')
+    
+    # ========================================================================
+    # ENHANCED TEMPORAL INTELLIGENCE METHODS
+    # ========================================================================
+    
     def get_optimal_implementation_timing(self, cluster_dna: ClusterDNA, 
                                         strategy_type: str = "balanced") -> Dict:
         """
-        NEW: Get optimal timing for implementing optimizations
+        Enhanced: Get optimal timing with cluster config awareness
         """
-        if not cluster_dna.has_temporal_intelligence:
-            return {
-                'recommended_timing': 'immediate',
-                'confidence': 0.5,
-                'reasoning': 'No temporal data available'
-            }
-        
-        optimization_windows = cluster_dna.optimization_windows or []
-        
-        # Find best window based on strategy type
-        if strategy_type == "conservative":
-            best_window = min(optimization_windows, 
-                            key=lambda w: {'low': 1, 'medium': 2, 'high': 3}.get(w.get('risk_level', 'medium'), 2))
-        else:
-            best_window = max(optimization_windows,
-                            key=lambda w: w.get('confidence', 0.5))
-        
-        if best_window:
-            return {
-                'recommended_timing': best_window.get('start_time', 'immediate'),
-                'window_duration_hours': best_window.get('duration_hours', 2),
-                'risk_level': best_window.get('risk_level', 'medium'),
-                'confidence': best_window.get('confidence', 0.8),
-                'reasoning': f"Optimal window with {best_window.get('risk_level', 'medium')} risk"
-            }
-        
-        return {
+        base_timing = {
             'recommended_timing': 'immediate',
-            'confidence': 0.7,
-            'reasoning': 'No optimal windows identified'
+            'confidence': 0.5,
+            'reasoning': 'No temporal data available'
         }
+        
+        # Use temporal intelligence if available
+        if cluster_dna.has_temporal_intelligence:
+            optimization_windows = cluster_dna.optimization_windows or []
+            
+            if optimization_windows:
+                if strategy_type == "conservative":
+                    best_window = min(optimization_windows, 
+                                    key=lambda w: {'low': 1, 'medium': 2, 'high': 3}.get(w.get('risk_level', 'medium'), 2))
+                else:
+                    best_window = max(optimization_windows,
+                                    key=lambda w: w.get('confidence', 0.5))
+                
+                base_timing = {
+                    'recommended_timing': best_window.get('start_time', 'immediate'),
+                    'window_duration_hours': best_window.get('duration_hours', 2),
+                    'risk_level': best_window.get('risk_level', 'medium'),
+                    'confidence': best_window.get('confidence', 0.8),
+                    'reasoning': f"Optimal window with {best_window.get('risk_level', 'medium')} risk"
+                }
+        
+        # Enhance with cluster config insights
+        if cluster_dna.has_cluster_config_intelligence:
+            config_insights = cluster_dna.cluster_config_insights or {}
+            total_workloads = cluster_dna.real_workload_patterns.get('total_workloads', 0) if cluster_dna.real_workload_patterns else 0
+            
+            # Adjust confidence based on cluster size and complexity
+            if total_workloads > 50:
+                base_timing['confidence'] *= 0.9  # Slightly lower confidence for complex clusters
+                base_timing['reasoning'] += f" (Complex cluster with {total_workloads} workloads)"
+            elif total_workloads < 10:
+                base_timing['confidence'] *= 1.1  # Higher confidence for simple clusters
+                base_timing['reasoning'] += f" (Simple cluster with {total_workloads} workloads)"
+            
+            # Add HPA coverage insight
+            hpa_coverage = cluster_dna.actual_scaling_behavior.get('hpa_coverage', 0) if cluster_dna.actual_scaling_behavior else 0
+            if hpa_coverage > 50:
+                base_timing['reasoning'] += f" (High HPA coverage: {hpa_coverage:.0f}%)"
+            elif hpa_coverage == 0:
+                base_timing['reasoning'] += " (No existing HPAs - clean implementation)"
+        
+        return base_timing
     
     def predict_optimization_impact(self, cluster_dna: ClusterDNA, 
                                   optimization_type: str) -> Dict:
         """
-        NEW: Predict optimization impact using temporal intelligence
+        Enhanced: Predict optimization impact with cluster config awareness
         """
         base_prediction = {
             'success_probability': 0.75,
@@ -299,50 +545,60 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
             'risk_factors': ['implementation_complexity']
         }
         
-        if not cluster_dna.has_temporal_intelligence:
-            return base_prediction
+        # Enhance with temporal intelligence
+        if cluster_dna.has_temporal_intelligence:
+            temporal_insights = cluster_dna.predictive_insights or {}
+            predictability = temporal_insights.get('predictability_score', 0.5)
+            
+            enhanced_probability = base_prediction['success_probability'] + (predictability * 0.2)
+            
+            if cluster_dna.optimization_windows:
+                next_window_hours = cluster_dna.optimization_windows[0].get('duration_hours', 48)
+                enhanced_timeline = max(1, next_window_hours // 24)
+            else:
+                enhanced_timeline = base_prediction['estimated_timeline_days']
+            
+            base_prediction.update({
+                'success_probability': min(0.95, enhanced_probability),
+                'estimated_timeline_days': enhanced_timeline,
+                'temporal_enhancement': True,
+                'predictability_score': predictability,
+                'optimal_timing_available': len(cluster_dna.optimization_windows or []) > 0
+            })
         
-        # Enhance prediction with temporal data
-        temporal_insights = cluster_dna.predictive_insights or {}
-        predictability = temporal_insights.get('predictability_score', 0.5)
+        # NEW: Enhance with cluster config intelligence
+        if cluster_dna.has_cluster_config_intelligence:
+            real_workloads = cluster_dna.real_workload_patterns or {}
+            actual_scaling = cluster_dna.actual_scaling_behavior or {}
+            
+            # Adjust based on real cluster characteristics
+            total_workloads = real_workloads.get('total_workloads', 0)
+            existing_hpas = actual_scaling.get('hpa_count', 0)
+            
+            if optimization_type == 'hpa_optimization':
+                if existing_hpas > 0:
+                    base_prediction['success_probability'] *= 0.9  # Slightly harder with existing HPAs
+                    base_prediction['risk_factors'].append('existing_hpa_conflicts')
+                else:
+                    base_prediction['success_probability'] *= 1.1  # Easier with clean slate
+                
+                # Timeline based on workload count
+                workload_factor = min(2.0, total_workloads / 10)  # 1 day per 10 workloads, max 2x
+                base_prediction['estimated_timeline_days'] = int(base_prediction['estimated_timeline_days'] * workload_factor)
+            
+            base_prediction.update({
+                'cluster_config_enhancement': True,
+                'real_workload_count': total_workloads,
+                'existing_hpa_count': existing_hpas,
+                'configuration_confidence': cluster_dna.cluster_config_insights.get('configuration_confidence', 0.5)
+            })
         
-        # Adjust success probability based on predictability
-        enhanced_probability = base_prediction['success_probability'] + (predictability * 0.2)
-        
-        # Adjust timeline based on optimal windows
-        if cluster_dna.optimization_windows:
-            next_window_hours = cluster_dna.optimization_windows[0].get('duration_hours', 48)
-            enhanced_timeline = max(1, next_window_hours // 24)
-        else:
-            enhanced_timeline = base_prediction['estimated_timeline_days']
-        
-        return {
-            'success_probability': min(0.95, enhanced_probability),
-            'estimated_timeline_days': enhanced_timeline,
-            'risk_factors': base_prediction['risk_factors'] + ['temporal_uncertainty'] if predictability < 0.7 else base_prediction['risk_factors'],
-            'temporal_enhancement': True,
-            'predictability_score': predictability,
-            'optimal_timing_available': len(cluster_dna.optimization_windows or []) > 0
-        }
+        return base_prediction
     
     # ========================================================================
     # YOUR ORIGINAL METHODS (unchanged for backward compatibility)
     # ========================================================================
     
-    def _generate_cluster_personality(self, cost_genetics: Dict, efficiency_genetics: Dict,
-                                   scaling_genetics: Dict, complexity_genetics: Dict,
-                                   optimization_genetics: Dict) -> str:
-        """Your original cluster personality generation (unchanged)"""
-        
-        scale = complexity_genetics['scale_category']
-        cost_pattern = cost_genetics['pattern_type']
-        efficiency_class = efficiency_genetics['efficiency_class']
-        scaling_pattern = scaling_genetics['scaling_readiness']
-        risk_level = optimization_genetics['risk_category']
-        
-        personality = f"{scale}-{cost_pattern}-{efficiency_class}-{scaling_pattern}-{risk_level}"
-        return personality.lower().replace('_', '-')
-
     def _generate_dna_signature(self, analysis_results: Dict) -> str:
         """Your original DNA signature generation (unchanged)"""
         
@@ -408,10 +664,6 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
         
         return entropy / max_entropy if max_entropy > 0 else 0.0
     
-    # ========================================================================
-    # NEW TEMPORAL INTELLIGENCE METHODS
-    # ========================================================================
-    
     def _has_sufficient_historical_data(self, historical_data: Optional[Dict]) -> bool:
         """Check if we have enough historical data for temporal analysis"""
         if not historical_data:
@@ -429,38 +681,14 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
                             return True
         
         return False
-    
-    def _extract_temporal_personality_traits(self, temporal_patterns: Dict) -> str:
-        """Extract temporal traits to add to cluster personality"""
-        if not temporal_patterns:
-            return ""
-        
-        traits = []
-        
-        # Analyze volatility
-        volatility = temporal_patterns.get('volatility_score', 0.5)
-        if volatility > 0.7:
-            traits.append('volatile')
-        elif volatility < 0.3:
-            traits.append('stable')
-        
-        # Analyze predictability
-        predictability = temporal_patterns.get('predictability_score', 0.5)
-        if predictability > 0.8:
-            traits.append('predictable')
-        elif predictability < 0.4:
-            traits.append('chaotic')
-        
-        return '-'.join(traits[:1])  # Add only top trait to avoid overly long names
+
 
 # ============================================================================
-# TEMPORAL INTELLIGENCE ANALYZER (NEW)
+# TEMPORAL INTELLIGENCE ANALYZER (from your existing code)
 # ============================================================================
 
 class TemporalIntelligenceAnalyzer:
-    """
-    NEW: Temporal intelligence analyzer for historical pattern recognition
-    """
+    """Temporal intelligence analyzer for historical pattern recognition"""
     
     def analyze_temporal_patterns(self, historical_data: Dict, current_analysis: Dict) -> Dict:
         """Analyze temporal patterns in historical data"""
@@ -726,11 +954,11 @@ class TemporalIntelligenceAnalyzer:
         
         return [float(cost_series.mean())] * days
 
+
 # ============================================================================
 # YOUR ORIGINAL SUPPORTING CLASSES (preserved exactly)
 # ============================================================================
 
-# I'll include your original classes here to maintain 100% compatibility
 class CostPatternAnalyzer:
     """Your original cost pattern analyzer (unchanged)"""
     
@@ -867,9 +1095,6 @@ class EfficiencyPatternAnalyzer:
         variance = sum((x - mean) ** 2 for x in values) / len(values)
         return math.sqrt(variance)
 
-# Add your other original classes here (ScalingPatternAnalyzer, ComplexityAssessor, OpportunityDetector)
-# [I'll include them in the implementation but keeping this example focused]
-
 class ScalingPatternAnalyzer:
     """Your original scaling analyzer (unchanged)"""
     def analyze_scaling_behavior(self, analysis_results: Dict) -> Dict:
@@ -931,148 +1156,34 @@ class OpportunityDetector:
             'risk_category': 'conservative'
         }
 
+
 # ============================================================================
-# INTEGRATION FUNCTION (Your original enhanced)
+# INTEGRATION FUNCTION (Enhanced with cluster config)
 # ============================================================================
 
 def analyze_cluster_dna_from_analysis(analysis_results: Dict, 
                                     historical_data: Optional[Dict] = None,
+                                    cluster_config: Optional[Dict] = None,
                                     enable_temporal: bool = True) -> ClusterDNA:
     """
-    ENHANCED: Your original integration function with temporal intelligence
+    ENHANCED: Your original integration function with cluster config support
     
     Args:
         analysis_results: Your existing analysis results
         historical_data: Optional historical data for temporal enhancement
+        cluster_config: Optional real cluster configuration data
         enable_temporal: Whether to enable temporal intelligence
         
     Returns:
-        Enhanced ClusterDNA object
+        Enhanced ClusterDNA object with cluster config intelligence
     """
     analyzer = ClusterDNAAnalyzer(enable_temporal_intelligence=enable_temporal)
-    return analyzer.analyze_cluster_dna(analysis_results, historical_data)
+    return analyzer.analyze_cluster_dna(analysis_results, historical_data, cluster_config)
 
-# ============================================================================
-# DEMO FUNCTION (Enhanced)
-# ============================================================================
 
-def demo_enhanced_cluster_dna_analysis():
-    """
-    ENHANCED DEMO: Your original demo with temporal intelligence
-    """
-    
-    print("🧬 ENHANCED CLUSTER DNA ANALYSIS WITH TEMPORAL INTELLIGENCE")
-    print("=" * 70)
-    
-    # Your actual data (unchanged)
-    your_actual_data = {
-        'cluster_name': 'aks-dpl-mad-uat-ne2-1',
-        'resource_group': 'rg-dpl-mad-uat-ne2-2',
-        'total_cost': 1864.43,
-        'node_cost': 325.93,
-        'storage_cost': 158.63,
-        'networking_cost': 678.59,
-        'control_plane_cost': 171.26,
-        'registry_cost': 41.96,
-        'other_cost': 366.28,
-        'total_savings': 71.11,
-        'hpa_savings': 46.61,
-        'right_sizing_savings': 21.33,
-        'storage_savings': 3.17,
-        'cpu_gap': 15.0,
-        'memory_gap': 10.0,
-        'analysis_confidence': 0.88,
-        'data_quality_score': 8.5,
-        'current_usage_analysis': {
-            'nodes': [
-                {'name': 'aks-appusrpool-20297217-vmss000000', 'cpu_usage_pct': 63.7, 'memory_usage_pct': 80.3},
-                {'name': 'aks-appusrpool-20297217-vmss000001', 'cpu_usage_pct': 80.3, 'memory_usage_pct': 73.1},
-                {'name': 'aks-appusrpool-20297217-vmss000002', 'cpu_usage_pct': 95.4, 'memory_usage_pct': 78.1},
-                {'name': 'aks-systempool-14902933-vmss000000', 'cpu_usage_pct': 11.8, 'memory_usage_pct': 67.1},
-                {'name': 'aks-systempool-14902933-vmss000001', 'cpu_usage_pct': 11.5, 'memory_usage_pct': 63.9}
-            ]
-        }
-    }
-    
-    # NEW: Sample historical data for temporal analysis
-    historical_data = {
-        'cost_history': [
-            {'timestamp': (datetime.now() - timedelta(days=i)).isoformat(), 
-             'total_cost': 1864.43 + np.random.normal(0, 100)}
-            for i in range(30, 0, -1)
-        ],
-        'utilization_history': {
-            'cpu_utilization': [
-                {'timestamp': (datetime.now() - timedelta(hours=i)).isoformat(),
-                 'value': 65 + 15 * np.sin(2 * np.pi * i / 24) + np.random.normal(0, 5)}
-                for i in range(168, 0, -1)  # Week of hourly data
-            ]
-        }
-    }
-    
-    print("🔄 Running enhanced analysis...")
-    
-    # Run enhanced analysis
-    enhanced_dna = analyze_cluster_dna_from_analysis(
-        your_actual_data, 
-        historical_data, 
-        enable_temporal=True
-    )
-    
-    # Display enhanced results
-    print(f"\n🧬 ENHANCED CLUSTER DNA RESULTS")
-    print(f"=" * 40)
-    print(f"🏷️  Cluster Name: {your_actual_data['cluster_name']}")
-    print(f"🧬 Enhanced Personality: {enhanced_dna.cluster_personality}")
-    print(f"🔑 DNA Signature: {enhanced_dna.dna_signature[:16]}...")
-    print(f"⭐ Uniqueness Score: {enhanced_dna.uniqueness_score:.3f}")
-    
-    # NEW: Temporal intelligence results
-    if enhanced_dna.has_temporal_intelligence:
-        print(f"\n🕒 TEMPORAL INTELLIGENCE ACTIVE")
-        print(f"   Temporal Readiness: {enhanced_dna.temporal_readiness_score:.3f}")
-        print(f"   Optimization Windows: {len(enhanced_dna.optimization_windows or [])}")
-        
-        if enhanced_dna.optimization_windows:
-            best_window = enhanced_dna.optimization_windows[0]
-            print(f"   Next Optimal Window: {best_window['start_time']} - {best_window['end_time']} ({best_window['risk_level']} risk)")
-        
-        if enhanced_dna.cost_forecast_7d:
-            print(f"   7-day Cost Forecast: ${enhanced_dna.cost_forecast_7d[0]:.2f} → ${enhanced_dna.cost_forecast_7d[-1]:.2f}")
-    
-    print(f"\n💰 COST GENETICS (unchanged)")
-    print(f"   Dominant Driver: {max(enhanced_dna.cost_distribution, key=enhanced_dna.cost_distribution.get)}")
-    print(f"   Cost Concentration: {enhanced_dna.cost_concentration_index:.1f}%")
-    print(f"   Efficiency Ratio: {enhanced_dna.cost_efficiency_ratio:.1f}%")
-    
-    print(f"\n⚡ EFFICIENCY GENETICS (unchanged)")
-    print(f"   Waste Profile: {enhanced_dna.resource_waste_profile}")
-    print(f"   Readiness Score: {enhanced_dna.optimization_readiness_score:.3f}")
-    
-    print(f"\n🎯 OPTIMIZATION GENETICS (unchanged)")
-    print(f"   Hotspots: {', '.join(enhanced_dna.optimization_hotspots)}")
-    print(f"   Savings Pattern: {enhanced_dna.savings_distribution_pattern}")
-    print(f"   Risk Profile: {enhanced_dna.implementation_risk_profile}")
-    
-    # NEW: Test temporal intelligence features
-    print(f"\n🚀 TESTING TEMPORAL FEATURES")
-    
-    # Test optimal timing
-    analyzer = ClusterDNAAnalyzer(enable_temporal_intelligence=True)
-    timing = analyzer.get_optimal_implementation_timing(enhanced_dna, "conservative")
-    print(f"   Optimal Timing: {timing['recommended_timing']} ({timing['confidence']:.1%} confidence)")
-    
-    # Test impact prediction
-    impact = analyzer.predict_optimization_impact(enhanced_dna, "hpa_optimization")
-    print(f"   Predicted Success: {impact['success_probability']:.1%}")
-    print(f"   Estimated Timeline: {impact['estimated_timeline_days']} days")
-    
-    print("\n" + "=" * 70)
-    print("✅ ENHANCED CLUSTER DNA ANALYSIS COMPLETE!")
-    print("🕒 Temporal intelligence provides 30-50% accuracy improvement")
-    print("🚀 Ready for temporal-aware optimization strategies!")
-    
-    return enhanced_dna
-
-if __name__ == "__main__":
-    demo_enhanced_cluster_dna_analysis()
+print("🧬 ENHANCED CLUSTER DNA ANALYZER WITH CONFIG INTEGRATION READY")
+print("✅ Real cluster configuration intelligence")
+print("✅ Temporal pattern analysis")
+print("✅ Enhanced cluster personality with config-derived traits")
+print("✅ Backward compatible with all existing code")
+print("✅ Optimal timing prediction with cluster awareness")

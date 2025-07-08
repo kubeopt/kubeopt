@@ -1,5 +1,8 @@
 """
-Multi-Subscription Analysis Engine - Enhanced for Parallel Analysis
+Multi-Subscription Analysis Engine - Enhanced with Cluster Config Support
+========================================================================
+Enhanced to provide cluster configuration information to implementation generator.
+NO signature changes, maintains full compatibility.
 """
 
 import uuid
@@ -19,7 +22,7 @@ from app.data.processing.metrics_processor import get_aks_metrics_from_monitor
 from app.services.cache_manager import save_to_cache
 from app.main.utils import validate_cost_data
 
-# Import the new subscription manager
+# Import the subscription manager
 from app.services.subscription_manager import azure_subscription_manager
 
 class AnalysisType(Enum):
@@ -51,7 +54,7 @@ class SubscriptionAnalysisSession:
     subscription_context_set: bool = False
 
 class MultiSubscriptionAnalysisEngine:
-    """Enhanced AKS Analysis Engine with multi-subscription support"""
+    """Enhanced AKS Analysis Engine with cluster config support"""
     
     def __init__(self):
         self.session_metadata = {
@@ -66,7 +69,7 @@ class MultiSubscriptionAnalysisEngine:
                 'log_prefix': '🌐 MULTI-SUB COMPLETELY FIXED'
             }
         }
-        self.subscription_locks = {}  # Per-subscription locks for thread safety
+        self.subscription_locks = {}
         self.cluster_locks = {}
 
     def get_cluster_lock(self, cluster_id: str) -> threading.Lock:
@@ -179,7 +182,8 @@ class MultiSubscriptionAnalysisEngine:
         config: Optional[AnalysisConfig] = None
     ) -> Dict[str, Any]:
         """
-        Run analysis with subscription awareness and automatic detection
+        Run analysis with subscription awareness and cluster config support
+        ENHANCED: Ensures cluster config info is available for implementation generator
         """
         
         cluster_id = f"{resource_group}_{cluster_name}"
@@ -190,7 +194,6 @@ class MultiSubscriptionAnalysisEngine:
         with cluster_lock:
             logger.info(f"🔒 Acquired cluster lock for {cluster_id}")
             
-            # Step 1: Determine subscription if not provided
             if not subscription_id:
                 logger.info(f"🔍 Auto-detecting subscription for cluster {cluster_name}")
                 subscription_id = azure_subscription_manager.find_cluster_subscription(resource_group, cluster_name)
@@ -202,11 +205,11 @@ class MultiSubscriptionAnalysisEngine:
                         'cluster_name': cluster_name,
                         'resource_group': resource_group
                     }
-        # Step 2: COST-FIRST VALIDATION (fail fast)
+        
+            # Step 2: COST-FIRST VALIDATION (fail fast)
             try:
                 logger.info(f"💰 COST-FIRST: Validating cost data availability for {cluster_name}")
                 
-                # Quick cost data validation before expensive work
                 cost_validation_result = self._validate_cost_data_availability(
                     resource_group, cluster_name, subscription_id, days
                 )
@@ -229,13 +232,14 @@ class MultiSubscriptionAnalysisEngine:
                     'cluster_name': cluster_name,
                     'subscription_id': subscription_id
                 }
+            
             # Step 3: Create subscription-aware config
             if config is None:
                 config = AnalysisConfig(AnalysisType.COMPLETELY_FIXED, subscription_id)
             else:
                 config.subscription_id = subscription_id
             
-            # Step 4: Run analysis with subscription context - PASS validation_result
+            # Step 4: Run analysis with subscription context and cluster config support
             return self._run_analysis_with_subscription_context(
                 resource_group, cluster_name, subscription_id, days, enable_pod_analysis, config, cost_validation_result
             )
@@ -248,9 +252,9 @@ class MultiSubscriptionAnalysisEngine:
         days: int,
         enable_pod_analysis: bool,
         config: AnalysisConfig,
-        validation_result: Dict[str, Any]  # ADD validation_result parameter
+        validation_result: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Execute analysis within subscription context"""
+        """Execute analysis within subscription context with cluster config preparation"""
         
         # Create unique session ID with subscription info
         session_id = f"{subscription_id[:8]}_{str(uuid.uuid4())[:8]}"
@@ -285,7 +289,7 @@ class MultiSubscriptionAnalysisEngine:
                 logger.info(f"🔒 Acquired subscription lock for {subscription_id[:8]}")
                 
                 def analysis_function():
-                    return self._execute_core_analysis(
+                    return self._execute_core_analysis_with_cluster_config_support(
                         resource_group, cluster_name, days, enable_pod_analysis,
                         session_id, log_prefix, config
                     )
@@ -298,13 +302,24 @@ class MultiSubscriptionAnalysisEngine:
                 logger.info(f"🔓 Released subscription lock for {subscription_id[:8]}")
             
             if analysis_result['status'] == 'success':
-                # Add subscription metadata to results - NOW validation_result is in scope
+                # ENHANCED: Add comprehensive subscription and cluster metadata for implementation generator
                 analysis_result['results']['subscription_metadata'] = {
                     'subscription_id': subscription_id,
                     'subscription_name': self._get_subscription_name(subscription_id),
                     'cluster_validation': validation_result.get('cluster_info', {}),
                     'analysis_session_id': session_id,
                     'multi_subscription_enabled': True
+                }
+                
+                # ENHANCED: Add cluster configuration metadata for implementation generator
+                analysis_result['results']['cluster_metadata'] = {
+                    'resource_group': resource_group,
+                    'cluster_name': cluster_name,
+                    'cluster_id': cluster_id,
+                    'subscription_id': subscription_id,
+                    'azure_resource_id': f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.ContainerService/managedClusters/{cluster_name}",
+                    'cluster_config_available': True,  # Signal that config fetching is available
+                    'analysis_timestamp': datetime.now().isoformat()
                 }
                 
                 # Update session and database with subscription info
@@ -318,11 +333,14 @@ class MultiSubscriptionAnalysisEngine:
         except Exception as e:
             return self._handle_subscription_error(e, session_id, subscription_id, config.analysis_type, log_prefix)
     
-    def _execute_core_analysis(
+    def _execute_core_analysis_with_cluster_config_support(
         self, resource_group: str, cluster_name: str, days: int, 
         enable_pod_analysis: bool, session_id: str, log_prefix: str, config: AnalysisConfig
     ) -> Dict[str, Any]:
-        """Execute the core analysis logic with subscription context"""
+        """
+        Execute core analysis logic with cluster config support
+        ENHANCED: Prepares analysis results for cluster config integration
+        """
         
         cluster_id = f"{resource_group}_{cluster_name}"
         
@@ -337,10 +355,10 @@ class MultiSubscriptionAnalysisEngine:
                 resource_group, cluster_name, config, session_id, log_prefix
             )
             
-            # Step 3: Get pod analysis with subscription context (UPDATED)
+            # Step 3: Get pod analysis with subscription context
             pod_data = self._get_pod_analysis(
                 resource_group, cluster_name, enable_pod_analysis, 
-                cost_df, session_id, log_prefix, config.subscription_id  # Pass subscription_id
+                cost_df, session_id, log_prefix, config.subscription_id
             )
             
             # Step 4: Run ML-enhanced algorithmic analysis
@@ -349,8 +367,8 @@ class MultiSubscriptionAnalysisEngine:
                 metrics_data, pod_data, session_id, log_prefix
             )
             
-            # Step 5: Compile comprehensive results
-            final_results = self._compile_results(
+            # Step 5: Compile comprehensive results with cluster config metadata
+            final_results = self._compile_results_with_cluster_config_support(
                 consistent_results, cost_label, total_period_cost, days,
                 real_node_metrics, pod_data, resource_group, cluster_name,
                 session_id, config, self.session_metadata[config.analysis_type]
@@ -358,11 +376,10 @@ class MultiSubscriptionAnalysisEngine:
 
             logger.info(f"DEBUG:HPA efficiency: {final_results.get('hpa_efficiency', 0):.1f}%")
             
-            # Step 6: Generate implementation plan
-            self._generate_implementation_plan(final_results, session_id, log_prefix)
+            # Step 6: Generate implementation plan with cluster config support
+            self._generate_implementation_plan_with_cluster_config_support(final_results, session_id, log_prefix)
 
-            
-            logger.info(f"🎉 Session {session_id}: MULTI-SUBSCRIPTION ANALYSIS COMPLETED")
+            logger.info(f"🎉 Session {session_id}: MULTI-SUBSCRIPTION ANALYSIS WITH CLUSTER CONFIG COMPLETED")
             
             return {
                 'status': 'success',
@@ -374,6 +391,157 @@ class MultiSubscriptionAnalysisEngine:
         except Exception as e:
             logger.error(f"❌ Core analysis failed for session {session_id}: {e}")
             raise
+    
+    def _compile_results_with_cluster_config_support(self, consistent_results: Dict, cost_label: str, 
+                        total_period_cost: float, days: int, real_node_metrics: List,
+                        pod_data: Optional[Dict], resource_group: str, cluster_name: str,
+                        session_id: str, config: AnalysisConfig, metadata: Dict) -> Dict:
+        """
+        Compile comprehensive analysis results with cluster config support
+        ENHANCED: Includes all metadata needed by implementation generator for cluster config fetching
+        """
+        
+        final_results = consistent_results.copy()
+        
+        final_results.update({
+            'cost_label': cost_label,
+            'actual_period_cost': total_period_cost,
+            'analysis_period_days': days,
+            'nodes': real_node_metrics.copy(),
+            'node_metrics': real_node_metrics.copy(),
+            'real_node_data': real_node_metrics.copy(),
+            'has_real_node_data': True
+        })
+        
+        # ENHANCED: Add subscription-aware ML metadata with cluster config support
+        ml_metadata = {
+            'analysis_type': config.analysis_type.value,
+            'subscription_id': config.subscription_id,
+            'subscription_aware': True,
+            'ml_models_used': True,
+            'enterprise_analysis': True,
+            'contradiction_free': True,
+            'session_id': session_id,
+            'multi_subscription_support': True,
+            'cluster_config_integration_enabled': True  # NEW: Signal cluster config support
+        }
+        
+        final_results['ml_analysis_metadata'] = ml_metadata
+        
+        # ENHANCED: Add comprehensive cluster context for implementation generator
+        final_results['cluster_context'] = {
+            'resource_group': resource_group,
+            'cluster_name': cluster_name,
+            'subscription_id': config.subscription_id,
+            'cluster_id': f"{resource_group}_{cluster_name}",
+            'azure_resource_id': f"/subscriptions/{config.subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.ContainerService/managedClusters/{cluster_name}",
+            'analysis_session': session_id,
+            'supports_cluster_config_fetch': True,  # NEW: Implementation generator can fetch cluster config
+            'cluster_config_fetch_params': {  # NEW: Parameters for cluster config fetching
+                'resource_group': resource_group,
+                'cluster_name': cluster_name,
+                'subscription_id': config.subscription_id
+            }
+        }
+        
+        if pod_data:
+            final_results['has_pod_costs'] = True
+            final_results['pod_cost_analysis'] = pod_data
+            
+            if 'namespace_costs' in pod_data:
+                final_results['namespace_costs'] = pod_data['namespace_costs']
+                # Generate chart data for UI
+                namespace_costs = pod_data['namespace_costs']
+                if namespace_costs and len(namespace_costs) > 0:
+                    final_results['namespaceData'] = {
+                        'labels': list(namespace_costs.keys()),
+                        'values': list(namespace_costs.values())
+                    }
+                    logger.info(f"✅ Session {session_id}: Generated namespace chart data for {len(namespace_costs)} namespaces")
+
+            # Generate workload chart data
+            if 'workload_costs' in pod_data:
+                workload_costs = pod_data['workload_costs']
+                if workload_costs and len(workload_costs) > 0:
+                    # Get top 10 workloads by cost
+                    sorted_workloads = sorted(workload_costs.items(), key=lambda x: x[1].get('cost', 0), reverse=True)[:10]
+                    
+                    final_results['workloadData'] = {
+                        'labels': [workload[0] for workload in sorted_workloads],
+                        'values': [workload[1].get('cost', 0) for workload in sorted_workloads],
+                        'types': [workload[1].get('type', 'Unknown') for workload in sorted_workloads]
+                    }
+                    logger.info(f"✅ Session {session_id}: Generated workload chart data for {len(sorted_workloads)} workloads")
+
+        elif 'namespace_summary' in pod_data:
+            final_results['namespace_costs'] = pod_data['namespace_summary']
+        else:
+            final_results['has_pod_costs'] = False
+        
+        final_results.update({
+            'resource_group': resource_group,
+            'cluster_name': cluster_name,
+            'cost_period': f"{datetime.now().strftime('%Y-%m-%d')} ({days} days analysis)",
+            'cost_data_source': 'Azure Cost Management API',
+            'metrics_data_source': metadata['metrics_source'],
+            'analysis_timestamp': datetime.now().isoformat(),
+            'session_id': session_id,
+            'ml_enhanced': True,
+            config.analysis_type.value: True
+        })
+
+        logger.info(f"DEBUG:HPA efficiency: {final_results.get('hpa_efficiency', 0):.1f}%")
+
+        return final_results
+    
+    def _generate_implementation_plan_with_cluster_config_support(self, results: Dict, session_id: str, log_prefix: str) -> None:
+        """
+        Generate implementation plan with cluster config support
+        ENHANCED: Implementation generator now has access to cluster config fetching parameters
+        """
+        logger.info(f"📋 Session {session_id}: Generating implementation plan with cluster config support...")
+        
+        try:
+            # Log cluster config availability
+            cluster_context = results.get('cluster_context', {})
+            if cluster_context.get('supports_cluster_config_fetch'):
+                logger.info(f"✅ Session {session_id}: Cluster config fetching available")
+                logger.info(f"🔧 Session {session_id}: Config params - RG: {cluster_context.get('resource_group')}, "
+                           f"Cluster: {cluster_context.get('cluster_name')}, "
+                           f"Sub: {cluster_context.get('subscription_id', 'unknown')[:8]}")
+            else:
+                logger.warning(f"⚠️ Session {session_id}: Cluster config fetching not available")
+            
+            # Call implementation generator (SAME SIGNATURE - no changes)
+            implementation_plan = implementation_generator.generate_implementation_plan(results)
+            results['implementation_plan'] = implementation_plan
+            
+            if implementation_plan and isinstance(implementation_plan, dict):
+                phases = implementation_plan.get('implementation_phases', [])
+                if isinstance(phases, list) and len(phases) > 0:
+                    # Check if cluster config was used
+                    config_enhanced = implementation_plan.get('metadata', {}).get('version', '').endswith('cluster-config-enhanced')
+                    cluster_intelligence = implementation_plan.get('intelligenceInsights', {}).get('config_derived', False)
+                    
+                    logger.info(f"✅ Session {session_id}: Generated implementation plan: {len(phases)} phases")
+                    if config_enhanced:
+                        logger.info(f"🔧 Session {session_id}: Plan enhanced with cluster configuration intelligence")
+                    if cluster_intelligence:
+                        logger.info(f"🧠 Session {session_id}: Plan includes cluster intelligence insights")
+                else:
+                    logger.error(f"❌ Session {session_id}: Implementation plan phases empty")
+            else:
+                logger.error(f"❌ Session {session_id}: Implementation plan missing phases")
+                
+        except Exception as impl_error:
+            logger.error(f"❌ Session {session_id}: Implementation plan generation failed: {impl_error}")
+            # Add error info to results for debugging
+            results['implementation_plan_error'] = {
+                'error': str(impl_error),
+                'cluster_config_available': results.get('cluster_context', {}).get('supports_cluster_config_fetch', False)
+            }
+    
+    # Include all existing helper methods unchanged (maintaining signatures)
     
     def _get_subscription_name(self, subscription_id: str) -> str:
         """Get subscription display name"""
@@ -434,14 +602,14 @@ class MultiSubscriptionAnalysisEngine:
             'multi_subscription_enabled': True
         }
     
-    # Include the existing helper methods with subscription awareness
+    # Include existing helper methods
     def _get_cost_data(self, resource_group: str, cluster_name: str, days: int, 
                   session_id: str, log_prefix: str, cluster_id: str = None, 
                   config: Optional[AnalysisConfig] = None) -> tuple:
         """Get cost data with current subscription context"""
         logger.info(f"📊 Session {session_id}: cost data fetch for {cluster_name} in current subscription context")
         
-        # 🔥 GET SUBSCRIPTION ID from config
+        # GET SUBSCRIPTION ID from config
         subscription_id = None
         if config and hasattr(config, 'subscription_id'):
             subscription_id = config.subscription_id
@@ -453,7 +621,7 @@ class MultiSubscriptionAnalysisEngine:
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
         
-        # 🔥 PASS SUBSCRIPTION ID to cost fetching
+        # PASS SUBSCRIPTION ID to cost fetching
         cost_df = get_aks_specific_cost_data(
             resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id
         )
@@ -523,12 +691,11 @@ class MultiSubscriptionAnalysisEngine:
         
         return metrics_data, real_node_metrics
     
-    # Continue with the remaining helper methods from the original analysis engine...
     def _get_pod_analysis(self, resource_group: str, cluster_name: str, 
                  enable_pod_analysis: bool, cost_df,
                  session_id: str, log_prefix: str, 
                  subscription_id: str = None) -> Optional[Dict]:
-        """Run pod-level cost analysis with COMPLETE cost breakdown (FIXED)"""
+        """Run pod-level cost analysis with COMPLETE cost breakdown"""
         if not enable_pod_analysis:
             return None
         
@@ -540,7 +707,7 @@ class MultiSubscriptionAnalysisEngine:
                 logger.info(f"⏭️ Session {session_id}: Skipping pod analysis - no costs to distribute")
                 return None
             
-            # 🔥 FIXED: Build cost breakdown with ONLY component costs (no total)
+            # Build cost breakdown with ONLY component costs (no total)
             cost_breakdown = {}
             
             # Extract core cost components safely
@@ -573,9 +740,6 @@ class MultiSubscriptionAnalysisEngine:
             categorized_cost = sum(cost_breakdown.values())
             cost_breakdown['other_cost'] = max(0.0, total_cost - categorized_cost)
             
-            # 🔥 REMOVED: Don't include 'total_cost' in the breakdown to avoid doubling
-            # cost_breakdown['total_cost'] = total_cost  # ← REMOVED THIS LINE
-            
             logger.info(f"🔍 Session {session_id}: Running subscription-aware pod analysis with COMPLETE cost breakdown: ${total_cost:.2f}")
             logger.info(f"💰 Session {session_id}: Cost components - Node: ${cost_breakdown['node_cost']:.2f}, Storage: ${cost_breakdown['storage_cost']:.2f}, Networking: ${cost_breakdown['networking_cost']:.2f}, Control Plane: ${cost_breakdown['control_plane_cost']:.2f}, Other: ${cost_breakdown['other_cost']:.2f}")
             
@@ -583,11 +747,11 @@ class MultiSubscriptionAnalysisEngine:
                 # Import the enhanced pod cost analyzer
                 from app.analytics.pod_cost_analyzer import get_enhanced_pod_cost_breakdown
                 
-                # 🔥 FIXED: Pass clean numeric cost breakdown (components only)
+                # Pass clean numeric cost breakdown (components only)
                 pod_cost_result = get_enhanced_pod_cost_breakdown(
                     resource_group, 
                     cluster_name, 
-                    cost_breakdown,  # ← Only component costs, no total
+                    cost_breakdown,  # Only component costs, no total
                     subscription_id
                 )
                 
@@ -641,108 +805,6 @@ class MultiSubscriptionAnalysisEngine:
             logger.error(f"❌ Session {session_id}: ML algorithmic analysis failed: {algo_error}")
             raise ValueError(f"Enhanced ML algorithmic analysis failed: {algo_error}")
     
-    def _compile_results(self, consistent_results: Dict, cost_label: str, 
-                        total_period_cost: float, days: int, real_node_metrics: List,
-                        pod_data: Optional[Dict], resource_group: str, cluster_name: str,
-                        session_id: str, config: AnalysisConfig, metadata: Dict) -> Dict:
-        """Compile comprehensive analysis results with subscription info"""
-        
-        final_results = consistent_results.copy()
-        
-        final_results.update({
-            'cost_label': cost_label,
-            'actual_period_cost': total_period_cost,
-            'analysis_period_days': days,
-            'nodes': real_node_metrics.copy(),
-            'node_metrics': real_node_metrics.copy(),
-            'real_node_data': real_node_metrics.copy(),
-            'has_real_node_data': True
-        })
-        
-        # Add subscription-aware ML metadata
-        ml_metadata = {
-            'analysis_type': config.analysis_type.value,
-            'subscription_id': config.subscription_id,
-            'subscription_aware': True,
-            'ml_models_used': True,
-            'enterprise_analysis': True,
-            'contradiction_free': True,
-            'session_id': session_id,
-            'multi_subscription_support': True
-        }
-        
-        final_results['ml_analysis_metadata'] = ml_metadata
-        
-        if pod_data:
-            final_results['has_pod_costs'] = True
-            final_results['pod_cost_analysis'] = pod_data
-            
-            if 'namespace_costs' in pod_data:
-                final_results['namespace_costs'] = pod_data['namespace_costs']
-                # 🔥 ADD THIS: Generate chart data for UI
-                namespace_costs = pod_data['namespace_costs']
-                if namespace_costs and len(namespace_costs) > 0:
-                    final_results['namespaceData'] = {
-                        'labels': list(namespace_costs.keys()),
-                        'values': list(namespace_costs.values())
-                    }
-                    logger.info(f"✅ Session {session_id}: Generated namespace chart data for {len(namespace_costs)} namespaces")
-
-        # 🔥 ADD THIS: Generate workload chart data
-        if 'workload_costs' in pod_data:
-            workload_costs = pod_data['workload_costs']
-            if workload_costs and len(workload_costs) > 0:
-                # Get top 10 workloads by cost
-                sorted_workloads = sorted(workload_costs.items(), key=lambda x: x[1].get('cost', 0), reverse=True)[:10]
-                
-                final_results['workloadData'] = {
-                    'labels': [workload[0] for workload in sorted_workloads],
-                    'values': [workload[1].get('cost', 0) for workload in sorted_workloads],
-                    'types': [workload[1].get('type', 'Unknown') for workload in sorted_workloads]
-                }
-                logger.info(f"✅ Session {session_id}: Generated workload chart data for {len(sorted_workloads)} workloads")
-
-        elif 'namespace_summary' in pod_data:
-            final_results['namespace_costs'] = pod_data['namespace_summary']
-        else:
-            final_results['has_pod_costs'] = False
-        
-        final_results.update({
-            'resource_group': resource_group,
-            'cluster_name': cluster_name,
-            'cost_period': f"{datetime.now().strftime('%Y-%m-%d')} ({days} days analysis)",
-            'cost_data_source': 'Azure Cost Management API',
-            'metrics_data_source': metadata['metrics_source'],
-            'analysis_timestamp': datetime.now().isoformat(),
-            'session_id': session_id,
-            'ml_enhanced': True,
-            config.analysis_type.value: True
-        })
-
-        logger.info(f"DEBUG:HPA efficiency: {final_results.get('hpa_efficiency', 0):.1f}%")
-
-        return final_results
-    
-    def _generate_implementation_plan(self, results: Dict, session_id: str, log_prefix: str) -> None:
-        """Generate implementation plan"""
-        logger.info(f"📋 Session {session_id}: Generating implementation plan...")
-        
-        try:
-            implementation_plan = implementation_generator.generate_implementation_plan(results)
-            results['implementation_plan'] = implementation_plan
-            
-            if implementation_plan and isinstance(implementation_plan, dict):
-                phases = implementation_plan.get('implementation_phases', [])
-                if isinstance(phases, list) and len(phases) > 0:
-                    logger.info(f"✅ Session {session_id}: Generated implementation plan: {len(phases)} phases")
-                else:
-                    logger.error(f"❌ Session {session_id}: Implementation plan phases empty")
-            else:
-                logger.error(f"❌ Session {session_id}: Implementation plan missing phases")
-                
-        except Exception as impl_error:
-            logger.error(f"❌ Session {session_id}: Implementation plan generation failed: {impl_error}")
-    
     def _validate_node_metrics(self, node_metrics: List[Dict]) -> None:
         """Validate node metrics have required fields"""
         for i, node in enumerate(node_metrics):
@@ -758,7 +820,7 @@ multi_subscription_analysis_engine = MultiSubscriptionAnalysisEngine()
 def run_subscription_aware_analysis(resource_group: str, cluster_name: str, 
                                    subscription_id: Optional[str] = None,
                                    days: int = 30, enable_pod_analysis: bool = True) -> Dict[str, Any]:
-    """Run analysis with automatic subscription detection"""
+    """Run analysis with automatic subscription detection and cluster config support"""
     return multi_subscription_analysis_engine.run_subscription_aware_analysis(
         resource_group, cluster_name, subscription_id, days, enable_pod_analysis
     )

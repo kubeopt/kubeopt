@@ -302,7 +302,7 @@ class EnhancedLearningOptimizationEngine:
             logger.warning("⚠️ ML models not trained - using fallback recommendations")
             return self._fallback_recommendations(cluster_dna)
         
-        # FIXED: Extract comprehensive features for prediction (125 features)
+        #  Extract comprehensive features for prediction (125 features)
         current_features = self.advanced_feature_engineer.extract_features_for_prediction(cluster_dna)
         
         if current_features is None:
