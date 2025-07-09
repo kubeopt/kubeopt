@@ -1,0 +1,17 @@
+{
+  "model_version": "1.0.0",
+  "training_date": "2025-07-09T23:22:58.442775",
+  "avg_cv_score": 0.8220012464133749,
+  "total_models": 21,
+  "components": [
+    "cost_protection",
+    "governance",
+    "monitoring",
+    "contingency",
+    "success_criteria",
+    "timeline",
+    "risk_mitigation"
+  ],
+  "training_samples": 5000,
+  "feature_count": 50
+}

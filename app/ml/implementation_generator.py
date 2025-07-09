@@ -1,7 +1,6 @@
 """
 AKS Implementation Generator
-=================================================
-
+==================================================
 """
 
 import json
@@ -18,13 +17,12 @@ from app.services.subscription_manager import azure_subscription_manager
 
 logger = logging.getLogger(__name__)
 
-
 # =============================================================================
-# UTILITY CLASSES (NEW) - Consolidate all duplicate logic
+# CORE UTILITY CLASSES - SINGLE SOURCE OF TRUTH
 # =============================================================================
 
 class ResourceParser:
-    """Unified resource parsing utility - eliminates 4 duplicate implementations"""
+    """Unified resource parsing utility - SINGLE SOURCE OF TRUTH"""
     
     @staticmethod
     def parse_cpu(cpu_str: str) -> float:
@@ -93,7 +91,7 @@ class ResourceParser:
 
 
 class HPAAnalyzer:
-    """Unified HPA analysis utility - consolidates 3+ duplicate implementations"""
+    """Unified HPA analysis utility - SINGLE SOURCE OF TRUTH"""
     
     @staticmethod
     def calculate_optimization_score(hpa: Dict, analysis_type: str = 'enhanced') -> float:
@@ -222,8 +220,22 @@ class HPAAnalyzer:
         return optimizations
 
 
+class CostCalculator:
+    """Unified cost calculation utilities - SINGLE SOURCE OF TRUTH"""
+    
+    def __init__(self, cpu_cost_per_core: float = 25.0, memory_cost_per_gb: float = 3.5):
+        self.cpu_cost_per_core_per_month = cpu_cost_per_core
+        self.memory_cost_per_gb_per_month = memory_cost_per_gb
+    
+    def calculate_resource_waste_cost(self, waste_cpu_cores: float, waste_memory_gb: float) -> float:
+        """Calculate estimated monthly cost of resource waste"""
+        cpu_waste_cost = waste_cpu_cores * self.cpu_cost_per_core_per_month
+        memory_waste_cost = waste_memory_gb * self.memory_cost_per_gb_per_month
+        return (cpu_waste_cost + memory_waste_cost) * 1.15  # 15% overhead
+
+
 class ClusterAnalyzer:
-    """Unified cluster analysis utility - consolidates 5+ duplicate analysis methods"""
+    """Unified cluster analysis utility - SINGLE SOURCE OF TRUTH"""
     
     @staticmethod
     def analyze_component(cluster_config: Dict, component: str, **kwargs) -> Dict:
@@ -323,6 +335,7 @@ class ClusterAnalyzer:
             
             total_waste_cpu = 0
             total_waste_memory = 0
+            cost_calculator = CostCalculator()
             
             for deployment in deployments:
                 efficiency = ClusterAnalyzer._calculate_resource_efficiency(deployment)
@@ -346,7 +359,7 @@ class ClusterAnalyzer:
                 'workloads_to_optimize': len(rightsizing_state['overprovisioned_workloads']),
                 'total_waste_cpu_cores': total_waste_cpu,
                 'total_waste_memory_gb': total_waste_memory,
-                'estimated_monthly_savings': ClusterAnalyzer._calculate_waste_cost(total_waste_cpu, total_waste_memory)
+                'estimated_monthly_savings': cost_calculator.calculate_resource_waste_cost(total_waste_cpu, total_waste_memory)
             }
             
         except Exception as e:
@@ -509,17 +522,6 @@ class ClusterAnalyzer:
         return total_waste
     
     @staticmethod
-    def _calculate_waste_cost(waste_cpu_cores: float, waste_memory_gb: float) -> float:
-        """Calculate cost of resource waste"""
-        cpu_cost_per_core_per_month = 30.0
-        memory_cost_per_gb_per_month = 4.0
-        
-        cpu_waste_cost = waste_cpu_cores * cpu_cost_per_core_per_month
-        memory_waste_cost = waste_memory_gb * memory_cost_per_gb_per_month
-        
-        return (cpu_waste_cost + memory_waste_cost) * 1.15  # 15% overhead
-    
-    @staticmethod
     def _has_storage_optimization_potential(storage_class: Dict) -> bool:
         """Check if storage class has optimization potential"""
         parameters = storage_class.get('parameters', {})
@@ -600,19 +602,23 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
     """
     AKS Implementation Generator - REFACTORED VERSION
     
-    Maintains exact same functionality while eliminating duplication and unused code.
+    Core implementation plan generation with ML intelligence.
+    Uses utilities from this file, delegates command generation to dynamic_cmd_center.py
     """
     
     def __init__(self, enable_cost_monitoring: bool = True, enable_temporal: bool = True):
-        """Initialize with ML orchestration (same signature as before)"""
+        """Initialize with ML orchestration"""
         super().__init__()
         
         logger.info("🧠 Initializing REFACTORED AKS Implementation Generator")
         
-        # Existing parameters (maintained for compatibility)
+        # Core configuration
         self.enable_cost_monitoring = enable_cost_monitoring
         self.enable_temporal = enable_temporal
         self.monitoring_active = False
+        
+        # Utility instances
+        self.cost_calculator = CostCalculator()
         
         # Debug tracking
         self._debug_info = {
@@ -637,8 +643,6 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                                    enable_real_time_monitoring: bool = True) -> Dict:
         """
         Generate implementation plan with REAL cluster configuration integration
-        
-        SAME SIGNATURE - Enhanced internally with refactored components.
         """
         cluster_name = analysis_results.get('cluster_name', 'unknown')
         resource_group = analysis_results.get('resource_group', 'unknown')
@@ -668,7 +672,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 resource_group, cluster_name, subscription_id, ml_session
             )
             
-            # PHASE 1: ML Cluster DNA Analysis (ENHANCED with real config)
+            # PHASE 1: ML Cluster DNA Analysis
             logger.info("🔄 PHASE 1: ML Cluster DNA Analysis")
             cluster_dna = self._ml_analyze_cluster_dna(
                 analysis_results, historical_data, ml_session, cluster_config
@@ -692,7 +696,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             if ml_plan is None or not isinstance(ml_plan, dict):
                 raise ValueError("❌ CRITICAL: Plan generation failed")
             
-            # PHASE 4: ML Command Integration
+            # PHASE 4: ML Command Integration (delegates to dynamic_cmd_center.py)
             logger.info("🔄 PHASE 4: ML Command Integration")
             ml_plan = self._ml_integrate_executable_commands(
                 ml_plan, analysis_results, ml_strategy, ml_session, cluster_config
@@ -738,7 +742,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             raise
 
     # =============================================================================
-    # CORE ML METHODS (REFACTORED)
+    # CORE ML METHODS
     # =============================================================================
 
     def _fetch_and_analyze_cluster_config(self, resource_group: str, cluster_name: str, 
@@ -838,22 +842,28 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
     def _ml_integrate_executable_commands(self, implementation_plan: Dict, analysis_results: Dict, 
                                          ml_strategy: Any, ml_session: Dict, 
                                          cluster_config: Dict) -> Dict:
-        """ML Command Integration with refactored components"""
-        logger.info("🛠️ ML Command Integration with refactored components...")
+        """ML Command Integration - delegates to dynamic_cmd_center.py"""
+        logger.info("🛠️ ML Command Integration - delegating to command generator...")
         
         if implementation_plan is None:
             raise ValueError("❌ Cannot integrate commands - implementation_plan is None")
         
         try:
+            # Import command generator from dynamic_cmd_center.py
+            from app.ml.dynamic_cmd_center import AdvancedExecutableCommandGenerator
+            
+            # Initialize command generator
+            command_generator = AdvancedExecutableCommandGenerator()
+            
+            # Set cluster config if available
+            if cluster_config and cluster_config.get('status') == 'completed':
+                command_generator.set_cluster_config(cluster_config)
+            
             # Extract session data
             cluster_dna = ml_session.get('cluster_dna')
-            comprehensive_state = ml_session.get('comprehensive_state')
             
-            # Generate execution plan using refactored components
-            total_workloads = comprehensive_state.get('hpa_state', {}).get('summary', {}).get('total_workloads', 0)
-            
-            # Use command generator to create execution plan
-            execution_plan = self.command_generator.generate_comprehensive_execution_plan(
+            # Generate execution plan using command generator
+            execution_plan = command_generator.generate_comprehensive_execution_plan(
                 ml_strategy, cluster_dna, analysis_results, cluster_config
             )
             
@@ -866,9 +876,9 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             if command_count < 5:
                 raise RuntimeError(f"Insufficient commands generated: {command_count}")
             
-            # Distribute commands to phases using refactored logic
+            # Distribute commands to phases
             implementation_plan = self._distribute_commands_to_phases(
-                implementation_plan, execution_plan, comprehensive_state
+                implementation_plan, execution_plan
             )
             
             # Validate distribution
@@ -879,14 +889,14 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             
             # Record success
             ml_session['learning_events'].append({
-                'event': 'refactored_command_integration_success',
+                'event': 'command_integration_success',
                 'total_commands_generated': command_count,
                 'total_commands_distributed': total_distributed,
-                'refactored_components_used': True,
+                'delegated_to_cmd_center': True,
                 'success': True
             })
             
-            logger.info(f"✅ Refactored Command Integration Success: {total_distributed} commands distributed")
+            logger.info(f"✅ Command Integration Success: {total_distributed} commands distributed")
             
             return implementation_plan
             
@@ -894,9 +904,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             logger.error(f"❌ ML command integration failed: {e}")
             raise RuntimeError(f"ML command integration failed: {e}") from e
 
-    def _distribute_commands_to_phases(self, implementation_plan: Dict, execution_plan: Any, 
-                                      comprehensive_state: Dict) -> Dict:
-        """Distribute commands to phases using simplified logic"""
+    def _distribute_commands_to_phases(self, implementation_plan: Dict, execution_plan: Any) -> Dict:
+        """Distribute commands from execution plan to implementation phases"""
         phases = implementation_plan.get('implementation_phases', [])
         
         if not execution_plan or not phases:
@@ -905,29 +914,26 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         try:
             # Extract all commands from execution plan
             all_commands = []
-            command_attributes = [
-                'preparation_commands', 'optimization_commands', 'validation_commands'
-            ]
             
-            for attr in command_attributes:
-                if hasattr(execution_plan, attr):
-                    commands = getattr(execution_plan, attr) or []
+            # Collect commands from execution plan attributes
+            for attr_name in ['preparation_commands', 'optimization_commands', 'monitoring_commands', 
+                            'security_commands', 'validation_commands']:
+                if hasattr(execution_plan, attr_name):
+                    commands = getattr(execution_plan, attr_name) or []
                     for cmd in commands:
                         command_dict = {
                             'id': getattr(cmd, 'id', f'cmd-{len(all_commands)}'),
                             'title': getattr(cmd, 'description', 'Generated Command'),
                             'command': getattr(cmd, 'command', ''),
-                            'category': getattr(cmd, 'category', 'execution'),
                             'description': getattr(cmd, 'description', 'Generated command'),
                             'estimated_duration_minutes': getattr(cmd, 'estimated_duration_minutes', 5),
-                            'refactored_generation': True
+                            'risk_level': getattr(cmd, 'risk_level', 'Medium'),
+                            'success_criteria': getattr(cmd, 'success_criteria', [])
                         }
                         all_commands.append(command_dict)
             
-            logger.info(f"📊 Command Extraction: {len(all_commands)} commands from execution plan")
-            
-            # Simple distribution across phases
-            if all_commands:
+            # Distribute commands across phases
+            if len(phases) >= 3 and len(all_commands) >= 3:
                 commands_per_phase = max(1, len(all_commands) // len(phases))
                 
                 for i, phase in enumerate(phases):
@@ -936,12 +942,17 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                     if i == len(phases) - 1:  # Last phase gets remaining
                         end_idx = len(all_commands)
                     
-                    phase['commands'] = all_commands[start_idx:end_idx]
-                    phase['refactored_distribution'] = True
-                    phase['total_commands'] = len(phase['commands'])
+                    phase_commands = all_commands[start_idx:end_idx]
+                    phase['commands'] = [{
+                        'title': f"{phase['title']} Commands",
+                        'commands': [cmd['command'] for cmd in phase_commands],
+                        'description': f"Commands for {phase['title']}",
+                        'command_details': phase_commands
+                    }]
+                    phase['total_commands'] = len(phase_commands)
             
-            total_distributed = sum(len(phase.get('commands', [])) for phase in phases)
-            logger.info(f"✅ Command Distribution: {total_distributed} commands across {len(phases)} phases")
+            total_distributed = sum(len(phase.get('commands', [{}])[0].get('command_details', [])) for phase in phases)
+            logger.info(f"✅ Command distribution: {total_distributed} commands across {len(phases)} phases")
             
             return implementation_plan
             
@@ -950,7 +961,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             return implementation_plan
 
     # =============================================================================
-    # HELPER METHODS (SIMPLIFIED)
+    # HELPER METHODS
     # =============================================================================
 
     def _extract_config_insights(self, cluster_config: Dict) -> Dict[str, Any]:
@@ -1017,7 +1028,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             return 0
         
         total = 0
-        command_attributes = ['preparation_commands', 'optimization_commands', 'validation_commands']
+        command_attributes = ['preparation_commands', 'optimization_commands', 'validation_commands',
+                            'monitoring_commands', 'security_commands']
         
         for attr in command_attributes:
             if hasattr(execution_plan, attr):
@@ -1031,7 +1043,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
     # =============================================================================
 
     def _initialize_ml_systems(self):
-        """Initialize ML intelligence systems (unchanged)"""
+        """Initialize ML intelligence systems"""
         logger.info("🔧 Initializing ML intelligence systems...")
         
         try:
@@ -1039,23 +1051,25 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             from app.ml.learn_optimize import create_enhanced_learning_engine
             from app.ml.dynamic_strategy import EnhancedDynamicStrategyEngine
             from app.ml.dynamic_plan_generator import CombinedDynamicImplementationGenerator
-            from app.ml.dynamic_cmd_center import AdvancedExecutableCommandGenerator
             from app.ml.dna_analyzer import ClusterDNAAnalyzer
             from app.ml.ml_integration import MLSystemOrchestrator
+            from app.ml.ml_framework_generator import create_ml_framework_generator
             
             # Initialize ML systems
             self.learning_engine = create_enhanced_learning_engine()
             self.ml_orchestrator = MLSystemOrchestrator(self.learning_engine)
             self.strategy_engine = EnhancedDynamicStrategyEngine()
             self.plan_generator = CombinedDynamicImplementationGenerator()
-            self.command_generator = AdvancedExecutableCommandGenerator()
             self.dna_analyzer = ClusterDNAAnalyzer(enable_temporal_intelligence=True)
+            
+            # NEW: Initialize ML-driven framework generator
+            self.ml_framework_generator = create_ml_framework_generator(self.learning_engine)
             
             # Connect components
             self.ml_orchestrator.connect_component('strategy_engine', self.strategy_engine)
             self.ml_orchestrator.connect_component('plan_generator', self.plan_generator)
-            self.ml_orchestrator.connect_component('command_generator', self.command_generator)
             self.ml_orchestrator.connect_component('dna_analyzer', self.dna_analyzer)
+            self.ml_orchestrator.connect_component('ml_framework_generator', self.ml_framework_generator)
             
             # Enable learning integration
             self.enable_learning_integration(self.ml_orchestrator)
@@ -1069,8 +1083,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             self.ml_orchestrator = None
             self.strategy_engine = None
             self.plan_generator = None
-            self.command_generator = None
             self.dna_analyzer = None
+            self.ml_framework_generator = None
             self.ml_systems_available = False
             raise RuntimeError(f"❌ CRITICAL: Cannot initialize ML systems - {str(e)}")
 
@@ -1151,63 +1165,89 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             raise RuntimeError(f"❌ Plan generation failed: {e}") from e
 
     def _ensure_complete_framework_structure(self, implementation_plan: Dict, 
-                                            analysis_results: Dict, ml_session: Dict,
-                                            cluster_config: Dict) -> Dict:
-        """Ensure complete framework structure"""
+                                    analysis_results: Dict, ml_session: Dict,
+                                    cluster_config: Dict) -> Dict:
+        """Generate framework structure using PURE ML"""
         if implementation_plan is None:
             raise ValueError("❌ Cannot complete framework - implementation_plan is None")
         
+        logger.info("🤖 Generating framework structure using PURE ML...")
+        
         try:
-            total_cost = analysis_results.get('total_cost', 0)
-            total_savings = analysis_results.get('total_savings', 0)
-            overall_ml_confidence = self._calculate_session_confidence(ml_session)
-            config_insights = ml_session.get('config_insights', {})
+            # Validate ML system availability
+            if not hasattr(self, 'ml_framework_generator') or self.ml_framework_generator is None:
+                raise RuntimeError("❌ ML Framework Generator not available")
             
-            # Add framework components
-            implementation_plan['costProtection'] = {
-                'enabled': True,
+            # Extract required data
+            cluster_dna = ml_session.get('cluster_dna')
+            comprehensive_state = ml_session.get('comprehensive_state', {})
+            
+            if cluster_dna is None:
+                raise ValueError("❌ Cluster DNA not available for ML framework generation")
+            
+            # Generate PURE ML-driven framework structure
+            logger.info("🧠 Generating ML-driven framework structure...")
+            ml_framework_structure = self.ml_framework_generator.generate_ml_framework_structure(
+                cluster_dna, analysis_results, ml_session, comprehensive_state
+            )
+            
+            # Validate ML structure
+            if not ml_framework_structure or not isinstance(ml_framework_structure, dict):
+                raise ValueError("❌ ML Framework Generator returned invalid structure")
+            
+            # Merge ML structure into implementation plan
+            implementation_plan.update(ml_framework_structure)
+            
+            # Validate all required components are present
+            required_components = [
+                'costProtection', 'governance', 'monitoring', 'contingency',
+                'successCriteria', 'timelineOptimization', 'riskMitigation', 'intelligenceInsights'
+            ]
+            
+            missing_components = [comp for comp in required_components if comp not in implementation_plan]
+            if missing_components:
+                raise ValueError(f"❌ ML Framework missing components: {missing_components}")
+            
+            # Calculate overall ML confidence
+            overall_ml_confidence = self._calculate_ml_framework_confidence(ml_framework_structure)
+            
+            # Add ML metadata
+            implementation_plan['ml_framework_metadata'] = {
+                'pure_ml_generated': True,
                 'ml_confidence': overall_ml_confidence,
-                'budgetLimits': {'monthlyBudget': total_cost * 1.2}
+                'generation_timestamp': datetime.now().isoformat(),
+                'ml_framework_version': '1.0.0',
+                'components_generated': len(required_components)
             }
             
-            implementation_plan['governance'] = {
-                'enabled': True,
-                'ml_confidence': overall_ml_confidence,
-                'governanceLevel': 'standard'
-            }
-            
-            implementation_plan['monitoring'] = {
-                'enabled': True,
+            # Record successful ML framework generation
+            ml_session['learning_events'].append({
+                'event': 'pure_ml_framework_generated',
+                'success': True,
+                'components_count': len(required_components),
                 'ml_confidence': overall_ml_confidence
-            }
+            })
             
-            implementation_plan['contingency'] = {
-                'enabled': True,
-                'ml_confidence': overall_ml_confidence
-            }
-            
-            implementation_plan['successCriteria'] = {
-                'enabled': True,
-                'ml_confidence': overall_ml_confidence
-            }
-            
-            implementation_plan['timelineOptimization'] = {
-                'enabled': True,
-                'ml_confidence': overall_ml_confidence
-            }
-            
-            implementation_plan['riskMitigation'] = {
-                'enabled': True,
-                'ml_confidence': overall_ml_confidence
-            }
+            logger.info("✅ PURE ML Framework Structure Generated Successfully")
+            logger.info(f"   🤖 ML Confidence: {overall_ml_confidence:.1%}")
             
             return implementation_plan
             
         except Exception as e:
-            raise RuntimeError(f"❌ Framework completion failed: {e}") from e
+            logger.error(f"❌ PURE ML Framework generation failed: {e}")
+            
+            # Record failure for learning
+            ml_session['learning_events'].append({
+                'event': 'pure_ml_framework_generation_failed',
+                'success': False,
+                'error': str(e)
+            })
+            
+            # NO FALLBACKS - Fail fast if ML can't generate structure
+            raise RuntimeError(f"❌ PURE ML Framework generation failed: {e}") from e
 
     # =============================================================================
-    # VALIDATION & UTILITY METHODS (SIMPLIFIED)
+    # VALIDATION & UTILITY METHODS
     # =============================================================================
 
     def _validate_input_data(self, analysis_results: Dict) -> bool:
@@ -1262,7 +1302,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         
         # Cluster config quality factor
         if cluster_config.get('status') == 'completed':
-            config_success_rate = 0.8  # Simplified
+            config_success_rate = 0.8
             confidence_factors.append(config_success_rate)
         else:
             confidence_factors.append(0.5)
@@ -1272,6 +1312,18 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         
         return overall_confidence
 
+    def _calculate_ml_framework_confidence(self, ml_framework_structure: Dict) -> float:
+        """Calculate overall ML framework confidence"""
+        confidences = []
+        
+        for component_name, component_data in ml_framework_structure.items():
+            if isinstance(component_data, dict):
+                ml_confidence = component_data.get('ml_confidence')
+                if ml_confidence is not None:
+                    confidences.append(float(ml_confidence))
+        
+        return sum(confidences) / len(confidences) if confidences else 0.0
+
     def _extract_dna_confidence(self, cluster_dna: Any) -> float:
         """Extract confidence from DNA analysis"""
         if hasattr(cluster_dna, 'temporal_readiness_score'):
@@ -1280,11 +1332,6 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             return cluster_dna.optimization_readiness_score
         else:
             return 0.8
-
-    def _calculate_session_confidence(self, ml_session: Dict) -> float:
-        """Calculate overall session confidence"""
-        confidences = list(ml_session['ml_confidence_levels'].values())
-        return sum(confidences) / len(confidences) if confidences else 0.8
 
     def _start_ml_session(self, analysis_results: Dict) -> Dict:
         """Start ML intelligence session"""
@@ -1310,13 +1357,27 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                     'success': True,
                     'confidence': confidence,
                     'phases_count': len(implementation_plan.get('implementation_phases', [])),
-                    'learning_events': ml_session['learning_events']
+                    'learning_events': ml_session['learning_events'],
+                    'framework_ml_generated': implementation_plan.get('ml_framework_metadata', {}).get('pure_ml_generated', False),
+                    'framework_confidence': implementation_plan.get('ml_framework_metadata', {}).get('ml_confidence', 0.0)
                 }
                 
                 self.ml_orchestrator.learn_from_implementation_result(learning_result)
                 
+                # Framework-specific learning
+                if hasattr(self, 'ml_framework_generator') and self.ml_framework_generator:
+                    framework_outcome = {
+                        'total_cost': implementation_plan.get('executiveSummary', {}).get('current_monthly_cost', 0),
+                        'actual_savings': implementation_plan.get('executiveSummary', {}).get('projected_monthly_savings', 0),
+                        'implementation_success': learning_result['success'],
+                        'framework_ml_confidence': learning_result['framework_confidence']
+                    }
+                    
+                    self.ml_framework_generator.learn_from_implementation_outcome(framework_outcome)
+                    logger.info("📈 Framework ML models updated")
+                
         except Exception as e:
-            logger.warning(f"⚠️ Failed to record learning outcomes: {e}")
+            logger.warning(f"⚠️ Failed to record ML learning outcomes: {e}")
 
     def _finalize_ml_session(self, ml_session: Dict, implementation_plan: Dict, confidence: float):
         """Finalize ML session"""
@@ -1348,10 +1409,3 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
 # Backward compatibility - maintain exact same names and signatures
 CombinedAKSImplementationGenerator = AKSImplementationGenerator
 FixedAKSImplementationGenerator = AKSImplementationGenerator
-
-print("✅ AKS Implementation Generator REFACTORED")
-print("🔧 Eliminated ~800 lines of duplicate code")
-print("🗑️ Removed ~300 lines of unused code")
-print("📦 Added utility classes for shared logic")
-print("🔗 Maintained full backward compatibility")
-print("⚡ Improved maintainability and performance")
