@@ -128,14 +128,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 })
                 raise ValueError("❌ CRITICAL: Plan generation failed - see logs for details")
             logger.info("✅ PHASE 3 completed")
-            try:
-                logger.info("RAW data from framework generator called from imp phase3")
-                logger.info(json.dumps(asdict(ml_plan), indent=2))
-            except Exception:
-                logger.info("RAW data from framework generator called from dpg 4")
-                logger.info("Generated plan fallback string: %s", ml_plan)
-
-            
+   
             # PHASE 4: ML Command Integration - NO FALLBACK
             logger.info("🔄 PHASE 4: ML Command Integration")
             ml_plan = self._ml_integrate_executable_commands(ml_plan, analysis_results, ml_strategy, ml_session)
@@ -147,13 +140,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 })
                 raise ValueError("❌ CRITICAL: Command integration failed - see logs for details")
             logger.info("✅ PHASE 4 completed")
-            try:
-                logger.info("RAW data from framework generator called from imp phase4")
-                logger.info(json.dumps(asdict(ml_plan), indent=2))
-            except Exception:
-                logger.info("RAW data from framework generator called from imp phase4")
-                logger.info("Generated plan fallback string: %s", ml_plan)
-            
+ 
             # PHASE 5: Ensure ALL framework components - NO FALLBACK
             logger.info("🔄 PHASE 5: Framework Structure Completion")
             ml_plan = self._ensure_complete_framework_structure(ml_plan, analysis_results, ml_session)
@@ -164,13 +151,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 })
                 raise ValueError("❌ CRITICAL: Framework completion failed - see logs for details")
             logger.info("✅ PHASE 5 completed")
-            try:
-                logger.info("RAW data from framework generator called from imp phase5")
-                logger.info(json.dumps(asdict(ml_plan), indent=2))
-            except Exception:
-                logger.info("RAW data from framework generator called from imp phase5")
-                logger.info("Generated plan fallback string: %s", ml_plan)
-            
+       
             # PHASE 6: Validate output structure - FAIL FAST
             logger.info("🔄 PHASE 6: Output Structure Validation")
             if not self._validate_output_structure(ml_plan):
@@ -183,13 +164,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 })
                 raise ValueError("❌ CRITICAL: Output validation failed - see logs for details")
             logger.info("✅ PHASE 6 completed")
-            try:
-                logger.info("RAW data from framework generator called from imp phase5")
-                logger.info(json.dumps(asdict(ml_plan), indent=2))
-            except Exception:
-                logger.info("RAW data from framework generator called from imp phase5")
-                logger.info("Generated plan fallback string: %s", ml_plan)
-            
+        
             # PHASE 7: Calculate and add ML confidence
             logger.info("🔄 PHASE 7: ML Confidence Calculation")
             plan_confidence = self._calculate_ml_plan_confidence(analysis_results, ml_plan, ml_session)
@@ -209,13 +184,6 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             logger.info(f"🎉 SUCCESS: ML-enhanced implementation plan generated with {plan_confidence:.1%} confidence")
             logger.info(f"📊 Final plan has {len(ml_plan.get('implementation_phases', []))} implementation phases")
             
-            try:
-                logger.info("RAW data from framework generator called from imp final")
-                logger.info(json.dumps(asdict(ml_plan), indent=2))
-            except Exception:
-                logger.info("RAW data from framework generator called from imp final")
-                logger.info("Generated plan fallback string: %s", ml_plan)
-
             return ml_plan
             
         except Exception as e:

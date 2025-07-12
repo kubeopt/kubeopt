@@ -240,9 +240,6 @@ class MLIntegratedDynamicImplementationGenerator:
         ml_structure = self.ml_framework.generate_ml_framework_structure(
             cluster_dna, analysis_results, {'learning_events': []}, {}
         )
-        
-        logger.info("RAW data from framework generator called from dpg 1:")
-        logger.info(json.dumps(ml_structure, indent=2))
 
         # Validate ML structure quality
         if not self._validate_ml_structure(ml_structure):
@@ -353,14 +350,6 @@ class MLIntegratedDynamicImplementationGenerator:
             ml_confidence=ml_confidence,
             ml_version=self.ml_framework.model_version if hasattr(self.ml_framework, 'model_version') else '1.0.0'
         )
-        
-        try:
-            logger.info("RAW data from framework generator called from dpg 2")
-            logger.info(json.dumps(asdict(plan), indent=2))
-        except Exception:
-            logger.info("RAW data from framework generator called from dpg 2")
-            logger.info("Generated plan fallback string: %s", plan)
-
 
         logger.info(f"✅ ML-integrated plan generated: {len(phases)} phases, {total_timeline} weeks")
         logger.info(f"💰 ML-predicted savings: ${total_projected_savings:.2f}/month")
@@ -2474,14 +2463,6 @@ class MLIntegratedDynamicImplementationGenerator:
     def _format_for_frontend(self, plan: ExtensiveImplementationPlan, analysis_results: Dict) -> Dict:
         """Format ML-integrated plan data for frontend consumption"""
 
-        try:
-            logger.info("RAW data from framework generator called from dpg 3")
-            logger.info(json.dumps(asdict(plan), indent=2))
-        except Exception:
-            logger.info("RAW data from framework generator called from dpg 3")
-            logger.info("Generated plan fallback string: %s", plan)
-     
-
 
         # Convert phases to proper format with ML enhancements
         formatted_phases = []
@@ -2574,13 +2555,6 @@ class MLIntegratedDynamicImplementationGenerator:
                 'ml_driven_decisions': True
             }
         }
-
-        try:
-            logger.info("RAW data from framework generator called from dpg 4")
-            logger.info(json.dumps(asdict(final_plan), indent=2))
-        except Exception:
-            logger.info("RAW data from framework generator called from dpg 4")
-            logger.info("Generated plan fallback string: %s", final_plan)
 
         return final_plan
 
