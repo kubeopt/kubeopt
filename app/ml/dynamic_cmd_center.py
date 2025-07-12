@@ -11,11 +11,6 @@ from dataclasses import dataclass, asdict
 from abc import ABC, abstractmethod
 import logging
 
-# Import utilities from implementation_generator.py (single source of truth)
-from app.ml.implementation_generator import (
-    ResourceParser, HPAAnalyzer, ClusterAnalyzer, CostCalculator
-)
-
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -112,6 +107,526 @@ class ComprehensiveExecutionPlan:
 # BASE COMMAND GENERATOR
 # ============================================================================
 
+class HPAAnalyzer:
+    """Unified HPA analysis utility - SINGLE SOURCE OF TRUTH"""
+    
+    @staticmethod
+    def calculate_optimization_score(hpa: Dict, analysis_type: str = 'enhanced') -> float:
+        """Calculate HPA optimization score (consolidated implementation)"""
+        score_factors = []
+        
+        # Analyze metrics configuration
+        metrics = hpa.get('spec', {}).get('metrics', [])
+        if len(metrics) >= 2:  # CPU and memory
+            score_factors.append(0.8)
+        elif len(metrics) == 1:
+            score_factors.append(0.6)
+        else:
+            score_factors.append(0.3)
+        
+        # Analyze replica configuration
+        min_replicas = hpa.get('spec', {}).get('minReplicas', 1)
+        max_replicas = hpa.get('spec', {}).get('maxReplicas', 10)
+        
+        if min_replicas >= 2 and max_replicas >= min_replicas * 3:
+            score_factors.append(0.9)
+        elif min_replicas >= 1 and max_replicas >= min_replicas * 2:
+            score_factors.append(0.7)
+        else:
+            score_factors.append(0.4)
+        
+        # Enhanced analysis includes behavior configuration
+        if analysis_type == 'enhanced':
+            behavior = hpa.get('spec', {}).get('behavior')
+            score_factors.append(0.9 if behavior else 0.5)
+        
+        # CPU target analysis
+        cpu_target = HPAAnalyzer.extract_cpu_target(hpa)
+        if 60 <= cpu_target <= 80:
+            score_factors.append(1.0)
+        elif 50 <= cpu_target <= 90:
+            score_factors.append(0.8)
+        else:
+            score_factors.append(0.4)
+        
+        return sum(score_factors) / len(score_factors)
+    
+    @staticmethod
+    def extract_cpu_target(hpa: Dict) -> int:
+        """Extract CPU target from HPA metrics"""
+        metrics = hpa.get('spec', {}).get('metrics', [])
+        for metric in metrics:
+            if (metric.get('type') == 'Resource' and 
+                metric.get('resource', {}).get('name') == 'cpu'):
+                return metric.get('resource', {}).get('target', {}).get('averageUtilization', 70)
+        return 70
+
+    @staticmethod
+    def extract_memory_target(hpa: Dict) -> int:
+        """Extract memory target from HPA metrics"""
+        metrics = hpa.get('spec', {}).get('metrics', [])
+        for metric in metrics:
+            if (metric.get('type') == 'Resource' and 
+                metric.get('resource', {}).get('name') == 'memory'):
+                return metric.get('resource', {}).get('target', {}).get('averageUtilization', 70)
+        return 70
+
+    @staticmethod
+    def calculate_candidate_score(deployment: Dict) -> float:
+        """Calculate HPA candidate score for deployment"""
+        score = 0.5  # Base score
+        
+        # Replica analysis
+        replicas = deployment.get('spec', {}).get('replicas', 1)
+        if replicas > 1:
+            score += 0.2
+        
+        # Resource requests analysis
+        containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
+        has_requests = any(c.get('resources', {}).get('requests') for c in containers)
+        if has_requests:
+            score += 0.3
+        
+        # Application type analysis
+        name = deployment.get('metadata', {}).get('name', '').lower()
+        if any(keyword in name for keyword in ['web', 'api', 'frontend', 'app', 'service']):
+            score += 0.2
+        
+        # Label analysis
+        labels = deployment.get('metadata', {}).get('labels', {})
+        if labels.get('app.kubernetes.io/component') in ['frontend', 'backend', 'api']:
+            score += 0.1
+        
+        return min(1.0, score)
+
+    @staticmethod
+    def generate_optimization_recommendations(hpa: Dict) -> Dict:
+        """Generate HPA optimization recommendations"""
+        optimizations = {}
+        
+        # CPU target improvements
+        current_cpu = HPAAnalyzer.extract_cpu_target(hpa)
+        if current_cpu < 60:
+            optimizations['cpu_target'] = 70
+            optimizations['cpu_rationale'] = 'Increase target for better resource utilization'
+        elif current_cpu > 80:
+            optimizations['cpu_target'] = 75
+            optimizations['cpu_rationale'] = 'Decrease target to prevent over-scaling'
+        
+        # Memory target improvements
+        current_memory = HPAAnalyzer.extract_memory_target(hpa)
+        if current_memory < 60:
+            optimizations['memory_target'] = 70
+            optimizations['memory_rationale'] = 'Increase target for better memory utilization'
+        elif current_memory > 80:
+            optimizations['memory_target'] = 75
+            optimizations['memory_rationale'] = 'Decrease target to prevent memory pressure'
+        
+        # Replica improvements
+        current_max = hpa.get('spec', {}).get('maxReplicas', 10)
+        current_min = hpa.get('spec', {}).get('minReplicas', 1)
+        
+        if current_max < current_min * 3:
+            optimizations['max_replicas'] = current_min * 3
+            optimizations['replica_rationale'] = 'Increase max replicas for better scaling headroom'
+        
+        if current_min < 2:
+            optimizations['min_replicas'] = 2
+            optimizations['min_replica_rationale'] = 'Increase min replicas for better availability'
+        
+        return optimizations
+
+
+class CostCalculator:
+    """Unified cost calculation utilities - SINGLE SOURCE OF TRUTH"""
+    
+    def __init__(self, cpu_cost_per_core: float = 25.0, memory_cost_per_gb: float = 3.5):
+        self.cpu_cost_per_core_per_month = cpu_cost_per_core
+        self.memory_cost_per_gb_per_month = memory_cost_per_gb
+    
+    def calculate_resource_waste_cost(self, waste_cpu_cores: float, waste_memory_gb: float) -> float:
+        """Calculate estimated monthly cost of resource waste"""
+        cpu_waste_cost = waste_cpu_cores * self.cpu_cost_per_core_per_month
+        memory_waste_cost = waste_memory_gb * self.memory_cost_per_gb_per_month
+        return (cpu_waste_cost + memory_waste_cost) * 1.15  # 15% overhead
+
+
+class ClusterAnalyzer:
+    """Unified cluster analysis utility - SINGLE SOURCE OF TRUTH"""
+    
+    @staticmethod
+    def analyze_component(cluster_config: Dict, component: str, **kwargs) -> Dict:
+        """Single method to analyze any cluster component"""
+        analyzers = {
+            'hpa': ClusterAnalyzer._analyze_hpa_state,
+            'rightsizing': ClusterAnalyzer._analyze_rightsizing,
+            'storage': ClusterAnalyzer._analyze_storage,
+            'network': ClusterAnalyzer._analyze_network,
+            'security': ClusterAnalyzer._analyze_security
+        }
+        
+        if component not in analyzers:
+            raise ValueError(f"Unknown component: {component}")
+        
+        return analyzers[component](cluster_config, **kwargs)
+    
+    @staticmethod
+    def _analyze_hpa_state(cluster_config: Dict, **kwargs) -> Dict:
+        """Analyze HPA state (consolidated from multiple implementations)"""
+        hpa_state = {
+            'existing_hpas': [],
+            'suboptimal_hpas': [],
+            'missing_hpa_candidates': [],
+            'summary': {}
+        }
+        
+        try:
+            scaling_resources = cluster_config.get('scaling_resources', {})
+            workload_resources = cluster_config.get('workload_resources', {})
+            
+            existing_hpas = scaling_resources.get('horizontalpodautoscalers', {}).get('items', [])
+            deployments = workload_resources.get('deployments', {}).get('items', [])
+            
+            # Analyze existing HPAs
+            for hpa in existing_hpas:
+                optimization_score = HPAAnalyzer.calculate_optimization_score(hpa)
+                
+                hpa_analysis = {
+                    'name': hpa.get('metadata', {}).get('name'),
+                    'namespace': hpa.get('metadata', {}).get('namespace'),
+                    'target': hpa.get('spec', {}).get('scaleTargetRef', {}).get('name'),
+                    'optimization_score': optimization_score
+                }
+                
+                if optimization_score < 0.7:
+                    hpa_analysis['recommended_changes'] = HPAAnalyzer.generate_optimization_recommendations(hpa)
+                    hpa_state['suboptimal_hpas'].append(hpa_analysis)
+                else:
+                    hpa_state['existing_hpas'].append(hpa_analysis)
+            
+            # Find missing HPA candidates
+            existing_targets = {hpa.get('target') for hpa in hpa_state['existing_hpas'] + hpa_state['suboptimal_hpas']}
+            
+            for deployment in deployments:
+                deployment_name = deployment.get('metadata', {}).get('name')
+                if deployment_name and deployment_name not in existing_targets:
+                    candidate_score = HPAAnalyzer.calculate_candidate_score(deployment)
+                    if candidate_score > 0.6:
+                        hpa_state['missing_hpa_candidates'].append({
+                            'deployment_name': deployment_name,
+                            'namespace': deployment.get('metadata', {}).get('namespace'),
+                            'priority_score': candidate_score,
+                            'should_have_hpa': True
+                        })
+            
+            # Summary
+            total_workloads = len(deployments)
+            total_hpas = len(hpa_state['existing_hpas']) + len(hpa_state['suboptimal_hpas'])
+            
+            hpa_state['summary'] = {
+                'total_workloads': total_workloads,
+                'existing_hpas': len(hpa_state['existing_hpas']),
+                'suboptimal_hpas': len(hpa_state['suboptimal_hpas']),
+                'missing_candidates': len(hpa_state['missing_hpa_candidates']),
+                'hpa_coverage_percent': (total_hpas / max(total_workloads, 1)) * 100,
+                'optimization_potential': len(hpa_state['suboptimal_hpas']) + len(hpa_state['missing_hpa_candidates'])
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ HPA analysis failed: {e}")
+            hpa_state['analysis_error'] = str(e)
+        
+        return hpa_state
+    
+    @staticmethod
+    def _analyze_rightsizing(cluster_config: Dict, **kwargs) -> Dict:
+        """Analyze resource rightsizing opportunities"""
+        rightsizing_state = {
+            'overprovisioned_workloads': [],
+            'optimization_potential': {}
+        }
+        
+        try:
+            workload_resources = cluster_config.get('workload_resources', {})
+            deployments = workload_resources.get('deployments', {}).get('items', [])
+            
+            total_waste_cpu = 0
+            total_waste_memory = 0
+            cost_calculator = CostCalculator()
+            
+            for deployment in deployments:
+                efficiency = ClusterAnalyzer._calculate_resource_efficiency(deployment)
+                
+                if efficiency < 0.7:  # Optimization threshold
+                    waste_cpu = ClusterAnalyzer._estimate_cpu_waste(deployment)
+                    waste_memory = ClusterAnalyzer._estimate_memory_waste(deployment)
+                    
+                    rightsizing_state['overprovisioned_workloads'].append({
+                        'name': deployment.get('metadata', {}).get('name'),
+                        'namespace': deployment.get('metadata', {}).get('namespace'),
+                        'resource_efficiency': efficiency,
+                        'waste_cpu_cores': waste_cpu,
+                        'waste_memory_gb': waste_memory
+                    })
+                    
+                    total_waste_cpu += waste_cpu
+                    total_waste_memory += waste_memory
+            
+            rightsizing_state['optimization_potential'] = {
+                'workloads_to_optimize': len(rightsizing_state['overprovisioned_workloads']),
+                'total_waste_cpu_cores': total_waste_cpu,
+                'total_waste_memory_gb': total_waste_memory,
+                'estimated_monthly_savings': cost_calculator.calculate_resource_waste_cost(total_waste_cpu, total_waste_memory)
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Rightsizing analysis failed: {e}")
+            rightsizing_state['analysis_error'] = str(e)
+        
+        return rightsizing_state
+    
+    @staticmethod
+    def _analyze_storage(cluster_config: Dict, **kwargs) -> Dict:
+        """Analyze storage optimization opportunities"""
+        storage_state = {
+            'optimization_opportunities': [],
+            'cost_analysis': {}
+        }
+        
+        try:
+            storage_resources = cluster_config.get('storage_resources', {})
+            storage_classes = storage_resources.get('storageclasses', {}).get('items', [])
+            
+            for sc in storage_classes:
+                if ClusterAnalyzer._has_storage_optimization_potential(sc):
+                    storage_state['optimization_opportunities'].append({
+                        'type': 'optimize_storage_class',
+                        'target': sc.get('metadata', {}).get('name'),
+                        'recommendation': ClusterAnalyzer._generate_storage_recommendation(sc),
+                        'potential_savings': 'Up to 40-60% cost reduction'
+                    })
+            
+        except Exception as e:
+            logger.error(f"❌ Storage analysis failed: {e}")
+            storage_state['analysis_error'] = str(e)
+        
+        return storage_state
+    
+    @staticmethod
+    def _analyze_network(cluster_config: Dict, **kwargs) -> Dict:
+        """Analyze network optimization opportunities"""
+        network_state = {
+            'optimization_opportunities': []
+        }
+        
+        try:
+            network_resources = cluster_config.get('networking_resources', {})
+            workload_resources = cluster_config.get('workload_resources', {})
+            
+            network_policies = network_resources.get('networkpolicies', {}).get('items', [])
+            services = workload_resources.get('services', {}).get('items', [])
+            
+            if len(network_policies) == 0 and len(services) > 0:
+                network_state['optimization_opportunities'].append({
+                    'type': 'implement_network_policies',
+                    'recommendation': 'Implement network policies for security and cost optimization',
+                    'impact': 'Improved security and reduced attack surface'
+                })
+            
+            external_services = [s for s in services if s.get('spec', {}).get('type') in ['LoadBalancer', 'NodePort']]
+            if len(external_services) > 3:
+                network_state['optimization_opportunities'].append({
+                    'type': 'optimize_external_services',
+                    'recommendation': 'Review external services for cost optimization',
+                    'impact': f'{len(external_services)} external services may incur additional costs'
+                })
+            
+        except Exception as e:
+            logger.error(f"❌ Network analysis failed: {e}")
+            network_state['analysis_error'] = str(e)
+        
+        return network_state
+    
+    @staticmethod
+    def _analyze_security(cluster_config: Dict, **kwargs) -> Dict:
+        """Analyze security optimization opportunities"""
+        security_state = {
+            'optimization_opportunities': [],
+            'rbac_resources': {}
+        }
+        
+        try:
+            security_resources = cluster_config.get('security_resources', {})
+            
+            rbac_count = sum(
+                security_resources.get(resource, {}).get('item_count', 0)
+                for resource in ['roles', 'clusterroles', 'rolebindings', 'clusterrolebindings']
+            )
+            
+            security_state['rbac_resources']['total'] = rbac_count
+            
+            if rbac_count < 10:
+                security_state['optimization_opportunities'].append({
+                    'type': 'enhance_rbac',
+                    'recommendation': 'Implement more granular RBAC for better security',
+                    'impact': 'Improved security and compliance'
+                })
+            
+            service_accounts = security_resources.get('serviceaccounts', {}).get('item_count', 0)
+            if service_accounts < 5:
+                security_state['optimization_opportunities'].append({
+                    'type': 'implement_service_accounts',
+                    'recommendation': 'Implement dedicated service accounts for applications',
+                    'impact': 'Enhanced security isolation'
+                })
+            
+        except Exception as e:
+            logger.error(f"❌ Security analysis failed: {e}")
+            security_state['analysis_error'] = str(e)
+        
+        return security_state
+    
+    # Helper methods for analysis
+    @staticmethod
+    def _calculate_resource_efficiency(deployment: Dict) -> float:
+        """Calculate resource efficiency for deployment"""
+        containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
+        
+        if not containers:
+            return 0.5
+        
+        efficiency_factors = []
+        for container in containers:
+            resources = container.get('resources', {})
+            requests = resources.get('requests', {})
+            limits = resources.get('limits', {})
+            
+            if requests and limits:
+                efficiency_factors.append(0.7)
+            elif requests:
+                efficiency_factors.append(0.5)
+            else:
+                efficiency_factors.append(0.3)
+        
+        return sum(efficiency_factors) / len(efficiency_factors)
+    
+    @staticmethod
+    def _estimate_cpu_waste(deployment: Dict) -> float:
+        """Estimate CPU waste for deployment"""
+        containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
+        total_waste = 0.0
+        
+        for container in containers:
+            cpu_request = container.get('resources', {}).get('requests', {}).get('cpu', '100m')
+            cpu_cores = ResourceParser.parse_cpu(cpu_request)
+            estimated_waste = cpu_cores * 0.3  # 30% waste estimate
+            total_waste += estimated_waste
+        
+        return total_waste
+    
+    @staticmethod
+    def _estimate_memory_waste(deployment: Dict) -> float:
+        """Estimate memory waste for deployment"""
+        containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
+        total_waste = 0.0
+        
+        for container in containers:
+            memory_request = container.get('resources', {}).get('requests', {}).get('memory', '128Mi')
+            memory_gb = ResourceParser.parse_memory(memory_request)
+            estimated_waste = memory_gb * 0.25  # 25% waste estimate
+            total_waste += estimated_waste
+        
+        return total_waste
+    
+    @staticmethod
+    def _has_storage_optimization_potential(storage_class: Dict) -> bool:
+        """Check if storage class has optimization potential"""
+        parameters = storage_class.get('parameters', {})
+        sku_name = parameters.get('skuName', '')
+        return 'Premium' in sku_name or 'Standard_LRS' in sku_name
+    
+    @staticmethod
+    def _generate_storage_recommendation(storage_class: Dict) -> str:
+        """Generate storage optimization recommendation"""
+        parameters = storage_class.get('parameters', {})
+        sku_name = parameters.get('skuName', '')
+        
+        if 'Premium_LRS' in sku_name:
+            return 'Replace with StandardSSD_LRS for 40-60% cost reduction'
+        elif 'Standard_LRS' in sku_name:
+            return 'Optimize with lifecycle management for additional savings'
+        else:
+            return 'Implement cost-optimized storage configuration'
+
+
+class ResourceParser:
+    """Unified resource parsing utility - SINGLE SOURCE OF TRUTH"""
+    
+    @staticmethod
+    def parse_cpu(cpu_str: str) -> float:
+        """Parse CPU value to cores (single source of truth)"""
+        if not cpu_str:
+            return 0.1  # Default 100m
+        
+        try:
+            cpu_str = str(cpu_str).strip()
+            if cpu_str.endswith('m'):
+                return float(cpu_str[:-1]) / 1000
+            elif cpu_str.endswith('n'):
+                return float(cpu_str[:-1]) / 1000000000
+            elif cpu_str.endswith('u'):
+                return float(cpu_str[:-1]) / 1000000
+            else:
+                return float(cpu_str)
+        except (ValueError, TypeError):
+            logger.warning(f"⚠️ Failed to parse CPU value: {cpu_str}, using default")
+            return 0.1
+
+    @staticmethod
+    def parse_memory(memory_str: str) -> float:
+        """Parse memory value to GB (single source of truth)"""
+        if not memory_str:
+            return 0.128  # Default 128Mi
+        
+        try:
+            memory_str = str(memory_str).strip().upper()
+            if memory_str.endswith('GI') or memory_str.endswith('G'):
+                return float(memory_str[:-2] if memory_str.endswith('GI') else memory_str[:-1])
+            elif memory_str.endswith('MI') or memory_str.endswith('M'):
+                return float(memory_str[:-2] if memory_str.endswith('MI') else memory_str[:-1]) / 1024
+            elif memory_str.endswith('KI') or memory_str.endswith('K'):
+                return float(memory_str[:-2] if memory_str.endswith('KI') else memory_str[:-1]) / (1024 * 1024)
+            elif memory_str.endswith('TI') or memory_str.endswith('T'):
+                return float(memory_str[:-2] if memory_str.endswith('TI') else memory_str[:-1]) * 1024
+            else:
+                # Assume bytes
+                return float(memory_str) / (1024 * 1024 * 1024)
+        except (ValueError, TypeError):
+            logger.warning(f"⚠️ Failed to parse memory value: {memory_str}, using default")
+            return 0.128
+
+    @staticmethod
+    def parse_storage(storage_str: str) -> float:
+        """Parse storage value to GB (single source of truth)"""
+        if not storage_str:
+            return 0
+        
+        try:
+            storage_str = str(storage_str).strip().upper()
+            if storage_str.endswith('GI') or storage_str.endswith('G'):
+                return float(storage_str[:-2] if storage_str.endswith('GI') else storage_str[:-1])
+            elif storage_str.endswith('TI') or storage_str.endswith('T'):
+                return float(storage_str[:-2] if storage_str.endswith('TI') else storage_str[:-1]) * 1024
+            elif storage_str.endswith('MI') or storage_str.endswith('M'):
+                return float(storage_str[:-2] if storage_str.endswith('MI') else storage_str[:-1]) / 1024
+            elif storage_str.endswith('KI') or storage_str.endswith('K'):
+                return float(storage_str[:-2] if storage_str.endswith('KI') else storage_str[:-1]) / (1024 * 1024)
+            else:
+                return float(storage_str) / (1024 * 1024 * 1024)  # Assume bytes
+        except (ValueError, TypeError):
+            logger.warning(f"⚠️ Failed to parse storage value: {storage_str}, using 0")
+            return 0
+        
 class BaseCommandGenerator:
     """Unified base for all command generation patterns"""
     
