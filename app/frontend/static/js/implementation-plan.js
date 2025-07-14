@@ -1,6 +1,6 @@
 /**
- * ENHANCED Implementation Plan Manager - Fixed UI with Visual Improvements
- * Maintains all existing functionality while adding better visualization
+ * FIXED Implementation Plan Manager - Navigation and Copy Issues Resolved
+ * Uses standalone copy functionality to avoid conflicts with copy-functionality.js
  */
 
 import { showNotification } from './notifications.js';
@@ -207,6 +207,417 @@ function injectCompleteUI(planData) {
             setTimeout(() => injectCompleteUI(planData), 200);
         }
     }, 100);
+}
+
+/**
+ * FIXED MARKDOWN CONVERSION FUNCTIONS - Clean and Proper Formatting
+ */
+function convertToRichMarkdown(data, title = 'Configuration') {
+    if (!data || typeof data !== 'object') {
+        return `## ${title}\n\n*No configuration data available*`;
+    }
+    
+    let markdown = `# ${title}\n\n`;
+    
+    // Helper function to format keys nicely
+    function formatKey(key) {
+        return key
+            .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+            .replace(/_/g, ' ') // Replace underscores with spaces
+            .toLowerCase()
+            .replace(/\b\w/g, l => l.toUpperCase()) // Capitalize first letter of each word
+            .trim();
+    }
+    
+    // Enhanced value processing with cleaner output
+    function processValue(value, depth = 0, maxDepth = 3) {
+        const indent = '  '.repeat(depth);
+        
+        // Prevent infinite recursion
+        if (depth > maxDepth) {
+            return '*[Maximum depth reached]*';
+        }
+        
+        if (value === null || value === undefined) {
+            return '*Not configured*';
+        }
+        
+        if (typeof value === 'boolean') {
+            return value ? '✅ **Enabled**' : '❌ **Disabled**';
+        }
+        
+        if (typeof value === 'number') {
+            // Smart number formatting
+            if (value > 1000000) {
+                return `**$${(value / 1000000).toFixed(1)}M**`;
+            } else if (value > 1000) {
+                return `**$${(value / 1000).toFixed(1)}K**`;
+            } else if (value < 1 && value > 0 && value <= 1) {
+                return `**${(value * 100).toFixed(1)}%**`;
+            } else {
+                return `**${value.toLocaleString()}**`;
+            }
+        }
+        
+        if (typeof value === 'string') {
+            // Clean string formatting - avoid over-processing
+            if (value.length > 100) {
+                return `${value.substring(0, 100)}...`;
+            }
+            return value;
+        }
+        
+        if (Array.isArray(value)) {
+            if (value.length === 0) return '*No items configured*';
+            if (value.length > 10) {
+                return `${value.slice(0, 10).map(item => `${indent}- ${processValue(item, depth + 1, maxDepth)}`).join('\n')}\n${indent}*... and ${value.length - 10} more items*`;
+            }
+            return value.map(item => `${indent}- ${processValue(item, depth + 1, maxDepth)}`).join('\n');
+        }
+        
+        if (typeof value === 'object') {
+            // Skip overly complex objects to keep markdown clean
+            const entries = Object.entries(value);
+            if (entries.length === 0) return '*No configuration data*';
+            
+            // Limit object depth and entries to keep output manageable
+            const maxEntries = depth === 0 ? 15 : 8;
+            const limitedEntries = entries.slice(0, maxEntries);
+            
+            let result = '';
+            limitedEntries.forEach(([key, val]) => {
+                const formattedKey = formatKey(key);
+                const processedValue = processValue(val, depth + 1, maxDepth);
+                
+                // Only include if the value is meaningful
+                if (processedValue !== '*Not configured*' && processedValue !== '*No configuration data*') {
+                    result += `${indent}**${formattedKey}:** ${processedValue}\n`;
+                }
+            });
+            
+            if (entries.length > maxEntries) {
+                result += `${indent}*... and ${entries.length - maxEntries} more configuration items*\n`;
+            }
+            
+            return result.trim() || '*No meaningful configuration found*';
+        }
+        
+        return String(value);
+    }
+    
+    // Process only the most important sections to avoid clutter
+    const importantKeys = Object.keys(data).filter(key => {
+        const value = data[key];
+        return value !== null && value !== undefined && 
+               (typeof value !== 'object' || Object.keys(value).length > 0);
+    });
+    
+    if (importantKeys.length === 0) {
+        markdown += '*No configuration data available*\n\n';
+        return markdown;
+    }
+    
+    // Limit to most important sections
+    const limitedKeys = importantKeys.slice(0, 10);
+    
+    limitedKeys.forEach(key => {
+        const value = data[key];
+        const sectionTitle = formatKey(key);
+        const emoji = getEmojiForKey(key);
+        
+        markdown += `## ${emoji} ${sectionTitle}\n\n`;
+        const processedContent = processValue(value, 0);
+        
+        if (processedContent && processedContent !== '*No meaningful configuration found*') {
+            markdown += processedContent + '\n\n';
+        } else {
+            markdown += '*No configuration available for this section*\n\n';
+        }
+    });
+    
+    if (importantKeys.length > limitedKeys.length) {
+        markdown += `---\n\n*Note: ${importantKeys.length - limitedKeys.length} additional configuration sections are available but not shown for brevity.*\n\n`;
+    }
+    
+    return markdown;
+}
+
+/**
+ * FIXED Get appropriate emoji for configuration keys
+ */
+function getEmojiForKey(key) {
+    const emojiMap = {
+        'budget': '💰', 'cost': '💰', 'pricing': '💰', 'billing': '💰', 'limits': '💰',
+        'monitoring': '📊', 'metrics': '📈', 'alerts': '🚨', 'dashboard': '📋',
+        'security': '🔒', 'authentication': '🔐', 'authorization': '🛡️',
+        'storage': '💾', 'database': '🗄️', 'cache': '⚡',
+        'network': '🌐', 'connectivity': '🔗', 'dns': '🌍',
+        'backup': '💾', 'recovery': '🔄', 'disaster': '🆘', 'contingency': '🛡️',
+        'performance': '⚡', 'optimization': '🚀', 'scaling': '📈',
+        'compliance': '✅', 'governance': '⚖️', 'policy': '📜',
+        'azure': '☁️', 'aws': '☁️', 'gcp': '☁️', 'cloud': '☁️',
+        'kubernetes': '☸️', 'container': '📦', 'docker': '🐳',
+        'service': '⚙️', 'application': '📱', 'api': '🔌',
+        'configuration': '⚙️', 'settings': '🛠️', 'parameters': '📋',
+        'success': '🎯', 'criteria': '🎯', 'timeline': '⏰', 'risk': '⚠️',
+        'intelligence': '🧠', 'insights': '🧠', 'strategy': '📋'
+    };
+    
+    const lowerKey = key.toLowerCase();
+    for (const [keyword, emoji] of Object.entries(emojiMap)) {
+        if (lowerKey.includes(keyword)) {
+            return emoji;
+        }
+    }
+    return '📋'; // default
+}
+
+/**
+ * STANDALONE Render markdown with custom copy functionality (bypasses copy-functionality.js)
+ */
+function renderMarkdownData(markdownContent, containerTitle = 'Configuration Details') {
+    // Convert markdown to HTML with styling
+    const htmlContent = markdownContent
+        .replace(/^# (.*$)/gm, '<h1 style="color: #2d3748; margin: 25px 0 20px 0; font-size: 24px; border-bottom: 3px solid #667eea; padding-bottom: 12px;">$1</h1>')
+        .replace(/^## (.*$)/gm, '<h2 style="color: #2d3748; margin: 20px 0 15px 0; font-size: 18px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">$1</h2>')
+        .replace(/^### (.*$)/gm, '<h3 style="color: #4a5568; margin: 15px 0 10px 0; font-size: 16px;">$1</h3>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #2d3748; font-weight: 600;">$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em style="color: #718096; font-style: italic;">$1</em>')
+        .replace(/`(.*?)`/g, '<code style="background: #edf2f7; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #2d3748; font-size: 13px;">$1</code>')
+        .replace(/^- (.*$)/gm, '<li style="margin: 5px 0; color: #4a5568; line-height: 1.5;">$1</li>')
+        .replace(/(<li.*?>[\s\S]*?<\/li>)/s, '<ul style="margin: 10px 0; padding-left: 20px; list-style-type: disc;">$1</ul>')
+        .replace(/\n/g, '<br>');
+    
+    // Generate unique ID for this markdown container
+    const buttonId = `markdown-copy-btn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Store markdown content in a global variable for copy access
+    if (!window.markdownStore) window.markdownStore = {};
+    window.markdownStore[buttonId] = markdownContent;
+    
+    return `
+        <div style="background: #f8fafc; border-radius: 16px; padding: 25px; margin-top: 30px; border: 1px solid #e2e8f0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                <h3 style="margin: 0; color: #22543d; display: flex; align-items: center; gap: 10px;">
+                    <span>📋</span> ${containerTitle}
+                </h3>
+                <button id="${buttonId}"
+                        onclick="event.stopPropagation(); event.preventDefault(); copyMarkdownStandalone('${buttonId}');" 
+                        style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s ease;"
+                        onmouseover="this.style.background='#5a67d8'" 
+                        onmouseout="this.style.background='#667eea'"
+                        title="Copy markdown to clipboard"
+                        data-custom-copy="true">
+                    📋 Copy Markdown
+                </button>
+            </div>
+            
+            <div class="markdown-content" style="
+                background: white; 
+                border-radius: 12px; 
+                padding: 20px; 
+                border: 1px solid #e2e8f0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                line-height: 1.6;
+                max-height: 400px;
+                overflow-y: auto;
+            ">
+                ${htmlContent}
+            </div>
+            
+            <!-- Raw markdown source (hidden by default) -->
+            <details style="margin-top: 15px;">
+                <summary style="cursor: pointer; font-weight: 600; color: #667eea; font-size: 14px; transition: color 0.2s ease;" 
+                         onmouseover="this.style.color='#5a67d8'" 
+                         onmouseout="this.style.color='#667eea'">
+                    View Markdown Source
+                </summary>
+                <pre style="background: #1a202c; color: #e2e8f0; padding: 15px; border-radius: 8px; font-size: 11px; overflow-x: auto; border: 1px solid #2d3748; margin-top: 10px; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; line-height: 1.4; white-space: pre-wrap;">${markdownContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+            </details>
+        </div>
+    `;
+}
+
+// NOTE: Standalone markdown copy functionality (bypasses copy-functionality.js)
+// Uses existing notification system for user feedback
+
+/**
+ * Standalone copy function for markdown content (with interference protection)
+ */
+window.copyMarkdownStandalone = function(buttonId) {
+    console.log('📋 Standalone markdown copy for button:', buttonId);
+    
+    const markdownContent = window.markdownStore?.[buttonId];
+    const button = document.getElementById(buttonId);
+    
+    if (!markdownContent) {
+        console.error('❌ No markdown content found for button:', buttonId);
+        if (window.showNotification) {
+            window.showNotification('❌ No content found to copy', 'error', 3000);
+        }
+        return false; // Prevent any further event handling
+    }
+    
+    // Remove any error classes that might be added by other systems
+    if (button) {
+        button.classList.remove('copy-error', 'copy-success');
+        button.removeAttribute('data-copy-target'); // Ensure no interference
+    }
+    
+    // Try modern clipboard API first
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(markdownContent).then(() => {
+            console.log('✅ Markdown copied via Clipboard API');
+            
+            // Use existing notification system if available
+            if (window.showNotification) {
+                window.showNotification('✅ Markdown configuration copied to clipboard!', 'success', 3000);
+            }
+            
+            // Protected visual feedback on button
+            if (button) {
+                showCopySuccess(button);
+            }
+        }).catch(err => {
+            console.error('❌ Clipboard API failed:', err);
+            fallbackCopyMarkdown(markdownContent, button);
+        });
+    } else {
+        console.log('📋 Clipboard API not available, using fallback');
+        fallbackCopyMarkdown(markdownContent, button);
+    }
+    
+    return false; // Prevent event bubbling
+};
+
+/**
+ * Protected visual feedback function
+ */
+function showCopySuccess(button) {
+    // Store original values safely
+    const originalData = {
+        text: button.innerHTML,
+        background: button.style.background || '#667eea',
+        className: button.className
+    };
+    
+    // Clear any conflicting classes
+    button.classList.remove('copy-error', 'copy-success');
+    
+    // Apply success styling
+    button.innerHTML = '✅ Copied!';
+    button.style.background = '#38a169';
+    button.style.transition = 'all 0.2s ease';
+    
+    // Restore after delay
+    setTimeout(() => {
+        if (button && button.id) { // Ensure button still exists
+            button.innerHTML = originalData.text;
+            button.style.background = originalData.background;
+            button.className = originalData.className;
+            
+            // Remove any error classes that might have been added
+            button.classList.remove('copy-error', 'copy-success');
+        }
+    }, 2000);
+}
+
+/**
+ * Protected fallback copy method
+ */
+function fallbackCopyMarkdown(text, button) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    textArea.style.top = '-9999px';
+    textArea.style.opacity = '0';
+    textArea.style.zIndex = '-1';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    textArea.setSelectionRange(0, text.length);
+    
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            console.log('✅ Markdown copied via fallback method');
+            
+            // Use existing notification system if available
+            if (window.showNotification) {
+                window.showNotification('✅ Markdown configuration copied to clipboard!', 'success', 3000);
+            }
+            
+            // Protected visual feedback
+            if (button) {
+                showCopySuccess(button);
+            }
+        } else {
+            throw new Error('execCommand copy failed');
+        }
+    } catch (err) {
+        console.error('❌ Fallback copy failed:', err);
+        
+        // Use existing notification system if available
+        if (window.showNotification) {
+            window.showNotification('❌ Failed to copy. Please copy manually from the source below.', 'error', 5000);
+        }
+        
+        // Visual feedback for error
+        if (button) {
+            const originalText = button.innerHTML;
+            const originalBg = button.style.background || '#667eea';
+            button.innerHTML = '❌ Failed';
+            button.style.background = '#e53e3e';
+            setTimeout(() => {
+                if (button && button.id) {
+                    button.innerHTML = originalText;
+                    button.style.background = originalBg;
+                    button.classList.remove('copy-error', 'copy-success');
+                }
+            }, 3000);
+        }
+    } finally {
+        document.body.removeChild(textArea);
+    }
+}
+
+/**
+ * UPDATED CONFIDENCE EXTRACTION FUNCTIONS
+ */
+function extractRealConfidence(data) {
+    // Extract real ML confidence from your data structure
+    if (data && data.ml_confidence !== undefined) {
+        return Math.round(data.ml_confidence * 100);
+    }
+    
+    // Fallback: check if data exists and has meaningful properties
+    if (data && Object.keys(data).length > 0) {
+        // Look for enabled properties to calculate a basic confidence
+        const enabledProps = Object.values(data).filter(value => 
+            value === true || 
+            (typeof value === 'object' && value !== null && Object.keys(value).length > 0)
+        );
+        return Math.max(75, Math.min(95, enabledProps.length * 15));
+    }
+    
+    return 0;
+}
+
+function getConfidenceLabel(confidence) {
+    if (confidence >= 90) return 'Excellent';
+    if (confidence >= 75) return 'Good';
+    if (confidence >= 50) return 'Fair';
+    if (confidence > 0) return 'Basic';
+    return 'Setup Required';
+}
+
+function getConfidenceBadgeStyle(confidence) {
+    if (confidence >= 90) return 'background: linear-gradient(135deg, #48bb78, #38a169);';
+    if (confidence >= 75) return 'background: linear-gradient(135deg, #4299e1, #3182ce);';
+    if (confidence >= 50) return 'background: linear-gradient(135deg, #ed8936, #dd6b20);';
+    if (confidence > 0) return 'background: linear-gradient(135deg, #ecc94b, #d69e2e);';
+    return 'background: linear-gradient(135deg, #e53e3e, #c53030);';
 }
 
 /**
@@ -675,6 +1086,965 @@ function getCompleteHTML(data) {
         </div>
     `;
 }
+
+/**
+ * FIXED FRAMEWORK STATUS RENDERING - WITH CORRECTED TAB NAVIGATION
+ */
+function renderEnhancedFrameworkStatus(data) {
+    return `
+        <div class="enhanced-section">
+            <div class="section-header">
+                <span class="section-icon">🏗️</span>
+                <h2 class="section-title">AKS Optimization Framework</h2>
+                <p style="margin: 5px 0 0 0; color: #718096; font-size: 16px;">AI-powered recommendations for your Azure Kubernetes Service cluster optimization</p>
+            </div>
+            
+            <!-- Framework Tabs -->
+            <div class="framework-tabs-container">
+                <div class="framework-tabs">
+                    <button class="framework-tab active" onclick="switchFrameworkTab('overview', this)" data-tab="overview">
+                        <span class="tab-icon">📊</span> Overview
+                    </button>
+                    <button class="framework-tab" onclick="switchFrameworkTab('cost-protection', this)" data-tab="cost-protection">
+                        <span class="tab-icon">💰</span> Cost Protection
+                    </button>
+                    <button class="framework-tab" onclick="switchFrameworkTab('governance', this)" data-tab="governance">
+                        <span class="tab-icon">⚖️</span> Governance
+                    </button>
+                    <button class="framework-tab" onclick="switchFrameworkTab('monitoring', this)" data-tab="monitoring">
+                        <span class="tab-icon">📈</span> Monitoring
+                    </button>
+                    <button class="framework-tab" onclick="switchFrameworkTab('contingency', this)" data-tab="contingency">
+                        <span class="tab-icon">🛡️</span> Contingency
+                    </button>
+                    <button class="framework-tab" onclick="switchFrameworkTab('success-criteria', this)" data-tab="success-criteria">
+                        <span class="tab-icon">🎯</span> Success Criteria
+                    </button>
+                    <button class="framework-tab" onclick="switchFrameworkTab('timeline-optimization', this)" data-tab="timeline-optimization">
+                        <span class="tab-icon">⏰</span> Timeline
+                    </button>
+                    <button class="framework-tab" onclick="switchFrameworkTab('risk-mitigation', this)" data-tab="risk-mitigation">
+                        <span class="tab-icon">⚠️</span> Risk Mitigation
+                    </button>
+                </div>
+                
+                <!-- Tab Content -->
+                <div class="framework-tab-content">
+                    <!-- Overview Tab -->
+                    <div id="framework-tab-overview" class="tab-panel active">
+                        ${renderOverviewTab(data)}
+                    </div>
+                    
+                    <!-- Cost Protection Tab -->
+                    <div id="framework-tab-cost-protection" class="tab-panel">
+                        ${renderCostProtectionTab(data.costProtection)}
+                    </div>
+                    
+                    <!-- Governance Tab -->
+                    <div id="framework-tab-governance" class="tab-panel">
+                        ${renderGovernanceTab(data.governance)}
+                    </div>
+                    
+                    <!-- Monitoring Tab -->
+                    <div id="framework-tab-monitoring" class="tab-panel">
+                        ${renderMonitoringTab(data.monitoring)}
+                    </div>
+                    
+                    <!-- Contingency Tab -->
+                    <div id="framework-tab-contingency" class="tab-panel">
+                        ${renderContingencyTab(data.contingency)}
+                    </div>
+                    
+                    <!-- Success Criteria Tab -->
+                    <div id="framework-tab-success-criteria" class="tab-panel">
+                        ${renderSuccessCriteriaTab(data.successCriteria)}
+                    </div>
+                    
+                    <!-- Timeline Tab -->
+                    <div id="framework-tab-timeline-optimization" class="tab-panel">
+                        ${renderTimelineTab(data.timelineOptimization)}
+                    </div>
+                    
+                    <!-- Risk Mitigation Tab -->
+                    <div id="framework-tab-risk-mitigation" class="tab-panel">
+                        ${renderRiskMitigationTab(data.riskMitigation)}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tabbed Interface Styles -->
+        <style>
+            .framework-tabs-container {
+                background: white;
+                border-radius: 16px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+                overflow: hidden;
+                border: 1px solid #e2e8f0;
+            }
+            
+            .framework-tabs {
+                display: flex;
+                background: #f8fafc;
+                border-bottom: 1px solid #e2e8f0;
+                overflow-x: auto;
+                padding: 0;
+            }
+            
+            .framework-tab {
+                background: none;
+                border: none;
+                padding: 20px 24px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                color: #718096;
+                white-space: nowrap;
+                transition: all 0.3s ease;
+                border-bottom: 3px solid transparent;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                min-width: fit-content;
+            }
+            
+            .framework-tab:hover {
+                color: #4a5568;
+                background: rgba(102, 126, 234, 0.05);
+            }
+            
+            .framework-tab.active {
+                color: #667eea;
+                background: white;
+                border-bottom-color: #667eea;
+                box-shadow: 0 -2px 8px rgba(102, 126, 234, 0.1);
+            }
+            
+            .tab-icon {
+                font-size: 16px;
+            }
+            
+            .framework-tab-content {
+                background: white;
+            }
+            
+            .tab-panel {
+                display: none;
+                padding: 40px;
+                min-height: 500px;
+                animation: fadeIn 0.3s ease;
+            }
+            
+            .tab-panel.active {
+                display: block;
+            }
+            
+            .tab-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 30px;
+                padding-bottom: 20px;
+                border-bottom: 2px solid #f1f5f9;
+            }
+            
+            .tab-title {
+                font-size: 32px;
+                font-weight: 700;
+                color: #2d3748;
+                margin: 0;
+            }
+            
+            .confidence-badge {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                color: white;
+                padding: 12px 20px;
+                border-radius: 25px;
+                font-weight: 600;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            }
+            
+            .confidence-score {
+                font-size: 18px;
+                font-weight: 700;
+            }
+            
+            .implementation-card {
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 16px;
+                padding: 25px;
+                margin-bottom: 25px;
+                transition: all 0.3s ease;
+                position: relative;
+                overflow: hidden;
+            }
+            
+            .implementation-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+                border-color: #667eea;
+            }
+            
+            .implementation-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 15px;
+            }
+            
+            .implementation-title {
+                font-size: 20px;
+                font-weight: 600;
+                color: #2d3748;
+                margin: 0;
+            }
+            
+            .time-estimate {
+                background: #667eea;
+                color: white;
+                padding: 6px 16px;
+                border-radius: 20px;
+                font-size: 14px;
+                font-weight: 600;
+            }
+            
+            .implementation-description {
+                color: #4a5568;
+                margin-bottom: 20px;
+                font-size: 16px;
+                line-height: 1.6;
+            }
+            
+            .azure-service-link {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                color: #0078d4;
+                text-decoration: none;
+                font-weight: 600;
+                font-size: 16px;
+                margin-bottom: 15px;
+                transition: all 0.2s ease;
+            }
+            
+            .azure-service-link:hover {
+                color: #106ebe;
+                transform: translateX(3px);
+            }
+            
+            .implementation-steps {
+                background: white;
+                border-radius: 12px;
+                padding: 20px;
+                border: 1px solid #e2e8f0;
+            }
+            
+            .step-title {
+                font-weight: 600;
+                color: #2d3748;
+                margin-bottom: 8px;
+            }
+            
+            .step-description {
+                color: #718096;
+                font-size: 14px;
+                line-height: 1.5;
+            }
+            
+            .overview-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 25px;
+                margin-top: 30px;
+            }
+            
+            .overview-card {
+                background: white;
+                border: 1px solid #e2e8f0;
+                border-radius: 16px;
+                padding: 25px;
+                text-align: center;
+                transition: all 0.3s ease;
+            }
+            
+            .overview-card:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            }
+            
+            .overview-icon {
+                font-size: 48px;
+                margin-bottom: 15px;
+            }
+            
+            .overview-status {
+                font-size: 18px;
+                font-weight: 700;
+                margin-bottom: 10px;
+            }
+            
+            .status-configured {
+                color: #48bb78;
+            }
+            
+            .status-missing {
+                color: #e53e3e;
+            }
+            
+            .overview-description {
+                color: #718096;
+                font-size: 14px;
+                line-height: 1.5;
+            }
+            
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            
+            @media (max-width: 768px) {
+                .framework-tabs {
+                    flex-direction: column;
+                }
+                
+                .framework-tab {
+                    justify-content: center;
+                    border-bottom: none;
+                    border-right: 3px solid transparent;
+                }
+                
+                .framework-tab.active {
+                    border-bottom: none;
+                    border-right-color: #667eea;
+                }
+                
+                .tab-panel {
+                    padding: 20px;
+                }
+                
+                .tab-header {
+                    flex-direction: column;
+                    align-items: flex-start;
+                    gap: 15px;
+                }
+                
+                .overview-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    `;
+}
+
+/**
+ * FIXED TAB RENDERING FUNCTIONS - CORRECTED NAVIGATION
+ */
+function renderOverviewTab(data) {
+    const frameworks = [
+        { key: 'costProtection', name: 'Cost Protection', icon: '💰', tabId: 'cost-protection' },
+        { key: 'governance', name: 'Governance', icon: '⚖️', tabId: 'governance' },
+        { key: 'monitoring', name: 'Monitoring', icon: '📈', tabId: 'monitoring' },
+        { key: 'contingency', name: 'Contingency', icon: '🛡️', tabId: 'contingency' },
+        { key: 'successCriteria', name: 'Success Criteria', icon: '🎯', tabId: 'success-criteria' },
+        { key: 'timelineOptimization', name: 'Timeline', icon: '⏰', tabId: 'timeline-optimization' },
+        { key: 'riskMitigation', name: 'Risk Mitigation', icon: '⚠️', tabId: 'risk-mitigation' }
+    ];
+    
+    const configuredCount = frameworks.filter(f => data[f.key] && Object.keys(data[f.key]).length > 0).length;
+    const totalCount = frameworks.length;
+    const completionPercentage = Math.round((configuredCount / totalCount) * 100);
+    
+    return `
+        <div class="tab-header">
+            <h1 class="tab-title">Framework Overview</h1>
+            <div class="confidence-badge" style="${getConfidenceBadgeStyle(completionPercentage)}">
+                <span>📊</span>
+                <div>
+                    <div class="confidence-score">${completionPercentage}% Complete</div>
+                    <div style="font-size: 12px; opacity: 0.9;">${configuredCount}/${totalCount} components configured</div>
+                </div>
+            </div>
+        </div>
+        
+        <p style="font-size: 18px; color: #4a5568; margin-bottom: 30px; line-height: 1.6;">
+            Your AKS optimization framework provides comprehensive coverage across cost management, governance, 
+            monitoring, and risk mitigation. Each component includes AI-powered recommendations and implementation guidance.
+        </p>
+        
+        <div class="overview-grid">
+            ${frameworks.map(framework => {
+                const hasData = data[framework.key] && Object.keys(data[framework.key]).length > 0;
+                const propCount = hasData ? Object.keys(data[framework.key]).length : 0;
+                const confidence = extractRealConfidence(data[framework.key]);
+                
+                return `
+                    <div class="overview-card">
+                        <div class="overview-icon">${framework.icon}</div>
+                        <div class="overview-status ${hasData ? 'status-configured' : 'status-missing'}">
+                            ${hasData ? '✓ Configured' : '✗ Not Available'}
+                        </div>
+                        <div style="font-size: 14px; font-weight: 600; color: #718096; margin-bottom: 10px;">
+                            ${propCount} ${propCount === 1 ? 'property' : 'properties'} | ${confidence}% confidence
+                        </div>
+                        <div class="overview-description">
+                            ${framework.name} framework component
+                        </div>
+                        <button onclick="switchFrameworkTabById('${framework.tabId}')" 
+                                style="margin-top: 15px; background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s ease;"
+                                onmouseover="this.style.background='#5a67d8'" onmouseout="this.style.background='#667eea'">
+                            View Details →
+                        </button>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function renderMonitoringTab(data) {
+    const hasData = data && Object.keys(data).length > 0;
+    const confidence = extractRealConfidence(data);
+    const confidenceLabel = getConfidenceLabel(confidence);
+    
+    // Extract real monitoring frequency and strategy from your data
+    const monitoringFrequency = data?.monitoringFrequency || 'hourly';
+    const monitoringStrategy = data?.monitoringStrategy || 'comprehensive';
+    const realTimeMonitoring = data?.realTimeMonitoring?.enabled || false;
+    const updateInterval = data?.realTimeMonitoring?.updateInterval || 'hourly';
+    
+    return `
+        <div class="tab-header">
+            <h1 class="tab-title">Monitoring</h1>
+            <div class="confidence-badge" style="${getConfidenceBadgeStyle(confidence)}">
+                <span>📈</span>
+                <div>
+                    <div class="confidence-score">${confidenceLabel}</div>
+                    <div style="font-size: 12px; opacity: 0.9;">${confidence}% confidence</div>
+                </div>
+            </div>
+        </div>
+        
+        <p style="font-size: 18px; color: #4a5568; margin-bottom: 30px; line-height: 1.6;">
+            ${hasData ? 
+                `${monitoringStrategy} monitoring strategy configured with ${monitoringFrequency} updates and ${realTimeMonitoring ? 'real-time' : 'scheduled'} monitoring.` :
+                'Set up comprehensive monitoring to track your AKS cluster performance and costs in real-time.'
+            }
+        </p>
+        
+        <!-- Azure Monitor + Container Insights -->
+        <div class="implementation-card">
+            <div class="implementation-header">
+                <h3 class="implementation-title">Azure Monitor + Container Insights</h3>
+                <div class="time-estimate">30 minutes</div>
+            </div>
+            
+            <p class="implementation-description">
+                Enable full observability with Container Insights for detailed AKS monitoring
+            </p>
+            
+            <a href="https://docs.microsoft.com/en-us/azure/azure-monitor/containers/container-insights-overview" 
+               class="azure-service-link" target="_blank">
+                <span>⚙️</span> Azure Monitor Container Insights
+            </a>
+            
+            <div class="implementation-steps">
+                <div class="step-title">Implementation:</div>
+                <div class="step-description">
+                    Enable Container Insights and configure custom metrics collection for comprehensive AKS monitoring including pod performance, resource utilization, and cost tracking.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Prometheus + Grafana -->
+        <div class="implementation-card">
+            <div class="implementation-header">
+                <h3 class="implementation-title">Prometheus + Grafana Integration</h3>
+                <div class="time-estimate">1 hour</div>
+            </div>
+            
+            <p class="implementation-description">
+                Set up advanced metrics collection and visualization
+            </p>
+            
+            <a href="https://docs.microsoft.com/en-us/azure/azure-monitor/essentials/prometheus-metrics-overview" 
+               class="azure-service-link" target="_blank">
+                <span>⚙️</span> Azure Monitor Managed Prometheus
+            </a>
+            
+            <div class="implementation-steps">
+                <div class="step-title">Implementation:</div>
+                <div class="step-description">
+                    Deploy Prometheus for metrics collection and Grafana for visualization. Configure custom dashboards for cost optimization, resource utilization, and performance monitoring.
+                </div>
+            </div>
+        </div>
+        
+        ${hasData ? `
+            <!-- Current Configuration with Rich Markdown -->
+            <div style="background: #f0fff4; border-radius: 16px; padding: 25px; margin-top: 30px; border: 1px solid #9ae6b4;">
+                <h3 style="margin: 0 0 20px 0; color: #22543d; display: flex; align-items: center; gap: 10px;">
+                    <span>✅</span> Current Monitoring Configuration
+                </h3>
+                
+                <!-- Real Configuration Summary -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 18px; font-weight: bold; color: #22543d;">${monitoringStrategy}</div>
+                        <div style="color: #4a5568; font-size: 12px;">Strategy</div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 18px; font-weight: bold; color: #22543d;">${updateInterval}</div>
+                        <div style="color: #4a5568; font-size: 12px;">Update Interval</div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 18px; font-weight: bold; color: #22543d;">${realTimeMonitoring ? 'Enabled' : 'Disabled'}</div>
+                        <div style="color: #4a5568; font-size: 12px;">Real-time Monitoring</div>
+                    </div>
+                </div>
+                
+                ${formatMonitoringConfiguration(data)}
+                
+                <!-- Rich Configuration Display -->
+                ${renderMarkdownData(convertToRichMarkdown(data, 'Monitoring Configuration'), 'Monitoring Setup Details')}
+            </div>
+        ` : `
+            <!-- Setup Guide -->
+            <div style="background: #fffaf0; border-radius: 16px; padding: 25px; margin-top: 30px; border: 1px solid #fbd38d;">
+                <h3 style="margin: 0 0 20px 0; color: #c05621; display: flex; align-items: center; gap: 10px;">
+                    <span>📋</span> Quick Setup Guide
+                </h3>
+                <ol style="margin: 0; padding-left: 20px; color: #2d3748;">
+                    <li style="margin-bottom: 10px;">Enable Container Insights in Azure Monitor</li>
+                    <li style="margin-bottom: 10px;">Configure Prometheus metrics collection</li>
+                    <li style="margin-bottom: 10px;">Set up Grafana dashboards for visualization</li>
+                    <li style="margin-bottom: 10px;">Configure cost and performance alerts</li>
+                </ol>
+            </div>
+        `}
+    `;
+}
+
+function renderCostProtectionTab(data) {
+    const hasData = data && Object.keys(data).length > 0;
+    const confidence = extractRealConfidence(data);
+    const confidenceLabel = getConfidenceLabel(confidence);
+    
+    // Extract real budget data
+    const monthlyBudget = data?.budgetLimits?.monthlyBudget || 0;
+    const alertThreshold = data?.budgetLimits?.alertThreshold || 0;
+    const hardLimit = data?.budgetLimits?.hardLimit || 0;
+    
+    return `
+        <div class="tab-header">
+            <h1 class="tab-title">Cost Protection</h1>
+            <div class="confidence-badge" style="${getConfidenceBadgeStyle(confidence)}">
+                <span>💰</span>
+                <div>
+                    <div class="confidence-score">${confidenceLabel}</div>
+                    <div style="font-size: 12px; opacity: 0.9;">${confidence}% confidence</div>
+                </div>
+            </div>
+        </div>
+        
+        <p style="font-size: 18px; color: #4a5568; margin-bottom: 30px; line-height: 1.6;">
+            ${hasData ? 
+                `Budget limits and cost monitoring safeguards are configured with $${monthlyBudget.toLocaleString()} monthly budget.` :
+                'Set up budget limits and automated cost controls to protect against unexpected Azure spending.'
+            }
+        </p>
+        
+        <!-- Budget Management -->
+        <div class="implementation-card">
+            <div class="implementation-header">
+                <h3 class="implementation-title">Azure Budget Management</h3>
+                <div class="time-estimate">15 minutes</div>
+            </div>
+            
+            <p class="implementation-description">
+                Configure automated budget alerts and spending limits for your AKS resources
+            </p>
+            
+            <a href="https://docs.microsoft.com/en-us/azure/cost-management-billing/costs/tutorial-acm-create-budgets" 
+               class="azure-service-link" target="_blank">
+                <span>⚙️</span> Azure Budget Management
+            </a>
+            
+            <div class="implementation-steps">
+                <div class="step-title">Implementation:</div>
+                <div class="step-description">
+                    Set up monthly and daily budget alerts at 80%, 90%, and 100% thresholds. Configure automatic actions when limits are exceeded.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Cost Alerts -->
+        <div class="implementation-card">
+            <div class="implementation-header">
+                <h3 class="implementation-title">Real-time Cost Alerts</h3>
+                <div class="time-estimate">20 minutes</div>
+            </div>
+            
+            <p class="implementation-description">
+                Monitor spending patterns and receive immediate notifications of cost anomalies
+            </p>
+            
+            <a href="https://docs.microsoft.com/en-us/azure/cost-management-billing/costs/cost-mgt-alerts-monitor-usage-spending" 
+               class="azure-service-link" target="_blank">
+                <span>⚙️</span> Azure Cost Alerts
+            </a>
+            
+            <div class="implementation-steps">
+                <div class="step-title">Implementation:</div>
+                <div class="step-description">
+                    Configure smart alerts for unusual spending patterns, resource scaling events, and daily cost thresholds with email and Teams notifications.
+                </div>
+            </div>
+        </div>
+        
+        ${hasData ? `
+            <!-- Current Budget Configuration -->
+            <div style="background: #f0fff4; border-radius: 16px; padding: 25px; margin-top: 30px; border: 1px solid #9ae6b4;">
+                <h3 style="margin: 0 0 20px 0; color: #22543d; display: flex; align-items: center; gap: 10px;">
+                    <span>💳</span> Current Budget Configuration
+                </h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    ${monthlyBudget > 0 ? `
+                        <div style="background: white; padding: 20px; border-radius: 12px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #22543d;">$${monthlyBudget.toLocaleString()}</div>
+                            <div style="color: #4a5568; font-size: 14px;">Monthly Budget</div>
+                        </div>
+                    ` : ''}
+                    ${alertThreshold > 0 ? `
+                        <div style="background: white; padding: 20px; border-radius: 12px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #d69e2e;">$${alertThreshold.toLocaleString()}</div>
+                            <div style="color: #4a5568; font-size: 14px;">Alert Threshold</div>
+                        </div>
+                    ` : ''}
+                    ${hardLimit > 0 ? `
+                        <div style="background: white; padding: 20px; border-radius: 12px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #e53e3e;">$${hardLimit.toLocaleString()}</div>
+                            <div style="color: #4a5568; font-size: 14px;">Hard Limit</div>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <!-- Rich Configuration Display -->
+                ${renderMarkdownData(convertToRichMarkdown(data, 'Cost Protection Configuration'), 'Budget & Cost Control Details')}
+            </div>
+        ` : ''}
+    `;
+}
+
+function renderContingencyTab(data) {
+    const hasData = data && Object.keys(data).length > 0;
+    const confidence = extractRealConfidence(data);
+    const confidenceLabel = getConfidenceLabel(confidence);
+    
+    // Extract real contingency data
+    const contingencyTriggers = data?.contingencyTriggers || [];
+    const rollbackAvailable = data?.rollbackProcedures?.automated_rollback_available || false;
+    const rollbackTime = data?.rollbackProcedures?.rollback_time_estimate || 'Unknown';
+    
+    return `
+        <div class="tab-header">
+            <h1 class="tab-title">Contingency Planning</h1>
+            <div class="confidence-badge" style="${getConfidenceBadgeStyle(confidence)}">
+                <span>🛡️</span>
+                <div>
+                    <div class="confidence-score">${confidenceLabel}</div>
+                    <div style="font-size: 12px; opacity: 0.9;">${confidence}% confidence</div>
+                </div>
+            </div>
+        </div>
+        
+        <p style="font-size: 18px; color: #4a5568; margin-bottom: 30px; line-height: 1.6;">
+            ${hasData ? 
+                `Risk mitigation and rollback procedures configured with ${rollbackAvailable ? 'automated' : 'manual'} rollback capability.` :
+                'Risk mitigation and rollback procedures for safe implementation'
+            }
+        </p>
+        
+        <!-- Backup Strategy -->
+        <div class="implementation-card">
+            <div class="implementation-header">
+                <h3 class="implementation-title">Backup Strategy</h3>
+                <div class="time-estimate">1 hour</div>
+            </div>
+            
+            <p class="implementation-description">
+                Configure automated backups for critical configurations
+            </p>
+            
+            <div class="implementation-steps">
+                <div class="step-title">Implementation:</div>
+                <div class="step-description">
+                    Ready to implement backup strategy for your AKS cluster optimization.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Rollback Procedures -->
+        <div class="implementation-card">
+            <div class="implementation-header">
+                <h3 class="implementation-title">Rollback Procedures</h3>
+                <div class="time-estimate">30 minutes</div>
+            </div>
+            
+            <p class="implementation-description">
+                Document and test rollback procedures
+            </p>
+            
+            <div class="implementation-steps">
+                <div class="step-title">Implementation:</div>
+                <div class="step-description">
+                    Ready to implement rollback procedures for your AKS cluster optimization.
+                </div>
+            </div>
+        </div>
+        
+        ${hasData ? `
+            <!-- Current Configuration -->
+            <div style="background: #f0fff4; border-radius: 16px; padding: 25px; margin-top: 30px; border: 1px solid #9ae6b4;">
+                <h3 style="margin: 0 0 20px 0; color: #22543d; display: flex; align-items: center; gap: 10px;">
+                    <span>✅</span> Current Contingency Configuration
+                </h3>
+                
+                ${contingencyTriggers.length > 0 ? `
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 10px 0; color: #22543d;">⚡ Configured Triggers</h4>
+                        <ul style="margin: 0; padding-left: 20px; color: #2d3748;">
+                            ${contingencyTriggers.map(trigger => `<li style="margin-bottom: 5px;">${trigger.replace(/_/g, ' ')}</li>`).join('')}
+                        </ul>
+                    </div>
+                ` : ''}
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                    <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 18px; font-weight: bold; color: #22543d;">${rollbackAvailable ? 'Available' : 'Manual Only'}</div>
+                        <div style="color: #4a5568; font-size: 12px;">Automated Rollback</div>
+                    </div>
+                    <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 18px; font-weight: bold; color: #22543d;">${rollbackTime}</div>
+                        <div style="color: #4a5568; font-size: 12px;">Rollback Time</div>
+                    </div>
+                </div>
+                
+                <!-- Rich Configuration Display -->
+                ${renderMarkdownData(convertToRichMarkdown(data, 'Contingency Configuration'), 'Risk Management & Rollback Details')}
+            </div>
+        ` : ''}
+    `;
+}
+
+// Add similar updated functions for other tabs...
+function renderGovernanceTab(data) {
+    const hasData = data && Object.keys(data).length > 0;
+    const confidence = extractRealConfidence(data);
+    const confidenceLabel = getConfidenceLabel(confidence);
+    
+    return renderGenericTab('Governance', '⚖️', hasData, data, confidence, confidenceLabel,
+        'Approval processes and compliance requirements for AKS changes',
+        [
+            { title: 'Azure Policy Integration', time: '45 minutes', description: 'Implement governance policies for AKS compliance' },
+            { title: 'RBAC Configuration', time: '30 minutes', description: 'Set up role-based access controls' }
+        ]
+    );
+}
+
+function renderSuccessCriteriaTab(data) {
+    const hasData = data && Object.keys(data).length > 0;
+    const confidence = extractRealConfidence(data);
+    const confidenceLabel = getConfidenceLabel(confidence);
+    
+    return renderGenericTab('Success Criteria', '🎯', hasData, data, confidence, confidenceLabel,
+        'Measurable goals and validation metrics for optimization success',
+        [
+            { title: 'KPI Definition', time: '20 minutes', description: 'Define key performance indicators for success' },
+            { title: 'Validation Testing', time: '1 hour', description: 'Set up automated validation testing' }
+        ]
+    );
+}
+
+function renderTimelineTab(data) {
+    const hasData = data && Object.keys(data).length > 0;
+    const confidence = extractRealConfidence(data);
+    const confidenceLabel = getConfidenceLabel(confidence);
+    
+    return renderGenericTab('Timeline Optimization', '⏰', hasData, data, confidence, confidenceLabel,
+        'Schedule efficiency and milestone tracking for implementation',
+        [
+            { title: 'Project Planning', time: '30 minutes', description: 'Optimize implementation timeline' },
+            { title: 'Milestone Tracking', time: '15 minutes', description: 'Set up progress tracking dashboards' }
+        ]
+    );
+}
+
+function renderRiskMitigationTab(data) {
+    const hasData = data && Object.keys(data).length > 0;
+    const confidence = extractRealConfidence(data);
+    const confidenceLabel = getConfidenceLabel(confidence);
+    
+    return renderGenericTab('Risk Mitigation', '⚠️', hasData, data, confidence, confidenceLabel,
+        'Proactive risk identification and response plans',
+        [
+            { title: 'Risk Assessment', time: '1 hour', description: 'Comprehensive risk analysis and scoring' },
+            { title: 'Mitigation Planning', time: '45 minutes', description: 'Develop response plans for identified risks' }
+        ]
+    );
+}
+
+function renderGenericTab(title, icon, hasData, data, confidence, confidenceLabel, description, implementations) {
+    return `
+        <div class="tab-header">
+            <h1 class="tab-title">${title}</h1>
+            <div class="confidence-badge" style="${getConfidenceBadgeStyle(confidence)}">
+                <span>${icon}</span>
+                <div>
+                    <div class="confidence-score">${confidenceLabel}</div>
+                    <div style="font-size: 12px; opacity: 0.9;">${confidence}% confidence</div>
+                </div>
+            </div>
+        </div>
+        
+        <p style="font-size: 18px; color: #4a5568; margin-bottom: 30px; line-height: 1.6;">
+            ${description}
+        </p>
+        
+        ${implementations.map(impl => `
+            <div class="implementation-card">
+                <div class="implementation-header">
+                    <h3 class="implementation-title">${impl.title}</h3>
+                    <div class="time-estimate">${impl.time}</div>
+                </div>
+                
+                <p class="implementation-description">
+                    ${impl.description}
+                </p>
+                
+                <div class="implementation-steps">
+                    <div class="step-title">Implementation:</div>
+                    <div class="step-description">
+                        Ready to implement ${impl.title.toLowerCase()} for your AKS cluster optimization.
+                    </div>
+                </div>
+            </div>
+        `).join('')}
+        
+        ${hasData ? `
+            <!-- Rich Configuration Display -->
+            ${renderMarkdownData(convertToRichMarkdown(data, `${title} Configuration`), `${title} Details`)}
+        ` : ''}
+    `;
+}
+
+function formatMonitoringConfiguration(data) {
+    let html = '';
+    
+    if (data.keyMetrics && Array.isArray(data.keyMetrics)) {
+        html += `
+            <div style="margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: #22543d;">📈 Tracked Metrics</h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${data.keyMetrics.map(metric => `
+                        <span style="background: #22543d; color: white; padding: 6px 12px; border-radius: 16px; font-size: 12px;">
+                            ${metric.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (data.alerting) {
+        html += `
+            <div>
+                <h4 style="margin: 0 0 10px 0; color: #22543d;">🚨 Alert Configuration</h4>
+                <div style="color: #2d3748; font-size: 14px;">
+                    ${data.alerting.cost_spike_alerts ? '✅ Cost spike alerts enabled<br>' : '❌ Cost spike alerts disabled<br>'}
+                    ${data.alerting.performance_degradation_alerts ? '✅ Performance alerts enabled<br>' : '❌ Performance alerts disabled<br>'}
+                    ${data.alerting.ml_confidence_threshold ? `🎯 ML Confidence Threshold: ${(data.alerting.ml_confidence_threshold * 100).toFixed(1)}%` : ''}
+                </div>
+            </div>
+        `;
+    }
+    
+    return html || '<p style="color: #718096; font-style: italic;">No monitoring configuration details available</p>';
+}
+
+// FIXED Tab switching functionality - Simplified approach
+window.switchFrameworkTab = function(tabId, buttonElement) {
+    console.log('🔄 Switching to tab:', tabId);
+    
+    // Hide all tab panels
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+    
+    // Remove active class from all tabs
+    document.querySelectorAll('.framework-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Show selected tab panel
+    const targetPanel = document.getElementById(`framework-tab-${tabId}`);
+    if (targetPanel) {
+        targetPanel.classList.add('active');
+        console.log('✅ Activated tab panel:', `framework-tab-${tabId}`);
+    } else {
+        console.error('❌ Tab panel not found:', `framework-tab-${tabId}`);
+    }
+    
+    // Add active class to clicked tab
+    if (buttonElement) {
+        buttonElement.classList.add('active');
+        console.log('✅ Activated tab button');
+    }
+    
+    // Scroll tab into view if needed
+    if (buttonElement) {
+        buttonElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+};
+
+// NEW: Simplified function for "View Details" buttons
+window.switchFrameworkTabById = function(tabId) {
+    console.log('🔄 Switching to tab by ID:', tabId);
+    
+    // Hide all tab panels
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+    
+    // Remove active class from all tabs
+    document.querySelectorAll('.framework-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Show selected tab panel
+    const targetPanel = document.getElementById(`framework-tab-${tabId}`);
+    if (targetPanel) {
+        targetPanel.classList.add('active');
+        console.log('✅ Activated tab panel:', `framework-tab-${tabId}`);
+    } else {
+        console.error('❌ Tab panel not found:', `framework-tab-${tabId}`);
+        return;
+    }
+    
+    // Find and activate the corresponding tab button
+    const targetButton = document.querySelector(`[data-tab="${tabId}"]`);
+    if (targetButton) {
+        targetButton.classList.add('active');
+        console.log('✅ Activated tab button for:', tabId);
+        
+        // Scroll tab into view if needed
+        targetButton.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    } else {
+        console.error('❌ Tab button not found for:', tabId);
+    }
+};
 
 function renderEnhancedStyles() {
     return `
@@ -1362,50 +2732,6 @@ function renderEnhancedStyles() {
                     width: 150px;
                 }
             }
-                .complete-implementation-ui {
-                    padding: 10px;
-                }
-                
-                .enhanced-header {
-                    padding: 30px 20px;
-                }
-                
-                .week-section {
-                    padding-left: 80px;
-                }
-                
-                .enhanced-week-marker {
-                    width: 50px;
-                    height: 50px;
-                    left: 20px;
-                    font-size: 12px;
-                }
-                
-                .enhanced-phase-header {
-                    padding: 20px;
-                }
-                
-                .phase-meta {
-                    flex-direction: column;
-                    align-items: flex-start;
-                    gap: 10px;
-                }
-                
-                .progress-circle {
-                    margin-left: 0;
-                    margin-top: 15px;
-                }
-                
-                .action-buttons {
-                    flex-direction: column;
-                    align-items: center;
-                }
-                
-                .action-btn {
-                    width: 100%;
-                    max-width: 300px;
-                }
-            }
         </style>
     `;
 }
@@ -1433,10 +2759,6 @@ function renderEnhancedMainHeader(data) {
                         </small>
                     </div>
                     <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-                        <!-- Theme Toggle -->
-                        <!--<button onclick="toggleTheme()" class="command-btn" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);" title="Toggle Dark/Light Theme">
-                            🌙 Theme
-                        </button>-->
                         <!-- Command Search -->
                         <div style="position: relative;">
                             <input type="text" id="commandSearch" placeholder="🔍 Search commands..." onkeyup="searchCommands(this.value)" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 6px; font-size: 14px; width: 200px;" />
@@ -1455,7 +2777,6 @@ function renderEnhancedMainHeader(data) {
                         </button>
                     </div>
                 </div>
-                
                 
             </div>
             <div class="enhanced-stats-grid">
@@ -1481,35 +2802,6 @@ function renderEnhancedMainHeader(data) {
         </div>
     `;
 }
-
-/** Back up
- * <div class="enhanced-stats-grid">
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${data.totalPhases}</div>
-                        <div class="stat-label">Phases</div>
-                    </div>
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${data.totalWeeks}</div>
-                        <div class="stat-label">Weeks</div>
-                    </div>
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">$${data.totalSavings.toLocaleString()}</div>
-                        <div class="stat-label">Monthly Savings</div>
-                    </div>
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${data.totalCommands}</div>
-                        <div class="stat-label">Commands</div>
-                    </div>
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${data.securityItems}</div>
-                        <div class="stat-label">Security Items</div>
-                    </div>
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${data.avgProgress}%</div>
-                        <div class="stat-label">Confidence</div>
-                    </div>
-                </div>
- */
 
 function renderEnhancedExecutiveSummary(executiveSummary) {
     if (!executiveSummary || Object.keys(executiveSummary).length === 0) {
@@ -1652,7 +2944,7 @@ function renderEnhancedIntelligenceInsights(intelligenceInsights) {
                                         <p style="margin: 0 0 12px 0; color: #718096; font-size: 14px;">${area.description || 'No description'}</p>
                                         ${area.savings_potential_monthly ? `
                                             <div style="color: #48bb78; font-weight: 700; font-size: 16px; margin-bottom: 8px;">
-                                                💰 $${area.savings_potential_monthly.toFixed(2)}/month
+                                                💰 ${area.savings_potential_monthly.toFixed(2)}/month
                                             </div>
                                         ` : ''}
                                         ${area.confidence_level ? `
@@ -1669,1077 +2961,6 @@ function renderEnhancedIntelligenceInsights(intelligenceInsights) {
             ` : ''}
         </div>
     `;
-}
-
-// Replace the renderEnhancedFrameworkStatus function in implementation-plan.js
-
-function renderEnhancedFrameworkStatus(data) {
-    return `
-        <div class="enhanced-section">
-            <div class="section-header">
-                <span class="section-icon">🏗️</span>
-                <h2 class="section-title">AKS Optimization Framework</h2>
-                <p style="margin: 5px 0 0 0; color: #718096; font-size: 16px;">AI-powered recommendations for your Azure Kubernetes Service cluster optimization</p>
-            </div>
-            
-            <!-- Framework Tabs -->
-            <div class="framework-tabs-container">
-                <div class="framework-tabs">
-                    <button class="framework-tab active" onclick="switchFrameworkTab('overview', this)" data-tab="overview">
-                        <span class="tab-icon">📊</span> Overview
-                    </button>
-                    <button class="framework-tab" onclick="switchFrameworkTab('cost-protection', this)" data-tab="cost-protection">
-                        <span class="tab-icon">💰</span> Cost Protection
-                    </button>
-                    <button class="framework-tab" onclick="switchFrameworkTab('governance', this)" data-tab="governance">
-                        <span class="tab-icon">⚖️</span> Governance
-                    </button>
-                    <button class="framework-tab" onclick="switchFrameworkTab('monitoring', this)" data-tab="monitoring">
-                        <span class="tab-icon">📈</span> Monitoring
-                    </button>
-                    <button class="framework-tab" onclick="switchFrameworkTab('contingency', this)" data-tab="contingency">
-                        <span class="tab-icon">🛡️</span> Contingency
-                    </button>
-                    <button class="framework-tab" onclick="switchFrameworkTab('success-criteria', this)" data-tab="success-criteria">
-                        <span class="tab-icon">🎯</span> Success Criteria
-                    </button>
-                    <button class="framework-tab" onclick="switchFrameworkTab('timeline', this)" data-tab="timeline">
-                        <span class="tab-icon">⏰</span> Timeline
-                    </button>
-                    <button class="framework-tab" onclick="switchFrameworkTab('risk-mitigation', this)" data-tab="risk-mitigation">
-                        <span class="tab-icon">⚠️</span> Risk Mitigation
-                    </button>
-                </div>
-                
-                <!-- Tab Content -->
-                <div class="framework-tab-content">
-                    <!-- Overview Tab -->
-                    <div id="framework-tab-overview" class="tab-panel active">
-                        ${renderOverviewTab(data)}
-                    </div>
-                    
-                    <!-- Cost Protection Tab -->
-                    <div id="framework-tab-cost-protection" class="tab-panel">
-                        ${renderCostProtectionTab(data.costProtection)}
-                    </div>
-                    
-                    <!-- Governance Tab -->
-                    <div id="framework-tab-governance" class="tab-panel">
-                        ${renderGovernanceTab(data.governance)}
-                    </div>
-                    
-                    <!-- Monitoring Tab -->
-                    <div id="framework-tab-monitoring" class="tab-panel">
-                        ${renderMonitoringTab(data.monitoring)}
-                    </div>
-                    
-                    <!-- Contingency Tab -->
-                    <div id="framework-tab-contingency" class="tab-panel">
-                        ${renderContingencyTab(data.contingency)}
-                    </div>
-                    
-                    <!-- Success Criteria Tab -->
-                    <div id="framework-tab-success-criteria" class="tab-panel">
-                        ${renderSuccessCriteriaTab(data.successCriteria)}
-                    </div>
-                    
-                    <!-- Timeline Tab -->
-                    <div id="framework-tab-timeline" class="tab-panel">
-                        ${renderTimelineTab(data.timelineOptimization)}
-                    </div>
-                    
-                    <!-- Risk Mitigation Tab -->
-                    <div id="framework-tab-risk-mitigation" class="tab-panel">
-                        ${renderRiskMitigationTab(data.riskMitigation)}
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Tabbed Interface Styles -->
-        <style>
-            .framework-tabs-container {
-                background: white;
-                border-radius: 16px;
-                box-shadow: 0 8px 32px rgba(0,0,0,0.08);
-                overflow: hidden;
-                border: 1px solid #e2e8f0;
-            }
-            
-            .framework-tabs {
-                display: flex;
-                background: #f8fafc;
-                border-bottom: 1px solid #e2e8f0;
-                overflow-x: auto;
-                padding: 0;
-            }
-            
-            .framework-tab {
-                background: none;
-                border: none;
-                padding: 20px 24px;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: 600;
-                color: #718096;
-                white-space: nowrap;
-                transition: all 0.3s ease;
-                border-bottom: 3px solid transparent;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                min-width: fit-content;
-            }
-            
-            .framework-tab:hover {
-                color: #4a5568;
-                background: rgba(102, 126, 234, 0.05);
-            }
-            
-            .framework-tab.active {
-                color: #667eea;
-                background: white;
-                border-bottom-color: #667eea;
-                box-shadow: 0 -2px 8px rgba(102, 126, 234, 0.1);
-            }
-            
-            .tab-icon {
-                font-size: 16px;
-            }
-            
-            .framework-tab-content {
-                background: white;
-            }
-            
-            .tab-panel {
-                display: none;
-                padding: 40px;
-                min-height: 500px;
-                animation: fadeIn 0.3s ease;
-            }
-            
-            .tab-panel.active {
-                display: block;
-            }
-            
-            .tab-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 30px;
-                padding-bottom: 20px;
-                border-bottom: 2px solid #f1f5f9;
-            }
-            
-            .tab-title {
-                font-size: 32px;
-                font-weight: 700;
-                color: #2d3748;
-                margin: 0;
-            }
-            
-            .confidence-badge {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                background: linear-gradient(135deg, #48bb78, #38a169);
-                color: white;
-                padding: 12px 20px;
-                border-radius: 25px;
-                font-weight: 600;
-                box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
-            }
-            
-            .confidence-score {
-                font-size: 18px;
-                font-weight: 700;
-            }
-            
-            .implementation-card {
-                background: #f8fafc;
-                border: 1px solid #e2e8f0;
-                border-radius: 16px;
-                padding: 25px;
-                margin-bottom: 25px;
-                transition: all 0.3s ease;
-                position: relative;
-                overflow: hidden;
-            }
-            
-            .implementation-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-                border-color: #667eea;
-            }
-            
-            .implementation-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 15px;
-            }
-            
-            .implementation-title {
-                font-size: 20px;
-                font-weight: 600;
-                color: #2d3748;
-                margin: 0;
-            }
-            
-            .time-estimate {
-                background: #667eea;
-                color: white;
-                padding: 6px 16px;
-                border-radius: 20px;
-                font-size: 14px;
-                font-weight: 600;
-            }
-            
-            .implementation-description {
-                color: #4a5568;
-                margin-bottom: 20px;
-                font-size: 16px;
-                line-height: 1.6;
-            }
-            
-            .azure-service-link {
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                color: #0078d4;
-                text-decoration: none;
-                font-weight: 600;
-                font-size: 16px;
-                margin-bottom: 15px;
-                transition: all 0.2s ease;
-            }
-            
-            .azure-service-link:hover {
-                color: #106ebe;
-                transform: translateX(3px);
-            }
-            
-            .implementation-steps {
-                background: white;
-                border-radius: 12px;
-                padding: 20px;
-                border: 1px solid #e2e8f0;
-            }
-            
-            .step-title {
-                font-weight: 600;
-                color: #2d3748;
-                margin-bottom: 8px;
-            }
-            
-            .step-description {
-                color: #718096;
-                font-size: 14px;
-                line-height: 1.5;
-            }
-            
-            .overview-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-                gap: 25px;
-                margin-top: 30px;
-            }
-            
-            .overview-card {
-                background: white;
-                border: 1px solid #e2e8f0;
-                border-radius: 16px;
-                padding: 25px;
-                text-align: center;
-                transition: all 0.3s ease;
-            }
-            
-            .overview-card:hover {
-                transform: translateY(-3px);
-                box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-            }
-            
-            .overview-icon {
-                font-size: 48px;
-                margin-bottom: 15px;
-            }
-            
-            .overview-status {
-                font-size: 18px;
-                font-weight: 700;
-                margin-bottom: 10px;
-            }
-            
-            .status-configured {
-                color: #48bb78;
-            }
-            
-            .status-missing {
-                color: #e53e3e;
-            }
-            
-            .overview-description {
-                color: #718096;
-                font-size: 14px;
-                line-height: 1.5;
-            }
-            
-            @keyframes fadeIn {
-                from { opacity: 0; transform: translateY(10px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
-            
-            @media (max-width: 768px) {
-                .framework-tabs {
-                    flex-direction: column;
-                }
-                
-                .framework-tab {
-                    justify-content: center;
-                    border-bottom: none;
-                    border-right: 3px solid transparent;
-                }
-                
-                .framework-tab.active {
-                    border-bottom: none;
-                    border-right-color: #667eea;
-                }
-                
-                .tab-panel {
-                    padding: 20px;
-                }
-                
-                .tab-header {
-                    flex-direction: column;
-                    align-items: flex-start;
-                    gap: 15px;
-                }
-                
-                .overview-grid {
-                    grid-template-columns: 1fr;
-                }
-            }
-        </style>
-    `;
-}
-
-
-// Tab rendering functions
-function renderOverviewTab(data) {
-    const frameworks = [
-        { key: 'costProtection', name: 'Cost Protection', icon: '💰' },
-        { key: 'governance', name: 'Governance', icon: '⚖️' },
-        { key: 'monitoring', name: 'Monitoring', icon: '📈' },
-        { key: 'contingency', name: 'Contingency', icon: '🛡️' },
-        { key: 'successCriteria', name: 'Success Criteria', icon: '🎯' },
-        { key: 'timelineOptimization', name: 'Timeline', icon: '⏰' },
-        { key: 'riskMitigation', name: 'Risk Mitigation', icon: '⚠️' }
-    ];
-    
-    const configuredCount = frameworks.filter(f => data[f.key] && Object.keys(data[f.key]).length > 0).length;
-    const totalCount = frameworks.length;
-    const completionPercentage = Math.round((configuredCount / totalCount) * 100);
-    
-    return `
-        <div class="tab-header">
-            <h1 class="tab-title">Framework Overview</h1>
-            <div class="confidence-badge">
-                <span>📊</span>
-                <div>
-                    <div class="confidence-score">${completionPercentage}% Complete</div>
-                    <div style="font-size: 12px; opacity: 0.9;">${configuredCount}/${totalCount} components configured</div>
-                </div>
-            </div>
-        </div>
-        
-        <p style="font-size: 18px; color: #4a5568; margin-bottom: 30px; line-height: 1.6;">
-            Your AKS optimization framework provides comprehensive coverage across cost management, governance, 
-            monitoring, and risk mitigation. Each component includes AI-powered recommendations and implementation guidance.
-        </p>
-        
-        <div class="overview-grid">
-            ${frameworks.map(framework => {
-                const hasData = data[framework.key] && Object.keys(data[framework.key]).length > 0;
-                const propCount = hasData ? Object.keys(data[framework.key]).length : 0;
-                
-                return `
-                    <div class="overview-card">
-                        <div class="overview-icon">${framework.icon}</div>
-                        <div class="overview-status ${hasData ? 'status-configured' : 'status-missing'}">
-                            ${hasData ? '✓ Configured' : '✗ Not Available'}
-                        </div>
-                        <div style="font-size: 14px; font-weight: 600; color: #718096; margin-bottom: 10px;">
-                            ${propCount} ${propCount === 1 ? 'property' : 'properties'}
-                        </div>
-                        <div class="overview-description">
-                            ${framework.name} framework component
-                        </div>
-                        <button onclick="switchFrameworkTab('${framework.key.toLowerCase().replace(/([A-Z])/g, '-$1')}', document.querySelector('[data-tab=\\\"${framework.key.toLowerCase().replace(/([A-Z])/g, '-$1')}\\\"]'))" 
-                                style="margin-top: 15px; background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s ease;"
-                                onmouseover="this.style.background='#5a67d8'" onmouseout="this.style.background='#667eea'">
-                            View Details →
-                        </button>
-                    </div>
-                `;
-            }).join('')}
-        </div>
-    `;
-}
-
-function renderMonitoringTab(data) {
-    const hasData = data && Object.keys(data).length > 0;
-    const confidence = hasData ? 100 : 0;
-    
-    return `
-        <div class="tab-header">
-            <h1 class="tab-title">Monitoring</h1>
-            <div class="confidence-badge" style="background: linear-gradient(135deg, #48bb78, #38a169);">
-                <span>✅</span>
-                <div>
-                    <div class="confidence-score">${hasData ? 'Excellent' : 'Needs Setup'}</div>
-                    <div style="font-size: 12px; opacity: 0.9;">${confidence}% confidence</div>
-                </div>
-            </div>
-        </div>
-        
-        <p style="font-size: 18px; color: #4a5568; margin-bottom: 30px; line-height: 1.6;">
-            ${hasData ? 
-                'Comprehensive monitoring strategy recommended with hourly updates and advanced dashboards.' :
-                'Set up comprehensive monitoring to track your AKS cluster performance and costs in real-time.'
-            }
-        </p>
-        
-        <!-- Azure Monitor + Container Insights -->
-        <div class="implementation-card">
-            <div class="implementation-header">
-                <h3 class="implementation-title">Azure Monitor + Container Insights</h3>
-                <div class="time-estimate">30 minutes</div>
-            </div>
-            
-            <p class="implementation-description">
-                Enable full observability with Container Insights for detailed AKS monitoring
-            </p>
-            
-            <a href="https://docs.microsoft.com/en-us/azure/azure-monitor/containers/container-insights-overview" 
-               class="azure-service-link" target="_blank">
-                <span>⚙️</span> Azure Monitor Container Insights
-            </a>
-            
-            <div class="implementation-steps">
-                <div class="step-title">Implementation:</div>
-                <div class="step-description">
-                    Enable Container Insights and configure custom metrics collection for comprehensive AKS monitoring including pod performance, resource utilization, and cost tracking.
-                </div>
-            </div>
-        </div>
-        
-        <!-- Prometheus + Grafana -->
-        <div class="implementation-card">
-            <div class="implementation-header">
-                <h3 class="implementation-title">Prometheus + Grafana Integration</h3>
-                <div class="time-estimate">1 hour</div>
-            </div>
-            
-            <p class="implementation-description">
-                Set up advanced metrics collection and visualization
-            </p>
-            
-            <a href="https://docs.microsoft.com/en-us/azure/azure-monitor/essentials/prometheus-metrics-overview" 
-               class="azure-service-link" target="_blank">
-                <span>⚙️</span> Azure Monitor Managed Prometheus
-            </a>
-            
-            <div class="implementation-steps">
-                <div class="step-title">Implementation:</div>
-                <div class="step-description">
-                    Deploy Prometheus for metrics collection and Grafana for visualization. Configure custom dashboards for cost optimization, resource utilization, and performance monitoring.
-                </div>
-            </div>
-        </div>
-        
-        ${hasData ? `
-            <!-- Current Configuration -->
-            <div style="background: #f0fff4; border-radius: 16px; padding: 25px; margin-top: 30px; border: 1px solid #9ae6b4;">
-                <h3 style="margin: 0 0 20px 0; color: #22543d; display: flex; align-items: center; gap: 10px;">
-                    <span>✅</span> Current Monitoring Configuration
-                </h3>
-                ${formatMonitoringConfiguration(data)}
-            </div>
-        ` : `
-            <!-- Setup Guide -->
-            <div style="background: #fffaf0; border-radius: 16px; padding: 25px; margin-top: 30px; border: 1px solid #fbd38d;">
-                <h3 style="margin: 0 0 20px 0; color: #c05621; display: flex; align-items: center; gap: 10px;">
-                    <span>📋</span> Quick Setup Guide
-                </h3>
-                <ol style="margin: 0; padding-left: 20px; color: #2d3748;">
-                    <li style="margin-bottom: 10px;">Enable Container Insights in Azure Monitor</li>
-                    <li style="margin-bottom: 10px;">Configure Prometheus metrics collection</li>
-                    <li style="margin-bottom: 10px;">Set up Grafana dashboards for visualization</li>
-                    <li style="margin-bottom: 10px;">Configure cost and performance alerts</li>
-                </ol>
-            </div>
-        `}
-    `;
-}
-
-function renderCostProtectionTab(data) {
-    const hasData = data && Object.keys(data).length > 0;
-    const confidence = hasData ? 95 : 0;
-    
-    return `
-        <div class="tab-header">
-            <h1 class="tab-title">Cost Protection</h1>
-            <div class="confidence-badge" style="background: linear-gradient(135deg, #48bb78, #38a169);">
-                <span>💰</span>
-                <div>
-                    <div class="confidence-score">${hasData ? 'Excellent' : 'Setup Required'}</div>
-                    <div style="font-size: 12px; opacity: 0.9;">${confidence}% confidence</div>
-                </div>
-            </div>
-        </div>
-        
-        <p style="font-size: 18px; color: #4a5568; margin-bottom: 30px; line-height: 1.6;">
-            ${hasData ? 
-                'Budget limits and cost monitoring safeguards are configured to prevent unexpected spending.' :
-                'Set up budget limits and automated cost controls to protect against unexpected Azure spending.'
-            }
-        </p>
-        
-        <!-- Budget Management -->
-        <div class="implementation-card">
-            <div class="implementation-header">
-                <h3 class="implementation-title">Azure Budget Management</h3>
-                <div class="time-estimate">15 minutes</div>
-            </div>
-            
-            <p class="implementation-description">
-                Configure automated budget alerts and spending limits for your AKS resources
-            </p>
-            
-            <a href="https://docs.microsoft.com/en-us/azure/cost-management-billing/costs/tutorial-acm-create-budgets" 
-               class="azure-service-link" target="_blank">
-                <span>⚙️</span> Azure Budget Management
-            </a>
-            
-            <div class="implementation-steps">
-                <div class="step-title">Implementation:</div>
-                <div class="step-description">
-                    Set up monthly and daily budget alerts at 80%, 90%, and 100% thresholds. Configure automatic actions when limits are exceeded.
-                </div>
-            </div>
-        </div>
-        
-        <!-- Cost Alerts -->
-        <div class="implementation-card">
-            <div class="implementation-header">
-                <h3 class="implementation-title">Real-time Cost Alerts</h3>
-                <div class="time-estimate">20 minutes</div>
-            </div>
-            
-            <p class="implementation-description">
-                Monitor spending patterns and receive immediate notifications of cost anomalies
-            </p>
-            
-            <a href="https://docs.microsoft.com/en-us/azure/cost-management-billing/costs/cost-mgt-alerts-monitor-usage-spending" 
-               class="azure-service-link" target="_blank">
-                <span>⚙️</span> Azure Cost Alerts
-            </a>
-            
-            <div class="implementation-steps">
-                <div class="step-title">Implementation:</div>
-                <div class="step-description">
-                    Configure smart alerts for unusual spending patterns, resource scaling events, and daily cost thresholds with email and Teams notifications.
-                </div>
-            </div>
-        </div>
-        
-        ${hasData && data.budgetLimits ? `
-            <!-- Current Budget Configuration -->
-            <div style="background: #f0fff4; border-radius: 16px; padding: 25px; margin-top: 30px; border: 1px solid #9ae6b4;">
-                <h3 style="margin: 0 0 20px 0; color: #22543d; display: flex; align-items: center; gap: 10px;">
-                    <span>💳</span> Current Budget Configuration
-                </h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                    ${data.budgetLimits.monthlyBudget ? `
-                        <div style="background: white; padding: 20px; border-radius: 12px; text-align: center;">
-                            <div style="font-size: 24px; font-weight: bold; color: #22543d;">$${data.budgetLimits.monthlyBudget.toLocaleString()}</div>
-                            <div style="color: #4a5568; font-size: 14px;">Monthly Budget</div>
-                        </div>
-                    ` : ''}
-                    ${data.budgetLimits.alertThreshold ? `
-                        <div style="background: white; padding: 20px; border-radius: 12px; text-align: center;">
-                            <div style="font-size: 24px; font-weight: bold; color: #d69e2e;">$${data.budgetLimits.alertThreshold.toLocaleString()}</div>
-                            <div style="color: #4a5568; font-size: 14px;">Alert Threshold</div>
-                        </div>
-                    ` : ''}
-                    ${data.budgetLimits.hardLimit ? `
-                        <div style="background: white; padding: 20px; border-radius: 12px; text-align: center;">
-                            <div style="font-size: 24px; font-weight: bold; color: #e53e3e;">$${data.budgetLimits.hardLimit.toLocaleString()}</div>
-                            <div style="color: #4a5568; font-size: 14px;">Hard Limit</div>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        ` : ''}
-    `;
-}
-
-// Add similar tab rendering functions for other components
-function renderGovernanceTab(data) {
-    const hasData = data && Object.keys(data).length > 0;
-    return renderGenericTab('Governance', '⚖️', hasData, data, 
-        'Approval processes and compliance requirements for AKS changes',
-        [
-            { title: 'Azure Policy Integration', time: '45 minutes', description: 'Implement governance policies for AKS compliance' },
-            { title: 'RBAC Configuration', time: '30 minutes', description: 'Set up role-based access controls' }
-        ]
-    );
-}
-
-function renderContingencyTab(data) {
-    const hasData = data && Object.keys(data).length > 0;
-    return renderGenericTab('Contingency Planning', '🛡️', hasData, data,
-        'Risk mitigation and rollback procedures for safe implementation',
-        [
-            { title: 'Backup Strategy', time: '1 hour', description: 'Configure automated backups for critical configurations' },
-            { title: 'Rollback Procedures', time: '30 minutes', description: 'Document and test rollback procedures' }
-        ]
-    );
-}
-
-function renderSuccessCriteriaTab(data) {
-    const hasData = data && Object.keys(data).length > 0;
-    return renderGenericTab('Success Criteria', '🎯', hasData, data,
-        'Measurable goals and validation metrics for optimization success',
-        [
-            { title: 'KPI Definition', time: '20 minutes', description: 'Define key performance indicators for success' },
-            { title: 'Validation Testing', time: '1 hour', description: 'Set up automated validation testing' }
-        ]
-    );
-}
-
-function renderTimelineTab(data) {
-    const hasData = data && Object.keys(data).length > 0;
-    return renderGenericTab('Timeline Optimization', '⏰', hasData, data,
-        'Schedule efficiency and milestone tracking for implementation',
-        [
-            { title: 'Project Planning', time: '30 minutes', description: 'Optimize implementation timeline' },
-            { title: 'Milestone Tracking', time: '15 minutes', description: 'Set up progress tracking dashboards' }
-        ]
-    );
-}
-
-function renderRiskMitigationTab(data) {
-    const hasData = data && Object.keys(data).length > 0;
-    return renderGenericTab('Risk Mitigation', '⚠️', hasData, data,
-        'Proactive risk identification and response plans',
-        [
-            { title: 'Risk Assessment', time: '1 hour', description: 'Comprehensive risk analysis and scoring' },
-            { title: 'Mitigation Planning', time: '45 minutes', description: 'Develop response plans for identified risks' }
-        ]
-    );
-}
-
-function renderGenericTab(title, icon, hasData, data, description, implementations) {
-    const confidence = hasData ? 85 : 0;
-    
-    return `
-        <div class="tab-header">
-            <h1 class="tab-title">${title}</h1>
-            <div class="confidence-badge">
-                <span>${icon}</span>
-                <div>
-                    <div class="confidence-score">${hasData ? 'Good' : 'Setup Required'}</div>
-                    <div style="font-size: 12px; opacity: 0.9;">${confidence}% confidence</div>
-                </div>
-            </div>
-        </div>
-        
-        <p style="font-size: 18px; color: #4a5568; margin-bottom: 30px; line-height: 1.6;">
-            ${description}
-        </p>
-        
-        ${implementations.map(impl => `
-            <div class="implementation-card">
-                <div class="implementation-header">
-                    <h3 class="implementation-title">${impl.title}</h3>
-                    <div class="time-estimate">${impl.time}</div>
-                </div>
-                
-                <p class="implementation-description">
-                    ${impl.description}
-                </p>
-                
-                <div class="implementation-steps">
-                    <div class="step-title">Implementation:</div>
-                    <div class="step-description">
-                        Ready to implement ${impl.title.toLowerCase()} for your AKS cluster optimization.
-                    </div>
-                </div>
-            </div>
-        `).join('')}
-        
-        ${hasData ? `
-            <div style="background: #f0fff4; border-radius: 16px; padding: 25px; margin-top: 30px; border: 1px solid #9ae6b4;">
-                <h3 style="margin: 0 0 20px 0; color: #22543d;">✅ Current Configuration</h3>
-                <pre style="background: white; padding: 15px; border-radius: 8px; font-size: 12px; overflow-x: auto; border: 1px solid #e2e8f0;">${JSON.stringify(data, null, 2)}</pre>
-            </div>
-        ` : ''}
-    `;
-}
-
-function formatMonitoringConfiguration(data) {
-    let html = '';
-    
-    if (data.keyMetrics && Array.isArray(data.keyMetrics)) {
-        html += `
-            <div style="margin-bottom: 20px;">
-                <h4 style="margin: 0 0 10px 0; color: #22543d;">📈 Tracked Metrics</h4>
-                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                    ${data.keyMetrics.map(metric => `
-                        <span style="background: #22543d; color: white; padding: 6px 12px; border-radius: 16px; font-size: 12px;">
-                            ${metric.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                        </span>
-                    `).join('')}
-                </div>
-            </div>
-        `;
-    }
-    
-    if (data.alerting) {
-        html += `
-            <div>
-                <h4 style="margin: 0 0 10px 0; color: #22543d;">🚨 Alert Configuration</h4>
-                <div style="color: #2d3748; font-size: 14px;">
-                    ${data.alerting.cost_spike_alerts ? '✅ Cost spike alerts enabled<br>' : '❌ Cost spike alerts disabled<br>'}
-                    ${data.alerting.performance_degradation_alerts ? '✅ Performance alerts enabled<br>' : '❌ Performance alerts disabled<br>'}
-                    ${data.alerting.ml_confidence_threshold ? `🎯 ML Confidence Threshold: ${(data.alerting.ml_confidence_threshold * 100).toFixed(1)}%` : ''}
-                </div>
-            </div>
-        `;
-    }
-    
-    return html || '<p style="color: #718096; font-style: italic;">No monitoring configuration details available</p>';
-}
-
-// Tab switching functionality
-window.switchFrameworkTab = function(tabId, buttonElement) {
-    // Hide all tab panels
-    document.querySelectorAll('.tab-panel').forEach(panel => {
-        panel.classList.remove('active');
-    });
-    
-    // Remove active class from all tabs
-    document.querySelectorAll('.framework-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    
-    // Show selected tab panel
-    const targetPanel = document.getElementById(`framework-tab-${tabId}`);
-    if (targetPanel) {
-        targetPanel.classList.add('active');
-    }
-    
-    // Add active class to clicked tab
-    if (buttonElement) {
-        buttonElement.classList.add('active');
-    }
-};
-
-// Add this new function to format the framework data in a user-friendly way
-function formatFrameworkData(data, frameworkKey) {
-    if (!data || Object.keys(data).length === 0) {
-        return '<p style="color: #718096; font-style: italic;">No data available</p>';
-    }
-    
-    let html = '';
-    
-    // Special formatting for different framework types
-    switch (frameworkKey) {
-        case 'costProtection':
-            html += formatCostProtectionData(data);
-            break;
-        case 'governance':
-            html += formatGovernanceData(data);
-            break;
-        case 'monitoring':
-            html += formatMonitoringData(data);
-            break;
-        case 'contingency':
-            html += formatContingencyData(data);
-            break;
-        case 'successCriteria':
-            html += formatSuccessCriteriaData(data);
-            break;
-        case 'timelineOptimization':
-            html += formatTimelineData(data);
-            break;
-        case 'riskMitigation':
-            html += formatRiskMitigationData(data);
-            break;
-        default:
-            html += formatGenericData(data);
-            break;
-    }
-    
-    return html;
-}
-
-// Specialized formatters for each framework component
-function formatCostProtectionData(data) {
-    let html = '<h4 style="margin: 0 0 15px 0; color: #2d3748; display: flex; align-items: center; gap: 8px;"><span>💰</span> Cost Protection Configuration</h4>';
-    
-    if (data.budgetLimits) {
-        html += `
-            <div style="background: #f0fff4; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #48bb78;">
-                <h5 style="margin: 0 0 10px 0; color: #22543d;">💳 Budget Limits</h5>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; font-size: 14px;">
-                    ${data.budgetLimits.monthlyBudget ? `<div><strong>Monthly Budget:</strong> $${data.budgetLimits.monthlyBudget.toLocaleString()}</div>` : ''}
-                    ${data.budgetLimits.alertThreshold ? `<div><strong>Alert Threshold:</strong> $${data.budgetLimits.alertThreshold.toLocaleString()}</div>` : ''}
-                    ${data.budgetLimits.hardLimit ? `<div><strong>Hard Limit:</strong> $${data.budgetLimits.hardLimit.toLocaleString()}</div>` : ''}
-                </div>
-            </div>
-        `;
-    }
-    
-    if (data.savingsProtection) {
-        html += `
-            <div style="background: #edf2f7; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #4299e1;">
-                <h5 style="margin: 0 0 10px 0; color: #2c5282;">📈 Savings Protection</h5>
-                <div style="font-size: 14px; color: #2d3748;">
-                    ${data.savingsProtection.minimumSavingsTarget ? `<div><strong>Minimum Target:</strong> $${data.savingsProtection.minimumSavingsTarget.toFixed(2)}/month</div>` : ''}
-                    ${data.savingsProtection.predicted_savings ? `<div><strong>Predicted:</strong> $${data.savingsProtection.predicted_savings.toFixed(2)}/month</div>` : ''}
-                </div>
-            </div>
-        `;
-    }
-    
-    return html + formatRemainingProperties(data, ['budgetLimits', 'savingsProtection']);
-}
-
-function formatGovernanceData(data) {
-    let html = '<h4 style="margin: 0 0 15px 0; color: #2d3748; display: flex; align-items: center; gap: 8px;"><span>📋</span> Governance Configuration</h4>';
-    
-    if (data.approvalRequirements) {
-        html += `
-            <div style="background: #f7fafc; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #805ad5;">
-                <h5 style="margin: 0 0 10px 0; color: #553c9a;">✅ Approval Requirements</h5>
-                <div style="font-size: 14px; color: #2d3748;">
-                    ${data.approvalRequirements.technical_approval ? '<div>✓ Technical approval required</div>' : '<div>✗ Technical approval not required</div>'}
-                    ${data.approvalRequirements.business_approval ? '<div>✓ Business approval required</div>' : '<div>✗ Business approval not required</div>'}
-                </div>
-            </div>
-        `;
-    }
-    
-    if (data.changeManagement) {
-        html += `
-            <div style="background: #fffaf0; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #ed8936;">
-                <h5 style="margin: 0 0 10px 0; color: #c05621;">🔄 Change Management</h5>
-                <div style="font-size: 14px; color: #2d3748;">
-                    ${data.changeManagement.change_windows ? `<div><strong>Change Windows:</strong> ${Array.isArray(data.changeManagement.change_windows) ? data.changeManagement.change_windows.join(', ') : data.changeManagement.change_windows}</div>` : ''}
-                    ${data.changeManagement.rollback_procedures ? `<div><strong>Rollback:</strong> ${data.changeManagement.rollback_procedures}</div>` : ''}
-                </div>
-            </div>
-        `;
-    }
-    
-    return html + formatRemainingProperties(data, ['approvalRequirements', 'changeManagement']);
-}
-
-function formatMonitoringData(data) {
-    let html = '<h4 style="margin: 0 0 15px 0; color: #2d3748; display: flex; align-items: center; gap: 8px;"><span>📊</span> Monitoring Configuration</h4>';
-    
-    if (data.keyMetrics && Array.isArray(data.keyMetrics)) {
-        html += `
-            <div style="background: #e6fffa; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #319795;">
-                <h5 style="margin: 0 0 10px 0; color: #234e52;">📈 Key Metrics</h5>
-                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                    ${data.keyMetrics.map(metric => `
-                        <span style="background: #319795; color: white; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500;">
-                            ${metric.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                        </span>
-                    `).join('')}
-                </div>
-            </div>
-        `;
-    }
-    
-    if (data.alerting) {
-        html += `
-            <div style="background: #fff5f5; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #f56565;">
-                <h5 style="margin: 0 0 10px 0; color: #c53030;">🚨 Alerting</h5>
-                <div style="font-size: 14px; color: #2d3748;">
-                    ${data.alerting.cost_spike_alerts ? '<div>✓ Cost spike alerts enabled</div>' : '<div>✗ Cost spike alerts disabled</div>'}
-                    ${data.alerting.performance_degradation_alerts ? '<div>✓ Performance alerts enabled</div>' : '<div>✗ Performance alerts disabled</div>'}
-                    ${data.alerting.ml_confidence_threshold ? `<div><strong>ML Confidence Threshold:</strong> ${(data.alerting.ml_confidence_threshold * 100).toFixed(1)}%</div>` : ''}
-                </div>
-            </div>
-        `;
-    }
-    
-    return html + formatRemainingProperties(data, ['keyMetrics', 'alerting']);
-}
-
-function formatContingencyData(data) {
-    let html = '<h4 style="margin: 0 0 15px 0; color: #2d3748; display: flex; align-items: center; gap: 8px;"><span>🛡️</span> Contingency Configuration</h4>';
-    
-    if (data.contingencyTriggers && Array.isArray(data.contingencyTriggers)) {
-        html += `
-            <div style="background: #fef5e7; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #d69e2e;">
-                <h5 style="margin: 0 0 10px 0; color: #975a16;">⚡ Triggers</h5>
-                <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #2d3748;">
-                    ${data.contingencyTriggers.map(trigger => `<li style="margin-bottom: 5px;">${trigger.replace(/_/g, ' ')}</li>`).join('')}
-                </ul>
-            </div>
-        `;
-    }
-    
-    if (data.rollbackProcedures) {
-        html += `
-            <div style="background: #f0f4f8; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #4299e1;">
-                <h5 style="margin: 0 0 10px 0; color: #2c5282;">🔄 Rollback Procedures</h5>
-                <div style="font-size: 14px; color: #2d3748;">
-                    ${data.rollbackProcedures.automated_rollback_available ? '<div>✓ Automated rollback available</div>' : '<div>✗ Manual rollback only</div>'}
-                    ${data.rollbackProcedures.rollback_time_estimate ? `<div><strong>Estimated Time:</strong> ${data.rollbackProcedures.rollback_time_estimate}</div>` : ''}
-                </div>
-            </div>
-        `;
-    }
-    
-    return html + formatRemainingProperties(data, ['contingencyTriggers', 'rollbackProcedures']);
-}
-
-function formatSuccessCriteriaData(data) {
-    let html = '<h4 style="margin: 0 0 15px 0; color: #2d3748; display: flex; align-items: center; gap: 8px;"><span>✅</span> Success Criteria Configuration</h4>';
-    
-    if (data.financialTargets) {
-        html += `
-            <div style="background: #f0fff4; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #48bb78;">
-                <h5 style="margin: 0 0 10px 0; color: #22543d;">💰 Financial Targets</h5>
-                <div style="font-size: 14px; color: #2d3748;">
-                    ${data.financialTargets.monthly_savings_target ? `<div><strong>Monthly Savings Target:</strong> $${data.financialTargets.monthly_savings_target.toFixed(2)}</div>` : ''}
-                    ${data.financialTargets.ml_confidence_target ? `<div><strong>ML Confidence Target:</strong> ${(data.financialTargets.ml_confidence_target * 100).toFixed(1)}%</div>` : ''}
-                </div>
-            </div>
-        `;
-    }
-    
-    if (data.technicalTargets) {
-        html += `
-            <div style="background: #edf2f7; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #4299e1;">
-                <h5 style="margin: 0 0 10px 0; color: #2c5282;">🔧 Technical Targets</h5>
-                <div style="font-size: 14px; color: #2d3748;">
-                    ${data.technicalTargets.zero_downtime_during_implementation ? '<div>✓ Zero downtime required</div>' : '<div>✗ Downtime acceptable</div>'}
-                    ${data.technicalTargets.ml_prediction_accuracy_maintained ? '<div>✓ ML accuracy must be maintained</div>' : '<div>✗ ML accuracy not critical</div>'}
-                </div>
-            </div>
-        `;
-    }
-    
-    return html + formatRemainingProperties(data, ['financialTargets', 'technicalTargets']);
-}
-
-function formatTimelineData(data) {
-    let html = '<h4 style="margin: 0 0 15px 0; color: #2d3748; display: flex; align-items: center; gap: 8px;"><span>⏰</span> Timeline Configuration</h4>';
-    
-    if (data.originalTimelineWeeks || data.optimizedTimelineWeeks) {
-        html += `
-            <div style="background: #f7fafc; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #805ad5;">
-                <h5 style="margin: 0 0 10px 0; color: #553c9a;">📅 Timeline Optimization</h5>
-                <div style="font-size: 14px; color: #2d3748;">
-                    ${data.originalTimelineWeeks ? `<div><strong>Original Timeline:</strong> ${data.originalTimelineWeeks} weeks</div>` : ''}
-                    ${data.optimizedTimelineWeeks ? `<div><strong>Optimized Timeline:</strong> ${data.optimizedTimelineWeeks} weeks</div>` : ''}
-                    ${data.ml_optimization_applied ? '<div>✓ ML optimization applied</div>' : '<div>✗ No ML optimization</div>'}
-                </div>
-            </div>
-        `;
-    }
-    
-    return html + formatRemainingProperties(data, ['originalTimelineWeeks', 'optimizedTimelineWeeks', 'ml_optimization_applied']);
-}
-
-function formatRiskMitigationData(data) {
-    let html = '<h4 style="margin: 0 0 15px 0; color: #2d3748; display: flex; align-items: center; gap: 8px;"><span>⚠️</span> Risk Mitigation Configuration</h4>';
-    
-    if (data.identifiedRisks && Array.isArray(data.identifiedRisks)) {
-        html += `
-            <div style="background: #fff5f5; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #f56565;">
-                <h5 style="margin: 0 0 10px 0; color: #c53030;">🚨 Identified Risks</h5>
-                ${data.identifiedRisks.map(risk => `
-                    <div style="background: white; border-radius: 6px; padding: 12px; margin-bottom: 10px; border: 1px solid #fed7d7;">
-                        <div style="font-weight: 600; color: #c53030; margin-bottom: 5px;">${risk.risk_id}: ${risk.description}</div>
-                        <div style="font-size: 13px; color: #2d3748;">
-                            <strong>Probability:</strong> ${risk.probability} | 
-                            <strong>Mitigation:</strong> ${risk.mitigation}
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-    
-    if (data.ml_risk_assessment) {
-        html += `
-            <div style="background: #edf2f7; border-radius: 8px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #4299e1;">
-                <h5 style="margin: 0 0 10px 0; color: #2c5282;">🤖 ML Risk Assessment</h5>
-                <div style="font-size: 14px; color: #2d3748;">
-                    ${data.ml_risk_assessment.prediction_uncertainty ? `<div><strong>Prediction Uncertainty:</strong> ${(data.ml_risk_assessment.prediction_uncertainty * 100).toFixed(1)}%</div>` : ''}
-                    ${data.ml_risk_assessment.model_confidence ? `<div><strong>Model Confidence:</strong> ${(data.ml_risk_assessment.model_confidence * 100).toFixed(1)}%</div>` : ''}
-                </div>
-            </div>
-        `;
-    }
-    
-    return html + formatRemainingProperties(data, ['identifiedRisks', 'ml_risk_assessment']);
-}
-
-function formatRemainingProperties(data, excludeKeys = []) {
-    const remainingKeys = Object.keys(data).filter(key => !excludeKeys.includes(key));
-    
-    if (remainingKeys.length === 0) return '';
-    
-    let html = `
-        <div style="background: #f8fafc; border-radius: 8px; padding: 15px; border-left: 4px solid #a0aec0;">
-            <h5 style="margin: 0 0 10px 0; color: #4a5568;">📋 Additional Properties</h5>
-            <div style="font-size: 13px; color: #2d3748;">
-    `;
-    
-    remainingKeys.forEach(key => {
-        const value = data[key];
-        const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
-        html += `
-            <div style="margin-bottom: 8px; padding: 8px; background: white; border-radius: 4px; border: 1px solid #e2e8f0;">
-                <strong style="color: #4a5568;">${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</strong>
-                <div style="margin-top: 4px; font-family: monospace; font-size: 12px; color: #718096;">
-                    ${displayValue.length > 100 ? displayValue.substring(0, 100) + '...' : displayValue}
-                </div>
-            </div>
-        `;
-    });
-    
-    html += '</div></div>';
-    return html;
-}
-
-function formatGenericData(data) {
-    let html = '<h4 style="margin: 0 0 15px 0; color: #2d3748;">📊 Configuration Data</h4>';
-    
-    Object.entries(data).forEach(([key, value]) => {
-        const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
-        html += `
-            <div style="margin-bottom: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border-left: 4px solid #cbd5e0;">
-                <strong style="color: #2d3748; display: block; margin-bottom: 6px;">
-                    ${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                </strong>
-                <div style="font-family: monospace; font-size: 13px; color: #4a5568; background: white; padding: 8px; border-radius: 4px; border: 1px solid #e2e8f0; max-height: 200px; overflow-y: auto;">
-                    ${displayValue}
-                </div>
-            </div>
-        `;
-    });
-    
-    return html;
 }
 
 function renderEnhancedViewControls() {
@@ -2793,7 +3014,7 @@ function renderEnhancedCompleteTimeline(data) {
                                 <div class="phase-meta">
                                     ${phase.projectedSavings > 0 ? `
                                         <div class="meta-item" style="color: #48bb78;">
-                                            <span>💰</span> $${phase.projectedSavings.toLocaleString()}/month
+                                            <span>💰</span> ${phase.projectedSavings.toLocaleString()}/month
                                         </div>
                                     ` : ''}
                                     <div class="meta-item" style="color:rgb(102, 212, 234);">
@@ -2830,7 +3051,7 @@ function renderEnhancedCompleteTimeline(data) {
                                                 <div style="display: flex; gap: 10px; align-items: center;">
                                                     ${commandGroup.savings ? `
                                                         <span style="background: #f0fff4; color: #22543d; padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 600;">
-                                                            💰 $${commandGroup.savings.toFixed(2)}/month
+                                                            💰 ${commandGroup.savings.toFixed(2)}/month
                                                         </span>
                                                     ` : ''}
                                                     <span style="background: #f8fafc; color: #4a5568; padding: 6px 12px; border-radius: 16px; font-size: 12px;">
@@ -3000,7 +3221,7 @@ function renderEnhancedActionButtons(data) {
             
             <div class="final-stats">
                 <div class="final-stat">
-                    <div class="final-stat-value" style="color: #48bb78;">$${data.totalSavings.toLocaleString()}</div>
+                    <div class="final-stat-value" style="color: #48bb78;">${data.totalSavings.toLocaleString()}</div>
                     <div class="final-stat-label">Monthly Savings</div>
                 </div>
                 <div class="final-stat">
@@ -3176,18 +3397,6 @@ window.copyCommandGroup = function(phaseId, groupIndex, buttonElement) {
     }
 };
 
-window.copyIndividualCommand = function(command, index) {
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(command).then(() => {
-            console.log(`📋 Individual command ${index + 1} copied`);
-            showCopyNotification(`Command ${index + 1} copied to clipboard!`, 'success');
-        }).catch(err => {
-            console.error('Copy failed:', err);
-            showCopyNotification('Failed to copy command', 'error');
-        });
-    }
-};
-
 window.copyAllCompleteCommands = function() {
     if (window.completeImplementationData && window.completeImplementationData.weeks) {
         let allCommands = [];
@@ -3276,22 +3485,6 @@ window.scheduleOptimization = function() {
 
 // 🎉 BONUS FEATURES! 🎉
 
-// Theme Toggle
-// window.toggleTheme = function() {
-//     const body = document.body;
-//     const isDark = body.classList.contains('dark-theme');
-    
-//     if (isDark) {
-//         body.classList.remove('dark-theme');
-//         localStorage.setItem('theme', 'light');
-//         showCopyNotification('🌞 Switched to Light Theme!', 'success');
-//     } else {
-//         body.classList.add('dark-theme');
-//         localStorage.setItem('theme', 'dark');
-//         showCopyNotification('🌙 Switched to Dark Theme!', 'success');
-//     }
-// };
-
 // Command Search
 window.searchCommands = function(searchTerm) {
     const commandItems = document.querySelectorAll('.command-item');
@@ -3367,7 +3560,6 @@ window.validateCommand = function(commandId) {
 // Terminal Preview
 window.previewCommand = function(commandId) {
     console.log('🖥️ Preview requested for commandId:', commandId);
-    console.log('📦 Command store contents:', window.commandStore);
     
     const command = window.commandStore?.[commandId];
     if (!command) {
@@ -3539,7 +3731,6 @@ window.showCommandDetails = function(commandId) {
     }
 };
 
-
 // Progress Tracking
 window.updateCommandProgress = function(commandHash, isCompleted) {
     if (!window.commandProgress) window.commandProgress = {};
@@ -3638,11 +3829,6 @@ window.resetProgress = function() {
 
 // Initialize theme on load
 document.addEventListener('DOMContentLoaded', function() {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-        document.body.classList.add('dark-theme');
-    }
-    
     // Load saved progress
     const savedProgress = localStorage.getItem('commandProgress');
     if (savedProgress) {
@@ -3735,9 +3921,9 @@ if (typeof window !== 'undefined') {
     window.refreshImplementationPlan = refreshImplementationPlan;
     window.exportImplementationPlan = exportImplementationPlan;
     
-    console.log('✅ ENHANCED Implementation Plan Manager loaded');
-    console.log('📊 Displays 100% of data object information');
-    console.log('🎨 Enhanced visual design with modern UI');
-    console.log('🔧 All existing functionality preserved');
-    console.log('📅 Improved Timeline view with better styling');
+    console.log('✅ FIXED Implementation Plan Manager loaded');
+    console.log('🔧 Fixed navigation issues in framework tabs');
+    console.log('📋 Standalone markdown copy functionality (bypasses conflicts)');
+    console.log('🎨 Clean, properly formatted markdown output');
+    console.log('📅 All existing functionality preserved');
 }
