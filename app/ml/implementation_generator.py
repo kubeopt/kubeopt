@@ -242,7 +242,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 raise
             
             try:
-                from app.ml.dynamic_cmd_center import AdvancedExecutableCommandGenerator
+                # ✅ FIXED: Only import the function here, don't call it yet
+                from app.ml.dynamic_cmd_center import integrate_complete_ml_model
                 logger.info("✅ dynamic_cmd_center module imported")
             except Exception as e:
                 logger.error(f"❌ Failed to import dynamic_cmd_center: {e}")
@@ -305,9 +306,26 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 raise
             
             try:
-                self.command_generator = AdvancedExecutableCommandGenerator()
-                initialization_results['command_generator'] = {'status': 'success', 'error': None}
-                logger.info("✅ Command generator initialized")
+                # ✅ FIXED: Correct way to initialize command generator
+                logger.info("🔄 Integrating ML command generator...")
+                
+                # Call the integration function and capture success status
+                integration_success = integrate_complete_ml_model(self)
+                
+                if integration_success:
+                    logger.info("✅ ML command generator integration successful")
+                    # Verify that self.command_generator was set properly
+                    if hasattr(self, 'command_generator') and self.command_generator is not None:
+                        if not isinstance(self.command_generator, bool):
+                            logger.info(f"✅ Command generator type: {type(self.command_generator)}")
+                            initialization_results['command_generator'] = {'status': 'success', 'error': None}
+                        else:
+                            raise RuntimeError(f"Command generator incorrectly set to boolean: {self.command_generator}")
+                    else:
+                        raise RuntimeError("Command generator was not set by integration function")
+                else:
+                    raise RuntimeError("ML command generator integration returned False")
+                    
             except Exception as e:
                 logger.error(f"❌ Command generator initialization failed: {e}")
                 initialization_results['command_generator'] = {'status': 'init_failed', 'error': str(e)}

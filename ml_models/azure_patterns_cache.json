@@ -1,0 +1,47 @@
+{
+  "monitoring_migration_trends": {
+    "basic_logs_adoption": {
+      "adoption_rate": 0.68,
+      "cost_savings_average": 0.6,
+      "ideal_log_volume_gb_monthly": 100,
+      "query_impact": 0.15
+    }
+  },
+  "cost_optimization_patterns": {
+    "spot_instances": {
+      "cost_savings": 0.7,
+      "reliability_impact": 0.12
+    },
+    "node_right_sizing": {
+      "average_over_provisioning": 0.35,
+      "optimization_potential": 0.25
+    }
+  },
+  "service_costs": {
+    "container_insights_per_node_monthly": 12.5,
+    "managed_prometheus_per_million_samples": 0.5,
+    "log_analytics_analytics_tier_per_gb": 2.3,
+    "log_analytics_basic_tier_per_gb": 0.92,
+    "cost_analysis_addon_monthly": 0.0,
+    "grafana_workspace_monthly": 240.0,
+    "spot_vm_discount": 0.7,
+    "reserved_instance_discount": 0.3
+  },
+  "implementation_patterns": {
+    "prometheus_migration_effort_hours": {
+      "small_cluster": 1.5,
+      "medium_cluster": 3.0,
+      "large_cluster": 6.0,
+      "enterprise_cluster": 12.0
+    },
+    "basic_logs_setup_effort_hours": {
+      "simple": 0.5,
+      "complex": 2.0
+    },
+    "cost_analysis_setup_effort_hours": {
+      "basic": 0.25,
+      "advanced": 1.0
+    }
+  },
+  "last_updated": "2025-07-13T21:43:00.360182"
+}

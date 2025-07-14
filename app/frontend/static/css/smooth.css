@@ -305,7 +305,7 @@ body.page-transitioning {
 }
 
 .form-control:focus, .form-select:focus {
-    border-color: #007bff;
+    border-color: #00d9ff;
     box-shadow: 
         0 0 0 0.2rem rgba(0, 123, 255, 0.15),
         0 4px 20px rgba(0, 123, 255, 0.1);
@@ -377,13 +377,13 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, #007bff, #0056b3);
+    background: linear-gradient(135deg, #00fff2, #13bf74);
     border-radius: 10px;
     transition: background 0.3s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, #0056b3, #004085);
+    background: linear-gradient(135deg, #00b3aa, #00853c);
 }
 
 /* === ENHANCED ALERTS AND NOTIFICATIONS === */
@@ -418,7 +418,7 @@ html {
 }
 
 .progress-bar {
-    background: linear-gradient(90deg, #007bff, #0056b3);
+    background: linear-gradient(90deg, #00eeff, #7db300);
     transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
@@ -500,7 +500,7 @@ html {
 .dropdown-item:hover {
     background: linear-gradient(135deg, rgba(0, 123, 255, 0.1), rgba(0, 123, 255, 0.05));
     transform: translateX(5px) scale(1.02);
-    color: #007bff;
+    color: #00d5ff;
 }
 
 /* === ENHANCED BADGES === */
@@ -565,7 +565,7 @@ html {
 .btn:focus-visible,
 .form-control:focus-visible,
 .nav-link:focus-visible {
-    outline: 2px solid #007bff;
+    outline: 2px solid #00d9ff;
     outline-offset: 2px;
     border-radius: 8px;
 }
