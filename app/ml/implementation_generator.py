@@ -938,8 +938,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 raise
             
             try:
-                # ✅ FIXED: Only import the function here, don't call it yet
-                from app.ml.dynamic_cmd_center import integrate_complete_ml_model
+                # Import the class instead of the function
+                from app.ml.dynamic_cmd_center import AdvancedExecutableCommandGenerator
                 logger.info("✅ dynamic_cmd_center module imported")
             except Exception as e:
                 logger.error(f"❌ Failed to import dynamic_cmd_center: {e}")
@@ -964,7 +964,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             
             logger.info("📦 All ML modules imported successfully, initializing instances...")
             
-            # Initialize ML systems
+            # Initialize ML systems - ALL FOLLOWING THE SAME PATTERN
             try:
                 self.learning_engine = create_enhanced_learning_engine()
                 initialization_results['learning_engine'] = {'status': 'success', 'error': None}
@@ -1002,26 +1002,9 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 raise
             
             try:
-                # ✅ FIXED: Correct way to initialize command generator
-                logger.info("🔄 Integrating ML command generator...")
-                
-                # Call the integration function and capture success status
-                integration_success = integrate_complete_ml_model(self)
-                
-                if integration_success:
-                    logger.info("✅ ML command generator integration successful")
-                    # Verify that self.command_generator was set properly
-                    if hasattr(self, 'command_generator') and self.command_generator is not None:
-                        if not isinstance(self.command_generator, bool):
-                            logger.info(f"✅ Command generator type: {type(self.command_generator)}")
-                            initialization_results['command_generator'] = {'status': 'success', 'error': None}
-                        else:
-                            raise RuntimeError(f"Command generator incorrectly set to boolean: {self.command_generator}")
-                    else:
-                        raise RuntimeError("Command generator was not set by integration function")
-                else:
-                    raise RuntimeError("ML command generator integration returned False")
-                    
+                self.command_generator = AdvancedExecutableCommandGenerator()
+                initialization_results['command_generator'] = {'status': 'success', 'error': None}
+                logger.info("✅ Command generator initialized")
             except Exception as e:
                 logger.error(f"❌ Command generator initialization failed: {e}")
                 initialization_results['command_generator'] = {'status': 'init_failed', 'error': str(e)}
@@ -1441,7 +1424,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             
             # Generate comprehensive execution plan
             execution_plan = self.command_generator.generate_comprehensive_execution_plan(
-                ml_strategy, cluster_dna, analysis_results
+                ml_strategy, cluster_dna, analysis_results, cluster_config
             )
             
             if execution_plan is None:
