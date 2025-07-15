@@ -16,9 +16,9 @@ class DynamicCommandPopulator:
     """Dynamic command populator using real cluster analysis data"""
     
     def __init__(self, cluster_data: Dict):
-        self.logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__name__)
         self.cluster_data = cluster_data
-        self.logger.info("🔧 Dynamic Command Populator initialized with cluster data")
+        logger.info("🔧 Dynamic Command Populator initialized with cluster data")
         
         # Extract cluster configuration from analysis data
         self.cluster_name = cluster_data.get('cluster_name', 'unknown-cluster')
@@ -36,8 +36,8 @@ class DynamicCommandPopulator:
         # Calculate dynamic savings targets
         self.savings_targets = self._calculate_dynamic_savings()
         
-        self.logger.info(f"📊 Cluster: {self.cluster_name}")
-        self.logger.info(f"💰 Total potential savings: ${self.savings_targets['total']}/month")
+        logger.info(f"📊 Cluster: {self.cluster_name}")
+        logger.info(f"💰 Total potential savings: ${self.savings_targets['total']}/month")
     
     def _calculate_dynamic_savings(self) -> Dict[str, float]:
         """Calculate realistic savings based on actual cluster data"""
@@ -74,7 +74,7 @@ class DynamicCommandPopulator:
         
         savings['total'] = sum(savings.values())
         
-        self.logger.info(f"💰 Calculated savings: HPA=${savings['hpa']:.0f}, "
+        logger.info(f"💰 Calculated savings: HPA=${savings['hpa']:.0f}, "
                         f"Rightsizing=${savings['rightsizing']:.0f}, "
                         f"Storage=${savings['storage']:.0f}")
         
@@ -84,7 +84,7 @@ class DynamicCommandPopulator:
         """Populate commands into existing phase structure using real cluster data"""
         
         try:
-            self.logger.info(f"🔨 Populating commands for {len(phases_data)} week blocks...")
+            logger.info(f"🔨 Populating commands for {len(phases_data)} week blocks...")
             
             # Process each week block
             for week_idx, week_data in enumerate(phases_data):
@@ -95,7 +95,7 @@ class DynamicCommandPopulator:
                     phase_id = phase.get('id', '')
                     phase_number = phase.get('phaseNumber', 0)
                     
-                    self.logger.info(f"Processing {phase_id} (Phase {phase_number}) in week {week_number}")
+                    logger.info(f"Processing {phase_id} (Phase {phase_number}) in week {week_number}")
                     
                     # Generate commands based on phase type and cluster data
                     commands = self._generate_phase_commands(phase_id, phase_number, phase)
@@ -105,13 +105,13 @@ class DynamicCommandPopulator:
                     phase['securityChecks'] = self._generate_security_checks(phase_id)
                     phase['complianceItems'] = self._generate_compliance_items(phase_id)
                     
-                    self.logger.info(f"✅ Populated {len(commands)} commands for {phase_id}")
+                    logger.info(f"✅ Populated {len(commands)} commands for {phase_id}")
             
-            self.logger.info("🎉 Successfully populated all phase commands")
+            logger.info("🎉 Successfully populated all phase commands")
             return phases_data
             
         except Exception as e:
-            self.logger.error(f"❌ Command population failed: {e}")
+            logger.error(f"❌ Command population failed: {e}")
             return self._create_error_fallback(phases_data, str(e))
     
     def _generate_phase_commands(self, phase_id: str, phase_number: int, phase_data: Dict) -> List[Dict]:
@@ -1689,7 +1689,7 @@ class DynamicIntegrationSystem:
     """Integration system that uses real cluster data"""
     
     def __init__(self, cluster_data: Dict):
-        self.logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__name__)
         self.cluster_data = cluster_data
         self.command_populator = DynamicCommandPopulator(cluster_data)
         
@@ -1697,7 +1697,7 @@ class DynamicIntegrationSystem:
         """Integrate dynamic system with existing implementation"""
         
         try:
-            self.logger.info("🔧 Integrating dynamic command system...")
+            logger.info("🔧 Integrating dynamic command system...")
             
             # Create enhanced command generator with cluster data
             enhanced_generator = DynamicMLEnhancedCommandGenerator(self.cluster_data)
@@ -1714,7 +1714,7 @@ class DynamicIntegrationSystem:
             def enhanced_map_commands_to_phases(self, implementation_plan: Dict, execution_plan: Any) -> Dict:
                 """Enhanced phase mapping using cluster analysis data"""
                 
-                self.logger.info("🔨 Dynamic command mapping with cluster data...")
+                logger.info("🔨 Dynamic command mapping with cluster data...")
                 
                 try:
                     # Get phases data
@@ -1728,11 +1728,11 @@ class DynamicIntegrationSystem:
                         updated_phases = self.command_generator.command_populator.populate_phase_commands(phases_data)
                         implementation_plan['implementation_phases'] = updated_phases
                         
-                        self.logger.info(f"✅ Dynamic mapping complete for {len(updated_phases)} phase blocks")
-                        self.logger.info(f"💰 Total potential savings: ${self.command_generator.command_populator.savings_targets['total']:.0f}/month")
+                        logger.info(f"✅ Dynamic mapping complete for {len(updated_phases)} phase blocks")
+                        logger.info(f"💰 Total potential savings: ${self.command_generator.command_populator.savings_targets['total']:.0f}/month")
                     
                 except Exception as e:
-                    self.logger.error(f"❌ Dynamic command mapping failed: {e}")
+                    logger.error(f"❌ Dynamic command mapping failed: {e}")
                 
                 return implementation_plan
             
@@ -1742,11 +1742,11 @@ class DynamicIntegrationSystem:
                     implementation_generator_instance, type(implementation_generator_instance)
                 )
             
-            self.logger.info("🎉 Dynamic integration successful!")
+            logger.info("🎉 Dynamic integration successful!")
             return True
             
         except Exception as e:
-            self.logger.error(f"❌ Dynamic integration failed: {e}")
+            logger.error(f"❌ Dynamic integration failed: {e}")
             return False
 
 
@@ -1755,21 +1755,21 @@ class DynamicMLEnhancedCommandGenerator:
     
     def __init__(self, cluster_data: Dict):
         self.cluster_data = cluster_data
-        self.logger = logging.getLogger(__name__)
+        logger = logging.getLogger(__name__)
         self.command_populator = DynamicCommandPopulator(cluster_data)
         self.cluster_config = None
         
-        self.logger.info("🔧 Dynamic ML Enhanced Command Generator initialized")
+        logger.info("🔧 Dynamic ML Enhanced Command Generator initialized")
     
     def set_cluster_config(self, cluster_config: Dict):
         """Set cluster configuration"""
         self.cluster_config = cluster_config
-        self.logger.info("🛠️ Cluster config set for dynamic generator")
+        logger.info("🛠️ Cluster config set for dynamic generator")
     
     def generate_comprehensive_execution_plan(self, optimization_strategy, cluster_dna, analysis_results: Dict, cluster_config: Optional[Dict] = None):
         """Generate execution plan using cluster analysis data"""
         
-        self.logger.info("🔨 Generating execution plan with cluster data...")
+        logger.info("🔨 Generating execution plan with cluster data...")
         
         try:
             if cluster_config:
@@ -1778,11 +1778,11 @@ class DynamicMLEnhancedCommandGenerator:
             # Create execution plan using cluster data
             plan = self._create_data_driven_execution_plan()
             
-            self.logger.info("✅ Data-driven execution plan generated")
+            logger.info("✅ Data-driven execution plan generated")
             return plan
             
         except Exception as e:
-            self.logger.error(f"❌ Execution plan generation failed: {e}")
+            logger.error(f"❌ Execution plan generation failed: {e}")
             return self._create_emergency_plan()
     
     def _create_data_driven_execution_plan(self):
