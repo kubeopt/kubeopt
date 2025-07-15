@@ -142,102 +142,139 @@ class MLEnhancedHPARecommendationEngine:
             raise ValueError(f"Comprehensive ML recommendation engine failed: {e}")
     
     def _calculate_comprehensive_hpa_efficiency(self, ml_results: Dict, metrics_data: Dict) -> float:
-        """ Calculate HPA efficiency with proper extreme value handling"""
+        """Calculate HPA efficiency with ACTUAL HPA coverage as primary factor"""
         try:
-            logger.info("🔍 Calculating comprehensive HPA efficiency...")
+            logger.info("🔍 Calculating HPA efficiency with actual coverage check...")
             
-            # Get workload characteristics from comprehensive analysis
+            # CRITICAL FIX: Get ACTUAL HPA coverage first
+            actual_hpa_coverage = self._get_actual_hpa_coverage(metrics_data)
+            
+            if actual_hpa_coverage['total_workloads'] == 0:
+                logger.warning("⚠️ No workloads found for HPA efficiency calculation")
+                return 0.0
+            
+            # Calculate base efficiency from actual coverage
+            base_efficiency = (actual_hpa_coverage['hpa_count'] / actual_hpa_coverage['total_workloads']) * 100
+            
+            logger.info(f"🔍 ACTUAL HPA Coverage: {actual_hpa_coverage['hpa_count']}/{actual_hpa_coverage['total_workloads']} = {base_efficiency:.1f}%")
+            
+            # If no HPAs configured, efficiency is 0% regardless of ML analysis
+            if actual_hpa_coverage['hpa_count'] == 0:
+                logger.info("✅ No HPAs configured - efficiency = 0%")
+                return 0.0
+            
+            # If HPAs exist, enhance calculation with ML analysis
             workload_characteristics = ml_results.get('workload_characteristics', {})
             optimization_analysis = ml_results.get('optimization_analysis', {})
             workload_classification = ml_results.get('workload_classification', {})
             
-            # Extract efficiency metrics from comprehensive analysis
+            # Get ML-derived utilization metrics
             cpu_utilization = workload_characteristics.get('cpu_utilization', 35.0)
             memory_utilization = workload_characteristics.get('memory_utilization', 60.0)
-            efficiency_score = workload_characteristics.get('efficiency_score', 0.6)
             workload_type = workload_classification.get('workload_type', 'BALANCED')
             
-            logger.info(f"🔍 ML Data: CPU={cpu_utilization:.1f}%, Memory={memory_utilization:.1f}%, Type={workload_type}")
+            logger.info(f"🔍 ML Analysis: CPU={cpu_utilization:.1f}%, Memory={memory_utilization:.1f}%, Type={workload_type}")
             
-            # CRITICAL FIX: Handle extreme over-allocation cases properly
-            if cpu_utilization > 200 or memory_utilization > 200:
-                logger.warning(f"🔥 Extreme over-allocation detected: CPU={cpu_utilization:.1f}%, Memory={memory_utilization:.1f}%")
-                # For extreme cases, efficiency is essentially 0% but we return a small value
-                extreme_efficiency = max(1.0, 100.0 / max(cpu_utilization, memory_utilization, 100))
-                logger.info(f"✅ Extreme case efficiency: {extreme_efficiency:.1f}%")
-                return extreme_efficiency
-            
-            # Handle high utilization cases (potential optimization targets)
-            if cpu_utilization > 100 or memory_utilization > 100:
-                high_util_efficiency = min(50.0, 100.0 / max(cpu_utilization / 100.0, memory_utilization / 100.0))
-                logger.info(f"✅ High utilization efficiency: {high_util_efficiency:.1f}%")
-                return high_util_efficiency
-            
-            # CRITICAL FIX: For normal cases, use a proper calculation
-            # Use ML-determined optimization potential
-            cost_analysis = optimization_analysis.get('cost_analysis', {})
-            waste_percentage = cost_analysis.get('waste_percentage', 20.0)
-            
-            # Calculate efficiency based on ML analysis
-            base_efficiency = max(0, 100.0 - waste_percentage)
-            
-            # CRITICAL FIX: Apply workload-specific adjustments with better targets
-            if workload_type == 'CPU_INTENSIVE':
-                # CPU-intensive workloads: focus more on CPU efficiency
-                cpu_efficiency = self._calculate_resource_efficiency(cpu_utilization, 75.0)
-                memory_efficiency = self._calculate_resource_efficiency(memory_utilization, 65.0)
-                combined_efficiency = (cpu_efficiency * 0.8 + memory_efficiency * 0.2)
+            # Apply workload-type specific efficiency adjustments to base coverage
+            if workload_type == 'LOW_UTILIZATION':
+                # Low utilization with HPAs suggests good scaling potential
+                efficiency_multiplier = 1.2  # 20% bonus for having HPAs with low utilization
+            elif workload_type == 'CPU_INTENSIVE':
+                # CPU intensive workloads benefit most from CPU-based HPAs
+                efficiency_multiplier = 1.1
             elif workload_type == 'MEMORY_INTENSIVE':
-                # Memory-intensive workloads: focus more on memory efficiency
-                cpu_efficiency = self._calculate_resource_efficiency(cpu_utilization, 60.0)
-                memory_efficiency = self._calculate_resource_efficiency(memory_utilization, 80.0)
-                combined_efficiency = (cpu_efficiency * 0.3 + memory_efficiency * 0.7)
+                # Memory intensive workloads benefit from memory-based HPAs
+                efficiency_multiplier = 1.1
             elif workload_type == 'BURSTY':
-                # Bursty workloads: lower targets due to variability, but not zero
-                cpu_efficiency = self._calculate_resource_efficiency(cpu_utilization, 65.0)
-                memory_efficiency = self._calculate_resource_efficiency(memory_utilization, 70.0)
-                combined_efficiency = (cpu_efficiency * 0.6 + memory_efficiency * 0.4)
-                # Bursty workloads should show some efficiency potential
-                combined_efficiency = max(15.0, combined_efficiency)
-            elif workload_type == 'LOW_UTILIZATION':
-                # CRITICAL FIX: Low utilization should show HIGHER efficiency potential, not lower
-                # This is probably where your bug is!
-                cpu_efficiency = self._calculate_resource_efficiency(cpu_utilization, 70.0)
-                memory_efficiency = self._calculate_resource_efficiency(memory_utilization, 75.0)
-                combined_efficiency = (cpu_efficiency * 0.5 + memory_efficiency * 0.5)
-                
-                # LOW_UTILIZATION should have HIGHER efficiency potential because there's more waste
-                # Instead of setting it low, calculate based on how much we can improve
-                underutilization_bonus = max(0, (70 - cpu_utilization) + (75 - memory_utilization)) / 2
-                combined_efficiency = min(40.0, combined_efficiency + underutilization_bonus)
-                
-                logger.info(f"🔧 LOW_UTILIZATION efficiency: base={combined_efficiency:.1f}%, bonus={underutilization_bonus:.1f}%")
+                # Bursty workloads get maximum benefit from HPAs
+                efficiency_multiplier = 1.3
             else:  # BALANCED
-                cpu_efficiency = self._calculate_resource_efficiency(cpu_utilization, 70.0)
-                memory_efficiency = self._calculate_resource_efficiency(memory_utilization, 75.0)
-                combined_efficiency = (cpu_efficiency * 0.6 + memory_efficiency * 0.4)
+                efficiency_multiplier = 1.0
             
-            # Apply ML confidence factor
-            ml_confidence = workload_classification.get('confidence', 0.7)
-            confidence_factor = 0.7 + (ml_confidence * 0.3)  # Range: 0.7 to 1.0
+            # Calculate final efficiency (base coverage + ML-derived bonus)
+            enhanced_efficiency = base_efficiency * efficiency_multiplier
             
-            # Final efficiency calculation
-            final_efficiency = min(combined_efficiency * confidence_factor, base_efficiency)
-            result = max(0.0, min(100.0, final_efficiency))
+            # Apply reasonable bounds (max 60% for existing HPAs)
+            final_efficiency = min(60.0, max(0.0, enhanced_efficiency))
             
-            logger.info(f"✅ Comprehensive HPA Efficiency calculated: {result:.1f}%")
+            logger.info(f"✅ HPA Efficiency Calculation:")
+            logger.info(f"   - Base coverage: {base_efficiency:.1f}%")
             logger.info(f"   - Workload type: {workload_type}")
-            logger.info(f"   - CPU utilization: {cpu_utilization:.1f}%")
-            logger.info(f"   - Memory utilization: {memory_utilization:.1f}%")
-            logger.info(f"   - ML confidence: {ml_confidence:.2f}")
-            logger.info(f"   - Waste percentage: {waste_percentage:.1f}%")
-            logger.info(f"   - Combined efficiency: {combined_efficiency:.1f}%")
+            logger.info(f"   - Efficiency multiplier: {efficiency_multiplier:.1f}x")
+            logger.info(f"   - Final efficiency: {final_efficiency:.1f}%")
             
-            return result
-        
+            return final_efficiency
+            
         except Exception as e:
-            logger.error(f"❌ Comprehensive HPA efficiency calculation failed: {e}")
+            logger.error(f"❌ HPA efficiency calculation failed: {e}")
             return 0.0
+
+    def _get_actual_hpa_coverage(self, metrics_data: Dict) -> Dict:
+        """Get actual HPA coverage from metrics data"""
+        coverage = {
+            'hpa_count': 0,
+            'total_workloads': 0,
+            'hpa_targets': set(),
+            'workload_names': set()
+        }
+        
+        try:
+            # Check for HPA implementation data
+            hpa_implementation = metrics_data.get('hpa_implementation', {})
+            
+            # Method 1: Direct HPA count from implementation
+            if 'total_hpas' in hpa_implementation:
+                coverage['hpa_count'] = int(hpa_implementation.get('total_hpas', 0))
+                logger.info(f"🔍 Found direct HPA count: {coverage['hpa_count']}")
+            
+            # Method 2: Count from HPA list
+            if coverage['hpa_count'] == 0 and 'hpas' in hpa_implementation:
+                hpas = hpa_implementation.get('hpas', [])
+                coverage['hpa_count'] = len(hpas)
+                # Extract targets
+                for hpa in hpas:
+                    if isinstance(hpa, dict) and 'target' in hpa:
+                        coverage['hpa_targets'].add(hpa['target'])
+                logger.info(f"🔍 Counted HPAs from list: {coverage['hpa_count']}")
+            
+            # Method 3: Count from high CPU HPAs
+            if coverage['hpa_count'] == 0 and 'high_cpu_hpas' in hpa_implementation:
+                high_cpu_hpas = hpa_implementation.get('high_cpu_hpas', [])
+                coverage['hpa_count'] = len(high_cpu_hpas)
+                logger.info(f"🔍 Counted high CPU HPAs: {coverage['hpa_count']}")
+            
+            # Get workload count from various sources
+            # Method 1: From nodes (rough approximation)
+            nodes = metrics_data.get('nodes', [])
+            if nodes:
+                # Estimate workloads (typically 2-5 workloads per node)
+                estimated_workloads = len(nodes) * 3
+                coverage['total_workloads'] = estimated_workloads
+                logger.info(f"🔍 Estimated workloads from {len(nodes)} nodes: {estimated_workloads}")
+            
+            # Method 2: From deployment info if available
+            if 'deployments' in metrics_data:
+                deployments = metrics_data.get('deployments', [])
+                coverage['total_workloads'] = len(deployments)
+                logger.info(f"🔍 Found deployments: {len(deployments)}")
+            
+            # Method 3: From workload analysis if available
+            if coverage['total_workloads'] == 0 and 'workload_count' in metrics_data:
+                coverage['total_workloads'] = int(metrics_data.get('workload_count', 0))
+                logger.info(f"🔍 Found workload count: {coverage['total_workloads']}")
+            
+            # Fallback: use minimum reasonable number
+            if coverage['total_workloads'] == 0:
+                coverage['total_workloads'] = max(5, len(nodes) * 2) if nodes else 10
+                logger.warning(f"⚠️ Using fallback workload count: {coverage['total_workloads']}")
+            
+            logger.info(f"📊 HPA Coverage Analysis: {coverage['hpa_count']} HPAs for {coverage['total_workloads']} workloads")
+            
+            return coverage
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get HPA coverage: {e}")
+            return coverage
 
     def _calculate_resource_efficiency(self, actual_utilization: float, target_utilization: float) -> float:
         """Calculate efficiency score for a single resource type"""
@@ -747,6 +784,15 @@ class ConsistentCostAnalyzer:
                 hpa_recommendations.get('workload_characteristics', {}), 
                 metrics_data
             )
+
+            # Log the efficiency calculation details
+            logger.info(f"🔧 HPA Efficiency Debug:")
+            logger.info(f"   - Calculated efficiency: {hpa_efficiency:.1f}%")
+            logger.info(f"   - Metrics data keys: {list(metrics_data.keys()) if metrics_data else 'None'}")
+            if metrics_data and 'hpa_implementation' in metrics_data:
+                hpa_impl = metrics_data['hpa_implementation']
+                logger.info(f"   - HPA implementation: {hpa_impl.get('total_hpas', 'unknown')} HPAs")
+                logger.info(f"   - HPA pattern: {hpa_impl.get('current_hpa_pattern', 'unknown')}")
             
             # CRITICAL FIX: Ensure efficiency is properly included
             hpa_recommendations['hpa_efficiency_percentage'] = hpa_efficiency
@@ -830,9 +876,19 @@ class ConsistentCostAnalyzer:
 
             # Extract HPA efficiency with proper type conversion
             hpa_efficiency_raw = None
-    
+
+            ml_results = hpa_recommendations.get('workload_characteristics', {})
+            hpa_efficiency_raw = self._generate_hpa_recommendations(cost_data, metrics_data).get('hpa_efficiency_percentage')
+
+            # calculate directly
+            if hpa_efficiency_raw is None or hpa_efficiency_raw == 0:
+                ml_engine = MLEnhancedHPARecommendationEngine()
+                hpa_efficiency_raw = ml_engine._calculate_comprehensive_hpa_efficiency(ml_results, metrics_data)
+                logger.info(f"🔧 Recalculated HPA efficiency: {hpa_efficiency_raw:.1f}%")
+
             # Try multiple sources for HPA efficiency
             efficiency_sources = [
+                ('direct_calculation', hpa_efficiency_raw),
                 ('hpa_efficiency_percentage', hpa_recommendations.get('hpa_efficiency_percentage')),
                 ('hpa_efficiency', hpa_recommendations.get('hpa_efficiency')),
                 ('workload_characteristics', hpa_recommendations.get('workload_characteristics', {}).get('hpa_efficiency_percentage')),
