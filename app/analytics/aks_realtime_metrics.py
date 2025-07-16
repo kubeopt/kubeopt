@@ -1706,7 +1706,7 @@ class AKSRealTimeMetricsFetcher:
                 'average_memory_per_pod': total_memory_bytes / len(workload_data),
                 'workload_distribution': self._analyze_workload_distribution(workload_data),
                 'resource_concentration': self._calculate_resource_concentration(workload_data),
-                'raw_workload_data': workload_data[:100],  # Limit to top 100 for performance
+                'raw_workload_data': workload_data,  # Limit to top 100 for performance, 'raw_workload_data': workload_data[:100],
                 'parsing_stats': {
                     'lines_processed': len(lines),
                     'lines_parsed': parsed_lines,
