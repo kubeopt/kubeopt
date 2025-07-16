@@ -1,5 +1,5 @@
 """
-AKS Implementation Generator - NO FALLBACKS VERSION WITH CLUSTER CONFIG
+AKS Implementation GeneratorS VERSION WITH CLUSTER CONFIG
 =======================================================================
 Removes all fallback logic to expose real issues.
 Comprehensive error logging for debugging.
@@ -548,7 +548,7 @@ class ClusterAnalyzer:
 
 class AKSImplementationGenerator(MLLearningIntegrationMixin):
     """
-    AKS Implementation Generator with ML Orchestration - NO FALLBACKS
+    AKS Implementation Generator with ML OrchestrationS
     
     This version removes all fallback mechanisms to expose real issues.
     Every failure is logged in detail for debugging purposes.
@@ -559,7 +559,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         """Initialize with ML orchestration (same signature as before)"""
         super().__init__()
         
-        logger.info("🧠 Initializing AKS Implementation Generator (NO FALLBACKS VERSION WITH CLUSTER CONFIG)")
+        logger.info("🧠 Initializing AKS Implementation Generator")
         
         # Your existing parameters (maintained for compatibility)
         self.enable_cost_monitoring = enable_cost_monitoring
@@ -583,7 +583,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         # ML Intelligence Systems (initialize after debug tracking)
         self._initialize_ml_systems()
         
-        logger.info("✅ AKS Implementation Generator ready (NO FALLBACKS WITH CLUSTER CONFIG)")
+        logger.info("✅ AKS Implementation Generator ready")
         logger.info(f"🔧 ML Systems Available: {self.ml_systems_available}")
     
     def generate_implementation_plan(self, analysis_results: Dict, 
@@ -591,7 +591,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                                    cost_budget_monthly: Optional[float] = None,
                                    enable_real_time_monitoring: bool = True) -> Dict:
         """
-        Generate implementation plan with ML orchestration and real cluster integration - NO FALLBACKS
+        Generate implementation plan with ML orchestration and real cluster integrationS
         
         This version will fail fast and provide detailed error information
         instead of masking issues with fallback logic.
@@ -636,7 +636,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             )
             logger.info(f"📋 Cluster config status: {cluster_config.get('status', 'unknown')}")
             
-            # PHASE 1: ML Cluster DNA Analysis - NO FALLBACK
+            # PHASE 1: ML Cluster DNA Analysis
             logger.info("🔄 PHASE 1: ML Cluster DNA Analysis")
             cluster_dna = self._ml_analyze_cluster_dna(analysis_results, historical_data, ml_session, cluster_config)
             if cluster_dna is None:
@@ -648,7 +648,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 raise ValueError("❌ CRITICAL: DNA analysis failed - see logs for details")
             logger.info("✅ PHASE 1 completed")
             
-            # PHASE 2: ML Strategy Generation - NO FALLBACK
+            # PHASE 2: ML Strategy Generation
             logger.info("🔄 PHASE 2: ML Strategy Generation")
             ml_strategy = self._ml_generate_strategy(cluster_dna, analysis_results, ml_session, cluster_config)
             if ml_strategy is None:
@@ -660,7 +660,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 raise ValueError("❌ CRITICAL: Strategy generation failed - see logs for details")
             logger.info("✅ PHASE 2 completed")
             
-            # PHASE 3: ML Plan Generation - NO FALLBACK
+            # PHASE 3: ML Plan Generation
             logger.info("🔄 PHASE 3: ML Plan Generation")
             ml_plan = self._ml_generate_comprehensive_plan(analysis_results, ml_strategy, cluster_dna, ml_session, cluster_config)
             if ml_plan is None or not isinstance(ml_plan, dict):
@@ -673,7 +673,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 raise ValueError("❌ CRITICAL: Plan generation failed - see logs for details")
             logger.info("✅ PHASE 3 completed")
    
-            # PHASE 4: ML Command Integration - NO FALLBACK
+            # PHASE 4: ML Command Integration
             logger.info("🔄 PHASE 4: ML Command Integration")
             ml_plan = self._ml_integrate_executable_commands(ml_plan, analysis_results, ml_strategy, ml_session, cluster_config)
             if ml_plan is None:
@@ -685,7 +685,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 raise ValueError("❌ CRITICAL: Command integration failed - see logs for details")
             logger.info("✅ PHASE 4 completed")
  
-            # PHASE 5: Ensure ALL framework components - NO FALLBACK
+            # PHASE 5: Ensure ALL framework components
             logger.info("🔄 PHASE 5: Framework Structure Completion")
             ml_plan = self._ensure_complete_framework_structure(ml_plan, analysis_results, ml_session, cluster_config)
             if ml_plan is None:
@@ -737,7 +737,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             # Record failure for learning
             self._record_generation_failure(str(e))
             
-            # Re-raise the exception (NO FALLBACK)
+            # Re-raise the exception
             logger.error(f"❌ FINAL FAILURE: Implementation plan generation failed completely")
             logger.error(f"❌ Exception: {str(e)}")
             logger.error(f"❌ Full traceback: {traceback.format_exc()}")
@@ -1048,7 +1048,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             logger.error(f"💥 Full initialization traceback: {traceback.format_exc()}")
             logger.error(f"💥 Initialization results: {json.dumps(initialization_results, indent=2)}")
             
-            # Set all systems to None (NO FALLBACK)
+            # Set all systems to None
             self.learning_engine = None
             self.ml_orchestrator = None
             self.strategy_engine = None
@@ -1063,7 +1063,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
     
     def _ml_analyze_cluster_dna(self, analysis_results: Dict, historical_data: Optional[Dict], 
                                ml_session: Dict, cluster_config: Dict) -> Any:
-        """ML DNA analysis with detailed failure logging and cluster config - NO FALLBACK"""
+        """ML DNA analysis with detailed failure logging and cluster config"""
         
         logger.info("🧬 ML DNA Analysis with cluster config...")
         
@@ -1146,7 +1146,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
     
     def _ml_generate_strategy(self, cluster_dna: Any, analysis_results: Dict, 
                              ml_session: Dict, cluster_config: Dict) -> Any:
-        """ML strategy generation with detailed failure logging and cluster config - NO FALLBACK"""
+        """ML strategy generation with detailed failure logging and cluster config"""
         
         logger.info("🎯 ML Strategy Generation with cluster config...")
         
@@ -1237,7 +1237,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
     
     def _ml_generate_comprehensive_plan(self, analysis_results: Dict, ml_strategy: Any, 
                                       cluster_dna: Any, ml_session: Dict, cluster_config: Dict) -> Dict:
-        """Generate comprehensive implementation plan using ML with cluster config - NO FALLBACK"""
+        """Generate comprehensive implementation plan using ML with cluster config"""
         
         logger.info("📋 ML Plan Generation with cluster config...")
         
@@ -1365,7 +1365,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
     
     def _ml_integrate_executable_commands(self, implementation_plan: Dict, analysis_results: Dict, 
                                     ml_strategy: Any, ml_session: Dict, cluster_config: Dict) -> Dict:
-        """Integrate executable commands using ML command center with cluster config - NO FALLBACK"""
+        """Integrate executable commands using ML command center with cluster config"""
         
         logger.info("🛠️ ML Command Integration with cluster config...")
         
@@ -1424,7 +1424,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             
             # Generate comprehensive execution plan
             execution_plan = self.command_generator.generate_comprehensive_execution_plan(
-                ml_strategy, cluster_dna, analysis_results, cluster_config
+                ml_strategy, cluster_dna, analysis_results, cluster_config,
+                implementation_phases=implementation_plan.get('implementation_phases', [])
             )
             
             if execution_plan is None:
@@ -1471,6 +1472,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 implementation_plan['executive_summary']['command_groups_generated'] = total_commands
             
             logger.info(f"✅ Commands: {total_commands} integrated ({confidence:.1%})")
+            logger.info(f"RAW: Implementation plan {implementation_plan}")
+
             return implementation_plan
             
         except Exception as e:
@@ -1489,7 +1492,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
     
     def _ensure_complete_framework_structure(self, implementation_plan: Dict, 
                                            analysis_results: Dict, ml_session: Dict, cluster_config: Dict) -> Dict:
-        """Ensure ALL 7 framework components are populated with cluster config - NO FALLBACK"""
+        """Ensure ALL 7 framework components are populated with cluster config"""
         
         logger.info("🔧 Ensuring complete framework structure with cluster config...")
         
@@ -1734,7 +1737,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             return False
     
     def _validate_output_structure(self, implementation_plan: Dict) -> bool:
-        """Enhanced validation with detailed error reporting - NO FALLBACK"""
+        """Enhanced validation with detailed error reporting"""
         try:
             if not isinstance(implementation_plan, dict):
                 logger.error("❌ Plan is not a dictionary")
@@ -1947,7 +1950,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         return total
     
     def _map_commands_to_phases(self, implementation_plan: Dict, execution_plan: Any) -> Dict:
-        """Map commands to implementation phases"""
+        """Use phase-specific commands from dynamic command generator"""
         
         phases = implementation_plan.get('implementation_phases', [])
         
@@ -1955,36 +1958,60 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             return implementation_plan
         
         try:
-            # Simple mapping: distribute commands across phases
-            all_commands = []
-            
-            for attr in ['preparation_commands', 'optimization_commands', 'validation_commands']:
-                if hasattr(execution_plan, attr):
-                    commands = getattr(execution_plan, attr) or []
-                    for cmd in commands:
-                        all_commands.append({
-                            'id': getattr(cmd, 'id', f'cmd-{len(all_commands)}'),
-                            'title': getattr(cmd, 'description', 'ML Generated Command'),
-                            'command': getattr(cmd, 'command', ''),
-                            'category': getattr(cmd, 'category', 'optimization'),
-                            'description': getattr(cmd, 'description', 'ML generated command'),
-                            'estimated_duration_minutes': getattr(cmd, 'estimated_duration_minutes', 30),
-                            'risk_level': getattr(cmd, 'risk_level', 'Medium')
-                        })
-            
-            # Distribute commands across phases
-            if all_commands and phases:
-                commands_per_phase = max(1, len(all_commands) // len(phases))
+            # Debug: Check what we received
+            if hasattr(execution_plan, 'phase_commands') and execution_plan.phase_commands:
+                logger.info(f"🔍 DEBUG: Found phase_commands for {len(execution_plan.phase_commands)} phases")
+                for phase_id, commands in execution_plan.phase_commands.items():
+                    logger.info(f"🔍 DEBUG: Phase {phase_id} has {len(commands)} commands")
+                    if commands:
+                        first_cmd = commands[0]
+                        logger.info(f"🔍 DEBUG: First command type: {type(first_cmd)}")
+                        logger.info(f"🔍 DEBUG: First command ID: {getattr(first_cmd, 'id', 'NO_ID')}")
+                        logger.info(f"🔍 DEBUG: First command desc: {getattr(first_cmd, 'description', 'NO_DESC')[:50]}...")
                 
-                for i, phase in enumerate(phases):
-                    start_idx = i * commands_per_phase
-                    end_idx = start_idx + commands_per_phase
-                    phase['commands'] = all_commands[start_idx:end_idx]
+                for phase in phases:
+                    phase_id = f"phase-{phase.get('phase_number', 0)}"
+                    phase_title = phase.get('title', 'Unknown')
+                    logger.info(f"🎯 Processing phase: {phase_id} - {phase_title}")
+                    
+                    if phase_id in execution_plan.phase_commands:
+                        executable_commands = execution_plan.phase_commands[phase_id]
+                        logger.info(f"✅ Found {len(executable_commands)} commands for {phase_id}")
+                        
+                        # Convert ExecutableCommand objects to UI format - FIX THE SERIALIZATION
+                        command_strings = []
+                        for i, exec_cmd in enumerate(executable_commands):
+                            cmd_string = getattr(exec_cmd, 'command', '')
+                            logger.info(f"🔍 Command {i} for {phase_id}: {cmd_string[:100]}...")
+                            command_strings.append(cmd_string)  # Keep as string, don't JSON serialize
+                        
+                        # Update phase with commands in the correct format
+                        phase['commands'] = [{
+                            'title': f'{phase_title} Commands',
+                            'commands': command_strings,  # Array of plain command strings
+                            'description': f'Commands for {phase_title}',
+                            'source': 'phase_specific'
+                        }]
+                        
+                        logger.info(f"✅ Mapped {len(executable_commands)} commands to phase: {phase_title}")
+                    else:
+                        logger.warning(f"⚠️ No commands found for phase: {phase_id} ({phase_title})")
+                        phase['commands'] = []
+                
+                return implementation_plan
+            
+            else:
+                logger.error("❌ No phase_commands found in execution plan!")
+                if hasattr(execution_plan, 'phase_commands'):
+                    logger.error(f"❌ phase_commands is: {execution_plan.phase_commands}")
+                else:
+                    logger.error("❌ execution_plan has no phase_commands attribute")
+                return implementation_plan
             
         except Exception as e:
-            logger.warning(f"⚠️ Command mapping failed: {e}")
-        
-        return implementation_plan
+            logger.error(f"❌ Phase command integration failed: {e}")
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            return implementation_plan
     
     def _calculate_ml_plan_confidence(self, analysis_results: Dict, implementation_plan: Dict, 
                                      ml_session: Dict, cluster_config: Dict) -> float:
@@ -2145,7 +2172,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
 CombinedAKSImplementationGenerator = AKSImplementationGenerator
 FixedAKSImplementationGenerator = AKSImplementationGenerator
 
-print("✅ AKS Implementation Generator (NO FALLBACKS WITH CLUSTER CONFIG) ready")
+print("✅ AKS Implementation Generator ready")
 print("🔗 Backward compatibility maintained")
 print("🚨 All fallback logic removed - failures will be exposed clearly")
 print("📊 Comprehensive error logging enabled")

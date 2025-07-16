@@ -1424,7 +1424,8 @@ def generate_workload_data(analysis_data=None):
         # Sort by cost descending and take top 100
         max_workloads = 100
         sorted_workloads.sort(key=lambda x: x[1], reverse=True)
-        top_workloads = sorted_workloads[:max_workloads]
+        #top_workloads = sorted_workloads[:max_workloads]
+        top_workloads = sorted_workloads
         
         result = {
             'workloads': [w[0] for w in top_workloads],
