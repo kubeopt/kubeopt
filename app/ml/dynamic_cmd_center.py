@@ -1463,6 +1463,7 @@ class AdvancedExecutableCommandGenerator:
         )
         
         logger.info(f"✅ Execution plan generated with {len(all_generated_commands)} commands")
+        logger.info(f"✅ RAW: Execution commands ${execution_plan}")
         logger.info(f"   📊 Distribution: Prep={len(preparation_commands)}, Opt={len(optimization_commands)}")
         logger.info(f"   💰 Estimated Savings: ${estimated_savings}/month")
 
