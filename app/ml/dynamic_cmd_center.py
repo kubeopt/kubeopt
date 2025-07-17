@@ -1479,82 +1479,509 @@ class AdvancedExecutableCommandGenerator:
         
         return execution_plan
 
-    def _generate_phase_specific_commands(self, implementation_phases: List[Dict], 
-                                    comprehensive_state: Dict, variable_context: Dict,
-                                    cluster_intelligence: Dict, analysis_results: Dict) -> Dict:
-        """Generate commands for each specific phase"""
-        phase_commands = {}
+    def _generate_real_hpa_commands_with_manifests(self, comprehensive_state: Dict, 
+                                             variable_context: Dict, cluster_config: Dict) -> List:
+        """Generate HPA commands with real cluster manifests attached"""
+        commands = []
         
-        for phase in implementation_phases:
-            # FIX: Create phase_id from phase_number or use a fallback
-            phase_id = f"phase-{phase.get('phase_number', 0)}"
-            phase_type = phase.get('type', [])
-            phase_title = phase.get('title', '')
+        try:
+            # Extract real HPA opportunities from comprehensive state
+            hpa_opportunities = self._extract_real_hpa_opportunities_enhanced(comprehensive_state)
             
-            logger.info(f"🎯 Generating commands for phase: {phase_title}")
-            logger.info(f"🔍 Phase ID: {phase_id}, Phase types: {phase_type}")  # DEBUG
+            # Get pattern classification for strategy selection
+            cluster_intelligence = comprehensive_state.get('cluster_intelligence', {})
+            organization_patterns = comprehensive_state.get('organization_patterns', {})
             
-            logger.info(f"🎯 Generating commands for phase: {phase_title}")
+            pattern_classification = self.pattern_classifier.classify_cluster_pattern(
+                comprehensive_state, cluster_intelligence, organization_patterns
+            )
             
-            commands = []
+            hpa_strategy_name = pattern_classification.get('hpa_strategy', 'basic')
+            hpa_strategy = self.hpa_strategies.get(hpa_strategy_name, self.hpa_strategies['basic'])
             
-            # FIX: Check specific types first, then broader categories
-            if 'assessment' in phase_type or 'preparation' in phase_type:
-                commands = self._generate_assessment_commands_for_phase(
-                    comprehensive_state, variable_context, cluster_intelligence
+            # Generate commands with real manifests
+            for opportunity in hpa_opportunities:
+                target_deployment = opportunity['target_deployment']
+                target_namespace = opportunity['target_namespace']
+                
+                # Get actual deployment manifest from cluster config
+                deployment_manifest = self._get_deployment_manifest(
+                    cluster_config, target_deployment, target_namespace
                 )
-            
-            # Check for HPA specifically (before generic optimization)
-            elif 'hpa' in phase_type:
-                hpa_opportunities = self._extract_real_hpa_opportunities(comprehensive_state)
-                if hpa_opportunities:
-                    pattern_classification = self.pattern_classifier.classify_cluster_pattern(
-                        comprehensive_state, cluster_intelligence, {}
-                    )
-                    hpa_strategy = self.hpa_strategies.get(
-                        pattern_classification.get('hpa_strategy', 'basic'), 
-                        self.hpa_strategies['basic']
-                    )
-                    commands = self._generate_hpa_commands_from_opportunities(
-                        hpa_opportunities, hpa_strategy, variable_context
-                    )
-            
-            # Check for rightsizing specifically (before generic optimization)
-            elif 'rightsizing' in phase_type:
-                rightsizing_opportunities = self._extract_real_rightsizing_opportunities(comprehensive_state)
-                if rightsizing_opportunities:
-                    commands = self._generate_rightsizing_commands_from_opportunities(
-                        rightsizing_opportunities, variable_context, 'balanced'
-                    )
-            
-            # Check for validation specifically (before generic monitoring)
-            elif 'validation' in phase_type:
-                commands = self._generate_comprehensive_validation_commands(
-                    comprehensive_state, variable_context, 
-                    sum(len(cmds) for cmds in phase_commands.values())
+                
+                # Calculate optimized HPA settings based on real deployment
+                hpa_config = self._calculate_optimal_hpa_config(
+                    deployment_manifest, opportunity, variable_context
                 )
-            
-            # Check for monitoring (can overlap with validation)
-            elif 'monitoring' in phase_type:
-                monitoring_opportunities = self._extract_real_monitoring_opportunities(comprehensive_state)
-                commands = self._generate_monitoring_commands_from_opportunities(
-                    monitoring_opportunities, variable_context
+                
+                # Generate HPA YAML with real resource analysis
+                hpa_yaml = hpa_strategy.generate_hpa_yaml(
+                    target_deployment, target_namespace, hpa_config, variable_context
                 )
+                
+                # Create command with enhanced context
+                command = self._create_hpa_command_with_manifest(
+                    opportunity, hpa_yaml, deployment_manifest, variable_context
+                )
+                
+                commands.append(command)
+                
+        except Exception as e:
+            logger.error(f"❌ Real HPA command generation failed: {e}")
             
-            # Catch remaining optimization types
-            elif 'optimization' in phase_type:
-                # This handles phases that are optimization but don't match specific types above
-                commands = self._generate_generic_commands_for_phase(variable_context, phase_title)
-            
-            # Default fallback
-            else:
-                logger.warning(f"⚠️ Unknown phase type: {phase_type}, generating generic commands")
-                commands = self._generate_generic_commands_for_phase(variable_context, phase_title)
-            
-            phase_commands[phase_id] = commands
-            logger.info(f"✅ Generated {len(commands)} commands for {phase_title}")
+        return commands
+
+    def _extract_real_hpa_opportunities_enhanced(self, comprehensive_state: Dict) -> List[Dict]:
+        """Extract real HPA opportunities with enhanced analysis"""
+        opportunities = []
         
-        return phase_commands
+        try:
+            hpa_state = comprehensive_state.get('hpa_state', {})
+            missing_candidates = hpa_state.get('missing_hpa_candidates', [])
+            
+            for candidate in missing_candidates:
+                if candidate.get('should_have_hpa', False):
+                    # Calculate real savings based on actual cluster data
+                    monthly_savings = self._calculate_real_hpa_savings(candidate, comprehensive_state)
+                    
+                    opportunities.append({
+                        'type': 'hpa_deployment',
+                        'target_deployment': candidate['deployment_name'],
+                        'target_namespace': candidate['namespace'],
+                        'monthly_savings': monthly_savings,
+                        'priority_score': candidate['priority_score'],
+                        'workload_type': candidate.get('workload_type', 'Deployment'),
+                        'reasons': candidate.get('reasons', []),
+                        'implementation_complexity': self._assess_implementation_complexity(candidate)
+                    })
+                    
+        except Exception as e:
+            logger.error(f"❌ Enhanced HPA opportunity extraction failed: {e}")
+            
+        return opportunities
+
+    def _get_deployment_manifest(self, cluster_config: Dict, deployment_name: str, namespace: str) -> Dict:
+        """Get actual deployment manifest from cluster config"""
+        try:
+            workload_resources = cluster_config.get('workload_resources', {})
+            deployments = workload_resources.get('deployments', {}).get('items', [])
+            
+            for deployment in deployments:
+                metadata = deployment.get('metadata', {})
+                if (metadata.get('name') == deployment_name and 
+                    metadata.get('namespace') == namespace):
+                    return deployment
+                    
+        except Exception as e:
+            logger.warning(f"⚠️ Could not find deployment manifest for {deployment_name}/{namespace}: {e}")
+            
+        return {}
+
+    def _generate_real_rightsizing_commands_with_manifests(self, comprehensive_state: Dict, 
+                                                     variable_context: Dict, cluster_config: Dict) -> List:
+        """Generate rightsizing commands with real cluster manifests"""
+        commands = []
+        
+        try:
+            # Extract real rightsizing opportunities
+            rightsizing_opportunities = self._extract_real_rightsizing_opportunities_enhanced(comprehensive_state)
+            
+            for opportunity in rightsizing_opportunities:
+                workload_name = opportunity['target_workload']
+                namespace = opportunity['target_namespace']
+                
+                # Get actual workload manifest
+                workload_manifest = self._get_workload_manifest(
+                    cluster_config, workload_name, namespace
+                )
+                
+                # Calculate optimized resources based on real manifest
+                optimized_resources = self._calculate_optimized_resources(
+                    workload_manifest, opportunity
+                )
+                
+                # Create rightsizing command with manifest
+                command = self._create_rightsizing_command_with_manifest(
+                    opportunity, optimized_resources, workload_manifest, variable_context
+                )
+                
+                commands.append(command)
+                
+        except Exception as e:
+            logger.error(f"❌ Real rightsizing command generation failed: {e}")
+            
+        return commands
+
+    def _extract_real_rightsizing_opportunities_enhanced(self, comprehensive_state: Dict) -> List[Dict]:
+        """Extract real rightsizing opportunities with enhanced analysis"""
+        opportunities = []
+        
+        try:
+            rightsizing_state = comprehensive_state.get('rightsizing_state', {})
+            overprovisioned_workloads = rightsizing_state.get('overprovisioned_workloads', [])
+            
+            for workload in overprovisioned_workloads:
+                if workload.get('resource_efficiency', 1.0) < 0.7:  # Only significant waste
+                    monthly_savings = self._calculate_real_rightsizing_savings(workload, comprehensive_state)
+                    
+                    opportunities.append({
+                        'type': 'resource_rightsizing',
+                        'target_workload': workload['name'],
+                        'target_namespace': workload['namespace'],
+                        'monthly_savings': monthly_savings,
+                        'waste_cpu_cores': workload.get('waste_cpu_cores', 0),
+                        'waste_memory_gb': workload.get('waste_memory_gb', 0),
+                        'current_efficiency': workload.get('resource_efficiency', 0.5),
+                        'recommendations': workload.get('recommendations', []),
+                        'implementation_complexity': self._assess_rightsizing_complexity(workload)
+                    })
+                    
+        except Exception as e:
+            logger.error(f"❌ Enhanced rightsizing opportunity extraction failed: {e}")
+            
+        return opportunities
+
+    def _get_workload_manifest(self, cluster_config: Dict, workload_name: str, namespace: str) -> Dict:
+        """Get actual workload manifest from cluster config"""
+        try:
+            workload_resources = cluster_config.get('workload_resources', {})
+            
+            # Check deployments first
+            deployments = workload_resources.get('deployments', {}).get('items', [])
+            for deployment in deployments:
+                metadata = deployment.get('metadata', {})
+                if (metadata.get('name') == workload_name and 
+                    metadata.get('namespace') == namespace):
+                    return deployment
+                    
+            # Check statefulsets
+            statefulsets = workload_resources.get('statefulsets', {}).get('items', [])
+            for statefulset in statefulsets:
+                metadata = statefulset.get('metadata', {})
+                if (metadata.get('name') == workload_name and 
+                    metadata.get('namespace') == namespace):
+                    return statefulset
+                    
+        except Exception as e:
+            logger.warning(f"⚠️ Could not find workload manifest for {workload_name}/{namespace}: {e}")
+            
+        return {}
+
+    def _calculate_optimized_resources(self, workload_manifest: Dict, opportunity: Dict) -> Dict:
+        """Calculate optimized resource settings based on real manifest"""
+        optimized = {
+            'cpu': '100m',
+            'memory': '128Mi',
+            'cpu_limit': None,
+            'memory_limit': None
+        }
+        
+        try:
+            # Analyze current resource settings
+            containers = workload_manifest.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
+            
+            if containers:
+                container = containers[0]  # Focus on main container
+                resources = container.get('resources', {})
+                requests = resources.get('requests', {})
+                limits = resources.get('limits', {})
+                
+                # Calculate optimized values based on waste analysis
+                waste_cpu = opportunity.get('waste_cpu_cores', 0)
+                waste_memory = opportunity.get('waste_memory_gb', 0)
+                
+                if requests.get('cpu'):
+                    current_cpu = ResourceParser.parse_cpu(requests['cpu'])
+                    optimized_cpu = max(0.05, current_cpu - waste_cpu * 0.7)  # Reduce 70% of waste
+                    optimized['cpu'] = f"{int(optimized_cpu * 1000)}m"
+                    
+                if requests.get('memory'):
+                    current_memory = ResourceParser.parse_memory(requests['memory'])
+                    optimized_memory = max(0.064, current_memory - waste_memory * 0.7)  # Reduce 70% of waste
+                    optimized['memory'] = f"{int(optimized_memory * 1024)}Mi"
+                    
+                # Set limits if they exist
+                if limits.get('cpu'):
+                    current_cpu_limit = ResourceParser.parse_cpu(limits['cpu'])
+                    optimized_cpu_limit = max(ResourceParser.parse_cpu(optimized['cpu']) * 1.5, current_cpu_limit * 0.8)
+                    optimized['cpu_limit'] = f"{int(optimized_cpu_limit * 1000)}m"
+                    
+                if limits.get('memory'):
+                    current_memory_limit = ResourceParser.parse_memory(limits['memory'])
+                    optimized_memory_limit = max(ResourceParser.parse_memory(optimized['memory']) * 1.5, current_memory_limit * 0.8)
+                    optimized['memory_limit'] = f"{int(optimized_memory_limit * 1024)}Mi"
+                    
+        except Exception as e:
+            logger.warning(f"⚠️ Resource optimization calculation failed: {e}")
+            
+        return optimized
+
+    def _create_rightsizing_command_with_manifest(self, opportunity: Dict, optimized_resources: Dict, 
+                                                workload_manifest: Dict, variable_context: Dict):
+        """Create rightsizing command with workload manifest attached"""
+        workload_name = opportunity['target_workload']
+        namespace = opportunity['target_namespace']
+        monthly_savings = opportunity['monthly_savings']
+        waste_cpu = opportunity['waste_cpu_cores']
+        waste_memory = opportunity['waste_memory_gb']
+        
+        # Determine workload type
+        workload_kind = workload_manifest.get('kind', 'Deployment')
+        
+        # Create patch operations based on optimized resources
+        patch_operations = []
+        
+        patch_operations.append({
+            "op": "replace",
+            "path": "/spec/template/spec/containers/0/resources/requests/cpu",
+            "value": optimized_resources['cpu']
+        })
+        
+        patch_operations.append({
+            "op": "replace", 
+            "path": "/spec/template/spec/containers/0/resources/requests/memory",
+            "value": optimized_resources['memory']
+        })
+        
+        if optimized_resources.get('cpu_limit'):
+            patch_operations.append({
+                "op": "replace",
+                "path": "/spec/template/spec/containers/0/resources/limits/cpu", 
+                "value": optimized_resources['cpu_limit']
+            })
+            
+        if optimized_resources.get('memory_limit'):
+            patch_operations.append({
+                "op": "replace",
+                "path": "/spec/template/spec/containers/0/resources/limits/memory",
+                "value": optimized_resources['memory_limit']
+            })
+        
+        patch_json = json.dumps(patch_operations)
+        
+        command_script = f"""
+    # Right-size {workload_name} (${monthly_savings:.0f}/month savings)
+    echo "💰 Right-sizing {workload_name} - Expected savings: ${monthly_savings:.0f}/month"
+    echo "   Reducing CPU waste: {waste_cpu:.2f} cores"
+    echo "   Reducing Memory waste: {waste_memory:.2f} GB"
+    echo "📋 Target workload: {workload_kind}/{workload_name} in namespace {namespace}"
+
+    # Verify target workload exists
+    if ! kubectl get {workload_kind.lower()} {workload_name} -n {namespace} >/dev/null 2>&1; then
+        echo "❌ Target {workload_kind.lower()} {workload_name} not found in namespace {namespace}"
+        exit 1
+    fi
+
+    # Show current resources
+    echo "🔍 Current resource configuration:"
+    kubectl get {workload_kind.lower()} {workload_name} -n {namespace} -o jsonpath='{{.spec.template.spec.containers[0].resources}}'
+    echo
+
+    # Apply optimized resource configuration
+    kubectl patch {workload_kind.lower()} {workload_name} -n {namespace} --type='json' -p='{patch_json}'
+
+    # Wait for rollout to complete
+    kubectl rollout status {workload_kind.lower()}/{workload_name} -n {namespace} --timeout=300s
+
+    # Verify optimized resources
+    echo "✅ Optimized resource configuration:"
+    kubectl get {workload_name} -n {namespace} -o jsonpath='{{.spec.template.spec.containers[0].resources}}'
+    echo
+
+    echo "✅ Right-sizing complete for {workload_name} - ${monthly_savings:.0f}/month savings"
+    """
+        
+        return ExecutableCommand(
+            id=f'rightsize-{workload_name}-{namespace}',
+            command=command_script.strip(),
+            description=f'Right-size {workload_name} (${monthly_savings:.0f}/month savings)',
+            category='execution',
+            subcategory='rightsizing',
+            yaml_content=None,
+            validation_commands=[
+                f"kubectl get {workload_kind.lower()} {workload_name} -n {namespace} -o jsonpath='{{.spec.template.spec.containers[0].resources.requests}}'"
+            ],
+            rollback_commands=[
+                f"kubectl rollout undo {workload_kind.lower()}/{workload_name} -n {namespace}"
+            ],
+            expected_outcome=f"Resources optimized for {workload_name}",
+            success_criteria=[
+                f"CPU optimized to {optimized_resources['cpu']}",
+                f"Memory optimized to {optimized_resources['memory']}", 
+                f"{workload_kind} rollout successful"
+            ],
+            timeout_seconds=600,
+            retry_attempts=2,
+            prerequisites=[f"{workload_kind} {workload_name} exists in namespace {namespace}"],
+            estimated_duration_minutes=5,
+            risk_level="Medium",
+            monitoring_metrics=[f"rightsizing_{workload_name}"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True,
+            real_workload_targets=[f"{namespace}/{workload_name}"],
+            config_derived_complexity=opportunity.get('implementation_complexity', 0.5)
+        )
+
+    def _calculate_optimal_hpa_config(self, deployment_manifest: Dict, opportunity: Dict, 
+                                    variable_context: Dict) -> Dict:
+        """Calculate optimal HPA configuration based on real deployment"""
+        hpa_config = {
+            'min_replicas': 2,
+            'max_replicas': 6,
+            'cpu_target': 70,
+            'memory_target': 70
+        }
+        
+        try:
+            # Analyze current deployment spec
+            spec = deployment_manifest.get('spec', {})
+            current_replicas = spec.get('replicas', 1)
+            
+            # Calculate based on workload characteristics
+            containers = spec.get('template', {}).get('spec', {}).get('containers', [])
+            
+            if containers:
+                # Analyze resource requests to determine scaling potential
+                total_cpu_requests = 0
+                total_memory_requests = 0
+                
+                for container in containers:
+                    resources = container.get('resources', {})
+                    requests = resources.get('requests', {})
+                    
+                    if requests.get('cpu'):
+                        total_cpu_requests += ResourceParser.parse_cpu(requests['cpu'])
+                    if requests.get('memory'):
+                        total_memory_requests += ResourceParser.parse_memory(requests['memory'])
+                
+                # Adjust HPA config based on resource profile
+                if total_cpu_requests > 0.5:  # High CPU workload
+                    hpa_config['cpu_target'] = 60
+                    hpa_config['max_replicas'] = max(6, current_replicas * 4)
+                elif total_memory_requests > 1.0:  # High memory workload
+                    hpa_config['memory_target'] = 60
+                    hpa_config['max_replicas'] = max(4, current_replicas * 3)
+                
+                # Set min_replicas based on current setup
+                hpa_config['min_replicas'] = max(2, current_replicas)
+                
+        except Exception as e:
+            logger.warning(f"⚠️ HPA config calculation failed: {e}")
+            
+        return hpa_config
+
+    def _create_hpa_command_with_manifest(self, opportunity: Dict, hpa_yaml: str, 
+                                        deployment_manifest: Dict, variable_context: Dict):
+        """Create HPA command with deployment manifest attached"""
+        deployment_name = opportunity['target_deployment']
+        namespace = opportunity['target_namespace']
+        monthly_savings = opportunity['monthly_savings']
+        
+        # Extract deployment details for command context
+        deployment_labels = deployment_manifest.get('metadata', {}).get('labels', {})
+        deployment_annotations = deployment_manifest.get('metadata', {}).get('annotations', {})
+        
+        # Create enhanced command with manifest context
+        command_script = f"""
+    # Deploy HPA for {deployment_name} (${monthly_savings:.0f}/month savings)
+    echo "💰 Deploying HPA for {deployment_name} - Expected savings: ${monthly_savings:.0f}/month"
+    echo "🏷️ Target deployment labels: {', '.join(deployment_labels.keys())}"
+    echo "📋 Target namespace: {namespace}"
+
+    # Verify target deployment exists
+    if ! kubectl get deployment {deployment_name} -n {namespace} >/dev/null 2>&1; then
+        echo "❌ Target deployment {deployment_name} not found in namespace {namespace}"
+        exit 1
+    fi
+
+    # Create HPA configuration
+    cat > {deployment_name}-hpa.yaml << 'EOF'
+    {hpa_yaml}
+    EOF
+
+    # Apply HPA
+    kubectl apply -f {deployment_name}-hpa.yaml
+
+    # Wait for HPA to be ready
+    kubectl wait --for=condition=ScalingActive hpa/{deployment_name}-hpa -n {namespace} --timeout=300s
+
+    # Verify HPA is working
+    kubectl get hpa {deployment_name}-hpa -n {namespace}
+    kubectl describe hpa {deployment_name}-hpa -n {namespace}
+
+    echo "✅ HPA deployed for {deployment_name} - ${monthly_savings:.0f}/month savings potential"
+    """
+        
+        return ExecutableCommand(
+            id=f'hpa-deploy-{deployment_name}-{namespace}',
+            command=command_script.strip(),
+            description=f'Deploy HPA for {deployment_name} (${monthly_savings:.0f}/month savings)',
+            category='execution',
+            subcategory='hpa_deployment',
+            yaml_content=hpa_yaml,
+            validation_commands=[
+                f"kubectl get hpa {deployment_name}-hpa -n {namespace}",
+                f"kubectl describe hpa {deployment_name}-hpa -n {namespace}"
+            ],
+            rollback_commands=[
+                f"kubectl delete hpa {deployment_name}-hpa -n {namespace}",
+                f"rm -f {deployment_name}-hpa.yaml"
+            ],
+            expected_outcome=f"{deployment_name} HPA deployed with ${monthly_savings:.0f}/month savings",
+            success_criteria=[
+                f"HPA {deployment_name}-hpa created",
+                "ScalingActive condition met",
+                "Target deployment verified"
+            ],
+            timeout_seconds=600,
+            retry_attempts=2,
+            prerequisites=[f"Deployment {deployment_name} exists in namespace {namespace}"],
+            estimated_duration_minutes=5,
+            risk_level="Medium",
+            monitoring_metrics=[f"hpa_deployment_{deployment_name}"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True,
+            real_workload_targets=[f"{namespace}/{deployment_name}"],
+            config_derived_complexity=opportunity.get('implementation_complexity', 0.5)
+        )
+
+    def _is_assessment_phase(self, phase_type: List, phase_title: str) -> bool:
+        """Enhanced phase type detection for assessment"""
+        assessment_indicators = ['assessment', 'preparation', 'analysis', 'baseline']
+        return (any(indicator in phase_type for indicator in assessment_indicators) or 
+                any(indicator in phase_title.lower() for indicator in assessment_indicators))
+
+    def _is_hpa_phase(self, phase_type: List, phase_title: str) -> bool:
+        """Enhanced phase type detection for HPA"""
+        hpa_indicators = ['hpa', 'autoscaling', 'scaling', 'horizontal']
+        return (any(indicator in phase_type for indicator in hpa_indicators) or 
+                any(indicator in phase_title.lower() for indicator in hpa_indicators))
+
+    def _is_rightsizing_phase(self, phase_type: List, phase_title: str) -> bool:
+        """Enhanced phase type detection for rightsizing"""
+        rightsizing_indicators = ['rightsizing', 'right-sizing', 'resource', 'optimization']
+        return (any(indicator in phase_type for indicator in rightsizing_indicators) or 
+                any(indicator in phase_title.lower() for indicator in rightsizing_indicators))
+
+    def _is_storage_phase(self, phase_type: List, phase_title: str) -> bool:
+        """Enhanced phase type detection for storage"""
+        storage_indicators = ['storage', 'volume', 'pvc', 'persistent']
+        return (any(indicator in phase_type for indicator in storage_indicators) or 
+                any(indicator in phase_title.lower() for indicator in storage_indicators))
+
+    def _is_monitoring_phase(self, phase_type: List, phase_title: str) -> bool:
+        """Enhanced phase type detection for monitoring"""
+        monitoring_indicators = ['monitoring', 'observability', 'metrics', 'dashboard']
+        return (any(indicator in phase_type for indicator in monitoring_indicators) or 
+                any(indicator in phase_title.lower() for indicator in monitoring_indicators))
+
+    def _is_validation_phase(self, phase_type: List, phase_title: str) -> bool:
+        """Enhanced phase type detection for validation"""
+        validation_indicators = ['validation', 'verify', 'test', 'check']
+        return (any(indicator in phase_type for indicator in validation_indicators) or 
+                any(indicator in phase_title.lower() for indicator in validation_indicators))
 
     def _analyze_comprehensive_cluster_state(self, cluster_config: Dict) -> Dict:
         """Analyze comprehensive cluster state using imported utilities"""
