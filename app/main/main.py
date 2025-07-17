@@ -63,12 +63,15 @@ def register_all_routes_with_multi_subscription():
         from app.interface.api_routes import register_api_routes
         register_api_routes(app)
         
-        # Register alerts routes (subscription-aware)
+        # FIXED: Register alerts routes (subscription-aware) 
         try:
-            from services.alerts_integration import register_alerts_routes
+            from app.alerts import register_alerts_routes
             register_alerts_routes(app)
-        except ImportError:
-            logger.warning("⚠️ Alerts routes not available")
+            logger.info("✅ Alerts routes registered successfully")
+        except ImportError as import_error:
+            logger.warning(f"⚠️ Alerts routes not available: {import_error}")
+        except Exception as alerts_error:
+            logger.error(f"❌ Failed to register alerts routes: {alerts_error}")
         
         # Register enhanced utility routes
         register_enhanced_utility_routes()

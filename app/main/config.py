@@ -27,6 +27,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+ALERTS_AVAILABLE = True
 # Thread-safe analysis storage with subscription awareness
 _analysis_sessions = {}
 _analysis_lock = threading.Lock()
@@ -165,14 +166,10 @@ def initialize_subscription_aware_alerts():
     global alerts_manager
     
     try:
-        from app.alerts.alerts_manager import (
-            EnhancedAlertsManager, 
-            init_enhanced_alerts_service, 
-            shutdown_enhanced_alerts_service
-        )
+        from app.alerts import initialize_alerts_system
         
         # Initialize with subscription support
-        alerts_manager = init_enhanced_alerts_service()
+        alerts_manager = initialize_alerts_system()
         
         if alerts_manager:
             logger.info("✅ Subscription-aware alerts manager initialized successfully")
@@ -183,6 +180,10 @@ def initialize_subscription_aware_alerts():
             
     except ImportError as e:
         logger.warning(f"⚠️ Subscription-aware alerts manager not available: {e}")
+        alerts_manager = None
+        return False
+    except Exception as e:
+        logger.error(f"❌ Error initializing alerts system: {e}")
         alerts_manager = None
         return False
 
@@ -379,5 +380,7 @@ __all__ = [
     'initialize_application_with_multi_subscription',
     'get_multi_subscription_status',
     'validate_multi_subscription_configuration',
-    'CLUSTER_CONFIG_AVAILABLE'
+    'CLUSTER_CONFIG_AVAILABLE',
+    'ALERTS_AVAILABLE'
+    'alerts_manager'
 ]

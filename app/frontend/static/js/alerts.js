@@ -1,36 +1,48 @@
 /**
  * ============================================================================
- * FIXED ALERTS MANAGEMENT - FRONTEND WITH ERROR HANDLING
+ * ENHANCED ALERTS MANAGEMENT - FRONTEND WITH MULTI-CHANNEL SUPPORT (COMPLETE)
  * ============================================================================
- * Enhanced version with proper error handling and fallback behavior
+ * Complete version with all functions restored and undefined references fixed
  * ============================================================================
  */
 
-// Global alerts state
+// Global alerts state with enhanced features
 const AlertsState = {
     alerts: [],
     loading: false,
     currentClusterId: null,
     emailConfigured: false,
+    slackConfigured: false,
     systemAvailable: true,
-    lastError: null
+    lastError: null,
+    currentFilter: 'all', // all, active, paused
+    inAppNotifications: [],
+    unreadNotificationsCount: 0,
+    notificationChannels: {
+        email: false,
+        slack: false,
+        inApp: true
+    }
 };
 
 /**
- * Initialize alerts system with enhanced error handling
+ * Initialize alerts system with enhanced error handling and multi-channel support
  */
 function initializeAlertsSystem() {
-    console.log('🔔 Initializing enhanced alerts system...');
+    console.log('🔔 Initializing enhanced alerts system with multi-channel support...');
     
     // First check if alerts system is available
     checkAlertsSystemStatus()
         .then(() => {
             if (AlertsState.systemAvailable) {
-                // Check email configuration
-                checkEmailConfiguration();
+                // Check notification channel configurations
+                checkNotificationChannels();
                 
                 // Load existing alerts
                 loadAlerts();
+                
+                // Load in-app notifications (with error handling)
+                loadInAppNotifications();
                 
                 // Setup event listeners
                 setupAlertsEventListeners();
@@ -43,7 +55,12 @@ function initializeAlertsSystem() {
                     loadClusterAlerts(AlertsState.currentClusterId);
                 }
                 
-                console.log('✅ Alerts system initialized successfully');
+                // Setup periodic notification refresh (only if endpoint exists)
+                if (AlertsState.systemAvailable) {
+                    setInterval(loadInAppNotifications, 30000); // Refresh every 30 seconds
+                }
+                
+                console.log('✅ Enhanced alerts system initialized successfully');
             } else {
                 console.warn('⚠️ Alerts system not available - showing fallback UI');
                 showAlertsUnavailableMessage();
@@ -57,7 +74,7 @@ function initializeAlertsSystem() {
 }
 
 /**
- * Check if alerts system is available
+ * Check if alerts system is available with enhanced status checking
  */
 function checkAlertsSystemStatus() {
     return fetch('/api/alerts/system-status')
@@ -70,13 +87,22 @@ function checkAlertsSystemStatus() {
         .then(data => {
             if (data.status === 'success') {
                 AlertsState.systemAvailable = data.alerts_available && data.alerts_manager_initialized;
-                AlertsState.emailConfigured = data.email_configured;
                 
-                console.log('📊 Alerts system status:', {
+                // Enhanced notification channels detection
+                if (data.notification_channels) {
+                    AlertsState.notificationChannels.email = data.notification_channels.email?.configured || false;
+                    AlertsState.notificationChannels.slack = data.notification_channels.slack?.configured || false;
+                    AlertsState.notificationChannels.inApp = data.notification_channels.in_app?.available || true;
+                }
+                
+                console.log('📊 Enhanced alerts system status:', {
                     available: AlertsState.systemAvailable,
-                    emailConfigured: AlertsState.emailConfigured,
+                    channels: AlertsState.notificationChannels,
                     managerType: data.alerts_manager_type
                 });
+                
+                // Update UI with channel status
+                updateNotificationChannelsUI();
                 
                 return true;
             } else {
@@ -88,6 +114,395 @@ function checkAlertsSystemStatus() {
             AlertsState.systemAvailable = false;
             throw error;
         });
+}
+
+/**
+ * Check notification channel configurations
+ */
+function checkNotificationChannels() {
+    if (!AlertsState.systemAvailable) return;
+    
+    fetch('/api/alerts/email-config')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Email config check failed: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                AlertsState.notificationChannels.email = data.email_configured;
+                AlertsState.notificationChannels.slack = data.slack_configured;
+                AlertsState.notificationChannels.inApp = data.in_app_available;
+                
+                updateNotificationChannelsUI();
+            } else {
+                throw new Error(data.message || 'Notification config check failed');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error checking notification channels:', error);
+            updateNotificationChannelsUI(error.message);
+        });
+}
+
+/**
+ * Update notification channels status in UI
+ */
+function updateNotificationChannelsUI(errorMessage = null) {
+    const channelElements = document.querySelectorAll('.notification-channels-status');
+    
+    channelElements.forEach(element => {
+        let channelsHtml = '';
+        
+        if (errorMessage) {
+            channelsHtml = `
+                <i class="fas fa-exclamation-triangle text-warning me-1"></i>
+                Error checking channels: ${errorMessage}
+            `;
+        } else {
+            const channels = [];
+            
+            if (AlertsState.notificationChannels.email) {
+                channels.push('<i class="fas fa-envelope text-success me-1"></i>Email');
+            } else {
+                channels.push('<i class="fas fa-envelope text-muted me-1"></i><span class="text-muted">Email</span>');
+            }
+            
+            if (AlertsState.notificationChannels.slack) {
+                channels.push('<i class="fab fa-slack text-success me-1"></i>Slack');
+            } else {
+                channels.push('<i class="fab fa-slack text-muted me-1"></i><span class="text-muted">Slack</span>');
+            }
+            
+            if (AlertsState.notificationChannels.inApp) {
+                channels.push('<i class="fas fa-bell text-success me-1"></i>In-App');
+            }
+            
+            channelsHtml = `
+                <div class="notification-channels">
+                    <small class="text-muted">Notification Channels:</small><br>
+                    ${channels.join(' | ')}
+                </div>
+            `;
+        }
+        
+        element.innerHTML = channelsHtml;
+    });
+    
+    // Update individual channel status indicators
+    updateIndividualChannelStatus();
+}
+
+/**
+ * Update individual channel status indicators in the UI
+ */
+function updateIndividualChannelStatus() {
+    // Update email status
+    const emailStatus = document.getElementById('email-status-indicator');
+    const emailChannelStatus = document.getElementById('email-channel-status');
+    
+    if (emailStatus) {
+        emailStatus.innerHTML = AlertsState.notificationChannels.email 
+            ? '<i class="fas fa-circle text-success"></i>' 
+            : '<i class="fas fa-circle text-muted"></i>';
+    }
+    
+    if (emailChannelStatus) {
+        const statusText = emailChannelStatus.querySelector('.channel-status-text');
+        const icon = emailChannelStatus.querySelector('.fa-envelope');
+        
+        if (statusText) {
+            statusText.textContent = AlertsState.notificationChannels.email ? 'Configured' : 'Not Configured';
+            statusText.className = AlertsState.notificationChannels.email 
+                ? 'channel-status-text text-success' 
+                : 'channel-status-text text-muted';
+        }
+        
+        if (icon) {
+            icon.className = AlertsState.notificationChannels.email 
+                ? 'fas fa-envelope fa-2x text-success mb-2' 
+                : 'fas fa-envelope fa-2x text-muted mb-2';
+        }
+    }
+    
+    // Update Slack status
+    const slackStatus = document.getElementById('slack-status-indicator');
+    const slackChannelStatus = document.getElementById('slack-channel-status');
+    
+    if (slackStatus) {
+        slackStatus.innerHTML = AlertsState.notificationChannels.slack 
+            ? '<i class="fas fa-circle text-success"></i>' 
+            : '<i class="fas fa-circle text-muted"></i>';
+    }
+    
+    if (slackChannelStatus) {
+        const statusText = slackChannelStatus.querySelector('.channel-status-text');
+        const icon = slackChannelStatus.querySelector('.fa-slack');
+        
+        if (statusText) {
+            statusText.textContent = AlertsState.notificationChannels.slack ? 'Configured' : 'Not Configured';
+            statusText.className = AlertsState.notificationChannels.slack 
+                ? 'channel-status-text text-success' 
+                : 'channel-status-text text-muted';
+        }
+        
+        if (icon) {
+            icon.className = AlertsState.notificationChannels.slack 
+                ? 'fab fa-slack fa-2x text-success mb-2' 
+                : 'fab fa-slack fa-2x text-muted mb-2';
+        }
+    }
+    
+    // Update test button states
+    const testSlackBtn = document.getElementById('test-slack-btn');
+    if (testSlackBtn) {
+        testSlackBtn.disabled = !AlertsState.notificationChannels.slack;
+        if (!AlertsState.notificationChannels.slack) {
+            testSlackBtn.title = 'Slack webhook not configured';
+        } else {
+            testSlackBtn.title = 'Test Slack integration';
+        }
+    }
+}
+
+/**
+ * Load in-app notifications (FIXED: with proper error handling)
+ */
+function loadInAppNotifications() {
+    if (!AlertsState.systemAvailable) return;
+    
+    // Check if in-app notifications endpoint exists
+    fetch('/api/alerts/health')
+        .then(response => response.json())
+        .then(healthData => {
+            // Only try to load notifications if the system supports it
+            if (healthData.health && 
+                healthData.health.notification_channels && 
+                healthData.health.notification_channels.in_app) {
+                return fetch('/api/notifications/in-app?unread_only=false&limit=50');
+            } else {
+                // Mock empty notifications for now
+                return Promise.resolve({
+                    ok: true,
+                    json: () => Promise.resolve({
+                        status: 'success',
+                        notifications: [],
+                        unread_count: 0
+                    })
+                });
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                // If endpoint doesn't exist, just use empty notifications
+                if (response.status === 404) {
+                    console.log('ℹ️ In-app notifications endpoint not available - using mock data');
+                    AlertsState.inAppNotifications = [];
+                    AlertsState.unreadNotificationsCount = 0;
+                    updateInAppNotificationsUI();
+                    updateNotificationBadge();
+                    return;
+                }
+                throw new Error(`Failed to load notifications: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.status === 'success') {
+                AlertsState.inAppNotifications = data.notifications || [];
+                AlertsState.unreadNotificationsCount = data.unread_count || 0;
+                
+                updateInAppNotificationsUI();
+                updateNotificationBadge();
+                
+                console.log(`📱 Loaded ${data.notifications?.length || 0} in-app notifications (${data.unread_count || 0} unread)`);
+            }
+        })
+        .catch(error => {
+            console.log('ℹ️ In-app notifications not available:', error.message);
+            // Use fallback empty state
+            AlertsState.inAppNotifications = [];
+            AlertsState.unreadNotificationsCount = 0;
+            updateInAppNotificationsUI();
+            updateNotificationBadge();
+        });
+}
+
+/**
+ * Update in-app notifications UI
+ */
+function updateInAppNotificationsUI() {
+    const container = document.getElementById('in-app-notifications-container');
+    if (!container) return;
+    
+    if (AlertsState.inAppNotifications.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-3">
+                <i class="fas fa-bell-slash fa-2x mb-2"></i>
+                <p>No notifications yet</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const notificationsHtml = AlertsState.inAppNotifications.map(notification => `
+        <div class="notification-item ${notification.read ? 'read' : 'unread'} ${notification.dismissed ? 'dismissed' : ''}" 
+             data-notification-id="${notification.id}">
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="notification-content flex-grow-1">
+                    <div class="notification-header d-flex align-items-center">
+                        <i class="fas fa-${getNotificationIcon(notification.type)} me-2 text-${getNotificationColor(notification.type)}"></i>
+                        <strong>${escapeHtml(notification.title)}</strong>
+                        ${!notification.read ? '<span class="badge bg-primary ms-2">New</span>' : ''}
+                    </div>
+                    <div class="notification-message mt-1">
+                        ${escapeHtml(notification.message)}
+                    </div>
+                    <div class="notification-meta mt-2">
+                        <small class="text-muted">
+                            <i class="fas fa-clock me-1"></i>
+                            ${formatDateTime(notification.timestamp)}
+                            ${notification.cluster_id ? `| <i class="fas fa-dharmachakra me-1"></i>Cluster: ${notification.cluster_id}` : ''}
+                        </small>
+                    </div>
+                </div>
+                <div class="notification-actions">
+                    <div class="btn-group btn-group-sm">
+                        ${!notification.read ? `
+                            <button class="btn btn-outline-primary btn-sm" 
+                                    onclick="markNotificationAsRead('${notification.id}')" 
+                                    title="Mark as read">
+                                <i class="fas fa-check"></i>
+                            </button>
+                        ` : ''}
+                        <button class="btn btn-outline-secondary btn-sm" 
+                                onclick="dismissNotification('${notification.id}')" 
+                                title="Dismiss">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    container.innerHTML = notificationsHtml;
+}
+
+/**
+ * Update notification badge in UI
+ */
+function updateNotificationBadge() {
+    const badges = document.querySelectorAll('.notification-badge, .notifications-counter');
+    badges.forEach(badge => {
+        if (AlertsState.unreadNotificationsCount > 0) {
+            badge.textContent = AlertsState.unreadNotificationsCount;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * Mark notification as read (FIXED: with endpoint check)
+ */
+function markNotificationAsRead(notificationId) {
+    if (!AlertsState.systemAvailable) return;
+    
+    // Try to call the endpoint, but handle gracefully if it doesn't exist
+    fetch('/api/notifications/in-app', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            notification_ids: [notificationId],
+            action: 'mark_read'
+        })
+    })
+    .then(response => {
+        if (response.status === 404) {
+            // Endpoint doesn't exist, just update locally
+            console.log('ℹ️ In-app notifications API not available - updating locally');
+            markNotificationAsReadLocally(notificationId);
+            return;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.status === 'success') {
+            markNotificationAsReadLocally(notificationId);
+        } else if (data) {
+            showNotification('Failed to mark notification as read', 'error');
+        }
+    })
+    .catch(error => {
+        console.log('ℹ️ Marking notification as read locally:', error.message);
+        markNotificationAsReadLocally(notificationId);
+    });
+}
+
+/**
+ * Mark notification as read locally
+ */
+function markNotificationAsReadLocally(notificationId) {
+    const notification = AlertsState.inAppNotifications.find(n => n.id === notificationId);
+    if (notification && !notification.read) {
+        notification.read = true;
+        AlertsState.unreadNotificationsCount = Math.max(0, AlertsState.unreadNotificationsCount - 1);
+        updateInAppNotificationsUI();
+        updateNotificationBadge();
+    }
+}
+
+/**
+ * Dismiss notification (FIXED: with endpoint check)
+ */
+function dismissNotification(notificationId) {
+    if (!AlertsState.systemAvailable) return;
+    
+    // Try to call the endpoint, but handle gracefully if it doesn't exist
+    fetch('/api/notifications/in-app', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            notification_ids: [notificationId],
+            action: 'dismiss'
+        })
+    })
+    .then(response => {
+        if (response.status === 404) {
+            // Endpoint doesn't exist, just update locally
+            console.log('ℹ️ In-app notifications API not available - updating locally');
+            dismissNotificationLocally(notificationId);
+            return;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.status === 'success') {
+            dismissNotificationLocally(notificationId);
+        } else if (data) {
+            showNotification('Failed to dismiss notification', 'error');
+        }
+    })
+    .catch(error => {
+        console.log('ℹ️ Dismissing notification locally:', error.message);
+        dismissNotificationLocally(notificationId);
+    });
+}
+
+/**
+ * Dismiss notification locally
+ */
+function dismissNotificationLocally(notificationId) {
+    AlertsState.inAppNotifications = AlertsState.inAppNotifications.filter(n => n.id !== notificationId);
+    updateInAppNotificationsUI();
+    updateNotificationBadge();
 }
 
 /**
@@ -134,53 +549,7 @@ function showAlertsUnavailableMessage() {
 }
 
 /**
- * Check email configuration status with error handling
- */
-function checkEmailConfiguration() {
-    if (!AlertsState.systemAvailable) return;
-    
-    fetch('/api/alerts/email-config')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Email config check failed: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.status === 'success') {
-                AlertsState.emailConfigured = data.email_configured;
-                updateEmailConfigStatus(data.email_configured);
-            } else {
-                throw new Error(data.message || 'Email config check failed');
-            }
-        })
-        .catch(error => {
-            console.error('❌ Error checking email config:', error);
-            updateEmailConfigStatus(false, error.message);
-        });
-}
-
-/**
- * Update email configuration status in UI with error handling
- */
-function updateEmailConfigStatus(configured, errorMessage = null) {
-    const statusElements = document.querySelectorAll('.email-config-status');
-    statusElements.forEach(element => {
-        if (errorMessage) {
-            element.innerHTML = `<i class="fas fa-exclamation-triangle text-warning me-1"></i>Email configuration check failed: ${errorMessage}`;
-            element.className = 'email-config-status text-warning small';
-        } else if (configured) {
-            element.innerHTML = '<i class="fas fa-check-circle text-success me-1"></i>Email notifications enabled';
-            element.className = 'email-config-status text-success small';
-        } else {
-            element.innerHTML = '<i class="fas fa-exclamation-triangle text-warning me-1"></i>Email not configured - alerts will be logged only';
-            element.className = 'email-config-status text-warning small';
-        }
-    });
-}
-
-/**
- * Setup event listeners for alerts with error handling
+ * Setup event listeners for alerts with enhanced features (FIXED)
  */
 function setupAlertsEventListeners() {
     // Budget alert form submission
@@ -189,11 +558,14 @@ function setupAlertsEventListeners() {
         budgetForm.addEventListener('submit', handleBudgetAlertSubmission);
     }
     
-    // Advanced alerts form if exists
+    // FIXED: Advanced alerts form - check if it exists before adding listener
     const advancedForm = document.getElementById('advanced-alerts-form');
     if (advancedForm) {
         advancedForm.addEventListener('submit', handleAdvancedAlertSubmission);
     }
+    
+    // FIXED: Alert filtering event listeners
+    setupAlertFiltering();
     
     // Alert list interactions
     document.addEventListener('click', function(event) {
@@ -221,6 +593,119 @@ function setupAlertsEventListeners() {
             deleteAlert(alertId);
         }
     });
+}
+
+/**
+ * FIXED: Setup alert filtering functionality
+ */
+function setupAlertFiltering() {
+    // Create filter buttons if they don't exist
+    const alertsContainer = document.getElementById('alerts-list-container');
+    if (alertsContainer && !document.getElementById('alerts-filter-buttons')) {
+        const filterButtonsHtml = `
+            <div id="alerts-filter-buttons" class="mb-3">
+                <div class="btn-group" role="group" aria-label="Alert filters">
+                    <button type="button" class="btn btn-outline-primary active" 
+                            data-filter="all" onclick="filterAlerts('all')">
+                        <i class="fas fa-list me-1"></i>All (<span id="all-count">0</span>)
+                    </button>
+                    <button type="button" class="btn btn-outline-success" 
+                            data-filter="active" onclick="filterAlerts('active')">
+                        <i class="fas fa-play me-1"></i>Active (<span id="active-count">0</span>)
+                    </button>
+                    <button type="button" class="btn btn-outline-warning" 
+                            data-filter="paused" onclick="filterAlerts('paused')">
+                        <i class="fas fa-pause me-1"></i>Paused (<span id="paused-count">0</span>)
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        alertsContainer.insertAdjacentHTML('beforebegin', filterButtonsHtml);
+    }
+}
+
+/**
+ * FIXED: Enhanced alert filtering with proper counting
+ */
+function filterAlerts(filter) {
+    console.log(`🔍 Filtering alerts by: ${filter}`);
+    
+    AlertsState.currentFilter = filter;
+    
+    // Update button states
+    const filterButtons = document.querySelectorAll('#alerts-filter-buttons .btn');
+    filterButtons.forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.filter === filter) {
+            btn.classList.add('active');
+        }
+    });
+    
+    // Filter and display alerts
+    const alertItems = document.querySelectorAll('.alert-item');
+    let visibleCount = 0;
+    
+    alertItems.forEach(item => {
+        const alertStatus = item.dataset.status || 'active';
+        let shouldShow = false;
+        
+        switch (filter) {
+            case 'all':
+                shouldShow = true;
+                break;
+            case 'active':
+                shouldShow = alertStatus === 'active';
+                break;
+            case 'paused':
+                shouldShow = alertStatus === 'paused';
+                break;
+            default:
+                shouldShow = true;
+        }
+        
+        if (shouldShow) {
+            item.style.display = 'block';
+            item.style.animation = 'fadeIn 0.3s ease-in';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+    
+    // Update filter counts
+    updateFilterCounts();
+    
+    console.log(`✅ Filter applied: ${filter}, showing ${visibleCount} alerts`);
+}
+
+/**
+ * Update filter button counts
+ */
+function updateFilterCounts() {
+    const alertItems = document.querySelectorAll('.alert-item');
+    
+    let allCount = alertItems.length;
+    let activeCount = 0;
+    let pausedCount = 0;
+    
+    alertItems.forEach(item => {
+        const status = item.dataset.status || 'active';
+        if (status === 'active') {
+            activeCount++;
+        } else if (status === 'paused') {
+            pausedCount++;
+        }
+    });
+    
+    // Update count displays
+    const allCountEl = document.getElementById('all-count');
+    const activeCountEl = document.getElementById('active-count');
+    const pausedCountEl = document.getElementById('paused-count');
+    
+    if (allCountEl) allCountEl.textContent = allCount;
+    if (activeCountEl) activeCountEl.textContent = activeCount;
+    if (pausedCountEl) pausedCountEl.textContent = pausedCount;
 }
 
 /**
@@ -272,6 +757,13 @@ function handleBudgetAlertSubmission(event) {
                 showNotification('Budget alert created successfully!', 'success');
                 event.target.reset();
                 loadAlerts(); // Refresh alerts list
+                
+                // Create in-app notification locally
+                createLocalInAppNotification(
+                    'New Alert Created',
+                    `Budget alert for $${budgetAmount.toLocaleString()} has been created successfully`,
+                    'success'
+                );
             } else {
                 throw new Error(result.message || 'Failed to create alert');
             }
@@ -284,6 +776,108 @@ function handleBudgetAlertSubmission(event) {
             submitBtn.innerHTML = originalText;
             submitBtn.disabled = false;
         });
+}
+
+/**
+ * Handle advanced alert form submission (RESTORED FUNCTION)
+ */
+function handleAdvancedAlertSubmission(event) {
+    event.preventDefault();
+    
+    if (!AlertsState.systemAvailable) {
+        showNotification('Alerts system is currently unavailable', 'error');
+        return;
+    }
+    
+    const formData = new FormData(event.target);
+    
+    // Get selected notification channels
+    const selectedChannels = [];
+    const channelCheckboxes = event.target.querySelectorAll('input[name="channels"]:checked');
+    channelCheckboxes.forEach(checkbox => {
+        selectedChannels.push(checkbox.value);
+    });
+    
+    const alertData = {
+        name: formData.get('name'),
+        alert_type: formData.get('alert_type'),
+        threshold_amount: parseFloat(formData.get('threshold_amount')) || 0,
+        threshold_percentage: parseFloat(formData.get('threshold_percentage')) || 0,
+        email: formData.get('email'),
+        notification_frequency: formData.get('notification_frequency'),
+        cluster_id: AlertsState.currentClusterId,
+        notification_channels: selectedChannels
+    };
+    
+    // Validation
+    if (!alertData.name) {
+        showNotification('Please enter an alert name', 'error');
+        return;
+    }
+    
+    if (!alertData.email || !isValidEmail(alertData.email)) {
+        showNotification('Please enter a valid email address', 'error');
+        return;
+    }
+    
+    if (alertData.threshold_amount <= 0 && alertData.threshold_percentage <= 0) {
+        showNotification('Please set either a threshold amount or percentage', 'error');
+        return;
+    }
+    
+    // Show loading state
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating alert...';
+    submitBtn.disabled = true;
+    
+    createAlert(alertData)
+        .then(result => {
+            if (result.status === 'success') {
+                showNotification('Advanced alert created successfully!', 'success');
+                event.target.reset();
+                loadAlerts(); // Refresh alerts list
+                
+                // Create in-app notification locally
+                createLocalInAppNotification(
+                    'Advanced Alert Created',
+                    `Alert "${alertData.name}" has been created with ${selectedChannels.length} notification channel(s)`,
+                    'success'
+                );
+            } else {
+                throw new Error(result.message || 'Failed to create alert');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error creating advanced alert:', error);
+            showNotification(`Failed to create alert: ${error.message}`, 'error');
+        })
+        .finally(() => {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        });
+}
+
+/**
+ * Create a local in-app notification (fallback)
+ */
+function createLocalInAppNotification(title, message, type = 'info') {
+    const notification = {
+        id: Date.now().toString(),
+        title: title,
+        message: message,
+        type: type,
+        timestamp: new Date().toISOString(),
+        read: false,
+        dismissed: false,
+        cluster_id: AlertsState.currentClusterId
+    };
+    
+    AlertsState.inAppNotifications.unshift(notification);
+    AlertsState.unreadNotificationsCount += 1;
+    
+    updateInAppNotificationsUI();
+    updateNotificationBadge();
 }
 
 /**
@@ -315,7 +909,7 @@ function createAlert(alertData) {
 }
 
 /**
- * Load all alerts with enhanced error handling
+ * Load all alerts with enhanced error handling and filtering support
  */
 function loadAlerts() {
     if (!AlertsState.systemAvailable) {
@@ -344,6 +938,10 @@ function loadAlerts() {
                 AlertsState.alerts = data.alerts;
                 displayAlerts(data.alerts);
                 updateAlertsCounter(data.alerts.length);
+                updateFilterCounts();
+                
+                // Apply current filter
+                filterAlerts(AlertsState.currentFilter);
             } else {
                 throw new Error(data.message || 'Failed to load alerts');
             }
@@ -366,25 +964,7 @@ function loadAlerts() {
 }
 
 /**
- * Display error message in alerts container
- */
-function displayErrorMessage(title, message) {
-    const container = document.getElementById('alerts-list-container');
-    if (!container) return;
-    
-    container.innerHTML = `
-        <div class="alert alert-danger">
-            <h6><i class="fas fa-exclamation-triangle me-2"></i>${escapeHtml(title)}</h6>
-            <p class="mb-2">${escapeHtml(message)}</p>
-            <button class="btn btn-sm btn-outline-danger" onclick="loadAlerts()">
-                <i class="fas fa-sync me-1"></i>Retry
-            </button>
-        </div>
-    `;
-}
-
-/**
- * Load alerts for specific cluster with error handling
+ * Load cluster-specific alerts (RESTORED FUNCTION)
  */
 function loadClusterAlerts(clusterId) {
     if (!AlertsState.systemAvailable) return;
@@ -410,7 +990,26 @@ function loadClusterAlerts(clusterId) {
 }
 
 /**
- * Display alerts in the UI with enhanced error handling
+ * Display cluster-specific alerts (RESTORED FUNCTION)
+ */
+function displayClusterAlerts(alerts) {
+    // Update alerts tab badge if exists
+    const alertsTab = document.querySelector('#alerts-tab');
+    if (alertsTab && alerts.length > 0) {
+        const existingBadge = alertsTab.querySelector('.badge');
+        if (existingBadge) {
+            existingBadge.textContent = alerts.length;
+        } else {
+            alertsTab.innerHTML += ` <span class="badge bg-primary ms-1">${alerts.length}</span>`;
+        }
+    }
+    
+    // Update alerts list in the alerts tab
+    displayAlerts(alerts);
+}
+
+/**
+ * Display alerts in the UI with enhanced status support
  */
 function displayAlerts(alerts) {
     const container = document.getElementById('alerts-list-container');
@@ -433,19 +1032,25 @@ function displayAlerts(alerts) {
     }
     
     const alertsHTML = alerts.map(alert => `
-        <div class="alert-item card mb-3" data-alert-id="${alert.id}" data-status="${alert.status}">
+        <div class="alert-item card mb-3" 
+             data-alert-id="${alert.id}" 
+             data-status="${alert.status || 'active'}">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <h6 class="card-title mb-2">
                             ${escapeHtml(alert.name)}
-                            <span class="badge ${getStatusBadgeClass(alert.status)} ms-2">${alert.status}</span>
+                            <span class="badge ${getStatusBadgeClass(alert.status || 'active')} ms-2">
+                                ${(alert.status || 'active').toUpperCase()}
+                            </span>
                         </h6>
                         <div class="row text-sm">
                             <div class="col-md-6">
                                 <div class="mb-1">
                                     <strong>Threshold:</strong> 
-                                    ${alert.threshold_amount > 0 ? '$' + alert.threshold_amount.toLocaleString() : alert.threshold_percentage + '%'}
+                                    ${alert.threshold_amount > 0 
+                                        ? '$' + alert.threshold_amount.toLocaleString() 
+                                        : alert.threshold_percentage + '%'}
                                 </div>
                                 <div class="mb-1">
                                     <strong>Email:</strong> ${escapeHtml(alert.email)}
@@ -469,6 +1074,12 @@ function displayAlerts(alerts) {
                                 </small>
                             </div>
                         ` : ''}
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-bell me-1"></i>
+                                Channels: ${getNotificationChannelsText(alert)}
+                            </small>
+                        </div>
                     </div>
                     <div class="alert-actions">
                         <div class="btn-group btn-group-sm">
@@ -479,9 +1090,9 @@ function displayAlerts(alerts) {
                             </button>
                             <button class="btn btn-outline-warning pause-alert-btn" 
                                     data-alert-id="${alert.id}" 
-                                    data-action="${alert.status === 'active' ? 'pause' : 'resume'}"
-                                    title="${alert.status === 'active' ? 'Pause' : 'Resume'} alert">
-                                <i class="fas fa-${alert.status === 'active' ? 'pause' : 'play'}"></i>
+                                    data-action="${(alert.status || 'active') === 'active' ? 'pause' : 'resume'}"
+                                    title="${(alert.status || 'active') === 'active' ? 'Pause' : 'Resume'} alert">
+                                <i class="fas fa-${(alert.status || 'active') === 'active' ? 'pause' : 'play'}"></i>
                             </button>
                             <button class="btn btn-outline-danger delete-alert-btn" 
                                     data-alert-id="${alert.id}" 
@@ -498,11 +1109,8 @@ function displayAlerts(alerts) {
     container.innerHTML = alertsHTML;
 }
 
-// Enhanced utility functions and other methods...
-// (Rest of the functions remain the same with added error handling)
-
 /**
- * Test alert notification with enhanced error handling
+ * Test alert notification with enhanced multi-channel support
  */
 function testAlert(alertId) {
     if (!AlertsState.systemAvailable) {
@@ -527,7 +1135,23 @@ function testAlert(alertId) {
         })
         .then(result => {
             if (result.status === 'success') {
-                showNotification('Test notification sent successfully!', 'success');
+                const channels = result.channels_tested || [];
+                const channelsText = channels.length > 0 ? channels.join(', ') : 'unknown channels';
+                showNotification(`Test notification sent successfully via: ${channelsText}!`, 'success');
+                
+                // Show detailed channel status
+                if (result.email_configured !== undefined || result.slack_configured !== undefined) {
+                    const channelStatus = [];
+                    if (result.email_configured) channelStatus.push('✅ Email');
+                    else channelStatus.push('❌ Email');
+                    
+                    if (result.slack_configured) channelStatus.push('✅ Slack');
+                    else channelStatus.push('❌ Slack');
+                    
+                    if (result.in_app_available) channelStatus.push('✅ In-App');
+                    
+                    console.log(`📧 Channel status: ${channelStatus.join(', ')}`);
+                }
             } else {
                 throw new Error(result.message || 'Failed to send test notification');
             }
@@ -541,25 +1165,6 @@ function testAlert(alertId) {
             button.disabled = false;
         });
     }
-}
-
-/**
- * Display alerts in cluster-specific view
- */
-function displayClusterAlerts(alerts) {
-    // Update alerts tab badge if exists
-    const alertsTab = document.querySelector('#alerts-tab');
-    if (alertsTab && alerts.length > 0) {
-        const existingBadge = alertsTab.querySelector('.badge');
-        if (existingBadge) {
-            existingBadge.textContent = alerts.length;
-        } else {
-            alertsTab.innerHTML += ` <span class="badge bg-primary ms-1">${alerts.length}</span>`;
-        }
-    }
-    
-    // Update alerts list in the alerts tab
-    displayAlerts(alerts);
 }
 
 /**
@@ -594,6 +1199,13 @@ function pauseResumeAlert(alertId, action) {
             if (result.status === 'success') {
                 showNotification(result.message, 'success');
                 loadAlerts(); // Refresh to show updated status
+                
+                // Create in-app notification
+                createLocalInAppNotification(
+                    `Alert ${action.charAt(0).toUpperCase() + action.slice(1)}d`,
+                    `Alert ${alertId} has been ${action}d successfully`,
+                    'info'
+                );
             } else {
                 throw new Error(result.message || `Failed to ${action} alert`);
             }
@@ -610,73 +1222,73 @@ function pauseResumeAlert(alertId, action) {
 }
 
 /**
- * Delete alert with enhanced error handling
+ * Test Slack notification (RESTORED FUNCTION)
  */
-function deleteAlert(alertId) {
+function testSlackNotification() {
     if (!AlertsState.systemAvailable) {
         showNotification('Alerts system is currently unavailable', 'warning');
         return;
     }
     
-    if (!confirm('Are you sure you want to delete this alert? This action cannot be undone.')) {
+    if (!AlertsState.notificationChannels.slack) {
+        showNotification('Slack integration not configured. Please set SLACK_WEBHOOK_URL environment variable.', 'warning');
         return;
     }
     
-    const alertItem = document.querySelector(`[data-alert-id="${alertId}"]`);
-    if (alertItem) {
-        alertItem.style.opacity = '0.5';
-        alertItem.style.pointerEvents = 'none';
+    const button = document.getElementById('test-slack-btn');
+    if (button) {
+        const originalContent = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Testing...';
+        button.disabled = true;
         
-        fetch(`/api/alerts/${alertId}`, {
-            method: 'DELETE'
+        fetch('/api/notifications/slack/test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                title: 'Test Slack Integration',
+                message: 'This is a test message from AKS Cost Intelligence alerts system.'
+            })
         })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Request failed: ${response.status}`);
-            }
-            return response.json();
-        })
+        .then(response => response.json())
         .then(result => {
             if (result.status === 'success') {
-                showNotification('Alert deleted successfully!', 'success');
-                alertItem.remove();
-                
-                // Update counter
-                const remainingAlerts = document.querySelectorAll('.alert-item').length;
-                updateAlertsCounter(remainingAlerts);
-                
-                // Show empty state if no alerts left
-                if (remainingAlerts === 0) {
-                    displayAlerts([]);
-                }
+                showNotification('Slack test notification sent successfully!', 'success');
             } else {
-                throw new Error(result.message || 'Failed to delete alert');
+                throw new Error(result.message || 'Failed to send Slack test');
             }
         })
         .catch(error => {
-            console.error('❌ Error deleting alert:', error);
-            showNotification(`Failed to delete alert: ${error.message}`, 'error');
-            
-            // Restore UI state
-            alertItem.style.opacity = '1';
-            alertItem.style.pointerEvents = 'auto';
+            console.error('❌ Error testing Slack:', error);
+            showNotification(`Slack test failed: ${error.message}`, 'error');
+        })
+        .finally(() => {
+            button.innerHTML = originalContent;
+            button.disabled = false;
         });
     }
 }
 
+// ============================================================================
+// ADVANCED ALERTS MODAL FUNCTIONALITY (RESTORED FUNCTIONS)
+// ============================================================================
+
 /**
- * Advanced alerts management modal
+ * Show advanced alerts modal
  */
 function showAdvancedAlertsModal() {
     const modalHTML = `
-        <div class="modal fade" id="advancedAlertsModal" tabindex="-1">
+        <div class="modal fade" id="advancedAlertsModal" tabindex="-1" 
+             aria-labelledby="advancedAlertsModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">
+                    <div class="modal-header bg-gradient-primary text-white">
+                        <h5 class="modal-title" id="advancedAlertsModalLabel">
                             <i class="fas fa-cog me-2"></i>Advanced Alerts Configuration
                         </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <button type="button" class="btn-close btn-close-white" 
+                                data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <form id="advanced-alerts-form">
@@ -684,7 +1296,8 @@ function showAdvancedAlertsModal() {
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
                                         <label class="form-label">Alert Name</label>
-                                        <input type="text" class="form-control" name="name" required>
+                                        <input type="text" class="form-control" name="name" required 
+                                               placeholder="My Custom Alert">
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -703,13 +1316,15 @@ function showAdvancedAlertsModal() {
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
                                         <label class="form-label">Threshold Amount ($)</label>
-                                        <input type="number" class="form-control" name="threshold_amount" min="0" step="0.01">
+                                        <input type="number" class="form-control" name="threshold_amount" 
+                                               min="0" step="0.01" placeholder="1000">
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
                                         <label class="form-label">Threshold Percentage (%)</label>
-                                        <input type="number" class="form-control" name="threshold_percentage" min="0" max="100">
+                                        <input type="number" class="form-control" name="threshold_percentage" 
+                                               min="0" max="100" placeholder="80">
                                     </div>
                                 </div>
                             </div>
@@ -718,7 +1333,8 @@ function showAdvancedAlertsModal() {
                                 <div class="col-md-8">
                                     <div class="form-group mb-3">
                                         <label class="form-label">Email Address</label>
-                                        <input type="email" class="form-control" name="email" required>
+                                        <input type="email" class="form-control" name="email" required 
+                                               placeholder="alerts@company.com">
                                     </div>
                                 </div>
                                 <div class="col-md-4">
@@ -732,19 +1348,54 @@ function showAdvancedAlertsModal() {
                                     </div>
                                 </div>
                             </div>
-                            
-                            ${!AlertsState.emailConfigured ? `
-                                <div class="alert alert-warning">
-                                    <i class="fas fa-exclamation-triangle me-2"></i>
-                                    Email notifications are not configured. Alerts will be logged but not sent via email.
+
+                            <!-- Notification Channels Selection -->
+                            <div class="mb-3">
+                                <label class="form-label">Notification Channels</label>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="channels" value="email" id="channel-email" checked>
+                                            <label class="form-check-label" for="channel-email">
+                                                <i class="fas fa-envelope me-1"></i>Email
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="channels" value="slack" id="channel-slack" 
+                                                   ${AlertsState.notificationChannels.slack ? 'checked' : ''}>
+                                            <label class="form-check-label" for="channel-slack">
+                                                <i class="fab fa-slack me-1"></i>Slack
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="channels" value="inapp" id="channel-inapp" checked>
+                                            <label class="form-check-label" for="channel-inapp">
+                                                <i class="fas fa-bell me-1"></i>In-App
+                                            </label>
+                                        </div>
+                                    </div>
                                 </div>
-                            ` : ''}
+                            </div>
+                            
+                            <!-- Channel Status Info -->
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Channel Status:</strong>
+                                <div class="notification-channels-status mt-2"></div>
+                            </div>
                         </form>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-primary" onclick="handleAdvancedAlertCreation()">
-                            <i class="fas fa-plus me-2"></i>Create Alert
+                            <i class="fas fa-plus me-2"></i>Create Advanced Alert
                         </button>
                     </div>
                 </div>
@@ -761,17 +1412,27 @@ function showAdvancedAlertsModal() {
     // Add modal to DOM
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     
+    // Update notification channels status in modal
+    updateNotificationChannelsUI();
+    
     // Show modal
     const modal = new bootstrap.Modal(document.getElementById('advancedAlertsModal'));
     modal.show();
 }
 
 /**
- * Handle advanced alert creation
+ * Handle advanced alert creation (RESTORED FUNCTION)
  */
 function handleAdvancedAlertCreation() {
     const form = document.getElementById('advanced-alerts-form');
     const formData = new FormData(form);
+    
+    // Get selected notification channels
+    const selectedChannels = [];
+    const channelCheckboxes = form.querySelectorAll('input[name="channels"]:checked');
+    channelCheckboxes.forEach(checkbox => {
+        selectedChannels.push(checkbox.value);
+    });
     
     const alertData = {
         name: formData.get('name'),
@@ -780,8 +1441,25 @@ function handleAdvancedAlertCreation() {
         threshold_percentage: parseFloat(formData.get('threshold_percentage')) || 0,
         email: formData.get('email'),
         notification_frequency: formData.get('notification_frequency'),
-        cluster_id: AlertsState.currentClusterId
+        cluster_id: AlertsState.currentClusterId,
+        notification_channels: selectedChannels
     };
+    
+    // Validation
+    if (!alertData.name) {
+        showNotification('Please enter an alert name', 'error');
+        return;
+    }
+    
+    if (!alertData.email || !isValidEmail(alertData.email)) {
+        showNotification('Please enter a valid email address', 'error');
+        return;
+    }
+    
+    if (alertData.threshold_amount <= 0 && alertData.threshold_percentage <= 0) {
+        showNotification('Please set either a threshold amount or percentage', 'error');
+        return;
+    }
     
     createAlert(alertData)
         .then(result => {
@@ -794,6 +1472,13 @@ function handleAdvancedAlertCreation() {
                 
                 // Refresh alerts
                 loadAlerts();
+                
+                // Send in-app notification
+                createLocalInAppNotification(
+                    'Advanced Alert Created',
+                    `Alert "${alertData.name}" has been created with ${selectedChannels.length} notification channel(s)`,
+                    'success'
+                );
             } else {
                 throw new Error(result.message || 'Failed to create alert');
             }
@@ -804,38 +1489,717 @@ function handleAdvancedAlertCreation() {
         });
 }
 
+// ============================================================================
+// ENHANCED DELETE ALERT MODAL - MODERN CONFIRMATION DIALOG
+// ============================================================================
+
 /**
- * Enhanced alert filtering
+ * Show enhanced delete confirmation modal
  */
-function filterAlerts(status) {
-    const buttons = document.querySelectorAll('.btn-group .btn');
-    buttons.forEach(btn => btn.classList.remove('active'));
+function showDeleteAlertModal(alertId, alertName) {
+    // Get alert details for the modal
+    const alert = AlertsState.alerts.find(a => a.id == alertId);
+    const alertDisplayName = alertName || (alert ? alert.name : `Alert ${alertId}`);
     
-    if (event && event.target) {
-        event.target.classList.add('active');
+    const modalHTML = `
+        <div class="modal fade" id="deleteAlertModal" tabindex="-1" 
+             aria-labelledby="deleteAlertModalLabel" aria-hidden="true" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg">
+                    <div class="modal-header bg-danger text-white border-0">
+                        <h5 class="modal-title d-flex align-items-center" id="deleteAlertModalLabel">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Confirm Delete Alert
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" 
+                                data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="text-center mb-4">
+                            <div class="text-danger mb-3">
+                                <i class="fas fa-trash-alt fa-3x"></i>
+                            </div>
+                            <h6 class="fw-bold text-dark mb-3">Delete Alert Permanently?</h6>
+                            <p class="text-muted mb-2">
+                                You are about to permanently delete the following alert:
+                            </p>
+                        </div>
+                        
+                        <div class="alert alert-light border border-danger border-2 rounded-3">
+                            <div class="d-flex align-items-start">
+                                <div class="text-danger me-3 mt-1">
+                                    <i class="fas fa-bell fa-lg"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h6 class="text-danger fw-bold mb-2">${escapeHtml(alertDisplayName)}</h6>
+                                    ${alert ? `
+                                        <div class="small text-muted">
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <strong>Threshold:</strong> 
+                                                    ${alert.threshold_amount > 0 
+                                                        ? '$' + alert.threshold_amount.toLocaleString() 
+                                                        : alert.threshold_percentage + '%'}
+                                                </div>
+                                                <div class="col-6">
+                                                    <strong>Email:</strong> ${escapeHtml(alert.email || 'Not set')}
+                                                </div>
+                                            </div>
+                                            <div class="row mt-1">
+                                                <div class="col-6">
+                                                    <strong>Cluster:</strong> ${escapeHtml(alert.cluster_name || 'All clusters')}
+                                                </div>
+                                                <div class="col-6">
+                                                    <strong>Status:</strong> 
+                                                    <span class="badge ${getStatusBadgeClass(alert.status || 'active')} ms-1">
+                                                        ${(alert.status || 'active').toUpperCase()}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-light rounded-3 p-3 mb-3">
+                            <div class="d-flex align-items-start">
+                                <div class="text-warning me-2 mt-1">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                </div>
+                                <div class="small text-muted">
+                                    <strong class="text-dark">Warning:</strong> This action cannot be undone. 
+                                    The alert will be permanently removed and will no longer monitor your cluster costs.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <p class="small text-muted mb-0">
+                                Are you sure you want to continue?
+                            </p>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <div class="w-100 d-flex gap-2">
+                            <button type="button" class="btn btn-light flex-fill border" data-bs-dismiss="modal">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </button>
+                            <button type="button" class="btn btn-danger flex-fill" 
+                                    onclick="confirmDeleteAlert(${alertId})" data-alert-id="${alertId}">
+                                <i class="fas fa-trash-alt me-2"></i>Delete Alert
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if present
+    const existingModal = document.getElementById('deleteAlertModal');
+    if (existingModal) {
+        existingModal.remove();
     }
     
-    const alertItems = document.querySelectorAll('.alert-item');
-    alertItems.forEach(item => {
-        const alertStatus = item.dataset.status || 'active';
-        if (status === 'all' || alertStatus === status) {
-            item.style.display = 'block';
-            item.style.animation = 'fadeIn 0.3s ease-in';
+    // Add modal to DOM
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Show modal with animation
+    const modal = new bootstrap.Modal(document.getElementById('deleteAlertModal'), {
+        backdrop: 'static',
+        keyboard: true
+    });
+    
+    // Add entrance animation
+    const modalElement = document.getElementById('deleteAlertModal');
+    modalElement.addEventListener('shown.bs.modal', function () {
+        modalElement.querySelector('.modal-content').style.animation = 'bounceIn 0.5s ease-out';
+    });
+    
+    modal.show();
+    
+    // Focus on the cancel button initially (safer default)
+    modalElement.addEventListener('shown.bs.modal', function () {
+        modalElement.querySelector('[data-bs-dismiss="modal"]').focus();
+    });
+}
+
+/**
+ * Confirm and execute alert deletion
+ */
+function confirmDeleteAlert(alertId) {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('deleteAlertModal'));
+    const deleteBtn = document.querySelector(`[data-alert-id="${alertId}"]`);
+    
+    if (deleteBtn) {
+        // Show loading state
+        const originalContent = deleteBtn.innerHTML;
+        deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
+        deleteBtn.disabled = true;
+        
+        // Close modal first
+        modal.hide();
+        
+        // Execute the actual deletion
+        executeAlertDeletion(alertId)
+            .then(() => {
+                // Success handling is done in executeAlertDeletion
+            })
+            .catch(error => {
+                // Error handling is done in executeAlertDeletion
+                console.error('❌ Delete confirmation error:', error);
+            });
+    }
+}
+
+/**
+ * Execute the actual alert deletion (separated from UI logic)
+ */
+function executeAlertDeletion(alertId) {
+    return new Promise((resolve, reject) => {
+        if (!AlertsState.systemAvailable) {
+            showNotification('Alerts system is currently unavailable', 'warning');
+            reject(new Error('System unavailable'));
+            return;
+        }
+        
+        const alertItem = document.querySelector(`[data-alert-id="${alertId}"]`);
+        if (alertItem) {
+            // Add deletion animation
+            alertItem.style.transition = 'all 0.3s ease-out';
+            alertItem.style.opacity = '0.5';
+            alertItem.style.transform = 'scale(0.95)';
+            alertItem.style.pointerEvents = 'none';
+            
+            fetch(`/api/alerts/${alertId}`, {
+                method: 'DELETE'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Request failed: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(result => {
+                if (result.status === 'success') {
+                    // Success animation
+                    alertItem.style.transition = 'all 0.5s ease-out';
+                    alertItem.style.opacity = '0';
+                    alertItem.style.transform = 'translateX(-100%) scale(0.8)';
+                    
+                    setTimeout(() => {
+                        alertItem.remove();
+                        
+                        // Update counter
+                        const remainingAlerts = document.querySelectorAll('.alert-item').length;
+                        updateAlertsCounter(remainingAlerts);
+                        updateFilterCounts();
+                        
+                        // Show empty state if no alerts left
+                        if (remainingAlerts === 0) {
+                            displayAlerts([]);
+                        }
+                    }, 500);
+                    
+                    // Show success notification with custom styling
+                    showEnhancedNotification('success', 'Alert Deleted Successfully!', 
+                        `The alert has been permanently removed from your system.`);
+                    
+                    // Create in-app notification
+                    createLocalInAppNotification(
+                        'Alert Deleted',
+                        `Alert ${alertId} has been deleted successfully`,
+                        'warning'
+                    );
+                    
+                    resolve(result);
+                } else {
+                    throw new Error(result.message || 'Failed to delete alert');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error deleting alert:', error);
+                
+                // Restore UI state with error animation
+                alertItem.style.transition = 'all 0.3s ease-out';
+                alertItem.style.opacity = '1';
+                alertItem.style.transform = 'scale(1)';
+                alertItem.style.pointerEvents = 'auto';
+                alertItem.style.animation = 'shake 0.5s ease-in-out';
+                
+                setTimeout(() => {
+                    alertItem.style.animation = '';
+                }, 500);
+                
+                showEnhancedNotification('error', 'Delete Failed', 
+                    `Failed to delete alert: ${error.message}`);
+                
+                reject(error);
+            });
         } else {
-            item.style.display = 'none';
+            reject(new Error('Alert item not found in UI'));
         }
     });
 }
 
-// Utility functions
+/**
+ * Enhanced notification function with better styling
+ */
+function showEnhancedNotification(type, title, message) {
+    // Try to use the existing notification system first
+    if (window.smoothNotificationManager) {
+        window.smoothNotificationManager.show(`${title}: ${message}`, type);
+        return;
+    }
+    
+    // Fallback: Create a custom toast notification
+    const toastId = `toast-${Date.now()}`;
+    const iconClass = {
+        'success': 'fas fa-check-circle text-success',
+        'error': 'fas fa-times-circle text-danger',
+        'warning': 'fas fa-exclamation-triangle text-warning',
+        'info': 'fas fa-info-circle text-info'
+    }[type] || 'fas fa-info-circle text-info';
+    
+    const bgClass = {
+        'success': 'bg-success',
+        'error': 'bg-danger', 
+        'warning': 'bg-warning',
+        'info': 'bg-info'
+    }[type] || 'bg-info';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0 shadow-lg" 
+             role="alert" aria-live="assertive" aria-atomic="true" 
+             style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+            <div class="d-flex">
+                <div class="toast-body d-flex align-items-center">
+                    <i class="${iconClass} me-2"></i>
+                    <div>
+                        <div class="fw-bold">${title}</div>
+                        <div class="small">${message}</div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" 
+                        data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', toastHTML);
+    
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement, {
+        autohide: true,
+        delay: type === 'error' ? 8000 : 5000
+    });
+    
+    toast.show();
+    
+    // Remove from DOM after hiding
+    toastElement.addEventListener('hidden.bs.toast', function () {
+        toastElement.remove();
+    });
+}
+
+/**
+ * Update the existing deleteAlert function to use the new modal
+ */
+function deleteAlert(alertId) {
+    // Get alert details for better UX
+    const alert = AlertsState.alerts.find(a => a.id == alertId);
+    const alertName = alert ? alert.name : `Alert ${alertId}`;
+    
+    // Show the enhanced modal instead of basic confirm
+    showDeleteAlertModal(alertId, alertName);
+}
+
+// ============================================================================
+// MISSING FUNCTIONS FIX - ADDITIONAL NOTIFICATION FUNCTIONS
+// ============================================================================
+
+/**
+ * Mark all notifications as read (MISSING FUNCTION)
+ */
+function markAllNotificationsAsRead() {
+    if (!AlertsState.systemAvailable) {
+        showNotification('Alerts system is currently unavailable', 'warning');
+        return;
+    }
+    
+    const unreadIds = AlertsState.inAppNotifications
+        .filter(n => !n.read)
+        .map(n => n.id);
+    
+    if (unreadIds.length === 0) {
+        showNotification('No unread notifications to mark as read', 'info');
+        return;
+    }
+    
+    // Show loading state if there's a button
+    const markAllBtn = document.querySelector('[onclick*="markAllNotificationsAsRead"]');
+    if (markAllBtn) {
+        const originalText = markAllBtn.innerHTML;
+        markAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Marking all as read...';
+        markAllBtn.disabled = true;
+        
+        // Restore button after operation
+        setTimeout(() => {
+            markAllBtn.innerHTML = originalText;
+            markAllBtn.disabled = false;
+        }, 2000);
+    }
+    
+    fetch('/api/notifications/in-app', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            notification_ids: unreadIds,
+            action: 'mark_read'
+        })
+    })
+    .then(response => {
+        if (response.status === 404) {
+            // Endpoint doesn't exist, just update locally
+            console.log('ℹ️ In-app notifications API not available - updating locally');
+            markAllNotificationsAsReadLocally(unreadIds);
+            return;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.status === 'success') {
+            markAllNotificationsAsReadLocally(unreadIds);
+            showNotification(`Marked ${unreadIds.length} notifications as read`, 'success');
+        } else if (data) {
+            showNotification('Failed to mark notifications as read', 'error');
+        }
+    })
+    .catch(error => {
+        console.log('ℹ️ Marking all notifications as read locally:', error.message);
+        markAllNotificationsAsReadLocally(unreadIds);
+        showNotification(`Marked ${unreadIds.length} notifications as read (locally)`, 'success');
+    });
+}
+
+/**
+ * Mark all notifications as read locally
+ */
+function markAllNotificationsAsReadLocally(unreadIds) {
+    AlertsState.inAppNotifications.forEach(n => {
+        if (unreadIds.includes(n.id)) {
+            n.read = true;
+        }
+    });
+    AlertsState.unreadNotificationsCount = 0;
+    updateInAppNotificationsUI();
+    updateNotificationBadge();
+}
+
+/**
+ * Clear all notifications (MISSING FUNCTION)
+ */
+function clearAllNotifications() {
+    if (!AlertsState.systemAvailable) {
+        showNotification('Alerts system is currently unavailable', 'warning');
+        return;
+    }
+    
+    if (AlertsState.inAppNotifications.length === 0) {
+        showNotification('No notifications to clear', 'info');
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to clear all notifications? This cannot be undone.')) {
+        return;
+    }
+    
+    // Clear locally immediately for better UX
+    const clearedCount = AlertsState.inAppNotifications.length;
+    AlertsState.inAppNotifications = [];
+    AlertsState.unreadNotificationsCount = 0;
+    updateInAppNotificationsUI();
+    updateNotificationBadge();
+    
+    showNotification(`Cleared ${clearedCount} notifications`, 'success');
+}
+
+/**
+ * Export configuration (MISSING FUNCTION)
+ */
+function exportAlertsConfig() {
+    showNotification('Exporting alerts configuration...', 'info');
+    
+    const config = {
+        alerts: AlertsState.alerts,
+        notification_channels: AlertsState.notificationChannels,
+        exported_at: new Date().toISOString(),
+        cluster_id: AlertsState.currentClusterId,
+        system_status: {
+            available: AlertsState.systemAvailable,
+            email_configured: AlertsState.notificationChannels.email,
+            slack_configured: AlertsState.notificationChannels.slack
+        }
+    };
+    
+    const configContent = JSON.stringify(config, null, 2);
+    const blob = new Blob([configContent], { type: 'application/json' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `alerts_config_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    
+    showNotification('Alerts configuration exported successfully!', 'success');
+}
+
+/**
+ * View alert history (MISSING FUNCTION)
+ */
+function viewAlertHistory() {
+    const modalHTML = `
+        <div class="modal fade" id="alertHistoryModal" tabindex="-1" 
+             aria-labelledby="alertHistoryModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header bg-gradient-info text-white">
+                        <h5 class="modal-title" id="alertHistoryModalLabel">
+                            <i class="fas fa-history me-2"></i>Alert Trigger History
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" 
+                                data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="alert-history-container">
+                            <div class="text-center py-4">
+                                <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                                <p>Loading alert history...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" onclick="exportAlertHistory()">
+                            <i class="fas fa-download me-2"></i>Export History
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if present
+    const existingModal = document.getElementById('alertHistoryModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to DOM
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('alertHistoryModal'));
+    modal.show();
+    
+    // Load alert history
+    loadAlertHistory();
+}
+
+/**
+ * Load alert history
+ */
+function loadAlertHistory() {
+    const container = document.getElementById('alert-history-container');
+    if (!container) return;
+    
+    fetch('/api/alerts/triggers')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Request failed: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                displayAlertHistory(data.triggers);
+            } else {
+                throw new Error(data.message || 'Failed to load alert history');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error loading alert history:', error);
+            container.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Failed to load alert history: ${error.message}
+                </div>
+            `;
+        });
+}
+
+/**
+ * Display alert history
+ */
+function displayAlertHistory(triggers) {
+    const container = document.getElementById('alert-history-container');
+    if (!container) return;
+    
+    if (triggers.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-history fa-2x mb-3"></i>
+                <p>No alert triggers recorded yet</p>
+                <small>Alert triggers will appear here when alerts are triggered</small>
+            </div>
+        `;
+        return;
+    }
+    
+    const historyHTML = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Date/Time</th>
+                        <th>Alert</th>
+                        <th>Cluster</th>
+                        <th>Current Cost</th>
+                        <th>Threshold</th>
+                        <th>Exceeded By</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${triggers.map(trigger => `
+                        <tr>
+                            <td>${formatDateTime(trigger.triggered_at)}</td>
+                            <td>${escapeHtml(trigger.alert_name || `Alert ${trigger.alert_id}`)}</td>
+                            <td>${escapeHtml(trigger.cluster_name || 'Unknown')}</td>
+                            <td>$${trigger.current_cost ? trigger.current_cost.toLocaleString() : '0'}</td>
+                            <td>$${trigger.threshold_amount ? trigger.threshold_amount.toLocaleString() : '0'}</td>
+                            <td>$${trigger.threshold_exceeded_by ? trigger.threshold_exceeded_by.toLocaleString() : '0'}</td>
+                            <td>
+                                <span class="badge ${trigger.notification_sent ? 'bg-success' : 'bg-warning'}">
+                                    ${trigger.notification_sent ? 'Sent' : 'Pending'}
+                                </span>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    container.innerHTML = historyHTML;
+}
+
+/**
+ * Export alert history
+ */
+function exportAlertHistory() {
+    showNotification('Exporting alert history...', 'info');
+    
+    fetch('/api/alerts/triggers')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const csvContent = convertTriggersToCSV(data.triggers);
+                downloadCSV(csvContent, 'alert_history.csv');
+                showNotification('Alert history exported successfully!', 'success');
+            } else {
+                throw new Error(data.message || 'Failed to export history');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error exporting alert history:', error);
+            showNotification(`Failed to export history: ${error.message}`, 'error');
+        });
+}
+
+/**
+ * Convert triggers to CSV format
+ */
+function convertTriggersToCSV(triggers) {
+    const headers = ['Date/Time', 'Alert Name', 'Cluster', 'Current Cost', 'Threshold', 'Exceeded By', 'Notification Sent'];
+    const csvRows = [headers.join(',')];
+    
+    triggers.forEach(trigger => {
+        const row = [
+            `"${trigger.triggered_at}"`,
+            `"${trigger.alert_name || `Alert ${trigger.alert_id}`}"`,
+            `"${trigger.cluster_name || 'Unknown'}"`,
+            trigger.current_cost || 0,
+            trigger.threshold_amount || 0,
+            trigger.threshold_exceeded_by || 0,
+            trigger.notification_sent ? 'Yes' : 'No'
+        ];
+        csvRows.push(row.join(','));
+    });
+    
+    return csvRows.join('\n');
+}
+
+/**
+ * Download CSV file
+ */
+function downloadCSV(content, filename) {
+    const blob = new Blob([content], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+// ============================================================================
+// UTILITY FUNCTIONS (ALL RESTORED)
+// ============================================================================
+
 function getStatusBadgeClass(status) {
     const classes = {
         'active': 'bg-success',
-        'paused': 'bg-warning',
+        'paused': 'bg-warning text-dark',
         'triggered': 'bg-danger',
         'failed': 'bg-secondary'
     };
     return classes[status] || 'bg-secondary';
+}
+
+function getNotificationIcon(type) {
+    const icons = {
+        'info': 'info-circle',
+        'success': 'check-circle',
+        'warning': 'exclamation-triangle',
+        'error': 'times-circle'
+    };
+    return icons[type] || 'bell';
+}
+
+function getNotificationColor(type) {
+    const colors = {
+        'info': 'info',
+        'success': 'success',
+        'warning': 'warning',
+        'error': 'danger'
+    };
+    return colors[type] || 'secondary';
+}
+
+function getNotificationChannelsText(alert) {
+    const channels = [];
+    if (AlertsState.notificationChannels.email) channels.push('Email');
+    if (AlertsState.notificationChannels.slack) channels.push('Slack');
+    if (AlertsState.notificationChannels.inApp) channels.push('In-App');
+    return channels.length > 0 ? channels.join(', ') : 'Email only';
 }
 
 function isValidEmail(email) {
@@ -865,6 +2229,21 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function displayErrorMessage(title, message) {
+    const container = document.getElementById('alerts-list-container');
+    if (!container) return;
+    
+    container.innerHTML = `
+        <div class="alert alert-danger">
+            <h6><i class="fas fa-exclamation-triangle me-2"></i>${escapeHtml(title)}</h6>
+            <p class="mb-2">${escapeHtml(message)}</p>
+            <button class="btn btn-sm btn-outline-danger" onclick="loadAlerts()">
+                <i class="fas fa-sync me-1"></i>Retry
+            </button>
+        </div>
+    `;
+}
+
 // Notification function (use existing one or create simple fallback)
 function showNotification(message, type = 'info') {
     if (window.smoothNotificationManager) {
@@ -878,14 +2257,130 @@ function showNotification(message, type = 'info') {
     }
 }
 
+// ============================================================================
+// CSS ANIMATIONS AND STYLING
+// ============================================================================
+
+// Add CSS animations for better UX
+const enhancedModalCSS = `
+<style>
+@keyframes bounceIn {
+    0% {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+    70% {
+        transform: scale(0.9);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.modal-content {
+    border-radius: 15px !important;
+    overflow: hidden;
+}
+
+.modal-header {
+    border-radius: 15px 15px 0 0 !important;
+}
+
+.btn {
+    border-radius: 8px !important;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.alert-light {
+    background: linear-gradient(45deg, #f8f9fa, #ffffff);
+}
+
+.toast {
+    border-radius: 10px !important;
+    backdrop-filter: blur(10px);
+}
+
+#deleteAlertModal .modal-content {
+    animation: bounceIn 0.5s ease-out;
+}
+
+#deleteAlertModal .btn-danger:hover {
+    background-color: #dc3545 !important;
+    border-color: #dc3545 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(220, 53, 69, 0.3);
+}
+
+#deleteAlertModal .btn-light:hover {
+    background-color: #f8f9fa !important;
+    border-color: #dee2e6 !important;
+    transform: translateY(-1px);
+}
+</style>
+`;
+
+// Inject CSS when the script loads
+document.head.insertAdjacentHTML('beforeend', enhancedModalCSS);
+
+// ============================================================================
+// GLOBAL FUNCTION EXPORTS - MAKE ALL FUNCTIONS AVAILABLE GLOBALLY
+// ============================================================================
+
+// Main functions
+window.initializeAlertsSystem = initializeAlertsSystem;
+window.loadAlerts = loadAlerts;
+window.loadClusterAlerts = loadClusterAlerts;
+window.displayClusterAlerts = displayClusterAlerts;
+window.filterAlerts = filterAlerts;
+window.testAlert = testAlert;
+window.pauseResumeAlert = pauseResumeAlert;
+window.deleteAlert = deleteAlert;
+
+// Notification functions
+window.markNotificationAsRead = markNotificationAsRead;
+window.markAllNotificationsAsRead = markAllNotificationsAsRead;
+window.dismissNotification = dismissNotificationLocally;
+window.clearAllNotifications = clearAllNotifications;
+
+// Modal functions
+window.showAdvancedAlertsModal = showAdvancedAlertsModal;
+window.handleAdvancedAlertCreation = handleAdvancedAlertCreation;
+window.showDeleteAlertModal = showDeleteAlertModal;
+window.confirmDeleteAlert = confirmDeleteAlert;
+window.executeAlertDeletion = executeAlertDeletion;
+
+// History and export functions
+window.viewAlertHistory = viewAlertHistory;
+window.exportAlertHistory = exportAlertHistory;
+window.exportAlertsConfig = exportAlertsConfig;
+
+// Slack functions
+window.testSlackNotification = testSlackNotification;
+
+// Utility functions
+window.showEnhancedNotification = showEnhancedNotification;
+window.AlertsState = AlertsState;
+
 // Initialize alerts when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeAlertsSystem);
 } else {
     initializeAlertsSystem();
 }
-
-// Make functions globally available
-window.showAdvancedAlertsModal = showAdvancedAlertsModal;
-window.loadAlerts = loadAlerts;
-window.AlertsState = AlertsState;

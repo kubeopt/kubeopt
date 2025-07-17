@@ -1,6 +1,6 @@
 """
 Unified API Routes for Multi-Subscription AKS Cost Optimization Tool
-with Enhanced CPU Workload Integration - FIXED DUPLICATIONS
+with Enhanced Alerts Integration - FIXED REGISTRATION
 """
 
 import traceback
@@ -19,12 +19,15 @@ sys.path.append(current_dir)
 # FIXED IMPORTS - use relative imports for current structure
 from config import (
     logger, enhanced_cluster_manager, analysis_status_tracker, 
-    _analysis_lock, _analysis_sessions, alerts_manager, analysis_cache
+    _analysis_lock, _analysis_sessions, analysis_cache
 )
 from app.services.background_processor import run_subscription_aware_background_analysis
 from shared import _get_analysis_data  # Import from shared module
 from app.services.subscription_manager import azure_subscription_manager
 from app.data.processing.analysis_engine import multi_subscription_analysis_engine
+
+# FIXED: Import alerts integration
+from services.alerts_integration import initialize_alerts_system, register_alerts_routes
 
 # CPU Workload Integration imports with error handling
 chart_generator_functions = {}
@@ -70,59 +73,6 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️ Could not import generate_dynamic_trend_data: {e}")
 
-# Safe wrapper functions for chart generation
-def safe_chart_function_call(func_name, func, *args, **kwargs):
-    """Safely call a chart generation function with error handling"""
-    try:
-        logger.info(f"🔄 Starting {func_name} with args types: {[type(arg) for arg in args]}")
-        
-        # Special handling for trend data function which takes (cluster_id, analysis_data)
-        if func_name == 'generate_dynamic_trend_data' and len(args) >= 2:
-            cluster_id, analysis_data = args[0], args[1]
-            if not isinstance(analysis_data, dict):
-                logger.error(f"❌ {func_name}: Second argument (analysis_data) is {type(analysis_data)}, expected dict")
-                debug_analysis_data_structure(analysis_data, f"{func_name}_validation_error")
-                return None
-            logger.info(f"✅ {func_name}: Trend data input validation passed (cluster_id: {type(cluster_id)}, analysis_data: {type(analysis_data)})")
-        
-        # Standard validation for other functions (first arg should be analysis_data dict)
-        elif args:
-            first_arg = args[0]
-            if not validate_chart_input(first_arg, func_name):
-                logger.error(f"❌ {func_name}: Input validation failed")
-                return None
-        
-        # Additional logging for ML-integrated functions
-        if 'ml' in func_name.lower() or 'generate_insights' in func_name:
-            logger.info(f"🔄 {func_name}: ML-integrated function starting")
-            debug_analysis_data_structure(args[0] if args else None, f"{func_name}_ml_input")
-        
-        result = func(*args, **kwargs)
-        
-        if result:
-            logger.info(f"✅ {func_name} completed successfully with result type: {type(result)}")
-        else:
-            logger.warning(f"⚠️ {func_name} returned None/empty result")
-            
-        return result
-        
-    except AttributeError as attr_error:
-        if "'str' object has no attribute 'get'" in str(attr_error):
-            logger.error(f"❌ {func_name}: STRING INSTEAD OF DICT ERROR!")
-            logger.error(f"❌ {func_name}: Error details: {attr_error}")
-            if args:
-                debug_analysis_data_structure(args[0], f"{func_name}_string_error")
-        else:
-            logger.error(f"❌ {func_name}: Attribute error - {attr_error}")
-        return None
-    except Exception as e:
-        logger.error(f"❌ {func_name}: Unexpected error - {e}")
-        logger.error(f"❌ {func_name}: Traceback: {traceback.format_exc()}")
-        if args:
-            logger.error(f"❌ {func_name}: Args types: {[type(arg) for arg in args]}")
-            debug_analysis_data_structure(args[0], f"{func_name}_error")
-        return None
-
 # Cache management imports with fallback
 try:
     from app.services.cache_manager import save_to_cache, is_cache_valid, clear_analysis_cache
@@ -131,10 +81,61 @@ except ImportError:
     logger.warning("⚠️ Cache manager not available, using fallback cache methods")
     CACHE_MANAGER_AVAILABLE = False
 
+# Global alerts manager
+alerts_manager = None
 
 def register_api_routes(app):
-    """Register all API routes with multi-subscription support and CPU workload integration - FIXED DUPLICATES"""
+    """Register all API routes with multi-subscription support and complete alerts integration"""
     
+    # FIXED: Initialize and register alerts system
+    global alerts_manager
+    try:
+        alerts_manager = initialize_alerts_system()
+        register_alerts_routes(app)
+        logger.info("✅ Alerts system routes registered successfully")
+    except Exception as e:
+        logger.error(f"❌ Failed to register alerts routes: {e}")
+    
+    # FIXED: Add main alerts API route that was missing
+    @app.route('/api/alerts', methods=['GET', 'POST'])
+    def api_alerts():
+        """Main alerts API endpoint - GET and POST"""
+        try:
+            if not alerts_manager:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Alerts system not available'
+                }), 503
+            
+            if request.method == 'GET':
+                # Get alerts with optional cluster filtering
+                cluster_id = request.args.get('cluster_id')
+                result = alerts_manager.get_alerts_route(cluster_id)
+                return jsonify(result)
+            
+            elif request.method == 'POST':
+                # Create new alert
+                data = request.get_json()
+                if not data:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'No data provided'
+                    }), 400
+                
+                result = alerts_manager.create_alert_route(data)
+                
+                if result['status'] == 'success':
+                    return jsonify(result), 201
+                else:
+                    return jsonify(result), 400
+                    
+        except Exception as e:
+            logger.error(f"❌ Error in alerts API: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
     @app.route('/api/subscriptions', methods=['GET'])
     def api_get_subscriptions():
         """Get all available Azure subscriptions"""
@@ -695,6 +696,7 @@ def register_api_routes(app):
                 'message': f'Implementation plan API error: {str(e)}',
                 'error_type': type(e).__name__
             }), 500
+
     @app.route('/api/clusters', methods=['GET', 'POST'])
     def api_clusters():
         """API for cluster management with subscription support"""
@@ -1066,7 +1068,60 @@ def register_api_routes(app):
             }), 500
 
 
-# UNIFIED: Helper functions combining functionality from both files
+# Helper functions remain the same as in original code
+def safe_chart_function_call(func_name, func, *args, **kwargs):
+    """Safely call a chart generation function with error handling"""
+    try:
+        logger.info(f"🔄 Starting {func_name} with args types: {[type(arg) for arg in args]}")
+        
+        # Special handling for trend data function which takes (cluster_id, analysis_data)
+        if func_name == 'generate_dynamic_trend_data' and len(args) >= 2:
+            cluster_id, analysis_data = args[0], args[1]
+            if not isinstance(analysis_data, dict):
+                logger.error(f"❌ {func_name}: Second argument (analysis_data) is {type(analysis_data)}, expected dict")
+                debug_analysis_data_structure(analysis_data, f"{func_name}_validation_error")
+                return None
+            logger.info(f"✅ {func_name}: Trend data input validation passed (cluster_id: {type(cluster_id)}, analysis_data: {type(analysis_data)})")
+        
+        # Standard validation for other functions (first arg should be analysis_data dict)
+        elif args:
+            first_arg = args[0]
+            if not validate_chart_input(first_arg, func_name):
+                logger.error(f"❌ {func_name}: Input validation failed")
+                return None
+        
+        # Additional logging for ML-integrated functions
+        if 'ml' in func_name.lower() or 'generate_insights' in func_name:
+            logger.info(f"🔄 {func_name}: ML-integrated function starting")
+            debug_analysis_data_structure(args[0] if args else None, f"{func_name}_ml_input")
+        
+        result = func(*args, **kwargs)
+        
+        if result:
+            logger.info(f"✅ {func_name} completed successfully with result type: {type(result)}")
+        else:
+            logger.warning(f"⚠️ {func_name} returned None/empty result")
+            
+        return result
+        
+    except AttributeError as attr_error:
+        if "'str' object has no attribute 'get'" in str(attr_error):
+            logger.error(f"❌ {func_name}: STRING INSTEAD OF DICT ERROR!")
+            logger.error(f"❌ {func_name}: Error details: {attr_error}")
+            if args:
+                debug_analysis_data_structure(args[0], f"{func_name}_string_error")
+        else:
+            logger.error(f"❌ {func_name}: Attribute error - {attr_error}")
+        return None
+    except Exception as e:
+        logger.error(f"❌ {func_name}: Unexpected error - {e}")
+        logger.error(f"❌ {func_name}: Traceback: {traceback.format_exc()}")
+        if args:
+            logger.error(f"❌ {func_name}: Args types: {[type(arg) for arg in args]}")
+            debug_analysis_data_structure(args[0], f"{func_name}_error")
+        return None
+
+
 def get_cluster_analysis_data(cluster_id):
     """
     Get cluster analysis data from database/cache with subscription awareness
@@ -1190,68 +1245,6 @@ def extract_comprehensive_cpu_metrics(analysis_data):
             'severity_level': 'none',
             'high_cpu_workloads': [],
             'data_source': 'error_fallback'
-        }
-
-
-def extract_fallback_cpu_metrics(analysis_data):
-    """
-    Fallback CPU metrics extraction from analysis data
-    """
-    try:
-        # Look for CPU-related data in various places
-        cpu_data = {
-            'has_high_cpu_workloads': False,
-            'high_cpu_count': 0,
-            'max_cpu_utilization': 0.0,
-            'average_cpu_utilization': 0.0,
-            'severity_level': 'none',
-            'high_cpu_workloads': [],
-            'data_source': 'fallback_extraction'
-        }
-        
-        # Check node metrics for CPU data
-        if 'node_metrics' in analysis_data and isinstance(analysis_data['node_metrics'], dict):
-            node_metrics = analysis_data['node_metrics']
-            
-            # Look for CPU utilization in node metrics
-            for node_name, metrics in node_metrics.items():
-                if isinstance(metrics, dict):
-                    cpu_util = metrics.get('cpu_utilization', 0)
-                    if cpu_util:
-                        cpu_data['max_cpu_utilization'] = max(cpu_data['max_cpu_utilization'], ensure_float(cpu_util))
-                        if ensure_float(cpu_util) > 80:
-                            cpu_data['has_high_cpu_workloads'] = True
-                            cpu_data['high_cpu_count'] += 1
-        
-        # Check for direct CPU fields
-        for field in ['cpu_utilization', 'avg_cpu', 'cpu_usage']:
-            if field in analysis_data:
-                cpu_val = ensure_float(analysis_data[field])
-                cpu_data['average_cpu_utilization'] = max(cpu_data['average_cpu_utilization'], cpu_val)
-        
-        # Determine severity
-        if cpu_data['max_cpu_utilization'] > 90:
-            cpu_data['severity_level'] = 'critical'
-        elif cpu_data['max_cpu_utilization'] > 80:
-            cpu_data['severity_level'] = 'high'
-        elif cpu_data['max_cpu_utilization'] > 60:
-            cpu_data['severity_level'] = 'medium'
-        else:
-            cpu_data['severity_level'] = 'low'
-        
-        logger.info(f"✅ Fallback CPU extraction: max={cpu_data['max_cpu_utilization']:.1f}%, avg={cpu_data['average_cpu_utilization']:.1f}%")
-        return cpu_data
-        
-    except Exception as e:
-        logger.error(f"❌ Fallback CPU extraction failed: {e}")
-        return {
-            'has_high_cpu_workloads': False,
-            'high_cpu_count': 0,
-            'max_cpu_utilization': 0.0,
-            'average_cpu_utilization': 0.0,
-            'severity_level': 'none',
-            'high_cpu_workloads': [],
-            'data_source': 'fallback_error'
         }
 
 
