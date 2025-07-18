@@ -1,4 +1,4 @@
-# alerts_database.py - Dedicated Alerts Database Manager
+# alerts_database.py - Alerts Database Manager with In-App Notifications
 
 import sqlite3
 import json
@@ -12,7 +12,7 @@ import os
 logger = logging.getLogger(__name__)
 
 class AlertsDatabase:
-    """Dedicated database manager for alerts system"""
+    """database manager for alerts system with in-app notifications"""
     
     def __init__(self, db_path='app/data/database/alerts.db'):
         self.db_path = db_path
@@ -25,7 +25,7 @@ class AlertsDatabase:
         self.cleanup_old_data()
 
     def init_database(self):
-        """Initialize SQLite database for alerts"""
+        """Initialize SQLite database for alerts with in-app notifications"""
         try:
             # Ensure directory exists
             os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
@@ -49,7 +49,7 @@ class AlertsDatabase:
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         created_by TEXT DEFAULT 'system',
-                        notification_channels TEXT DEFAULT '["email"]',
+                        notification_channels TEXT DEFAULT '["email", "inapp"]',
                         last_triggered TIMESTAMP NULL,
                         trigger_count INTEGER DEFAULT 0,
                         metadata TEXT DEFAULT '{}'
@@ -86,6 +86,27 @@ class AlertsDatabase:
                     )
                 ''')
                 
+                # 🆕 CREATE IN-APP NOTIFICATIONS TABLE
+                conn.execute('''
+                    CREATE TABLE IF NOT EXISTS in_app_notifications (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        title TEXT NOT NULL,
+                        message TEXT NOT NULL,
+                        type TEXT DEFAULT 'info',
+                        cluster_id TEXT,
+                        alert_id INTEGER,
+                        trigger_id INTEGER,
+                        timestamp TEXT NOT NULL,
+                        read BOOLEAN DEFAULT FALSE,
+                        dismissed BOOLEAN DEFAULT FALSE,
+                        metadata TEXT DEFAULT '{}',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (alert_id) REFERENCES alerts (id),
+                        FOREIGN KEY (trigger_id) REFERENCES alert_triggers (id)
+                    )
+                ''')
+                
                 # Create indexes for performance
                 indexes = [
                     'CREATE INDEX IF NOT EXISTS idx_alerts_cluster_id ON alerts(cluster_id)',
@@ -93,7 +114,13 @@ class AlertsDatabase:
                     'CREATE INDEX IF NOT EXISTS idx_alerts_subscription ON alerts(subscription_id)',
                     'CREATE INDEX IF NOT EXISTS idx_triggers_alert_id ON alert_triggers(alert_id)',
                     'CREATE INDEX IF NOT EXISTS idx_triggers_cluster_id ON alert_triggers(cluster_id)',
-                    'CREATE INDEX IF NOT EXISTS idx_triggers_triggered_at ON alert_triggers(triggered_at)'
+                    'CREATE INDEX IF NOT EXISTS idx_triggers_triggered_at ON alert_triggers(triggered_at)',
+                    # 🆕 IN-APP NOTIFICATIONS INDEXES
+                    'CREATE INDEX IF NOT EXISTS idx_notifications_cluster_id ON in_app_notifications(cluster_id)',
+                    'CREATE INDEX IF NOT EXISTS idx_notifications_alert_id ON in_app_notifications(alert_id)',
+                    'CREATE INDEX IF NOT EXISTS idx_notifications_read ON in_app_notifications(read)',
+                    'CREATE INDEX IF NOT EXISTS idx_notifications_dismissed ON in_app_notifications(dismissed)',
+                    'CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON in_app_notifications(created_at)'
                 ]
                 
                 for index_sql in indexes:
@@ -103,10 +130,10 @@ class AlertsDatabase:
                         pass  # Index might already exist
                 
                 conn.commit()
-                self.logger.info("✅ Alerts database initialized successfully")
+                self.logger.info("✅ Enhanced alerts database initialized successfully with in-app notifications")
                 
         except Exception as e:
-            self.logger.error(f"❌ Alerts database initialization failed: {e}")
+            self.logger.error(f"❌ Enhanced alerts database initialization failed: {e}")
             raise
 
     def create_alert(self, alert_data: Dict) -> int:
@@ -132,7 +159,7 @@ class AlertsDatabase:
                     alert_data.get('threshold_type', 'monthly'),
                     alert_data.get('status', 'active'),
                     alert_data.get('created_by', 'system'),
-                    json.dumps(alert_data.get('notification_channels', ['email'])),
+                    json.dumps(alert_data.get('notification_channels', ['email', 'inapp'])),
                     json.dumps(alert_data.get('metadata', {}))
                 ))
                 
@@ -254,7 +281,10 @@ class AlertsDatabase:
         """Delete an alert and its triggers"""
         try:
             with sqlite3.connect(self.db_path) as conn:
-                # Delete triggers first
+                # Delete related notifications first
+                conn.execute('DELETE FROM in_app_notifications WHERE alert_id = ?', (alert_id,))
+                
+                # Delete triggers
                 conn.execute('DELETE FROM alert_triggers WHERE alert_id = ?', (alert_id,))
                 
                 # Delete alert
@@ -373,6 +403,18 @@ class AlertsDatabase:
                 
                 stats = dict(cursor.fetchone())
                 
+                # 🆕 IN-APP NOTIFICATIONS STATISTICS
+                cursor = conn.execute('''
+                    SELECT 
+                        COUNT(*) as total_notifications,
+                        SUM(CASE WHEN read = 0 THEN 1 ELSE 0 END) as unread_notifications,
+                        SUM(CASE WHEN dismissed = 0 THEN 1 ELSE 0 END) as active_notifications
+                    FROM in_app_notifications
+                ''')
+                
+                notification_stats = dict(cursor.fetchone())
+                stats.update(notification_stats)
+                
                 # Alerts by type
                 cursor = conn.execute('''
                     SELECT alert_type, COUNT(*) as count
@@ -412,20 +454,35 @@ class AlertsDatabase:
             return {}
 
     def cleanup_old_data(self, days_to_keep: int = 90):
-        """Clean up old trigger data"""
+        """Clean up old trigger data and notifications"""
         try:
             cutoff_date = datetime.now() - timedelta(days=days_to_keep)
             
             with sqlite3.connect(self.db_path) as conn:
+                # Clean up old triggers
                 cursor = conn.execute('''
                     DELETE FROM alert_triggers 
                     WHERE triggered_at < ?
                 ''', (cutoff_date.isoformat(),))
                 
+                triggers_deleted = cursor.rowcount
+                
+                # 🆕 CLEAN UP OLD NOTIFICATIONS (keep dismissed ones for shorter period)
+                notification_cutoff = datetime.now() - timedelta(days=30)  # Keep for 30 days
+                cursor = conn.execute('''
+                    DELETE FROM in_app_notifications 
+                    WHERE created_at < ? AND dismissed = 1
+                ''', (notification_cutoff.isoformat(),))
+                
+                notifications_deleted = cursor.rowcount
+                
                 conn.commit()
                 
-                if cursor.rowcount > 0:
-                    self.logger.info(f"🧹 Cleaned up {cursor.rowcount} old alert triggers")
+                if triggers_deleted > 0:
+                    self.logger.info(f"🧹 Cleaned up {triggers_deleted} old alert triggers")
+                
+                if notifications_deleted > 0:
+                    self.logger.info(f"🧹 Cleaned up {notifications_deleted} old notifications")
                 
         except Exception as e:
             self.logger.error(f"❌ Failed to cleanup old alert data: {e}")
@@ -555,6 +612,190 @@ class AlertsDatabase:
         except Exception as e:
             self.logger.error(f"❌ Failed to update trigger notification status: {e}")
             return False
+
+    # 🆕 ===== IN-APP NOTIFICATIONS METHODS =====
+
+    def create_in_app_notification(self, notification_data: Dict) -> Optional[str]:
+        """Create in-app notification"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute('''
+                    INSERT INTO in_app_notifications 
+                    (title, message, type, cluster_id, alert_id, trigger_id, timestamp, read, dismissed, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    notification_data['title'],
+                    notification_data['message'],
+                    notification_data.get('type', 'info'),
+                    notification_data.get('cluster_id'),
+                    notification_data.get('alert_id'),
+                    notification_data.get('trigger_id'),
+                    notification_data['timestamp'],
+                    notification_data.get('read', False),
+                    notification_data.get('dismissed', False),
+                    json.dumps(notification_data.get('metadata', {}))
+                ))
+                
+                conn.commit()
+                notification_id = cursor.lastrowid
+                
+                self.logger.info(f"📱 Created in-app notification: {notification_id}")
+                return str(notification_id)
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error creating in-app notification: {e}")
+            return None
+
+    def get_in_app_notifications(self, cluster_id: Optional[str] = None, 
+                               unread_only: bool = False, 
+                               limit: int = 50) -> List[Dict]:
+        """Get in-app notifications"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                
+                where_clauses = ['dismissed = 0']  # Don't show dismissed notifications
+                params = []
+                
+                if cluster_id:
+                    where_clauses.append('cluster_id = ?')
+                    params.append(cluster_id)
+                
+                if unread_only:
+                    where_clauses.append('read = 0')
+                
+                where_sql = ' WHERE ' + ' AND '.join(where_clauses)
+                
+                cursor = conn.execute(f'''
+                    SELECT id, title, message, type, cluster_id, alert_id, trigger_id, 
+                           timestamp, read, dismissed, metadata, created_at
+                    FROM in_app_notifications
+                    {where_sql}
+                    ORDER BY created_at DESC 
+                    LIMIT ?
+                ''', params + [limit])
+                
+                notifications = []
+                for row in cursor.fetchall():
+                    notification = dict(row)
+                    notification['metadata'] = json.loads(notification.get('metadata', '{}'))
+                    notifications.append(notification)
+                
+                return notifications
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error getting in-app notifications: {e}")
+            return []
+
+    def update_notification_status(self, notification_ids: List[str], action: str) -> bool:
+        """Update notification status (mark as read/dismissed)"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                if action == 'mark_read':
+                    update_sql = f'''
+                        UPDATE in_app_notifications 
+                        SET read = 1, updated_at = ? 
+                        WHERE id IN ({','.join(['?' for _ in notification_ids])})
+                    '''
+                    params = [datetime.now().isoformat()] + notification_ids
+                    
+                elif action == 'dismiss':
+                    update_sql = f'''
+                        UPDATE in_app_notifications 
+                        SET dismissed = 1, updated_at = ? 
+                        WHERE id IN ({','.join(['?' for _ in notification_ids])})
+                    '''
+                    params = [datetime.now().isoformat()] + notification_ids
+                    
+                else:
+                    return False
+                
+                cursor = conn.execute(update_sql, params)
+                conn.commit()
+                
+                self.logger.info(f"📱 Updated {cursor.rowcount} notifications: {action}")
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error updating notification status: {e}")
+            return False
+
+    def get_unread_notifications_count(self, cluster_id: Optional[str] = None) -> int:
+        """Get count of unread notifications"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                where_clauses = ['read = 0', 'dismissed = 0']
+                params = []
+                
+                if cluster_id:
+                    where_clauses.append('cluster_id = ?')
+                    params.append(cluster_id)
+                
+                where_sql = ' WHERE ' + ' AND '.join(where_clauses)
+                
+                cursor = conn.execute(f'''
+                    SELECT COUNT(*) as count 
+                    FROM in_app_notifications 
+                    {where_sql}
+                ''', params)
+                
+                result = cursor.fetchone()
+                return result[0] if result else 0
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error getting unread notifications count: {e}")
+            return 0
+
+    def create_notification_for_trigger(self, trigger_id: int, alert: Dict, 
+                                      current_cost: float, exceeded_by: float) -> Optional[str]:
+        """Create in-app notification for an alert trigger"""
+        try:
+            percentage_over = (exceeded_by / alert['threshold_amount']) * 100
+            
+            notification_data = {
+                'title': f"🚨 Cost Alert: {alert['name']}",
+                'message': f"Cluster {alert['cluster_name']} cost ${current_cost:,.2f} exceeded threshold ${alert['threshold_amount']:,.2f} by ${exceeded_by:,.2f} ({percentage_over:.1f}% over)",
+                'type': 'warning',
+                'cluster_id': alert['cluster_id'],
+                'alert_id': alert['id'],
+                'trigger_id': trigger_id,
+                'timestamp': datetime.now().isoformat(),
+                'read': False,
+                'dismissed': False,
+                'metadata': {
+                    'current_cost': current_cost,
+                    'threshold_amount': alert['threshold_amount'],
+                    'exceeded_by': exceeded_by,
+                    'percentage_over': percentage_over,
+                    'resource_group': alert['resource_group'],
+                    'alert_type': alert['alert_type']
+                }
+            }
+            
+            return self.create_in_app_notification(notification_data)
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error creating notification for trigger: {e}")
+            return None
+
+    def clear_old_notifications(self, days_to_keep: int = 30):
+        """Clear old notifications (separate from general cleanup)"""
+        try:
+            cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute('''
+                    DELETE FROM in_app_notifications 
+                    WHERE created_at < ? AND (dismissed = 1 OR read = 1)
+                ''', (cutoff_date.isoformat(),))
+                
+                conn.commit()
+                
+                if cursor.rowcount > 0:
+                    self.logger.info(f"🧹 Cleared {cursor.rowcount} old notifications")
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to clear old notifications: {e}")
 
 # Create a global instance
 alerts_db = AlertsDatabase()

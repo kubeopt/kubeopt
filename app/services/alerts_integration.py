@@ -429,24 +429,40 @@ def register_alerts_routes(app):
 
     @app.route('/api/notifications/in-app', methods=['GET', 'POST', 'PUT'])
     def in_app_notifications_api():
-        """In-app notifications management"""
+        """UPDATED: Enhanced in-app notifications management"""
         try:
             if request.method == 'GET':
                 unread_only = request.args.get('unread_only', 'false').lower() == 'true'
                 limit = int(request.args.get('limit', 50))
+                cluster_id = request.args.get('cluster_id')
                 
-                # Production: This would read from a notifications database table
-                # For now, return empty as no persistent storage is implemented yet
-                notifications = []
-                
-                return jsonify({
-                    'status': 'success',
-                    'notifications': notifications,
-                    'unread_count': 0,
-                    'total_count': 0,
-                    'limit': limit,
-                    'unread_only': unread_only
-                })
+                # Get notifications from database via alerts manager
+                if alerts_manager and alerts_manager.db:
+                    notifications = alerts_manager.db.get_in_app_notifications(
+                        cluster_id=cluster_id,
+                        unread_only=unread_only,
+                        limit=limit
+                    )
+                    unread_count = alerts_manager.db.get_unread_notifications_count(cluster_id)
+                    
+                    return jsonify({
+                        'status': 'success',
+                        'notifications': notifications,
+                        'unread_count': unread_count,
+                        'total_count': len(notifications),
+                        'limit': limit,
+                        'unread_only': unread_only
+                    })
+                else:
+                    # Fallback for when alerts manager is not available
+                    return jsonify({
+                        'status': 'success',
+                        'notifications': [],
+                        'unread_count': 0,
+                        'total_count': 0,
+                        'limit': limit,
+                        'unread_only': unread_only
+                    })
             
             elif request.method == 'POST':
                 data = request.get_json() or {}
@@ -457,14 +473,35 @@ def register_alerts_routes(app):
                         'message': 'Title and message are required'
                     }), 400
                 
-                notification_id = f"notification_{int(datetime.now().timestamp())}"
-                logger.info(f"📱 Created in-app notification: {data.get('title')}")
+                # Create notification in database
+                notification_id = None
+                if alerts_manager and alerts_manager.db:
+                    notification_data = {
+                        'title': data['title'],
+                        'message': data['message'],
+                        'type': data.get('type', 'info'),
+                        'cluster_id': data.get('cluster_id'),
+                        'alert_id': data.get('alert_id'),
+                        'trigger_id': data.get('trigger_id'),
+                        'timestamp': datetime.now().isoformat(),
+                        'read': False,
+                        'dismissed': False,
+                        'metadata': data.get('metadata', {})
+                    }
+                    notification_id = alerts_manager.db.create_in_app_notification(notification_data)
                 
-                return jsonify({
-                    'status': 'success',
-                    'message': 'Notification created successfully',
-                    'notification_id': notification_id
-                })
+                if notification_id:
+                    logger.info(f"📱 In-app notification created: {notification_id}")
+                    return jsonify({
+                        'status': 'success',
+                        'message': 'Notification created successfully',
+                        'notification_id': notification_id
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Failed to create notification'
+                    }), 500
             
             elif request.method == 'PUT':
                 data = request.get_json() or {}
@@ -477,14 +514,24 @@ def register_alerts_routes(app):
                         'message': 'notification_ids required'
                     }), 400
                 
-                logger.info(f"📱 Updated {len(notification_ids)} notifications: {action}")
+                # Update notifications in database
+                success = False
+                if alerts_manager and alerts_manager.db:
+                    success = alerts_manager.db.update_notification_status(notification_ids, action)
                 
-                return jsonify({
-                    'status': 'success',
-                    'message': f'Successfully {action} {len(notification_ids)} notifications',
-                    'updated_count': len(notification_ids)
-                })
-                
+                if success:
+                    logger.info(f"📱 Updated {len(notification_ids)} notifications: {action}")
+                    return jsonify({
+                        'status': 'success',
+                        'message': f'Successfully {action} {len(notification_ids)} notifications',
+                        'updated_count': len(notification_ids)
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Failed to update notifications'
+                    }), 500
+                    
         except Exception as e:
             logger.error(f"❌ Error in in-app notifications API: {e}")
             return jsonify({
@@ -621,215 +668,64 @@ def register_alerts_routes(app):
 
     logger.info("✅ Enhanced alerts routes registered successfully")
 
-def check_alerts_after_analysis(cluster_id: str, analysis_results: dict):
-    """ENHANCED: Check and trigger alerts after analysis completion"""
-    try:
-        logger.info(f"🔍 Starting enhanced alert check for cluster {cluster_id}")
-        
-        if not alerts_manager:
-            logger.warning("⚠️ Alerts manager not available - skipping alert check")
-            return []
-        
-        # Get cluster information
-        cluster = enhanced_cluster_manager.get_cluster(cluster_id) if enhanced_cluster_manager else None
-        if not cluster:
-            logger.warning(f"⚠️ Cluster {cluster_id} not found in cluster manager")
-            return []
-        
-        # ENHANCED: Extract current cost with multiple fallback strategies
-        current_cost = 0.0
-        cost_sources = [
-            'total_cost',
-            'monthly_cost', 
-            'current_month_cost',
-            'total_monthly_cost'
-        ]
-        
-        for source in cost_sources:
-            if source in analysis_results and analysis_results[source] is not None:
-                try:
-                    current_cost = float(analysis_results[source])
-                    if current_cost > 0:
-                        logger.info(f"💰 Found cost data from '{source}': ${current_cost:.2f}")
-                        break
-                except (ValueError, TypeError):
-                    continue
-        
-        # Check nested cost breakdown if no direct cost found
-        if current_cost == 0 and 'cost_breakdown' in analysis_results:
-            cost_breakdown = analysis_results['cost_breakdown']
-            if isinstance(cost_breakdown, dict):
-                for breakdown_key in ['total', 'monthly_total', 'current_total']:
-                    if breakdown_key in cost_breakdown:
-                        try:
-                            current_cost = float(cost_breakdown[breakdown_key])
-                            if current_cost > 0:
-                                logger.info(f"💰 Found cost data from cost_breakdown.{breakdown_key}: ${current_cost:.2f}")
-                                break
-                        except (ValueError, TypeError):
-                            continue
-        
-        if current_cost <= 0:
-            logger.warning(f"⚠️ No valid cost data found for cluster {cluster_id}. Analysis keys: {list(analysis_results.keys())}")
-            return []
-        
-        logger.info(f"🔍 Checking alerts for cluster {cluster_id} with cost ${current_cost:.2f}")
-        
-        # Get all alerts and filter for this cluster
-        triggered_alerts = []
-        
+    def check_alerts_after_analysis(cluster_id: str, analysis_results: dict):
+        """UPDATED: Check and trigger alerts after analysis completion with in-app notifications"""
         try:
-            alerts_data = alerts_manager.get_alerts_route()
-            if alerts_data['status'] != 'success':
-                logger.error("❌ Failed to get alerts from alerts manager")
+            logger.info(f"🔍 Starting enhanced alert check for cluster {cluster_id}")
+            
+            if not alerts_manager:
+                logger.warning("⚠️ Alerts manager not available - skipping alert check")
                 return []
             
-            all_alerts = alerts_data['alerts']
-            logger.info(f"📋 Found {len(all_alerts)} total alerts in system")
+            # Get cluster information
+            cluster = enhanced_cluster_manager.get_cluster(cluster_id) if enhanced_cluster_manager else None
+            if not cluster:
+                logger.warning(f"⚠️ Cluster {cluster_id} not found in cluster manager")
+                return []
             
-            # ENHANCED: Find alerts for this cluster using multiple matching strategies
-            cluster_alerts = []
+            # Extract current cost
+            current_cost = 0.0
+            cost_sources = [
+                'total_cost',
+                'monthly_cost', 
+                'current_month_cost',
+                'total_monthly_cost'
+            ]
             
-            for alert in all_alerts:
-                # Skip inactive alerts
-                if alert.get('status') != 'active':
-                    continue
-                
-                # Strategy 1: Direct cluster_id match
-                if alert.get('cluster_id') == cluster_id:
-                    cluster_alerts.append(alert)
-                    logger.info(f"✅ Matched alert by cluster_id: {alert['name']}")
-                    continue
-                
-                # Strategy 2: Match by cluster_name and resource_group
-                if (alert.get('cluster_name') == cluster['name'] and 
-                    alert.get('resource_group') == cluster['resource_group']):
-                    cluster_alerts.append(alert)
-                    logger.info(f"✅ Matched alert by name/resource_group: {alert['name']}")
-                    continue
-                
-                # Strategy 3: Match by cluster_name only
-                if alert.get('cluster_name') == cluster['name']:
-                    cluster_alerts.append(alert)
-                    logger.info(f"✅ Matched alert by cluster_name only: {alert['name']}")
-            
-            logger.info(f"🎯 Found {len(cluster_alerts)} active alerts for cluster {cluster_id}")
-            
-            # ENHANCED: Check each alert against current cost
-            for alert in cluster_alerts:
-                try:
-                    threshold = alert.get('threshold_amount')
-                    if threshold is None or threshold <= 0:
-                        logger.warning(f"⚠️ Alert {alert['id']} has invalid threshold: {threshold}")
+            for source in cost_sources:
+                if source in analysis_results and analysis_results[source] is not None:
+                    try:
+                        current_cost = float(analysis_results[source])
+                        if current_cost > 0:
+                            logger.info(f"💰 Found cost data from '{source}': ${current_cost:.2f}")
+                            break
+                    except (ValueError, TypeError):
                         continue
-                    
-                    threshold = float(threshold)
-                    logger.info(f"🔍 Checking alert '{alert['name']}': ${current_cost:.2f} vs ${threshold:.2f}")
-                    
-                    if current_cost >= threshold:
-                        exceeded_by = current_cost - threshold
-                        percentage_over = (exceeded_by / threshold) * 100
-                        
-                        logger.info(f"🚨 ALERT TRIGGERED: '{alert['name']}' - Cost ${current_cost:.2f} exceeds threshold ${threshold:.2f} by ${exceeded_by:.2f} ({percentage_over:.1f}%)")
-                        
-                        # ENHANCED: Create comprehensive notification data
-                        notification_data = {
-                            'alert_id': alert['id'],
-                            'alert_name': alert['name'],
-                            'cluster_id': cluster_id,
-                            'cluster_name': cluster['name'],
-                            'resource_group': cluster['resource_group'],
-                            'current_cost': current_cost,
-                            'threshold_amount': threshold,
-                            'threshold_exceeded_by': exceeded_by,
-                            'percentage_over': percentage_over,
-                            'triggered_at': datetime.now().isoformat(),
-                            'notification_channels': alert.get('notification_channels', ['email'])
-                        }
-                        
-                        # ENHANCED: Record trigger in database
-                        try:
-                            trigger_id = alerts_manager.db.record_alert_trigger({
-                                'alert_id': alert['id'],
-                                'cluster_id': cluster_id,
-                                'trigger_reason': f"Cost ${current_cost:.2f} exceeded threshold ${threshold:.2f}",
-                                'current_cost': current_cost,
-                                'threshold_amount': threshold,
-                                'threshold_exceeded_by': exceeded_by,
-                                'notification_sent': False,
-                                'notification_channels': alert.get('notification_channels', ['email']),
-                                'metadata': {
-                                    'alert_name': alert['name'],
-                                    'percentage_over': percentage_over,
-                                    'cluster_name': cluster['name'],
-                                    'resource_group': cluster['resource_group']
-                                }
-                            })
-                            
-                            if trigger_id:
-                                notification_data['trigger_id'] = trigger_id
-                                logger.info(f"✅ Recorded alert trigger in database: {trigger_id}")
-                        except Exception as db_error:
-                            logger.error(f"❌ Failed to record trigger in database: {db_error}")
-                        
-                        # ENHANCED: Send notifications through multiple channels
-                        notifications_sent = []
-                        
-                        # Email notification
-                        if 'email' in alert.get('notification_channels', ['email']):
-                            try:
-                                if alerts_manager._send_alert_email(alert, notification_data):
-                                    notifications_sent.append('email')
-                                    logger.info(f"📧 Email notification sent for alert {alert['id']}")
-                            except Exception as email_error:
-                                logger.error(f"❌ Failed to send email notification: {email_error}")
-                        
-                        # Slack notification
-                        if 'slack' in alert.get('notification_channels', []):
-                            try:
-                                if alerts_manager._send_alert_slack(alert, notification_data):
-                                    notifications_sent.append('slack')
-                                    logger.info(f"💬 Slack notification sent for alert {alert['id']}")
-                            except Exception as slack_error:
-                                logger.error(f"❌ Failed to send Slack notification: {slack_error}")
-                        
-                        # Update trigger with notification status
-                        if notification_data.get('trigger_id'):
-                            try:
-                                alerts_manager.db.update_trigger_notification_status(
-                                    notification_data['trigger_id'],
-                                    len(notifications_sent) > 0,
-                                    notifications_sent
-                                )
-                            except Exception as update_error:
-                                logger.error(f"❌ Failed to update trigger notification status: {update_error}")
-                        
-                        triggered_alerts.append(notification_data)
-                        
-                    else:
-                        logger.info(f"✅ Alert '{alert['name']}' not triggered - cost ${current_cost:.2f} below threshold ${threshold:.2f}")
-                        
-                except Exception as alert_error:
-                    logger.error(f"❌ Error checking alert {alert.get('id', 'unknown')}: {alert_error}")
+            
+            if current_cost <= 0:
+                logger.warning(f"⚠️ No valid cost data found for cluster {cluster_id}")
+                return []
+            
+            logger.info(f"🔍 Checking alerts for cluster {cluster_id} with cost ${current_cost:.2f}")
+            
+            # 🆕 USE THE ENHANCED check_cluster_alerts METHOD
+            triggered_alerts = alerts_manager.check_cluster_alerts(cluster_id, current_cost)
             
             if triggered_alerts:
                 logger.info(f"🚨 SUMMARY: Triggered {len(triggered_alerts)} alerts for cluster {cluster_id}")
-                for trigger in triggered_alerts:
-                    logger.info(f"   - {trigger['alert_name']}: ${trigger['current_cost']:.2f} > ${trigger['threshold_amount']:.2f}")
+                for triggered_alert in triggered_alerts:
+                    alert = triggered_alert['alert']
+                    logger.info(f"   - {alert['name']}: ${triggered_alert['current_cost']:.2f} > ${alert['threshold_amount']:.2f}")
+                    logger.info(f"   - Notifications sent via: {alert.get('notification_channels', [])}")
             else:
                 logger.info(f"✅ No alerts triggered for cluster {cluster_id}")
             
             return triggered_alerts
             
-        except Exception as alerts_error:
-            logger.error(f"❌ Error processing alerts: {alerts_error}")
+        except Exception as e:
+            logger.error(f"❌ Error in enhanced alert checking: {e}")
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return []
-        
-    except Exception as e:
-        logger.error(f"❌ Error in enhanced alert checking: {e}")
-        logger.error(f"❌ Traceback: {traceback.format_exc()}")
-        return []
 
 def get_alerts_manager():
     """Get the alerts manager instance"""
