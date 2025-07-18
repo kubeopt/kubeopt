@@ -15,33 +15,137 @@ const AlertsState = {
     slackConfigured: false,
     systemAvailable: true,
     lastError: null,
-    currentFilter: 'all', // all, active, paused
+    currentFilter: 'all',
     inAppNotifications: [],
     unreadNotificationsCount: 0,
     notificationChannels: {
         email: false,
         slack: false,
         inApp: true
+    },
+    // 🆕 FREQUENCY CONFIGURATIONS
+    frequencyConfigs: [],
+    defaultFrequency: 'daily',
+    frequencyMap: {
+        'immediate': { 
+            display: 'Immediate', 
+            description: 'Send notification as soon as alert is triggered',
+            icon: 'fa-bolt',
+            color: 'danger'
+        },
+        'hourly': { 
+            display: 'Hourly', 
+            description: 'Send notifications once per hour',
+            icon: 'fa-clock',
+            color: 'warning'
+        },
+        'daily': { 
+            display: 'Daily', 
+            description: 'Send one notification per day at 9:00 AM',
+            icon: 'fa-calendar-day',
+            color: 'primary'
+        },
+        'weekly': { 
+            display: 'Weekly', 
+            description: 'Send notifications once per week',
+            icon: 'fa-calendar-week',
+            color: 'info'
+        },
+        'monthly': { 
+            display: 'Monthly', 
+            description: 'Send notifications once per month',
+            icon: 'fa-calendar-alt',
+            color: 'secondary'
+        },
+        'custom_4h': { 
+            display: 'Every 4 Hours', 
+            description: 'Send notifications every 4 hours',
+            icon: 'fa-history',
+            color: 'success'
+        }
     }
 };
+
+
+function loadFrequencyConfigurations() {
+    fetch('/api/alerts/frequency-configs')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to load frequency configs: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'success') {
+                AlertsState.frequencyConfigs = data.configurations || [];
+                console.log('✅ Loaded frequency configurations:', AlertsState.frequencyConfigs.length);
+            } else {
+                throw new Error(data.message || 'Failed to load frequency configurations');
+            }
+        })
+        .catch(error => {
+            console.warn('⚠️ Using default frequency configurations:', error.message);
+            // Use default configurations if backend doesn't have the endpoint
+            AlertsState.frequencyConfigs = Object.keys(AlertsState.frequencyMap).map(key => ({
+                frequency_type: key,
+                display_name: AlertsState.frequencyMap[key].display,
+                description: AlertsState.frequencyMap[key].description
+            }));
+        });
+}
+
+function getFrequencyInfo(frequency) {
+    // Ensure we never return undefined
+    if (!frequency || frequency === 'undefined' || frequency === '') {
+        frequency = AlertsState.defaultFrequency;
+    }
+    
+    // Try to get from loaded configs first
+    const config = AlertsState.frequencyConfigs.find(c => c.frequency_type === frequency);
+    if (config) {
+        return {
+            display: config.display_name,
+            description: config.description,
+            icon: AlertsState.frequencyMap[frequency]?.icon || 'fa-clock',
+            color: AlertsState.frequencyMap[frequency]?.color || 'primary'
+        };
+    }
+    
+    // Fallback to hardcoded map
+    const fallback = AlertsState.frequencyMap[frequency];
+    if (fallback) {
+        return fallback;
+    }
+    
+    // Ultimate fallback
+    return {
+        display: 'Daily',
+        description: 'Send notifications daily',
+        icon: 'fa-calendar-day',
+        color: 'primary'
+    };
+}
 
 /**
  * Initialize alerts system with enhanced error handling and multi-channel support
  */
 function initializeAlertsSystem() {
-    console.log('🔔 Initializing enhanced alerts system with multi-channel support...');
+    console.log('🔔 Initializing enhanced alerts system with frequency management...');
     
     // First check if alerts system is available
     checkAlertsSystemStatus()
         .then(() => {
             if (AlertsState.systemAvailable) {
+                // Load frequency configurations
+                loadFrequencyConfigurations();
+                
                 // Check notification channel configurations
                 checkNotificationChannels();
                 
                 // Load existing alerts
                 loadAlerts();
                 
-                // Load in-app notifications (with error handling)
+                // Load in-app notifications
                 loadInAppNotifications();
                 
                 // Setup event listeners
@@ -55,12 +159,12 @@ function initializeAlertsSystem() {
                     loadClusterAlerts(AlertsState.currentClusterId);
                 }
                 
-                // Setup periodic notification refresh (only if endpoint exists)
+                // Setup periodic refresh
                 if (AlertsState.systemAvailable) {
-                    setInterval(loadInAppNotifications, 30000); // Refresh every 30 seconds
+                    setInterval(loadInAppNotifications, 30000);
                 }
                 
-                console.log('✅ Enhanced alerts system initialized successfully');
+                console.log('✅ Enhanced alerts system with frequency management initialized');
             } else {
                 console.warn('⚠️ Alerts system not available - showing fallback UI');
                 showAlertsUnavailableMessage();
@@ -572,19 +676,19 @@ function setupAlertsEventListeners() {
         budgetForm.addEventListener('submit', handleBudgetAlertSubmission);
     }
     
-    // FIXED: Advanced alerts form - check if it exists before adding listener
+    // Advanced alerts form
     const advancedForm = document.getElementById('advanced-alerts-form');
     if (advancedForm) {
         advancedForm.addEventListener('submit', handleAdvancedAlertSubmission);
     }
     
-    // FIXED: Alert filtering event listeners
+    // Alert filtering
     setupAlertFiltering();
     
     // Alert list interactions
     document.addEventListener('click', function(event) {
         if (!AlertsState.systemAvailable) {
-            if (event.target.closest('.test-alert-btn, .pause-alert-btn, .delete-alert-btn')) {
+            if (event.target.closest('.test-alert-btn, .pause-alert-btn, .delete-alert-btn, .edit-frequency-btn')) {
                 showNotification('Alerts system is currently unavailable', 'warning');
                 event.preventDefault();
                 return;
@@ -605,6 +709,12 @@ function setupAlertsEventListeners() {
         if (event.target.closest('.delete-alert-btn')) {
             const alertId = event.target.closest('.delete-alert-btn').dataset.alertId;
             deleteAlert(alertId);
+        }
+        
+        // 🆕 EDIT FREQUENCY BUTTON
+        if (event.target.closest('.edit-frequency-btn')) {
+            const alertId = event.target.closest('.edit-frequency-btn').dataset.alertId;
+            showEditFrequencyModal(alertId);
         }
     });
 }
@@ -734,11 +844,21 @@ function handleBudgetAlertSubmission(event) {
     }
     
     const formData = new FormData(event.target);
-    const budgetAmount = parseFloat(formData.get('budget_amount') || formData.get('threshold_amount'));
-    const alertEmail = formData.get('alert_email') || formData.get('email');
-    const alertThreshold = parseFloat(formData.get('alert_threshold') || formData.get('threshold_percentage'));
+    const alertName = formData.get('name') || `Budget Alert - ${formData.get('threshold_amount')}`;
+    const budgetAmount = parseFloat(formData.get('threshold_amount'));
+    const alertEmail = formData.get('email');
+    const alertThreshold = parseFloat(formData.get('threshold_percentage'));
+    const frequency = formData.get('notification_frequency') || 'daily';
+    const frequencyAtTime = formData.get('frequency_at_time') || '09:00';
+    const maxNotificationsPerDay = parseInt(formData.get('max_notifications_per_day')) || null;
+    const cooldownPeriodHours = parseInt(formData.get('cooldown_period_hours')) || 4;
     
-    // Validation
+    // Enhanced validation
+    if (!alertName.trim()) {
+        showNotification('Please enter an alert name', 'error');
+        return;
+    }
+    
     if (!budgetAmount || budgetAmount <= 0) {
         showNotification('Please enter a valid budget amount', 'error');
         return;
@@ -749,33 +869,61 @@ function handleBudgetAlertSubmission(event) {
         return;
     }
     
+    // Get selected notification channels
+    const selectedChannels = [];
+    const channelCheckboxes = event.target.querySelectorAll('input[name="channels"]:checked');
+    channelCheckboxes.forEach(checkbox => {
+        selectedChannels.push(checkbox.value);
+    });
+    
+    if (selectedChannels.length === 0) {
+        showNotification('Please select at least one notification channel', 'error');
+        return;
+    }
+    
     const alertData = {
-        name: `Budget Alert - $${budgetAmount.toLocaleString()}`,
+        name: alertName,
         alert_type: 'cost_threshold',
         threshold_amount: budgetAmount,
         threshold_percentage: alertThreshold,
         email: alertEmail,
-        notification_frequency: 'immediate',
-        cluster_id: AlertsState.currentClusterId
+        
+        // Enhanced frequency settings
+        notification_frequency: frequency,
+        frequency_at_time: frequencyAtTime,
+        max_notifications_per_day: maxNotificationsPerDay,
+        cooldown_period_hours: cooldownPeriodHours,
+        
+        cluster_id: AlertsState.currentClusterId,
+        notification_channels: selectedChannels
     };
     
     // Show loading state
     const submitBtn = event.target.querySelector('button[type="submit"]');
     const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Setting up alert...';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating smart alert...';
     submitBtn.disabled = true;
     
     createAlert(alertData)
         .then(result => {
             if (result.status === 'success') {
-                showNotification('Budget alert created successfully!', 'success');
-                event.target.reset();
-                loadAlerts(); // Refresh alerts list
+                const frequencyInfo = getFrequencyInfo(frequency);
+                showNotification(
+                    'Smart Alert Created Successfully!', 
+                    `Alert "${alertName}" created with ${frequencyInfo.display} frequency and ${selectedChannels.length} notification channels`,
+                    'success'
+                );
                 
-                // Create in-app notification locally
+                event.target.reset();
+                loadAlerts();
+                
+                // Update frequency preview after reset
+                setTimeout(setupFrequencyPreview, 100);
+                
+                // Create in-app notification
                 createLocalInAppNotification(
-                    'New Alert Created',
-                    `Budget alert for $${budgetAmount.toLocaleString()} has been created successfully`,
+                    'New Smart Alert Created',
+                    `Budget alert "${alertName}" created with ${frequencyInfo.display} frequency for $${budgetAmount.toLocaleString()}`,
                     'success'
                 );
             } else {
@@ -1034,94 +1182,420 @@ function displayAlerts(alerts) {
         return;
     }
     
+    // Update summary counters
+    updateAlertSummaryCounters(alerts);
+    
     if (alerts.length === 0) {
         container.innerHTML = `
-            <div class="text-center text-muted py-4">
-                <i class="fas fa-bell-slash fa-2x mb-3"></i>
-                <p>No alerts configured yet</p>
-                <small>Create your first alert using the form above</small>
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-bell-slash fa-3x mb-3"></i>
+                <h5>No alerts configured yet</h5>
+                <p>Create your first smart alert using the form above</p>
+                <button class="btn btn-primary" onclick="document.getElementById('alert-name').focus()">
+                    <i class="fas fa-plus me-2"></i>Create Alert
+                </button>
             </div>
         `;
         return;
     }
     
-    const alertsHTML = alerts.map(alert => `
-        <div class="alert-item card mb-3" 
-             data-alert-id="${alert.id}" 
-             data-status="${alert.status || 'active'}">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div class="flex-grow-1">
-                        <h6 class="card-title mb-2">
-                            ${escapeHtml(alert.name)}
-                            <span class="badge ${getStatusBadgeClass(alert.status || 'active')} ms-2">
-                                ${(alert.status || 'active').toUpperCase()}
-                            </span>
-                        </h6>
-                        <div class="row text-sm">
-                            <div class="col-md-6">
-                                <div class="mb-1">
-                                    <strong>Threshold:</strong> 
-                                    ${alert.threshold_amount > 0 
-                                        ? '$' + alert.threshold_amount.toLocaleString() 
-                                        : alert.threshold_percentage + '%'}
+    const alertsHTML = alerts.map(alert => {
+        const frequency = alert.notification_frequency || AlertsState.defaultFrequency;
+        const frequencyInfo = getFrequencyInfo(frequency);
+        const nextNotification = alert.next_notification_time ? formatDateTime(alert.next_notification_time) : 'TBD';
+        const statusClass = getStatusBadgeClass(alert.status || 'active');
+        
+        // Calculate alert health score
+        const healthScore = calculateAlertHealthScore(alert);
+        
+        return `
+            <div class="alert-item card border-0 shadow-sm mb-3" 
+                 data-alert-id="${alert.id}" 
+                 data-status="${alert.status || 'active'}"
+                 data-frequency="${frequency}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-2">
+                                <h6 class="card-title mb-0 me-2">
+                                    <i class="fas fa-bell me-1"></i>
+                                    ${escapeHtml(alert.name)}
+                                </h6>
+                                <span class="badge ${statusClass} me-2">
+                                    ${(alert.status || 'active').toUpperCase()}
+                                </span>
+                                <span class="frequency-badge ${frequency}">
+                                    <i class="fas ${frequencyInfo.icon} me-1"></i>
+                                    ${frequencyInfo.display}
+                                </span>
+                                ${healthScore < 80 ? `<span class="badge bg-warning text-dark ms-2" title="Alert needs attention">Health: ${healthScore}%</span>` : ''}
+                            </div>
+                            
+                            <!-- Enhanced Alert Details -->
+                            <div class="row text-sm mb-3">
+                                <div class="col-md-6">
+                                    <div class="alert-detail-item">
+                                        <strong><i class="fas fa-dollar-sign me-1 text-success"></i>Budget:</strong>
+                                        <span class="text-success">${alert.threshold_amount > 0 ? '$' + alert.threshold_amount.toLocaleString() : 'N/A'}</span>
+                                    </div>
+                                    <div class="alert-detail-item">
+                                        <strong><i class="fas fa-percentage me-1 text-warning"></i>Threshold:</strong>
+                                        <span class="text-warning">${alert.threshold_percentage || 0}%</span>
+                                    </div>
+                                    <div class="alert-detail-item">
+                                        <strong><i class="fas fa-at me-1 text-info"></i>Email:</strong>
+                                        <span class="text-info">${escapeHtml(alert.email || 'Not set')}</span>
+                                    </div>
                                 </div>
-                                <div class="mb-1">
-                                    <strong>Email:</strong> ${escapeHtml(alert.email)}
+                                <div class="col-md-6">
+                                    <div class="alert-detail-item">
+                                        <strong><i class="fas fa-dharmachakra me-1 text-primary"></i>Cluster:</strong>
+                                        <span class="text-primary">${escapeHtml(alert.cluster_name || 'All clusters')}</span>
+                                    </div>
+                                    <div class="alert-detail-item">
+                                        <strong><i class="fas fa-layer-group me-1 text-secondary"></i>Resource Group:</strong>
+                                        <span class="text-secondary">${escapeHtml(alert.resource_group || 'N/A')}</span>
+                                    </div>
+                                    <div class="alert-detail-item">
+                                        <strong><i class="fas fa-paper-plane me-1 text-success"></i>Notifications:</strong>
+                                        <span class="text-success">${alert.notification_count || 0} sent</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="mb-1">
-                                    <strong>Cluster:</strong> ${escapeHtml(alert.cluster_name || 'All clusters')}
-                                </div>
-                                <div class="mb-1">
-                                    <strong>Frequency:</strong> ${alert.notification_frequency}
+                            
+                            <!-- Enhanced Frequency Information -->
+                            <div class="frequency-info-card p-3 bg-light rounded mb-3">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6 class="mb-2">
+                                            <i class="fas fa-clock me-2 text-primary"></i>
+                                            Frequency Settings
+                                        </h6>
+                                        <div class="small">
+                                            <div class="mb-1">
+                                                <strong>Type:</strong> ${frequencyInfo.display}
+                                                <span class="text-muted ms-2">${frequencyInfo.description}</span>
+                                            </div>
+                                            ${frequency === 'daily' && alert.frequency_at_time ? `
+                                                <div class="mb-1">
+                                                    <strong>Time:</strong> ${alert.frequency_at_time}
+                                                </div>
+                                            ` : ''}
+                                            ${alert.max_notifications_per_day ? `
+                                                <div class="mb-1">
+                                                    <strong>Daily Limit:</strong> ${alert.max_notifications_per_day} notifications
+                                                </div>
+                                            ` : ''}
+                                            ${alert.cooldown_period_hours ? `
+                                                <div class="mb-1">
+                                                    <strong>Cooldown:</strong> ${alert.cooldown_period_hours} hours
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="mb-2">
+                                            <i class="fas fa-broadcast-tower me-2 text-info"></i>
+                                            Notification Channels
+                                        </h6>
+                                        <div class="small">
+                                            ${getNotificationChannelsDisplay(alert)}
+                                        </div>
+                                        ${frequency !== 'immediate' && nextNotification !== 'TBD' ? `
+                                            <div class="mt-2">
+                                                <strong class="text-primary">Next notification:</strong>
+                                                <span class="text-muted">${nextNotification}</span>
+                                            </div>
+                                        ` : ''}
+                                    </div>
                                 </div>
                             </div>
+                            
+                            <!-- Alert Activity -->
+                            ${alert.last_triggered ? `
+                                <div class="alert-activity mt-2">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <small class="text-muted">
+                                                <i class="fas fa-history me-1"></i>
+                                                Last triggered: ${formatDateTime(alert.last_triggered)}
+                                            </small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <small class="text-muted">
+                                                <i class="fas fa-fire me-1"></i>
+                                                Triggered ${alert.trigger_count || 0} times
+                                            </small>
+                                        </div>
+                                    </div>
+                                    ${alert.last_notification_sent ? `
+                                        <div class="mt-1">
+                                            <small class="text-success">
+                                                <i class="fas fa-paper-plane me-1"></i>
+                                                Last notification: ${formatDateTime(alert.last_notification_sent)}
+                                            </small>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            ` : `
+                                <div class="alert-activity mt-2">
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Alert created but not yet triggered
+                                    </small>
+                                </div>
+                            `}
                         </div>
-                        ${alert.last_triggered ? `
-                            <div class="mt-2">
-                                <small class="text-muted">
-                                    <i class="fas fa-clock me-1"></i>
-                                    Last triggered: ${formatDateTime(alert.last_triggered)} 
-                                    (${alert.trigger_count} times)
-                                </small>
+                        
+                        <!-- Enhanced Action Buttons -->
+                        <div class="alert-actions">
+                            <div class="btn-group-vertical btn-group-sm">
+                                <button class="btn btn-outline-primary test-alert-btn" 
+                                        data-alert-id="${alert.id}" 
+                                        title="Send test notification">
+                                    <i class="fas fa-paper-plane me-1"></i>Test
+                                </button>
+                                <button class="btn btn-outline-info edit-frequency-btn" 
+                                        data-alert-id="${alert.id}" 
+                                        title="Edit frequency settings">
+                                    <i class="fas fa-clock me-1"></i>Edit
+                                </button>
+                                <button class="btn btn-outline-warning pause-alert-btn" 
+                                        data-alert-id="${alert.id}" 
+                                        data-action="${(alert.status || 'active') === 'active' ? 'pause' : 'resume'}"
+                                        title="${(alert.status || 'active') === 'active' ? 'Pause' : 'Resume'} alert">
+                                    <i class="fas fa-${(alert.status || 'active') === 'active' ? 'pause' : 'play'} me-1"></i>
+                                    ${(alert.status || 'active') === 'active' ? 'Pause' : 'Resume'}
+                                </button>
+                                <button class="btn btn-outline-danger delete-alert-btn" 
+                                        data-alert-id="${alert.id}" 
+                                        title="Delete alert">
+                                    <i class="fas fa-trash me-1"></i>Delete
+                                </button>
                             </div>
-                        ` : ''}
-                        <div class="mt-2">
-                            <small class="text-muted">
-                                <i class="fas fa-bell me-1"></i>
-                                Channels: ${getNotificationChannelsText(alert)}
-                            </small>
-                        </div>
-                    </div>
-                    <div class="alert-actions">
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-primary test-alert-btn" 
-                                    data-alert-id="${alert.id}" 
-                                    title="Send test notification">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                            <button class="btn btn-outline-warning pause-alert-btn" 
-                                    data-alert-id="${alert.id}" 
-                                    data-action="${(alert.status || 'active') === 'active' ? 'pause' : 'resume'}"
-                                    title="${(alert.status || 'active') === 'active' ? 'Pause' : 'Resume'} alert">
-                                <i class="fas fa-${(alert.status || 'active') === 'active' ? 'pause' : 'play'}"></i>
-                            </button>
-                            <button class="btn btn-outline-danger delete-alert-btn" 
-                                    data-alert-id="${alert.id}" 
-                                    title="Delete alert">
-                                <i class="fas fa-trash"></i>
-                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
     
     container.innerHTML = alertsHTML;
 }
+
+function updateAlertSummaryCounters(alerts) {
+    const totalCount = alerts.length;
+    const activeCount = alerts.filter(a => (a.status || 'active') === 'active').length;
+    const pausedCount = alerts.filter(a => a.status === 'paused').length;
+    const recentlyTriggered = alerts.filter(a => {
+        if (!a.last_triggered) return false;
+        const lastTriggered = new Date(a.last_triggered);
+        const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        return lastTriggered > dayAgo;
+    }).length;
+    
+    // Update summary counters
+    const elements = {
+        'total-alerts-count': totalCount,
+        'active-alerts-count': activeCount,
+        'paused-alerts-count': pausedCount,
+        'triggered-alerts-count': recentlyTriggered
+    };
+    
+    Object.entries(elements).forEach(([id, count]) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = count;
+            element.classList.add('metric-updated');
+            setTimeout(() => element.classList.remove('metric-updated'), 500);
+        }
+    });
+}
+
+// Calculate alert health score
+function calculateAlertHealthScore(alert) {
+    let score = 100;
+    
+    // Deduct points for missing configurations
+    if (!alert.email) score -= 20;
+    if (!alert.notification_channels || alert.notification_channels.length === 0) score -= 15;
+    if (!alert.notification_frequency) score -= 10;
+    
+    // Deduct points for problematic settings
+    if (alert.notification_frequency === 'immediate' && (!alert.cooldown_period_hours || alert.cooldown_period_hours === 0)) {
+        score -= 15; // Immediate alerts without cooldown are problematic
+    }
+    
+    // Deduct points for being paused too long
+    if (alert.status === 'paused') {
+        score -= 30;
+    }
+    
+    // Boost score for good configurations
+    if (alert.notification_channels && alert.notification_channels.length > 1) {
+        score += 5; // Multiple channels are good
+    }
+    
+    if (alert.max_notifications_per_day && alert.max_notifications_per_day > 0) {
+        score += 5; // Having daily limits is good
+    }
+    
+    return Math.max(0, Math.min(100, score));
+}
+
+// Enhanced notification channels display
+function getNotificationChannelsDisplay(alert) {
+    const channels = alert.notification_channels || ['email'];
+    const channelIcons = {
+        'email': '<i class="fas fa-envelope text-primary"></i>',
+        'slack': '<i class="fab fa-slack text-success"></i>',
+        'inapp': '<i class="fas fa-bell text-info"></i>',
+        'in_app': '<i class="fas fa-bell text-info"></i>'
+    };
+    
+    const activeChannels = channels.map(channel => {
+        const icon = channelIcons[channel] || '<i class="fas fa-question text-muted"></i>';
+        const name = channel.charAt(0).toUpperCase() + channel.slice(1);
+        const isConfigured = checkChannelConfiguration(channel);
+        
+        return `
+            <div class="d-flex align-items-center mb-1">
+                ${icon}
+                <span class="ms-2 ${isConfigured ? 'text-success' : 'text-muted'}">${name}</span>
+                ${isConfigured ? '<i class="fas fa-check text-success ms-1"></i>' : '<i class="fas fa-times text-muted ms-1"></i>'}
+            </div>
+        `;
+    }).join('');
+    
+    return activeChannels;
+}
+
+// Check if notification channel is configured
+function checkChannelConfiguration(channel) {
+    switch(channel) {
+        case 'email':
+            return AlertsState.notificationChannels.email;
+        case 'slack':
+            return AlertsState.notificationChannels.slack;
+        case 'inapp':
+        case 'in_app':
+            return AlertsState.notificationChannels.inApp;
+        default:
+            return false;
+    }
+}
+
+// Enhanced test alert trigger functionality
+function testAlertTrigger(clusterId) {
+    if (!clusterId) {
+        showNotification('No cluster selected', 'error');
+        return;
+    }
+    
+    const testCost = prompt('Enter test cost amount for alert testing:', '6000');
+    if (!testCost || isNaN(testCost) || testCost <= 0) {
+        showNotification('Invalid test cost amount', 'error');
+        return;
+    }
+    
+    showNotification(
+        'Testing Alert Trigger',
+        `Simulating budget breach with cost $${parseFloat(testCost).toLocaleString()}...`,
+        'info'
+    );
+    
+    fetch(`/api/alerts/test-trigger/${clusterId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            test_cost: parseFloat(testCost)
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            const triggeredCount = data.triggered_alerts || 0;
+            showNotification(
+                'Alert Test Complete',
+                `Test completed successfully. ${triggeredCount} alerts were triggered.`,
+                'success'
+            );
+            
+            // Refresh alerts and notifications
+            setTimeout(() => {
+                loadAlerts();
+                loadInAppNotifications();
+            }, 1000);
+        } else {
+            throw new Error(data.message || 'Test failed');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Alert test error:', error);
+        showNotification(`Alert test failed: ${error.message}`, 'error');
+    });
+}
+
+// Enhanced initialization with frequency setup
+function initializeAlertsSystem() {
+    console.log('🔔 Initializing enhanced alerts system with frequency management...');
+    
+    // First check if alerts system is available
+    checkAlertsSystemStatus()
+        .then(() => {
+            if (AlertsState.systemAvailable) {
+                // Load frequency configurations
+                loadFrequencyConfigurations();
+                
+                // Check notification channel configurations
+                checkNotificationChannels();
+                
+                // Load existing alerts
+                loadAlerts();
+                
+                // Load in-app notifications
+                loadInAppNotifications();
+                
+                // Setup event listeners
+                setupAlertsEventListeners();
+                
+                // Setup frequency preview
+                setTimeout(setupFrequencyPreview, 500);
+                
+                // Check if we're on a cluster-specific page
+                const urlPath = window.location.pathname;
+                const clusterMatch = urlPath.match(/\/cluster\/([^\/]+)/);
+                if (clusterMatch) {
+                    AlertsState.currentClusterId = clusterMatch[1];
+                    loadClusterAlerts(AlertsState.currentClusterId);
+                }
+                
+                // Setup periodic refresh
+                if (AlertsState.systemAvailable) {
+                    setInterval(() => {
+                        loadInAppNotifications();
+                        loadAlerts(); // Refresh alerts periodically
+                    }, 30000);
+                }
+                
+                console.log('✅ Enhanced alerts system with frequency management initialized');
+            } else {
+                console.warn('⚠️ Alerts system not available - showing fallback UI');
+                showAlertsUnavailableMessage();
+            }
+        })
+        .catch(error => {
+            console.error('❌ Failed to initialize alerts system:', error);
+            AlertsState.systemAvailable = false;
+            showAlertsUnavailableMessage();
+        });
+}
+
+
+
+console.log('✅ Enhanced alerts system JavaScript loaded with frequency management')
 
 /**
  * Test alert notification with enhanced multi-channel support
@@ -1292,10 +1766,19 @@ function testSlackNotification() {
  * Show advanced alerts modal
  */
 function showAdvancedAlertsModal() {
+    const frequencyOptions = Object.keys(AlertsState.frequencyMap).map(key => {
+        const info = getFrequencyInfo(key);
+        return `
+            <option value="${key}" ${key === AlertsState.defaultFrequency ? 'selected' : ''}>
+                ${info.display} - ${info.description}
+            </option>
+        `;
+    }).join('');
+    
     const modalHTML = `
         <div class="modal fade" id="advancedAlertsModal" tabindex="-1" 
              aria-labelledby="advancedAlertsModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
+            <div class="modal-dialog modal-xl">
                 <div class="modal-content">
                     <div class="modal-header bg-gradient-primary text-white">
                         <h5 class="modal-title" id="advancedAlertsModalLabel">
@@ -1353,12 +1836,61 @@ function showAdvancedAlertsModal() {
                                 </div>
                                 <div class="col-md-4">
                                     <div class="form-group mb-3">
-                                        <label class="form-label">Notification Frequency</label>
-                                        <select class="form-select" name="notification_frequency">
-                                            <option value="immediate">Immediate</option>
-                                            <option value="daily">Daily</option>
-                                            <option value="weekly">Weekly</option>
+                                        <label class="form-label">
+                                            <i class="fas fa-clock me-1"></i>Notification Frequency
+                                        </label>
+                                        <select class="form-select" name="notification_frequency" id="frequency-select">
+                                            ${frequencyOptions}
                                         </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 🆕 FREQUENCY CONFIGURATION SECTION -->
+                            <div id="frequency-config-section" class="mb-4">
+                                <div class="card border-info">
+                                    <div class="card-header bg-info text-white">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-cog me-2"></i>Frequency Configuration
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="form-group mb-3">
+                                                    <label class="form-label">Daily Time (for daily/weekly alerts)</label>
+                                                    <input type="time" class="form-control" name="frequency_at_time" value="09:00">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-group mb-3">
+                                                    <label class="form-label">Max Notifications per Day</label>
+                                                    <select class="form-select" name="max_notifications_per_day">
+                                                        <option value="">No limit</option>
+                                                        <option value="1">1 per day</option>
+                                                        <option value="3" selected>3 per day</option>
+                                                        <option value="6">6 per day</option>
+                                                        <option value="12">12 per day</option>
+                                                        <option value="24">24 per day</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="form-group mb-3">
+                                                    <label class="form-label">Cooldown Period (hours)</label>
+                                                    <select class="form-select" name="cooldown_period_hours">
+                                                        <option value="0">No cooldown</option>
+                                                        <option value="1">1 hour</option>
+                                                        <option value="4" selected>4 hours</option>
+                                                        <option value="8">8 hours</option>
+                                                        <option value="24">24 hours</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div id="frequency-preview" class="alert alert-light">
+                                            <small id="frequency-preview-text">Preview will update based on your frequency selection</small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1429,9 +1961,158 @@ function showAdvancedAlertsModal() {
     // Update notification channels status in modal
     updateNotificationChannelsUI();
     
+    // Setup frequency preview
+    setupFrequencyPreview();
+    
     // Show modal
     const modal = new bootstrap.Modal(document.getElementById('advancedAlertsModal'));
     modal.show();
+}
+
+function setupFrequencyPreview() {
+    const frequencySelect = document.getElementById('notification-frequency');
+    const previewText = document.getElementById('frequency-preview-text');
+    const notificationTime = document.getElementById('notification-time');
+    const maxNotifications = document.getElementById('max-notifications');
+    const cooldownPeriod = document.getElementById('cooldown-period');
+    
+    function updateFrequencyPreview() {
+        const frequency = frequencySelect?.value || 'daily';
+        const time = notificationTime?.value || '09:00';
+        const maxPerDay = maxNotifications?.value || '3';
+        const cooldown = cooldownPeriod?.value || '4';
+        
+        const frequencyInfo = getFrequencyInfo(frequency);
+        let preview = `<strong>${frequencyInfo.display}:</strong> ${frequencyInfo.description}`;
+        
+        // Add specific timing information
+        if (frequency === 'daily') {
+            preview += `<br><i class="fas fa-clock me-1"></i>Will send daily notifications at ${time}`;
+        } else if (frequency === 'weekly') {
+            preview += `<br><i class="fas fa-calendar-week me-1"></i>Will send weekly notifications on Mondays at ${time}`;
+        } else if (frequency === 'immediate') {
+            preview += `<br><i class="fas fa-bolt me-1"></i>Notifications sent immediately when budget threshold is crossed`;
+        }
+        
+        // Add limits information
+        if (maxPerDay && maxPerDay !== '') {
+            preview += `<br><i class="fas fa-limit me-1"></i>Maximum ${maxPerDay} notifications per day`;
+        }
+        
+        if (cooldown && cooldown !== '0') {
+            preview += `<br><i class="fas fa-pause-circle me-1"></i>Minimum ${cooldown} hour(s) between notifications`;
+        }
+        
+        // Add recommendation
+        if (frequency === 'immediate' && (!cooldown || cooldown === '0')) {
+            preview += `<br><span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Recommendation: Add cooldown period to prevent spam</span>`;
+        }
+        
+        if (previewText) {
+            previewText.innerHTML = preview;
+        }
+    }
+    
+    // Update preview when any setting changes
+    [frequencySelect, notificationTime, maxNotifications, cooldownPeriod].forEach(element => {
+        if (element) {
+            element.addEventListener('change', updateFrequencyPreview);
+        }
+    });
+    
+    // Initial preview
+    updateFrequencyPreview();
+}
+
+function setupEditFrequencyPreview() {
+    const frequencySelect = document.getElementById('edit-frequency-select');
+    const previewText = document.getElementById('edit-frequency-preview-text');
+    
+    function updatePreview() {
+        const frequency = frequencySelect.value;
+        const frequencyInfo = getFrequencyInfo(frequency);
+        const maxPerDay = document.querySelector('#editFrequencyModal [name="max_notifications_per_day"]').value;
+        const cooldown = document.querySelector('#editFrequencyModal [name="cooldown_period_hours"]').value;
+        const atTime = document.querySelector('#editFrequencyModal [name="frequency_at_time"]').value;
+        
+        let preview = `<strong>${frequencyInfo.display}:</strong> ${frequencyInfo.description}`;
+        
+        if (frequency === 'daily' && atTime) {
+            preview += `<br><i class="fas fa-clock me-1"></i>Will send daily notifications at ${atTime}`;
+        }
+        
+        if (maxPerDay) {
+            preview += `<br><i class="fas fa-limit me-1"></i>Maximum ${maxPerDay} notifications per day`;
+        }
+        
+        if (cooldown && cooldown > 0) {
+            preview += `<br><i class="fas fa-pause-circle me-1"></i>Minimum ${cooldown} hour(s) between notifications`;
+        }
+        
+        previewText.innerHTML = preview;
+    }
+    
+    // Update preview when frequency changes
+    frequencySelect.addEventListener('change', updatePreview);
+    document.querySelector('#editFrequencyModal [name="max_notifications_per_day"]').addEventListener('change', updatePreview);
+    document.querySelector('#editFrequencyModal [name="cooldown_period_hours"]').addEventListener('change', updatePreview);
+    document.querySelector('#editFrequencyModal [name="frequency_at_time"]').addEventListener('change', updatePreview);
+    
+    // Initial preview
+    updatePreview();
+}
+
+function saveFrequencySettings(alertId) {
+    const form = document.getElementById('edit-frequency-form');
+    const formData = new FormData(form);
+    
+    const updates = {
+        notification_frequency: formData.get('notification_frequency'),
+        frequency_at_time: formData.get('frequency_at_time'),
+        max_notifications_per_day: parseInt(formData.get('max_notifications_per_day')) || null,
+        cooldown_period_hours: parseInt(formData.get('cooldown_period_hours')) || 0
+    };
+    
+    const button = document.querySelector('#editFrequencyModal .btn-primary');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+    button.disabled = true;
+    
+    fetch(`/api/alerts/${alertId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updates)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Request failed: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(result => {
+        if (result.status === 'success') {
+            showNotification('Frequency settings saved successfully!', 'success');
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editFrequencyModal'));
+            modal.hide();
+            
+            // Refresh alerts list
+            loadAlerts();
+        } else {
+            throw new Error(result.message || 'Failed to save frequency settings');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error saving frequency settings:', error);
+        showNotification(`Failed to save frequency settings: ${error.message}`, 'error');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
 }
 
 /**
@@ -1454,7 +2135,13 @@ function handleAdvancedAlertCreation() {
         threshold_amount: parseFloat(formData.get('threshold_amount')) || 0,
         threshold_percentage: parseFloat(formData.get('threshold_percentage')) || 0,
         email: formData.get('email'),
-        notification_frequency: formData.get('notification_frequency'),
+        
+        // 🆕 ENHANCED FREQUENCY SETTINGS
+        notification_frequency: formData.get('notification_frequency') || AlertsState.defaultFrequency,
+        frequency_at_time: formData.get('frequency_at_time'),
+        max_notifications_per_day: parseInt(formData.get('max_notifications_per_day')) || null,
+        cooldown_period_hours: parseInt(formData.get('cooldown_period_hours')) || 0,
+        
         cluster_id: AlertsState.currentClusterId,
         notification_channels: selectedChannels
     };
@@ -1478,7 +2165,8 @@ function handleAdvancedAlertCreation() {
     createAlert(alertData)
         .then(result => {
             if (result.status === 'success') {
-                showNotification('Advanced alert created successfully!', 'success');
+                const frequencyInfo = getFrequencyInfo(alertData.notification_frequency);
+                showNotification(`Advanced alert created with ${frequencyInfo.display} frequency!`, 'success');
                 
                 // Close modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('advancedAlertsModal'));
@@ -1490,7 +2178,7 @@ function handleAdvancedAlertCreation() {
                 // Send in-app notification
                 createLocalInAppNotification(
                     'Advanced Alert Created',
-                    `Alert "${alertData.name}" has been created with ${selectedChannels.length} notification channel(s)`,
+                    `Alert "${alertData.name}" has been created with ${frequencyInfo.display} frequency and ${selectedChannels.length} notification channel(s)`,
                     'success'
                 );
             } else {
@@ -1502,6 +2190,8 @@ function handleAdvancedAlertCreation() {
             showNotification(`Failed to create alert: ${error.message}`, 'error');
         });
 }
+
+
 
 // ============================================================================
 // ENHANCED DELETE ALERT MODAL - MODERN CONFIRMATION DIALOG
@@ -2210,9 +2900,18 @@ function getNotificationColor(type) {
 
 function getNotificationChannelsText(alert) {
     const channels = [];
-    if (AlertsState.notificationChannels.email) channels.push('Email');
-    if (AlertsState.notificationChannels.slack) channels.push('Slack');
-    if (AlertsState.notificationChannels.inApp) channels.push('In-App');
+    const notificationChannels = alert.notification_channels || ['email'];
+    
+    if (notificationChannels.includes('email') && AlertsState.notificationChannels.email) {
+        channels.push('Email');
+    }
+    if (notificationChannels.includes('slack') && AlertsState.notificationChannels.slack) {
+        channels.push('Slack');
+    }
+    if (notificationChannels.includes('inapp') || notificationChannels.includes('in_app')) {
+        channels.push('In-App');
+    }
+    
     return channels.length > 0 ? channels.join(', ') : 'Email only';
 }
 
@@ -2391,6 +3090,13 @@ window.testSlackNotification = testSlackNotification;
 // Utility functions
 window.showEnhancedNotification = showEnhancedNotification;
 window.AlertsState = AlertsState;
+
+
+// Make functions globally available
+window.setupFrequencyPreview = setupFrequencyPreview;
+window.testAlertTrigger = testAlertTrigger;
+window.updateAlertSummaryCounters = updateAlertSummaryCounters;
+window.calculateAlertHealthScore = calculateAlertHealthScore;
 
 // Initialize alerts when DOM is ready
 if (document.readyState === 'loading') {

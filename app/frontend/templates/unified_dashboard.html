@@ -997,551 +997,656 @@
     </div>
 
     <!-- Alerts Tab -->
-    <div
-      class="tab-pane fade {% if active_tab == 'alerts' %}show active{% endif %}"
-      id="alerts"
-      role="tabpanel"
-    >
-      <!-- Enhanced Alerts Tab Content with Multi-Channel Support -->
-      <div class="alerts-tab-container">
-        <!-- In-App Notifications Panel -->
-        <div class="row mb-4">
-          <div class="col-12">
-            <div class="card border-0 shadow-sm">
-              <div class="card-header bg-gradient-info text-white">
-                <div class="d-flex justify-content-between align-items-center">
-                  <h6 class="mb-0">
-                    <i class="fas fa-bell me-2"></i>Recent Notifications
-                    <span class="badge bg-light text-dark ms-2" id="notification-badge">0</span>
-                  </h6>
-                  <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-light btn-sm" onclick="loadInAppNotifications()" title="Refresh notifications">
-                      <i class="fas fa-sync-alt"></i>
-                    </button>
-                    <button class="btn btn-outline-light btn-sm" onclick="markAllNotificationsAsRead()" title="Mark all as read">
-                      <i class="fas fa-check-double"></i>
-                    </button>
-                  </div>
-                </div>
+    <!-- Enhanced Alerts Tab with Frequency Options and Better Display -->
+<div
+  class="tab-pane fade {% if active_tab == 'alerts' %}show active{% endif %}"
+  id="alerts"
+  role="tabpanel"
+>
+  <!-- Enhanced Alerts Tab Content with Multi-Channel Support -->
+  <div class="alerts-tab-container">
+    <!-- In-App Notifications Panel -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-gradient-info text-white">
+            <div class="d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">
+                <i class="fas fa-bell me-2"></i>Recent Notifications
+                <span class="badge bg-light text-dark ms-2 notifications-counter" id="notification-badge">0</span>
+              </h6>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-light btn-sm" onclick="loadInAppNotifications()" title="Refresh notifications">
+                  <i class="fas fa-sync-alt"></i>
+                </button>
+                <button class="btn btn-outline-light btn-sm" onclick="markAllNotificationsAsRead()" title="Mark all as read">
+                  <i class="fas fa-check-double"></i>
+                </button>
+                <button class="btn btn-outline-light btn-sm" onclick="clearAllNotifications()" title="Clear all">
+                  <i class="fas fa-trash"></i>
+                </button>
               </div>
-              <div class="card-body" style="max-height: 300px; overflow-y: auto;">
-                <div id="in-app-notifications-container">
-                  <div class="text-center text-muted py-3">
-                    <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
-                    <p>Loading notifications...</p>
-                  </div>
-                </div>
+            </div>
+          </div>
+          <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+            <div id="in-app-notifications-container">
+              <div class="text-center text-muted py-3">
+                <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                <p>Loading notifications...</p>
               </div>
             </div>
           </div>
         </div>
+      </div>
+    </div>
 
-        <!-- Main Alerts Configuration -->
-        <div class="row">
-          <div class="col-lg-8">
-            <div class="card border-0 shadow-sm">
-              <div class="card-header bg-gradient-danger text-white">
-                <h5 class="mb-0">
-                  <i class="fas fa-bell me-2"></i>Smart Budget Monitoring & Alerts
-                </h5>
-                <p class="mb-0 small opacity-90">
-                  Multi-channel notifications: Email, Slack, and In-App
-                </p>
+    <!-- Main Alerts Configuration -->
+    <div class="row">
+      <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-gradient-danger text-white">
+            <h5 class="mb-0">
+              <i class="fas fa-bell me-2"></i>Smart Budget Monitoring & Alerts
+            </h5>
+            <p class="mb-0 small opacity-90">
+              Multi-channel notifications with intelligent frequency management
+            </p>
+          </div>
+          <div class="card-body">
+            <!-- Notification Channels Status -->
+            <div class="notification-channels-status mb-3 p-3 bg-light rounded">
+              <div class="row text-center">
+                <div class="col-md-4">
+                  <div class="channel-status" id="email-channel-status">
+                    <i class="fas fa-envelope fa-2x text-muted mb-2"></i>
+                    <div class="small">Email</div>
+                    <div class="channel-status-text">Checking...</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="channel-status" id="slack-channel-status">
+                    <i class="fab fa-slack fa-2x text-muted mb-2"></i>
+                    <div class="small">Slack</div>
+                    <div class="channel-status-text">Checking...</div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="channel-status" id="inapp-channel-status">
+                    <i class="fas fa-bell fa-2x text-success mb-2"></i>
+                    <div class="small">In-App</div>
+                    <div class="channel-status-text">Available</div>
+                  </div>
+                </div>
               </div>
-              <div class="card-body">
-                <!-- Notification Channels Status -->
-                <div class="notification-channels-status mb-3 p-3 bg-light rounded">
-                  <div class="row text-center">
-                    <div class="col-md-4">
-                      <div class="channel-status" id="email-channel-status">
-                        <i class="fas fa-envelope fa-2x text-muted mb-2"></i>
-                        <div class="small">Email</div>
-                        <div class="channel-status-text">Checking...</div>
-                      </div>
-                    </div>
-                    <div class="col-md-4">
-                      <div class="channel-status" id="slack-channel-status">
-                        <i class="fab fa-slack fa-2x text-muted mb-2"></i>
-                        <div class="small">Slack</div>
-                        <div class="channel-status-text">Checking...</div>
-                      </div>
-                    </div>
-                    <div class="col-md-4">
-                      <div class="channel-status" id="inapp-channel-status">
-                        <i class="fas fa-bell fa-2x text-success mb-2"></i>
-                        <div class="small">In-App</div>
-                        <div class="channel-status-text">Available</div>
-                      </div>
+            </div>
+
+            <!-- Enhanced Alert Creation Form -->
+            <form id="budget-alert-form" class="enhanced-form">
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="alert-name" class="form-label">
+                      <i class="fas fa-tag text-primary"></i>Alert Name
+                    </label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="alert-name"
+                      name="name"
+                      placeholder="{% if cluster %}{{ cluster.name }} Budget Alert{% else %}Monthly Budget Alert{% endif %}"
+                      required
+                    />
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="budget-amount" class="form-label">
+                      <i class="fas fa-dollar-sign text-success"></i>Monthly Budget
+                    </label>
+                    <div class="input-group">
+                      <span class="input-group-text">$</span>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="budget-amount"
+                        name="threshold_amount"
+                        required
+                        min="1"
+                        step="0.01"
+                        placeholder="5000"
+                      />
                     </div>
                   </div>
                 </div>
+              </div>
+              
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="alert-email" class="form-label">
+                      <i class="fas fa-at text-info"></i>Alert Email
+                    </label>
+                    <input
+                      type="email"
+                      class="form-control"
+                      id="alert-email"
+                      name="email"
+                      required
+                      placeholder="admin@company.com"
+                    />
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="alert-threshold" class="form-label">
+                      <i class="fas fa-percentage text-warning"></i>Alert Threshold
+                    </label>
+                    <select class="form-select" id="alert-threshold" name="threshold_percentage">
+                      <option value="75">75% - Early Warning</option>
+                      <option value="80" selected>80% - Recommended</option>
+                      <option value="90">90% - Critical</option>
+                      <option value="100">100% - Emergency</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
 
-                <form id="budget-alert-form" class="enhanced-form">
+              <!-- Enhanced Frequency Options -->
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="notification-frequency" class="form-label">
+                      <i class="fas fa-clock text-info"></i>Notification Frequency
+                    </label>
+                    <select class="form-select" id="notification-frequency" name="notification_frequency">
+                      <option value="immediate">🚨 Immediate - Send instantly when triggered</option>
+                      <option value="hourly">⏰ Hourly - Once per hour maximum</option>
+                      <option value="daily" selected>📅 Daily - Once per day at set time</option>
+                      <option value="weekly">📊 Weekly - Weekly summary</option>
+                      <option value="monthly">📈 Monthly - Monthly review</option>
+                      <option value="custom_4h">🔄 Every 4 Hours - Business hours monitoring</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-group mb-3">
+                    <label for="notification-time" class="form-label">
+                      <i class="fas fa-clock text-secondary"></i>Notification Time (for daily/weekly)
+                    </label>
+                    <input
+                      type="time"
+                      class="form-control"
+                      id="notification-time"
+                      name="frequency_at_time"
+                      value="09:00"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Advanced Frequency Settings -->
+              <div class="card bg-light mb-3">
+                <div class="card-header">
+                  <h6 class="mb-0">
+                    <i class="fas fa-cog me-2"></i>Advanced Frequency Settings
+                  </h6>
+                </div>
+                <div class="card-body">
                   <div class="row">
-                    <div class="col-md-4">
-                      <div class="form-group">
-                        <label for="budget-amount" class="form-label">
-                          <i class="fas fa-dollar-sign text-success"></i>Monthly Budget
+                    <div class="col-md-6">
+                      <div class="form-group mb-3">
+                        <label for="max-notifications" class="form-label">
+                          <i class="fas fa-limit text-warning"></i>Max Notifications per Day
                         </label>
-                        <div class="input-group">
-                          <span class="input-group-text">$</span>
-                          <input
-                            type="number"
-                            class="form-control"
-                            id="budget-amount"
-                            name="threshold_amount"
-                            required
-                            min="1"
-                            step="0.01"
-                            placeholder="5000"
-                          />
-                        </div>
+                        <select class="form-select" id="max-notifications" name="max_notifications_per_day">
+                          <option value="">No limit</option>
+                          <option value="1">1 per day</option>
+                          <option value="3" selected>3 per day (recommended)</option>
+                          <option value="6">6 per day</option>
+                          <option value="12">12 per day</option>
+                          <option value="24">24 per day</option>
+                        </select>
                       </div>
                     </div>
-                    <div class="col-md-4">
-                      <div class="form-group">
-                        <label for="alert-email" class="form-label">
-                          <i class="fas fa-at text-info"></i>Alert Email
+                    <div class="col-md-6">
+                      <div class="form-group mb-3">
+                        <label for="cooldown-period" class="form-label">
+                          <i class="fas fa-pause-circle text-secondary"></i>Cooldown Period (hours)
                         </label>
-                        <input
-                          type="email"
-                          class="form-control"
-                          id="alert-email"
-                          name="email"
-                          required
-                          placeholder="admin@company.com"
-                        />
-                      </div>
-                    </div>
-                    <div class="col-md-4">
-                      <div class="form-group">
-                        <label for="alert-threshold" class="form-label">
-                          <i class="fas fa-percentage text-warning"></i>Alert Threshold
-                        </label>
-                        <select class="form-select" id="alert-threshold" name="threshold_percentage">
-                          <option value="75">75% - Early Warning</option>
-                          <option value="80" selected>80% - Recommended</option>
-                          <option value="90">90% - Critical</option>
-                          <option value="100">100% - Emergency</option>
+                        <select class="form-select" id="cooldown-period" name="cooldown_period_hours">
+                          <option value="0">No cooldown</option>
+                          <option value="1">1 hour</option>
+                          <option value="4" selected>4 hours (recommended)</option>
+                          <option value="8">8 hours</option>
+                          <option value="24">24 hours</option>
                         </select>
                       </div>
                     </div>
                   </div>
-                  <div class="d-grid mt-3">
-                    <button type="submit" class="btn btn-primary btn-lg">
-                      <i class="fas fa-bell me-2"></i>Setup Alert
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-
-            <!-- Enhanced Alerts List -->
-            <div class="card border-0 shadow-sm mt-4">
-              <div class="card-header bg-light">
-                <div class="d-flex justify-content-between align-items-center">
-                  <h6 class="mb-0">
-                    <i class="fas fa-list me-2"></i>Active Alerts
-                    <span class="badge bg-primary ms-2 alerts-counter">0</span>
-                  </h6>
-                  <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-primary" onclick="showAdvancedAlertsModal()">
-                      <i class="fas fa-plus me-1"></i>Advanced
-                    </button>
-                    <button class="btn btn-outline-secondary" onclick="loadAlerts()">
-                      <i class="fas fa-sync-alt me-1"></i>Refresh
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div class="card-body">
-                <!-- Filter buttons will be inserted here by JavaScript -->
-                <div id="alerts-list-container">
-                  <div class="text-center py-4">
-                    <div class="loading-text">
-                      <i class="fas fa-spinner fa-spin"></i>
-                      <span>Loading alerts...</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Enhanced Information Panel -->
-          <div class="col-lg-4">
-            <div class="card border-0 shadow-sm">
-              <div class="card-header bg-gradient-info text-white">
-                <h6 class="mb-0">
-                  <i class="fas fa-lightbulb me-2"></i>Multi-Channel Setup
-                </h6>
-              </div>
-              <div class="card-body">
-                <h6 class="mb-3">Notification Channels</h6>
-                
-                <!-- Email Setup -->
-                <div class="channel-setup mb-3">
-                  <div class="d-flex align-items-center mb-2">
-                    <i class="fas fa-envelope text-primary me-2"></i>
-                    <strong>Email Notifications</strong>
-                    <span class="ms-auto" id="email-status-indicator">
-                      <i class="fas fa-circle text-muted"></i>
+                  
+                  <!-- Frequency Preview -->
+                  <div class="alert alert-info" id="frequency-preview">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <span id="frequency-preview-text">
+                      Daily notifications will be sent at 09:00 AM with maximum 3 notifications per day and 4-hour cooldown period.
                     </span>
                   </div>
-                  <small class="text-muted d-block mb-2">
-                    Requires SMTP configuration in environment variables
-                  </small>
-                  <div class="email-config-status"></div>
-                </div>
-
-                <!-- Slack Setup -->
-                <div class="channel-setup mb-3">
-                  <div class="d-flex align-items-center mb-2">
-                    <i class="fab fa-slack text-success me-2"></i>
-                    <strong>Slack Integration</strong>
-                    <span class="ms-auto" id="slack-status-indicator">
-                      <i class="fas fa-circle text-muted"></i>
-                    </span>
-                  </div>
-                  <small class="text-muted d-block mb-2">
-                    Set SLACK_WEBHOOK_URL environment variable
-                  </small>
-                  <button class="btn btn-outline-success btn-sm" onclick="testSlackNotification()" id="test-slack-btn">
-                    <i class="fab fa-slack me-1"></i>Test Slack
-                  </button>
-                </div>
-
-                <!-- In-App Setup -->
-                <div class="channel-setup mb-3">
-                  <div class="d-flex align-items-center mb-2">
-                    <i class="fas fa-bell text-info me-2"></i>
-                    <strong>In-App Notifications</strong>
-                    <span class="ms-auto">
-                      <i class="fas fa-circle text-success"></i>
-                    </span>
-                  </div>
-                  <small class="text-muted d-block mb-2">
-                    Real-time notifications in the dashboard
-                  </small>
-                  <button class="btn btn-outline-info btn-sm" onclick="sendInAppNotification('Test', 'This is a test notification', 'info')">
-                    <i class="fas fa-bell me-1"></i>Test In-App
-                  </button>
-                </div>
-
-                <hr>
-                
-                <h6 class="mb-2">Pro Tips</h6>
-                <ul class="list-unstyled small">
-                  <li class="mb-2">
-                    <i class="fas fa-check text-success me-2"></i>
-                    Use multiple channels for redundancy
-                  </li>
-                  <li class="mb-2">
-                    <i class="fas fa-check text-success me-2"></i>
-                    Set different thresholds (75%, 90%, 100%)
-                  </li>
-                  <li class="mb-2">
-                    <i class="fas fa-check text-success me-2"></i>
-                    Test alerts monthly to ensure delivery
-                  </li>
-                  <li class="mb-2">
-                    <i class="fas fa-check text-success me-2"></i>
-                    Monitor both costs and growth rate
-                  </li>
-                </ul>
-
-                <div class="mt-3">
-                  <h6 class="mb-2">Environment Setup</h6>
-                  <div class="small text-muted">
-                    <strong>Email:</strong> SMTP_USERNAME, SMTP_PASSWORD<br>
-                    <strong>Slack:</strong> SLACK_WEBHOOK_URL<br>
-                    <strong>In-App:</strong> No setup required
-                  </div>
                 </div>
               </div>
-            </div>
 
-            <!-- Quick Actions -->
-            <div class="card border-0 shadow-sm mt-3">
-              <div class="card-header bg-gradient-secondary text-white">
-                <h6 class="mb-0">
-                  <i class="fas fa-bolt me-2"></i>Quick Actions
-                </h6>
-              </div>
-              <div class="card-body">
-                <div class="d-grid gap-2">
-                  <button class="btn btn-outline-primary" onclick="showAdvancedAlertsModal()">
-                    <i class="fas fa-cog me-2"></i>Advanced Alert Setup
-                  </button>
-                  <button class="btn btn-outline-info" onclick="viewAlertHistory()">
-                    <i class="fas fa-history me-2"></i>View Alert History
-                  </button>
-                  <button class="btn btn-outline-success" onclick="exportAlertsConfig()">
-                    <i class="fas fa-download me-2"></i>Export Configuration
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Advanced Alerts Modal -->
-      <div class="modal fade" id="advancedAlertsModal" tabindex="-1" aria-labelledby="advancedAlertsModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header bg-gradient-primary text-white">
-              <h5 class="modal-title" id="advancedAlertsModalLabel">
-                <i class="fas fa-cog me-2"></i>Advanced Alerts Configuration
-              </h5>
-              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-              <form id="advanced-alerts-form">
+              <!-- Notification Channels Selection -->
+              <div class="mb-3">
+                <label class="form-label">
+                  <i class="fas fa-broadcast-tower text-primary"></i>Notification Channels
+                </label>
                 <div class="row">
-                  <div class="col-md-6">
-                    <div class="form-group mb-3">
-                      <label class="form-label">Alert Name</label>
-                      <input type="text" class="form-control" name="name" required placeholder="My Custom Alert">
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="form-group mb-3">
-                      <label class="form-label">Alert Type</label>
-                      <select class="form-select" name="alert_type">
-                        <option value="cost_threshold">Cost Threshold</option>
-                        <option value="performance">Performance</option>
-                        <option value="optimization">Optimization Opportunity</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="row">
-                  <div class="col-md-6">
-                    <div class="form-group mb-3">
-                      <label class="form-label">Threshold Amount ($)</label>
-                      <input type="number" class="form-control" name="threshold_amount" min="0" step="0.01" placeholder="1000">
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="form-group mb-3">
-                      <label class="form-label">Threshold Percentage (%)</label>
-                      <input type="number" class="form-control" name="threshold_percentage" min="0" max="100" placeholder="80">
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="row">
-                  <div class="col-md-8">
-                    <div class="form-group mb-3">
-                      <label class="form-label">Email Address</label>
-                      <input type="email" class="form-control" name="email" required placeholder="alerts@company.com">
+                  <div class="col-md-4">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="channels" value="email" id="channel-email" checked>
+                      <label class="form-check-label" for="channel-email">
+                        <i class="fas fa-envelope me-1"></i>Email
+                      </label>
                     </div>
                   </div>
                   <div class="col-md-4">
-                    <div class="form-group mb-3">
-                      <label class="form-label">Notification Frequency</label>
-                      <select class="form-select" name="notification_frequency">
-                        <option value="immediate">Immediate</option>
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                      </select>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="channels" value="slack" id="channel-slack">
+                      <label class="form-check-label" for="channel-slack">
+                        <i class="fab fa-slack me-1"></i>Slack
+                      </label>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="channels" value="inapp" id="channel-inapp" checked>
+                      <label class="form-check-label" for="channel-inapp">
+                        <i class="fas fa-bell me-1"></i>In-App
+                      </label>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <!-- Notification Channels Selection -->
-                <div class="mb-3">
-                  <label class="form-label">Notification Channels</label>
-                  <div class="row">
-                    <div class="col-md-4">
-                      <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="channels" value="email" id="channel-email" checked>
-                        <label class="form-check-label" for="channel-email">
-                          <i class="fas fa-envelope me-1"></i>Email
-                        </label>
-                      </div>
-                    </div>
-                    <div class="col-md-4">
-                      <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="channels" value="slack" id="channel-slack">
-                        <label class="form-check-label" for="channel-slack">
-                          <i class="fab fa-slack me-1"></i>Slack
-                        </label>
-                      </div>
-                    </div>
-                    <div class="col-md-4">
-                      <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="channels" value="inapp" id="channel-inapp" checked>
-                        <label class="form-check-label" for="channel-inapp">
-                          <i class="fas fa-bell me-1"></i>In-App
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- Channel Status Info -->
-                <div class="alert alert-info">
-                  <i class="fas fa-info-circle me-2"></i>
-                  <strong>Channel Status:</strong>
-                  <div class="notification-channels-status mt-2"></div>
-                </div>
-              </form>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="button" class="btn btn-primary" onclick="handleAdvancedAlertCreation()">
-                <i class="fas fa-plus me-2"></i>Create Advanced Alert
-              </button>
-            </div>
+              <div class="d-grid mt-3">
+                <button type="submit" class="btn btn-primary btn-lg">
+                  <i class="fas fa-bell me-2"></i>Create Smart Alert
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-      </div>
 
-      <!-- Alert History Modal -->
-      <div class="modal fade" id="alertHistoryModal" tabindex="-1" aria-labelledby="alertHistoryModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
-          <div class="modal-content">
-            <div class="modal-header bg-gradient-info text-white">
-              <h5 class="modal-title" id="alertHistoryModalLabel">
-                <i class="fas fa-history me-2"></i>Alert Trigger History
-              </h5>
-              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        <!-- Enhanced Alerts List with Portfolio View -->
+        <div class="card border-0 shadow-sm mt-4">
+          <div class="card-header bg-gradient-dark text-white">
+            <div class="d-flex justify-content-between align-items-center">
+              <h6 class="mb-0">
+                <i class="fas fa-list me-2"></i>Active Alerts
+                <span class="badge bg-light text-dark ms-2 alerts-counter">0</span>
+              </h6>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-light" onclick="showAdvancedAlertsModal()">
+                  <i class="fas fa-plus me-1"></i>Advanced
+                </button>
+                <button class="btn btn-outline-light" onclick="exportAlertsConfig()">
+                  <i class="fas fa-download me-1"></i>Export
+                </button>
+                <button class="btn btn-outline-light" onclick="viewAlertHistory()">
+                  <i class="fas fa-history me-1"></i>History
+                </button>
+                <button class="btn btn-outline-light" onclick="loadAlerts()">
+                  <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+              </div>
             </div>
-            <div class="modal-body">
-              <div id="alert-history-container">
-                <div class="text-center py-4">
-                  <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
-                  <p>Loading alert history...</p>
+          </div>
+          <div class="card-body">
+            <!-- Enhanced Filter buttons will be inserted here by JavaScript -->
+            <div id="alerts-list-container">
+              <div class="text-center py-4">
+                <div class="loading-text">
+                  <i class="fas fa-spinner fa-spin"></i>
+                  <span>Loading alerts...</span>
                 </div>
               </div>
             </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="button" class="btn btn-primary" onclick="exportAlertHistory()">
-                <i class="fas fa-download me-2"></i>Export History
-              </button>
-            </div>
           </div>
         </div>
       </div>
 
-      <style>
-      /* Enhanced Alerts Styling */
-      .alerts-tab-container {
-        animation: fadeIn 0.5s ease-in;
-      }
+      <!-- Enhanced Information Panel -->
+      <div class="col-lg-4">
+        <!-- Alert Summary Card -->
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-header bg-gradient-primary text-white">
+            <h6 class="mb-0">
+              <i class="fas fa-chart-pie me-2"></i>Alert Summary
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="row text-center">
+              <div class="col-6">
+                <div class="metric-value text-success" id="total-alerts-count">0</div>
+                <div class="small text-muted">Total Alerts</div>
+              </div>
+              <div class="col-6">
+                <div class="metric-value text-warning" id="triggered-alerts-count">0</div>
+                <div class="small text-muted">Recently Triggered</div>
+              </div>
+            </div>
+            <div class="row text-center mt-2">
+              <div class="col-6">
+                <div class="metric-value text-info" id="active-alerts-count">0</div>
+                <div class="small text-muted">Active</div>
+              </div>
+              <div class="col-6">
+                <div class="metric-value text-secondary" id="paused-alerts-count">0</div>
+                <div class="small text-muted">Paused</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      .notification-item {
-        border-left: 4px solid #dee2e6;
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-radius: 0.375rem;
-        background: #f8f9fa;
-        transition: all 0.3s ease;
-      }
+        <!-- Multi-Channel Setup -->
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-header bg-gradient-info text-white">
+            <h6 class="mb-0">
+              <i class="fas fa-lightbulb me-2"></i>Multi-Channel Setup
+            </h6>
+          </div>
+          <div class="card-body">
+            <h6 class="mb-3">Notification Channels</h6>
+            
+            <!-- Email Setup -->
+            <div class="channel-setup mb-3">
+              <div class="d-flex align-items-center mb-2">
+                <i class="fas fa-envelope text-primary me-2"></i>
+                <strong>Email Notifications</strong>
+                <span class="ms-auto" id="email-status-indicator">
+                  <i class="fas fa-circle text-muted"></i>
+                </span>
+              </div>
+              <small class="text-muted d-block mb-2">
+                Requires SMTP configuration in environment variables
+              </small>
+              <div class="email-config-status"></div>
+            </div>
 
-      .notification-item.unread {
-        border-left-color: #0d6efd;
-        background: #e7f3ff;
-      }
+            <!-- Slack Setup -->
+            <div class="channel-setup mb-3">
+              <div class="d-flex align-items-center mb-2">
+                <i class="fab fa-slack text-success me-2"></i>
+                <strong>Slack Integration</strong>
+                <span class="ms-auto" id="slack-status-indicator">
+                  <i class="fas fa-circle text-muted"></i>
+                </span>
+              </div>
+              <small class="text-muted d-block mb-2">
+                Set SLACK_WEBHOOK_URL environment variable
+              </small>
+              <button class="btn btn-outline-success btn-sm" onclick="testSlackNotification()" id="test-slack-btn">
+                <i class="fab fa-slack me-1"></i>Test Slack
+              </button>
+            </div>
 
-      .notification-item:hover {
-        transform: translateX(5px);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      }
+            <!-- In-App Setup -->
+            <div class="channel-setup mb-3">
+              <div class="d-flex align-items-center mb-2">
+                <i class="fas fa-bell text-info me-2"></i>
+                <strong>In-App Notifications</strong>
+                <span class="ms-auto">
+                  <i class="fas fa-circle text-success"></i>
+                </span>
+              </div>
+              <small class="text-muted d-block mb-2">
+                Real-time notifications in the dashboard
+              </small>
+              <button class="btn btn-outline-info btn-sm" onclick="createLocalInAppNotification('Test Alert', 'This is a test notification', 'info')">
+                <i class="fas fa-bell me-1"></i>Test In-App
+              </button>
+            </div>
 
-      .notification-content {
-        flex: 1;
-      }
+            <hr>
+            
+            <!-- Frequency Tips -->
+            <h6 class="mb-2">Frequency Tips</h6>
+            <ul class="list-unstyled small">
+              <li class="mb-2">
+                <i class="fas fa-bolt text-warning me-2"></i>
+                <strong>Immediate:</strong> Best for critical budget breaches
+              </li>
+              <li class="mb-2">
+                <i class="fas fa-clock text-info me-2"></i>
+                <strong>Daily:</strong> Recommended for regular monitoring
+              </li>
+              <li class="mb-2">
+                <i class="fas fa-calendar text-primary me-2"></i>
+                <strong>Weekly:</strong> Good for trend analysis
+              </li>
+              <li class="mb-2">
+                <i class="fas fa-pause-circle text-secondary me-2"></i>
+                <strong>Cooldown:</strong> Prevents notification spam
+              </li>
+            </ul>
 
-      .notification-header {
-        font-weight: 600;
-        margin-bottom: 0.25rem;
-      }
+            <div class="mt-3">
+              <h6 class="mb-2">Environment Setup</h6>
+              <div class="small text-muted">
+                <strong>Email:</strong> SMTP_USERNAME, SMTP_PASSWORD<br>
+                <strong>Slack:</strong> SLACK_WEBHOOK_URL<br>
+                <strong>In-App:</strong> No setup required
+              </div>
+            </div>
+          </div>
+        </div>
 
-      .notification-message {
-        color: #6c757d;
-        line-height: 1.4;
-      }
-
-      .notification-meta {
-        font-size: 0.875rem;
-      }
-
-      .notification-actions {
-        margin-left: 1rem;
-      }
-
-      .channel-status {
-        text-align: center;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        transition: all 0.3s ease;
-      }
-
-      .channel-status:hover {
-        background: rgba(0,0,0,0.05);
-      }
-
-      .channel-status-text {
-        font-size: 0.875rem;
-        font-weight: 500;
-      }
-
-      .channel-setup {
-        padding: 1rem;
-        background: rgba(0,0,0,0.03);
-        border-radius: 0.5rem;
-        transition: all 0.3s ease;
-      }
-
-      .channel-setup:hover {
-        background: rgba(0,0,0,0.05);
-      }
-
-      .alert-item {
-        transition: all 0.3s ease;
-      }
-
-      .alert-item[data-status="paused"] {
-        opacity: 0.7;
-      }
-
-      .alert-item[data-status="paused"] .card-body {
-        background: rgba(255, 193, 7, 0.1);
-      }
-
-      .enhanced-form {
-        background: linear-gradient(135deg, #fff, #f8f9fa);
-        padding: 2rem;
-        border-radius: 1rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-      }
-
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-
-      /* Responsive improvements */
-      @media (max-width: 768px) {
-        .notification-item {
-          padding: 0.75rem;
-        }
-        
-        .notification-actions {
-          margin-left: 0.5rem;
-        }
-        
-        .channel-status {
-          padding: 0.75rem;
-        }
-      }
-      </style>
+        <!-- Quick Actions -->
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-gradient-secondary text-white">
+            <h6 class="mb-0">
+              <i class="fas fa-bolt me-2"></i>Quick Actions
+            </h6>
+          </div>
+          <div class="card-body">
+            <div class="d-grid gap-2">
+              <button class="btn btn-outline-primary" onclick="showAdvancedAlertsModal()">
+                <i class="fas fa-cog me-2"></i>Advanced Alert Setup
+              </button>
+              <button class="btn btn-outline-info" onclick="viewAlertHistory()">
+                <i class="fas fa-history me-2"></i>View Alert History
+              </button>
+              <button class="btn btn-outline-success" onclick="exportAlertsConfig()">
+                <i class="fas fa-download me-2"></i>Export Configuration
+              </button>
+              {% if cluster %}
+              <button class="btn btn-outline-warning" onclick="testAlertTrigger('{{ cluster.id }}')">
+                <i class="fas fa-bug me-2"></i>Test Alert Trigger
+              </button>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
+</div>
+
+<style>
+/* Enhanced Alerts Styling */
+.alerts-tab-container {
+  animation: fadeIn 0.5s ease-in;
+}
+
+.notification-item {
+  border-left: 4px solid #dee2e6;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 0.375rem;
+  background: #f8f9fa;
+  transition: all 0.3s ease;
+}
+
+.notification-item.unread {
+  border-left-color: #0dfdd1;
+  background: #e7f3ff;
+}
+
+.notification-item.warning {
+  border-left-color: #ffc107;
+  background: #fff3cd;
+}
+
+.notification-item.error {
+  border-left-color: #dc3545;
+  background: #f8d7da;
+}
+
+.notification-item.success {
+  border-left-color: #198754;
+  background: #d1eddb;
+}
+
+.notification-item:hover {
+  transform: translateX(5px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.notification-content {
+  flex: 1;
+}
+
+.notification-header {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.notification-message {
+  color: #6c757d;
+  line-height: 1.4;
+}
+
+.notification-meta {
+  font-size: 0.875rem;
+}
+
+.notification-actions {
+  margin-left: 1rem;
+}
+
+.channel-status {
+  text-align: center;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.channel-status:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+.channel-status-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.channel-setup {
+  padding: 1rem;
+  background: rgba(0,0,0,0.03);
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.channel-setup:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+.alert-item {
+  transition: all 0.3s ease;
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.alert-item[data-status="paused"] {
+  opacity: 0.7;
+}
+
+.alert-item[data-status="paused"] .card-body {
+  background: rgba(255, 193, 7, 0.1);
+}
+
+.alert-item[data-status="active"] {
+  border-left: 4px solid #198754;
+}
+
+.alert-item[data-status="triggered"] {
+  border-left: 4px solid #dc3545;
+  background: rgba(220, 53, 69, 0.05);
+}
+
+.enhanced-form {
+  background: linear-gradient(135deg, #fff, #f8f9fa);
+  padding: 2rem;
+  border-radius: 1rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.frequency-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+}
+
+.frequency-badge.immediate {
+  background: #35c9dc;
+  color: white;
+}
+
+.frequency-badge.daily {
+  background: #0dfd91;
+  color: white;
+}
+
+.frequency-badge.weekly {
+  background: #198754;
+  color: white;
+}
+
+.frequency-badge.monthly {
+  background: #10f2db;
+  color: white;
+}
+
+#frequency-preview {
+  border-radius: 0.5rem;
+  border: 1px solid #bee5eb;
+  background: linear-gradient(135deg, #d1ecf1, #bee5eb);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .notification-item {
+    padding: 0.75rem;
+  }
+  
+  .notification-actions {
+    margin-left: 0.5rem;
+  }
+  
+  .channel-status {
+    padding: 0.75rem;
+  }
+  
+  .enhanced-form {
+    padding: 1.5rem;
+  }
+}
+</style>
   </div>
 </div>
 <!-- Enhanced Action Panel with CPU Status -->
