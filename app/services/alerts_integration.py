@@ -1,6 +1,4 @@
-"""
-Alerts System Integration for AKS Cost Optimization - ENHANCED
-"""
+# Enhanced alerts_integration.py - API with frequency management support
 
 import os
 import traceback
@@ -20,7 +18,7 @@ def initialize_alerts_system():
         return None
     
     try:
-        # FIXED: Import from the correct location
+        # Import from the correct location
         from app.alerts.enhanced_alerts_manager import (
             EnhancedAlertsManager, 
             init_enhanced_alerts_service, 
@@ -43,11 +41,11 @@ def initialize_alerts_system():
         return None
 
 def register_alerts_routes(app):
-    """Register alerts API routes with the Flask app - ENHANCED"""
+    """Register enhanced alerts API routes with frequency support"""
     
     @app.route('/api/alerts', methods=['GET', 'POST'])
     def alerts_api():
-        """Main alerts endpoint - ENHANCED"""
+        """Main alerts endpoint with enhanced frequency handling"""
         try:
             if not alerts_manager:
                 return jsonify({
@@ -67,6 +65,11 @@ def register_alerts_routes(app):
                         cluster = enhanced_cluster_manager.get_cluster(cluster_id) if enhanced_cluster_manager else None
                         
                         for alert in all_alerts['alerts']:
+                            # Ensure frequency is never undefined
+                            if not alert.get('notification_frequency'):
+                                alert['notification_frequency'] = 'daily'
+                                alert['frequency_display_name'] = 'Daily'
+                            
                             # Strategy 1: Direct cluster_id match
                             if alert.get('cluster_id') == cluster_id:
                                 filtered_alerts.append(alert)
@@ -93,7 +96,14 @@ def register_alerts_routes(app):
                     else:
                         return jsonify(all_alerts)
                 else:
-                    return jsonify(alerts_manager.get_alerts_route())
+                    # Get all alerts and ensure frequency is set
+                    result = alerts_manager.get_alerts_route()
+                    if result['status'] == 'success':
+                        for alert in result['alerts']:
+                            if not alert.get('notification_frequency'):
+                                alert['notification_frequency'] = 'daily'
+                                alert['frequency_display_name'] = 'Daily'
+                    return jsonify(result)
             
             elif request.method == 'POST':
                 data = request.get_json()
@@ -102,6 +112,34 @@ def register_alerts_routes(app):
                         'status': 'error',
                         'message': 'No data provided'
                     }), 400
+                
+                # 🆕 ENHANCED FREQUENCY VALIDATION AND DEFAULTS
+                frequency = data.get('notification_frequency', 'daily')
+                valid_frequencies = ['immediate', 'hourly', 'daily', 'weekly', 'monthly', 'custom_4h']
+                
+                if frequency not in valid_frequencies:
+                    frequency = 'daily'
+                    logger.warning(f"Invalid frequency '{data.get('notification_frequency')}' provided, defaulting to 'daily'")
+                
+                data['notification_frequency'] = frequency
+                
+                # Set frequency-related defaults
+                if 'frequency_at_time' not in data:
+                    data['frequency_at_time'] = '09:00'
+                
+                if 'max_notifications_per_day' not in data:
+                    data['max_notifications_per_day'] = 3 if frequency != 'immediate' else None
+                
+                if 'cooldown_period_hours' not in data:
+                    cooldown_map = {
+                        'immediate': 0,
+                        'hourly': 1,
+                        'daily': 4,
+                        'weekly': 24,
+                        'monthly': 168,
+                        'custom_4h': 4
+                    }
+                    data['cooldown_period_hours'] = cooldown_map.get(frequency, 4)
                 
                 # Enhanced cluster info resolution
                 if not data.get('cluster_id'):
@@ -138,6 +176,11 @@ def register_alerts_routes(app):
                 
                 result = alerts_manager.create_alert_route(data)
                 status_code = 201 if result['status'] == 'success' else 400
+                
+                # Log frequency information
+                if result['status'] == 'success':
+                    logger.info(f"✅ Created alert with frequency '{frequency}': {result.get('alert_id')}")
+                
                 return jsonify(result), status_code
                 
         except Exception as e:
@@ -148,56 +191,56 @@ def register_alerts_routes(app):
                 'message': str(e)
             }), 500
 
-    @app.route('/api/alerts/health', methods=['GET'])
-    def alerts_health_check():
-        """Health check endpoint for alerts system"""
-        try:
-            health_status = {
-                'alerts_available': ALERTS_AVAILABLE,
-                'alerts_manager_initialized': alerts_manager is not None,
-                'enhanced_alerts_available': True,
-                'notification_channels': {
-                    'email': {
-                        'configured': bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')),
-                        'status': 'ready' if bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')) else 'not_configured'
-                    },
-                    'slack': {
-                        'configured': bool(os.getenv('SLACK_WEBHOOK_URL')),
-                        'status': 'ready' if bool(os.getenv('SLACK_WEBHOOK_URL')) else 'not_configured'
-                    },
-                    'in_app': {
-                        'available': True,
-                        'current_notifications': 0,
-                        'status': 'ready'
-                    }
-                },
-                'cluster_manager_available': enhanced_cluster_manager is not None,
-                'database_backend': 'enhanced',
-                'timestamp': datetime.now().isoformat()
-            }
+    # @app.route('/api/alerts/health', methods=['GET'])
+    # def alerts_health_check():
+    #     """Health check endpoint for alerts system"""
+    #     try:
+    #         health_status = {
+    #             'alerts_available': ALERTS_AVAILABLE,
+    #             'alerts_manager_initialized': alerts_manager is not None,
+    #             'enhanced_alerts_available': True,
+    #             'notification_channels': {
+    #                 'email': {
+    #                     'configured': bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')),
+    #                     'status': 'ready' if bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')) else 'not_configured'
+    #                 },
+    #                 'slack': {
+    #                     'configured': bool(os.getenv('SLACK_WEBHOOK_URL')),
+    #                     'status': 'ready' if bool(os.getenv('SLACK_WEBHOOK_URL')) else 'not_configured'
+    #                 },
+    #                 'in_app': {
+    #                     'available': True,
+    #                     'current_notifications': 0,
+    #                     'status': 'ready'
+    #                 }
+    #             },
+    #             'cluster_manager_available': enhanced_cluster_manager is not None,
+    #             'database_backend': 'enhanced',
+    #             'timestamp': datetime.now().isoformat()
+    #         }
             
-            overall_status = 'healthy' if (
-                ALERTS_AVAILABLE and 
-                alerts_manager is not None and 
-                enhanced_cluster_manager is not None
-            ) else 'degraded'
+    #         overall_status = 'healthy' if (
+    #             ALERTS_AVAILABLE and 
+    #             alerts_manager is not None and 
+    #             enhanced_cluster_manager is not None
+    #         ) else 'degraded'
             
-            return jsonify({
-                'status': overall_status,
-                'health': health_status
-            }), 200 if overall_status == 'healthy' else 503
+    #         return jsonify({
+    #             'status': overall_status,
+    #             'health': health_status
+    #         }), 200 if overall_status == 'healthy' else 503
             
-        except Exception as e:
-            logger.error(f"❌ Error in alerts health check: {e}")
-            return jsonify({
-                'status': 'error',
-                'message': str(e),
-                'timestamp': datetime.now().isoformat()
-            }), 500
-
+    #     except Exception as e:
+    #         logger.error(f"❌ Error in alerts health check: {e}")
+    #         return jsonify({
+    #             'status': 'error',
+    #             'message': str(e),
+    #             'timestamp': datetime.now().isoformat()
+    #         }), 500
+        
     @app.route('/api/alerts/<int:alert_id>', methods=['GET', 'PUT', 'DELETE'])
     def alert_detail_api(alert_id: int):
-        """Individual alert management"""
+        """Individual alert management with frequency support"""
         try:
             if not alerts_manager:
                 return jsonify({
@@ -211,6 +254,11 @@ def register_alerts_routes(app):
                     if alerts_data['status'] == 'success':
                         alert = next((a for a in alerts_data['alerts'] if a['id'] == alert_id), None)
                         if alert:
+                            # Ensure frequency is never undefined
+                            if not alert.get('notification_frequency'):
+                                alert['notification_frequency'] = 'daily'
+                                alert['frequency_display_name'] = 'Daily'
+                            
                             return jsonify({
                                 'status': 'success',
                                 'alert': alert
@@ -232,9 +280,27 @@ def register_alerts_routes(app):
             elif request.method == 'PUT':
                 try:
                     data = request.get_json() or {}
+                    
+                    # 🆕 VALIDATE FREQUENCY UPDATES
+                    if 'notification_frequency' in data:
+                        frequency = data['notification_frequency']
+                        valid_frequencies = ['immediate', 'hourly', 'daily', 'weekly', 'monthly', 'custom_4h']
+                        
+                        if frequency not in valid_frequencies:
+                            return jsonify({
+                                'status': 'error',
+                                'message': f'Invalid frequency. Must be one of: {", ".join(valid_frequencies)}'
+                            }), 400
+                    
+                    # Set updated timestamp
+                    data['updated_at'] = datetime.now().isoformat()
+                    
                     result = alerts_manager.update_alert_route(alert_id, data)
                     
                     if result['status'] == 'success':
+                        # Log frequency changes
+                        if 'notification_frequency' in data:
+                            logger.info(f"📅 Updated alert {alert_id} frequency to '{data['notification_frequency']}'")
                         return jsonify(result)
                     else:
                         return jsonify(result), 400
@@ -281,6 +347,315 @@ def register_alerts_routes(app):
             return jsonify({
                 'status': 'error',
                 'message': str(e)
+            }), 500
+
+    @app.route('/api/alerts/frequency-configs', methods=['GET'])
+    def frequency_configurations_api():
+        """🆕 Get available notification frequency configurations"""
+        try:
+            if not alerts_manager or not alerts_manager.db:
+                # Return default configurations if database not available
+                default_configs = [
+                    {
+                        'frequency_type': 'immediate',
+                        'display_name': 'Immediate',
+                        'description': 'Send notification as soon as alert is triggered',
+                        'interval_value': 0,
+                        'interval_unit': 'minutes',
+                        'max_per_day': None,
+                        'cooldown_hours': 0,
+                        'recommended_for': 'Critical alerts, Budget overruns'
+                    },
+                    {
+                        'frequency_type': 'hourly',
+                        'display_name': 'Hourly',
+                        'description': 'Send notifications once per hour when triggered',
+                        'interval_value': 1,
+                        'interval_unit': 'hours',
+                        'max_per_day': 24,
+                        'cooldown_hours': 1,
+                        'recommended_for': 'High-frequency monitoring'
+                    },
+                    {
+                        'frequency_type': 'daily',
+                        'display_name': 'Daily',
+                        'description': 'Send one notification per day at 9:00 AM',
+                        'interval_value': 1,
+                        'interval_unit': 'days',
+                        'max_per_day': 1,
+                        'cooldown_hours': 24,
+                        'recommended_for': 'Regular cost monitoring, Budget alerts'
+                    },
+                    {
+                        'frequency_type': 'weekly',
+                        'display_name': 'Weekly',
+                        'description': 'Send notifications once per week on Mondays',
+                        'interval_value': 7,
+                        'interval_unit': 'days',
+                        'max_per_day': 1,
+                        'cooldown_hours': 168,
+                        'recommended_for': 'Summary reports, Weekly cost reviews'
+                    },
+                    {
+                        'frequency_type': 'monthly',
+                        'display_name': 'Monthly',
+                        'description': 'Send notifications once per month on the 1st',
+                        'interval_value': 30,
+                        'interval_unit': 'days',
+                        'max_per_day': 1,
+                        'cooldown_hours': 720,
+                        'recommended_for': 'Monthly budget reviews, Long-term trends'
+                    },
+                    {
+                        'frequency_type': 'custom_4h',
+                        'display_name': 'Every 4 Hours',
+                        'description': 'Send notifications every 4 hours during business hours',
+                        'interval_value': 4,
+                        'interval_unit': 'hours',
+                        'max_per_day': 6,
+                        'cooldown_hours': 4,
+                        'recommended_for': 'Active monitoring, Development environments'
+                    }
+                ]
+                
+                return jsonify({
+                    'status': 'success',
+                    'configurations': default_configs,
+                    'source': 'default'
+                })
+            
+            # Get configurations from database
+            configs = alerts_manager.db.get_frequency_configurations()
+            
+            return jsonify({
+                'status': 'success',
+                'configurations': configs,
+                'source': 'database',
+                'count': len(configs)
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting frequency configurations: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/alerts/frequency-preview', methods=['POST'])
+    def frequency_preview_api():
+        """🆕 Preview frequency settings and next notification times"""
+        try:
+            data = request.get_json() or {}
+            frequency = data.get('frequency', 'daily')
+            frequency_at_time = data.get('frequency_at_time', '09:00')
+            max_notifications_per_day = data.get('max_notifications_per_day')
+            cooldown_period_hours = data.get('cooldown_period_hours', 4)
+            
+            # Create a mock alert for preview
+            mock_alert = {
+                'notification_frequency': frequency,
+                'frequency_at_time': frequency_at_time,
+                'max_notifications_per_day': max_notifications_per_day,
+                'cooldown_period_hours': cooldown_period_hours,
+                'last_notification_sent': None
+            }
+            
+            # Calculate next notification time
+            next_notification = None
+            if alerts_manager and alerts_manager.db:
+                next_notification = alerts_manager.db._calculate_next_notification_time(mock_alert)
+            
+            # Generate preview text
+            preview_parts = []
+            
+            if frequency == 'immediate':
+                preview_parts.append("Notifications will be sent immediately when alerts are triggered")
+            elif frequency == 'daily':
+                preview_parts.append(f"Notifications will be sent daily at {frequency_at_time}")
+            elif frequency == 'hourly':
+                preview_parts.append("Notifications will be sent once per hour when triggered")
+            elif frequency == 'weekly':
+                preview_parts.append(f"Notifications will be sent weekly on Mondays at {frequency_at_time}")
+            elif frequency == 'monthly':
+                preview_parts.append(f"Notifications will be sent monthly on the 1st at {frequency_at_time}")
+            elif frequency == 'custom_4h':
+                preview_parts.append("Notifications will be sent every 4 hours during active monitoring")
+            
+            if max_notifications_per_day:
+                preview_parts.append(f"Maximum {max_notifications_per_day} notifications per day")
+            
+            if cooldown_period_hours > 0:
+                preview_parts.append(f"Minimum {cooldown_period_hours} hour(s) between notifications")
+            
+            return jsonify({
+                'status': 'success',
+                'preview_text': '. '.join(preview_parts),
+                'next_notification_time': next_notification,
+                'frequency_info': {
+                    'type': frequency,
+                    'display_name': frequency.replace('_', ' ').title(),
+                    'will_repeat': frequency != 'immediate'
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating frequency preview: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/alerts/validate-frequency', methods=['POST'])
+    def validate_frequency_settings():
+        """🆕 Validate frequency settings"""
+        try:
+            data = request.get_json() or {}
+            
+            errors = []
+            warnings = []
+            
+            frequency = data.get('frequency')
+            if not frequency:
+                errors.append("Frequency is required")
+            elif frequency not in ['immediate', 'hourly', 'daily', 'weekly', 'monthly', 'custom_4h']:
+                errors.append("Invalid frequency type")
+            
+            max_per_day = data.get('max_notifications_per_day')
+            if max_per_day is not None:
+                try:
+                    max_per_day = int(max_per_day)
+                    if max_per_day < 1:
+                        errors.append("Max notifications per day must be at least 1")
+                    elif max_per_day > 24:
+                        warnings.append("More than 24 notifications per day may be excessive")
+                except ValueError:
+                    errors.append("Max notifications per day must be a number")
+            
+            cooldown_hours = data.get('cooldown_period_hours')
+            if cooldown_hours is not None:
+                try:
+                    cooldown_hours = int(cooldown_hours)
+                    if cooldown_hours < 0:
+                        errors.append("Cooldown period cannot be negative")
+                    elif cooldown_hours > 168:  # 1 week
+                        warnings.append("Cooldown period longer than 1 week may delay important alerts")
+                except ValueError:
+                    errors.append("Cooldown period must be a number")
+            
+            frequency_at_time = data.get('frequency_at_time')
+            if frequency_at_time:
+                try:
+                    hour, minute = map(int, frequency_at_time.split(':'))
+                    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                        errors.append("Invalid time format")
+                except (ValueError, AttributeError):
+                    errors.append("Time must be in HH:MM format")
+            
+            # Cross-validation
+            if frequency == 'immediate' and cooldown_hours and cooldown_hours > 1:
+                warnings.append("Cooldown period may conflict with immediate notifications")
+            
+            if frequency == 'daily' and max_per_day and max_per_day > 1:
+                warnings.append("Daily frequency with multiple notifications per day may be confusing")
+            
+            is_valid = len(errors) == 0
+            
+            return jsonify({
+                'status': 'success',
+                'valid': is_valid,
+                'errors': errors,
+                'warnings': warnings,
+                'recommendations': generate_frequency_recommendations(frequency, max_per_day, cooldown_hours)
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error validating frequency settings: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    def generate_frequency_recommendations(frequency, max_per_day, cooldown_hours):
+        """Generate recommendations based on frequency settings"""
+        recommendations = []
+        
+        if frequency == 'immediate':
+            recommendations.append("Consider setting a cooldown period to prevent spam")
+            recommendations.append("Immediate alerts are best for critical cost thresholds")
+        elif frequency == 'daily':
+            recommendations.append("Daily alerts are good for regular budget monitoring")
+            recommendations.append("Consider setting the time to your business hours")
+        elif frequency == 'hourly':
+            recommendations.append("Hourly alerts are suitable for active development environments")
+            recommendations.append("Consider limiting to business hours only")
+        elif frequency == 'weekly':
+            recommendations.append("Weekly alerts are ideal for summary reports")
+            recommendations.append("Consider combining with monthly budget reviews")
+        elif frequency == 'monthly':
+            recommendations.append("Monthly alerts are perfect for budget review cycles")
+            recommendations.append("Consider supplementing with more frequent monitoring")
+        
+        if not max_per_day:
+            recommendations.append("Consider setting a daily limit to prevent notification overload")
+        
+        if not cooldown_hours or cooldown_hours == 0:
+            recommendations.append("Adding a cooldown period can help reduce duplicate notifications")
+        
+        return recommendations
+
+    @app.route('/api/alerts/health', methods=['GET'])
+    def alerts_health_check():
+        """Enhanced health check endpoint with frequency support info"""
+        try:
+            health_status = {
+                'alerts_available': ALERTS_AVAILABLE,
+                'alerts_manager_initialized': alerts_manager is not None,
+                'enhanced_alerts_available': True,
+                'frequency_management_available': True,
+                'notification_channels': {
+                    'email': {
+                        'configured': bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')),
+                        'status': 'ready' if bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')) else 'not_configured'
+                    },
+                    'slack': {
+                        'configured': bool(os.getenv('SLACK_WEBHOOK_URL')),
+                        'status': 'ready' if bool(os.getenv('SLACK_WEBHOOK_URL')) else 'not_configured'
+                    },
+                    'in_app': {
+                        'available': True,
+                        'current_notifications': 0,
+                        'status': 'ready'
+                    }
+                },
+                'frequency_features': {
+                    'custom_frequencies': True,
+                    'cooldown_periods': True,
+                    'daily_limits': True,
+                    'scheduled_times': True,
+                    'preview_available': True
+                },
+                'cluster_manager_available': enhanced_cluster_manager is not None,
+                'database_backend': 'enhanced',
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            overall_status = 'healthy' if (
+                ALERTS_AVAILABLE and 
+                alerts_manager is not None and 
+                enhanced_cluster_manager is not None
+            ) else 'degraded'
+            
+            return jsonify({
+                'status': overall_status,
+                'health': health_status
+            }), 200 if overall_status == 'healthy' else 503
+            
+        except Exception as e:
+            logger.error(f"❌ Error in alerts health check: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'timestamp': datetime.now().isoformat()
             }), 500
 
     @app.route('/api/alerts/<int:alert_id>/pause', methods=['POST'])
@@ -666,7 +1041,7 @@ def register_alerts_routes(app):
                 'message': str(e)
             }), 500
 
-    logger.info("✅ Enhanced alerts routes registered successfully")
+    logger.info("✅ alerts routes registered successfully")
 
     def check_alerts_after_analysis(cluster_id: str, analysis_results: dict):
         """UPDATED: Check and trigger alerts after analysis completion with in-app notifications"""

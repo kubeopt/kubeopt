@@ -1,4 +1,4 @@
-# alerts_database.py - Alerts Database Manager with In-App Notifications
+# Enhanced alerts_database.py - Fixed frequency handling and improved notification system
 
 import sqlite3
 import json
@@ -12,7 +12,7 @@ import os
 logger = logging.getLogger(__name__)
 
 class AlertsDatabase:
-    """database manager for alerts system with in-app notifications"""
+    """Enhanced database manager for alerts system with proper frequency handling"""
     
     def __init__(self, db_path='app/data/database/alerts.db'):
         self.db_path = db_path
@@ -25,13 +25,13 @@ class AlertsDatabase:
         self.cleanup_old_data()
 
     def init_database(self):
-        """Initialize SQLite database for alerts with in-app notifications"""
+        """Initialize SQLite database with enhanced frequency support"""
         try:
             # Ensure directory exists
             os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
             
             with sqlite3.connect(self.db_path) as conn:
-                # Create alerts table
+                # Create enhanced alerts table with proper frequency handling
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS alerts (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,17 +46,31 @@ class AlertsDatabase:
                         threshold_amount REAL NOT NULL,
                         threshold_type TEXT DEFAULT 'monthly',
                         status TEXT DEFAULT 'active',
+                        
+                        -- 🆕 ENHANCED FREQUENCY FIELDS
+                        notification_frequency TEXT DEFAULT 'daily',
+                        frequency_interval INTEGER DEFAULT 1,
+                        frequency_unit TEXT DEFAULT 'days',
+                        frequency_at_time TEXT DEFAULT '09:00',
+                        max_notifications_per_day INTEGER DEFAULT 3,
+                        cooldown_period_hours INTEGER DEFAULT 4,
+                        
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         created_by TEXT DEFAULT 'system',
                         notification_channels TEXT DEFAULT '["email", "inapp"]',
                         last_triggered TIMESTAMP NULL,
+                        last_notification_sent TIMESTAMP NULL,
                         trigger_count INTEGER DEFAULT 0,
+                        notification_count INTEGER DEFAULT 0,
                         metadata TEXT DEFAULT '{}'
                     )
                 ''')
                 
-                # Create alert triggers table
+                # Add frequency columns to existing tables if they don't exist
+                self._add_frequency_columns_if_missing(conn)
+                
+                # Create alert triggers table with frequency tracking
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS alert_triggers (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,24 +83,37 @@ class AlertsDatabase:
                         threshold_exceeded_by REAL NOT NULL,
                         notification_sent BOOLEAN DEFAULT 0,
                         notification_channels TEXT DEFAULT '[]',
+                        
+                        -- 🆕 FREQUENCY TRACKING
+                        notification_frequency TEXT DEFAULT 'immediate',
+                        next_notification_time TIMESTAMP NULL,
+                        notification_suppressed BOOLEAN DEFAULT 0,
+                        suppression_reason TEXT DEFAULT '',
+                        
                         metadata TEXT DEFAULT '{}',
                         FOREIGN KEY (alert_id) REFERENCES alerts (id)
                     )
                 ''')
                 
-                # Create alert configurations table
+                # Enhanced notification frequency configurations table
                 conn.execute('''
-                    CREATE TABLE IF NOT EXISTS alert_configurations (
+                    CREATE TABLE IF NOT EXISTS notification_frequency_configs (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        config_key TEXT UNIQUE NOT NULL,
-                        config_value TEXT NOT NULL,
-                        config_type TEXT DEFAULT 'string',
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_by TEXT DEFAULT 'system'
+                        frequency_type TEXT UNIQUE NOT NULL,
+                        display_name TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        interval_value INTEGER NOT NULL,
+                        interval_unit TEXT NOT NULL,
+                        max_per_day INTEGER DEFAULT NULL,
+                        cooldown_hours INTEGER DEFAULT 0,
+                        recommended_for TEXT DEFAULT '',
+                        is_active BOOLEAN DEFAULT 1,
+                        sort_order INTEGER DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 ''')
                 
-                # 🆕 CREATE IN-APP NOTIFICATIONS TABLE
+                # 🆕 IN-APP NOTIFICATIONS with frequency tracking
                 conn.execute('''
                     CREATE TABLE IF NOT EXISTS in_app_notifications (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,6 +123,12 @@ class AlertsDatabase:
                         cluster_id TEXT,
                         alert_id INTEGER,
                         trigger_id INTEGER,
+                        
+                        -- 🆕 FREQUENCY FIELDS
+                        frequency_type TEXT DEFAULT 'immediate',
+                        scheduled_for TIMESTAMP NULL,
+                        next_occurrence TIMESTAMP NULL,
+                        
                         timestamp TEXT NOT NULL,
                         read BOOLEAN DEFAULT FALSE,
                         dismissed BOOLEAN DEFAULT FALSE,
@@ -107,20 +140,19 @@ class AlertsDatabase:
                     )
                 ''')
                 
+                # Insert default frequency configurations
+                self._insert_default_frequency_configs(conn)
+                
                 # Create indexes for performance
                 indexes = [
                     'CREATE INDEX IF NOT EXISTS idx_alerts_cluster_id ON alerts(cluster_id)',
                     'CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status)',
-                    'CREATE INDEX IF NOT EXISTS idx_alerts_subscription ON alerts(subscription_id)',
+                    'CREATE INDEX IF NOT EXISTS idx_alerts_frequency ON alerts(notification_frequency)',
                     'CREATE INDEX IF NOT EXISTS idx_triggers_alert_id ON alert_triggers(alert_id)',
-                    'CREATE INDEX IF NOT EXISTS idx_triggers_cluster_id ON alert_triggers(cluster_id)',
-                    'CREATE INDEX IF NOT EXISTS idx_triggers_triggered_at ON alert_triggers(triggered_at)',
-                    # 🆕 IN-APP NOTIFICATIONS INDEXES
-                    'CREATE INDEX IF NOT EXISTS idx_notifications_cluster_id ON in_app_notifications(cluster_id)',
-                    'CREATE INDEX IF NOT EXISTS idx_notifications_alert_id ON in_app_notifications(alert_id)',
-                    'CREATE INDEX IF NOT EXISTS idx_notifications_read ON in_app_notifications(read)',
-                    'CREATE INDEX IF NOT EXISTS idx_notifications_dismissed ON in_app_notifications(dismissed)',
-                    'CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON in_app_notifications(created_at)'
+                    'CREATE INDEX IF NOT EXISTS idx_triggers_frequency ON alert_triggers(notification_frequency)',
+                    'CREATE INDEX IF NOT EXISTS idx_triggers_next_notification ON alert_triggers(next_notification_time)',
+                    'CREATE INDEX IF NOT EXISTS idx_notifications_frequency ON in_app_notifications(frequency_type)',
+                    'CREATE INDEX IF NOT EXISTS idx_notifications_scheduled ON in_app_notifications(scheduled_for)'
                 ]
                 
                 for index_sql in indexes:
@@ -130,22 +162,207 @@ class AlertsDatabase:
                         pass  # Index might already exist
                 
                 conn.commit()
-                self.logger.info("✅ Enhanced alerts database initialized successfully with in-app notifications")
+                self.logger.info("✅ Enhanced alerts database initialized with frequency support")
                 
         except Exception as e:
             self.logger.error(f"❌ Enhanced alerts database initialization failed: {e}")
             raise
 
-    def create_alert(self, alert_data: Dict) -> int:
-        """Create a new alert"""
+    def _add_frequency_columns_if_missing(self, conn):
+        """Add frequency columns to existing alerts table if they don't exist"""
+        try:
+            # Get existing columns
+            cursor = conn.execute("PRAGMA table_info(alerts)")
+            existing_columns = [column[1] for column in cursor.fetchall()]
+            
+            # Define new frequency columns
+            new_columns = [
+                ('notification_frequency', 'TEXT DEFAULT "daily"'),
+                ('frequency_interval', 'INTEGER DEFAULT 1'),
+                ('frequency_unit', 'TEXT DEFAULT "days"'),
+                ('frequency_at_time', 'TEXT DEFAULT "09:00"'),
+                ('max_notifications_per_day', 'INTEGER DEFAULT 3'),
+                ('cooldown_period_hours', 'INTEGER DEFAULT 4'),
+                ('last_notification_sent', 'TIMESTAMP NULL'),
+                ('notification_count', 'INTEGER DEFAULT 0')
+            ]
+            
+            # Add missing columns
+            for column_name, column_def in new_columns:
+                if column_name not in existing_columns:
+                    try:
+                        conn.execute(f'ALTER TABLE alerts ADD COLUMN {column_name} {column_def}')
+                        self.logger.info(f"✅ Added frequency column: {column_name}")
+                    except sqlite3.OperationalError as e:
+                        self.logger.warning(f"⚠️ Could not add column {column_name}: {e}")
+            
+            # Update existing records with default frequency if NULL
+            conn.execute('''
+                UPDATE alerts 
+                SET notification_frequency = 'daily' 
+                WHERE notification_frequency IS NULL OR notification_frequency = ''
+            ''')
+            
+            conn.execute('''
+                UPDATE alerts 
+                SET frequency_interval = 1 
+                WHERE frequency_interval IS NULL
+            ''')
+            
+            conn.execute('''
+                UPDATE alerts 
+                SET frequency_unit = 'days' 
+                WHERE frequency_unit IS NULL OR frequency_unit = ''
+            ''')
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error adding frequency columns: {e}")
+
+    def _insert_default_frequency_configs(self, conn):
+        """Insert default frequency configuration options"""
+        try:
+            # Check if configs already exist
+            cursor = conn.execute('SELECT COUNT(*) FROM notification_frequency_configs')
+            if cursor.fetchone()[0] > 0:
+                return  # Already populated
+            
+            default_configs = [
+                {
+                    'frequency_type': 'immediate',
+                    'display_name': 'Immediate',
+                    'description': 'Send notification as soon as alert is triggered',
+                    'interval_value': 0,
+                    'interval_unit': 'minutes',
+                    'max_per_day': None,
+                    'cooldown_hours': 0,
+                    'recommended_for': 'Critical alerts, Budget overruns',
+                    'sort_order': 1
+                },
+                {
+                    'frequency_type': 'hourly',
+                    'display_name': 'Hourly',
+                    'description': 'Send notifications once per hour when triggered',
+                    'interval_value': 1,
+                    'interval_unit': 'hours',
+                    'max_per_day': 24,
+                    'cooldown_hours': 1,
+                    'recommended_for': 'High-frequency monitoring',
+                    'sort_order': 2
+                },
+                {
+                    'frequency_type': 'daily',
+                    'display_name': 'Daily',
+                    'description': 'Send one notification per day at 9:00 AM',
+                    'interval_value': 1,
+                    'interval_unit': 'days',
+                    'max_per_day': 1,
+                    'cooldown_hours': 24,
+                    'recommended_for': 'Regular cost monitoring, Budget alerts',
+                    'sort_order': 3
+                },
+                {
+                    'frequency_type': 'weekly',
+                    'display_name': 'Weekly',
+                    'description': 'Send notifications once per week on Mondays',
+                    'interval_value': 7,
+                    'interval_unit': 'days',
+                    'max_per_day': 1,
+                    'cooldown_hours': 168,
+                    'recommended_for': 'Summary reports, Weekly cost reviews',
+                    'sort_order': 4
+                },
+                {
+                    'frequency_type': 'monthly',
+                    'display_name': 'Monthly',
+                    'description': 'Send notifications once per month on the 1st',
+                    'interval_value': 30,
+                    'interval_unit': 'days',
+                    'max_per_day': 1,
+                    'cooldown_hours': 720,
+                    'recommended_for': 'Monthly budget reviews, Long-term trends',
+                    'sort_order': 5
+                },
+                {
+                    'frequency_type': 'custom_4h',
+                    'display_name': 'Every 4 Hours',
+                    'description': 'Send notifications every 4 hours during business hours',
+                    'interval_value': 4,
+                    'interval_unit': 'hours',
+                    'max_per_day': 6,
+                    'cooldown_hours': 4,
+                    'recommended_for': 'Active monitoring, Development environments',
+                    'sort_order': 6
+                }
+            ]
+            
+            for config in default_configs:
+                conn.execute('''
+                    INSERT INTO notification_frequency_configs 
+                    (frequency_type, display_name, description, interval_value, interval_unit, 
+                     max_per_day, cooldown_hours, recommended_for, sort_order)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    config['frequency_type'],
+                    config['display_name'],
+                    config['description'],
+                    config['interval_value'],
+                    config['interval_unit'],
+                    config['max_per_day'],
+                    config['cooldown_hours'],
+                    config['recommended_for'],
+                    config['sort_order']
+                ))
+            
+            self.logger.info("✅ Default frequency configurations inserted")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error inserting default frequency configs: {e}")
+
+    def get_frequency_configurations(self) -> List[Dict]:
+        """Get all available notification frequency configurations"""
         try:
             with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT * FROM notification_frequency_configs 
+                    WHERE is_active = 1 
+                    ORDER BY sort_order
+                ''')
+                
+                configs = []
+                for row in cursor.fetchall():
+                    configs.append(dict(row))
+                
+                return configs
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to get frequency configurations: {e}")
+            return []
+
+    def create_alert(self, alert_data: Dict) -> int:
+        """Create a new alert with enhanced frequency handling"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # Set frequency defaults if not provided
+                frequency = alert_data.get('notification_frequency', 'daily')
+                frequency_interval = alert_data.get('frequency_interval', 1)
+                frequency_unit = alert_data.get('frequency_unit', 'days')
+                frequency_at_time = alert_data.get('frequency_at_time', '09:00')
+                max_notifications_per_day = alert_data.get('max_notifications_per_day', 3)
+                cooldown_period_hours = alert_data.get('cooldown_period_hours', 4)
+                
+                # Validate frequency settings
+                if frequency not in ['immediate', 'hourly', 'daily', 'weekly', 'monthly', 'custom_4h']:
+                    frequency = 'daily'
+                
                 cursor = conn.execute('''
                     INSERT INTO alerts 
                     (name, description, cluster_id, cluster_name, resource_group, 
                      subscription_id, subscription_name, alert_type, threshold_amount, 
-                     threshold_type, status, created_by, notification_channels, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     threshold_type, status, created_by, notification_channels, 
+                     notification_frequency, frequency_interval, frequency_unit, 
+                     frequency_at_time, max_notifications_per_day, cooldown_period_hours, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     alert_data['name'],
                     alert_data.get('description', ''),
@@ -160,13 +377,19 @@ class AlertsDatabase:
                     alert_data.get('status', 'active'),
                     alert_data.get('created_by', 'system'),
                     json.dumps(alert_data.get('notification_channels', ['email', 'inapp'])),
+                    frequency,
+                    frequency_interval,
+                    frequency_unit,
+                    frequency_at_time,
+                    max_notifications_per_day,
+                    cooldown_period_hours,
                     json.dumps(alert_data.get('metadata', {}))
                 ))
                 
                 alert_id = cursor.lastrowid
                 conn.commit()
                 
-                self.logger.info(f"✅ Created alert: {alert_id} - {alert_data['name']}")
+                self.logger.info(f"✅ Created alert with frequency '{frequency}': {alert_id} - {alert_data['name']}")
                 return alert_id
                 
         except Exception as e:
@@ -174,12 +397,17 @@ class AlertsDatabase:
             raise
 
     def get_alert(self, alert_id: int) -> Optional[Dict]:
-        """Get a specific alert by ID"""
+        """Get a specific alert by ID with frequency information"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT * FROM alerts WHERE id = ?
+                    SELECT a.*, 
+                           nfc.display_name as frequency_display_name,
+                           nfc.description as frequency_description
+                    FROM alerts a
+                    LEFT JOIN notification_frequency_configs nfc ON a.notification_frequency = nfc.frequency_type
+                    WHERE a.id = ?
                 ''', (alert_id,))
                 
                 row = cursor.fetchone()
@@ -187,6 +415,12 @@ class AlertsDatabase:
                     alert = dict(row)
                     alert['notification_channels'] = json.loads(alert.get('notification_channels', '[]'))
                     alert['metadata'] = json.loads(alert.get('metadata', '{}'))
+                    
+                    # Ensure frequency is never undefined
+                    if not alert.get('notification_frequency'):
+                        alert['notification_frequency'] = 'daily'
+                        alert['frequency_display_name'] = 'Daily'
+                    
                     return alert
                 return None
                 
@@ -197,7 +431,7 @@ class AlertsDatabase:
     def get_alerts(self, cluster_id: Optional[str] = None, 
                    status: Optional[str] = None,
                    subscription_id: Optional[str] = None) -> List[Dict]:
-        """Get alerts with optional filtering"""
+        """Get alerts with frequency information"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
@@ -206,23 +440,28 @@ class AlertsDatabase:
                 params = []
                 
                 if cluster_id:
-                    where_clauses.append("cluster_id = ?")
+                    where_clauses.append("a.cluster_id = ?")
                     params.append(cluster_id)
                 
                 if status:
-                    where_clauses.append("status = ?")
+                    where_clauses.append("a.status = ?")
                     params.append(status)
                 
                 if subscription_id:
-                    where_clauses.append("subscription_id = ?")
+                    where_clauses.append("a.subscription_id = ?")
                     params.append(subscription_id)
                 
                 where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
                 
                 cursor = conn.execute(f'''
-                    SELECT * FROM alerts
+                    SELECT a.*, 
+                           nfc.display_name as frequency_display_name,
+                           nfc.description as frequency_description,
+                           nfc.recommended_for as frequency_recommended_for
+                    FROM alerts a
+                    LEFT JOIN notification_frequency_configs nfc ON a.notification_frequency = nfc.frequency_type
                     {where_sql}
-                    ORDER BY created_at DESC
+                    ORDER BY a.created_at DESC
                 ''', params)
                 
                 alerts = []
@@ -230,6 +469,15 @@ class AlertsDatabase:
                     alert = dict(row)
                     alert['notification_channels'] = json.loads(alert.get('notification_channels', '[]'))
                     alert['metadata'] = json.loads(alert.get('metadata', '{}'))
+                    
+                    # Ensure frequency is never undefined
+                    if not alert.get('notification_frequency'):
+                        alert['notification_frequency'] = 'daily'
+                        alert['frequency_display_name'] = 'Daily'
+                    
+                    # Calculate next notification time based on frequency
+                    alert['next_notification_time'] = self._calculate_next_notification_time(alert)
+                    
                     alerts.append(alert)
                 
                 return alerts
@@ -796,6 +1044,123 @@ class AlertsDatabase:
                 
         except Exception as e:
             self.logger.error(f"❌ Failed to clear old notifications: {e}")
+
+    def _calculate_next_notification_time(self, alert: Dict) -> Optional[str]:
+        """Calculate when the next notification should be sent"""
+        try:
+            frequency = alert.get('notification_frequency', 'daily')
+            last_notification = alert.get('last_notification_sent')
+            
+            if frequency == 'immediate':
+                return None  # No scheduled time for immediate notifications
+            
+            if not last_notification:
+                return datetime.now().isoformat()  # Next notification can be immediate
+            
+            last_time = datetime.fromisoformat(last_notification.replace('Z', '+00:00'))
+            
+            # Calculate based on frequency
+            if frequency == 'hourly':
+                next_time = last_time + timedelta(hours=1)
+            elif frequency == 'daily':
+                next_time = last_time + timedelta(days=1)
+                # Set to specific time if configured
+                time_str = alert.get('frequency_at_time', '09:00')
+                hour, minute = map(int, time_str.split(':'))
+                next_time = next_time.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            elif frequency == 'weekly':
+                next_time = last_time + timedelta(weeks=1)
+            elif frequency == 'monthly':
+                next_time = last_time + timedelta(days=30)
+            elif frequency == 'custom_4h':
+                next_time = last_time + timedelta(hours=4)
+            else:
+                next_time = last_time + timedelta(days=1)  # Default to daily
+            
+            return next_time.isoformat()
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error calculating next notification time: {e}")
+            return None
+
+    def should_send_notification(self, alert: Dict) -> bool:
+        """Check if a notification should be sent based on frequency rules"""
+        try:
+            frequency = alert.get('notification_frequency', 'daily')
+            
+            if frequency == 'immediate':
+                return True
+            
+            last_notification = alert.get('last_notification_sent')
+            if not last_notification:
+                return True  # First notification
+            
+            last_time = datetime.fromisoformat(last_notification.replace('Z', '+00:00'))
+            now = datetime.now()
+            
+            # Check cooldown period
+            cooldown_hours = alert.get('cooldown_period_hours', 4)
+            if (now - last_time).total_seconds() < cooldown_hours * 3600:
+                return False
+            
+            # Check daily limit
+            max_per_day = alert.get('max_notifications_per_day', 3)
+            if max_per_day and max_per_day > 0:
+                # Count notifications sent today
+                today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                notifications_today = self._count_notifications_since(alert['id'], today_start.isoformat())
+                
+                if notifications_today >= max_per_day:
+                    return False
+            
+            # Check frequency interval
+            interval = alert.get('frequency_interval', 1)
+            unit = alert.get('frequency_unit', 'days')
+            
+            if unit == 'minutes':
+                min_interval = timedelta(minutes=interval)
+            elif unit == 'hours':
+                min_interval = timedelta(hours=interval)
+            elif unit == 'days':
+                min_interval = timedelta(days=interval)
+            else:
+                min_interval = timedelta(days=1)  # Default
+            
+            return (now - last_time) >= min_interval
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error checking notification frequency: {e}")
+            return True  # Default to allowing notification
+
+    def _count_notifications_since(self, alert_id: int, since_time: str) -> int:
+        """Count notifications sent for an alert since a specific time"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute('''
+                    SELECT COUNT(*) FROM alert_triggers 
+                    WHERE alert_id = ? AND triggered_at >= ? AND notification_sent = 1
+                ''', (alert_id, since_time))
+                
+                return cursor.fetchone()[0]
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error counting notifications: {e}")
+            return 0
+
+    def update_notification_sent_time(self, alert_id: int):
+        """Update the last notification sent time for an alert"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute('''
+                    UPDATE alerts 
+                    SET last_notification_sent = ?, notification_count = notification_count + 1
+                    WHERE id = ?
+                ''', (datetime.now().isoformat(), alert_id))
+                
+                conn.commit()
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error updating notification sent time: {e}")
 
 # Create a global instance
 alerts_db = AlertsDatabase()
