@@ -1,0 +1,603 @@
+/* ========== SLEEK GLASSMORPHISM DASHBOARD STYLES ========== */
+
+/* ========== ROOT VARIABLES ========== */
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.08);
+    --glass-border: rgba(255, 255, 255, 0.15);
+    --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+    --green-glass: rgba(16, 185, 129, 0.1);
+    --green-accent: #10b981;
+    --green-light: #6ee7b7;
+    --backdrop-blur: 16px;
+    --border-radius: 12px;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ========== BASE & TYPOGRAPHY ========== */
+body {
+    font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #d1fae5 100%);
+    min-height: 100vh;
+}
+
+/* ========== ENHANCED GLASSMORPHISM BACKGROUNDS ========== */
+.bg-gradient-custom {
+    background: 
+        linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(5, 150, 105, 0.08) 100%),
+        linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+    min-height: 100vh;
+    position: relative;
+    backdrop-filter: blur(20px);
+}
+
+.bg-gradient-custom::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(circle at 20% 80%, var(--green-glass) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, var(--green-glass) 0%, transparent 50%);
+    pointer-events: none;
+}
+
+/* ========== MAIN LAYOUT ========== */
+main {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius);
+    box-shadow: var(--glass-shadow);
+    margin: 1rem;
+}
+
+header {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius);
+    box-shadow: var(--glass-shadow);
+    padding: 0.75rem 1.5rem;
+}
+
+/* ========== SLEEK SIDEBAR ========== */
+.sidebar, aside {
+    background: linear-gradient(135deg, 
+        rgba(16, 185, 129, 0.1) 0%, 
+        rgba(5, 150, 105, 0.15) 100%);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius);
+    box-shadow: var(--glass-shadow);
+    margin: 1rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.sidebar::before, aside::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        linear-gradient(135deg, var(--green-glass) 0%, transparent 50%),
+        linear-gradient(225deg, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+    pointer-events: none;
+}
+
+.sidebar-text {
+    color: #1f2937;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: var(--transition);
+}
+
+.sidebar-text:hover {
+    color: var(--green-accent);
+    transform: translateX(4px);
+}
+
+.active-nav-link, .nav-link.active-nav-link {
+    background: linear-gradient(135deg, var(--green-glass), rgba(255, 255, 255, 0.1)) !important;
+    backdrop-filter: blur(var(--backdrop-blur));
+    color: var(--green-accent) !important;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    font-weight: 600;
+}
+
+.nav-link {
+    transition: var(--transition);
+    border-radius: 8px;
+    margin: 2px 0;
+    font-size: 0.8rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.nav-link:hover {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transform: translateX(2px);
+}
+
+/* ========== SLEEK METRIC CARDS ========== */
+.metric-card, 
+.bg-white.rounded-lg.shadow.p-5,
+.bg-white.rounded-xl.shadow-lg.p-6 {
+    background: var(--glass-bg) !important;
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 1rem !important;
+    box-shadow: var(--glass-shadow) !important;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+    min-height: 120px;
+}
+
+.metric-card::before, 
+.bg-white.rounded-lg.shadow.p-5::before,
+.bg-white.rounded-xl.shadow-lg.p-6::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--green-accent), var(--green-light));
+    transform: scaleX(0);
+    transition: transform 0.4s ease;
+}
+
+.metric-card:hover, 
+.bg-white.rounded-lg.shadow.p-5:hover,
+.bg-white.rounded-xl.shadow-lg.p-6:hover {
+    transform: translateY(-2px) !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 
+        0 12px 24px rgba(31, 38, 135, 0.2),
+        0 0 0 1px rgba(255, 255, 255, 0.3) !important;
+}
+
+.metric-card:hover::before, 
+.bg-white.rounded-lg.shadow.p-5:hover::before,
+.bg-white.rounded-xl.shadow-lg.p-6:hover::before {
+    transform: scaleX(1);
+}
+
+/* ========== SLEEK METRIC VALUES ========== */
+#current-cost, 
+#potential-savings, 
+#hpa-efficiency, 
+#optimization-score,
+.metric-value {
+    font-size: 1.75rem !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    background: linear-gradient(135deg, var(--green-accent), var(--green-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0.5rem 0;
+}
+
+.metric-card h4, .metric-card h5, .metric-card .metric-label {
+    font-size: 0.75rem !important;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+/* ========== SLEEK CHART CONTAINERS ========== */
+.chart-container {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    box-shadow: var(--glass-shadow);
+    transition: var(--transition);
+    min-height: 300px;
+    position: relative;
+}
+
+.chart-container:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 12px 24px rgba(31, 38, 135, 0.2);
+}
+
+.chart-container h3, .charts-grid h3 {
+    font-size: 0.9rem !important;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.75rem;
+}
+
+/* ========== SLEEK LOADING STATES ========== */
+.chart-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    color: #6b7280;
+    font-size: 0.8rem;
+    text-align: center;
+    box-shadow: var(--glass-shadow);
+    min-width: 200px;
+}
+
+.chart-loading i {
+    font-size: 1.5rem;
+    color: var(--green-accent);
+    margin-bottom: 0.5rem;
+    animation: pulse 2s infinite;
+}
+
+/* ========== SLEEK BUTTONS ========== */
+button {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: var(--transition);
+    box-shadow: var(--glass-shadow);
+}
+
+button:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 8px 16px rgba(31, 38, 135, 0.2);
+}
+
+.bg-green-500 {
+    background: linear-gradient(135deg, var(--green-accent), var(--green-light)) !important;
+    border: none;
+    color: white;
+}
+
+.bg-blue-500 {
+    background: linear-gradient(135deg, #3b82f6, #60a5fa) !important;
+    border: none;
+    color: white;
+}
+
+/* ========== SLEEK FORM ELEMENTS ========== */
+.form-select, input[type="text"], input[type="email"], 
+input[type="number"], input[type="time"], .form-control {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    transition: var(--transition);
+    box-shadow: var(--glass-shadow);
+}
+
+.form-select:focus, input:focus, .form-control:focus {
+    border-color: var(--green-accent);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    outline: none;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* ========== SLEEK CPU METRICS ========== */
+.enhanced-cpu-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius);
+    box-shadow: var(--glass-shadow);
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+
+.cpu-card-header {
+    padding: 1rem;
+    background: linear-gradient(135deg, var(--green-glass), rgba(255, 255, 255, 0.05));
+    backdrop-filter: blur(var(--backdrop-blur));
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.cpu-title {
+    font-size: 1rem !important;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0;
+    background: linear-gradient(135deg, var(--green-accent), #374151);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.cpu-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+    padding: 1rem;
+}
+
+.cpu-metric-item {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-shadow: var(--glass-shadow);
+    transition: var(--transition);
+}
+
+.cpu-metric-item:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.metric-icon-bg {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--green-accent), var(--green-light));
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.cpu-metric-item .metric-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+    background: linear-gradient(135deg, var(--green-accent), var(--green-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.cpu-metric-item .metric-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* ========== SLEEK STATUS BADGES ========== */
+.status-badge, .cpu-status-badge {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    box-shadow: var(--glass-shadow);
+}
+
+.badge-success, .bg-green-100 {
+    background: linear-gradient(135deg, var(--green-glass), rgba(255, 255, 255, 0.1)) !important;
+    color: var(--green-accent) !important;
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.badge-warning, .bg-yellow-100 {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(255, 255, 255, 0.1)) !important;
+    color: #f59e0b !important;
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.badge-danger, .bg-red-100 {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(255, 255, 255, 0.1)) !important;
+    color: #ef4444 !important;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* ========== SLEEK NOTIFICATIONS ========== */
+.notification-item, .insight-item, .insight-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-left: 3px solid var(--green-accent);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    box-shadow: var(--glass-shadow);
+    transition: var(--transition);
+    font-size: 0.8rem;
+}
+
+.notification-item:hover, .insight-item:hover, .insight-card:hover {
+    transform: translateX(4px);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* ========== SLEEK MODALS ========== */
+.modal, #deleteCurrentClusterModal {
+    backdrop-filter: blur(20px);
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.modal-content, #deleteCurrentClusterModal > div > div {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius);
+    box-shadow: var(--glass-shadow);
+}
+
+/* ========== SLEEK GRID LAYOUTS ========== */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+}
+
+@media (min-width: 1024px) {
+    .charts-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ========== SLEEK ANIMATIONS ========== */
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.05); }
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.metric-card, .chart-container {
+    animation: fadeInUp 0.5s ease forwards;
+}
+
+/* ========== RESPONSIVE DESIGN ========== */
+@media (max-width: 1024px) {
+    .chart-container {
+        min-height: 250px;
+        padding: 0.75rem;
+    }
+    
+    .metric-card, .bg-white.rounded-lg.shadow.p-5,
+    .bg-white.rounded-xl.shadow-lg.p-6 {
+        padding: 0.75rem !important;
+        min-height: 100px;
+    }
+    
+    .metric-value, #current-cost, #potential-savings, 
+    #hpa-efficiency, #optimization-score {
+        font-size: 1.5rem !important;
+    }
+}
+
+@media (max-width: 768px) {
+    body {
+        font-size: 12px;
+    }
+    
+    .chart-container {
+        min-height: 200px;
+        padding: 0.5rem;
+    }
+    
+    .metric-card {
+        text-align: center;
+        min-height: 80px;
+    }
+    
+    .cpu-metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+    
+    .sidebar-text {
+        font-size: 0.7rem;
+    }
+}
+
+/* ========== DARK THEME GLASSMORPHISM ========== */
+[data-theme="dark"] {
+    --glass-bg: rgba(0, 0, 0, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --green-glass: rgba(16, 185, 129, 0.15);
+}
+
+[data-theme="dark"] body {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+}
+
+[data-theme="dark"] .sidebar-text {
+    color: #e2e8f0;
+}
+
+[data-theme="dark"] .cpu-title, [data-theme="dark"] .chart-container h3 {
+    color: #f8fafc;
+}
+
+/* ========== ACCESSIBILITY ========== */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+button:focus, input:focus, select:focus {
+    outline: 2px solid var(--green-accent);
+    outline-offset: 2px;
+}
+
+/* ========== PERFORMANCE OPTIMIZATIONS ========== */
+.metric-card, .chart-container, .cpu-metric-item {
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+/* ========== HIDE LOADING WHEN DATA PRESENT ========== */
+.chart-container.chart-loaded .chart-loading,
+.chart-container:has(canvas:not([style*="display: none"])) .chart-loading {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* ========== SLEEK UTILITIES ========== */
+.glassmorphism {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+}
+
+.green-glow:hover {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.compact-text {
+    font-size: 0.75rem;
+    line-height: 1.3;
+}
+
+.ultra-compact {
+    font-size: 0.7rem;
+    line-height: 1.2;
+}

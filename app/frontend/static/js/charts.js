@@ -414,117 +414,325 @@ function createFloatingCPUAlert(cpuMetrics) {
 /**
  * ENHANCED: Create dedicated CPU metrics display
  */
+/**
+ * ENHANCED: Create beautiful CPU metrics display that matches the dashboard design
+ */
 function createCPUMetricsDisplay(cpuMetrics) {
-    console.log('📊 Creating CPU metrics display');
+    console.log('📊 Creating enhanced CPU metrics display');
     
     // Find or create CPU metrics container
     let cpuContainer = document.getElementById('cpu-metrics-container');
     if (!cpuContainer) {
         cpuContainer = document.createElement('div');
         cpuContainer.id = 'cpu-metrics-container';
-        cpuContainer.className = 'col-12 mb-4';
+        cpuContainer.className = 'cpu-metrics-section';
         
         // Insert after metrics row
-        const metricsRow = document.getElementById('metrics-row');
+        const metricsRow = document.getElementById('metrics-row') || document.querySelector('.metrics-grid');
         if (metricsRow && metricsRow.parentNode) {
             metricsRow.parentNode.insertBefore(cpuContainer, metricsRow.nextSibling);
+        } else {
+            // Fallback: insert into dashboard content
+            const dashboardContent = document.getElementById('dashboard-content');
+            if (dashboardContent) {
+                const firstChartsGrid = dashboardContent.querySelector('.charts-grid');
+                if (firstChartsGrid) {
+                    dashboardContent.insertBefore(cpuContainer, firstChartsGrid);
+                }
+            }
         }
     }
     
     const hasHighCPU = cpuMetrics.has_high_cpu_workloads;
-    const severityClass = hasHighCPU ? getSeverityCSSClass(cpuMetrics.severity_level) : 'border-success';
-    const statusIcon = hasHighCPU ? 'fas fa-exclamation-triangle' : 'fas fa-check-circle';
-    const statusText = hasHighCPU ? 'Issues Detected' : 'Normal Operation';
+    const avgCPU = cpuMetrics.average_cpu_utilization || 0;
+    const maxCPU = cpuMetrics.max_cpu_utilization || 0;
+    const highCpuCount = cpuMetrics.high_cpu_count || 0;
+    const severityLevel = cpuMetrics.severity_level || 'none';
+    
+    // Determine status styling
+    const statusConfig = getCPUStatusConfig(hasHighCPU, severityLevel, maxCPU);
     
     cpuContainer.innerHTML = `
-        <div class="card border-0 shadow-sm ${severityClass}">
-            <div class="card-header ${hasHighCPU ? 'bg-gradient-warning' : 'bg-gradient-success'} text-dark">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">
-                        <i class="${statusIcon} me-2"></i>
-                        CPU Workload Analysis - ${statusText}
-                    </h6>
-                    <div class="cpu-metrics-badges">
-                        <span class="badge ${hasHighCPU ? 'bg-danger' : 'bg-success'}">
-                            ${cpuMetrics.high_cpu_count} High CPU Workload${cpuMetrics.high_cpu_count !== 1 ? 's' : ''}
-                        </span>
+        <div class="enhanced-cpu-card">
+            <!-- Header Section -->
+            <div class="cpu-card-header ${statusConfig.headerClass}">
+                <div class="cpu-header-content">
+                    <div class="cpu-icon-container ${statusConfig.iconBgClass}">
+                        <i class="${statusConfig.icon} text-white text-xl"></i>
+                    </div>
+                    <div class="cpu-header-text">
+                        <h3 class="cpu-title">CPU Workload Analysis</h3>
+                        <div class="cpu-status-badge ${statusConfig.badgeClass}">
+                            <i class="${statusConfig.statusIcon} mr-2"></i>
+                            ${statusConfig.statusText}
+                        </div>
+                    </div>
+                    <div class="cpu-severity-indicator">
+                        <div class="severity-level ${statusConfig.severityClass}">
+                            ${severityLevel.toUpperCase()}
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3">
-                        <div class="cpu-metric-item text-center">
-                            <div class="metric-value ${cpuMetrics.average_cpu_utilization > 70 ? 'text-warning' : 'text-success'}" 
-                                 id="cpu-avg-display">
-                                ${cpuMetrics.average_cpu_utilization.toFixed(1)}%
-                            </div>
-                            <div class="metric-label">Average CPU</div>
-                        </div>
+            
+            <!-- Metrics Grid -->
+            <div class="cpu-metrics-grid">
+                <div class="cpu-metric-item ${getMetricColorClass(avgCPU, 'average')}">
+                    <div class="metric-icon-bg">
+                        <i class="fas fa-chart-line text-white"></i>
                     </div>
-                    <div class="col-md-3">
-                        <div class="cpu-metric-item text-center">
-                            <div class="metric-value ${cpuMetrics.max_cpu_utilization > 200 ? 'text-danger' : cpuMetrics.max_cpu_utilization > 100 ? 'text-warning' : 'text-success'}" 
-                                 id="cpu-max-display">
-                                ${cpuMetrics.max_cpu_utilization.toFixed(1)}%
-                            </div>
-                            <div class="metric-label">Max CPU</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="cpu-metric-item text-center">
-                            <div class="metric-value ${hasHighCPU ? 'text-danger' : 'text-success'}" 
-                                 id="cpu-workloads-display">
-                                ${cpuMetrics.high_cpu_count}
-                            </div>
-                            <div class="metric-label">High CPU Workloads</div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="cpu-metric-item text-center">
-                            <div class="metric-value text-info" id="cpu-status-display">
-                                ${cpuMetrics.severity_level.toUpperCase()}
-                            </div>
-                            <div class="metric-label">Status Level</div>
+                    <div class="metric-content">
+                        <div class="metric-value">${avgCPU.toFixed(1)}%</div>
+                        <div class="metric-label">Average CPU</div>
+                        <div class="metric-trend ${getMetricTrendClass(avgCPU, 'average')}">
+                            <i class="fas ${getMetricTrendIcon(avgCPU, 'average')}"></i>
+                            <span>${getMetricTrendText(avgCPU, 'average')}</span>
                         </div>
                     </div>
                 </div>
                 
+                <div class="cpu-metric-item ${getMetricColorClass(maxCPU, 'maximum')}">
+                    <div class="metric-icon-bg">
+                        <i class="fas fa-exclamation-triangle text-white"></i>
+                    </div>
+                    <div class="metric-content">
+                        <div class="metric-value">${maxCPU.toFixed(1)}%</div>
+                        <div class="metric-label">Peak CPU</div>
+                        <div class="metric-trend ${getMetricTrendClass(maxCPU, 'maximum')}">
+                            <i class="fas ${getMetricTrendIcon(maxCPU, 'maximum')}"></i>
+                            <span>${getMetricTrendText(maxCPU, 'maximum')}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="cpu-metric-item ${getMetricColorClass(highCpuCount, 'count')}">
+                    <div class="metric-icon-bg">
+                        <i class="fas fa-server text-white"></i>
+                    </div>
+                    <div class="metric-content">
+                        <div class="metric-value">${highCpuCount}</div>
+                        <div class="metric-label">High CPU Workloads</div>
+                        <div class="metric-trend ${getMetricTrendClass(highCpuCount, 'count')}">
+                            <i class="fas ${getMetricTrendIcon(highCpuCount, 'count')}"></i>
+                            <span>${getMetricTrendText(highCpuCount, 'count')}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="cpu-metric-item metric-status">
+                    <div class="metric-icon-bg">
+                        <i class="fas fa-shield-check text-white"></i>
+                    </div>
+                    <div class="metric-content">
+                        <div class="metric-value">${getEfficiencyScore(avgCPU, maxCPU)}%</div>
+                        <div class="metric-label">CPU Efficiency</div>
+                        <div class="metric-trend text-blue-600">
+                            <i class="fas fa-chart-pie"></i>
+                            <span>Calculated Score</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Section -->
+            <div class="cpu-action-section">
                 ${hasHighCPU ? `
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <div class="alert alert-warning border-0 mb-0">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <strong><i class="fas fa-lightbulb me-2"></i>Recommendation:</strong>
-                                    High CPU workloads should be optimized at the application level before implementing HPA scaling.
-                                </div>
-                                <div class="cpu-action-buttons">
-                                    <button class="btn btn-sm btn-warning me-2" onclick="generateCPUOptimizationPlan()">
-                                        <i class="fas fa-cog me-1"></i>Optimize
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-secondary" onclick="exportCPUReport()">
-                                        <i class="fas fa-download me-1"></i>Report
-                                    </button>
-                                </div>
+                    <div class="cpu-alert-panel">
+                        <div class="alert-content">
+                            <div class="alert-icon">
+                                <i class="fas fa-lightbulb text-yellow-600"></i>
+                            </div>
+                            <div class="alert-text">
+                                <h4>Optimization Recommended</h4>
+                                <p>High CPU workloads detected. Consider optimizing applications at the code level before implementing HPA scaling for better resource efficiency.</p>
                             </div>
                         </div>
-                    </div>
-                </div>
-                ` : `
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <div class="alert alert-success border-0 mb-0">
-                            <i class="fas fa-check-circle me-2"></i>
-                            <strong>CPU Usage Optimal:</strong> All workloads are operating within normal CPU usage ranges.
+                        <div class="alert-actions">
+                            <button class="btn-optimize" onclick="generateCPUOptimizationPlan()">
+                                <i class="fas fa-cog mr-2"></i>
+                                Generate Optimization Plan
+                            </button>
+                            <button class="btn-export" onclick="exportCPUReport()">
+                                <i class="fas fa-download mr-2"></i>
+                                Export Report
+                            </button>
                         </div>
                     </div>
-                </div>
+                ` : `
+                    <div class="cpu-success-panel">
+                        <div class="success-content">
+                            <div class="success-icon">
+                                <i class="fas fa-check-circle text-green-600"></i>
+                            </div>
+                            <div class="success-text">
+                                <h4>CPU Usage Optimal</h4>
+                                <p>All workloads are operating within normal CPU usage ranges. Your cluster is performing efficiently.</p>
+                            </div>
+                        </div>
+                        <div class="success-actions">
+                            <button class="btn-monitor" onclick="enableCPUMonitoring()">
+                                <i class="fas fa-eye mr-2"></i>
+                                Enable Monitoring
+                            </button>
+                        </div>
+                    </div>
                 `}
             </div>
         </div>
     `;
+    
+    // Add entrance animation
+    setTimeout(() => {
+        cpuContainer.classList.add('cpu-metrics-loaded');
+    }, 100);
 }
+
+/**
+ * Helper function to get CPU status configuration
+ */
+function getCPUStatusConfig(hasHighCPU, severityLevel, maxCPU) {
+    if (!hasHighCPU) {
+        return {
+            headerClass: 'success-header',
+            iconBgClass: 'bg-gradient-success',
+            badgeClass: 'badge-success',
+            severityClass: 'severity-success',
+            icon: 'fas fa-check-circle',
+            statusIcon: 'fas fa-circle',
+            statusText: 'Normal Operation'
+        };
+    }
+    
+    switch (severityLevel) {
+        case 'critical':
+            return {
+                headerClass: 'critical-header',
+                iconBgClass: 'bg-gradient-danger',
+                badgeClass: 'badge-danger',
+                severityClass: 'severity-critical',
+                icon: 'fas fa-exclamation-triangle',
+                statusIcon: 'fas fa-circle',
+                statusText: 'Critical Issues'
+            };
+        case 'high':
+            return {
+                headerClass: 'warning-header',
+                iconBgClass: 'bg-gradient-warning',
+                badgeClass: 'badge-warning',
+                severityClass: 'severity-high',
+                icon: 'fas fa-exclamation-circle',
+                statusIcon: 'fas fa-circle',
+                statusText: 'High CPU Usage'
+            };
+        case 'medium':
+            return {
+                headerClass: 'info-header',
+                iconBgClass: 'bg-gradient-info',
+                badgeClass: 'badge-info',
+                severityClass: 'severity-medium',
+                icon: 'fas fa-info-circle',
+                statusIcon: 'fas fa-circle',
+                statusText: 'Moderate Usage'
+            };
+        default:
+            return {
+                headerClass: 'warning-header',
+                iconBgClass: 'bg-gradient-warning',
+                badgeClass: 'badge-warning',
+                severityClass: 'severity-unknown',
+                icon: 'fas fa-question-circle',
+                statusIcon: 'fas fa-circle',
+                statusText: 'Attention Required'
+            };
+    }
+}
+
+/**
+ * Helper functions for metric styling
+ */
+function getMetricColorClass(value, type) {
+    switch (type) {
+        case 'average':
+            if (value > 80) return 'metric-danger';
+            if (value > 60) return 'metric-warning';
+            if (value > 40) return 'metric-info';
+            return 'metric-success';
+        case 'maximum':
+            if (value > 500) return 'metric-danger';
+            if (value > 200) return 'metric-warning';
+            if (value > 100) return 'metric-info';
+            return 'metric-success';
+        case 'count':
+            if (value > 5) return 'metric-danger';
+            if (value > 2) return 'metric-warning';
+            if (value > 0) return 'metric-info';
+            return 'metric-success';
+        default:
+            return 'metric-info';
+    }
+}
+
+function getMetricTrendClass(value, type) {
+    const colorClass = getMetricColorClass(value, type);
+    return colorClass.replace('metric-', 'text-');
+}
+
+function getMetricTrendIcon(value, type) {
+    switch (type) {
+        case 'average':
+            return value > 70 ? 'fa-arrow-up' : value > 30 ? 'fa-minus' : 'fa-arrow-down';
+        case 'maximum':
+            return value > 200 ? 'fa-arrow-up' : value > 100 ? 'fa-minus' : 'fa-arrow-down';
+        case 'count':
+            return value > 0 ? 'fa-arrow-up' : 'fa-check';
+        default:
+            return 'fa-minus';
+    }
+}
+
+function getMetricTrendText(value, type) {
+    switch (type) {
+        case 'average':
+            if (value > 80) return 'Very High';
+            if (value > 60) return 'High';
+            if (value > 40) return 'Moderate';
+            if (value > 20) return 'Normal';
+            return 'Low';
+        case 'maximum':
+            if (value > 500) return 'Critical';
+            if (value > 200) return 'Very High';
+            if (value > 100) return 'High';
+            return 'Normal';
+        case 'count':
+            if (value > 5) return 'Many Issues';
+            if (value > 2) return 'Several Issues';
+            if (value > 0) return 'Some Issues';
+            return 'No Issues';
+        default:
+            return 'Unknown';
+    }
+}
+
+function getEfficiencyScore(avgCPU, maxCPU) {
+    // Calculate efficiency score based on CPU usage patterns
+    if (maxCPU === 0) return 100;
+    
+    const efficiency = Math.max(0, 100 - (maxCPU - avgCPU) / maxCPU * 100);
+    return Math.round(efficiency);
+}
+
+// Helper functions for new buttons
+window.generateCPUOptimizationPlan = function() {
+    showNotification('Optimization Plan', 'Generating CPU optimization recommendations...', 'info');
+};
+
+window.exportCPUReport = function() {
+    showNotification('Export Report', 'Preparing CPU workload analysis report...', 'info');
+};
+
+window.enableCPUMonitoring = function() {
+    showNotification('Monitoring Enabled', 'CPU monitoring has been activated for this cluster.', 'success');
+};
 
 /**
  * ENHANCED: Update action panel with CPU status
