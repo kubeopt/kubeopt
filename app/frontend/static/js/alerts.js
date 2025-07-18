@@ -269,6 +269,7 @@ function updateIndividualChannelStatus() {
 /**
  * Load in-app notifications (FIXED: with proper error handling)
  */
+
 function loadInAppNotifications() {
     if (!AlertsState.systemAvailable) return;
     
@@ -280,7 +281,19 @@ function loadInAppNotifications() {
             if (healthData.health && 
                 healthData.health.notification_channels && 
                 healthData.health.notification_channels.in_app) {
-                return fetch('/api/notifications/in-app?unread_only=false&limit=50');
+                
+                // 🆕 BUILD URL WITH CLUSTER FILTER
+                let apiUrl = '/api/notifications/in-app?unread_only=false&limit=50';
+                
+                // Add cluster_id filter if we're on a specific cluster page
+                if (AlertsState.currentClusterId) {
+                    apiUrl += `&cluster_id=${encodeURIComponent(AlertsState.currentClusterId)}`;
+                    console.log(`📱 Loading notifications for cluster: ${AlertsState.currentClusterId}`);
+                } else {
+                    console.log('📱 Loading all notifications (no cluster filter)');
+                }
+                
+                return fetch(apiUrl);
             } else {
                 // Mock empty notifications for now
                 return Promise.resolve({
@@ -316,7 +329,8 @@ function loadInAppNotifications() {
                 updateInAppNotificationsUI();
                 updateNotificationBadge();
                 
-                console.log(`📱 Loaded ${data.notifications?.length || 0} in-app notifications (${data.unread_count || 0} unread)`);
+                const clusterText = AlertsState.currentClusterId ? ` for cluster ${AlertsState.currentClusterId}` : '';
+                console.log(`📱 Loaded ${data.notifications?.length || 0} in-app notifications${clusterText} (${data.unread_count || 0} unread)`);
             }
         })
         .catch(error => {
