@@ -66,6 +66,102 @@ const AlertsState = {
     }
 };
 
+const BootstrapHelper = {
+    isAvailable: function() {
+        return typeof bootstrap !== 'undefined' || typeof $ !== 'undefined';
+    },
+    
+    showModal: function(modalElement) {
+        if (typeof bootstrap !== 'undefined') {
+            // Bootstrap 5
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+            return modal;
+        } else if (typeof $ !== 'undefined' && $.fn.modal) {
+            // Bootstrap 4 with jQuery
+            $(modalElement).modal('show');
+            return {
+                hide: function() { $(modalElement).modal('hide'); }
+            };
+        } else {
+            // Fallback: simple show/hide
+            modalElement.style.display = 'block';
+            modalElement.classList.add('show');
+            document.body.classList.add('modal-open');
+            
+            // Add backdrop
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop fade show';
+            backdrop.id = 'fallback-backdrop';
+            document.body.appendChild(backdrop);
+            
+            return {
+                hide: function() {
+                    modalElement.style.display = 'none';
+                    modalElement.classList.remove('show');
+                    document.body.classList.remove('modal-open');
+                    const backdrop = document.getElementById('fallback-backdrop');
+                    if (backdrop) backdrop.remove();
+                }
+            };
+        }
+    },
+    
+    hideModal: function(modalElement) {
+        if (typeof bootstrap !== 'undefined') {
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) modal.hide();
+        } else if (typeof $ !== 'undefined' && $.fn.modal) {
+            $(modalElement).modal('hide');
+        } else {
+            // Fallback
+            modalElement.style.display = 'none';
+            modalElement.classList.remove('show');
+            document.body.classList.remove('modal-open');
+            const backdrop = document.getElementById('fallback-backdrop');
+            if (backdrop) backdrop.remove();
+        }
+    },
+    
+    showToast: function(toastElement, options = {}) {
+        if (typeof bootstrap !== 'undefined') {
+            const toast = new bootstrap.Toast(toastElement, options);
+            toast.show();
+            return toast;
+        } else {
+            // Fallback: simple show with timeout
+            toastElement.style.display = 'block';
+            toastElement.classList.add('show');
+            
+            setTimeout(() => {
+                toastElement.style.display = 'none';
+                toastElement.classList.remove('show');
+                toastElement.remove();
+            }, options.delay || 5000);
+            
+            return {
+                hide: function() {
+                    toastElement.style.display = 'none';
+                    toastElement.classList.remove('show');
+                    toastElement.remove();
+                }
+            };
+        }
+    }
+};
+
+function closeDeleteAlertModal() {
+    const modalElement = document.getElementById('deleteAlertModal');
+    if (modalElement) {
+        BootstrapHelper.hideModal(modalElement);
+        
+        // Remove from DOM after animation
+        setTimeout(() => {
+            modalElement.remove();
+        }, 300);
+    }
+    window.currentDeleteModal = null;
+}
 
 function loadFrequencyConfigurations() {
     fetch('/api/alerts/frequency-configs')
@@ -1664,49 +1760,77 @@ function pauseResumeAlert(alertId, action) {
         return;
     }
     
-    const button = document.querySelector(`[data-alert-id="${alertId}"].pause-alert-btn`);
-    if (button) {
-        const originalContent = button.innerHTML;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        button.disabled = true;
-        
-        fetch(`/api/alerts/${alertId}/pause`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ action })
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Request failed: ${response.status}`);
+    console.log(`⏸️ ${action} alert:`, alertId);
+    
+    fetch(`/api/alerts/${alertId}/pause`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Request failed: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(result => {
+        if (result.status === 'success') {
+            showNotification(`Alert ${action}d successfully!`, 'success');
+            
+            // Update the alert in state
+            const alert = AlertsState.alerts.find(a => a.id == alertId);
+            if (alert) {
+                alert.status = action === 'pause' ? 'paused' : 'active';
             }
-            return response.json();
-        })
-        .then(result => {
-            if (result.status === 'success') {
-                showNotification(result.message, 'success');
-                loadAlerts(); // Refresh to show updated status
+            
+            // Update the specific row in UI
+            const alertRow = document.querySelector(`[data-alert-id="${alertId}"]`);
+            if (alertRow) {
+                alertRow.dataset.status = action === 'pause' ? 'paused' : 'active';
                 
-                // Create in-app notification
-                createLocalInAppNotification(
-                    `Alert ${action.charAt(0).toUpperCase() + action.slice(1)}d`,
-                    `Alert ${alertId} has been ${action}d successfully`,
-                    'info'
-                );
-            } else {
-                throw new Error(result.message || `Failed to ${action} alert`);
+                // Update status badge
+                const statusBadge = alertRow.querySelector('.col-span-1:first-child span');
+                if (statusBadge) {
+                    const newStatus = action === 'pause' ? 'paused' : 'active';
+                    const colorClass = newStatus === 'active' ? 'green' : 'yellow';
+                    statusBadge.className = `text-xs px-2 py-1 bg-${colorClass}-100 text-${colorClass}-700 rounded uppercase font-medium`;
+                    statusBadge.textContent = newStatus.toUpperCase();
+                }
+                
+                // Update the toggle
+                const toggle = alertRow.querySelector('input[type="checkbox"]');
+                if (toggle) {
+                    toggle.checked = action === 'resume';
+                }
             }
-        })
-        .catch(error => {
-            console.error(`❌ Error ${action}ing alert:`, error);
-            showNotification(`Failed to ${action} alert: ${error.message}`, 'error');
-        })
-        .finally(() => {
-            button.innerHTML = originalContent;
-            button.disabled = false;
-        });
-    }
+            
+            // Update filter counts
+            updateFilterCounts();
+            
+            createLocalInAppNotification(
+                `Alert ${action.charAt(0).toUpperCase() + action.slice(1)}d`,
+                `Alert ${alertId} has been ${action}d successfully`,
+                'info'
+            );
+        } else {
+            throw new Error(result.message || `Failed to ${action} alert`);
+        }
+    })
+    .catch(error => {
+        console.error(`❌ Error ${action}ing alert:`, error);
+        showNotification(`Failed to ${action} alert: ${error.message}`, 'error');
+        
+        // Revert the toggle
+        const alertRow = document.querySelector(`[data-alert-id="${alertId}"]`);
+        if (alertRow) {
+            const toggle = alertRow.querySelector('input[type="checkbox"]');
+            if (toggle) {
+                toggle.checked = !toggle.checked; // Revert
+            }
+        }
+    });
 }
 
 /**
@@ -1766,6 +1890,8 @@ function testSlackNotification() {
  * Show advanced alerts modal
  */
 function showAdvancedAlertsModal() {
+    console.log('🔧 Showing advanced alerts modal');
+    
     const frequencyOptions = Object.keys(AlertsState.frequencyMap).map(key => {
         const info = getFrequencyInfo(key);
         return `
@@ -1780,12 +1906,12 @@ function showAdvancedAlertsModal() {
              aria-labelledby="advancedAlertsModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-xl">
                 <div class="modal-content">
-                    <div class="modal-header bg-gradient-primary text-white">
+                    <div class="modal-header bg-primary text-white">
                         <h5 class="modal-title" id="advancedAlertsModalLabel">
                             <i class="fas fa-cog me-2"></i>Advanced Alerts Configuration
                         </h5>
                         <button type="button" class="btn-close btn-close-white" 
-                                data-bs-dismiss="modal" aria-label="Close"></button>
+                                onclick="closeAdvancedAlertsModal()" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <form id="advanced-alerts-form">
@@ -1846,55 +1972,6 @@ function showAdvancedAlertsModal() {
                                 </div>
                             </div>
 
-                            <!-- 🆕 FREQUENCY CONFIGURATION SECTION -->
-                            <div id="frequency-config-section" class="mb-4">
-                                <div class="card border-info">
-                                    <div class="card-header bg-info text-white">
-                                        <h6 class="mb-0">
-                                            <i class="fas fa-cog me-2"></i>Frequency Configuration
-                                        </h6>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-4">
-                                                <div class="form-group mb-3">
-                                                    <label class="form-label">Daily Time (for daily/weekly alerts)</label>
-                                                    <input type="time" class="form-control" name="frequency_at_time" value="09:00">
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="form-group mb-3">
-                                                    <label class="form-label">Max Notifications per Day</label>
-                                                    <select class="form-select" name="max_notifications_per_day">
-                                                        <option value="">No limit</option>
-                                                        <option value="1">1 per day</option>
-                                                        <option value="3" selected>3 per day</option>
-                                                        <option value="6">6 per day</option>
-                                                        <option value="12">12 per day</option>
-                                                        <option value="24">24 per day</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="form-group mb-3">
-                                                    <label class="form-label">Cooldown Period (hours)</label>
-                                                    <select class="form-select" name="cooldown_period_hours">
-                                                        <option value="0">No cooldown</option>
-                                                        <option value="1">1 hour</option>
-                                                        <option value="4" selected>4 hours</option>
-                                                        <option value="8">8 hours</option>
-                                                        <option value="24">24 hours</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div id="frequency-preview" class="alert alert-light">
-                                            <small id="frequency-preview-text">Preview will update based on your frequency selection</small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
                             <!-- Notification Channels Selection -->
                             <div class="mb-3">
                                 <label class="form-label">Notification Channels</label>
@@ -1929,17 +2006,10 @@ function showAdvancedAlertsModal() {
                                     </div>
                                 </div>
                             </div>
-                            
-                            <!-- Channel Status Info -->
-                            <div class="alert alert-info">
-                                <i class="fas fa-info-circle me-2"></i>
-                                <strong>Channel Status:</strong>
-                                <div class="notification-channels-status mt-2"></div>
-                            </div>
                         </form>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeAdvancedAlertsModal()">Cancel</button>
                         <button type="button" class="btn btn-primary" onclick="handleAdvancedAlertCreation()">
                             <i class="fas fa-plus me-2"></i>Create Advanced Alert
                         </button>
@@ -1961,12 +2031,24 @@ function showAdvancedAlertsModal() {
     // Update notification channels status in modal
     updateNotificationChannelsUI();
     
-    // Setup frequency preview
-    setupFrequencyPreview();
+    // Show modal using Bootstrap helper
+    const modalElement = document.getElementById('advancedAlertsModal');
+    window.currentAdvancedModal = BootstrapHelper.showModal(modalElement);
     
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('advancedAlertsModal'));
-    modal.show();
+    console.log('✅ Advanced alerts modal shown successfully');
+}
+
+function closeAdvancedAlertsModal() {
+    const modalElement = document.getElementById('advancedAlertsModal');
+    if (modalElement) {
+        BootstrapHelper.hideModal(modalElement);
+        
+        // Remove from DOM after animation
+        setTimeout(() => {
+            modalElement.remove();
+        }, 300);
+    }
+    window.currentAdvancedModal = null;
 }
 
 function setupFrequencyPreview() {
@@ -2119,6 +2201,8 @@ function saveFrequencySettings(alertId) {
  * Handle advanced alert creation (RESTORED FUNCTION)
  */
 function handleAdvancedAlertCreation() {
+    console.log('🔧 Creating advanced alert');
+    
     const form = document.getElementById('advanced-alerts-form');
     const formData = new FormData(form);
     
@@ -2135,13 +2219,7 @@ function handleAdvancedAlertCreation() {
         threshold_amount: parseFloat(formData.get('threshold_amount')) || 0,
         threshold_percentage: parseFloat(formData.get('threshold_percentage')) || 0,
         email: formData.get('email'),
-        
-        // 🆕 ENHANCED FREQUENCY SETTINGS
         notification_frequency: formData.get('notification_frequency') || AlertsState.defaultFrequency,
-        frequency_at_time: formData.get('frequency_at_time'),
-        max_notifications_per_day: parseInt(formData.get('max_notifications_per_day')) || null,
-        cooldown_period_hours: parseInt(formData.get('cooldown_period_hours')) || 0,
-        
         cluster_id: AlertsState.currentClusterId,
         notification_channels: selectedChannels
     };
@@ -2162,6 +2240,12 @@ function handleAdvancedAlertCreation() {
         return;
     }
     
+    // Show loading state
+    const createBtn = document.querySelector('#advancedAlertsModal .btn-primary');
+    const originalText = createBtn.innerHTML;
+    createBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating...';
+    createBtn.disabled = true;
+    
     createAlert(alertData)
         .then(result => {
             if (result.status === 'success') {
@@ -2169,8 +2253,7 @@ function handleAdvancedAlertCreation() {
                 showNotification(`Advanced alert created with ${frequencyInfo.display} frequency!`, 'success');
                 
                 // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('advancedAlertsModal'));
-                modal.hide();
+                closeAdvancedAlertsModal();
                 
                 // Refresh alerts
                 loadAlerts();
@@ -2188,8 +2271,258 @@ function handleAdvancedAlertCreation() {
         .catch(error => {
             console.error('❌ Error creating advanced alert:', error);
             showNotification(`Failed to create alert: ${error.message}`, 'error');
+        })
+        .finally(() => {
+            createBtn.innerHTML = originalText;
+            createBtn.disabled = false;
         });
 }
+
+
+
+/**
+ * Dismiss toast notification
+ */
+function dismissToast(toastId) {
+    const toastElement = document.getElementById(toastId);
+    if (toastElement) {
+        toastElement.style.transition = 'all 0.3s ease-out';
+        toastElement.style.opacity = '0';
+        toastElement.style.transform = 'translateX(100%)';
+        
+        setTimeout(() => {
+            if (toastElement.parentNode) {
+                toastElement.remove();
+            }
+            // Reposition remaining toasts
+            repositionToasts();
+        }, 300);
+    }
+}
+
+function repositionToasts() {
+    const toasts = document.querySelectorAll('[id^="toast-"]');
+    toasts.forEach((toast, index) => {
+        toast.style.top = `${20 + (index * 80)}px`;
+    });
+}
+
+window.showDeleteAlertModal = showDeleteAlertModal;
+window.closeDeleteAlertModal = closeDeleteAlertModal;
+window.confirmDeleteAlert = confirmDeleteAlert;
+window.showAdvancedAlertsModal = showAdvancedAlertsModal;
+window.closeAdvancedAlertsModal = closeAdvancedAlertsModal;
+window.handleAdvancedAlertCreation = handleAdvancedAlertCreation;
+
+// Fixed notification functions
+window.showEnhancedNotification = showEnhancedNotification;
+window.dismissToast = dismissToast;
+
+// Bootstrap helper
+window.BootstrapHelper = BootstrapHelper;
+
+/**
+ * ============================================================================
+ * SIMPLE FALLBACK DELETE CONFIRMATION (NO BOOTSTRAP REQUIRED)
+ * ============================================================================
+ */
+
+/**
+ * Simple delete confirmation using browser confirm dialog
+ */
+function simpleDeleteAlert(alertId) {
+    const alert = AlertsState.alerts.find(a => a.id == alertId);
+    const alertName = alert ? alert.name : `Alert ${alertId}`;
+    
+    const confirmed = confirm(
+        `Are you sure you want to delete "${alertName}"?\n\n` +
+        `This action cannot be undone. The alert will be permanently removed ` +
+        `and will no longer monitor your cluster costs.`
+    );
+    
+    if (confirmed) {
+        executeAlertDeletion(alertId);
+    }
+}
+
+/**
+ * Update the deleteAlert function to use simple confirmation if Bootstrap fails
+ */
+function deleteAlert(alertId) {
+    console.log('🗑️ Delete alert requested:', alertId);
+    
+    try {
+        // Try to show the enhanced modal first
+        const alert = AlertsState.alerts.find(a => a.id == alertId);
+        const alertName = alert ? alert.name : `Alert ${alertId}`;
+        showDeleteAlertModal(alertId, alertName);
+    } catch (error) {
+        console.warn('⚠️ Enhanced modal failed, using simple confirmation:', error);
+        // Fallback to simple confirmation
+        simpleDeleteAlert(alertId);
+    }
+}
+
+// Export the updated delete function
+window.deleteAlert = deleteAlert;
+window.simpleDeleteAlert = simpleDeleteAlert;
+
+/**
+ * ============================================================================
+ * CSS FALLBACK STYLES FOR NON-BOOTSTRAP MODALS
+ * ============================================================================
+ */
+
+const fallbackModalCSS = `
+<style>
+/* Fallback modal styles when Bootstrap is not available */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1050;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    outline: 0;
+}
+
+.modal.show {
+    display: block !important;
+}
+
+.modal-dialog {
+    position: relative;
+    width: auto;
+    margin: 0.5rem;
+    pointer-events: none;
+}
+
+.modal-dialog-centered {
+    display: flex;
+    align-items: center;
+    min-height: calc(100% - 1rem);
+}
+
+.modal-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    pointer-events: auto;
+    background-color: #fff;
+    background-clip: padding-box;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 0.3rem;
+    outline: 0;
+}
+
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1040;
+    width: 100vw;
+    height: 100vh;
+    background-color: #000;
+    opacity: 0.5;
+}
+
+.modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 1rem 1rem;
+    border-bottom: 1px solid #dee2e6;
+    border-top-left-radius: calc(0.3rem - 1px);
+    border-top-right-radius: calc(0.3rem - 1px);
+}
+
+.modal-body {
+    position: relative;
+    flex: 1 1 auto;
+    padding: 1rem;
+}
+
+.modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0.75rem;
+    border-top: 1px solid #dee2e6;
+    border-bottom-right-radius: calc(0.3rem - 1px);
+    border-bottom-left-radius: calc(0.3rem - 1px);
+}
+
+.btn-close {
+    background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23000'%3e%3cpath d='m.235 1.027 4.73 4.73 4.73-4.74c.377-.377.99-.377 1.367 0s.377.99 0 1.367L6.33 6.117l4.73 4.73c.377.377.377.99 0 1.367s-.99.377-1.367 0L5.063 7.484.333 12.214c-.377.377-.99.377-1.367 0s-.377-.99 0-1.367L3.696 6.117-.034 1.387C-.41 1.01-.41.397.033-.046s.99-.377 1.367 0z'/%3e%3c/svg%3e") center/1em auto no-repeat;
+    border: 0;
+    border-radius: 0.25rem;
+    opacity: 0.5;
+    width: 1em;
+    height: 1em;
+    padding: 0.25em 0.25em;
+    margin: -0.125rem -0.125rem -0.125rem auto;
+}
+
+.btn-close:hover {
+    color: #000;
+    text-decoration: none;
+    opacity: 0.75;
+}
+
+.modal-open {
+    overflow: hidden;
+}
+
+/* Toast fallback styles */
+.toast {
+    position: relative;
+    max-width: 350px;
+    font-size: 0.875rem;
+    background-color: rgba(255, 255, 255, 0.85);
+    background-clip: padding-box;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(10px);
+    border-radius: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+.toast-body {
+    padding: 0.75rem;
+}
+
+/* Responsive modal for mobile */
+@media (min-width: 576px) {
+    .modal-dialog {
+        max-width: 500px;
+        margin: 1.75rem auto;
+    }
+    
+    .modal-dialog-centered {
+        min-height: calc(100% - 3.5rem);
+    }
+}
+
+@media (min-width: 992px) {
+    .modal-xl {
+        max-width: 1140px;
+    }
+}
+</style>
+`;
+
+// Inject fallback CSS
+document.head.insertAdjacentHTML('beforeend', fallbackModalCSS);
+
+console.log('✅ Bootstrap fallback system loaded - alerts will work with or without Bootstrap');
 
 
 
@@ -2201,97 +2534,37 @@ function handleAdvancedAlertCreation() {
  * Show enhanced delete confirmation modal
  */
 function showDeleteAlertModal(alertId, alertName) {
-    // Get alert details for the modal
+    console.log('🗑️ Showing simple delete modal for alert:', alertId);
+    
     const alert = AlertsState.alerts.find(a => a.id == alertId);
     const alertDisplayName = alertName || (alert ? alert.name : `Alert ${alertId}`);
     
     const modalHTML = `
-        <div class="modal fade" id="deleteAlertModal" tabindex="-1" 
-             aria-labelledby="deleteAlertModalLabel" aria-hidden="true" data-bs-backdrop="static">
-            <div class="modal-dialog modal-dialog-centered">
+        <div class="modal fade" id="deleteAlertModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-sm">
                 <div class="modal-content border-0 shadow-lg">
-                    <div class="modal-header bg-danger text-white border-0">
-                        <h5 class="modal-title d-flex align-items-center" id="deleteAlertModalLabel">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            Confirm Delete Alert
-                        </h5>
+                    <div class="modal-header bg-danger text-white border-0 text-center">
+                        <h6 class="modal-title w-100">
+                            <i class="fas fa-trash-alt me-2"></i>Delete Alert
+                        </h6>
                         <button type="button" class="btn-close btn-close-white" 
-                                data-bs-dismiss="modal" aria-label="Close"></button>
+                                onclick="closeDeleteAlertModal()" aria-label="Close"></button>
                     </div>
-                    <div class="modal-body p-4">
-                        <div class="text-center mb-4">
-                            <div class="text-danger mb-3">
-                                <i class="fas fa-trash-alt fa-3x"></i>
-                            </div>
-                            <h6 class="fw-bold text-dark mb-3">Delete Alert Permanently?</h6>
-                            <p class="text-muted mb-2">
-                                You are about to permanently delete the following alert:
-                            </p>
-                        </div>
-                        
-                        <div class="alert alert-light border border-danger border-2 rounded-3">
-                            <div class="d-flex align-items-start">
-                                <div class="text-danger me-3 mt-1">
-                                    <i class="fas fa-bell fa-lg"></i>
-                                </div>
-                                <div class="flex-grow-1">
-                                    <h6 class="text-danger fw-bold mb-2">${escapeHtml(alertDisplayName)}</h6>
-                                    ${alert ? `
-                                        <div class="small text-muted">
-                                            <div class="row">
-                                                <div class="col-6">
-                                                    <strong>Threshold:</strong> 
-                                                    ${alert.threshold_amount > 0 
-                                                        ? '$' + alert.threshold_amount.toLocaleString() 
-                                                        : alert.threshold_percentage + '%'}
-                                                </div>
-                                                <div class="col-6">
-                                                    <strong>Email:</strong> ${escapeHtml(alert.email || 'Not set')}
-                                                </div>
-                                            </div>
-                                            <div class="row mt-1">
-                                                <div class="col-6">
-                                                    <strong>Cluster:</strong> ${escapeHtml(alert.cluster_name || 'All clusters')}
-                                                </div>
-                                                <div class="col-6">
-                                                    <strong>Status:</strong> 
-                                                    <span class="badge ${getStatusBadgeClass(alert.status || 'active')} ms-1">
-                                                        ${(alert.status || 'active').toUpperCase()}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="bg-light rounded-3 p-3 mb-3">
-                            <div class="d-flex align-items-start">
-                                <div class="text-warning me-2 mt-1">
-                                    <i class="fas fa-exclamation-circle"></i>
-                                </div>
-                                <div class="small text-muted">
-                                    <strong class="text-dark">Warning:</strong> This action cannot be undone. 
-                                    The alert will be permanently removed and will no longer monitor your cluster costs.
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="text-center">
-                            <p class="small text-muted mb-0">
-                                Are you sure you want to continue?
-                            </p>
+                    <div class="modal-body text-center p-4">
+                        <div class="mb-3">
+                            <i class="fas fa-exclamation-triangle text-warning fa-2x mb-2"></i>
+                            <p class="mb-1"><strong>Delete "${escapeHtml(alertDisplayName)}"?</strong></p>
+                            <small class="text-muted">This action cannot be undone.</small>
                         </div>
                     </div>
                     <div class="modal-footer border-0 pt-0">
                         <div class="w-100 d-flex gap-2">
-                            <button type="button" class="btn btn-light flex-fill border" data-bs-dismiss="modal">
-                                <i class="fas fa-times me-2"></i>Cancel
+                            <button type="button" class="btn btn-secondary flex-fill" onclick="closeDeleteAlertModal()">
+                                Cancel
                             </button>
                             <button type="button" class="btn btn-danger flex-fill" 
                                     onclick="confirmDeleteAlert(${alertId})" data-alert-id="${alertId}">
-                                <i class="fas fa-trash-alt me-2"></i>Delete Alert
+                                Delete
                             </button>
                         </div>
                     </div>
@@ -2309,31 +2582,17 @@ function showDeleteAlertModal(alertId, alertName) {
     // Add modal to DOM
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     
-    // Show modal with animation
-    const modal = new bootstrap.Modal(document.getElementById('deleteAlertModal'), {
-        backdrop: 'static',
-        keyboard: true
-    });
-    
-    // Add entrance animation
+    // Show modal
     const modalElement = document.getElementById('deleteAlertModal');
-    modalElement.addEventListener('shown.bs.modal', function () {
-        modalElement.querySelector('.modal-content').style.animation = 'bounceIn 0.5s ease-out';
-    });
-    
-    modal.show();
-    
-    // Focus on the cancel button initially (safer default)
-    modalElement.addEventListener('shown.bs.modal', function () {
-        modalElement.querySelector('[data-bs-dismiss="modal"]').focus();
-    });
+    window.currentDeleteModal = BootstrapHelper.showModal(modalElement);
 }
 
 /**
  * Confirm and execute alert deletion
  */
 function confirmDeleteAlert(alertId) {
-    const modal = bootstrap.Modal.getInstance(document.getElementById('deleteAlertModal'));
+    console.log('🗑️ Confirming delete for alert:', alertId);
+    
     const deleteBtn = document.querySelector(`[data-alert-id="${alertId}"]`);
     
     if (deleteBtn) {
@@ -2343,16 +2602,20 @@ function confirmDeleteAlert(alertId) {
         deleteBtn.disabled = true;
         
         // Close modal first
-        modal.hide();
+        closeDeleteAlertModal();
         
         // Execute the actual deletion
         executeAlertDeletion(alertId)
             .then(() => {
-                // Success handling is done in executeAlertDeletion
+                console.log('✅ Alert deleted successfully');
             })
             .catch(error => {
-                // Error handling is done in executeAlertDeletion
                 console.error('❌ Delete confirmation error:', error);
+                // Restore button state
+                if (deleteBtn) {
+                    deleteBtn.innerHTML = originalContent;
+                    deleteBtn.disabled = false;
+                }
             });
     }
 }
@@ -2368,9 +2631,13 @@ function executeAlertDeletion(alertId) {
             return;
         }
         
-        const alertItem = document.querySelector(`[data-alert-id="${alertId}"]`);
+        console.log('🗑️ Deleting specific alert:', alertId);
+        
+        // Find the specific alert item
+        const alertItem = document.querySelector(`[data-alert-id="${alertId}"].alert-row`);
+        
         if (alertItem) {
-            // Add deletion animation
+            // Add deletion animation to ONLY this alert
             alertItem.style.transition = 'all 0.3s ease-out';
             alertItem.style.opacity = '0.5';
             alertItem.style.transform = 'scale(0.95)';
@@ -2387,30 +2654,30 @@ function executeAlertDeletion(alertId) {
             })
             .then(result => {
                 if (result.status === 'success') {
-                    // Success animation
+                    // Success animation for ONLY this alert
                     alertItem.style.transition = 'all 0.5s ease-out';
                     alertItem.style.opacity = '0';
                     alertItem.style.transform = 'translateX(-100%) scale(0.8)';
                     
                     setTimeout(() => {
+                        // Remove ONLY this alert from DOM
                         alertItem.remove();
                         
-                        // Update counter
-                        const remainingAlerts = document.querySelectorAll('.alert-item').length;
-                        updateAlertsCounter(remainingAlerts);
+                        // Remove from AlertsState
+                        AlertsState.alerts = AlertsState.alerts.filter(a => a.id != alertId);
+                        
+                        // Update counters
                         updateFilterCounts();
                         
                         // Show empty state if no alerts left
-                        if (remainingAlerts === 0) {
+                        if (AlertsState.alerts.length === 0) {
                             displayAlerts([]);
                         }
                     }, 500);
                     
-                    // Show success notification with custom styling
-                    showEnhancedNotification('success', 'Alert Deleted Successfully!', 
-                        `The alert has been permanently removed from your system.`);
+                    showEnhancedNotification('success', 'Alert Deleted', 
+                        `Alert has been successfully deleted`);
                     
-                    // Create in-app notification
                     createLocalInAppNotification(
                         'Alert Deleted',
                         `Alert ${alertId} has been deleted successfully`,
@@ -2425,16 +2692,11 @@ function executeAlertDeletion(alertId) {
             .catch(error => {
                 console.error('❌ Error deleting alert:', error);
                 
-                // Restore UI state with error animation
+                // Restore UI state for ONLY this alert
                 alertItem.style.transition = 'all 0.3s ease-out';
                 alertItem.style.opacity = '1';
                 alertItem.style.transform = 'scale(1)';
                 alertItem.style.pointerEvents = 'auto';
-                alertItem.style.animation = 'shake 0.5s ease-in-out';
-                
-                setTimeout(() => {
-                    alertItem.style.animation = '';
-                }, 500);
                 
                 showEnhancedNotification('error', 'Delete Failed', 
                     `Failed to delete alert: ${error.message}`);
@@ -2451,13 +2713,15 @@ function executeAlertDeletion(alertId) {
  * Enhanced notification function with better styling
  */
 function showEnhancedNotification(type, title, message) {
-    // Try to use the existing notification system first
+    console.log(`📢 Showing notification: ${title} - ${message} (${type})`);
+    
+    // Try existing system first
     if (window.smoothNotificationManager) {
         window.smoothNotificationManager.show(`${title}: ${message}`, type);
         return;
     }
     
-    // Fallback: Create a custom toast notification
+    // Create fixed-position toast
     const toastId = `toast-${Date.now()}`;
     const iconClass = {
         'success': 'fas fa-check-circle text-success',
@@ -2473,20 +2737,24 @@ function showEnhancedNotification(type, title, message) {
         'info': 'bg-info'
     }[type] || 'bg-info';
     
+    // Count existing toasts to stack them
+    const existingToasts = document.querySelectorAll('[id^="toast-"]').length;
+    const topPosition = 20 + (existingToasts * 80);
+    
     const toastHTML = `
         <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0 shadow-lg" 
              role="alert" aria-live="assertive" aria-atomic="true" 
-             style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+             style="position: fixed; top: ${topPosition}px; right: 20px; z-index: 9999; min-width: 350px; max-width: 400px;">
             <div class="d-flex">
                 <div class="toast-body d-flex align-items-center">
                     <i class="${iconClass} me-2"></i>
                     <div>
-                        <div class="fw-bold">${title}</div>
-                        <div class="small">${message}</div>
+                        <div class="fw-bold">${escapeHtml(title)}</div>
+                        <div class="small">${escapeHtml(message)}</div>
                     </div>
                 </div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" 
-                        data-bs-dismiss="toast" aria-label="Close"></button>
+                        onclick="dismissToast('${toastId}')" aria-label="Close"></button>
             </div>
         </div>
     `;
@@ -2494,17 +2762,20 @@ function showEnhancedNotification(type, title, message) {
     document.body.insertAdjacentHTML('beforeend', toastHTML);
     
     const toastElement = document.getElementById(toastId);
-    const toast = new bootstrap.Toast(toastElement, {
-        autohide: true,
-        delay: type === 'error' ? 8000 : 5000
-    });
+    toastElement.style.opacity = '0';
+    toastElement.style.transform = 'translateX(100%)';
     
-    toast.show();
+    // Animate in
+    setTimeout(() => {
+        toastElement.style.transition = 'all 0.3s ease-out';
+        toastElement.style.opacity = '1';
+        toastElement.style.transform = 'translateX(0)';
+    }, 10);
     
-    // Remove from DOM after hiding
-    toastElement.addEventListener('hidden.bs.toast', function () {
-        toastElement.remove();
-    });
+    // Auto remove
+    setTimeout(() => {
+        dismissToast(toastId);
+    }, type === 'error' ? 8000 : 5000);
 }
 
 /**
@@ -2762,59 +3033,256 @@ document.addEventListener('click', function(event) {
 
 // Create alert modal
 function showCreateAlertModal() {
+    console.log('➕ Showing enhanced create alert modal');
+    
     const modalHTML = `
-        <div id="createAlertModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">Create New Alert</h3>
-                    <button onclick="closeCreateAlertModal()" class="text-gray-400 hover:text-gray-600">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                
-                <form id="create-alert-form" class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Alert Name</label>
-                        <input type="text" name="name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Monthly Budget Alert">
+        <div id="createAlertModal" class="modal fade" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-plus me-2"></i>Create New Alert
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" 
+                                onclick="closeCreateAlertModal()" aria-label="Close"></button>
                     </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Budget Threshold ($)</label>
-                        <input type="number" name="threshold_amount" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="5000">
+                    <div class="modal-body">
+                        <form id="create-alert-form">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Alert Name *</label>
+                                        <input type="text" class="form-control" name="name" required 
+                                               placeholder="Monthly Budget Alert">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Email Address *</label>
+                                        <input type="email" class="form-control" name="email" required 
+                                               placeholder="admin@company.com">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Threshold Type *</label>
+                                        <select class="form-select" name="threshold_type" id="threshold-type" 
+                                                onchange="updateThresholdInput()" required>
+                                            <option value="">Select threshold type</option>
+                                            <option value="amount">Fixed Amount ($)</option>
+                                            <option value="percentage">Percentage (%)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label" id="threshold-label">Threshold Value *</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text" id="threshold-symbol">$</span>
+                                            <input type="number" class="form-control" name="threshold_value" 
+                                                   id="threshold-input" required placeholder="5000" min="0" step="0.01">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Notification Frequency</label>
+                                        <select class="form-select" name="notification_frequency">
+                                            <option value="immediate">Immediate</option>
+                                            <option value="hourly">Hourly</option>
+                                            <option value="daily" selected>Daily</option>
+                                            <option value="weekly">Weekly</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Alert Type</label>
+                                        <select class="form-select" name="alert_type">
+                                            <option value="cost_threshold">Cost Threshold</option>
+                                            <option value="performance">Performance</option>
+                                            <option value="optimization">Optimization</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Notification Channels -->
+                            <div class="mb-3">
+                                <label class="form-label">Notification Channels</label>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="channels" value="email" id="channel-email" checked>
+                                            <label class="form-check-label" for="channel-email">
+                                                <i class="fas fa-envelope me-1"></i>Email
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="channels" value="slack" id="channel-slack">
+                                            <label class="form-check-label" for="channel-slack">
+                                                <i class="fab fa-slack me-1"></i>Slack
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" 
+                                                   name="channels" value="inapp" id="channel-inapp" checked>
+                                            <label class="form-check-label" for="channel-inapp">
+                                                <i class="fas fa-bell me-1"></i>In-App
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
                     </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                        <input type="email" name="email" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="admin@company.com">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                        <select name="notification_frequency" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="immediate">Immediate</option>
-                            <option value="hourly">Hourly</option>
-                            <option value="daily" selected>Daily</option>
-                            <option value="weekly">Weekly</option>
-                        </select>
-                    </div>
-                    
-                    <div class="flex space-x-3 pt-4">
-                        <button type="button" onclick="closeCreateAlertModal()" class="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeCreateAlertModal()">
                             Cancel
                         </button>
-                        <button type="submit" class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                            Create Alert
+                        <button type="button" class="btn btn-success" onclick="handleCreateAlertSubmission()">
+                            <i class="fas fa-plus me-2"></i>Create Alert
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     `;
     
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     
-    // Setup form handler
-    document.getElementById('create-alert-form').addEventListener('submit', handleCreateAlertSubmission);
+    const modalElement = document.getElementById('createAlertModal');
+    BootstrapHelper.showModal(modalElement);
+}
+
+function updateThresholdInput() {
+    const thresholdType = document.getElementById('threshold-type').value;
+    const thresholdSymbol = document.getElementById('threshold-symbol');
+    const thresholdInput = document.getElementById('threshold-input');
+    const thresholdLabel = document.getElementById('threshold-label');
+    
+    if (thresholdType === 'amount') {
+        thresholdSymbol.textContent = '$';
+        thresholdInput.placeholder = '5000';
+        thresholdInput.step = '0.01';
+        thresholdInput.max = '';
+        thresholdLabel.textContent = 'Threshold Amount *';
+    } else if (thresholdType === 'percentage') {
+        thresholdSymbol.textContent = '%';
+        thresholdInput.placeholder = '80';
+        thresholdInput.step = '1';
+        thresholdInput.max = '100';
+        thresholdLabel.textContent = 'Threshold Percentage *';
+    }
+}
+
+function closeCreateAlertModal() {
+    const modal = document.getElementById('createAlertModal');
+    if (modal) {
+        BootstrapHelper.hideModal(modal);
+        setTimeout(() => modal.remove(), 300);
+    }
+}
+
+function handleCreateAlertSubmission() {
+    const form = document.getElementById('create-alert-form');
+    const formData = new FormData(form);
+    
+    // Get selected notification channels
+    const selectedChannels = [];
+    const channelCheckboxes = form.querySelectorAll('input[name="channels"]:checked');
+    channelCheckboxes.forEach(checkbox => {
+        selectedChannels.push(checkbox.value);
+    });
+    
+    const thresholdType = formData.get('threshold_type');
+    const thresholdValue = parseFloat(formData.get('threshold_value'));
+    
+    const alertData = {
+        name: formData.get('name'),
+        alert_type: formData.get('alert_type'),
+        email: formData.get('email'),
+        notification_frequency: formData.get('notification_frequency'),
+        cluster_id: AlertsState.currentClusterId,
+        notification_channels: selectedChannels
+    };
+    
+    // Set threshold based on type
+    if (thresholdType === 'amount') {
+        alertData.threshold_amount = thresholdValue;
+        alertData.threshold_percentage = 0;
+    } else if (thresholdType === 'percentage') {
+        alertData.threshold_percentage = thresholdValue;
+        alertData.threshold_amount = 0;
+    }
+    
+    // Validation
+    if (!alertData.name) {
+        showNotification('Please enter an alert name', 'error');
+        return;
+    }
+    
+    if (!alertData.email || !isValidEmail(alertData.email)) {
+        showNotification('Please enter a valid email address', 'error');
+        return;
+    }
+    
+    if (!thresholdType) {
+        showNotification('Please select a threshold type', 'error');
+        return;
+    }
+    
+    if (!thresholdValue || thresholdValue <= 0) {
+        showNotification('Please enter a valid threshold value', 'error');
+        return;
+    }
+    
+    if (selectedChannels.length === 0) {
+        showNotification('Please select at least one notification channel', 'error');
+        return;
+    }
+    
+    const createBtn = document.querySelector('#createAlertModal .btn-success');
+    const originalText = createBtn.innerHTML;
+    createBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating...';
+    createBtn.disabled = true;
+    
+    createAlert(alertData)
+        .then(result => {
+            if (result.status === 'success') {
+                showNotification('Alert created successfully!', 'success');
+                closeCreateAlertModal();
+                loadAlerts(); // Refresh alerts list
+                
+                createLocalInAppNotification(
+                    'New Alert Created',
+                    `Alert "${alertData.name}" has been created successfully`,
+                    'success'
+                );
+            } else {
+                throw new Error(result.message || 'Failed to create alert');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error creating alert:', error);
+            showNotification(`Failed to create alert: ${error.message}`, 'error');
+        })
+        .finally(() => {
+            createBtn.innerHTML = originalText;
+            createBtn.disabled = false;
+        });
 }
 
 function closeCreateAlertModal() {
@@ -3099,11 +3567,150 @@ function displayAlertsSimplified(alerts) {
 // Edit alert function
 function editAlert(alertId) {
     const alert = AlertsState.alerts.find(a => a.id == alertId);
-    if (!alert) return;
+    if (!alert) {
+        showNotification('Alert not found', 'error');
+        return;
+    }
     
-    // You can implement a modal similar to create, but pre-populated with alert data
-    console.log('Edit alert:', alertId, alert);
-    showNotification('Edit Feature', 'Edit functionality coming soon!', 'info');
+    console.log('✏️ Editing alert:', alertId);
+    
+    const modalHTML = `
+        <div class="modal fade" id="editAlertModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">
+                            <i class="fas fa-edit me-2"></i>Edit Alert
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" 
+                                onclick="closeEditAlertModal()" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="edit-alert-form">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Alert Name</label>
+                                        <input type="text" class="form-control" name="name" 
+                                               value="${escapeHtml(alert.name)}" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Email Address</label>
+                                        <input type="email" class="form-control" name="email" 
+                                               value="${escapeHtml(alert.email || '')}" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Threshold Amount ($)</label>
+                                        <input type="number" class="form-control" name="threshold_amount" 
+                                               value="${alert.threshold_amount || ''}" min="0" step="0.01">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="form-label">Threshold Percentage (%)</label>
+                                        <input type="number" class="form-control" name="threshold_percentage" 
+                                               value="${alert.threshold_percentage || ''}" min="0" max="100">
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeEditAlertModal()">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="saveEditAlert(${alertId})">
+                            <i class="fas fa-save me-2"></i>Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal
+    const existingModal = document.getElementById('editAlertModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to DOM
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Show modal
+    const modalElement = document.getElementById('editAlertModal');
+    BootstrapHelper.showModal(modalElement);
+}
+
+function saveEditAlert(alertId) {
+    const form = document.getElementById('edit-alert-form');
+    const formData = new FormData(form);
+    
+    const updateData = {
+        name: formData.get('name'),
+        email: formData.get('email'),
+        threshold_amount: parseFloat(formData.get('threshold_amount')) || 0,
+        threshold_percentage: parseFloat(formData.get('threshold_percentage')) || 0
+    };
+    
+    // Validation
+    if (!updateData.name) {
+        showNotification('Please enter an alert name', 'error');
+        return;
+    }
+    
+    if (!updateData.email || !isValidEmail(updateData.email)) {
+        showNotification('Please enter a valid email address', 'error');
+        return;
+    }
+    
+    const saveBtn = document.querySelector('#editAlertModal .btn-primary');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+    saveBtn.disabled = true;
+    
+    fetch(`/api/alerts/${alertId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`Request failed: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(result => {
+        if (result.status === 'success') {
+            showNotification('Alert updated successfully!', 'success');
+            closeEditAlertModal();
+            loadAlerts(); // Refresh alerts list
+        } else {
+            throw new Error(result.message || 'Failed to update alert');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error updating alert:', error);
+        showNotification(`Failed to update alert: ${error.message}`, 'error');
+    })
+    .finally(() => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    });
+}
+
+function closeEditAlertModal() {
+    const modalElement = document.getElementById('editAlertModal');
+    if (modalElement) {
+        BootstrapHelper.hideModal(modalElement);
+        setTimeout(() => modalElement.remove(), 300);
+    }
 }
 
 // Add to global exports
@@ -3700,6 +4307,21 @@ const enhancedModalCSS = `
     background-color: #f8f9fa !important;
     border-color: #dee2e6 !important;
     transform: translateY(-1px);
+}
+    .alert-actions {
+    position: relative !important;
+}
+
+.alert-actions [id^="menu-"] {
+    position: absolute !important;
+    top: 100% !important;
+    right: 0 !important;
+    z-index: 9999 !important;
+    margin-top: 2px !important;
+}
+
+.alert-row {
+    position: relative !important;
 }
 </style>
 `;
