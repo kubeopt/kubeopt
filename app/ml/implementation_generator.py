@@ -2128,7 +2128,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         implementation_plan['metadata']['ml_systems_available'] = self.ml_systems_available
         implementation_plan['metadata']['learning_events'] = len(ml_session['learning_events'])
         implementation_plan['metadata']['generated_at'] = datetime.now().isoformat()
-        implementation_plan['metadata']['version'] = '3.0.0-no-fallbacks-with-cluster-config'
+        implementation_plan['metadata']['version'] = '3.0.0'
         implementation_plan['metadata']['cluster_config_used'] = ml_session.get('cluster_config', {}).get('status') == 'completed'
         
         # Store session
