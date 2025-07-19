@@ -1340,3 +1340,224 @@
         opacity: 0.5;
     }
 }
+
+/* CSS fixes for modular alerts system */
+
+/* Dropdown menu fixes */
+.dropdown-menu {
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    z-index: 1000 !important;
+    min-width: 160px !important;
+    padding: 0.5rem 0 !important;
+    margin: 0.125rem 0 0 !important;
+    background-color: #fff !important;
+    border: 1px solid rgba(0, 0, 0, 0.15) !important;
+    border-radius: 0.375rem !important;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.175) !important;
+}
+
+.dropdown-menu.dropdown-menu-end {
+    right: 0 !important;
+    left: auto !important;
+}
+
+.dropdown-menu.hidden {
+    display: none !important;
+}
+
+.dropdown-item {
+    display: block !important;
+    width: 100% !important;
+    padding: 0.375rem 1rem !important;
+    clear: both !important;
+    font-weight: 400 !important;
+    color: #212529 !important;
+    text-align: inherit !important;
+    text-decoration: none !important;
+    white-space: nowrap !important;
+    background-color: transparent !important;
+    border: 0 !important;
+    cursor: pointer !important;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    color: #1e2125 !important;
+    background-color: #e9ecef !important;
+}
+
+.dropdown-item.text-danger:hover,
+.dropdown-item.text-danger:focus {
+    color: #fff !important;
+    background-color: #dc3545 !important;
+}
+
+.dropdown-divider {
+    height: 0 !important;
+    margin: 0.5rem 0 !important;
+    overflow: hidden !important;
+    border-top: 1px solid rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Table responsive fixes */
+.table-responsive {
+    overflow-x: auto !important;
+}
+
+.table {
+    margin-bottom: 0 !important;
+}
+
+.table th {
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    font-size: 0.75rem !important;
+    color: #6c757d !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    padding: 0.75rem !important;
+}
+
+.table td {
+    padding: 1rem 0.75rem !important;
+    vertical-align: middle !important;
+    border-bottom: 1px solid #dee2e6 !important;
+}
+
+/* Alert row hover effects */
+.alert-row:hover {
+    background-color: #f8f9fa !important;
+}
+
+/* Status badge improvements */
+.badge {
+    font-size: 0.65rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+/* Form switch styling */
+.form-check-input:checked {
+    background-color: #198754 !important;
+    border-color: #198754 !important;
+}
+
+.form-check-input:focus {
+    border-color: #86b7fe !important;
+    outline: 0 !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+}
+
+/* Filter button styling */
+.filter-btn {
+    transition: all 0.2s ease !important;
+}
+
+.filter-btn.active {
+    background-color: #0d6efd !important;
+    border-color: #0d6efd !important;
+    color: #fff !important;
+}
+
+/* Animation for metric updates */
+.metric-updated {
+    animation: pulse 0.5s ease-in-out !important;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+/* Dropdown position fix for table */
+.dropdown {
+    position: relative !important;
+}
+
+/* Ensure menus appear above other content */
+[id^="menu-"] {
+    z-index: 1050 !important;
+}
+
+/* Loading state for buttons */
+.btn:disabled {
+    opacity: 0.65 !important;
+}
+
+/* Toast notification positioning */
+.toast {
+    z-index: 1055 !important;
+}
+
+/* Responsive table adjustments */
+@media (max-width: 768px) {
+    .table th,
+    .table td {
+        padding: 0.5rem !important;
+        font-size: 0.875rem !important;
+    }
+    
+    .dropdown-menu {
+        min-width: 140px !important;
+    }
+    
+    .btn-group-vertical .btn {
+        padding: 0.25rem 0.5rem !important;
+        font-size: 0.75rem !important;
+    }
+}
+
+/* Fix for empty state styling */
+.text-center.text-muted {
+    padding: 3rem 1rem !important;
+}
+
+/* Action column styling */
+.table td:last-child {
+    white-space: nowrap !important;
+    width: 120px !important;
+}
+
+/* Frequency badge styling */
+.frequency-badge {
+    font-size: 0.75rem !important;
+    padding: 0.25rem 0.5rem !important;
+    background-color: #f8f9fa !important;
+    border-radius: 0.375rem !important;
+    color: #6c757d !important;
+    border: 1px solid #dee2e6 !important;
+}
+
+/* Error state styling */
+.alert-warning {
+    border: 1px solid #ffeaa7 !important;
+    background-color: #fff3cd !important;
+}
+
+/* Success animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.alert-item {
+    animation: fadeIn 0.3s ease-in !important;
+}
+
+.table tbody tr {
+    background-color: #fff !important;
+    color: #212529 !important;
+}
+
+.alert-row, .alert-item {
+    background-color: #fff !important;
+    color: #212529 !important;
+}
+
+.table tbody tr:nth-child(even) {
+    background-color: #f8f9fa !important;
+}
+
