@@ -2662,7 +2662,662 @@ function exportAlertsConfig() {
     
     showNotification('Alerts configuration exported successfully!', 'success');
 }
+// Simplified alert display function
+// function displayAlertsSimplified(alerts) {
+//     const container = document.getElementById('alerts-list-container');
+//     if (!container) return;
+    
+//     if (alerts.length === 0) {
+//         container.innerHTML = `
+//             <div class="text-center py-8 text-gray-500">
+//                 <i class="fas fa-bell-slash text-3xl mb-2"></i>
+//                 <p>No alerts configured</p>
+//                 <button onclick="showCreateAlertModal()" class="mt-2 text-blue-500 hover:text-blue-600">
+//                     Create your first alert
+//                 </button>
+//             </div>
+//         `;
+//         return;
+//     }
 
+//     const alertsHTML = alerts.map(alert => {
+//         const statusColor = alert.status === 'active' ? 'green' : alert.status === 'paused' ? 'yellow' : 'gray';
+//         const statusIcon = alert.status === 'active' ? 'play' : alert.status === 'paused' ? 'pause' : 'stop';
+        
+//         return `
+//             <div class="alert-item bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all duration-200" 
+//                  data-alert-id="${alert.id}" 
+//                  data-status="${alert.status || 'active'}">
+//                 <div class="flex items-center justify-between">
+//                     <div class="flex-1">
+//                         <div class="flex items-center space-x-2 mb-2">
+//                             <div class="w-3 h-3 bg-${statusColor}-500 rounded-full"></div>
+//                             <h4 class="font-medium text-gray-900">${escapeHtml(alert.name)}</h4>
+//                             <span class="text-xs px-2 py-1 bg-${statusColor}-100 text-${statusColor}-700 rounded-full uppercase font-medium">
+//                                 ${alert.status || 'active'}
+//                             </span>
+//                         </div>
+//                         <div class="text-sm text-gray-600 space-y-1">
+//                             ${alert.threshold_amount > 0 ? `<div><span class="font-medium">Budget:</span> $${alert.threshold_amount.toLocaleString()}</div>` : ''}
+//                             ${alert.email ? `<div><span class="font-medium">Email:</span> ${escapeHtml(alert.email)}</div>` : ''}
+//                             ${alert.cluster_name ? `<div><span class="font-medium">Cluster:</span> ${escapeHtml(alert.cluster_name)}</div>` : ''}
+//                         </div>
+//                     </div>
+                    
+//                     <!-- Three dots menu -->
+//                     <div class="relative">
+//                         <button onclick="toggleAlertMenu('${alert.id}')" class="text-gray-400 hover:text-gray-600 p-2">
+//                             <i class="fas fa-ellipsis-v"></i>
+//                         </button>
+//                         <div id="menu-${alert.id}" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+//                             <div class="py-1">
+//                                 <button onclick="viewAlert('${alert.id}')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+//                                     <i class="fas fa-eye mr-2"></i>View Details
+//                                 </button>
+//                                 <button onclick="testAlert('${alert.id}')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+//                                     <i class="fas fa-paper-plane mr-2"></i>Test Alert
+//                                 </button>
+//                                 <button onclick="pauseResumeAlert('${alert.id}', '${alert.status === 'active' ? 'pause' : 'resume'}')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+//                                     <i class="fas fa-${alert.status === 'active' ? 'pause' : 'play'} mr-2"></i>${alert.status === 'active' ? 'Pause' : 'Resume'}
+//                                 </button>
+//                                 <hr class="my-1">
+//                                 <button onclick="deleteAlert('${alert.id}')" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+//                                     <i class="fas fa-trash mr-2"></i>Delete
+//                                 </button>
+//                             </div>
+//                         </div>
+//                     </div>
+//                 </div>
+//             </div>
+//         `;
+//     }).join('');
+    
+//     container.innerHTML = alertsHTML;
+// }
+
+// Toggle alert menu
+function toggleAlertMenu(alertId) {
+    // Close all other menus first
+    document.querySelectorAll('[id^="menu-"]').forEach(menu => {
+        if (menu.id !== `menu-${alertId}`) {
+            menu.classList.add('hidden');
+        }
+    });
+    
+    // Toggle current menu
+    const menu = document.getElementById(`menu-${alertId}`);
+    if (menu) {
+        menu.classList.toggle('hidden');
+    }
+}
+
+// Close menus when clicking outside
+document.addEventListener('click', function(event) {
+    if (!event.target.closest('[id^="menu-"]') && !event.target.closest('button[onclick*="toggleAlertMenu"]')) {
+        document.querySelectorAll('[id^="menu-"]').forEach(menu => {
+            menu.classList.add('hidden');
+        });
+    }
+});
+
+// Create alert modal
+function showCreateAlertModal() {
+    const modalHTML = `
+        <div id="createAlertModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Create New Alert</h3>
+                    <button onclick="closeCreateAlertModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <form id="create-alert-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Alert Name</label>
+                        <input type="text" name="name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Monthly Budget Alert">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Budget Threshold ($)</label>
+                        <input type="number" name="threshold_amount" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="5000">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input type="email" name="email" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="admin@company.com">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                        <select name="notification_frequency" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="immediate">Immediate</option>
+                            <option value="hourly">Hourly</option>
+                            <option value="daily" selected>Daily</option>
+                            <option value="weekly">Weekly</option>
+                        </select>
+                    </div>
+                    
+                    <div class="flex space-x-3 pt-4">
+                        <button type="button" onclick="closeCreateAlertModal()" class="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit" class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                            Create Alert
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Setup form handler
+    document.getElementById('create-alert-form').addEventListener('submit', handleCreateAlertSubmission);
+}
+
+function closeCreateAlertModal() {
+    const modal = document.getElementById('createAlertModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function handleCreateAlertSubmission(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    
+    const alertData = {
+        name: formData.get('name'),
+        alert_type: 'cost_threshold',
+        threshold_amount: parseFloat(formData.get('threshold_amount')),
+        email: formData.get('email'),
+        notification_frequency: formData.get('notification_frequency'),
+        cluster_id: AlertsState.currentClusterId,
+        notification_channels: ['email', 'inapp']
+    };
+    
+    createAlert(alertData)
+        .then(result => {
+            if (result.status === 'success') {
+                showNotification('Alert Created', 'Alert created successfully!', 'success');
+                closeCreateAlertModal();
+                loadAlerts(); // Refresh the alerts list
+            } else {
+                throw new Error(result.message || 'Failed to create alert');
+            }
+        })
+        .catch(error => {
+            showNotification('Error', `Failed to create alert: ${error.message}`, 'error');
+        });
+}
+
+// View alert details
+function viewAlert(alertId) {
+    const alert = AlertsState.alerts.find(a => a.id == alertId);
+    if (!alert) return;
+    
+    const modalHTML = `
+        <div id="viewAlertModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg mx-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Alert Details</h3>
+                    <button onclick="closeViewAlertModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Name</label>
+                            <p class="text-gray-900">${escapeHtml(alert.name)}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Status</label>
+                            <span class="inline-flex px-2 py-1 text-xs font-medium rounded-full ${alert.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                                ${(alert.status || 'active').toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    ${alert.threshold_amount ? `
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Budget Threshold</label>
+                            <p class="text-gray-900">$${alert.threshold_amount.toLocaleString()}</p>
+                        </div>
+                    ` : ''}
+                    
+                    ${alert.email ? `
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Email</label>
+                            <p class="text-gray-900">${escapeHtml(alert.email)}</p>
+                        </div>
+                    ` : ''}
+                    
+                    ${alert.notification_frequency ? `
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Frequency</label>
+                            <p class="text-gray-900">${getFrequencyInfo(alert.notification_frequency).display}</p>
+                        </div>
+                    ` : ''}
+                    
+                    ${alert.cluster_name ? `
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Cluster</label>
+                            <p class="text-gray-900">${escapeHtml(alert.cluster_name)}</p>
+                        </div>
+                    ` : ''}
+                    
+                    ${alert.last_triggered ? `
+                        <div>
+                            <label class="block text-sm font-medium text-gray-500">Last Triggered</label>
+                            <p class="text-gray-900">${formatDateTime(alert.last_triggered)}</p>
+                        </div>
+                    ` : ''}
+                </div>
+                
+                <div class="flex justify-end pt-6">
+                    <button onclick="closeViewAlertModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closeViewAlertModal() {
+    const modal = document.getElementById('viewAlertModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+
+// Tab switching functionality
+function switchAlertsTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.alerts-tab-button').forEach(btn => {
+        btn.classList.remove('active', 'border-blue-500', 'text-blue-600');
+        btn.classList.add('border-transparent', 'text-gray-500');
+    });
+    
+    // Update tab content
+    document.querySelectorAll('.alerts-tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+    
+    if (tabName === 'alerts') {
+        document.getElementById('alerts-tab-btn').classList.add('active', 'border-blue-500', 'text-blue-600');
+        document.getElementById('alerts-tab-btn').classList.remove('border-transparent', 'text-gray-500');
+        document.getElementById('alerts-tab-content').classList.remove('hidden');
+    } else if (tabName === 'notifications') {
+        document.getElementById('notifications-tab-btn').classList.add('active', 'border-blue-500', 'text-blue-600');
+        document.getElementById('notifications-tab-btn').classList.remove('border-transparent', 'text-gray-500');
+        document.getElementById('notifications-tab-content').classList.remove('hidden');
+    }
+}
+
+// Simplified alert display function (replaces the card-based version)
+function displayAlertsSimplified(alerts) {
+    const container = document.getElementById('alerts-list-container');
+    if (!container) return;
+    
+    // Update total count
+    const totalCountEl = document.getElementById('total-alerts-count');
+    if (totalCountEl) {
+        totalCountEl.textContent = alerts.length;
+    }
+    
+    if (alerts.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+                <i class="fas fa-bell-slash text-3xl mb-2"></i>
+                <p>No alerts configured</p>
+                <button onclick="showCreateAlertModal()" class="mt-2 text-blue-500 hover:text-blue-600">
+                    Create your first alert
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    // Create table-style layout
+    const alertsHTML = `
+        <div class="alerts-table bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <!-- Table Header -->
+            <div class="alerts-table-header bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <div class="grid grid-cols-12 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    <div class="col-span-1">STATUS</div>
+                    <div class="col-span-3">ALERT NAME</div>
+                    <div class="col-span-2">BUDGET</div>
+                    <div class="col-span-3">EMAIL</div>
+                    <div class="col-span-2">CLUSTER</div>
+                    <div class="col-span-1">ACTION</div>
+                </div>
+            </div>
+            
+            <!-- Table Body -->
+            <div class="alerts-table-body">
+                ${alerts.map(alert => {
+                    const statusColor = alert.status === 'active' ? 'green' : alert.status === 'paused' ? 'yellow' : 'gray';
+                    const statusIcon = alert.status === 'active' ? 'play' : alert.status === 'paused' ? 'pause' : 'stop';
+                    
+                    return `
+                        <div class="alert-row grid grid-cols-12 gap-4 px-4 py-4 border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200 items-center" 
+                             data-alert-id="${alert.id}" 
+                             data-status="${alert.status || 'active'}">
+                            
+                            <!-- Status Column -->
+                            <div class="col-span-1">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-2 h-2 bg-${statusColor}-500 rounded-full"></div>
+                                    <span class="text-xs px-2 py-1 bg-${statusColor}-100 text-${statusColor}-700 rounded uppercase font-medium">
+                                        ${alert.status || 'active'}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Alert Name Column -->
+                            <div class="col-span-3">
+                                <span class="font-medium text-gray-900">${escapeHtml(alert.name)}</span>
+                            </div>
+                            
+                            <!-- Budget Column -->
+                            <div class="col-span-2">
+                                <span class="text-gray-700">
+                                    ${alert.threshold_amount > 0 ? `$${alert.threshold_amount.toLocaleString()}` : 'N/A'}
+                                </span>
+                            </div>
+                            
+                            <!-- Email Column -->
+                            <div class="col-span-3">
+                                <span class="text-gray-600 truncate block">
+                                    ${alert.email ? escapeHtml(alert.email) : 'Not set'}
+                                </span>
+                            </div>
+                            
+                            <!-- Cluster Column -->
+                            <div class="col-span-2">
+                                <span class="text-gray-600 truncate block">
+                                    ${alert.cluster_name ? escapeHtml(alert.cluster_name) : 'All clusters'}
+                                </span>
+                            </div>
+                            
+                            <!-- Action Column -->
+                            <div class="col-span-1 relative">
+                                <div class="flex items-center space-x-2">
+                                    <!-- Test button -->
+                                    <button onclick="testAlert('${alert.id}')" class="text-blue-500 hover:text-blue-600 p-1" title="Test Alert">
+                                        <i class="fas fa-paper-plane text-sm"></i>
+                                    </button>
+                                    
+                                    <!-- Toggle button -->
+                                    <label class="inline-flex relative items-center cursor-pointer" title="${alert.status === 'active' ? 'Pause' : 'Resume'} Alert">
+                                        <input type="checkbox" ${alert.status === 'active' ? 'checked' : ''} 
+                                               onchange="pauseResumeAlert('${alert.id}', this.checked ? 'resume' : 'pause')" 
+                                               class="sr-only peer">
+                                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                                    </label>
+                                    
+                                    <!-- Menu button -->
+                                    <button onclick="toggleAlertMenu('${alert.id}')" class="text-gray-400 hover:text-gray-600 p-1">
+                                        <i class="fas fa-ellipsis-v text-sm"></i>
+                                    </button>
+                                </div>
+                                
+                                <!-- Dropdown menu -->
+                                <div id="menu-${alert.id}" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+                                    <div class="py-1">
+                                        <button onclick="viewAlert('${alert.id}')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                            <i class="fas fa-eye mr-2"></i>View Details
+                                        </button>
+                                        <button onclick="editAlert('${alert.id}')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                            <i class="fas fa-edit mr-2"></i>Edit Alert
+                                        </button>
+                                        <hr class="my-1">
+                                        <button onclick="deleteAlert('${alert.id}')" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                                            <i class="fas fa-trash mr-2"></i>Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = alertsHTML;
+}
+
+// Edit alert function
+function editAlert(alertId) {
+    const alert = AlertsState.alerts.find(a => a.id == alertId);
+    if (!alert) return;
+    
+    // You can implement a modal similar to create, but pre-populated with alert data
+    console.log('Edit alert:', alertId, alert);
+    showNotification('Edit Feature', 'Edit functionality coming soon!', 'info');
+}
+
+// Add to global exports
+window.editAlert = editAlert;
+
+// Simplified notifications display
+function updateInAppNotificationsUI() {
+    const container = document.getElementById('in-app-notifications-container');
+    if (!container) return;
+    
+    if (AlertsState.inAppNotifications.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-gray-500">
+                <i class="fas fa-bell-slash text-3xl mb-2"></i>
+                <p>No notifications yet</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Create table-style layout for notifications
+    const notificationsHTML = `
+        <div class="notifications-table bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <!-- Table Header -->
+            <div class="notifications-table-header bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <div class="grid grid-cols-12 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    <div class="col-span-1">TYPE</div>
+                    <div class="col-span-3">TITLE</div>
+                    <div class="col-span-4">MESSAGE</div>
+                    <div class="col-span-2">DATE/TIME</div>
+                    <div class="col-span-1">STATUS</div>
+                    <div class="col-span-1">ACTION</div>
+                </div>
+            </div>
+            
+            <!-- Table Body -->
+            <div class="notifications-table-body">
+                ${AlertsState.inAppNotifications.map(notification => {
+                    const typeColor = getNotificationTypeColor(notification.type);
+                    const typeIcon = getNotificationTypeIcon(notification.type);
+                    
+                    return `
+                        <div class="notification-row grid grid-cols-12 gap-4 px-4 py-4 border-b border-gray-100 hover:bg-gray-50 transition-colors duration-200 items-center ${notification.read ? 'opacity-75' : ''}" 
+                             data-notification-id="${notification.id}">
+                            
+                            <!-- Type Column -->
+                            <div class="col-span-1">
+                                <div class="flex items-center justify-center">
+                                    <div class="w-8 h-8 bg-${typeColor}-100 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-${typeIcon} text-${typeColor}-600 text-sm"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Title Column -->
+                            <div class="col-span-3">
+                                <div class="flex items-center space-x-2">
+                                    <span class="font-medium text-gray-900">${escapeHtml(notification.title)}</span>
+                                    ${!notification.read ? '<span class="w-2 h-2 bg-blue-500 rounded-full"></span>' : ''}
+                                </div>
+                            </div>
+                            
+                            <!-- Message Column -->
+                            <div class="col-span-4">
+                                <span class="text-gray-600 text-sm line-clamp-2">${escapeHtml(notification.message)}</span>
+                            </div>
+                            
+                            <!-- Date/Time Column -->
+                            <div class="col-span-2">
+                                <div class="text-sm text-gray-500">
+                                    <div>${formatDate(notification.timestamp)}</div>
+                                    <div class="text-xs">${formatTime(notification.timestamp)}</div>
+                                </div>
+                            </div>
+                            
+                            <!-- Status Column -->
+                            <div class="col-span-1">
+                                <span class="text-xs px-2 py-1 rounded-full ${notification.read ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}">
+                                    ${notification.read ? 'Read' : 'New'}
+                                </span>
+                            </div>
+                            
+                            <!-- Action Column -->
+                            <div class="col-span-1">
+                                <div class="flex items-center space-x-1">
+                                    ${!notification.read ? `
+                                        <button onclick="markNotificationAsRead('${notification.id}')" class="text-blue-500 hover:text-blue-600 p-1" title="Mark as read">
+                                            <i class="fas fa-check text-sm"></i>
+                                        </button>
+                                    ` : ''}
+                                    <button onclick="dismissNotification('${notification.id}')" class="text-gray-400 hover:text-red-500 p-1" title="Dismiss">
+                                        <i class="fas fa-times text-sm"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = notificationsHTML;
+}
+
+// Helper functions for notification display
+function getNotificationTypeColor(type) {
+    const colors = {
+        'info': 'blue',
+        'success': 'green',
+        'warning': 'yellow',
+        'error': 'red',
+        'alert': 'orange'
+    };
+    return colors[type] || 'blue';
+}
+
+function getNotificationTypeIcon(type) {
+    const icons = {
+        'info': 'info-circle',
+        'success': 'check-circle',
+        'warning': 'exclamation-triangle',
+        'error': 'times-circle',
+        'alert': 'bell'
+    };
+    return icons[type] || 'bell';
+}
+
+// Date/time formatting helpers
+function formatDate(timestamp) {
+    try {
+        const date = new Date(timestamp);
+        return date.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric',
+            year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+        });
+    } catch {
+        return 'Invalid date';
+    }
+}
+
+function formatTime(timestamp) {
+    try {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true
+        });
+    } catch {
+        return 'Invalid time';
+    }
+}
+
+// Add these to your global exports
+window.getNotificationTypeColor = getNotificationTypeColor;
+window.getNotificationTypeIcon = getNotificationTypeIcon;
+window.formatDate = formatDate;
+window.formatTime = formatTime;
+
+// Filter button styling update
+function filterAlerts(filter) {
+    AlertsState.currentFilter = filter;
+    
+    // Update button states
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active', 'bg-blue-100', 'text-blue-700', 'border-blue-200');
+        btn.classList.add('bg-gray-100', 'text-gray-600', 'border-gray-200');
+    });
+    
+    // Activate selected filter
+    const activeBtn = document.querySelector(`[onclick="filterAlerts('${filter}')"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('active', 'bg-blue-100', 'text-blue-700', 'border-blue-200');
+        activeBtn.classList.remove('bg-gray-100', 'text-gray-600', 'border-gray-200');
+    }
+    
+    // Filter and display alerts
+    const alertItems = document.querySelectorAll('.alert-item');
+    alertItems.forEach(item => {
+        const alertStatus = item.dataset.status || 'active';
+        let shouldShow = false;
+        
+        switch (filter) {
+            case 'all':
+                shouldShow = true;
+                break;
+            case 'active':
+                shouldShow = alertStatus === 'active';
+                break;
+            case 'paused':
+                shouldShow = alertStatus === 'paused';
+                break;
+            default:
+                shouldShow = true;
+        }
+        
+        item.style.display = shouldShow ? 'flex' : 'none';
+    });
+    
+    updateFilterCounts();
+}
+
+// Add these to your global exports
+window.switchAlertsTab = switchAlertsTab;
+window.displayAlerts = displayAlertsSimplified;
+
+// Add these to your global exports
+window.showCreateAlertModal = showCreateAlertModal;
+window.closeCreateAlertModal = closeCreateAlertModal;
+window.toggleAlertMenu = toggleAlertMenu;
+window.viewAlert = viewAlert;
+window.closeViewAlertModal = closeViewAlertModal;
 /**
  * View alert history (MISSING FUNCTION)
  */

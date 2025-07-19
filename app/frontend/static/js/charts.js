@@ -329,7 +329,7 @@ function showHighCPUAlerts(cpuMetrics) {
     }
     
     // Create floating alert notification
-    createFloatingCPUAlert(cpuMetrics);
+    //createFloatingCPUAlert(cpuMetrics);
 }
 
 /**
