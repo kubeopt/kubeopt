@@ -314,7 +314,7 @@ export function closeEditAlertModal() {
 }
 
 /**
- * Show frequency edit modal
+ * Show edit frequency modal - ENHANCED VERSION
  */
 export function showEditFrequencyModal(alertId) {
     const alert = AlertsState.alerts.find(a => a.id == alertId);
@@ -355,13 +355,15 @@ export function showEditFrequencyModal(alertId) {
                             <div class="form-group mb-3">
                                 <label class="form-label">Max notifications per day</label>
                                 <input type="number" class="form-control" name="max_notifications_per_day" 
-                                       value="${alert.max_notifications_per_day || ''}" min="1" max="100">
+                                       value="${alert.max_notifications_per_day || ''}" min="1" max="100"
+                                       placeholder="No limit">
                             </div>
                             
                             <div class="form-group mb-3">
                                 <label class="form-label">Cooldown period (hours)</label>
                                 <input type="number" class="form-control" name="cooldown_period_hours" 
                                        value="${alert.cooldown_period_hours || 4}" min="0" max="168">
+                                <small class="form-text text-muted">Minimum time between notifications</small>
                             </div>
                             
                             <div class="alert alert-light" id="edit-frequency-preview-text">
@@ -402,7 +404,7 @@ export function closeEditFrequencyModal() {
 }
 
 /**
- * Setup frequency preview in edit modal
+ * Setup frequency preview in edit modal - ENHANCED VERSION
  */
 function setupEditFrequencyPreview() {
     const frequencySelect = document.getElementById('edit-frequency-select');
@@ -429,18 +431,95 @@ function setupEditFrequencyPreview() {
             preview += `<br><i class="fas fa-pause-circle me-1"></i>Minimum ${cooldown} hour(s) between notifications`;
         }
         
+        // Add recommendation
+        if (frequency === 'immediate' && (!cooldown || cooldown === '0')) {
+            preview += `<br><span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Recommendation: Add cooldown period to prevent spam</span>`;
+        }
+        
         previewText.innerHTML = preview;
     }
     
     // Add event listeners
-    frequencySelect.addEventListener('change', updatePreview);
-    document.querySelector('#editFrequencyModal [name="max_notifications_per_day"]').addEventListener('change', updatePreview);
-    document.querySelector('#editFrequencyModal [name="cooldown_period_hours"]').addEventListener('change', updatePreview);
-    document.querySelector('#editFrequencyModal [name="frequency_at_time"]').addEventListener('change', updatePreview);
+    const inputs = [
+        document.getElementById('edit-frequency-select'),
+        document.querySelector('#editFrequencyModal [name="max_notifications_per_day"]'),
+        document.querySelector('#editFrequencyModal [name="cooldown_period_hours"]'),
+        document.querySelector('#editFrequencyModal [name="frequency_at_time"]')
+    ];
+    
+    inputs.forEach(input => {
+        if (input) {
+            input.addEventListener('change', updatePreview);
+        }
+    });
     
     // Initial preview
     updatePreview();
 }
+
+/**
+ * Save frequency settings - NEW ENHANCED FUNCTION
+ */
+window.saveFrequencySettings = async function(alertId) {
+    const form = document.getElementById('edit-frequency-form');
+    const formData = new FormData(form);
+    
+    const updates = {
+        notification_frequency: formData.get('notification_frequency'),
+        frequency_at_time: formData.get('frequency_at_time'),
+        max_notifications_per_day: parseInt(formData.get('max_notifications_per_day')) || null,
+        cooldown_period_hours: parseInt(formData.get('cooldown_period_hours')) || 0
+    };
+    
+    const button = document.querySelector('#editFrequencyModal .btn-primary');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch(`/api/alerts/${alertId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            // Show success message (assuming createToast function exists)
+            if (typeof createToast === 'function') {
+                createToast('success', 'Success', 'Frequency settings saved successfully!');
+            } else {
+                console.log('✅ Frequency settings saved successfully!');
+            }
+            
+            closeEditFrequencyModal();
+            
+            // Update the alert in state
+            const alert = AlertsState.alerts.find(a => a.id == alertId);
+            if (alert) {
+                Object.assign(alert, updates);
+            }
+            
+            // Refresh alerts display
+            if (window.refreshAlertsData) {
+                await window.refreshAlertsData();
+            }
+        } else {
+            throw new Error(result.message || 'Failed to save frequency settings');
+        }
+    } catch (error) {
+        console.error('❌ Error saving frequency settings:', error);
+        if (typeof createToast === 'function') {
+            createToast('error', 'Error', `Failed to save frequency settings: ${error.message}`);
+        } else {
+            alert(`Failed to save frequency settings: ${error.message}`);
+        }
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+};
 
 /**
  * Remove existing modal if present
@@ -453,6 +532,7 @@ function removeExistingModal(modalId) {
 }
 
 // Global exports for onclick handlers
+window.showEditFrequencyModal = showEditFrequencyModal;
 window.closeDeleteAlertModal = closeDeleteAlertModal;
 window.closeCreateAlertModal = closeCreateAlertModal;
 window.closeEditAlertModal = closeEditAlertModal;

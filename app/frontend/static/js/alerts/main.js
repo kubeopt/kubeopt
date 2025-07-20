@@ -1,692 +1,1241 @@
 // frontend/static/js/alerts/main.js
 
-import { AlertsState, StateActions } from './core/state.js';
-import { FREQUENCY_MAP, DEFAULTS } from './core/config.js';
-import { checkSystemStatus, checkNotificationChannels, fetchFrequencyConfigurations, checkAlertsHealth } from './api/system.js';
-import { fetchAlerts } from './api/alerts.js';
-import { fetchInAppNotifications } from './api/notifications.js';
-import { displayAlerts, displayInAppNotifications, updateNotificationBadge } from './ui/display.js';
-import { setupEventListeners } from './ui/events.js';
-import { createToast } from './utils/dom.js';
-import { BootstrapHelper } from './utils/bootstrap.js';
-import { escapeHtml, formatCurrency, getFrequencyInfo } from './utils/formatting.js';
-
 /**
- * GLOBAL FUNCTIONS - DEFINED DIRECTLY HERE TO ENSURE AVAILABILITY
+ * Professional modals, notifications panel, proper counts
  */
 
-/**
- * Show create alert modal - VANILLA JS VERSION (No Bootstrap required)
- */
-window.showCreateAlertModal = function() {
-    console.log('➕ Showing create alert modal');
-    
-    const modalHTML = `
-        <div id="createAlertModal" class="custom-modal" style="
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1055;
-        ">
-            <div class="custom-modal-dialog" style="
-                background: white;
-                border-radius: 8px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                width: 90%;
-                max-width: 600px;
-                max-height: 90vh;
-                overflow-y: auto;
-            ">
-                <div class="custom-modal-header" style="
-                    background-color: #198754;
-                    color: white;
-                    padding: 1rem;
-                    border-radius: 8px 8px 0 0;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                ">
-                    <h5 style="margin: 0; font-size: 1.25rem;">
-                        <i class="fas fa-plus" style="margin-right: 8px;"></i>Create New Alert
-                    </h5>
-                    <button type="button" onclick="closeCreateAlertModal()" style="
-                        background: none;
-                        border: none;
-                        color: white;
-                        font-size: 1.5rem;
-                        cursor: pointer;
-                        padding: 0;
-                        width: 32px;
-                        height: 32px;
-                        border-radius: 4px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                    " onmouseover="this.style.backgroundColor='rgba(255,255,255,0.1)'" 
-                       onmouseout="this.style.backgroundColor='transparent'">
-                        ×
-                    </button>
-                </div>
-                <div class="custom-modal-body" style="padding: 1.5rem;">
-                    <form id="create-alert-form">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                            <div>
-                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Alert Name *</label>
-                                <input type="text" name="name" required 
-                                       placeholder="Monthly Budget Alert"
-                                       style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
-                            </div>
-                            <div>
-                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Email Address *</label>
-                                <input type="email" name="email" required 
-                                       placeholder="admin@company.com"
-                                       style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
-                            </div>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div>
-                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Threshold Amount ($)</label>
-                                <input type="number" name="threshold_amount" 
-                                       min="0" step="0.01" placeholder="5000"
-                                       style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
-                            </div>
-                            <div>
-                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Threshold Percentage (%)</label>
-                                <input type="number" name="threshold_percentage" 
-                                       min="0" max="100" placeholder="80"
-                                       style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="custom-modal-footer" style="
-                    padding: 1rem 1.5rem;
-                    border-top: 1px solid #dee2e6;
-                    display: flex;
-                    justify-content: flex-end;
-                    gap: 0.5rem;
-                ">
-                    <button type="button" onclick="closeCreateAlertModal()" style="
-                        padding: 0.5rem 1rem;
-                        border: 1px solid #6c757d;
-                        background: #6c757d;
-                        color: white;
-                        border-radius: 4px;
-                        cursor: pointer;
-                    ">Cancel</button>
-                    <button type="button" onclick="handleCreateAlertSubmission()" style="
-                        padding: 0.5rem 1rem;
-                        border: 1px solid #198754;
-                        background: #198754;
-                        color: white;
-                        border-radius: 4px;
-                        cursor: pointer;
-                    ">
-                        <i class="fas fa-plus" style="margin-right: 4px;"></i>Create Alert
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Remove existing modal
-    const existingModal = document.getElementById('createAlertModal');
-    if (existingModal) existingModal.remove();
-    
-    // Add modal to DOM
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // Prevent body scrolling
-    document.body.style.overflow = 'hidden';
-    
-    // Focus first input
-    setTimeout(() => {
-        const firstInput = document.querySelector('#create-alert-form input[name="name"]');
-        if (firstInput) firstInput.focus();
-    }, 100);
+// Global state
+window.AlertsState = {
+    alerts: [],
+    notifications: [],
+    loading: false,
+    currentClusterId: null,
+    systemAvailable: true,
+    currentFilter: 'all',
+    unreadNotificationsCount: 0
 };
 
 /**
- * Close create alert modal - VANILLA JS VERSION
+ * DYNAMIC CLUSTER DETECTION - RESPECTS YOUR URL STRUCTURE
  */
-window.closeCreateAlertModal = function() {
-    const modal = document.getElementById('createAlertModal');
-    if (modal) {
-        modal.remove();
+function detectCurrentCluster() {
+    console.log('🔍 Detecting cluster from your URL structure...');
+    
+    const urlPath = window.location.pathname;
+    console.log('📍 URL Path:', urlPath);
+    
+    // Your URL pattern: /cluster/rg-xxx_aks-cluster-name
+    // Looking for: rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1
+    const urlClusterMatch = urlPath.match(/\/cluster\/([^\/]+)/);
+    if (urlClusterMatch) {
+        const fullClusterId = urlClusterMatch[1];
+        console.log('✅ Found full cluster ID from URL:', fullClusterId);
+        return fullClusterId;
     }
     
-    // Restore body scrolling
-    document.body.style.overflow = '';
+    // Fallback: try to find any cluster-like pattern in URL
+    const clusterPattern = urlPath.match(/(rg-[^_]+_aks-[^\/]+)/);
+    if (clusterPattern) {
+        console.log('✅ Found cluster pattern:', clusterPattern[1]);
+        return clusterPattern[1];
+    }
     
-    console.log('✅ Create alert modal closed');
-};
+    console.log('⚠️ Could not detect cluster from URL structure');
+    return null;
+}
 
 /**
- * Handle create alert form submission
+ * LOAD ALERTS - PURE API CALL, NO OVERRIDES
  */
-window.handleCreateAlertSubmission = async function() {
-    const form = document.getElementById('create-alert-form');
-    if (!form) return;
+function loadAlerts() {
+    console.log('🔄 Loading alerts from real API...');
     
-    const formData = new FormData(form);
-    const alertData = {
-        name: formData.get('name'),
-        alert_type: 'cost_threshold',
-        threshold_amount: parseFloat(formData.get('threshold_amount')) || 0,
-        threshold_percentage: parseFloat(formData.get('threshold_percentage')) || 0,
-        email: formData.get('email'),
-        notification_frequency: 'daily',
-        cluster_id: AlertsState.currentClusterId,
-        notification_channels: ['email', 'inapp']
-    };
+    // Use your dynamic cluster detection
+    const detectedCluster = detectCurrentCluster();
+    if (detectedCluster) {
+        window.AlertsState.currentClusterId = detectedCluster;
+    }
     
-    // Basic validation
-    if (!alertData.name || !alertData.email) {
-        createToast('error', 'Error', 'Please fill in all required fields');
+    const url = window.AlertsState.currentClusterId 
+        ? `/api/alerts?cluster_id=${encodeURIComponent(window.AlertsState.currentClusterId)}` 
+        : '/api/alerts';
+    
+    console.log(`📡 Loading alerts from: ${url}`);
+    console.log(`📡 Cluster ID: ${window.AlertsState.currentClusterId || 'all clusters'}`);
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Use exactly what your backend returns - no filtering or modifications
+                window.AlertsState.alerts = data.alerts || [];
+                console.log(`✅ Loaded ${window.AlertsState.alerts.length} alerts from real API`);
+                displayAlerts();
+            } else {
+                console.log('📭 No alerts returned from API');
+                window.AlertsState.alerts = [];
+                displayAlerts();
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error loading alerts from API:', error);
+            // Don't use fallback data - just empty state
+            window.AlertsState.alerts = [];
+            displayAlerts();
+        });
+}
+
+/**
+ * LOAD NOTIFICATIONS - REAL API ONLY
+ */
+function loadNotifications() {
+    console.log('🔄 Loading notifications from real API...');
+    
+    // Use the same cluster detection as alerts
+    const clusterId = window.AlertsState.currentClusterId;
+    
+    let url = '/api/notifications/in-app?unread_only=false&limit=50';
+    if (clusterId) {
+        url += `&cluster_id=${encodeURIComponent(clusterId)}`;
+    }
+    
+    console.log(`📡 Loading notifications from: ${url}`);
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                window.AlertsState.notifications = data.notifications || [];
+                window.AlertsState.unreadNotificationsCount = data.unread_count || 0;
+                
+                console.log(`✅ Loaded ${window.AlertsState.notifications.length} notifications from real API`);
+                console.log(`📬 Unread count: ${window.AlertsState.unreadNotificationsCount}`);
+                
+                updateNotificationBadge();
+            } else {
+                console.log('📭 No notifications returned from API');
+                window.AlertsState.notifications = [];
+                window.AlertsState.unreadNotificationsCount = 0;
+                updateNotificationBadge();
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error loading notifications from API:', error);
+            // Don't use fallback data - just empty state
+            window.AlertsState.notifications = [];
+            window.AlertsState.unreadNotificationsCount = 0;
+            updateNotificationBadge();
+        });
+}
+
+/**
+ * DISPLAY ALERTS - ENHANCED WITH PROPER COUNTS
+ */
+function displayAlerts() {
+    const container = document.getElementById('alerts-list-container');
+    if (!container) return;
+    
+    const alerts = window.AlertsState.alerts;
+    console.log(`📋 Displaying ${alerts.length} alerts`);
+    
+    // Calculate counts for filter buttons
+    const allCount = alerts.length;
+    const activeCount = alerts.filter(a => (a.status || 'active') === 'active').length;
+    const pausedCount = alerts.filter(a => a.status === 'paused').length;
+    document.getElementById('total-alerts-count').textContent = allCount;
+    
+    if (alerts.length === 0) {
+        container.innerHTML = `
+            <div class="alerts-header">
+                <h2 class="alerts-title">ALERTS</h2>
+                <button class="export-btn" onclick="exportAlerts()">
+                    <i class="fas fa-download"></i> Export Excel
+                </button>
+            </div>
+            
+            <!-- Filter Buttons with Counts -->
+            <div class="filter-buttons">
+                <button class="filter-btn ${window.AlertsState.currentFilter === 'all' ? 'active' : ''}" 
+                        onclick="filterAlerts('all')">
+                    All (<span id="all-count">0</span>)
+                </button>
+                <button class="filter-btn ${window.AlertsState.currentFilter === 'active' ? 'active' : ''}" 
+                        onclick="filterAlerts('active')">
+                    Active (<span id="active-count">0</span>)
+                </button>
+                <button class="filter-btn ${window.AlertsState.currentFilter === 'paused' ? 'active' : ''}" 
+                        onclick="filterAlerts('paused')">
+                    Paused (<span id="paused-count">0</span>)
+                </button>
+            </div>
+            
+            <div class="empty-state">
+                <i class="fas fa-bell-slash"></i>
+                <h3>No alerts found</h3>
+                <p>Create your first alert to get started</p>
+                <button onclick="showCreateAlertModal()" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Create Alert
+                </button>
+            </div>
+        `;
+        container.style.display = 'block';
         return;
     }
     
-    try {
-        const response = await fetch('/api/alerts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(alertData)
-        });
-        
-        const result = await response.json();
-        
-        if (result.status === 'success') {
-            createToast('success', 'Success', 'Alert created successfully!');
-            window.closeCreateAlertModal();
-            await refreshAlertsData();
-        } else {
-            createToast('error', 'Error', 'Failed to create alert');
-        }
-    } catch (error) {
-        createToast('error', 'Error', 'Failed to create alert: ' + error.message);
-    }
-};
-
-/**
- * Filter alerts
- */
-window.filterAlerts = function(filter) {
-    console.log('🔍 Filtering alerts by:', filter);
-    AlertsState.currentFilter = filter;
-    
-    // Update button states
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.textContent.toLowerCase().includes(filter) || 
-            (filter === 'all' && btn.textContent.toLowerCase().includes('all'))) {
-            btn.classList.add('active');
-        }
-    });
-    
     // Filter alerts
-    const alertRows = document.querySelectorAll('.alert-row');
-    alertRows.forEach(row => {
-        const status = row.dataset.status || 'active';
-        let show = false;
+    const filteredAlerts = filterAlertsArray(alerts, window.AlertsState.currentFilter);
+    
+    const tableHTML = `
+        <!-- Header -->
+        <div class="alerts-header">
+            <h2 class="alerts-title">ALERTS</h2>
+            <button class="export-btn" onclick="exportAlerts()">
+                <i class="fas fa-download"></i> Export Excel
+            </button>
+        </div>
         
-        switch (filter) {
-            case 'all': show = true; break;
-            case 'active': show = status === 'active'; break;
-            case 'paused': show = status === 'paused'; break;
-        }
+        <!-- Filter Buttons with Proper Counts -->
+        <div class="filter-buttons">
+            <button class="filter-btn ${window.AlertsState.currentFilter === 'all' ? 'active' : ''}" 
+                    onclick="filterAlerts('all')">
+                All (<span id="all-count">${allCount}</span>)
+            </button>
+            <button class="filter-btn ${window.AlertsState.currentFilter === 'active' ? 'active' : ''}" 
+                    onclick="filterAlerts('active')">
+                Active (<span id="active-count">${activeCount}</span>)
+            </button>
+            <button class="filter-btn ${window.AlertsState.currentFilter === 'paused' ? 'active' : ''}" 
+                    onclick="filterAlerts('paused')">
+                Paused (<span id="paused-count">${pausedCount}</span>)
+            </button>
+        </div>
         
-        row.style.display = show ? '' : 'none';
-    });
-};
+        <!-- Table -->
+        <div class="alerts-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>ALERT NAME</th>
+                        <th>EMAIL</th>
+                        <th>BUDGET</th>
+                        <th>TYPE</th>
+                        <th>ALERT</th>
+                        <th>ACTION</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${filteredAlerts.map((alert, index) => `
+                        <tr data-alert-id="${alert.id}" data-status="${alert.status || 'active'}">
+                            <td>${String(alert.id).padStart(3, '0')}</td>
+                            <td>
+                                <strong>${escapeHtml(alert.name)}</strong>
+                                <br><small style="color: #6c757d;">${escapeHtml(alert.cluster_name || 'All clusters')}</small>
+                            </td>
+                            <td>${escapeHtml(alert.email || 'Not set')}</td>
+                            <td>
+                                <strong>${alert.threshold_amount ? alert.threshold_amount.toLocaleString() : '0'}</strong>
+                                ${alert.threshold_percentage ? `<br><small>${alert.threshold_percentage}%</small>` : ''}
+                            </td>
+                            <td>
+                                <span class="status-badge ${(alert.status || 'active')}">${(alert.status || 'active').charAt(0).toUpperCase() + (alert.status || 'active').slice(1)}</span>
+                            </td>
+                            <td>
+                                <div class="alert-toggle ${(alert.status || 'active') === 'active' ? 'active' : ''}" 
+                                     onclick="handleToggleAlert('${alert.id}', ${(alert.status || 'active') === 'paused'})"></div>
+                            </td>
+                            <td>
+                                <div class="dropdown">
+                                    <button class="action-btn" onclick="toggleSimpleMenu('${alert.id}')" id="dropdown-${alert.id}">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <div class="dropdown-menu" id="simple-menu-${alert.id}">
+                                        <button class="dropdown-item" onclick="testAlert('${alert.id}'); closeMenu('${alert.id}');">
+                                            <i class="fas fa-paper-plane me-2"></i>Test Alert
+                                        </button>
+                                        <button class="dropdown-item" onclick="showEditAlertModal('${alert.id}'); closeMenu('${alert.id}');">
+                                            <i class="fas fa-edit me-2"></i>Edit Alert
+                                        </button>
+                                        <div class="dropdown-divider"></div>
+                                        <button class="dropdown-item" onclick="showDeleteAlertModal('${alert.id}'); closeMenu('${alert.id}');" style="color: #dc3545;">
+                                            <i class="fas fa-trash me-2"></i>Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    container.innerHTML = tableHTML;
+    container.style.display = 'block';
+    
+    console.log(`✅ Successfully displayed ${filteredAlerts.length}/${alerts.length} alerts with counts: All(${allCount}), Active(${activeCount}), Paused(${pausedCount})`);
+}
+
+// displayNotifications function removed - replaced with displayNotificationsInTab
 
 /**
- * Switch alerts tab - FIXED to prevent conflicts
+ * FILTER FUNCTIONS - ENHANCED
  */
-window.switchAlertsTab = function(tabName) {
-    console.log('📑 Switching to tab:', tabName);
+function filterAlertsArray(alerts, filter) {
+    switch (filter) {
+        case 'active':
+            return alerts.filter(a => (a.status || 'active') === 'active');
+        case 'paused':
+            return alerts.filter(a => a.status === 'paused');
+        default:
+            return alerts;
+    }
+}
+
+function filterAlerts(filter) {
+    console.log(`🔍 Filtering alerts by: ${filter}`);
+    window.AlertsState.currentFilter = filter;
     
-    // Hide all tab contents first
-    const allTabContents = document.querySelectorAll('.tab-content, .alerts-tab-content, .notifications-tab-content');
-    allTabContents.forEach(content => {
-        content.style.display = 'none';
-        content.classList.add('hidden');
+    // Regenerate the entire alerts display with the new filter
+    displayAlerts();
+}
+
+// updateAlertCounts function removed - counts now calculated directly in displayAlerts()
+
+/**
+ * TAB SWITCHING - FIXED PROPERLY
+ */
+function switchAlertsTab(tabName) {
+    console.log(`📑 Switching to tab: ${tabName}`);
+    
+    // Remove active class from all tabs
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.classList.remove('active');
     });
     
-    // Remove active class from all tab buttons
-    const allTabButtons = document.querySelectorAll('.tab-button, .alerts-tab-button, .nav-link');
-    allTabButtons.forEach(btn => {
-        btn.classList.remove('active', 'border-blue-500', 'text-blue-600');
-        btn.classList.add('border-transparent', 'text-gray-500');
-    });
-    
-    // Show selected tab content
     if (tabName === 'alerts') {
-        // Show alerts content
-        const alertsContent = document.getElementById('alerts-tab-content') || 
-                             document.querySelector('.alerts-content') ||
-                             document.querySelector('[data-tab="alerts"]');
-        if (alertsContent) {
-            alertsContent.style.display = 'block';
-            alertsContent.classList.remove('hidden');
-        }
+        // Show alerts content by calling displayAlerts() to regenerate the content
+        displayAlerts();
         
-        // Activate alerts tab button
-        const alertsTabBtn = document.getElementById('alerts-tab-btn') || 
-                            document.querySelector('[onclick*="alerts"]') ||
-                            document.querySelector('button[onclick*="switchAlertsTab(\'alerts\')"]') ||
-                            document.querySelector('[data-tab="alerts"]');
-        if (alertsTabBtn) {
-            alertsTabBtn.classList.add('active', 'border-blue-500', 'text-blue-600');
-            alertsTabBtn.classList.remove('border-transparent', 'text-gray-500');
-        }
-        
+        console.log('✅ Showing alerts tab with content');
     } else if (tabName === 'notifications') {
-        // Show notifications content
-        const notificationsContent = document.getElementById('notifications-tab-content') || 
-                                    document.querySelector('.notifications-content') ||
-                                    document.querySelector('[data-tab="notifications"]');
-        if (notificationsContent) {
-            notificationsContent.style.display = 'block';
-            notificationsContent.classList.remove('hidden');
-        }
+        // Show notifications in the same container area
+        displayNotificationsInTab();
         
-        // Activate notifications tab button
-        const notificationsTabBtn = document.getElementById('notifications-tab-btn') || 
-                                   document.querySelector('[onclick*="notifications"]') ||
-                                   document.querySelector('button[onclick*="switchAlertsTab(\'notifications\')"]') ||
-                                   document.querySelector('[data-tab="notifications"]');
-        if (notificationsTabBtn) {
-            notificationsTabBtn.classList.add('active', 'border-blue-500', 'text-blue-600');
-            notificationsTabBtn.classList.remove('border-transparent', 'text-gray-500');
-        }
+        console.log('✅ Showing notifications tab with content');
+    }
+    
+    // Activate the clicked tab
+    const targetTab = document.querySelector(`[onclick*="switchAlertsTab('${tabName}')"]`);
+    if (targetTab) {
+        targetTab.classList.add('active');
     }
     
     console.log(`✅ Switched to ${tabName} tab`);
-};
+}
 
 /**
- * Toggle simple alert menu - COMPLETELY FIXED
+ * DISPLAY NOTIFICATIONS IN TAB - NEW FUNCTION
  */
-window.toggleSimpleMenu = function(alertId) {
+function displayNotificationsInTab() {
+    const container = document.getElementById('alerts-list-container');
+    if (!container) return;
+    
+    const notifications = window.AlertsState.notifications;
+    console.log(`📬 Displaying ${notifications.length} notifications in tab`);
+    
+    if (notifications.length === 0) {
+        container.innerHTML = `
+            <div class="notifications-container">
+                <div class="empty-state">
+                    <i class="fas fa-bell-slash"></i>
+                    <h3>No notifications yet</h3>
+                    <p>Notifications will appear here when alerts are triggered</p>
+                </div>
+            </div>
+        `;
+        container.style.display = 'block';
+        return;
+    }
+    
+    const notificationsHTML = `
+        <div class="notifications-container">
+            <div class="alerts-header">
+                <h2 class="alerts-title">NOTIFICATIONS</h2>
+                <button class="btn btn-secondary" onclick="markAllAsRead()">
+                    <i class="fas fa-check-double"></i> Mark All as Read
+                </button>
+            </div>
+            
+            ${notifications.map(notification => `
+                <div class="notification-item ${notification.read ? 'read' : 'unread'}" 
+                     data-notification-id="${notification.id}">
+                    <div class="notification-content">
+                        <div class="notification-title">
+                            ${escapeHtml(notification.title)}
+                            ${!notification.read ? '<span class="notification-badge">New</span>' : ''}
+                        </div>
+                        <div class="notification-message">
+                            ${escapeHtml(notification.message)}
+                        </div>
+                        <div class="notification-time">
+                            <i class="fas fa-clock"></i> ${formatDateTime(notification.timestamp)}
+                        </div>
+                    </div>
+                    <div class="notification-actions">
+                        ${!notification.read ? `
+                            <button class="btn btn-primary btn-sm" onclick="markAsRead('${notification.id}')">
+                                <i class="fas fa-check"></i>
+                            </button>
+                        ` : ''}
+                        <button class="btn btn-secondary btn-sm" onclick="dismissNotification('${notification.id}')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    
+    container.innerHTML = notificationsHTML;
+    container.style.display = 'block';
+}
+
+/**
+ * MENU FUNCTIONS - ENHANCED POSITIONING WITH DEBUG
+ */
+function toggleSimpleMenu(alertId) {
     console.log('🔧 Toggling menu for alert:', alertId);
     
-    // Close all other menus first
+    // Close all other menus
     document.querySelectorAll('[id^="simple-menu-"]').forEach(menu => {
         if (menu.id !== `simple-menu-${alertId}`) {
+            menu.classList.remove('show', 'dropup');
             menu.style.display = 'none';
         }
     });
     
     // Toggle current menu
     const menu = document.getElementById(`simple-menu-${alertId}`);
-    if (menu) {
-        const isHidden = menu.style.display === 'none' || menu.style.display === '';
+    const button = document.getElementById(`dropdown-${alertId}`);
+    
+    if (menu && button) {
+        const isHidden = !menu.classList.contains('show');
         
         if (isHidden) {
-            // Position and show menu
+            // Show menu temporarily to measure its height
             menu.style.display = 'block';
-            menu.style.position = 'absolute';
-            menu.style.top = '100%';
-            menu.style.right = '0';
-            menu.style.left = 'auto';
-            menu.style.zIndex = '1050';
-            menu.style.minWidth = '160px';
-            menu.style.backgroundColor = '#fff';
-            menu.style.border = '1px solid #dee2e6';
-            menu.style.borderRadius = '0.375rem';
-            menu.style.boxShadow = '0 0.5rem 1rem rgba(0, 0, 0, 0.15)';
-            menu.style.padding = '0.5rem 0';
-            console.log('✅ Menu opened for alert:', alertId);
+            menu.style.visibility = 'hidden';
+            menu.classList.remove('dropup');
+            
+            // Get measurements
+            const buttonRect = button.getBoundingClientRect();
+            const menuHeight = menu.offsetHeight || 200; // fallback height
+            const viewportHeight = window.innerHeight;
+            const spaceBelow = viewportHeight - buttonRect.bottom;
+            const spaceAbove = buttonRect.top;
+            
+            // Reset styles
+            menu.style.visibility = 'visible';
+            
+            // Determine if menu should show above (dropup) or below (dropdown)
+            // Use dropup if there's not enough space below but there is space above
+            if (spaceBelow < menuHeight + 10 && spaceAbove > menuHeight + 10) {
+                menu.classList.add('dropup');
+                console.log(`📍 Alert ${alertId}: Using dropup (space below: ${spaceBelow}px, space above: ${spaceAbove}px, menu height: ${menuHeight}px)`);
+            } else {
+                menu.classList.remove('dropup');
+                console.log(`📍 Alert ${alertId}: Using dropdown (space below: ${spaceBelow}px, space above: ${spaceAbove}px, menu height: ${menuHeight}px)`);
+            }
+            
+            menu.classList.add('show');
         } else {
+            menu.classList.remove('show', 'dropup');
             menu.style.display = 'none';
-            console.log('✅ Menu closed for alert:', alertId);
+            console.log(`🔧 Closed menu for alert ${alertId}`);
         }
     } else {
-        console.error('❌ Menu not found for alert:', alertId);
+        console.error(`❌ Menu or button not found for alert ${alertId}`);
     }
-};
+}
 
-/**
- * Close specific menu
- */
-window.closeMenu = function(alertId) {
+function closeMenu(alertId) {
     const menu = document.getElementById(`simple-menu-${alertId}`);
     if (menu) {
+        menu.classList.remove('show', 'dropup');
         menu.style.display = 'none';
     }
-};
-
-/**
- * Toggle alert menu (backward compatibility)
- */
-window.toggleAlertMenu = function(alertId) {
-    window.toggleSimpleMenu(alertId);
-};
-
-/**
- * Handle toggle alert
- */
-window.handleToggleAlert = async function(alertId, isChecked) {
-    console.log('🔄 Toggling alert:', alertId, isChecked);
-    
-    const action = isChecked ? 'resume' : 'pause';
-    
-    try {
-        const response = await fetch(`/api/alerts/${alertId}/pause`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action })
-        });
-        
-        const result = await response.json();
-        
-        if (result.status === 'success') {
-            // Update UI
-            const row = document.querySelector(`[data-alert-id="${alertId}"]`);
-            if (row) {
-                row.dataset.status = action === 'pause' ? 'paused' : 'active';
-                const badge = row.querySelector('.badge');
-                if (badge) {
-                    badge.className = `badge bg-${isChecked ? 'success' : 'secondary'} px-2 py-1`;
-                    badge.textContent = isChecked ? 'Active' : 'Paused';
-                }
-            }
-        } else {
-            // Revert toggle
-            const toggle = document.getElementById(`toggle-${alertId}`);
-            if (toggle) toggle.checked = !isChecked;
-            createToast('error', 'Error', 'Failed to update alert');
-        }
-    } catch (error) {
-        // Revert toggle
-        const toggle = document.getElementById(`toggle-${alertId}`);
-        if (toggle) toggle.checked = !isChecked;
-        createToast('error', 'Error', 'Failed to update alert: ' + error.message);
-    }
-};
-
-/**
- * Test alert
- */
-window.testAlert = async function(alertId) {
-    try {
-        const response = await fetch(`/api/alerts/${alertId}/test`, { method: 'POST' });
-        const result = await response.json();
-        
-        if (result.status === 'success') {
-            createToast('success', 'Success', 'Test notification sent!');
-        } else {
-            createToast('error', 'Error', 'Failed to send test');
-        }
-    } catch (error) {
-        createToast('error', 'Error', 'Failed to send test: ' + error.message);
-    }
-};
-
-/**
- * Show delete alert modal
- */
-window.showDeleteAlertModal = function(alertId, alertName) {
-    if (confirm(`Are you sure you want to delete "${alertName}"?`)) {
-        window.deleteAlert(alertId);
-    }
-};
-
-/**
- * Delete alert
- */
-window.deleteAlert = async function(alertId) {
-    try {
-        const response = await fetch(`/api/alerts/${alertId}`, { method: 'DELETE' });
-        const result = await response.json();
-        
-        if (result.status === 'success') {
-            createToast('success', 'Success', 'Alert deleted successfully');
-            await refreshAlertsData();
-        } else {
-            createToast('error', 'Error', 'Failed to delete alert');
-        }
-    } catch (error) {
-        createToast('error', 'Error', 'Failed to delete alert: ' + error.message);
-    }
-};
-
-/**
- * Main alerts system initialization
- */
-export async function initializeAlertsSystem() {
-    console.log('🔔 Initializing alerts system...');
-    
-    try {
-        // Check system status
-        const statusData = await checkSystemStatus();
-        if (statusData.status === 'success') {
-            StateActions.setSystemAvailable(statusData.alerts_available);
-            
-            if (statusData.alerts_available) {
-                // Load data
-                await Promise.all([
-                    loadAlerts(),
-                    loadInAppNotifications()
-                ]);
-                
-                // Setup UI
-                setupEventListeners();
-                setupPeriodicRefresh();
-                detectClusterContext();
-            } else {
-                showAlertsUnavailableMessage();
-            }
-        }
-        
-        console.log('✅ Alerts system initialized');
-    } catch (error) {
-        console.error('❌ Failed to initialize alerts system:', error);
-        showAlertsUnavailableMessage();
-    }
 }
 
 /**
- * Load alerts - FIXED to ensure all alerts are loaded and displayed
+ * MODAL FUNCTIONS
  */
-async function loadAlerts() {
-    try {
-        console.log('🔄 Loading alerts...');
-        const data = await fetchAlerts(AlertsState.currentClusterId);
-        
-        if (data.status === 'success' && data.alerts) {
-            console.log(`📋 Received ${data.alerts.length} alerts from API`);
-            
-            // Ensure all alerts have proper status
-            const processedAlerts = data.alerts.map(alert => ({
-                ...alert,
-                status: alert.status || 'active' // Default to active if no status
-            }));
-            
-            StateActions.setAlerts(processedAlerts);
-            
-            // Reset filter to 'all' to ensure all alerts are visible
-            AlertsState.currentFilter = 'all';
-            
-            displayAlerts();
-            console.log(`✅ Successfully loaded and displayed ${processedAlerts.length} alerts`);
-            
-            // Log alert statuses for debugging
-            const statusCounts = processedAlerts.reduce((acc, alert) => {
-                const status = alert.status || 'active';
-                acc[status] = (acc[status] || 0) + 1;
-                return acc;
-            }, {});
-            console.log('📊 Alert status breakdown:', statusCounts);
-            
-        } else {
-            console.warn('⚠️ No alerts data received or invalid response');
-            StateActions.setAlerts([]);
-            displayAlerts();
-        }
-    } catch (error) {
-        console.error('❌ Error loading alerts:', error);
-        createToast('error', 'Error', 'Failed to load alerts');
-        // Still try to display with empty array
-        StateActions.setAlerts([]);
-        displayAlerts();
-    }
-}
-
-/**
- * Load in-app notifications
- */
-async function loadInAppNotifications() {
-    try {
-        const data = await fetchInAppNotifications(AlertsState.currentClusterId);
-        
-        if (data.status === 'success') {
-            StateActions.setInAppNotifications(data.notifications || []);
-            StateActions.setUnreadCount(data.unread_count || 0);
-            displayInAppNotifications();
-            updateNotificationBadge();
-        }
-    } catch (error) {
-        console.log('ℹ️ In-app notifications not available');
-        StateActions.setInAppNotifications([]);
-        StateActions.setUnreadCount(0);
-    }
-}
-
-/**
- * Refresh alerts data - FIXED to preserve filter state
- */
-async function refreshAlertsData() {
-    console.log('🔄 Refreshing alerts data...');
-    
-    // Save current filter before refresh
-    const currentFilter = AlertsState.currentFilter || 'all';
-    
-    await Promise.all([
-        loadAlerts(),
-        loadInAppNotifications()
-    ]);
-    
-    // Restore filter after refresh
-    setTimeout(() => {
-        if (currentFilter && currentFilter !== 'all') {
-            filterAlerts(currentFilter);
-        }
-    }, 100);
-    
-    console.log('✅ Alerts data refreshed');
-}
-
-/**
- * Setup periodic refresh
- */
-function setupPeriodicRefresh() {
-    setInterval(refreshAlertsData, 30000);
-}
-
-/**
- * Detect cluster context
- */
-function detectClusterContext() {
-    const urlPath = window.location.pathname;
-    const clusterMatch = urlPath.match(/\/cluster\/([^\/]+)/);
-    
-    if (clusterMatch) {
-        StateActions.setCurrentCluster(clusterMatch[1]);
-        console.log(`🎯 Detected cluster: ${AlertsState.currentClusterId}`);
-    }
-}
-
-/**
- * Show unavailable message
- */
-function showAlertsUnavailableMessage() {
-    const container = document.getElementById('alerts-list-container');
-    if (container) {
-        container.innerHTML = `
-            <div class="alert alert-warning">
-                <h6><i class="fas fa-exclamation-triangle me-2"></i>Alerts System Unavailable</h6>
-                <p>The alerts system is not currently available. Please contact your administrator.</p>
+function showCreateAlertModal() {
+    const modalHTML = `
+        <div class="modal" id="createAlertModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">Create New Alert</h3>
+                    <button class="modal-close" onclick="closeModal('createAlertModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="createAlertForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Alert Name *</label>
+                                <input type="text" class="form-control" name="name" required 
+                                       placeholder="Budget Alert - $1,400">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email Address *</label>
+                                <input type="email" class="form-control" name="email" required 
+                                       placeholder="admin@company.com">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Threshold Amount ($) *</label>
+                                <input type="number" class="form-control" name="threshold_amount" required 
+                                       min="0" step="0.01" placeholder="1400">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Threshold Percentage (%)</label>
+                                <input type="number" class="form-control" name="threshold_percentage" 
+                                       min="0" max="100" placeholder="80">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Notification Frequency</label>
+                                <select class="form-control" name="notification_frequency">
+                                    <option value="immediate">🚨 Immediate - Send right away</option>
+                                    <option value="hourly">⏰ Hourly - Every hour</option>
+                                    <option value="daily" selected>📅 Daily - Once per day</option>
+                                    <option value="weekly">📊 Weekly - Once per week</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Alert Type</label>
+                                <select class="form-control" name="alert_type">
+                                    <option value="cost_threshold">💰 Cost Threshold Alert</option>
+                                    <option value="performance">⚡ Performance Alert</option>
+                                    <option value="optimization">🎯 Optimization Alert</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal('createAlertModal')">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button class="btn btn-primary" onclick="createAlert()">
+                        <i class="fas fa-plus"></i> Create Alert
+                    </button>
+                </div>
             </div>
-        `;
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    document.getElementById('createAlertModal').classList.add('show');
+}
+
+function showEditAlertModal(alertId) {
+    const alert = window.AlertsState.alerts.find(a => a.id == alertId);
+    if (!alert) return;
+    
+    const modalHTML = `
+        <div class="modal" id="editAlertModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">Edit Alert</h3>
+                    <button class="modal-close" onclick="closeModal('editAlertModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="editAlertForm">
+                        <input type="hidden" name="alertId" value="${alert.id}">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Alert Name *</label>
+                                <input type="text" class="form-control" name="name" required 
+                                       value="${escapeHtml(alert.name)}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email Address *</label>
+                                <input type="email" class="form-control" name="email" required 
+                                       value="${escapeHtml(alert.email || '')}">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Threshold Amount ($) *</label>
+                                <input type="number" class="form-control" name="threshold_amount" required 
+                                       min="0" step="0.01" value="${alert.threshold_amount || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Threshold Percentage (%)</label>
+                                <input type="number" class="form-control" name="threshold_percentage" 
+                                       min="0" max="100" value="${alert.threshold_percentage || ''}">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Notification Frequency</label>
+                                <select class="form-control" name="notification_frequency">
+                                    <option value="immediate" ${alert.notification_frequency === 'immediate' ? 'selected' : ''}>🚨 Immediate - Send right away</option>
+                                    <option value="hourly" ${alert.notification_frequency === 'hourly' ? 'selected' : ''}>⏰ Hourly - Every hour</option>
+                                    <option value="daily" ${alert.notification_frequency === 'daily' || !alert.notification_frequency ? 'selected' : ''}>📅 Daily - Once per day</option>
+                                    <option value="weekly" ${alert.notification_frequency === 'weekly' ? 'selected' : ''}>📊 Weekly - Once per week</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Alert Type</label>
+                                <select class="form-control" name="alert_type">
+                                    <option value="cost_threshold" ${alert.alert_type === 'cost_threshold' || !alert.alert_type ? 'selected' : ''}>💰 Cost Threshold Alert</option>
+                                    <option value="performance" ${alert.alert_type === 'performance' ? 'selected' : ''}>⚡ Performance Alert</option>
+                                    <option value="optimization" ${alert.alert_type === 'optimization' ? 'selected' : ''}>🎯 Optimization Alert</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal('editAlertModal')">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button class="btn btn-primary" onclick="updateAlert()">
+                        <i class="fas fa-save"></i> Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    document.getElementById('editAlertModal').classList.add('show');
+}
+
+function showDeleteAlertModal(alertId) {
+    const alert = window.AlertsState.alerts.find(a => a.id == alertId);
+    if (!alert) return;
+    
+    const modalHTML = `
+        <div class="modal" id="deleteAlertModal">
+            <div class="modal-content sleek-delete-modal">
+                <div class="modal-body">
+                    <div class="delete-modal-content">
+                        <div class="warning-icon">⚠️</div>
+                        <h3 class="delete-title">Delete Alert</h3>
+                        <p class="delete-message">
+                            Are you sure you want to delete this<br>
+                            alert? This action cannot be undone.
+                        </p>
+                        <div class="alert-name-display">
+                            Alert: <strong>${escapeHtml(alert.name)}</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer sleek-footer">
+                    <button class="btn btn-secondary-sleek" onclick="closeModal('deleteAlertModal')">
+                        Cancel
+                    </button>
+                    <button class="btn btn-danger-sleek" onclick="confirmDeleteAlert('${alertId}')">
+                        Delete Alert
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    document.getElementById('deleteAlertModal').classList.add('show');
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => modal.remove(), 300);
     }
 }
 
-// Add essential CSS for modals and dropdowns
-const style = document.createElement('style');
-style.textContent = `
-/* Custom modal styles */
-.custom-modal {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+/**
+ * ALERT ACTIONS
+ */
+function handleToggleAlert(alertId, shouldActivate) {
+    console.log(`🔄 Toggling alert ${alertId} to ${shouldActivate ? 'active' : 'paused'}`);
+    
+    const alert = window.AlertsState.alerts.find(a => a.id == alertId);
+    if (!alert) return;
+    
+    const newStatus = shouldActivate ? 'active' : 'paused';
+    const action = shouldActivate ? 'resume' : 'pause';
+    
+    // Update UI immediately
+    alert.status = newStatus;
+    displayAlerts(); // Refresh the display with updated counts
+    
+    // Send to API
+    fetch(`/api/alerts/${alertId}/pause`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.status === 'success') {
+            console.log(`✅ Alert ${alertId} ${action}d successfully`);
+            showToast('success', `Alert ${action}d successfully`);
+        } else {
+            alert.status = shouldActivate ? 'paused' : 'active';
+            displayAlerts(); // Revert and refresh
+            showToast('error', `Failed to ${action} alert`);
+        }
+    })
+    .catch(error => {
+        alert.status = shouldActivate ? 'paused' : 'active';
+        displayAlerts(); // Revert and refresh
+        showToast('error', `Error: ${error.message}`);
+    });
 }
 
-.custom-modal input:focus {
-    outline: none;
-    border-color: #198754;
-    box-shadow: 0 0 0 2px rgba(25, 135, 84, 0.2);
+function testAlert(alertId) {
+    console.log('🧪 Testing alert:', alertId);
+    
+    fetch(`/api/alerts/${alertId}/test`, { method: 'POST' })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                showToast('success', 'Test notification sent successfully!');
+            } else {
+                showToast('error', 'Failed to send test notification');
+            }
+        })
+        .catch(error => {
+            showToast('error', `Error: ${error.message}`);
+        });
 }
 
-.custom-modal button:hover {
-    opacity: 0.9;
+/**
+ * ALERT ACTIONS - UPDATED WITH FREQUENCY
+ */
+function createAlert() {
+    const form = document.getElementById('createAlertForm');
+    const formData = new FormData(form);
+    
+    // Validate required fields
+    const name = formData.get('name');
+    const email = formData.get('email');
+    const thresholdAmount = formData.get('threshold_amount');
+    
+    if (!name || !email || !thresholdAmount) {
+        showToast('error', 'Please fill in all required fields');
+        return;
+    }
+    
+    const alertData = {
+        name: name.trim(),
+        email: email.trim(),
+        threshold_amount: parseFloat(thresholdAmount) || 0,
+        threshold_percentage: parseFloat(formData.get('threshold_percentage')) || 0,
+        alert_type: formData.get('alert_type') || 'cost_threshold',
+        notification_frequency: formData.get('notification_frequency') || 'daily',
+        notification_channels: ['email', 'inapp'],
+        status: 'active'
+    };
+    
+    // Add cluster_id if we have one
+    if (window.AlertsState.currentClusterId) {
+        alertData.cluster_id = window.AlertsState.currentClusterId;
+    }
+    
+    console.log('📤 Creating alert with data:', alertData);
+    
+    const createBtn = document.querySelector('#createAlertModal .btn-primary');
+    const originalText = createBtn.innerHTML;
+    createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+    createBtn.disabled = true;
+    
+    fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(alertData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(`HTTP ${response.status}: ${text}`);
+            });
+        }
+        return response.json();
+    })
+    .then(result => {
+        console.log('📥 Create alert response:', result);
+        
+        if (result.status === 'success') {
+            console.log('✅ Alert created successfully');
+            showToast('success', 'Alert created successfully!');
+            closeModal('createAlertModal');
+            loadAlerts(); // Reload alerts to get the new one
+        } else {
+            throw new Error(result.message || 'Failed to create alert');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error creating alert:', error);
+        showToast('error', `Failed to create alert: ${error.message}`);
+    })
+    .finally(() => {
+        createBtn.innerHTML = originalText;
+        createBtn.disabled = false;
+    });
 }
 
-/* Ensure dropdowns appear above everything */
-.dropdown-menu {
-    z-index: 1050 !important;
-    border: 1px solid #dee2e6;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-    border-radius: 0.375rem;
+function updateAlert() {
+    const form = document.getElementById('editAlertForm');
+    const formData = new FormData(form);
+    const alertId = formData.get('alertId');
+    
+    // Validate required fields
+    const name = formData.get('name');
+    const email = formData.get('email');
+    const thresholdAmount = formData.get('threshold_amount');
+    
+    if (!name || !email || !thresholdAmount) {
+        showToast('error', 'Please fill in all required fields');
+        return;
+    }
+    
+    const updateData = {
+        name: name.trim(),
+        email: email.trim(),
+        threshold_amount: parseFloat(thresholdAmount) || 0,
+        threshold_percentage: parseFloat(formData.get('threshold_percentage')) || 0,
+        notification_frequency: formData.get('notification_frequency') || 'daily',
+        alert_type: formData.get('alert_type') || 'cost_threshold'
+    };
+    
+    console.log('📤 Updating alert with data:', updateData);
+    
+    const saveBtn = document.querySelector('#editAlertModal .btn-primary');
+    const originalText = saveBtn.innerHTML;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    saveBtn.disabled = true;
+    
+    fetch(`/api/alerts/${alertId}`, {
+        method: 'PUT',
+        headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(`HTTP ${response.status}: ${text}`);
+            });
+        }
+        return response.json();
+    })
+    .then(result => {
+        console.log('📥 Update alert response:', result);
+        
+        if (result.status === 'success') {
+            console.log('✅ Alert updated successfully');
+            showToast('success', 'Alert updated successfully!');
+            closeModal('editAlertModal');
+            loadAlerts(); // Reload alerts to get the updated data
+        } else {
+            throw new Error(result.message || 'Failed to update alert');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error updating alert:', error);
+        showToast('error', `Failed to update alert: ${error.message}`);
+    })
+    .finally(() => {
+        saveBtn.innerHTML = originalText;
+        saveBtn.disabled = false;
+    });
 }
 
-/* Form switches styling */
-.form-check-input {
-    width: 2.5rem;
-    height: 1.25rem;
+function confirmDeleteAlert(alertId) {
+    console.log('🗑️ Deleting alert:', alertId);
+    
+    const deleteBtn = document.querySelector('#deleteAlertModal .btn-danger');
+    const originalText = deleteBtn.innerHTML;
+    deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+    deleteBtn.disabled = true;
+    
+    fetch(`/api/alerts/${alertId}`, { 
+        method: 'DELETE',
+        headers: {
+            'Accept': 'application/json'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.text().then(text => {
+                throw new Error(`HTTP ${response.status}: ${text}`);
+            });
+        }
+        return response.json();
+    })
+    .then(result => {
+        console.log('📥 Delete alert response:', result);
+        
+        if (result.status === 'success') {
+            // Remove from local state immediately
+            window.AlertsState.alerts = window.AlertsState.alerts.filter(a => a.id != alertId);
+            displayAlerts();
+            showToast('success', 'Alert deleted successfully!');
+            closeModal('deleteAlertModal');
+        } else {
+            throw new Error(result.message || 'Failed to delete alert');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error deleting alert:', error);
+        showToast('error', `Failed to delete alert: ${error.message}`);
+    })
+    .finally(() => {
+        deleteBtn.innerHTML = originalText;
+        deleteBtn.disabled = false;
+    });
 }
 
-/* Clean table styling */
-.table-hover tbody tr:hover {
-    background-color: rgba(0, 0, 0, 0.025);
+/**
+ * NOTIFICATION FUNCTIONS - REAL API CALLS
+ */
+function markAsRead(notificationId) {
+    console.log('📖 Marking notification as read via API:', notificationId);
+    
+    fetch(`/api/notifications/${notificationId}/mark-read`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.status === 'success') {
+            console.log('✅ Notification marked as read via API');
+            // Reload notifications to get updated state from backend
+            loadNotifications();
+            // Re-display notifications if we're on that tab
+            if (window.AlertsState.notifications) {
+                displayNotificationsInTab();
+            }
+        } else {
+            console.error('❌ Failed to mark notification as read:', result.message);
+            showToast('error', 'Failed to mark notification as read');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error marking notification as read:', error);
+        showToast('error', `Error: ${error.message}`);
+    });
 }
 
-/* Button styling */
-.btn-light:hover {
-    background-color: #e9ecef;
-    border-color: #adb5bd;
+function dismissNotification(notificationId) {
+    console.log('🗑️ Dismissing notification via API:', notificationId);
+    
+    fetch(`/api/notifications/${notificationId}/dismiss`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.status === 'success') {
+            console.log('✅ Notification dismissed via API');
+            // Reload notifications to get updated state from backend
+            loadNotifications();
+            // Re-display notifications if we're on that tab
+            if (window.AlertsState.notifications) {
+                displayNotificationsInTab();
+            }
+        } else {
+            console.error('❌ Failed to dismiss notification:', result.message);
+            showToast('error', 'Failed to dismiss notification');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error dismissing notification:', error);
+        showToast('error', `Error: ${error.message}`);
+    });
 }
 
-/* Tab fixing styles */
-.tab-content, .alerts-tab-content, .notifications-tab-content {
-    transition: all 0.2s ease;
+function markAllAsRead() {
+    console.log('📖 Marking all notifications as read via API');
+    
+    fetch('/api/notifications/mark-all-read', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            cluster_id: window.AlertsState.currentClusterId
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.status === 'success') {
+            console.log('✅ All notifications marked as read via API');
+            showToast('success', 'All notifications marked as read');
+            // Reload notifications to get updated state from backend
+            loadNotifications();
+            // Re-display notifications if we're on that tab
+            if (window.AlertsState.notifications) {
+                displayNotificationsInTab();
+            }
+        } else {
+            console.error('❌ Failed to mark all notifications as read:', result.message);
+            showToast('error', 'Failed to mark all notifications as read');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error marking all notifications as read:', error);
+        showToast('error', `Error: ${error.message}`);
+    });
 }
 
-.tab-content.hidden, .alerts-tab-content.hidden, .notifications-tab-content.hidden {
-    display: none !important;
+function updateNotificationBadge() {
+    const badges = document.querySelectorAll('.notification-badge-count');
+    badges.forEach(badge => {
+        if (window.AlertsState.unreadNotificationsCount > 0) {
+            badge.textContent = window.AlertsState.unreadNotificationsCount;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+    });
 }
-`;
-document.head.appendChild(style);
 
-// Global error handler to catch any issues
-window.addEventListener('error', function(event) {
-    console.log('🚨 Global error:', event.error);
-});
+/**
+ * TOAST NOTIFICATIONS
+ */
+function showToast(type, message) {
+    const toastHTML = `
+        <div class="toast" id="toast-${Date.now()}" style="
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            background: ${type === 'success' ? '#28a745' : '#dc3545'}; 
+            color: white; 
+            padding: 15px 20px; 
+            border-radius: 4px; 
+            z-index: 3000;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        ">
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-times-circle'}"></i>
+            ${message}
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', toastHTML);
+    
+    const toast = document.body.lastElementChild;
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
 
-// Global exports
-window.initializeAlertsSystem = initializeAlertsSystem;
-window.refreshAlertsData = refreshAlertsData;
-window.AlertsState = AlertsState;
+/**
+ * EXPORT ALERTS
+ */
+function exportAlerts() {
+    const alerts = window.AlertsState.alerts;
+    const csv = [
+        ['ID', 'Name', 'Email', 'Budget', 'Status', 'Type'],
+        ...alerts.map(a => [
+            a.id,
+            a.name,
+            a.email || '',
+            a.threshold_amount || 0,
+            a.status || 'active',
+            a.alert_type || 'cost_threshold'
+        ])
+    ].map(row => row.join(',')).join('\n');
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'alerts.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * UTILITY FUNCTIONS
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatDateTime(dateString) {
+    try {
+        return new Date(dateString).toLocaleString();
+    } catch {
+        return dateString || 'Invalid date';
+    }
+}
+
+/**
+ * CLICK OUTSIDE HANDLER - IMPROVED
+ */
+function setupClickHandlers() {
+    document.addEventListener('click', function(event) {
+        // Close modals when clicking outside
+        if (event.target.classList.contains('modal')) {
+            event.target.classList.remove('show');
+            setTimeout(() => event.target.remove(), 300);
+        }
+        
+        // Close menus when clicking outside - IMPROVED
+        if (!event.target.closest('.dropdown') && 
+            !event.target.closest('[id^="simple-menu-"]') &&
+            !event.target.closest('button[onclick*="toggleSimpleMenu"]')) {
+            
+            document.querySelectorAll('[id^="simple-menu-"]').forEach(menu => {
+                menu.classList.remove('show', 'dropup');
+                menu.style.display = 'none';
+            });
+        }
+    });
+}
+
+/**
+ * INITIALIZE - PURE API INTEGRATION
+ */
+function initializeEnhancedAlerts() {
+    console.log('🔔 Initializing alerts system with your real APIs...');
+    
+    // Detect cluster using your URL structure
+    const detectedCluster = detectCurrentCluster();
+    
+    if (detectedCluster) {
+        window.AlertsState.currentClusterId = detectedCluster;
+        console.log('🎯 Detected cluster for API calls:', detectedCluster);
+    } else {
+        console.log('⚠️ No cluster detected, will call APIs without cluster filter');
+    }
+    
+    // Setup click handlers
+    setupClickHandlers();
+    
+    // Load real data from your APIs
+    loadAlerts();
+    loadNotifications();
+    
+    // Initialize with alerts tab active
+    setTimeout(() => {
+        switchAlertsTab('alerts');
+    }, 200);
+    
+    console.log('✅ Alerts system initialized - using your real backend APIs only');
+}
+
+// Global exports - REAL API FOCUSED
+window.switchAlertsTab = switchAlertsTab;
+window.filterAlerts = filterAlerts;
+window.toggleSimpleMenu = toggleSimpleMenu;
+window.closeMenu = closeMenu;
+window.handleToggleAlert = handleToggleAlert;
+window.testAlert = testAlert;
+window.showCreateAlertModal = showCreateAlertModal;
+window.showEditAlertModal = showEditAlertModal;
+window.showDeleteAlertModal = showDeleteAlertModal;
+window.closeModal = closeModal;
+window.createAlert = createAlert;
+window.updateAlert = updateAlert;
+window.confirmDeleteAlert = confirmDeleteAlert;
+window.exportAlerts = exportAlerts;
+window.displayAlerts = displayAlerts;
+window.displayNotificationsInTab = displayNotificationsInTab;
+window.markAsRead = markAsRead;
+window.dismissNotification = dismissNotification;
+window.markAllAsRead = markAllAsRead;
+window.detectCurrentCluster = detectCurrentCluster;
+window.AlertsState = window.AlertsState;
+
+// Debug functions - REAL API FOCUSED
+window.debugAlertsState = function() {
+    console.log('🔍 Current AlertsState:', window.AlertsState);
+    console.log('🔍 Current URL:', window.location.href);
+    console.log('🔍 Detected cluster:', window.AlertsState.currentClusterId);
+    console.log('🔍 Alerts count:', window.AlertsState.alerts.length);
+    console.log('🔍 Notifications count:', window.AlertsState.notifications.length);
+    return window.AlertsState;
+};
+
+window.forceLoadAlerts = function() {
+    console.log('🔄 Force loading alerts from real API...');
+    loadAlerts();
+};
+
+window.forceLoadNotifications = function() {
+    console.log('🔄 Force loading notifications from real API...');
+    loadNotifications();
+};
+
+window.redetectCluster = function() {
+    console.log('🔄 Re-detecting cluster...');
+    const newCluster = detectCurrentCluster();
+    window.AlertsState.currentClusterId = newCluster;
+    console.log('🎯 New cluster detected:', newCluster);
+    loadAlerts();
+    loadNotifications();
+    return newCluster;
+};
+
+window.debugClusterDetection = function() {
+    console.log('🔍 Cluster Detection Debug:');
+    console.log('- Full URL:', window.location.href);
+    console.log('- Pathname:', window.location.pathname);
+    
+    // Test detection
+    const detected = detectCurrentCluster();
+    console.log('✅ Detected cluster:', detected);
+    
+    // Check API URLs that will be called
+    const alertsUrl = detected ? `/api/alerts?cluster_id=${detected}` : '/api/alerts';
+    const notificationsUrl = detected ? `/api/notifications/in-app?unread_only=false&limit=50&cluster_id=${detected}` : '/api/notifications/in-app?unread_only=false&limit=50';
+    
+    console.log('📡 Would call alerts API:', alertsUrl);
+    console.log('📡 Would call notifications API:', notificationsUrl);
+    
+    return {
+        url: window.location.href,
+        clusterId: detected,
+        alertsApiUrl: alertsUrl,
+        notificationsApiUrl: notificationsUrl
+    };
+};
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeAlertsSystem);
+    document.addEventListener('DOMContentLoaded', initializeEnhancedAlerts);
 } else {
-    initializeAlertsSystem();
+    initializeEnhancedAlerts();
 }
 
-console.log('✅ Alerts main module loaded with vanilla JS modal and fixed tabs');
+console.log('✅ Enhanced alerts system loaded');
