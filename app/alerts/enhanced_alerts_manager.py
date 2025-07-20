@@ -37,10 +37,13 @@ class EnhancedAlertsManager:
         
         self.logger.info("✅ Enhanced alerts manager initialized")
 
-    def get_alerts_route(self) -> Dict:
+    def get_alerts_route(self, cluster_id: Optional[str] = None) -> Dict:
         """Get all alerts (API route handler)"""
         try:
-            alerts = self.db.get_alerts()
+            if cluster_id:
+                alerts = self.db.get_alerts(cluster_id=cluster_id)
+            else:
+                alerts = self.db.get_alerts()
             
             return {
                 'status': 'success',
@@ -99,32 +102,6 @@ class EnhancedAlertsManager:
                 'status': 'error',
                 'message': str(e)
             }
-
-    def _send_alert_in_app(self, alert: Dict, triggered_alert: Dict) -> bool:
-        """Send in-app notification - ADD THIS METHOD"""
-        try:
-            current_cost = triggered_alert['current_cost']
-            exceeded_by = triggered_alert['threshold_exceeded_by']
-            trigger_id = triggered_alert.get('trigger_id')
-            
-            # Create in-app notification using the database method
-            notification_id = self.db.create_notification_for_trigger(
-                trigger_id=trigger_id,
-                alert=alert,
-                current_cost=current_cost,
-                exceeded_by=exceeded_by
-            )
-            
-            if notification_id:
-                self.logger.info(f"📱 In-app notification created: {notification_id}")
-                return True
-            else:
-                self.logger.error("❌ Failed to create in-app notification")
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"❌ Error creating in-app notification: {e}")
-            return False
 
     def update_alert_route(self, alert_id: int, updates: Dict) -> Dict:
         """Update alert (API route handler)"""
@@ -213,11 +190,20 @@ class EnhancedAlertsManager:
             if 'slack' in alert['notification_channels'] and self.slack_webhook_url:
                 slack_sent = self._send_test_slack(alert)
             
+            # 🆕 TEST IN-APP NOTIFICATION
+            inapp_sent = False
+            if ('inapp' in alert['notification_channels'] or 
+                'in_app' in alert['notification_channels'] or 
+                'in-app' in alert['notification_channels']):
+                inapp_sent = self._send_test_in_app_notification(alert)
+            
             channels_tested = []
             if email_sent:
                 channels_tested.append('email')
             if slack_sent:
                 channels_tested.append('slack')
+            if inapp_sent:
+                channels_tested.append('in_app')
             
             if channels_tested:
                 return {
@@ -283,107 +269,180 @@ class EnhancedAlertsManager:
                 'message': str(e)
             }
 
-    def get_in_app_notifications_route(self) -> Dict:
-        """Get in-app notifications (API route handler) - ADD THIS METHOD"""
-        try:
-            cluster_id = request.args.get('cluster_id') if 'request' in globals() else None
-            unread_only = request.args.get('unread_only', 'false').lower() == 'true' if 'request' in globals() else False
-            limit = int(request.args.get('limit', 50)) if 'request' in globals() else 50
-            
-            notifications = self.db.get_in_app_notifications(
-                cluster_id=cluster_id,
-                unread_only=unread_only,
-                limit=limit
-            )
-            
-            unread_count = self.db.get_unread_notifications_count(cluster_id)
-            
-            return {
-                'status': 'success',
-                'notifications': notifications,
-                'unread_count': unread_count,
-                'total_count': len(notifications)
-            }
-            
-        except Exception as e:
-            self.logger.error(f"❌ Error getting in-app notifications: {e}")
-            return {
-                'status': 'error',
-                'message': str(e),
-                'notifications': [],
-                'unread_count': 0
-            }
-
-
-    def update_notification_status_route(self, notification_ids: List[str], action: str) -> Dict:
-        """Update notification status (API route handler) - ADD THIS METHOD"""
-        try:
-            success = self.db.update_notification_status(notification_ids, action)
-            
-            if success:
-                return {
-                    'status': 'success',
-                    'message': f'Successfully {action} {len(notification_ids)} notifications',
-                    'updated_count': len(notification_ids)
-                }
-            else:
-                return {
-                    'status': 'error',
-                    'message': f'Failed to {action} notifications'
-                }
-                
-        except Exception as e:
-            self.logger.error(f"❌ Error updating notification status: {e}")
-            return {
-                'status': 'error',
-                'message': str(e)
-            }
-        
-        
     def check_cluster_alerts(self, cluster_id: str, current_cost: float) -> List[Dict]:
-        """Check and trigger alerts for a cluster with in-app notifications"""
+        """🆕 ENHANCED: Check and trigger alerts for a cluster with proper in-app notifications"""
         try:
-            triggered_alerts = self.db.check_cluster_alerts(cluster_id, current_cost)
+            self.logger.info(f"🔍 Enhanced alert checking for cluster {cluster_id} with cost ${current_cost:.2f}")
             
-            for triggered_alert in triggered_alerts:
-                alert = triggered_alert['alert']
-                trigger_id = triggered_alert['trigger_id']
+            # Get active alerts for this cluster using the database
+            alerts = self.db.get_alerts(cluster_id=cluster_id, status='active')
+            
+            if not alerts:
+                self.logger.info(f"ℹ️ No active alerts found for cluster {cluster_id}")
+                return []
+            
+            self.logger.info(f"🔍 Found {len(alerts)} active alerts to check for cluster {cluster_id}")
+            
+            triggered_alerts = []
+            
+            for alert in alerts:
+                threshold = alert['threshold_amount']
+                self.logger.info(f"🔍 Checking alert '{alert['name']}': ${current_cost:.2f} vs ${threshold:.2f}")
                 
-                # Send notifications through ALL channels
-                notifications_sent = []
-                
-                # Email notification
-                if 'email' in alert['notification_channels']:
-                    if self._send_alert_email(alert, triggered_alert):
-                        notifications_sent.append('email')
-                
-                # Slack notification
-                if 'slack' in alert['notification_channels'] and self.slack_webhook_url:
-                    if self._send_alert_slack(alert, triggered_alert):
-                        notifications_sent.append('slack')
-                
-                # 🆕 IN-APP NOTIFICATION (THE KEY FIX!)
-                if ('inapp' in alert['notification_channels'] or 
-                    'in_app' in alert['notification_channels'] or 
-                    'in-app' in alert['notification_channels']):
-                    if self._send_alert_in_app(alert, triggered_alert):
-                        notifications_sent.append('in_app')
-                
-                # Update trigger with notification status
-                self.db.update_trigger_notification_status(
-                    trigger_id, 
-                    len(notifications_sent) > 0,
-                    notifications_sent
-                )
-                
-                self.logger.info(f"🚨 Alert triggered: {alert['name']} for cluster {cluster_id}")
-                self.logger.info(f"📱 Notifications sent via: {', '.join(notifications_sent)}")
+                if current_cost >= threshold:
+                    exceeded_by = current_cost - threshold
+                    
+                    self.logger.info(f"🚨 ALERT TRIGGERED: '{alert['name']}' - Cost ${current_cost:.2f} exceeds ${threshold:.2f} by ${exceeded_by:.2f}")
+                    
+                    # Record the trigger in database
+                    trigger_data = {
+                        'alert_id': alert['id'],
+                        'cluster_id': cluster_id,
+                        'trigger_reason': f"Cost ${current_cost:.2f} exceeded threshold ${threshold:.2f}",
+                        'current_cost': current_cost,
+                        'threshold_amount': threshold,
+                        'threshold_exceeded_by': exceeded_by,
+                        'notification_sent': False,
+                        'notification_channels': alert['notification_channels'],
+                        'metadata': {
+                            'alert_name': alert['name'],
+                            'alert_type': alert['alert_type'],
+                            'percentage_over': (exceeded_by / threshold) * 100 if threshold > 0 else 0
+                        }
+                    }
+                    
+                    trigger_id = self.db.record_alert_trigger(trigger_data)
+                    
+                    if trigger_id:
+                        triggered_alert = {
+                            'alert': alert,
+                            'trigger_id': trigger_id,
+                            'current_cost': current_cost,
+                            'threshold_exceeded_by': exceeded_by
+                        }
+                        
+                        # Send notifications through ALL configured channels
+                        notifications_sent = []
+                        
+                        # Email notification
+                        if 'email' in alert['notification_channels']:
+                            if self._send_alert_email(alert, triggered_alert):
+                                notifications_sent.append('email')
+                                self.logger.info(f"✅ Email notification sent for alert {alert['id']}")
+                            else:
+                                self.logger.warning(f"⚠️ Email notification failed for alert {alert['id']}")
+                        
+                        # Slack notification
+                        if 'slack' in alert['notification_channels'] and self.slack_webhook_url:
+                            if self._send_alert_slack(alert, triggered_alert):
+                                notifications_sent.append('slack')
+                                self.logger.info(f"✅ Slack notification sent for alert {alert['id']}")
+                            else:
+                                self.logger.warning(f"⚠️ Slack notification failed for alert {alert['id']}")
+                        
+                        # 🆕 IN-APP NOTIFICATION - THE KEY FIX!
+                        if ('inapp' in alert['notification_channels'] or 
+                            'in_app' in alert['notification_channels'] or 
+                            'in-app' in alert['notification_channels']):
+                            if self._send_alert_in_app(alert, triggered_alert):
+                                notifications_sent.append('in_app')
+                                self.logger.info(f"✅ In-app notification sent for alert {alert['id']}")
+                            else:
+                                self.logger.warning(f"⚠️ In-app notification failed for alert {alert['id']}")
+                        
+                        # Update trigger with notification status
+                        self.db.update_trigger_notification_status(
+                            trigger_id, 
+                            len(notifications_sent) > 0,
+                            notifications_sent
+                        )
+                        
+                        # Update alert's last notification sent time
+                        if notifications_sent:
+                            self.db.update_notification_sent_time(alert['id'])
+                        
+                        triggered_alert['notifications_sent'] = notifications_sent
+                        triggered_alerts.append(triggered_alert)
+                        
+                        self.logger.info(f"🚨 Alert '{alert['name']}' processed: notifications sent via {', '.join(notifications_sent) if notifications_sent else 'NONE'}")
+                    else:
+                        self.logger.error(f"❌ Failed to record trigger for alert {alert['id']}")
+                else:
+                    self.logger.info(f"✅ Alert '{alert['name']}' not triggered: ${current_cost:.2f} < ${threshold:.2f}")
+            
+            if triggered_alerts:
+                self.logger.info(f"🚨 SUMMARY: {len(triggered_alerts)} alerts triggered for cluster {cluster_id}")
+            else:
+                self.logger.info(f"✅ No alerts triggered for cluster {cluster_id}")
             
             return triggered_alerts
             
         except Exception as e:
             self.logger.error(f"❌ Error checking cluster alerts: {e}")
+            self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return []
+
+    def _send_alert_in_app(self, alert: Dict, triggered_alert: Dict) -> bool:
+        """🆕 ENHANCED: Send in-app notification with proper error handling"""
+        try:
+            current_cost = triggered_alert['current_cost']
+            exceeded_by = triggered_alert['threshold_exceeded_by']
+            trigger_id = triggered_alert.get('trigger_id')
+            
+            self.logger.info(f"📱 Creating in-app notification for alert {alert['id']} (trigger {trigger_id})")
+            
+            # Create in-app notification using the database method
+            notification_id = self.db.create_notification_for_trigger(
+                trigger_id=trigger_id,
+                alert=alert,
+                current_cost=current_cost,
+                exceeded_by=exceeded_by
+            )
+            
+            if notification_id:
+                self.logger.info(f"📱 ✅ In-app notification created successfully: {notification_id}")
+                return True
+            else:
+                self.logger.error(f"📱 ❌ Failed to create in-app notification for alert {alert['id']}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error creating in-app notification for alert {alert['id']}: {e}")
+            self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            return False
+
+    def _send_test_in_app_notification(self, alert: Dict) -> bool:
+        """🆕 Send test in-app notification"""
+        try:
+            test_notification_data = {
+                'title': f"🧪 Test Alert: {alert['name']}",
+                'message': f"This is a test notification for alert '{alert['name']}' on cluster {alert['cluster_name']}. Threshold: ${alert['threshold_amount']:,.2f}",
+                'type': 'info',
+                'cluster_id': alert['cluster_id'],
+                'alert_id': alert['id'],
+                'trigger_id': None,  # No trigger for test
+                'timestamp': datetime.now().isoformat(),
+                'read': False,
+                'dismissed': False,
+                'metadata': {
+                    'test_notification': True,
+                    'alert_name': alert['name'],
+                    'threshold_amount': alert['threshold_amount']
+                }
+            }
+            
+            notification_id = self.db.create_in_app_notification(test_notification_data)
+            
+            if notification_id:
+                self.logger.info(f"📱 Test in-app notification created: {notification_id}")
+                return True
+            else:
+                self.logger.error(f"📱 Failed to create test in-app notification")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"❌ Error sending test in-app notification: {e}")
+            return False
 
     def _send_test_email(self, alert: Dict) -> bool:
         """Send test email notification"""

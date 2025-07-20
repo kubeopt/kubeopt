@@ -1,4 +1,4 @@
-# Enhanced alerts_integration.py - API with frequency management support
+# Enhanced alerts_integration.py - Complete API with frequency management and notification support
 
 import os
 import traceback
@@ -41,7 +41,7 @@ def initialize_alerts_system():
         return None
 
 def register_alerts_routes(app):
-    """Register enhanced alerts API routes with frequency support"""
+    """Register enhanced alerts API routes with complete functionality"""
     
     @app.route('/api/alerts', methods=['GET', 'POST'])
     def alerts_api():
@@ -190,53 +190,6 @@ def register_alerts_routes(app):
                 'status': 'error',
                 'message': str(e)
             }), 500
-
-    # @app.route('/api/alerts/health', methods=['GET'])
-    # def alerts_health_check():
-    #     """Health check endpoint for alerts system"""
-    #     try:
-    #         health_status = {
-    #             'alerts_available': ALERTS_AVAILABLE,
-    #             'alerts_manager_initialized': alerts_manager is not None,
-    #             'enhanced_alerts_available': True,
-    #             'notification_channels': {
-    #                 'email': {
-    #                     'configured': bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')),
-    #                     'status': 'ready' if bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')) else 'not_configured'
-    #                 },
-    #                 'slack': {
-    #                     'configured': bool(os.getenv('SLACK_WEBHOOK_URL')),
-    #                     'status': 'ready' if bool(os.getenv('SLACK_WEBHOOK_URL')) else 'not_configured'
-    #                 },
-    #                 'in_app': {
-    #                     'available': True,
-    #                     'current_notifications': 0,
-    #                     'status': 'ready'
-    #                 }
-    #             },
-    #             'cluster_manager_available': enhanced_cluster_manager is not None,
-    #             'database_backend': 'enhanced',
-    #             'timestamp': datetime.now().isoformat()
-    #         }
-            
-    #         overall_status = 'healthy' if (
-    #             ALERTS_AVAILABLE and 
-    #             alerts_manager is not None and 
-    #             enhanced_cluster_manager is not None
-    #         ) else 'degraded'
-            
-    #         return jsonify({
-    #             'status': overall_status,
-    #             'health': health_status
-    #         }), 200 if overall_status == 'healthy' else 503
-            
-    #     except Exception as e:
-    #         logger.error(f"❌ Error in alerts health check: {e}")
-    #         return jsonify({
-    #             'status': 'error',
-    #             'message': str(e),
-    #             'timestamp': datetime.now().isoformat()
-    #         }), 500
         
     @app.route('/api/alerts/<int:alert_id>', methods=['GET', 'PUT', 'DELETE'])
     def alert_detail_api(alert_id: int):
@@ -349,6 +302,39 @@ def register_alerts_routes(app):
                 'message': str(e)
             }), 500
 
+    @app.route('/api/alerts/<int:alert_id>/pause', methods=['POST'])
+    def pause_alert_api(alert_id: int):
+        """Pause/unpause alert"""
+        try:
+            if not alerts_manager:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Alerts system not available'
+                }), 503
+                
+            data = request.get_json() or {}
+            action = data.get('action', 'pause')
+            status = 'paused' if action == 'pause' else 'active'
+            
+            result = alerts_manager.update_alert_route(alert_id, {'status': status})
+            
+            if result['status'] == 'success':
+                return jsonify({
+                    'status': 'success',
+                    'message': f'Alert {action}d successfully',
+                    'new_status': status
+                })
+            else:
+                return jsonify(result), 400
+                
+        except Exception as e:
+            logger.error(f"❌ Error pausing/resuming alert: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    # 🆕 FREQUENCY MANAGEMENT ENDPOINTS
     @app.route('/api/alerts/frequency-configs', methods=['GET'])
     def frequency_configurations_api():
         """🆕 Get available notification frequency configurations"""
@@ -603,93 +589,376 @@ def register_alerts_routes(app):
         
         return recommendations
 
-    @app.route('/api/alerts/health', methods=['GET'])
-    def alerts_health_check():
-        """Enhanced health check endpoint with frequency support info"""
+    # 🆕 INDIVIDUAL NOTIFICATION MANAGEMENT ENDPOINTS
+    @app.route('/api/notifications/<notification_id>/mark-read', methods=['POST'])
+    def mark_notification_read_api(notification_id: str):
+        """Mark individual notification as read"""
         try:
-            health_status = {
-                'alerts_available': ALERTS_AVAILABLE,
-                'alerts_manager_initialized': alerts_manager is not None,
-                'enhanced_alerts_available': True,
-                'frequency_management_available': True,
-                'notification_channels': {
-                    'email': {
-                        'configured': bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')),
-                        'status': 'ready' if bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')) else 'not_configured'
-                    },
-                    'slack': {
-                        'configured': bool(os.getenv('SLACK_WEBHOOK_URL')),
-                        'status': 'ready' if bool(os.getenv('SLACK_WEBHOOK_URL')) else 'not_configured'
-                    },
-                    'in_app': {
-                        'available': True,
-                        'current_notifications': 0,
-                        'status': 'ready'
-                    }
-                },
-                'frequency_features': {
-                    'custom_frequencies': True,
-                    'cooldown_periods': True,
-                    'daily_limits': True,
-                    'scheduled_times': True,
-                    'preview_available': True
-                },
-                'cluster_manager_available': enhanced_cluster_manager is not None,
-                'database_backend': 'enhanced',
-                'timestamp': datetime.now().isoformat()
-            }
+            if not alerts_manager or not alerts_manager.db:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Alerts system not available'
+                }), 503
             
-            overall_status = 'healthy' if (
-                ALERTS_AVAILABLE and 
-                alerts_manager is not None and 
-                enhanced_cluster_manager is not None
-            ) else 'degraded'
+            # Update single notification
+            success = alerts_manager.db.update_notification_status([notification_id], 'mark_read')
             
-            return jsonify({
-                'status': overall_status,
-                'health': health_status
-            }), 200 if overall_status == 'healthy' else 503
-            
+            if success:
+                logger.info(f"📖 Marked notification {notification_id} as read")
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Notification marked as read'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to mark notification as read'
+                }), 500
+                
         except Exception as e:
-            logger.error(f"❌ Error in alerts health check: {e}")
+            logger.error(f"❌ Error marking notification as read: {e}")
             return jsonify({
                 'status': 'error',
-                'message': str(e),
-                'timestamp': datetime.now().isoformat()
+                'message': str(e)
             }), 500
 
-    @app.route('/api/alerts/<int:alert_id>/pause', methods=['POST'])
-    def pause_alert_api(alert_id: int):
-        """Pause/unpause alert"""
+    @app.route('/api/notifications/<notification_id>/dismiss', methods=['POST'])
+    def dismiss_notification_api(notification_id: str):
+        """Dismiss individual notification"""
+        try:
+            if not alerts_manager or not alerts_manager.db:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Alerts system not available'
+                }), 503
+            
+            # Update single notification
+            success = alerts_manager.db.update_notification_status([notification_id], 'dismiss')
+            
+            if success:
+                logger.info(f"🗑️ Dismissed notification {notification_id}")
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Notification dismissed'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to dismiss notification'
+                }), 500
+                
+        except Exception as e:
+            logger.error(f"❌ Error dismissing notification: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    # 🆕 BULK NOTIFICATION MANAGEMENT ENDPOINT
+    @app.route('/api/notifications/mark-all-read', methods=['POST'])
+    def mark_all_notifications_read_api():
+        """Mark all notifications as read"""
+        try:
+            if not alerts_manager or not alerts_manager.db:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Alerts system not available'
+                }), 503
+            
+            data = request.get_json() or {}
+            cluster_id = data.get('cluster_id')
+            
+            # Get all unread notifications for the cluster
+            unread_notifications = alerts_manager.db.get_in_app_notifications(
+                cluster_id=cluster_id,
+                unread_only=True,
+                limit=1000  # Large limit to get all
+            )
+            
+            if not unread_notifications:
+                return jsonify({
+                    'status': 'success',
+                    'message': 'No unread notifications to mark',
+                    'updated_count': 0
+                })
+            
+            # Get notification IDs
+            notification_ids = [str(notif['id']) for notif in unread_notifications]
+            
+            # Mark all as read
+            success = alerts_manager.db.update_notification_status(notification_ids, 'mark_read')
+            
+            if success:
+                logger.info(f"📖 Marked {len(notification_ids)} notifications as read")
+                return jsonify({
+                    'status': 'success',
+                    'message': f'Marked {len(notification_ids)} notifications as read',
+                    'updated_count': len(notification_ids)
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to mark notifications as read'
+                }), 500
+                
+        except Exception as e:
+            logger.error(f"❌ Error marking all notifications as read: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/notifications/in-app', methods=['GET', 'POST', 'PUT'])
+    def in_app_notifications_api():
+        """Enhanced in-app notifications management"""
+        try:
+            if request.method == 'GET':
+                unread_only = request.args.get('unread_only', 'false').lower() == 'true'
+                limit = int(request.args.get('limit', 50))
+                cluster_id = request.args.get('cluster_id')
+                
+                # Get notifications from database via alerts manager
+                if alerts_manager and alerts_manager.db:
+                    notifications = alerts_manager.db.get_in_app_notifications(
+                        cluster_id=cluster_id,
+                        unread_only=unread_only,
+                        limit=limit
+                    )
+                    unread_count = alerts_manager.db.get_unread_notifications_count(cluster_id)
+                    
+                    return jsonify({
+                        'status': 'success',
+                        'notifications': notifications,
+                        'unread_count': unread_count,
+                        'total_count': len(notifications),
+                        'limit': limit,
+                        'unread_only': unread_only
+                    })
+                else:
+                    # Fallback for when alerts manager is not available
+                    return jsonify({
+                        'status': 'success',
+                        'notifications': [],
+                        'unread_count': 0,
+                        'total_count': 0,
+                        'limit': limit,
+                        'unread_only': unread_only
+                    })
+            
+            elif request.method == 'POST':
+                data = request.get_json() or {}
+                
+                if not data.get('title') or not data.get('message'):
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Title and message are required'
+                    }), 400
+                
+                # Create notification in database
+                notification_id = None
+                if alerts_manager and alerts_manager.db:
+                    notification_data = {
+                        'title': data['title'],
+                        'message': data['message'],
+                        'type': data.get('type', 'info'),
+                        'cluster_id': data.get('cluster_id'),
+                        'alert_id': data.get('alert_id'),
+                        'trigger_id': data.get('trigger_id'),
+                        'timestamp': datetime.now().isoformat(),
+                        'read': False,
+                        'dismissed': False,
+                        'metadata': data.get('metadata', {})
+                    }
+                    notification_id = alerts_manager.db.create_in_app_notification(notification_data)
+                
+                if notification_id:
+                    logger.info(f"📱 In-app notification created: {notification_id}")
+                    return jsonify({
+                        'status': 'success',
+                        'message': 'Notification created successfully',
+                        'notification_id': notification_id
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Failed to create notification'
+                    }), 500
+            
+            elif request.method == 'PUT':
+                data = request.get_json() or {}
+                notification_ids = data.get('notification_ids', [])
+                action = data.get('action', 'mark_read')
+                
+                if not notification_ids:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'notification_ids required'
+                    }), 400
+                
+                # Update notifications in database
+                success = False
+                if alerts_manager and alerts_manager.db:
+                    success = alerts_manager.db.update_notification_status(notification_ids, action)
+                
+                if success:
+                    logger.info(f"📱 Updated {len(notification_ids)} notifications: {action}")
+                    return jsonify({
+                        'status': 'success',
+                        'message': f'Successfully {action} {len(notification_ids)} notifications',
+                        'updated_count': len(notification_ids)
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Failed to update notifications'
+                    }), 500
+                    
+        except Exception as e:
+            logger.error(f"❌ Error in in-app notifications API: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    # 🆕 ALERT MANAGEMENT & DEBUGGING ENDPOINTS
+    @app.route('/api/alerts/check-and-notify', methods=['POST'])
+    def check_and_notify_alerts_api():
+        """Manual alert checking and notification triggering"""
         try:
             if not alerts_manager:
                 return jsonify({
                     'status': 'error',
                     'message': 'Alerts system not available'
                 }), 503
-                
+            
             data = request.get_json() or {}
-            action = data.get('action', 'pause')
-            status = 'paused' if action == 'pause' else 'active'
+            cluster_id = data.get('cluster_id')
             
-            result = alerts_manager.update_alert_route(alert_id, {'status': status})
-            
-            if result['status'] == 'success':
+            if not cluster_id:
                 return jsonify({
-                    'status': 'success',
-                    'message': f'Alert {action}d successfully',
-                    'new_status': status
-                })
-            else:
-                return jsonify(result), 400
-                
+                    'status': 'error',
+                    'message': 'cluster_id required'
+                }), 400
+            
+            # Get cluster info
+            cluster = enhanced_cluster_manager.get_cluster(cluster_id) if enhanced_cluster_manager else None
+            if not cluster:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Cluster {cluster_id} not found'
+                }), 404
+            
+            # Get current cost - try multiple sources
+            current_cost = data.get('current_cost')
+            if not current_cost:
+                # Try to get from cluster manager or analysis results
+                try:
+                    from shared import _get_analysis_data
+                    analysis_data, data_source = _get_analysis_data(cluster_id)
+                    if analysis_data:
+                        current_cost = analysis_data.get('total_cost', 0)
+                        logger.info(f"💰 Retrieved current cost from {data_source}: ${current_cost}")
+                except Exception as cost_error:
+                    logger.warning(f"⚠️ Could not retrieve current cost: {cost_error}")
+                    current_cost = 0
+            
+            if not current_cost or current_cost <= 0:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No current cost data available for alert checking'
+                }), 400
+            
+            logger.info(f"🔍 Manual alert check for cluster {cluster_id} with cost ${current_cost}")
+            
+            # Check alerts
+            triggered_alerts = alerts_manager.check_cluster_alerts(cluster_id, current_cost)
+            
+            return jsonify({
+                'status': 'success',
+                'message': f'Alert check completed for cluster {cluster_id}',
+                'cluster_id': cluster_id,
+                'current_cost': current_cost,
+                'triggered_alerts_count': len(triggered_alerts),
+                'triggered_alerts': [
+                    {
+                        'alert_id': ta['alert']['id'],
+                        'alert_name': ta['alert']['name'],
+                        'threshold_amount': ta['alert']['threshold_amount'],
+                        'exceeded_by': ta['threshold_exceeded_by'],
+                        'notifications_sent': ta.get('notifications_sent', [])
+                    } for ta in triggered_alerts
+                ]
+            })
+            
         except Exception as e:
-            logger.error(f"❌ Error pausing/resuming alert: {e}")
+            logger.error(f"❌ Error in manual alert check: {e}")
             return jsonify({
                 'status': 'error',
                 'message': str(e)
             }), 500
 
+    @app.route('/api/cluster-costs', methods=['GET'])
+    def cluster_costs_api():
+        """Get current cluster costs for debugging"""
+        try:
+            cluster_id = request.args.get('cluster_id')
+            
+            if not cluster_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'cluster_id required'
+                }), 400
+            
+            # Get cluster info
+            cluster = enhanced_cluster_manager.get_cluster(cluster_id) if enhanced_cluster_manager else None
+            if not cluster:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Cluster {cluster_id} not found'
+                }), 404
+            
+            # Get current analysis data
+            try:
+                from shared import _get_analysis_data
+                analysis_data, data_source = _get_analysis_data(cluster_id)
+                
+                if analysis_data:
+                    current_cost = analysis_data.get('total_cost', 0)
+                    return jsonify({
+                        'status': 'success',
+                        'cluster_id': cluster_id,
+                        'cluster_name': cluster.get('name'),
+                        'current_cost': current_cost,
+                        'data_source': data_source,
+                        'last_updated': analysis_data.get('timestamp', 'Unknown'),
+                        'has_cost_data': current_cost > 0
+                    })
+                else:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'No cost data available for this cluster',
+                        'cluster_id': cluster_id,
+                        'cluster_name': cluster.get('name'),
+                        'current_cost': 0,
+                        'data_source': 'none',
+                        'has_cost_data': False
+                    })
+                    
+            except Exception as cost_error:
+                logger.error(f"❌ Error getting cluster costs: {cost_error}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Error retrieving cost data: {str(cost_error)}'
+                }), 500
+                
+        except Exception as e:
+            logger.error(f"❌ Error in cluster costs API: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    # 🆕 SYSTEM MANAGEMENT ENDPOINTS
     @app.route('/api/alerts/triggers', methods=['GET'])
     def alert_triggers_api():
         """Get alert trigger history"""
@@ -802,118 +1071,27 @@ def register_alerts_routes(app):
                 'timestamp': datetime.now().isoformat()
             }), 500
 
-    @app.route('/api/notifications/in-app', methods=['GET', 'POST', 'PUT'])
-    def in_app_notifications_api():
-        """UPDATED: Enhanced in-app notifications management"""
+    @app.route('/api/alerts/statistics', methods=['GET'])
+    def alert_statistics_api():
+        """Get alert statistics"""
         try:
-            if request.method == 'GET':
-                unread_only = request.args.get('unread_only', 'false').lower() == 'true'
-                limit = int(request.args.get('limit', 50))
-                cluster_id = request.args.get('cluster_id')
-                
-                # Get notifications from database via alerts manager
-                if alerts_manager and alerts_manager.db:
-                    notifications = alerts_manager.db.get_in_app_notifications(
-                        cluster_id=cluster_id,
-                        unread_only=unread_only,
-                        limit=limit
-                    )
-                    unread_count = alerts_manager.db.get_unread_notifications_count(cluster_id)
-                    
-                    return jsonify({
-                        'status': 'success',
-                        'notifications': notifications,
-                        'unread_count': unread_count,
-                        'total_count': len(notifications),
-                        'limit': limit,
-                        'unread_only': unread_only
-                    })
-                else:
-                    # Fallback for when alerts manager is not available
-                    return jsonify({
-                        'status': 'success',
-                        'notifications': [],
-                        'unread_count': 0,
-                        'total_count': 0,
-                        'limit': limit,
-                        'unread_only': unread_only
-                    })
+            if not alerts_manager:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Alerts system not available'
+                }), 503
             
-            elif request.method == 'POST':
-                data = request.get_json() or {}
-                
-                if not data.get('title') or not data.get('message'):
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'Title and message are required'
-                    }), 400
-                
-                # Create notification in database
-                notification_id = None
-                if alerts_manager and alerts_manager.db:
-                    notification_data = {
-                        'title': data['title'],
-                        'message': data['message'],
-                        'type': data.get('type', 'info'),
-                        'cluster_id': data.get('cluster_id'),
-                        'alert_id': data.get('alert_id'),
-                        'trigger_id': data.get('trigger_id'),
-                        'timestamp': datetime.now().isoformat(),
-                        'read': False,
-                        'dismissed': False,
-                        'metadata': data.get('metadata', {})
-                    }
-                    notification_id = alerts_manager.db.create_in_app_notification(notification_data)
-                
-                if notification_id:
-                    logger.info(f"📱 In-app notification created: {notification_id}")
-                    return jsonify({
-                        'status': 'success',
-                        'message': 'Notification created successfully',
-                        'notification_id': notification_id
-                    })
-                else:
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'Failed to create notification'
-                    }), 500
+            result = alerts_manager.get_alert_statistics_route()
+            return jsonify(result)
             
-            elif request.method == 'PUT':
-                data = request.get_json() or {}
-                notification_ids = data.get('notification_ids', [])
-                action = data.get('action', 'mark_read')
-                
-                if not notification_ids:
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'notification_ids required'
-                    }), 400
-                
-                # Update notifications in database
-                success = False
-                if alerts_manager and alerts_manager.db:
-                    success = alerts_manager.db.update_notification_status(notification_ids, action)
-                
-                if success:
-                    logger.info(f"📱 Updated {len(notification_ids)} notifications: {action}")
-                    return jsonify({
-                        'status': 'success',
-                        'message': f'Successfully {action} {len(notification_ids)} notifications',
-                        'updated_count': len(notification_ids)
-                    })
-                else:
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'Failed to update notifications'
-                    }), 500
-                    
         except Exception as e:
-            logger.error(f"❌ Error in in-app notifications API: {e}")
+            logger.error(f"❌ Error getting alert statistics: {e}")
             return jsonify({
                 'status': 'error',
                 'message': str(e)
             }), 500
 
+    # 🆕 TESTING & NOTIFICATION ENDPOINTS
     @app.route('/api/notifications/slack/test', methods=['POST'])
     def test_slack_notification():
         """Test Slack notification"""
@@ -969,27 +1147,6 @@ def register_alerts_routes(app):
                 'message': f'Slack test error: {str(e)}'
             }), 500
 
-    @app.route('/api/alerts/statistics', methods=['GET'])
-    def alert_statistics_api():
-        """Get alert statistics"""
-        try:
-            if not alerts_manager:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Alerts system not available'
-                }), 503
-            
-            result = alerts_manager.get_alert_statistics_route()
-            return jsonify(result)
-            
-        except Exception as e:
-            logger.error(f"❌ Error getting alert statistics: {e}")
-            return jsonify({
-                'status': 'error',
-                'message': str(e)
-            }), 500
-
-    # ENHANCED: Alert testing endpoint for debugging
     @app.route('/api/alerts/test-trigger/<cluster_id>', methods=['POST'])
     def test_trigger_alerts(cluster_id):
         """Test alert triggering for a specific cluster - ENHANCED"""
@@ -1041,10 +1198,77 @@ def register_alerts_routes(app):
                 'message': str(e)
             }), 500
 
-    logger.info("✅ alerts routes registered successfully")
+    @app.route('/api/alerts/health', methods=['GET'])
+    def alerts_health_check():
+        """Enhanced health check endpoint with complete functionality info"""
+        try:
+            health_status = {
+                'alerts_available': ALERTS_AVAILABLE,
+                'alerts_manager_initialized': alerts_manager is not None,
+                'enhanced_alerts_available': True,
+                'frequency_management_available': True,
+                'notification_channels': {
+                    'email': {
+                        'configured': bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')),
+                        'status': 'ready' if bool(os.getenv('SMTP_USERNAME') and os.getenv('SMTP_PASSWORD')) else 'not_configured'
+                    },
+                    'slack': {
+                        'configured': bool(os.getenv('SLACK_WEBHOOK_URL')),
+                        'status': 'ready' if bool(os.getenv('SLACK_WEBHOOK_URL')) else 'not_configured'
+                    },
+                    'in_app': {
+                        'available': True,
+                        'current_notifications': 0,
+                        'status': 'ready'
+                    }
+                },
+                'frequency_features': {
+                    'custom_frequencies': True,
+                    'cooldown_periods': True,
+                    'daily_limits': True,
+                    'scheduled_times': True,
+                    'preview_available': True
+                },
+                'notification_features': {
+                    'individual_management': True,
+                    'bulk_operations': True,
+                    'mark_read': True,
+                    'dismiss': True
+                },
+                'debugging_features': {
+                    'manual_alert_check': True,
+                    'cluster_costs': True,
+                    'test_triggers': True,
+                    'statistics': True
+                },
+                'cluster_manager_available': enhanced_cluster_manager is not None,
+                'database_backend': 'enhanced',
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            overall_status = 'healthy' if (
+                ALERTS_AVAILABLE and 
+                alerts_manager is not None and 
+                enhanced_cluster_manager is not None
+            ) else 'degraded'
+            
+            return jsonify({
+                'status': overall_status,
+                'health': health_status
+            }), 200 if overall_status == 'healthy' else 503
+            
+        except Exception as e:
+            logger.error(f"❌ Error in alerts health check: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'timestamp': datetime.now().isoformat()
+            }), 500
+
+    logger.info("✅ Complete alerts routes registered successfully")
 
     def check_alerts_after_analysis(cluster_id: str, analysis_results: dict):
-        """UPDATED: Check and trigger alerts after analysis completion with in-app notifications"""
+        """Enhanced alert checking with complete notification support"""
         try:
             logger.info(f"🔍 Starting enhanced alert check for cluster {cluster_id}")
             
@@ -1083,7 +1307,7 @@ def register_alerts_routes(app):
             
             logger.info(f"🔍 Checking alerts for cluster {cluster_id} with cost ${current_cost:.2f}")
             
-            # 🆕 USE THE ENHANCED check_cluster_alerts METHOD
+            # Use the enhanced check_cluster_alerts method
             triggered_alerts = alerts_manager.check_cluster_alerts(cluster_id, current_cost)
             
             if triggered_alerts:

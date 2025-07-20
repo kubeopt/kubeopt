@@ -27,7 +27,7 @@ from app.services.subscription_manager import azure_subscription_manager
 from app.data.processing.analysis_engine import multi_subscription_analysis_engine
 
 # FIXED: Import alerts integration
-from services.alerts_integration import initialize_alerts_system, register_alerts_routes
+from services.alerts_integration import initialize_alerts_system, register_alerts_routes, get_alerts_manager
 
 # CPU Workload Integration imports with error handling
 chart_generator_functions = {}
@@ -84,6 +84,60 @@ except ImportError:
 # Global alerts manager
 alerts_manager = None
 
+def trigger_alert_checking_after_analysis(cluster_id: str, analysis_results: dict):
+    """🆕 ENSURE ALERTS ARE CHECKED AFTER ANALYSIS COMPLETES"""
+    try:
+        logger.info(f"🚨 Triggering alert checking for cluster {cluster_id}")
+        
+        alerts_manager = get_alerts_manager()
+        if not alerts_manager:
+            logger.warning("⚠️ Alerts manager not available for alert checking")
+            return []
+        
+        # Get cluster information
+        cluster = enhanced_cluster_manager.get_cluster(cluster_id) if enhanced_cluster_manager else None
+        if not cluster:
+            logger.warning(f"⚠️ Cluster {cluster_id} not found")
+            return []
+        
+        # Extract current cost from analysis results
+        current_cost = 0.0
+        cost_sources = ['total_cost', 'monthly_cost', 'current_month_cost', 'total_monthly_cost']
+        
+        for source in cost_sources:
+            if source in analysis_results and analysis_results[source] is not None:
+                try:
+                    current_cost = float(analysis_results[source])
+                    if current_cost > 0:
+                        logger.info(f"💰 Found cost data from '{source}': ${current_cost:.2f}")
+                        break
+                except (ValueError, TypeError):
+                    continue
+        
+        if current_cost <= 0:
+            logger.warning(f"⚠️ No valid cost data found for cluster {cluster_id} - cannot check alerts")
+            return []
+        
+        logger.info(f"🔍 Checking alerts for cluster {cluster_id} with cost ${current_cost:.2f}")
+        
+        # Check and trigger alerts
+        triggered_alerts = alerts_manager.check_cluster_alerts(cluster_id, current_cost)
+        
+        if triggered_alerts:
+            logger.info(f"🚨 Alert check completed: {len(triggered_alerts)} alerts triggered")
+            for triggered_alert in triggered_alerts:
+                alert = triggered_alert['alert']
+                logger.info(f"   ✅ Alert '{alert['name']}': ${current_cost:.2f} > ${alert['threshold_amount']:.2f}")
+        else:
+            logger.info(f"✅ Alert check completed: No alerts triggered for cluster {cluster_id}")
+        
+        return triggered_alerts
+        
+    except Exception as e:
+        logger.error(f"❌ Error in post-analysis alert checking: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        return []
+
 def register_api_routes(app):
     """Register all API routes with multi-subscription support and complete alerts integration"""
     
@@ -95,46 +149,6 @@ def register_api_routes(app):
         logger.info("✅ Alerts system routes registered successfully")
     except Exception as e:
         logger.error(f"❌ Failed to register alerts routes: {e}")
-    
-    # FIXED: Add main alerts API route that was missing
-    @app.route('/api/alerts', methods=['GET', 'POST'])
-    def api_alerts():
-        """Main alerts API endpoint - GET and POST"""
-        try:
-            if not alerts_manager:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Alerts system not available'
-                }), 503
-            
-            if request.method == 'GET':
-                # Get alerts with optional cluster filtering
-                cluster_id = request.args.get('cluster_id')
-                result = alerts_manager.get_alerts_route(cluster_id)
-                return jsonify(result)
-            
-            elif request.method == 'POST':
-                # Create new alert
-                data = request.get_json()
-                if not data:
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'No data provided'
-                    }), 400
-                
-                result = alerts_manager.create_alert_route(data)
-                
-                if result['status'] == 'success':
-                    return jsonify(result), 201
-                else:
-                    return jsonify(result), 400
-                    
-        except Exception as e:
-            logger.error(f"❌ Error in alerts API: {e}")
-            return jsonify({
-                'status': 'error',
-                'message': str(e)
-            }), 500
 
     @app.route('/api/subscriptions', methods=['GET'])
     def api_get_subscriptions():
@@ -774,9 +788,9 @@ def register_api_routes(app):
                         cluster_id, 'analyzing', 0, 'Starting automatic subscription-aware analysis...'
                     )
                     
-                    # Start analysis in background thread with subscription context
+                    # 🆕 ENHANCED: Start analysis with alert checking
                     analysis_thread = threading.Thread(
-                        target=run_subscription_aware_background_analysis,
+                        target=run_subscription_aware_background_analysis_with_alerts,
                         args=(cluster_id, cluster_config['resource_group'], cluster_config['cluster_name'], subscription_id),
                         daemon=True
                     )
@@ -848,9 +862,9 @@ def register_api_routes(app):
             # Get subscription context
             subscription_id = cluster.get('subscription_id')
             
-            # Start analysis in background thread
+            # 🆕 ENHANCED: Start analysis with alert checking
             analysis_thread = threading.Thread(
-                target=run_subscription_aware_background_analysis,
+                target=run_subscription_aware_background_analysis_with_alerts,
                 args=(cluster_id, cluster['resource_group'], cluster['name'], subscription_id, days, enable_pod_analysis),
                 daemon=True
             )
@@ -1066,6 +1080,39 @@ def register_api_routes(app):
                 'status': 'error',
                 'message': str(e)
             }), 500
+
+
+# 🆕 ENHANCED BACKGROUND ANALYSIS WITH ALERT INTEGRATION
+def run_subscription_aware_background_analysis_with_alerts(cluster_id, resource_group, cluster_name, subscription_id, days=30, enable_pod_analysis=True):
+    """Enhanced background analysis that triggers alert checking"""
+    try:
+        logger.info(f"🚀 Starting subscription-aware analysis with alert checking for cluster: {cluster_id}")
+        
+        # Run the standard background analysis
+        run_subscription_aware_background_analysis(cluster_id, resource_group, cluster_name, subscription_id, days, enable_pod_analysis)
+        
+        # 🆕 AFTER ANALYSIS COMPLETES: Check for alerts
+        logger.info(f"🔍 Analysis completed, now checking alerts for cluster: {cluster_id}")
+        
+        # Get the completed analysis results
+        analysis_data, data_source = _get_analysis_data(cluster_id)
+        
+        if analysis_data:
+            logger.info(f"✅ Retrieved analysis data for alert checking: {data_source}")
+            
+            # Trigger alert checking
+            triggered_alerts = trigger_alert_checking_after_analysis(cluster_id, analysis_data)
+            
+            if triggered_alerts:
+                logger.info(f"🚨 Analysis completed with {len(triggered_alerts)} alerts triggered")
+            else:
+                logger.info(f"✅ Analysis completed with no alerts triggered")
+        else:
+            logger.warning(f"⚠️ No analysis data available for alert checking")
+        
+    except Exception as e:
+        logger.error(f"❌ Error in enhanced background analysis with alerts: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
 
 
 # Helper functions remain the same as in original code
