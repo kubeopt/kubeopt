@@ -369,7 +369,22 @@ button:active {
     color: white;
 }
 
-.bg-blue-500 {
+.bg-blue-600 {
+    background: linear-gradient(135deg, #3be0f6, #25d1eb) !important;
+    border: none;
+    color: white;
+}
+
+checkbox{
+    background-color: rgb(#3be0f6 / var(--tw-bg-opacity, 1));
+}
+
+.peer:checked .peer-checked\:bg-blue-600 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(37 99 235 / var(--tw-bg-opacity, 1));
+}
+
+.bg-blue-600 {
     background: linear-gradient(135deg, #3be0f6, #25d1eb) !important;
     border: none;
     color: white;
