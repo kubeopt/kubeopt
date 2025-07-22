@@ -723,8 +723,8 @@
 
 /* ACTIVE TAB STYLING - This makes the active tab clearly visible */
 .alerts-tab-button.active {
-    color: #25ebc3 !important;
-    border-color: #25ebba !important;
+    color: #286c1eab !important;
+    border-color: #0ead85 !important;
     font-weight: 600 !important;
 }
 
@@ -891,3 +891,27 @@ input[type="checkbox"]:checked + div:after {
     background-color: #00ff8c;
 }
 
+/*
+ * Final Fix: Manages transform and z-index for alert items and dropdowns
+ */
+
+/* 1. Establish a stacking context for all alert items */
+.alert-item {
+    position: relative; /* Necessary for z-index to work */
+    z-index: 1;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* 2. On hover, bring the item slightly forward (when its menu is NOT open) */
+.alert-item:not(:has(.dropdown-menu.show)):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 2; /* Bring hovered item above its siblings */
+}
+
+/* 3. When a menu is open, lock the "raised" state and give it the highest z-index */
+.alert-item:has(.dropdown-menu.show) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: 10; /* Bring the active item and its menu to the very front */
+}
