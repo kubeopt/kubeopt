@@ -456,7 +456,7 @@ class RealTimeCostAnomalyDetector:
             # Validate training data
             if not self._validate_training_data(training_data):
                 logger.warning("⚠️ Training data validation failed, using fallback")
-                training_data = self._generate_fallback_training_data()
+                #training_data = self._generate_fallback_training_data()
             
             # Train the model
             isolation_forest.fit(training_data)

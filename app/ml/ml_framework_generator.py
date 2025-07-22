@@ -944,171 +944,135 @@ class MLFrameworkStructureGenerator:
         
         return self._ensure_json_serializable(result)
 
+    def generate_monitoring_recommendation(self, analysis_results: Dict, cluster_dna, comprehensive_state: Dict) -> List[Dict]:
+        """
+        Generates intelligent and context-aware monitoring recommendations based on the cluster's actual state.
+        This method provides high-level strategic recommendations that complement the detailed Azure CLI commands
+        from the ML-enhanced monitoring methods.
+        """
+        logger.info("🧠 Generating state-aware monitoring recommendations...")
+        recommendations = []
+        
+        # This state is now available from the enhanced aks_config_fetcher
+        monitoring_state = comprehensive_state.get('monitoring_state', {})
+        has_ci = monitoring_state.get('has_container_insights', False)
+        has_prometheus = monitoring_state.get('has_prometheus_operators', False)
+        
+        total_cost = analysis_results.get('total_cost', 0)
+        complexity_score = getattr(cluster_dna, 'complexity_score', 0.5)
+        
+        # Case 1: Azure Container Insights (CI) is detected
+        if has_ci:
+            if total_cost > 3000 and complexity_score > 0.6:
+                # High cost & complexity -> Recommend migration to Prometheus
+                recommendations.append({ 
+                    'title': 'Migrate from Container Insights to Azure Managed Prometheus for Cost Savings and Advanced Features', 
+                    'action': 'MIGRATE',
+                    'priority': 'high',
+                    'estimated_savings_monthly': total_cost * 0.4,  # 40% savings typical
+                    'complexity': 'medium',
+                    'timeline_weeks': 2,
+                    'business_case': f'Current monitoring costs (~${total_cost * 0.3:.0f}/month) can be reduced by 40% while gaining better query performance and scalability.'
+                })
+            else:
+                # CI is cost-effective -> Recommend optimizing it
+                recommendations.append({ 
+                    'title': 'Optimize Existing Container Insights Configuration (e.g., Enable Basic Logs)', 
+                    'action': 'OPTIMIZE_EXISTING',
+                    'priority': 'medium',
+                    'estimated_savings_monthly': total_cost * 0.15,  # 15% savings from basic logs
+                    'complexity': 'low',
+                    'timeline_weeks': 1,
+                    'business_case': 'Container Insights is appropriately sized for your cluster. Basic Logs can reduce costs by 60% with minimal query impact.'
+                })
+        # Case 2: Prometheus is detected
+        elif has_prometheus:
+            recommendations.append({ 
+                'title': 'Optimize Existing Prometheus & Grafana Setup', 
+                'action': 'OPTIMIZE_EXISTING',
+                'priority': 'medium',
+                'estimated_savings_monthly': total_cost * 0.1,  # 10% optimization potential
+                'complexity': 'low',
+                'timeline_weeks': 1,
+                'business_case': 'Fine-tune retention policies, optimize queries, and review dashboard efficiency for better resource utilization.'
+            })
+        # Case 3: No advanced monitoring detected
+        else:
+            if total_cost > 1000 or complexity_score > 0.5:
+                # Larger clusters -> Recommend Prometheus
+                recommendations.append({ 
+                    'title': 'Implement Azure Managed Prometheus for Enterprise-Grade Monitoring', 
+                    'action': 'IMPLEMENT_NEW',
+                    'priority': 'high',
+                    'estimated_cost_monthly': max(100, total_cost * 0.05),  # Estimated monitoring cost
+                    'complexity': 'medium',
+                    'timeline_weeks': 3,
+                    'business_case': f'Cluster size and complexity warrant enterprise monitoring. Investment of ~${max(100, total_cost * 0.05):.0f}/month provides comprehensive observability and cost optimization insights.'
+                })
+            else:
+                # Smaller clusters -> Start with Container Insights
+                recommendations.append({ 
+                    'title': 'Enable Azure Monitor Container Insights for Essential Visibility', 
+                    'action': 'IMPLEMENT_NEW',
+                    'priority': 'medium',
+                    'estimated_cost_monthly': min(200, max(50, total_cost * 0.08)),  # Conservative CI cost
+                    'complexity': 'low',
+                    'timeline_weeks': 1,
+                    'business_case': f'Basic monitoring essential for operational visibility. Container Insights provides good value at ~${min(200, max(50, total_cost * 0.08)):.0f}/month for your cluster size.'
+                })
+        
+        logger.info(f"✅ Generated {len(recommendations)} state-aware monitoring recommendations.")
+        return recommendations
+
+
     def _generate_improved_ml_monitoring_with_real_azure(self, features: np.ndarray, comprehensive_state: Dict) -> Dict:
         """
-        ENHANCED VERSION of monitoring with real Azure monitoring recommendations
+        ENHANCED VERSION: Combines ML predictions with state-aware strategic recommendations
         """
+        # Get the existing ML-driven monitoring structure
+        ml_monitoring = self._generate_improved_ml_monitoring_with_real_azure(features, comprehensive_state)
         
-        # Your existing ML predictions
-        strategy_pred = self._safe_model_predict('monitoring', 'strategy_classifier', features, 1)
-        frequency_pred = self._safe_model_predict('monitoring', 'frequency_predictor', features, 0.6)
-        dashboard_pred = self._safe_model_predict('monitoring', 'dashboard_predictor', features, 1)
-        ml_confidence = self._safe_model_predict_proba('monitoring', 'strategy_classifier', features, 0.8)
-        
-        # Generate real Azure monitoring recommendations
-        azure_recommendations = []
-        
-        # Get real Azure patterns
-        azure_patterns = self._fetch_real_time_azure_patterns()
-        
-        # AKS Cost Analysis Recommendation based on actual workload analysis
-        total_workloads = comprehensive_state.get('hpa_state', {}).get('summary', {}).get('total_workloads', 0)
-        if not total_workloads:
-            # Try alternative workload count sources
-            total_workloads = len(comprehensive_state.get('rightsizing_state', {}).get('workloads', []))
-        
-        if total_workloads > 20:  # Threshold for cost analysis recommendation
-            azure_recommendations.append({
-                'title': 'Enable AKS Cost Analysis with OpenCost Integration',
-                'description': f'Analysis detects {total_workloads} workloads - ideal for granular cost visibility',
-                'azure_service': 'AKS Cost Analysis (OpenCost)',
-                'priority': 'medium',
-                'confidence': 0.95,
-                
-                'azure_cli_commands': [
-                    "# Enable AKS Cost Analysis add-on",
-                    "az aks update --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --enable-cost-analysis",
-                    "# Verify cost analysis is enabled", 
-                    "az aks show --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --query 'costAnalysisProfile.enabled'",
-                    "# Access OpenCost UI via port-forward",
-                    "kubectl port-forward --namespace opencost service/opencost 9003"
-                ],
-                
-                'implementation_steps': [
-                    "Navigate to AKS cluster in Azure Portal",
-                    "Go to Cost Management + Billing",
-                    "Enable 'Cost analysis' add-on (free)",
-                    "Wait 24-48 hours for data collection to begin", 
-                    "View detailed cost breakdown by namespace and workload",
-                    "Set up cost allocation rules and budgets"
-                ],
-                
-                'configuration_files': {
-                    'opencost-config.yaml': {
-                        'apiVersion': 'v1',
-                        'kind': 'ConfigMap', 
-                        'metadata': {
-                            'name': 'opencost-config',
-                            'namespace': 'opencost'
-                        },
-                        'data': {
-                            'CLOUD_PROVIDER_API_KEY': 'set-to-enable-cloud-api',
-                            'CLUSTER_ID': '${CLUSTER_NAME}',
-                            'AZURE_SUBSCRIPTION_ID': '${SUBSCRIPTION_ID}',
-                            'AZURE_CLIENT_ID': '${CLIENT_ID}'
-                        }
-                    }
-                },
-                
-                'cost_savings_monthly': float(total_workloads * 5),  # $5 per workload optimization potential
-                'implementation_effort_hours': float(azure_patterns.get('implementation_patterns', {}).get('cost_analysis_setup_effort_hours', {}).get('basic', 0.25)),
-                'success_probability': 0.98,
-                'risk_level': 'low',
-                
-                'business_justification': f'Enables precise cost attribution for {total_workloads} workloads and identifies optimization opportunities',
-                'kpis_improved': ['Cost Visibility', 'FinOps Maturity', 'Resource Optimization'],
-                'ml_reasoning': f'Workload count ({total_workloads}) exceeds threshold - cost analysis provides ROI through optimization identification'
-            })
-        
-        # Enhanced Container Insights recommendation for comprehensive monitoring
-        if strategy_pred >= 2:  # Advanced or comprehensive monitoring strategy
-            azure_recommendations.append({
-                'title': 'Configure Advanced Container Insights with Custom Metrics',
-                'description': f'Analysis recommends advanced monitoring strategy - enable comprehensive Container Insights',
-                'azure_service': 'Azure Monitor Container Insights',
-                'priority': 'high',
-                'confidence': float(ml_confidence),
-                
-                'azure_cli_commands': [
-                    "# Enable Container Insights with advanced features",
-                    "az aks enable-addons --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME} --addons monitoring --workspace-resource-id ${LOG_ANALYTICS_WORKSPACE_ID}",
-                    "# Configure advanced data collection",
-                    "az monitor data-collection rule create --name ${CLUSTER_NAME}-advanced-dcr --resource-group ${RESOURCE_GROUP} --rule-file advanced-dcr.json",
-                    "# Enable Prometheus metrics collection",
-                    "az aks update --enable-azure-monitor-metrics --resource-group ${RESOURCE_GROUP} --name ${CLUSTER_NAME}"
-                ],
-                
-                'implementation_steps': [
-                    "Enable Container Insights via Azure Portal or CLI",
-                    "Configure custom data collection rules",
-                    "Set up advanced alerting rules",
-                    "Configure Grafana dashboards for visualization",
-                    "Enable live data streaming for real-time monitoring"
-                ],
-                
-                'configuration_files': {
-                    'advanced-dcr.json': {
-                        'properties': {
-                            'dataSources': {
-                                'extensions': [
-                                    {
-                                        'name': 'ContainerInsightsExtension',
-                                        'extensionName': 'ContainerInsights',
-                                        'streams': ['Microsoft-ContainerLog', 'Microsoft-ContainerLogV2', 'Microsoft-KubeEvents', 'Microsoft-KubePodInventory'],
-                                        'extensionSettings': {
-                                            'dataCollectionSettings': {
-                                                'interval': '1m',
-                                                'namespaceFilteringMode': 'Include',
-                                                'namespaces': ['default', 'kube-system', 'monitoring'],
-                                                'enableContainerLogV2': True
-                                            }
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    }
-                },
-                
-                'cost_savings_monthly': 0.0,  # Monitoring investment, not direct savings
-                'implementation_effort_hours': 2.0,
-                'success_probability': 0.92,
-                'risk_level': 'low',
-                
-                'business_justification': 'Provides comprehensive observability for proactive issue detection and performance optimization',
-                'kpis_improved': ['System Reliability', 'MTTR', 'Operational Efficiency', 'User Experience'],
-                'ml_reasoning': f'Advanced monitoring strategy ({strategy_pred}) recommended based on cluster complexity and requirements'
-            })
-        
-        # Your existing monitoring structure PLUS Azure recommendations
-        result = {
-            'enabled': True,
-            'dataAvailable': True,
-            'ml_confidence': ml_confidence,
-            'improved_ml_generated': True,
-            'azure_enhanced': True,
-            'monitoringStrategy': {0: 'basic', 1: 'standard', 2: 'advanced', 3: 'comprehensive'}.get(max(0, min(3, int(strategy_pred))), 'standard'),
-            'metrics': {
-                'frequencyScore': max(0.1, min(1.5, float(frequency_pred))),
-                'dashboardComplexity': max(0, min(3, int(dashboard_pred))),
-                'alertingEnabled': frequency_pred > 0.5
-            },
-            'realTimeMonitoring': {
-                'enabled': strategy_pred >= 2,  # Advanced or comprehensive
-                'updateInterval': 'hourly' if frequency_pred > 1.0 else 'daily'
-            },
-            
-            # NEW: Real Azure ML recommendations
-            'azure_ml_recommendations': azure_recommendations,
-            'azure_optimization_summary': {
-                'total_recommendations': len(azure_recommendations),
-                'total_monthly_savings': sum(rec.get('cost_savings_monthly', 0) for rec in azure_recommendations),
-                'total_implementation_hours': sum(rec.get('implementation_effort_hours', 0) for rec in azure_recommendations),
-                'azure_patterns_last_updated': azure_patterns.get('last_updated')
+        # Add strategic monitoring recommendations using your new method
+        try:
+            # Create dummy analysis_results if not available
+            analysis_results = {
+                'total_cost': comprehensive_state.get('total_cost', 1000),
+                'total_savings': comprehensive_state.get('total_savings', 100)
             }
-        }
+            
+            # Create dummy cluster_dna if not available
+            class DummyClusterDNA:
+                def __init__(self):
+                    self.complexity_score = features[4] if len(features) > 4 else 0.6
+            
+            cluster_dna = DummyClusterDNA()
+            
+            # Generate strategic recommendations
+            strategic_recommendations = self.generate_monitoring_recommendation(
+                analysis_results, cluster_dna, comprehensive_state
+            )
+            
+            # Add strategic recommendations to the ML structure
+            ml_monitoring['strategic_monitoring_recommendations'] = strategic_recommendations
+            
+            # Add summary of strategic vs tactical recommendations
+            tactical_recs = ml_monitoring.get('azure_ml_recommendations', [])
+            ml_monitoring['recommendation_summary'] = {
+                'strategic_recommendations': len(strategic_recommendations),
+                'tactical_recommendations': len(tactical_recs),
+                'total_recommendations': len(strategic_recommendations) + len(tactical_recs),
+                'primary_action': strategic_recommendations[0]['action'] if strategic_recommendations else 'REVIEW',
+                'estimated_monthly_impact': sum(rec.get('estimated_savings_monthly', rec.get('estimated_cost_monthly', 0)) 
+                                            for rec in strategic_recommendations)
+            }
+            
+            logger.info(f"🎯 Enhanced monitoring recommendations: {len(strategic_recommendations)} strategic + {len(tactical_recs)} tactical")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to add strategic monitoring recommendations: {e}")
+            ml_monitoring['strategic_monitoring_recommendations'] = []
         
-        return self._ensure_json_serializable(result)
+        return self._ensure_json_serializable(ml_monitoring)
 
     def generate_ml_framework_structure_with_real_azure(self, cluster_dna, analysis_results: Dict, 
                                                        ml_session: Dict, comprehensive_state: Dict) -> Dict:

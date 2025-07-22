@@ -163,10 +163,10 @@ class EnhancedDynamicStrategyEngine:
         logger.info(f"🎯 Strategy Engine: Cluster config set")
     
     def generate_comprehensive_dynamic_strategy(self, cluster_dna, 
-                                              analysis_results: Optional[Dict] = None,
-                                              cluster_config: Optional[Dict] = None) -> ComprehensiveDynamicStrategy:
+                                          analysis_results: Optional[Dict] = None,
+                                          cluster_config: Optional[Dict] = None) -> ComprehensiveDynamicStrategy:
         """
-        ENHANCED: Generate comprehensive dynamic strategy with cluster config intelligence
+        ENHANCED: Generate comprehensive dynamic strategy with cluster config intelligence and ROI filtering
         """
         logger.info(f"🎯 Generating comprehensive dynamic strategy for cluster: {getattr(cluster_dna, 'cluster_personality', 'unknown')}")
         
@@ -187,7 +187,23 @@ class EnhancedDynamicStrategyEngine:
         opportunities = self.opportunity_detector.detect_comprehensive_opportunities(
             cluster_dna, analysis_results, actual_savings, self.cluster_config
         )
-        logger.info(f"🔍 Detected {len(opportunities)} comprehensive optimization opportunities")
+        logger.info(f"🔍 Detected {len(opportunities)} initial optimization opportunities")
+        
+        # NEW Step 1.5: Apply ROI-based filtering for financial viability
+        if opportunities:
+            opportunities = self.opportunity_detector._filter_opportunities_by_roi(
+                opportunities, self.cluster_config
+            )
+            logger.info(f"✅ Filtered to {len(opportunities)} financially viable opportunities")
+            
+            # Handle case where all opportunities were filtered out
+            if not opportunities:
+                logger.warning(f"⚠️ No financially viable opportunities remain after ROI filtering")
+                # Create a minimal default strategy to avoid system failure
+                return None
+        else:
+            logger.warning(f"⚠️ No initial opportunities detected")
+            return None
         
         # Step 2: Multi-objective optimization analysis with cluster intelligence
         optimization_objectives = self._determine_optimization_objectives(cluster_dna, analysis_results, self.cluster_config)
@@ -1079,6 +1095,100 @@ class EnhancedDynamicStrategyEngine:
 
 class EnhancedOpportunityDetector:
     """Enhanced opportunity detector with cluster config awareness"""
+
+    def _filter_opportunities_by_roi(self, opportunities: List[ComprehensiveOptimizationOpportunity], 
+                                cluster_config: Optional[Dict] = None) -> List[ComprehensiveOptimizationOpportunity]:
+        """
+        Enhanced ROI-based opportunity filtering with cluster intelligence
+        Filters out opportunities with unrealistic payback periods while considering cluster context
+        """
+        if not opportunities:
+            logger.info("📊 ROI Filter: No opportunities to filter")
+            return []
+        
+        viable_opportunities = []
+        filtered_count = 0
+        total_filtered_savings = 0.0
+        
+        # Set realistic business thresholds based on cluster context
+        PAYBACK_THRESHOLD_MONTHS = 18  # Base threshold
+        MIN_MONTHLY_SAVINGS = 10.0     # Minimum monthly savings to be worth pursuing
+        
+        # NEW: Adjust thresholds based on cluster configuration intelligence
+        if cluster_config and cluster_config.get('status') == 'completed':
+            try:
+                workload_resources = cluster_config.get('workload_resources', {})
+                total_workloads = sum(
+                    workload_resources.get(wl_type, {}).get('item_count', 0)
+                    for wl_type in ['deployments', 'statefulsets', 'daemonsets']
+                )
+                
+                # Enterprise clusters can afford longer payback periods
+                if total_workloads > 50:
+                    PAYBACK_THRESHOLD_MONTHS = 24  # Enterprise can wait longer
+                    MIN_MONTHLY_SAVINGS = 50.0     # But expect higher savings
+                    logger.info(f"🏢 Enterprise cluster detected ({total_workloads} workloads) - Adjusted ROI thresholds")
+                elif total_workloads < 10:
+                    PAYBACK_THRESHOLD_MONTHS = 12  # Small clusters need faster payback
+                    MIN_MONTHLY_SAVINGS = 5.0      # Lower savings threshold
+                    logger.info(f"🏠 Small cluster detected ({total_workloads} workloads) - Tightened ROI thresholds")
+            
+            except Exception as e:
+                logger.warning(f"⚠️ Could not adjust ROI thresholds based on cluster config: {e}")
+        
+        logger.info(f"📊 ROI Filter: Evaluating {len(opportunities)} opportunities")
+        logger.info(f"💰 Thresholds: Max payback {PAYBACK_THRESHOLD_MONTHS} months, Min savings ${MIN_MONTHLY_SAVINGS}/month")
+        
+        for opp in opportunities:
+            # Always keep zero-cost opportunities (free optimizations)
+            if opp.implementation_cost <= 0:
+                viable_opportunities.append(opp)
+                logger.debug(f"✅ Kept zero-cost opportunity: {opp.subtype}")
+                continue
+            
+            # Check minimum savings threshold
+            if opp.savings_potential_monthly < MIN_MONTHLY_SAVINGS:
+                filtered_count += 1
+                total_filtered_savings += opp.savings_potential_monthly
+                logger.info(f"🔄 Filtered low-impact opportunity: {opp.subtype} "
+                        f"(${opp.savings_potential_monthly:.0f}/month < ${MIN_MONTHLY_SAVINGS}/month threshold)")
+                continue
+            
+            # Calculate payback period
+            if opp.savings_potential_monthly > 0:
+                payback_months = opp.implementation_cost / opp.savings_potential_monthly
+                
+                if payback_months <= PAYBACK_THRESHOLD_MONTHS:
+                    viable_opportunities.append(opp)
+                    logger.debug(f"✅ Kept viable opportunity: {opp.subtype} "
+                            f"(Payback: {payback_months:.1f} months, "
+                            f"Savings: ${opp.savings_potential_monthly:.0f}/month)")
+                else:
+                    filtered_count += 1
+                    total_filtered_savings += opp.savings_potential_monthly
+                    logger.info(f"🔄 Filtered long-payback opportunity: {opp.subtype} "
+                            f"(Payback: {payback_months:.1f} months > {PAYBACK_THRESHOLD_MONTHS} month threshold)")
+            else:
+                # Handle edge case of zero savings potential
+                filtered_count += 1
+                logger.warning(f"⚠️ Filtered opportunity with zero savings potential: {opp.subtype}")
+        
+        # Log comprehensive filtering results
+        kept_count = len(viable_opportunities)
+        if filtered_count > 0:
+            logger.info(f"📊 ROI Filter Results: Kept {kept_count}, Filtered {filtered_count} opportunities")
+            logger.info(f"💰 Filtered potential savings: ${total_filtered_savings:.2f}/month "
+                    f"(deemed not cost-effective)")
+            
+            if kept_count == 0:
+                logger.warning(f"⚠️ All opportunities filtered out - consider adjusting ROI thresholds or "
+                            f"review opportunity detection logic")
+        else:
+            logger.info(f"✅ ROI Filter: All {kept_count} opportunities passed ROI criteria")
+        
+        return viable_opportunities
+    
+
     
     def detect_comprehensive_opportunities(self, cluster_dna, analysis_results: Optional[Dict], 
                                          actual_savings: float, cluster_config: Optional[Dict] = None) -> List[ComprehensiveOptimizationOpportunity]:

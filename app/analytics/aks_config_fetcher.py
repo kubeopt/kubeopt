@@ -505,6 +505,26 @@ class PureAKSClusterConfigFetcher:
             'prometheusrules': resource_data.get('prometheusrules', {})
         }
         
+        # NEW: Add monitoring state detection
+        config_data['monitoring_state'] = {
+            'has_container_insights': False,
+            'has_prometheus_operators': False
+        }
+        
+        # Check for Container Insights (omsagent daemonsets)
+        daemonsets = resource_data.get('daemonsets', {}).get('items', [])
+        for ds in daemonsets:
+            if 'omsagent' in ds.get('metadata', {}).get('name', ''):
+                config_data['monitoring_state']['has_container_insights'] = True
+                break
+        
+        # Check for Prometheus operators (servicemonitors)
+        monitoring_resources = config_data.get('monitoring_resources', {})
+        if monitoring_resources.get('servicemonitors', {}).get('item_count', 0) > 0:
+            config_data['monitoring_state']['has_prometheus_operators'] = True
+        
+        logger.info(f"📊 Monitoring State Detected: Container Insights={'Yes' if config_data['monitoring_state']['has_container_insights'] else 'No'}, Prometheus={'Yes' if config_data['monitoring_state']['has_prometheus_operators'] else 'No'}")
+        
         # Count unique namespaces across all resources
         namespaces = set()
         for category_data in config_data.values():

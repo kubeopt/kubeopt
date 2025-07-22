@@ -1486,7 +1486,7 @@ class OptimizationCalculatorAlgorithm:
             
         except Exception as e:
             logger.error(f"❌ Optimization calculation failed: {e}")
-            return self._minimal_optimization_result()
+            return None
     
     def _calculate_hpa_savings(self, node_cost: float, usage: Dict) -> float:
         """Calculate HPA savings based on usage patterns"""
@@ -1646,7 +1646,7 @@ class EfficiencyEvaluatorAlgorithm:
             
         except Exception as e:
             logger.error(f"❌ Efficiency evaluation failed: {e}")
-            return self._minimal_efficiency_evaluation()
+            return None
     
     def _calculate_cpu_efficiency(self, usage: Dict) -> float:
         """Calculate current CPU efficiency"""
@@ -1746,7 +1746,7 @@ class ConfidenceScorerAlgorithm:
             
         except Exception as e:
             logger.error(f"❌ Confidence scoring failed: {e}")
-            return self._minimal_confidence_score()
+            return None
     
     def _calculate_data_quality_score(self, costs: Dict, usage: Dict) -> float:
         """Calculate data quality score"""
@@ -1938,7 +1938,7 @@ def integrate_consistent_analysis(resource_group: str, cluster_name: str,
         logger.error(f"CONSISTENT analysis with comprehensive ML failed: {e}")
         # Return fallback results instead of raising exception
         analyzer = ConsistentCostAnalyzer()
-        return analyzer._create_fallback_results(cost_data)
+        return None
 
 # ============================================================================
 # BACKWARD COMPATIBILITY
