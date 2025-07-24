@@ -1545,15 +1545,29 @@ class AdvancedExecutableCommandGenerator:
                     commands = self._generate_comprehensive_validation_commands(
                         comprehensive_state, variable_context, total_optimizations
                     )
+                # Enhanced phase matching for complex titles
+                elif any(keyword in phase_title.lower() for keyword in ['enhanced monitoring', 'monitoring and observability']):
+                    # Generate monitoring commands based on real opportunities
+                    monitoring_opportunities = self._extract_real_monitoring_opportunities(comprehensive_state)
+                    commands = self._generate_monitoring_commands_from_opportunities(
+                        monitoring_opportunities, variable_context
+                    )
+
+                elif any(keyword in phase_title.lower() for keyword in ['enhanced final', 'final validation and optimization']):
+                    # Generate comprehensive validation commands
+                    total_optimizations = sum(len(cmds) for cmds in phase_commands.values()) if hasattr(self, 'phase_commands') else 0
+                    commands = self._generate_comprehensive_validation_commands(
+                        comprehensive_state, variable_context, total_optimizations
+                    )
                 
                 else:
                     # Generic commands for unknown phase types
                     commands = self._generate_generic_commands_for_phase(variable_context, phase_title)
                 
                 # Ensure minimum commands per phase
-                if len(commands) == 0:
-                    logger.info(f"🔄 No specific commands for {phase_title}, generating fallback")
-                    commands = self._generate_fallback_commands_for_phase(phase_title, variable_context)
+                # if len(commands) == 0:
+                #     logger.info(f"🔄 No specific commands for {phase_title}, generating fallback")
+                #     commands = self._generate_fallback_commands_for_phase(phase_title, variable_context)
                 
                 phase_commands[phase_id] = commands
                 logger.info(f"✅ Phase {phase_title}: {len(commands)} commands generated")
@@ -1565,7 +1579,8 @@ class AdvancedExecutableCommandGenerator:
         except Exception as e:
             logger.error(f"❌ Phase-specific command generation failed: {e}")
             # Provide fallback phase commands
-            phase_commands = self._generate_fallback_phase_commands(implementation_phases, variable_context)
+            # phase_commands = self._generate_fallback_phase_commands(implementation_phases, variable_context)
+            return None
         
         return phase_commands
 
@@ -2377,13 +2392,13 @@ echo "✅ Fallback complete"
 
     def _is_monitoring_phase(self, phase_type: List, phase_title: str) -> bool:
         """Enhanced phase type detection for monitoring"""
-        monitoring_indicators = ['monitoring', 'observability', 'metrics', 'dashboard']
+        monitoring_indicators = ['monitoring', 'observability', 'metrics', 'dashboard', 'enhanced monitoring']
         return (any(indicator in phase_type for indicator in monitoring_indicators) or 
                 any(indicator in phase_title.lower() for indicator in monitoring_indicators))
 
     def _is_validation_phase(self, phase_type: List, phase_title: str) -> bool:
         """Enhanced phase type detection for validation"""
-        validation_indicators = ['validation', 'verify', 'test', 'check']
+        validation_indicators = ['validation', 'verify', 'test', 'check', 'final validation', 'enhanced final']
         return (any(indicator in phase_type for indicator in validation_indicators) or 
                 any(indicator in phase_title.lower() for indicator in validation_indicators))
 

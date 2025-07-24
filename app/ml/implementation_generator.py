@@ -1,9 +1,10 @@
 """
-AKS Implementation GeneratorS VERSION WITH CLUSTER CONFIG
+AKS Implementation GeneratorS VERSION WITH CLUSTER CONFIG AND TIMELINE FORMAT
 =======================================================================
 Removes all fallback logic to expose real issues.
 Comprehensive error logging for debugging.
 Includes real cluster configuration integration and utility classes.
+NEW: Added timeline format conversion support.
 """
 
 from dataclasses import asdict
@@ -553,6 +554,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
     This version removes all fallback mechanisms to expose real issues.
     Every failure is logged in detail for debugging purposes.
     Includes real cluster configuration integration and utility classes.
+    NEW: Added timeline format conversion support.
     """
     
     def __init__(self, enable_cost_monitoring: bool = True, enable_temporal: bool = True):
@@ -589,12 +591,16 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
     def generate_implementation_plan(self, analysis_results: Dict, 
                                    historical_data: Optional[Dict] = None,
                                    cost_budget_monthly: Optional[float] = None,
-                                   enable_real_time_monitoring: bool = True) -> Dict:
+                                   enable_real_time_monitoring: bool = True,
+                                   output_format: str = 'comprehensive') -> Dict:
         """
         Generate implementation plan with ML orchestration and real cluster integrationS
         
         This version will fail fast and provide detailed error information
         instead of masking issues with fallback logic.
+        
+        Args:
+            output_format: 'comprehensive' (Document1) or 'timeline' (Document2)
         """
         
         cluster_name = analysis_results.get('cluster_name', 'unknown')
@@ -725,8 +731,14 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             self._finalize_ml_session(ml_session, ml_plan, plan_confidence)
             logger.info("✅ PHASE 9 completed")
             
+            # NEW: Convert to timeline format if requested
+            if output_format == 'timeline':
+                logger.info("🔄 Converting comprehensive plan to timeline format...")
+                ml_plan = self._convert_to_timeline_format(ml_plan, analysis_results, ml_session)
+                logger.info("✅ Timeline format conversion completed")
+            
             logger.info(f"🎉 SUCCESS: ML-enhanced implementation plan generated with {plan_confidence:.1%} confidence")
-            logger.info(f"📊 Final plan has {len(ml_plan.get('implementation_phases', []))} implementation phases")
+            logger.info(f"📊 Final plan has {len(ml_plan.get('implementation_phases', ml_plan.get('weeks', [])))} implementation phases/weeks")
             
             return ml_plan
             
@@ -742,6 +754,302 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             logger.error(f"❌ Exception: {str(e)}")
             logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             raise
+    
+    def _convert_to_timeline_format(self, comprehensive_plan: Dict, 
+                                   analysis_results: Dict, ml_session: Dict) -> Dict:
+        """
+        NEW METHOD: Convert comprehensive plan to timeline format
+        Preserves ALL data from Document1 while creating Document2 structure
+        """
+        try:
+            logger.info("🔄 Converting to timeline format while preserving all data...")
+            
+            # Extract timeline metadata
+            api_metadata = comprehensive_plan.get('api_metadata', {})
+            business_case = comprehensive_plan.get('business_case', {})
+            executive_summary = comprehensive_plan.get('executive_summary', {})
+            implementation_phases = comprehensive_plan.get('implementation_phases', [])
+            
+            # Build timeline structure (Document2) with ALL Document1 data preserved
+            timeline_plan = {
+                # Document2 basic structure
+                "totalWeeks": self._calculate_total_weeks(implementation_phases),
+                "totalPhases": len(implementation_phases),
+                "totalCommands": self._count_commands_in_phases(implementation_phases),
+                "securityItems": self._count_security_items(comprehensive_plan),
+                "avgProgress": 0,
+                "totalSavings": comprehensive_plan.get('financial_summary', {}).get('total_projected_savings', 
+                                                    business_case.get('financial_impact', {}).get('annual_savings', 
+                                                    analysis_results.get('total_savings', 0))),
+                "clusterName": api_metadata.get('cluster_name', analysis_results.get('cluster_name', 'Unknown')),
+                "resourceGroup": api_metadata.get('resource_group', analysis_results.get('resource_group', 'Unknown')),
+                "strategyType": comprehensive_plan.get('metadata', {}).get('generation_method', 'ml_integrated_dynamic_optimization'),
+                "generatedAt": comprehensive_plan.get('metadata', {}).get('generated_at', datetime.now().isoformat()),
+                "intelligenceLevel": comprehensive_plan.get('metadata', {}).get('intelligence_quality', 'excellent'),
+                "version": comprehensive_plan.get('metadata', {}).get('version', '3.0.0'),
+                
+                # Transform phases into weeks structure (NEW)
+                "weeks": self._transform_phases_to_weeks(implementation_phases),
+                
+                # Preserve ALL Document1 data (PRESERVED)
+                "executiveSummary": self._enhance_executive_summary(executive_summary, business_case),
+                "intelligenceInsights": comprehensive_plan.get('intelligence_insights', {}),
+                "costProtection": comprehensive_plan.get('costProtection', {}),
+                "governance": comprehensive_plan.get('governance', {}),
+                "monitoring": comprehensive_plan.get('monitoring', {}),
+                "contingency": comprehensive_plan.get('contingency', {}),
+                "successCriteria": comprehensive_plan.get('successCriteria', {}),
+                "timelineOptimization": comprehensive_plan.get('timelineOptimization', {}),
+                "riskMitigation": comprehensive_plan.get('riskMitigation', {}),
+                
+                # Document1 comprehensive data (ALL PRESERVED)
+                "businessCase": business_case,
+                "financialSummary": comprehensive_plan.get('financial_summary', {}),
+                "mlConfidenceBreakdown": comprehensive_plan.get('ml_confidence_breakdown', {}),
+                "mlIntegration": comprehensive_plan.get('ml_integration', {}),
+                "projectManagement": comprehensive_plan.get('project_management', {}),
+                "roiAnalysis": comprehensive_plan.get('roi_analysis', {}),
+                "riskAssessment": comprehensive_plan.get('risk_assessment', {}),
+                "timeline": comprehensive_plan.get('timeline', {}),
+                "metadata": comprehensive_plan.get('metadata', {}),
+                
+                # Add timeline-specific metadata
+                "realCommands": self._extract_all_commands_for_timeline(implementation_phases),
+                "activeFilters": ["all"],
+                "currentView": "timeline",
+                
+                # Transformation metadata
+                "transformationMetadata": {
+                    "original_format": "comprehensive",
+                    "target_format": "timeline",
+                    "transformation_time": datetime.now().isoformat(),
+                    "data_preservation": "complete",
+                    "ml_session_id": ml_session.get('session_id'),
+                    "phases_converted": len(implementation_phases)
+                }
+            }
+            
+            logger.info(f"✅ Timeline conversion: {len(implementation_phases)} phases → {len(timeline_plan['weeks'])} weeks")
+            return timeline_plan
+            
+        except Exception as e:
+            logger.error(f"❌ Timeline conversion failed: {e}")
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            # Return original plan if conversion fails
+            comprehensive_plan['conversion_error'] = str(e)
+            comprehensive_plan['fallback_mode'] = True
+            return comprehensive_plan
+    
+    def _transform_phases_to_weeks(self, implementation_phases: List[Dict]) -> List[Dict]:
+        """Transform implementation phases into week-based timeline structure"""
+        weeks = []
+        current_week = 1
+        
+        for phase in implementation_phases:
+            try:
+                # Calculate phase timing
+                phase_duration = phase.get('duration_weeks', 2)
+                start_week = phase.get('start_week', current_week)
+                end_week = phase.get('end_week', start_week + phase_duration - 1)
+                
+                # Create week entry
+                week_entry = {
+                    "weekNumber": start_week,
+                    "weekRange": f"{start_week}-{end_week}" if phase_duration > 1 else str(start_week),
+                    "title": f"Week{'s' if phase_duration > 1 else ''} {start_week}{f'-{end_week}' if phase_duration > 1 else ''}: {phase.get('title', 'Unknown Phase')}",
+                    "phases": [{
+                        "id": f"phase-{phase.get('phase_number', len(weeks))}",
+                        "title": phase.get('title', 'Unknown Phase'),
+                        "type": self._determine_phase_types(phase),
+                        "progress": 0,
+                        "description": "Implementation phase",
+                        "commands": self._extract_phase_commands_for_timeline(phase),
+                        "securityChecks": phase.get('security_checks', []),
+                        "complianceItems": phase.get('compliance_items', []),
+                        "projectedSavings": phase.get('projected_savings', 0),
+                        "priorityLevel": phase.get('priority', 'Unknown'),
+                        "riskLevel": phase.get('risk_level', 'Low'),
+                        "complexityLevel": self._calculate_complexity_level(phase),
+                        "successCriteria": phase.get('success_criteria', []),
+                        "tasks": phase.get('tasks', []),
+                        "phaseNumber": phase.get('phase_number', len(weeks) + 1),
+                        "startWeek": start_week,
+                        "endWeek": end_week,
+                        
+                        # PRESERVE original phase data
+                        "originalPhaseData": phase
+                    }]
+                }
+                
+                weeks.append(week_entry)
+                current_week = end_week + 1
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Error processing phase {phase.get('title', 'Unknown')}: {e}")
+                continue
+        
+        return weeks
+    
+    def _extract_phase_commands_for_timeline(self, phase: Dict) -> List[Dict]:
+        """Extract commands from phase for timeline format"""
+        commands = []
+        
+        # Extract from various command sources
+        phase_commands = phase.get('commands', [])
+        
+        for cmd_group in phase_commands:
+            if isinstance(cmd_group, dict):
+                cmd_entry = {
+                    "title": cmd_group.get('title', cmd_group.get('description', 'Phase Commands')),
+                    "commands": self._normalize_commands(cmd_group.get('commands', [])),
+                    "description": cmd_group.get('description', 'Direct commands for phase'),
+                    "source": "phase_direct"
+                }
+                commands.append(cmd_entry)
+        
+        return commands
+    
+    def _normalize_commands(self, commands) -> List[str]:
+        """Normalize commands to string array format for frontend"""
+        if not commands:
+            return []
+        
+        normalized = []
+        for cmd in commands:
+            if isinstance(cmd, str):
+                normalized.append(cmd)
+            elif isinstance(cmd, dict):
+                # Convert dict to readable string
+                if 'command' in cmd:
+                    normalized.append(cmd['command'])
+                else:
+                    normalized.append(json.dumps(cmd, indent=2))
+            else:
+                normalized.append(str(cmd))
+        
+        return normalized
+    
+    def _determine_phase_types(self, phase: Dict) -> List[str]:
+        """Determine phase types from phase data"""
+        types = []
+        
+        # From phase type
+        phase_type = phase.get('type', '').lower()
+        if phase_type:
+            types.append(phase_type)
+        
+        # From category
+        category = phase.get('category', '').lower()
+        if category and category not in types:
+            types.append(category)
+        
+        # From title analysis
+        title = phase.get('title', '').lower()
+        if 'hpa' in title:
+            types.append('hpa')
+        if 'storage' in title:
+            types.append('storage')
+        if 'monitoring' in title:
+            types.append('monitoring')
+        
+        # From risk level
+        risk_level = phase.get('risk_level', '').lower()
+        if risk_level == 'high':
+            types.append('high-risk')
+        
+        # Default
+        if not types:
+            types.append('optimization')
+        
+        return types
+    
+    def _calculate_complexity_level(self, phase: Dict) -> str:
+        """Calculate complexity level from phase data"""
+        complexity_score = phase.get('complexity_score', 0)
+        
+        if complexity_score > 0.8:
+            return 'High'
+        elif complexity_score > 0.5:
+            return 'Medium'
+        else:
+            return 'Low'
+    
+    def _calculate_total_weeks(self, implementation_phases: List[Dict]) -> int:
+        """Calculate total weeks from implementation phases"""
+        if not implementation_phases:
+            return 6  # Default
+        
+        max_week = 0
+        for phase in implementation_phases:
+            end_week = phase.get('end_week', phase.get('duration_weeks', 2))
+            max_week = max(max_week, end_week)
+        
+        return max_week
+    
+    def _count_commands_in_phases(self, implementation_phases: List[Dict]) -> int:
+        """Count total commands across all phases"""
+        total = 0
+        for phase in implementation_phases:
+            commands = phase.get('commands', [])
+            total += len(commands)
+        return total
+    
+    def _count_security_items(self, comprehensive_plan: Dict) -> int:
+        """Count security-related items"""
+        security_count = 0
+        
+        # Count from phases
+        for phase in comprehensive_plan.get('implementation_phases', []):
+            security_count += len(phase.get('security_checks', []))
+        
+        # Count from governance
+        governance = comprehensive_plan.get('governance', {})
+        if governance.get('enabled'):
+            security_count += 1
+        
+        return security_count
+    
+    def _enhance_executive_summary(self, executive_summary: Dict, business_case: Dict) -> Dict:
+        """Enhance executive summary with business case data"""
+        enhanced = executive_summary.copy()
+        
+        # Add financial data from business case
+        financial_impact = business_case.get('financial_impact', {})
+        if financial_impact:
+            enhanced.update({
+                'annual_savings_potential': financial_impact.get('annual_savings', 0),
+                'implementation_cost': financial_impact.get('implementation_cost', 0),
+                'net_benefit_year_1': financial_impact.get('net_benefit_year_1', 0),
+                'roi_percentage': financial_impact.get('roi_percentage', 0)
+            })
+        
+        return enhanced
+    
+    def _extract_all_commands_for_timeline(self, implementation_phases: List[Dict]) -> List[Dict]:
+        """Extract all commands for easy timeline access"""
+        all_commands = []
+        
+        for phase in implementation_phases:
+            commands = phase.get('commands', [])
+            for cmd in commands:
+                if isinstance(cmd, dict):
+                    all_commands.append({
+                        'phase': phase.get('title', 'Unknown'),
+                        'phase_number': phase.get('phase_number', 0),
+                        'command_data': cmd
+                    })
+        
+        return all_commands
+
+    def generate_implementation_plan_for_api(self, analysis_results: Dict, 
+                                           output_format: str = 'comprehensive') -> Dict:
+        """
+        API-friendly wrapper that supports format selection
+        """
+        return self.generate_implementation_plan(
+            analysis_results=analysis_results,
+            output_format=output_format
+        )
     
     def _fetch_and_analyze_cluster_config(self, resource_group: str, cluster_name: str, 
                                           subscription_id: str, ml_session: Dict) -> Dict[str, Any]:
@@ -2178,3 +2486,4 @@ print("🚨 All fallback logic removed - failures will be exposed clearly")
 print("📊 Comprehensive error logging enabled")
 print("🔍 Real cluster configuration integration included")
 print("🛠️ Utility classes for parsing and analysis included")
+print("🕰️ NEW: Timeline format conversion support added")

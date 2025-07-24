@@ -1034,6 +1034,28 @@ class MLFrameworkStructureGenerator:
         
         # Add strategic monitoring recommendations using your new method
         try:
+
+            # Generate ML predictions for monitoring
+            strategy_pred = self._safe_model_predict('monitoring', 'strategy_classifier', features, 1)
+            frequency_pred = self._safe_model_predict('monitoring', 'frequency_predictor', features, 0.6)
+            dashboard_pred = self._safe_model_predict('monitoring', 'dashboard_predictor', features, 1)
+            ml_confidence = self._safe_model_predict_proba('monitoring', 'strategy_classifier', features, 0.8)
+            
+            # Create base monitoring structure
+            ml_monitoring = {
+                'enabled': True,
+                'dataAvailable': True,
+                'ml_confidence': ml_confidence,
+                'improved_ml_generated': True,
+                'azure_enhanced': True,
+                'monitoringStrategy': {
+                    'strategy': min(3, max(0, int(strategy_pred))),
+                    'frequency_score': max(0.1, min(1.5, float(frequency_pred))),
+                    'dashboard_complexity': min(3, max(0, int(dashboard_pred)))
+                },
+                'azure_ml_recommendations': []
+            }
+            
             # Create dummy analysis_results if not available
             analysis_results = {
                 'total_cost': comprehensive_state.get('total_cost', 1000),
