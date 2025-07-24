@@ -335,6 +335,7 @@ class MLEnhancedHPARecommendationEngine:
     def _convert_comprehensive_ml_to_output(self, ml_results: Dict, metrics_data: Dict, actual_costs: Dict) -> Dict:
         """
         Convert comprehensive ML results to consistent chart + recommendation output
+        FIXED: Flattened data structure for chart generator compatibility
         """
         try:
             # Extract comprehensive ML results
@@ -350,7 +351,14 @@ class MLEnhancedHPARecommendationEngine:
             logger.info(f"🤖 Comprehensive ML Classification: {workload_type} (confidence: {confidence:.2f})")
             logger.info(f"🎯 Comprehensive ML Recommendation: {primary_action}")
             
-            # ===== NEW: EXTRACT AND PRESERVE HIGH CPU WORKLOAD DATA =====
+            # ===== CRITICAL FIX: Extract ML utilization data directly =====
+            # Get the utilization data from the ML workload characteristics
+            ml_cpu_utilization = workload_characteristics.get('cpu_utilization', 35.0)
+            ml_memory_utilization = workload_characteristics.get('memory_utilization', 60.0)
+            
+            logger.info(f"🔍 ML Analysis: CPU={ml_cpu_utilization:.1f}%, Memory={ml_memory_utilization:.1f}%, Type={workload_type}")
+            
+            # ===== PRESERVE HIGH CPU WORKLOAD DATA =====
             high_cpu_workloads = []
             max_cpu_utilization = 0
             avg_cpu_utilization = 0
@@ -395,25 +403,71 @@ class MLEnhancedHPARecommendationEngine:
                 avg_cpu_utilization = sum([w['cpu_utilization'] for w in high_cpu_workloads]) / len(high_cpu_workloads)
                 logger.info(f"✅ HIGH CPU SUMMARY: {len(high_cpu_workloads)} workloads, max: {max_cpu_utilization:.1f}%, avg: {avg_cpu_utilization:.1f}%")
             
-            # Get current utilization for chart calculations
+            # Get current utilization for chart calculations (fallback to nodes if ML data not available)
             nodes = metrics_data.get('nodes', [])
             if nodes:
-                avg_cpu = np.mean([node.get('cpu_usage_pct', 0) for node in nodes])
-                avg_memory = np.mean([node.get('memory_usage_pct', 0) for node in nodes])
+                fallback_cpu = np.mean([node.get('cpu_usage_pct', 0) for node in nodes])
+                fallback_memory = np.mean([node.get('memory_usage_pct', 0) for node in nodes])
                 current_replicas = len(nodes)
             else:
-                avg_cpu, avg_memory, current_replicas = 35, 60, 3
+                fallback_cpu, fallback_memory, current_replicas = 35, 60, 3
+            
+            # Use ML data if available, fallback to node data
+            chart_cpu = ml_cpu_utilization if ml_cpu_utilization > 0 else fallback_cpu
+            chart_memory = ml_memory_utilization if ml_memory_utilization > 0 else fallback_memory
             
             # Generate chart data based on comprehensive ML classification
             chart_data = self._generate_comprehensive_ml_chart_data(
-                workload_type, primary_action, avg_cpu, avg_memory, current_replicas, hpa_recommendation
+                workload_type, primary_action, chart_cpu, chart_memory, current_replicas, hpa_recommendation
             )
             
             # Generate recommendation text based on comprehensive ML analysis
             recommendation = self._generate_comprehensive_ml_recommendation(
-                workload_type, primary_action, confidence, avg_cpu, avg_memory, 
+                workload_type, primary_action, confidence, chart_cpu, chart_memory, 
                 actual_costs, hpa_recommendation, optimization_analysis
             )
+            
+            # ===== CRITICAL FIX: FLATTEN THE DATA STRUCTURE =====
+            # Instead of nesting workload_characteristics inside workload_characteristics,
+            # put the ML utilization data directly at the top level where chart generator expects it
+            
+            flattened_workload_characteristics = {
+                # ===== TOP-LEVEL DATA FOR CHART GENERATOR =====
+                'cpu_utilization': ml_cpu_utilization,           # ✅ Chart generator looks here
+                'memory_utilization': ml_memory_utilization,     # ✅ Chart generator looks here
+                'workload_type': workload_type,
+                'confidence': confidence,
+                'primary_action': primary_action,
+                
+                # ===== HIGH CPU WORKLOAD DATA =====
+                'high_cpu_workloads': high_cpu_workloads,
+                'max_cpu_utilization': max_cpu_utilization,
+                'average_cpu_utilization': avg_cpu_utilization,
+                'high_cpu_count': len(high_cpu_workloads),
+                
+                # ===== COMPREHENSIVE ML METADATA =====
+                'comprehensive_ml_classification': workload_classification,
+                'optimization_analysis': optimization_analysis,
+                'hpa_recommendation': hpa_recommendation,
+                
+                # ===== ADDITIONAL ML INSIGHTS (flattened from nested workload_characteristics) =====
+                'resource_balance': workload_characteristics.get('resource_balance', 25),
+                'performance_stability': workload_characteristics.get('performance_stability', 0.8),
+                'burst_patterns': workload_characteristics.get('burst_patterns', 0.1),
+                'efficiency_score': workload_characteristics.get('efficiency_score', 0.6),
+                'optimization_potential': workload_characteristics.get('optimization_potential', 'medium'),
+                'cluster_health': workload_characteristics.get('cluster_health', {}),
+                'ml_classification': workload_characteristics.get('ml_classification', {}),
+                
+                # ===== DEBUGGING INFO =====
+                'data_structure_version': 'flattened_for_chart_compatibility',
+                'ml_data_source': 'comprehensive_self_learning_analysis',
+                'chart_data_ready': True
+            }
+            
+            logger.info("✅ FIXED: Data structure flattened for chart generator compatibility")
+            logger.info(f"✅ CPU utilization at top level: {flattened_workload_characteristics['cpu_utilization']:.1f}%")
+            logger.info(f"✅ Memory utilization at top level: {flattened_workload_characteristics['memory_utilization']:.1f}%")
             
             return {
                 'hpa_chart_data': chart_data,
@@ -424,20 +478,7 @@ class MLEnhancedHPARecommendationEngine:
                     'ml_analysis': True,
                     'self_learning_enabled': True
                 },
-                'workload_characteristics': {
-                    'comprehensive_ml_classification': workload_classification,
-                    'optimization_analysis': optimization_analysis,
-                    'hpa_recommendation': hpa_recommendation,
-                    'workload_characteristics': workload_characteristics,
-                    'workload_type': workload_type,
-                    'confidence': confidence,
-                    'primary_action': primary_action,
-                    # ===== CRITICAL: ADD HIGH CPU WORKLOAD DATA HERE =====
-                    'high_cpu_workloads': high_cpu_workloads,
-                    'max_cpu_utilization': max_cpu_utilization,
-                    'average_cpu_utilization': avg_cpu_utilization,
-                    'high_cpu_count': len(high_cpu_workloads)
-                },
+                'workload_characteristics': flattened_workload_characteristics,  # ✅ FIXED: Flattened structure
                 'ml_enhanced': True,
                 'comprehensive_self_learning': True,
                 'consistency_verified': True
@@ -577,11 +618,12 @@ class MLEnhancedHPARecommendationEngine:
         }
     
     def _generate_comprehensive_ml_recommendation(self, workload_type: str, primary_action: str, 
-                                                confidence: float, avg_cpu: float, avg_memory: float, 
-                                                actual_costs: Dict, hpa_recommendation: Dict,
-                                                optimization_analysis: Dict) -> Dict:
+                                            confidence: float, avg_cpu: float, avg_memory: float, 
+                                            actual_costs: Dict, hpa_recommendation: Dict,
+                                            optimization_analysis: Dict) -> Dict:
         """
         Generate recommendation text using comprehensive ML analysis
+        ROOT FIX: Every recommendation MUST include ml_enhanced: True
         """
         node_cost = actual_costs.get('monthly_actual_node', 0)
         
@@ -590,8 +632,22 @@ class MLEnhancedHPARecommendationEngine:
         expected_improvement = hpa_recommendation.get('expected_improvement', 'To be determined')
         implementation_timeline = hpa_recommendation.get('implementation_timeline', 'immediate')
         
+        # ROOT FIX: Base recommendation structure with REQUIRED ml_enhanced flag
+        base_recommendation = {
+            'confidence': confidence,
+            'ml_enhanced': True,  # ✅ ROOT FIX: This is what generate_insights checks for
+            'ml_reasoning': f'Comprehensive ML detected {workload_type} pattern',
+            'implementation_timeline': implementation_timeline,
+            'workload_type': workload_type,
+            'primary_action': primary_action,
+            'expected_improvement': expected_improvement,
+            'cost_analysis': cost_analysis,
+            'method': 'comprehensive_self_learning_ml'
+        }
+        
         if primary_action == 'OPTIMIZE_APPLICATION':
-            return {
+            recommendation = {
+                **base_recommendation,  # Include base with ml_enhanced: True
                 'title': f'🔧 Optimize {workload_type} Workload (Comprehensive ML)',
                 'description': (
                     f'Comprehensive self-learning ML analysis classified this as a {workload_type} workload with {confidence:.1%} confidence. '
@@ -599,17 +655,15 @@ class MLEnhancedHPARecommendationEngine:
                     f'Optimization recommended before scaling. Expected improvement: {expected_improvement}.'
                 ),
                 'action': 'OPTIMIZE_APPLICATION',
-                'confidence': confidence,
                 'cost_impact': {
                     'monthly_impact': cost_analysis.get('potential_monthly_savings', node_cost * 0.25), 
                     'impact_type': 'optimization_savings'
-                },
-                'ml_reasoning': f'Comprehensive ML detected {workload_type} pattern suggesting application inefficiency',
-                'implementation_timeline': implementation_timeline
+                }
             }
             
         elif workload_type == 'MEMORY_INTENSIVE':
-            return {
+            recommendation = {
+                **base_recommendation,  # Include base with ml_enhanced: True
                 'title': '💾 Memory-based HPA Recommended (Comprehensive ML)',
                 'description': (
                     f'Comprehensive self-learning ML classified workload as {workload_type} with {confidence:.1%} confidence. '
@@ -617,17 +671,15 @@ class MLEnhancedHPARecommendationEngine:
                     f'Expected improvement: {expected_improvement}.'
                 ),
                 'action': 'IMPLEMENT_MEMORY_HPA',
-                'confidence': confidence,
                 'cost_impact': {
                     'monthly_impact': cost_analysis.get('potential_monthly_savings', node_cost * 0.15), 
                     'impact_type': 'scaling_optimization'
-                },
-                'ml_reasoning': f'Comprehensive ML classification indicates memory-dominant workload pattern',
-                'implementation_timeline': implementation_timeline
+                }
             }
             
         elif workload_type == 'CPU_INTENSIVE':
-            return {
+            recommendation = {
+                **base_recommendation,  # Include base with ml_enhanced: True
                 'title': '⚡ CPU-based HPA Recommended (Comprehensive ML)',
                 'description': (
                     f'Comprehensive self-learning ML classified workload as {workload_type} with {confidence:.1%} confidence. '
@@ -635,17 +687,15 @@ class MLEnhancedHPARecommendationEngine:
                     f'Expected improvement: {expected_improvement}.'
                 ),
                 'action': 'IMPLEMENT_CPU_HPA',
-                'confidence': confidence,
                 'cost_impact': {
                     'monthly_impact': cost_analysis.get('potential_monthly_savings', node_cost * 0.12), 
                     'impact_type': 'scaling_optimization'
-                },
-                'ml_reasoning': f'Comprehensive ML classification indicates CPU-dominant workload pattern',
-                'implementation_timeline': implementation_timeline
+                }
             }
             
         elif workload_type == 'BURSTY':
-            return {
+            recommendation = {
+                **base_recommendation,  # Include base with ml_enhanced: True
                 'title': '📈 Predictive Scaling for Bursty Workload (Comprehensive ML)',
                 'description': (
                     f'Comprehensive self-learning ML detected {workload_type} traffic pattern with {confidence:.1%} confidence. '
@@ -653,48 +703,48 @@ class MLEnhancedHPARecommendationEngine:
                     f'Expected improvement: {expected_improvement}.'
                 ),
                 'action': 'IMPLEMENT_PREDICTIVE_SCALING',
-                'confidence': confidence,
                 'cost_impact': {
                     'monthly_impact': cost_analysis.get('potential_monthly_savings', node_cost * 0.20), 
                     'impact_type': 'burst_optimization'
-                },
-                'ml_reasoning': f'Comprehensive ML detected burst patterns requiring advanced scaling',
-                'implementation_timeline': implementation_timeline
+                }
             }
             
         elif workload_type == 'LOW_UTILIZATION':
-            return {
+            recommendation = {
+                **base_recommendation,  # Include base with ml_enhanced: True
                 'title': '📉 Resource Right-sizing Opportunity (Comprehensive ML)',
                 'description': (
                     f'Comprehensive self-learning ML classified workload as {workload_type} with {confidence:.1%} confidence. '
                     f'Significant resource reduction possible. Expected improvement: {expected_improvement}.'
                 ),
                 'action': 'REDUCE_RESOURCES',
-                'confidence': confidence,
                 'cost_impact': {
                     'monthly_impact': cost_analysis.get('potential_monthly_savings', node_cost * 0.30), 
                     'impact_type': 'rightsizing_savings'
-                },
-                'ml_reasoning': f'Comprehensive ML detected over-provisioning in workload pattern',
-                'implementation_timeline': implementation_timeline
+                }
             }
             
         else:  # BALANCED
-            return {
+            recommendation = {
+                **base_recommendation,  # Include base with ml_enhanced: True
                 'title': '⚖️ Balanced Scaling Approach (Comprehensive ML)',
                 'description': (
                     f'Comprehensive self-learning ML classified workload as {workload_type} with {confidence:.1%} confidence. '
                     f'Hybrid HPA approach recommended. Expected improvement: {expected_improvement}.'
                 ),
                 'action': 'IMPLEMENT_HYBRID_HPA',
-                'confidence': confidence,
                 'cost_impact': {
                     'monthly_impact': cost_analysis.get('potential_monthly_savings', node_cost * 0.10), 
                     'impact_type': 'balanced_optimization'
-                },
-                'ml_reasoning': f'Comprehensive ML detected balanced resource usage pattern',
-                'implementation_timeline': implementation_timeline
+                }
             }
+        
+        # ROOT FIX: Double-check that ml_enhanced is definitely set
+        recommendation['ml_enhanced'] = True
+        
+        logger.info(f"✅ ROOT FIX: ML recommendation created with ml_enhanced=True for {workload_type}")
+        
+        return recommendation
     
     def _validate_comprehensive_ml_consistency(self, recommendation: Dict) -> Dict:
         """Validate comprehensive ML output for contradictions"""

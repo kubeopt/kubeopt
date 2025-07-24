@@ -16,62 +16,69 @@ from typing import List
 current_dir = os.path.dirname(__file__)
 sys.path.append(current_dir)
 
-# FIXED IMPORTS - use relative imports for current structure
-from config import (
+# FIXED IMPORTS - use correct relative imports
+from app.main.config import (
     logger, enhanced_cluster_manager, analysis_status_tracker, 
     _analysis_lock, _analysis_sessions, analysis_cache
 )
 from app.services.background_processor import run_subscription_aware_background_analysis
-from shared import _get_analysis_data  # Import from shared module
+from app.main.shared import _get_analysis_data  # Import from shared module
 from app.services.subscription_manager import azure_subscription_manager
 from app.data.processing.analysis_engine import multi_subscription_analysis_engine
 
 # FIXED: Import alerts integration
-from services.alerts_integration import initialize_alerts_system, register_alerts_routes, get_alerts_manager
+from app.services.alerts_integration import initialize_alerts_system, register_alerts_routes, get_alerts_manager
 
-# CPU Workload Integration imports with error handling
+# FIXED: Import chart functions from correct location
 chart_generator_functions = {}
 try:
-    from chart_generator import generate_dynamic_hpa_comparison
+    from app.interface.chart_generator import generate_dynamic_hpa_comparison
     chart_generator_functions['hpa_comparison'] = generate_dynamic_hpa_comparison
 except ImportError as e:
     logger.warning(f"⚠️ Could not import generate_dynamic_hpa_comparison: {e}")
 
 try:
-    from chart_generator import generate_insights
+    from app.interface.chart_generator import generate_insights
     chart_generator_functions['insights'] = generate_insights
 except ImportError as e:
     logger.warning(f"⚠️ Could not import generate_insights: {e}")
 
 try:
-    from chart_generator import generate_node_utilization_data
+    from app.interface.chart_generator import generate_node_utilization_data
     chart_generator_functions['node_utilization'] = generate_node_utilization_data
 except ImportError as e:
     logger.warning(f"⚠️ Could not import generate_node_utilization_data: {e}")
 
 try:
-    from chart_generator import generate_pod_cost_data
+    from app.interface.chart_generator import generate_pod_cost_data
     chart_generator_functions['pod_cost'] = generate_pod_cost_data
 except ImportError as e:
     logger.warning(f"⚠️ Could not import generate_pod_cost_data: {e}")
 
 try:
-    from chart_generator import generate_namespace_data
+    from app.interface.chart_generator import generate_namespace_data
     chart_generator_functions['namespace'] = generate_namespace_data
 except ImportError as e:
     logger.warning(f"⚠️ Could not import generate_namespace_data: {e}")
 
 try:
-    from chart_generator import generate_workload_data
+    from app.interface.chart_generator import generate_workload_data
     chart_generator_functions['workload'] = generate_workload_data
 except ImportError as e:
     logger.warning(f"⚠️ Could not import generate_workload_data: {e}")
 
 try:
-    from chart_generator import generate_dynamic_trend_data
+    from app.interface.chart_generator import generate_dynamic_trend_data
     chart_generator_functions['trend'] = generate_dynamic_trend_data
 except ImportError as e:
     logger.warning(f"⚠️ Could not import generate_dynamic_trend_data: {e}")
+
+# FIXED: Import CPU data extraction function
+try:
+    from app.interface.chart_generator import _extract_cpu_workload_data
+    chart_generator_functions['cpu_workload'] = _extract_cpu_workload_data
+except ImportError as e:
+    logger.warning(f"⚠️ Could not import _extract_cpu_workload_data: {e}")
 
 # Cache management imports with fallback
 try:
@@ -259,11 +266,10 @@ def register_api_routes(app):
     @app.route('/api/chart-data')
     def api_chart_data():
         """
-        UNIFIED: Enhanced Chart data API with CPU workload integration and subscription awareness
-        Combines functionality from both files
+        UNIFIED: Enhanced Chart data API with CPU workload integration - REAL DATA ONLY
         """
         try:
-            logger.info("📊 Enhanced chart data API called with CPU workload integration and subscription awareness")
+            logger.info("📊 Enhanced chart data API called - REAL DATA ONLY")
             
             # Get cluster ID from request
             cluster_id = request.args.get('cluster_id')
@@ -274,9 +280,9 @@ def register_api_routes(app):
                     'message': 'cluster_id parameter is required'
                 }), 400
             
-            logger.info(f"📊 ENHANCED: Chart data request for cluster: {cluster_id}")
+            logger.info(f"📊 REAL DATA: Chart data request for cluster: {cluster_id}")
             
-            # Get cluster info with subscription context (with error handling)
+            # Get cluster info with subscription context
             cluster = None
             try:
                 cluster = enhanced_cluster_manager.get_cluster(cluster_id)
@@ -285,7 +291,7 @@ def register_api_routes(app):
             except Exception as cluster_error:
                 logger.warning(f"⚠️ Could not retrieve cluster info: {cluster_error}")
             
-            # Get analysis data from database or cache
+            # Get REAL analysis data from database or cache
             analysis_data = get_cluster_analysis_data(cluster_id)
             
             if not analysis_data:
@@ -295,10 +301,7 @@ def register_api_routes(app):
                     'message': 'No analysis data available. Please run analysis first.'
                 }), 404
             
-            logger.info(f"✅ Found analysis data for cluster: {cluster_id}")
-            
-            # DEBUG: Log analysis data structure
-            debug_analysis_data_structure(analysis_data, "chart_data_api")
+            logger.info(f"✅ Found REAL analysis data for cluster: {cluster_id}")
             
             # Validate analysis_data is a dict before proceeding
             if not isinstance(analysis_data, dict):
@@ -312,7 +315,7 @@ def register_api_routes(app):
                     }
                 }), 500
             
-            # Extract basic metrics (now safe since we validated it's a dict)
+            # Extract basic metrics from REAL data
             metrics = {
                 'total_cost': ensure_float(analysis_data.get('total_cost', 0)),
                 'total_savings': ensure_float(analysis_data.get('total_savings', 0)),
@@ -328,42 +331,43 @@ def register_api_routes(app):
                 'memory_gap': ensure_float(analysis_data.get('memory_gap', 0))
             }
             
-            # ENHANCED: Generate comprehensive CPU workload data
-            cpu_workload_data = extract_comprehensive_cpu_metrics(analysis_data)
+            # FIXED: Generate REAL CPU workload data with proper error handling
+            cpu_workload_data = extract_real_cpu_metrics(analysis_data)
             
-            # Generate chart data with CPU awareness
+            # Generate chart data with REAL CPU awareness
             chart_data = {
                 'status': 'success',
                 'metrics': metrics,
-                'cpuWorkloadMetrics': cpu_workload_data,  # NEW: CPU workload metrics
+                'cpuWorkloadMetrics': cpu_workload_data,  # REAL CPU workload metrics
                 'metadata': {
                     'cluster_id': cluster_id,
                     'timestamp': datetime.utcnow().isoformat(),
                     'is_real_data': True,
-                    'has_cpu_analysis': cpu_workload_data['data_source'] != 'error_fallback',
-                    'cpu_analysis_quality': cpu_workload_data.get('data_source', 'unknown'),
+                    'has_cpu_analysis': cpu_workload_data.get('cpu_analysis_available', False),
+                    'cpu_analysis_quality': 'real_ml_data' if cpu_workload_data.get('has_high_cpu_workloads') else 'basic_analysis',
                     'subscription_id': cluster.get('subscription_id') if cluster else None,
-                    'subscription_name': cluster.get('subscription_name') if cluster else None
+                    'subscription_name': cluster.get('subscription_name') if cluster else None,
+                    'real_data_only': True
                 }
             }
             
-            # Generate all chart datasets with error handling
+            # Generate all chart datasets with REAL data validation
             try:
                 # Validate analysis_data type before chart generation
                 if not isinstance(analysis_data, dict):
                     logger.error(f"❌ Chart generation: analysis_data is {type(analysis_data)}, expected dict")
                     raise ValueError(f"Invalid analysis_data type: {type(analysis_data)}")
                 
-                # Cost breakdown (internal function)
+                # Cost breakdown (internal function) - REAL DATA ONLY
                 try:
-                    cost_breakdown = generate_cost_breakdown_chart_data(analysis_data)
+                    cost_breakdown = generate_real_cost_breakdown_chart_data(analysis_data)
                     if cost_breakdown:
                         chart_data['costBreakdown'] = cost_breakdown
-                        logger.info("✅ Generated cost breakdown chart")
+                        logger.info("✅ Generated REAL cost breakdown chart")
                 except Exception as cost_error:
-                    logger.warning(f"⚠️ Could not generate cost breakdown: {cost_error}")
+                    logger.error(f"❌ Could not generate cost breakdown: {cost_error}")
                 
-                # Enhanced HPA comparison with CPU data (external function)
+                # Enhanced HPA comparison with CPU data (external function) - REAL DATA ONLY
                 if 'hpa_comparison' in chart_generator_functions:
                     try:
                         hpa_comparison = safe_chart_function_call(
@@ -373,11 +377,11 @@ def register_api_routes(app):
                         )
                         if hpa_comparison:
                             chart_data['hpaComparison'] = hpa_comparison
-                            logger.info(f"✅ Generated HPA chart with CPU data: {hpa_comparison.get('has_high_cpu_alerts', False)}")
+                            logger.info(f"✅ Generated REAL HPA chart with CPU data: {hpa_comparison.get('has_high_cpu_alerts', False)}")
                     except Exception as hpa_error:
-                        logger.warning(f"⚠️ Could not generate HPA comparison: {hpa_error}")
+                        logger.error(f"❌ Could not generate HPA comparison: {hpa_error}")
                 
-                # Node utilization (external function)
+                # Node utilization (external function) - REAL DATA ONLY
                 if 'node_utilization' in chart_generator_functions:
                     try:
                         node_utilization = safe_chart_function_call(
@@ -387,20 +391,20 @@ def register_api_routes(app):
                         )
                         if node_utilization:
                             chart_data['nodeUtilization'] = node_utilization
-                            logger.info("✅ Generated node utilization chart")
+                            logger.info("✅ Generated REAL node utilization chart")
                     except Exception as node_error:
-                        logger.warning(f"⚠️ Could not generate node utilization: {node_error}")
+                        logger.error(f"❌ Could not generate node utilization: {node_error}")
                 
-                # Savings breakdown (internal function)
+                # Savings breakdown (internal function) - REAL DATA ONLY
                 try:
-                    savings_breakdown = generate_savings_breakdown_data(analysis_data)
+                    savings_breakdown = generate_real_savings_breakdown_data(analysis_data)
                     if savings_breakdown:
                         chart_data['savingsBreakdown'] = savings_breakdown
-                        logger.info("✅ Generated savings breakdown chart")
+                        logger.info("✅ Generated REAL savings breakdown chart")
                 except Exception as savings_error:
-                    logger.warning(f"⚠️ Could not generate savings breakdown: {savings_error}")
+                    logger.error(f"❌ Could not generate savings breakdown: {savings_error}")
                 
-                # Trend data (external function)
+                # Trend data (external function) - REAL DATA ONLY
                 if 'trend' in chart_generator_functions:
                     try:
                         trend_data = safe_chart_function_call(
@@ -410,11 +414,11 @@ def register_api_routes(app):
                         )
                         if trend_data:
                             chart_data['trendData'] = trend_data
-                            logger.info("✅ Generated trend data chart")
+                            logger.info("✅ Generated REAL trend data chart")
                     except Exception as trend_error:
-                        logger.warning(f"⚠️ Could not generate trend data: {trend_error}")
+                        logger.error(f"❌ Could not generate trend data: {trend_error}")
                 
-                # Pod cost analysis (external functions)
+                # Pod cost analysis (external functions) - REAL DATA ONLY
                 if analysis_data.get('has_pod_costs'):
                     if 'pod_cost' in chart_generator_functions:
                         try:
@@ -425,9 +429,9 @@ def register_api_routes(app):
                             )
                             if pod_cost_data:
                                 chart_data['podCostBreakdown'] = pod_cost_data
-                                logger.info("✅ Generated pod cost breakdown chart")
+                                logger.info("✅ Generated REAL pod cost breakdown chart")
                         except Exception as pod_error:
-                            logger.warning(f"⚠️ Could not generate pod cost data: {pod_error}")
+                            logger.error(f"❌ Could not generate pod cost data: {pod_error}")
                     
                     if 'namespace' in chart_generator_functions:
                         try:
@@ -438,9 +442,9 @@ def register_api_routes(app):
                             )
                             if namespace_data:
                                 chart_data['namespaceDistribution'] = namespace_data
-                                logger.info("✅ Generated namespace distribution chart")
+                                logger.info("✅ Generated REAL namespace distribution chart")
                         except Exception as namespace_error:
-                            logger.warning(f"⚠️ Could not generate namespace data: {namespace_error}")
+                            logger.error(f"❌ Could not generate namespace data: {namespace_error}")
                     
                     if 'workload' in chart_generator_functions:
                         try:
@@ -451,11 +455,11 @@ def register_api_routes(app):
                             )
                             if workload_data:
                                 chart_data['workloadCosts'] = workload_data
-                                logger.info("✅ Generated workload costs chart")
+                                logger.info("✅ Generated REAL workload costs chart")
                         except Exception as workload_error:
-                            logger.warning(f"⚠️ Could not generate workload data: {workload_error}")
+                            logger.error(f"❌ Could not generate workload data: {workload_error}")
                 
-                # ENHANCED: Generate insights with CPU considerations (external function)
+                # Generate insights with CPU considerations (external function) - REAL DATA ONLY
                 if 'insights' in chart_generator_functions:
                     try:
                         insights = safe_chart_function_call(
@@ -465,23 +469,22 @@ def register_api_routes(app):
                         )
                         if insights:
                             chart_data['insights'] = insights
-                            logger.info(f"✅ Generated insights including CPU analysis")
+                            logger.info(f"✅ Generated REAL insights including CPU analysis")
                     except Exception as insights_error:
-                        logger.warning(f"⚠️ Could not generate insights: {insights_error}")
+                        logger.error(f"❌ Could not generate insights: {insights_error}")
                 
             except Exception as chart_error:
                 logger.error(f"❌ Error generating chart data: {chart_error}")
-                # Continue with basic metrics even if chart generation fails
-                chart_data['chart_generation_errors'] = str(chart_error)
-                chart_data['chart_generation_debug'] = {
-                    'analysis_data_type': str(type(analysis_data)),
-                    'analysis_data_keys': list(analysis_data.keys()) if isinstance(analysis_data, dict) else 'NOT_A_DICT'
-                }
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to generate chart data: {chart_error}',
+                    'cluster_id': cluster_id
+                }), 500
             
-            logger.info(f"✅ ENHANCED: Chart data generated successfully for cluster: {cluster_id}")
-            logger.info(f"📊 CPU Analysis: {cpu_workload_data['has_high_cpu_workloads']} high CPU workloads, "
-                       f"avg: {cpu_workload_data['average_cpu_utilization']:.1f}%, "
-                       f"max: {cpu_workload_data['max_cpu_utilization']:.1f}%")
+            logger.info(f"✅ REAL DATA: Chart data generated successfully for cluster: {cluster_id}")
+            logger.info(f"📊 CPU Analysis: {cpu_workload_data.get('has_high_cpu_workloads', False)} high CPU workloads, "
+                       f"avg: {cpu_workload_data.get('average_cpu_utilization', 0):.1f}%, "
+                       f"max: {cpu_workload_data.get('max_cpu_utilization', 0):.1f}%")
             
             return jsonify(chart_data)
             
@@ -496,7 +499,7 @@ def register_api_routes(app):
 
     @app.route('/api/implementation-plan')
     def get_implementation_plan():
-        """ Implementation plan API with better error handling"""
+        """ ENHANCED: Implementation plan API with format selection and better error handling"""
         try:
             logger.info("📋 Implementation plan API called")
             
@@ -516,6 +519,10 @@ def register_api_routes(app):
                     'status': 'error',
                     'message': 'No cluster ID provided for implementation plan'
                 }), 400
+            
+            # NEW: Check format parameter
+            format_type = request.args.get('format', 'comprehensive')  # 'comprehensive' or 'timeline'
+            logger.info(f"📋 Format requested: {format_type}")
             
             # Get cluster info
             cluster = enhanced_cluster_manager.get_cluster(cluster_id)
@@ -552,7 +559,7 @@ def register_api_routes(app):
             current_analysis['cluster_name'] = cluster['name']
             current_analysis['resource_group'] = cluster['resource_group']
             
-            # Get existing implementation plan
+            # MODIFIED: Use enhanced generator with format support
             implementation_plan = current_analysis.get('implementation_plan')
             
             # Check if we need to generate/regenerate the plan
@@ -566,28 +573,31 @@ def register_api_routes(app):
             )
             
             if needs_generation:
-                logger.info(f"🔄 API: Generating implementation plan for {cluster_id}")
+                logger.info(f"🔄 API: Generating implementation plan for {cluster_id} in {format_type} format")
                 try:
                     from app.main.config import implementation_generator
                     from app.services.cache_manager import save_to_cache
                     
-                    # Generate fresh plan
-                    fresh_plan = implementation_generator.generate_implementation_plan(current_analysis)
+                    # MODIFIED: Generate with format parameter
+                    fresh_plan = implementation_generator.generate_implementation_plan_for_api(
+                        current_analysis, 
+                        output_format=format_type
+                    )
                     
                     # Validate the generated plan
                     if not isinstance(fresh_plan, dict):
                         logger.error(f"❌ Generator returned {type(fresh_plan)}, expected dict")
                         raise ValueError(f"Generator returned invalid type: {type(fresh_plan)}")
                     
-                    if 'implementation_phases' not in fresh_plan:
-                        logger.error(f"❌ Generated plan missing 'implementation_phases'")
-                        logger.error(f"❌ Generated plan keys: {list(fresh_plan.keys())}")
-                        raise ValueError("Generated plan missing 'implementation_phases'")
-                    
-                    phases = fresh_plan['implementation_phases']
-                    if not isinstance(phases, list) or len(phases) == 0:
-                        logger.error(f"❌ Implementation phases invalid: {type(phases)}, length: {len(phases) if isinstance(phases, list) else 'N/A'}")
-                        raise ValueError("Implementation phases must be a non-empty list")
+                    # Validate based on format
+                    if format_type == 'timeline':
+                        if 'weeks' not in fresh_plan:
+                            logger.error(f"❌ Timeline format missing 'weeks' key")
+                            raise ValueError("Timeline format missing 'weeks' key")
+                    else:
+                        if 'implementation_phases' not in fresh_plan:
+                            logger.error(f"❌ Comprehensive format missing 'implementation_phases' key")
+                            raise ValueError("Comprehensive format missing 'implementation_phases' key")
                     
                     # Add API metadata
                     fresh_plan['api_metadata'] = {
@@ -597,7 +607,7 @@ def register_api_routes(app):
                         'resource_group': cluster['resource_group'],
                         'subscription_id': cluster.get('subscription_id'),
                         'subscription_name': cluster.get('subscription_name'),
-                        'phases_count': len(phases),
+                        'format_type': format_type,
                         'api_generated_at': datetime.now().isoformat(),
                         'total_cost': current_analysis.get('total_cost', 0),
                         'total_savings': current_analysis.get('total_savings', 0)
@@ -611,9 +621,9 @@ def register_api_routes(app):
                         subscription_id = azure_subscription_manager.get_current_subscription()
                         save_to_cache(cluster_id, current_analysis, subscription_id)
                         enhanced_cluster_manager.update_cluster_analysis(cluster_id, current_analysis)
-                        logger.info(f"✅ API: Saved regenerated implementation plan for {cluster_id}")
+                        logger.info(f"✅ API: Saved generated implementation plan for {cluster_id}")
                     except Exception as save_error:
-                        logger.warning(f"⚠️ Failed to save regenerated plan: {save_error}")
+                        logger.warning(f"⚠️ Failed to save generated plan: {save_error}")
                     
                 except Exception as gen_error:
                     logger.error(f"❌ API: Failed to generate implementation plan: {gen_error}")
@@ -624,12 +634,25 @@ def register_api_routes(app):
                         'error_details': {
                             'cluster_id': cluster_id,
                             'data_source': data_source,
-                            'analysis_keys': list(current_analysis.keys()),
+                            'format_type': format_type,
                             'error_type': type(gen_error).__name__
                         }
                     }), 500
             else:
                 logger.info(f"✅ API: Using existing implementation plan for {cluster_id}")
+                
+                # If we have existing comprehensive plan but timeline format requested, convert it
+                if format_type == 'timeline' and 'weeks' not in implementation_plan:
+                    logger.info(f"🔄 Converting existing plan to timeline format for {cluster_id}")
+                    try:
+                        from app.main.config import implementation_generator
+                        converted_plan = implementation_generator._convert_to_timeline_format(
+                            implementation_plan, current_analysis, {'session_id': 'api-conversion'}
+                        )
+                        implementation_plan = converted_plan
+                    except Exception as convert_error:
+                        logger.warning(f"⚠️ Timeline conversion failed: {convert_error}")
+                        # Continue with original plan
             
             # **FIX: Extract framework components from the correct nested structure**
             ml_integration = implementation_plan.get('ml_integration', {})
@@ -669,19 +692,34 @@ def register_api_routes(app):
                 implementation_plan['executive_summary'] = current_analysis['executiveSummary']
                 logger.info(f"✅ Using executive_summary from current_analysis")
             
-            # Final validation before returning
-            phases = implementation_plan['implementation_phases']
-            if not isinstance(phases, list) or len(phases) == 0:
-                logger.error(f"❌ Final validation failed - phases: {type(phases)}, count: {len(phases) if isinstance(phases, list) else 'N/A'}")
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Implementation plan validation failed',
-                    'validation_details': {
-                        'phases_type': str(type(phases)),
-                        'phases_count': len(phases) if isinstance(phases, list) else 'N/A',
-                        'plan_keys': list(implementation_plan.keys())
-                    }
-                }), 500
+            # Final validation before returning - adapted for format
+            if format_type == 'timeline':
+                if 'weeks' not in implementation_plan or not isinstance(implementation_plan['weeks'], list):
+                    logger.error(f"❌ Final validation failed for timeline format")
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Timeline format validation failed',
+                        'validation_details': {
+                            'format_type': format_type,
+                            'has_weeks': 'weeks' in implementation_plan,
+                            'weeks_type': str(type(implementation_plan.get('weeks', 'missing'))),
+                            'plan_keys': list(implementation_plan.keys())
+                        }
+                    }), 500
+            else:
+                phases = implementation_plan.get('implementation_phases', [])
+                if not isinstance(phases, list) or len(phases) == 0:
+                    logger.error(f"❌ Final validation failed - phases: {type(phases)}, count: {len(phases) if isinstance(phases, list) else 'N/A'}")
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'Implementation plan validation failed',
+                        'validation_details': {
+                            'format_type': format_type,
+                            'phases_type': str(type(phases)),
+                            'phases_count': len(phases) if isinstance(phases, list) else 'N/A',
+                            'plan_keys': list(implementation_plan.keys())
+                        }
+                    }), 500
             
             # Ensure API metadata exists
             if 'api_metadata' not in implementation_plan:
@@ -692,13 +730,21 @@ def register_api_routes(app):
                     'resource_group': cluster['resource_group'],
                     'subscription_id': cluster.get('subscription_id'),
                     'subscription_name': cluster.get('subscription_name'),
-                    'phases_count': len(phases),
+                    'format_type': format_type,
                     'api_called_at': datetime.now().isoformat(),
                     'total_cost': current_analysis.get('total_cost', 0),
                     'total_savings': current_analysis.get('total_savings', 0)
                 }
             
-            logger.info(f"✅ API: Returning implementation plan for {cluster_id}: {len(phases)} phases from {data_source}")
+            # Add format metadata
+            implementation_plan['format_metadata'] = {
+                'current_format': format_type,
+                'supports_both_formats': True,
+                'comprehensive_endpoint': f'/api/implementation-plan?cluster_id={cluster_id}&format=comprehensive',
+                'timeline_endpoint': f'/api/implementation-plan?cluster_id={cluster_id}&format=timeline'
+            }
+            
+            logger.info(f"✅ API: Returning {format_type} implementation plan for {cluster_id}")
             
             return jsonify(implementation_plan)
             
@@ -708,7 +754,8 @@ def register_api_routes(app):
             return jsonify({
                 'status': 'error',
                 'message': f'Implementation plan API error: {str(e)}',
-                'error_type': type(e).__name__
+                'error_type': type(e).__name__,
+                'format_type': request.args.get('format', 'comprehensive')
             }), 500
 
     @app.route('/api/clusters', methods=['GET', 'POST'])
@@ -972,7 +1019,8 @@ def register_api_routes(app):
                     'has_node_data': current_analysis.get('has_real_node_data', False) if current_analysis else False,
                     'subscription_metadata': current_analysis.get('subscription_metadata', {}) if current_analysis else {},
                     'multi_subscription_enabled': True,
-                    'cpu_workload_support': True  # NEW: Indicate CPU workload support
+                    'cpu_workload_support': True,
+                    'real_data_only': True
                 }
                 
                 if request.args.get('include_full_results') == 'true':
@@ -980,26 +1028,22 @@ def register_api_routes(app):
                 
                 return jsonify(debug_info)
             
-            # Fallback: check global (but warn)
-            from config import analysis_results
-            logger.warning("⚠️ Debug endpoint: No cluster_id provided, checking global analysis_results")
+            # NO FALLBACK - return error if no cluster_id
             return jsonify({
-                'cluster_id': None,
-                'data_source': 'global_fallback',
-                'analysis_results_keys': list(analysis_results.keys()) if analysis_results else [],
-                'total_cost': analysis_results.get('total_cost', 'NOT_FOUND') if analysis_results else 'NO_GLOBAL_DATA',
-                'has_data': bool(analysis_results and analysis_results.get('total_cost', 0) > 0),
-                'full_results': analysis_results if analysis_results else {},
+                'status': 'error',
+                'message': 'No cluster_id provided for debug analysis',
                 'multi_subscription_enabled': True,
-                'cpu_workload_support': True
-            })
+                'cpu_workload_support': True,
+                'real_data_only': True
+            }), 400
             
         except Exception as e:
             return jsonify({
                 'error': str(e),
                 'status': 'error',
                 'multi_subscription_enabled': True,
-                'cpu_workload_support': True
+                'cpu_workload_support': True,
+                'real_data_only': True
             }), 500
 
     # Cache management API routes with subscription awareness
@@ -1081,7 +1125,6 @@ def register_api_routes(app):
                 'message': str(e)
             }), 500
 
-
 # 🆕 ENHANCED BACKGROUND ANALYSIS WITH ALERT INTEGRATION
 def run_subscription_aware_background_analysis_with_alerts(cluster_id, resource_group, cluster_name, subscription_id, days=30, enable_pod_analysis=True):
     """Enhanced background analysis that triggers alert checking"""
@@ -1114,138 +1157,90 @@ def run_subscription_aware_background_analysis_with_alerts(cluster_id, resource_
         logger.error(f"❌ Error in enhanced background analysis with alerts: {e}")
         logger.error(f"❌ Traceback: {traceback.format_exc()}")
 
-
-# Helper functions remain the same as in original code
+# FIXED Helper functions - REAL DATA ONLY
 def safe_chart_function_call(func_name, func, *args, **kwargs):
-    """Safely call a chart generation function with error handling"""
+    """Safely call a chart generation function with REAL data validation"""
     try:
-        logger.info(f"🔄 Starting {func_name} with args types: {[type(arg) for arg in args]}")
+        logger.info(f"🔄 Starting {func_name} with REAL data validation")
         
-        # Special handling for trend data function which takes (cluster_id, analysis_data)
+        # Validate first argument is a dict for most functions
+        if args and func_name != 'generate_dynamic_trend_data':
+            first_arg = args[0]
+            if not isinstance(first_arg, dict):
+                logger.error(f"❌ {func_name}: Expected dict, got {type(first_arg)}")
+                return None
+        
+        # Special handling for trend data function
         if func_name == 'generate_dynamic_trend_data' and len(args) >= 2:
             cluster_id, analysis_data = args[0], args[1]
             if not isinstance(analysis_data, dict):
                 logger.error(f"❌ {func_name}: Second argument (analysis_data) is {type(analysis_data)}, expected dict")
-                debug_analysis_data_structure(analysis_data, f"{func_name}_validation_error")
                 return None
-            logger.info(f"✅ {func_name}: Trend data input validation passed (cluster_id: {type(cluster_id)}, analysis_data: {type(analysis_data)})")
-        
-        # Standard validation for other functions (first arg should be analysis_data dict)
-        elif args:
-            first_arg = args[0]
-            if not validate_chart_input(first_arg, func_name):
-                logger.error(f"❌ {func_name}: Input validation failed")
-                return None
-        
-        # Additional logging for ML-integrated functions
-        if 'ml' in func_name.lower() or 'generate_insights' in func_name:
-            logger.info(f"🔄 {func_name}: ML-integrated function starting")
-            debug_analysis_data_structure(args[0] if args else None, f"{func_name}_ml_input")
         
         result = func(*args, **kwargs)
         
         if result:
-            logger.info(f"✅ {func_name} completed successfully with result type: {type(result)}")
+            logger.info(f"✅ {func_name} completed successfully with REAL data")
         else:
-            logger.warning(f"⚠️ {func_name} returned None/empty result")
+            logger.warning(f"⚠️ {func_name} returned None - no REAL data available")
             
         return result
         
-    except AttributeError as attr_error:
-        if "'str' object has no attribute 'get'" in str(attr_error):
-            logger.error(f"❌ {func_name}: STRING INSTEAD OF DICT ERROR!")
-            logger.error(f"❌ {func_name}: Error details: {attr_error}")
-            if args:
-                debug_analysis_data_structure(args[0], f"{func_name}_string_error")
-        else:
-            logger.error(f"❌ {func_name}: Attribute error - {attr_error}")
-        return None
     except Exception as e:
-        logger.error(f"❌ {func_name}: Unexpected error - {e}")
-        logger.error(f"❌ {func_name}: Traceback: {traceback.format_exc()}")
-        if args:
-            logger.error(f"❌ {func_name}: Args types: {[type(arg) for arg in args]}")
-            debug_analysis_data_structure(args[0], f"{func_name}_error")
+        logger.error(f"❌ {func_name}: Error with REAL data - {e}")
         return None
-
 
 def get_cluster_analysis_data(cluster_id):
-    """
-    Get cluster analysis data from database/cache with subscription awareness
-    """
+    """Get cluster analysis data from database/cache - REAL DATA ONLY"""
     try:
-        # Try cache first using the existing cache structure
+        # Try cache first
         if cluster_id in analysis_cache.get('clusters', {}):
             cached_entry = analysis_cache['clusters'][cluster_id]
             
-            # Check if cache is still valid (not expired)
+            # Check if cache is still valid
             cache_valid = True
             if CACHE_MANAGER_AVAILABLE:
                 try:
                     cache_valid = is_cache_valid(cluster_id)
                 except Exception as cache_check_error:
                     logger.warning(f"⚠️ Could not check cache validity: {cache_check_error}")
-                    cache_valid = True  # Assume valid if we can't check
+                    cache_valid = True
             
             if cache_valid:
                 cached_data = cached_entry.get('data')
-                if cached_data:
-                    logger.info(f"✅ Retrieved analysis data from cache for: {cluster_id}")
-                    debug_analysis_data_structure(cached_data, f"cache_retrieval_{cluster_id}")
+                if cached_data and isinstance(cached_data, dict):
+                    logger.info(f"✅ Retrieved REAL analysis data from cache for: {cluster_id}")
                     return cached_data
             else:
                 logger.info(f"🔄 Cache expired for cluster: {cluster_id}")
         
-        # Try database using the shared function
-        logger.info(f"🔍 Retrieving analysis data from database for: {cluster_id}")
+        # Try database
+        logger.info(f"🔍 Retrieving REAL analysis data from database for: {cluster_id}")
         current_analysis, data_source = _get_analysis_data(cluster_id)
         
-        if current_analysis:
-            logger.info(f"✅ Retrieved analysis data from {data_source} for: {cluster_id}")
-            debug_analysis_data_structure(current_analysis, f"database_retrieval_{cluster_id}_{data_source}")
+        if current_analysis and isinstance(current_analysis, dict):
+            logger.info(f"✅ Retrieved REAL analysis data from {data_source} for: {cluster_id}")
             
-            # Validate the retrieved data is a dictionary
-            if not isinstance(current_analysis, dict):
-                logger.error(f"❌ Database returned {type(current_analysis)} instead of dict for {cluster_id}")
-                logger.error(f"❌ Data preview: {str(current_analysis)[:200]}")
-                return None
-            
-            # Cache for future requests using existing cache manager
+            # Cache for future requests
             if CACHE_MANAGER_AVAILABLE:
                 try:
                     subscription_id = azure_subscription_manager.get_current_subscription()
                     save_to_cache(cluster_id, current_analysis, subscription_id)
-                    logger.info(f"💾 Cached analysis data for: {cluster_id}")
+                    logger.info(f"💾 Cached REAL analysis data for: {cluster_id}")
                 except Exception as cache_error:
                     logger.warning(f"⚠️ Could not cache data for {cluster_id}: {cache_error}")
-            else:
-                # Fallback: store directly in analysis_cache
-                try:
-                    if 'clusters' not in analysis_cache:
-                        analysis_cache['clusters'] = {}
-                    analysis_cache['clusters'][cluster_id] = {
-                        'data': current_analysis,
-                        'timestamp': datetime.now().isoformat()
-                    }
-                    logger.info(f"💾 Cached analysis data (fallback) for: {cluster_id}")
-                except Exception as fallback_cache_error:
-                    logger.warning(f"⚠️ Could not fallback cache data for {cluster_id}: {fallback_cache_error}")
             
             return current_analysis
         
-        logger.warning(f"⚠️ No analysis data found for cluster: {cluster_id}")
+        logger.warning(f"⚠️ No REAL analysis data found for cluster: {cluster_id}")
         return None
         
     except Exception as e:
-        logger.error(f"❌ Error retrieving analysis data for {cluster_id}: {e}")
-        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        logger.error(f"❌ Error retrieving REAL analysis data for {cluster_id}: {e}")
         return None
 
-
-def extract_comprehensive_cpu_metrics(analysis_data):
-    """
-    Extract comprehensive CPU metrics from analysis data with enhanced workload integration
-    """
+def extract_real_cpu_metrics(analysis_data):
+    """Extract REAL CPU metrics from analysis data - NO FALLBACKS"""
     try:
         # Validate input data type
         if not isinstance(analysis_data, dict):
@@ -1257,33 +1252,29 @@ def extract_comprehensive_cpu_metrics(analysis_data):
                 'average_cpu_utilization': 0.0,
                 'severity_level': 'none',
                 'high_cpu_workloads': [],
-                'data_source': 'type_error_fallback'
+                'cpu_analysis_available': False
             }
         
-        # Try to import and call the CPU workload function safely
-        try:
-            from chart_generator import _extract_cpu_workload_data_comprehensive
-            logger.info("🔄 Calling _extract_cpu_workload_data_comprehensive")
-            result = safe_chart_function_call(
-                '_extract_cpu_workload_data_comprehensive',
-                _extract_cpu_workload_data_comprehensive,
-                analysis_data
-            )
-            if result:
-                return result
-            else:
-                logger.warning("⚠️ CPU workload function returned None")
-        except ImportError as import_error:
-            logger.warning(f"⚠️ Could not import CPU workload function: {import_error}")
-        except Exception as cpu_error:
-            logger.error(f"❌ Error in CPU workload extraction: {cpu_error}")
+        # Try to call the REAL CPU workload function
+        if 'cpu_workload' in chart_generator_functions:
+            try:
+                logger.info("🔄 Calling REAL _extract_cpu_workload_data")
+                result = safe_chart_function_call(
+                    '_extract_cpu_workload_data',
+                    chart_generator_functions['cpu_workload'],
+                    analysis_data
+                )
+                if result and isinstance(result, dict):
+                    logger.info("✅ Successfully extracted REAL CPU workload data")
+                    return result
+                else:
+                    logger.warning("⚠️ CPU workload function returned None or invalid data")
+            except Exception as cpu_error:
+                logger.error(f"❌ Error in REAL CPU workload extraction: {cpu_error}")
+        else:
+            logger.warning("⚠️ CPU workload function not available")
         
-        # Fallback: extract basic CPU info from analysis_data
-        logger.info(" ⚠️ CPU workload function returned No data")
-        return None
-        
-    except Exception as e:
-        logger.error(f"❌ Error extracting CPU metrics: {e}")
+        # Return basic structure if no REAL CPU data available
         return {
             'has_high_cpu_workloads': False,
             'high_cpu_count': 0,
@@ -1291,22 +1282,38 @@ def extract_comprehensive_cpu_metrics(analysis_data):
             'average_cpu_utilization': 0.0,
             'severity_level': 'none',
             'high_cpu_workloads': [],
-            'data_source': 'error_fallback'
+            'cpu_analysis_available': False
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error extracting REAL CPU metrics: {e}")
+        return {
+            'has_high_cpu_workloads': False,
+            'high_cpu_count': 0,
+            'max_cpu_utilization': 0.0,
+            'average_cpu_utilization': 0.0,
+            'severity_level': 'none',
+            'high_cpu_workloads': [],
+            'cpu_analysis_available': False
         }
 
-
-def generate_cost_breakdown_chart_data(analysis_data):
-    """Generate cost breakdown chart data with subscription awareness"""
+def generate_real_cost_breakdown_chart_data(analysis_data):
+    """Generate cost breakdown chart data from REAL analysis ONLY"""
     try:
-        # Validate input data type
         if not isinstance(analysis_data, dict):
             logger.error(f"❌ Cost breakdown: Expected dict, got {type(analysis_data)}")
+            return None
+        
+        # Check if we have valid cost data
+        total_cost = ensure_float(analysis_data.get('total_cost', 0))
+        if total_cost <= 0:
+            logger.warning("⚠️ No valid total cost for breakdown chart")
             return None
         
         cost_categories = []
         cost_values = []
         
-        # Extract cost components
+        # Extract REAL cost components
         cost_components = [
             ('Node Pools', analysis_data.get('node_cost', 0)),
             ('Storage', analysis_data.get('storage_cost', 0)),
@@ -1324,7 +1331,7 @@ def generate_cost_breakdown_chart_data(analysis_data):
                 cost_values.append(float(value))
         
         if not cost_categories:
-            logger.info("ℹ️ No cost categories found for breakdown chart")
+            logger.warning("⚠️ No cost categories found for breakdown chart")
             return None
         
         return {
@@ -1332,18 +1339,16 @@ def generate_cost_breakdown_chart_data(analysis_data):
             'values': cost_values,
             'total_cost': sum(cost_values),
             'data_source': 'real_analysis',
-            'subscription_aware': True
+            'real_data_only': True
         }
         
     except Exception as e:
-        logger.error(f"❌ Error generating cost breakdown: {e}")
+        logger.error(f"❌ Error generating REAL cost breakdown: {e}")
         return None
 
-
-def generate_savings_breakdown_data(analysis_data):
-    """Generate savings breakdown chart data with CPU workload considerations"""
+def generate_real_savings_breakdown_data(analysis_data):
+    """Generate savings breakdown chart data from REAL analysis ONLY"""
     try:
-        # Validate input data type
         if not isinstance(analysis_data, dict):
             logger.error(f"❌ Savings breakdown: Expected dict, got {type(analysis_data)}")
             return None
@@ -1351,7 +1356,7 @@ def generate_savings_breakdown_data(analysis_data):
         categories = []
         values = []
         
-        # Extract savings components
+        # Extract REAL savings components
         savings_components = [
             ('HPA Optimization', analysis_data.get('hpa_savings', 0)),
             ('Right-sizing', analysis_data.get('right_sizing_savings', 0)),
@@ -1366,7 +1371,7 @@ def generate_savings_breakdown_data(analysis_data):
                 values.append(float(value))
         
         if not categories:
-            logger.info("ℹ️ No savings categories found for breakdown chart")
+            logger.warning("⚠️ No savings categories found for breakdown chart")
             return None
         
         return {
@@ -1374,21 +1379,19 @@ def generate_savings_breakdown_data(analysis_data):
             'values': values,
             'total_savings': sum(values),
             'data_source': 'real_analysis',
-            'cpu_workload_aware': True
+            'real_data_only': True
         }
         
     except Exception as e:
-        logger.error(f"❌ Error generating savings breakdown: {e}")
+        logger.error(f"❌ Error generating REAL savings breakdown: {e}")
         return None
 
-
 def calculate_optimization_score(analysis_data):
-    """Calculate optimization score based on analysis data with CPU workload factors"""
+    """Calculate optimization score based on REAL analysis data"""
     try:
-        # Validate input data type
         if not isinstance(analysis_data, dict):
             logger.error(f"❌ Optimization score: Expected dict, got {type(analysis_data)}")
-            return 50  # Default score
+            return 50
         
         total_cost = ensure_float(analysis_data.get('total_cost', 0))
         total_savings = ensure_float(analysis_data.get('total_savings', 0))
@@ -1398,16 +1401,16 @@ def calculate_optimization_score(analysis_data):
         
         savings_percentage = (total_savings / total_cost) * 100
         
-        # Factor in CPU workload efficiency
+        # Factor in CPU workload efficiency from REAL data
         cpu_efficiency_bonus = 0
         if analysis_data.get('has_cpu_analysis'):
             avg_cpu = ensure_float(analysis_data.get('average_cpu_utilization', 0))
-            if avg_cpu > 80:  # High CPU utilization
-                cpu_efficiency_bonus = -10  # Penalty for over-utilization
-            elif avg_cpu < 30:  # Low CPU utilization
-                cpu_efficiency_bonus = 5   # Bonus for under-utilization opportunity
+            if avg_cpu > 80:
+                cpu_efficiency_bonus = -10
+            elif avg_cpu < 30:
+                cpu_efficiency_bonus = 5
         
-        # Convert to 1-100 score with CPU considerations
+        # Convert to 1-100 score
         base_score = 0
         if savings_percentage > 25:
             base_score = min(100, 80 + (savings_percentage - 25))
@@ -1423,8 +1426,7 @@ def calculate_optimization_score(analysis_data):
         
     except Exception as e:
         logger.error(f"❌ Error calculating optimization score: {e}")
-        return 50  # Default score
-
+        return 50
 
 def ensure_float(value):
     """Safely convert value to float"""
@@ -1434,51 +1436,3 @@ def ensure_float(value):
         return float(value)
     except (ValueError, TypeError):
         return 0.0
-
-
-def debug_analysis_data_structure(analysis_data, context="unknown"):
-    """Debug helper to log analysis data structure"""
-    try:
-        logger.info(f"🔍 DEBUG [{context}]: analysis_data type = {type(analysis_data)}")
-        
-        if isinstance(analysis_data, dict):
-            logger.info(f"🔍 DEBUG [{context}]: Keys = {list(analysis_data.keys())}")
-            # Log a few key values for debugging
-            key_values = {}
-            for key in ['total_cost', 'total_savings', 'cluster_name', 'resource_group', 'node_metrics', 'real_node_data']:
-                if key in analysis_data:
-                    value = analysis_data[key]
-                    key_values[key] = f"{type(value)} = {str(value)[:100] if isinstance(value, (str, list)) else value}"
-            if key_values:
-                logger.info(f"🔍 DEBUG [{context}]: Key values = {key_values}")
-                
-        elif isinstance(analysis_data, str):
-            logger.warning(f"🔍 DEBUG [{context}]: STRING DETECTED! Content (first 200 chars): {analysis_data[:200]}")
-            logger.warning(f"🔍 DEBUG [{context}]: Full string length: {len(analysis_data)}")
-            
-        elif isinstance(analysis_data, list):
-            logger.info(f"🔍 DEBUG [{context}]: List length = {len(analysis_data)}")
-            if analysis_data:
-                logger.info(f"🔍 DEBUG [{context}]: First element type = {type(analysis_data[0])}")
-        else:
-            logger.warning(f"🔍 DEBUG [{context}]: Unexpected type, value = {str(analysis_data)[:200]}")
-            
-    except Exception as debug_error:
-        logger.warning(f"⚠️ Debug logging failed for [{context}]: {debug_error}")
-
-
-def validate_chart_input(analysis_data, function_name):
-    """Validate that input data is appropriate for chart generation"""
-    if not isinstance(analysis_data, dict):
-        logger.error(f"❌ {function_name}: VALIDATION FAILED - Expected dict, got {type(analysis_data)}")
-        debug_analysis_data_structure(analysis_data, f"{function_name}_validation_error")
-        return False
-    
-    # Check for required keys
-    required_keys = ['total_cost', 'total_savings']
-    missing_keys = [key for key in required_keys if key not in analysis_data]
-    if missing_keys:
-        logger.warning(f"⚠️ {function_name}: Missing keys {missing_keys}, but proceeding")
-    
-    logger.info(f"✅ {function_name}: Input validation passed")
-    return True
