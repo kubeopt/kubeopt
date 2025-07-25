@@ -198,8 +198,9 @@ class MLFrameworkStructureGenerator:
             
         except Exception as e:
             logger.error(f"❌ Failed to fetch real-time Azure patterns: {e}")
+            return None
             # Return minimal structure if API calls fail
-            azure_patterns = self._get_minimal_azure_patterns()
+            # azure_patterns = self._get_minimal_azure_patterns()
         
         # Cache the patterns
         try:
@@ -216,7 +217,7 @@ class MLFrameworkStructureGenerator:
         
         if not self.cost_client:
             logger.warning("⚠️ Cost Management client not available")
-            return self._get_fallback_pricing()
+            # return self._get_fallback_pricing()
         
         try:
             # Fetch actual Azure pricing for key services
@@ -284,7 +285,8 @@ class MLFrameworkStructureGenerator:
             
         except Exception as e:
             logger.error(f"❌ Failed to fetch Azure pricing: {e}")
-            return self._get_fallback_pricing()
+            return None
+            #return self._get_fallback_pricing()
 
     def _fetch_cluster_optimization_patterns(self) -> Dict:
         """Fetch real cluster optimization patterns from Azure Monitor and Cost Management"""
@@ -500,7 +502,8 @@ class MLFrameworkStructureGenerator:
         training_data = []
         
         # Enhanced cluster archetypes with real Azure cost patterns
-        service_costs = azure_patterns_2025.get('service_costs', self._get_fallback_pricing())
+        #service_costs = azure_patterns_2025.get('service_costs', self._get_fallback_pricing())
+        service_costs = azure_patterns_2025.get('service_costs')
         
         cluster_archetypes = [
             {

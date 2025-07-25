@@ -5,27 +5,75 @@ Enhanced Background Processing for Multi-Subscription AKS Cost Optimization
 import threading
 import time
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
+import queue
+import uuid
 from config import logger, enhanced_cluster_manager, analysis_status_tracker, analysis_results
+import psutil
+
+MAX_CONCURRENT_ANALYSES = min(
+    psutil.cpu_count() // 2,  # Half your CPU cores
+    12                        # Reasonable upper limit
+)
+# Thread management globals
+# MAX_CONCURRENT_ANALYSES = 3
+ANALYSIS_THREAD_POOL = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_ANALYSES, thread_name_prefix="BG-Analysis")
+analysis_queue = queue.Queue(maxsize=50)
+active_analyses = {}
+analysis_semaphore = threading.Semaphore(MAX_CONCURRENT_ANALYSES)
 
 def run_subscription_aware_background_analysis(cluster_id: str, resource_group: str, cluster_name: str, 
                                               subscription_id: Optional[str] = None, days: int = 30, 
                                               enable_pod_analysis: bool = True):
-    """Enhanced background analysis with full subscription awareness and tracking"""
+    """Enhanced background analysis with thread management and subscription awareness"""
     
+    # Thread-safe duplicate check with timeout
+    with threading.Lock():
+        if cluster_id in analysis_status_tracker:
+            current_status = analysis_status_tracker[cluster_id].get('status')
+            if current_status in ['running', 'analyzing']:
+                start_time = analysis_status_tracker[cluster_id].get('start_time', time.time())
+                elapsed = time.time() - start_time
+                
+                if elapsed < 1800:  # 30 minutes timeout
+                    logger.warning(f"⚠️ Analysis already running for cluster {cluster_id} ({elapsed:.0f}s), skipping duplicate")
+                    return
+                else:
+                    logger.warning(f"⚠️ Stale analysis detected for {cluster_id}, proceeding with new analysis")
+                    analysis_status_tracker.pop(cluster_id, None)
+                    active_analyses.pop(cluster_id, None)
     
-    # ✅ ADD: Check if analysis is already running for this cluster
-    if cluster_id in analysis_status_tracker:
-        current_status = analysis_status_tracker[cluster_id].get('status')
-        if current_status in ['running', 'analyzing']:
-            logger.warning(f"⚠️ Analysis already running for cluster {cluster_id}, skipping duplicate request")
+    # Check analysis capacity
+    if not analysis_semaphore.acquire(blocking=False):
+        logger.warning(f"⚠️ Analysis capacity full ({MAX_CONCURRENT_ANALYSES} running), queueing {cluster_id}")
+        try:
+            analysis_queue.put((cluster_id, resource_group, cluster_name, subscription_id, days, enable_pod_analysis), timeout=5)
+            logger.info(f"📋 Queued analysis for {cluster_id}")
+            return
+        except queue.Full:
+            logger.error(f"❌ Analysis queue full, rejecting {cluster_id}")
             return
     
     session_id = None
     
     try:
-        logger.info(f"🌐 Starting subscription-aware background analysis for {cluster_id}")
+        # Track analysis start time and thread
+        with threading.Lock():
+            analysis_status_tracker[cluster_id] = {
+                'status': 'starting',
+                'start_time': time.time(),
+                'thread_id': threading.current_thread().ident,
+                'progress': 0
+            }
+            active_analyses[cluster_id] = {
+                'session_id': None,
+                'subscription_id': subscription_id,
+                'start_time': time.time()
+            }
+        
+        logger.info(f"🌐 Starting subscription-aware background analysis for {cluster_id} (Thread: {threading.current_thread().name})")
         
         # Import subscription manager and analysis engine
         from app.services.subscription_manager import azure_subscription_manager
@@ -44,8 +92,11 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         subscription_name = subscription_info.subscription_name if subscription_info else subscription_id[:8]
         
         # Create unique session ID for tracking
-        import uuid
         session_id = f"{subscription_id[:8]}_{str(uuid.uuid4())[:8]}"
+        
+        # Update active analysis tracking
+        with threading.Lock():
+            active_analyses[cluster_id]['session_id'] = session_id
         
         # Track session in database
         session_data = {
@@ -73,16 +124,18 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             # Update cluster status
             enhanced_cluster_manager.update_analysis_status(cluster_id, 'analyzing', progress, enhanced_message)
             
-            # Update in-memory tracker
-            analysis_status_tracker[cluster_id] = {
-                'status': 'analyzing',
-                'progress': progress,
-                'message': enhanced_message,
-                'timestamp': datetime.now().isoformat(),
-                'subscription_id': subscription_id,
-                'subscription_name': subscription_name,
-                'session_id': session_id
-            }
+            # Thread-safe update of in-memory tracker
+            with threading.Lock():
+                analysis_status_tracker[cluster_id] = {
+                    'status': 'analyzing',
+                    'progress': progress,
+                    'message': enhanced_message,
+                    'timestamp': datetime.now().isoformat(),
+                    'subscription_id': subscription_id,
+                    'subscription_name': subscription_name,
+                    'session_id': session_id,
+                    'start_time': analysis_status_tracker[cluster_id].get('start_time', time.time())
+                }
             
             # Update session in database
             enhanced_cluster_manager.update_subscription_analysis_session(session_id, {
@@ -160,21 +213,22 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
                 completion_message
             )
             
-            # Update in-memory tracker
-            analysis_status_tracker[cluster_id] = {
-                'status': 'completed',
-                'progress': 100,
-                'message': 'Multi-subscription analysis completed successfully',
-                'timestamp': datetime.now().isoformat(),
-                'subscription_id': subscription_id,
-                'subscription_name': subscription_name,
-                'session_id': session_id,
-                'results': {
-                    'total_cost': analysis_results_data.get('total_cost', 0),
-                    'total_savings': analysis_results_data.get('total_savings', 0),
-                    'confidence': analysis_results_data.get('analysis_confidence', 0)
+            # Thread-safe completion update
+            with threading.Lock():
+                analysis_status_tracker[cluster_id] = {
+                    'status': 'completed',
+                    'progress': 100,
+                    'message': 'Multi-subscription analysis completed successfully',
+                    'timestamp': datetime.now().isoformat(),
+                    'subscription_id': subscription_id,
+                    'subscription_name': subscription_name,
+                    'session_id': session_id,
+                    'results': {
+                        'total_cost': analysis_results_data.get('total_cost', 0),
+                        'total_savings': analysis_results_data.get('total_savings', 0),
+                        'confidence': analysis_results_data.get('analysis_confidence', 0)
+                    }
                 }
-            }
             
             # Update session in database
             enhanced_cluster_manager.update_subscription_analysis_session(session_id, {
@@ -206,15 +260,16 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             error_message = result.get('message', 'Subscription-aware analysis failed')
             enhanced_cluster_manager.update_analysis_status(cluster_id, 'failed', 0, error_message)
             
-            analysis_status_tracker[cluster_id] = {
-                'status': 'failed',
-                'progress': 0,
-                'message': error_message,
-                'timestamp': datetime.now().isoformat(),
-                'subscription_id': subscription_id,
-                'subscription_name': subscription_name,
-                'session_id': session_id
-            }
+            with threading.Lock():
+                analysis_status_tracker[cluster_id] = {
+                    'status': 'failed',
+                    'progress': 0,
+                    'message': error_message,
+                    'timestamp': datetime.now().isoformat(),
+                    'subscription_id': subscription_id,
+                    'subscription_name': subscription_name,
+                    'session_id': session_id
+                }
             
             # Update session in database
             enhanced_cluster_manager.update_subscription_analysis_session(session_id, {
@@ -245,19 +300,80 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         
         enhanced_cluster_manager.update_analysis_status(cluster_id, 'failed', 0, error_message)
         
-        analysis_status_tracker[cluster_id] = {
-            'status': 'failed',
-            'progress': 0,
-            'message': error_message,
-            'timestamp': datetime.now().isoformat(),
-            'subscription_id': subscription_id,
-            'session_id': session_id
-        }
+        with threading.Lock():
+            analysis_status_tracker[cluster_id] = {
+                'status': 'failed',
+                'progress': 0,
+                'message': error_message,
+                'timestamp': datetime.now().isoformat(),
+                'subscription_id': subscription_id,
+                'session_id': session_id
+            }
         
         if subscription_id:
             enhanced_cluster_manager.record_subscription_performance_metric(
                 subscription_id, 'failed_analyses', 1
             )
+    
+    finally:
+        # Always clean up resources
+        try:
+            with threading.Lock():
+                active_analyses.pop(cluster_id, None)
+            analysis_semaphore.release()
+            logger.info(f"🧹 Released analysis slot for {cluster_id}")
+            
+            # Process next item in queue if any
+            try:
+                next_analysis = analysis_queue.get_nowait()
+                logger.info(f"📋 Processing queued analysis: {next_analysis[0]}")
+                ANALYSIS_THREAD_POOL.submit(run_subscription_aware_background_analysis, *next_analysis)
+            except queue.Empty:
+                pass
+                
+        except Exception as cleanup_error:
+            logger.error(f"❌ Error during analysis cleanup: {cleanup_error}")
+
+def start_analysis_queue_processor():
+    """Start background processor for queued analyses"""
+    def queue_processor():
+        while True:
+            try:
+                time.sleep(10)
+                
+                while not analysis_queue.empty():
+                    try:
+                        analysis_params = analysis_queue.get_nowait()
+                        cluster_id = analysis_params[0]
+                        
+                        if cluster_id not in active_analyses:
+                            future = ANALYSIS_THREAD_POOL.submit(run_subscription_aware_background_analysis, *analysis_params)
+                            logger.info(f"📋 Submitted queued analysis for {cluster_id}")
+                        else:
+                            logger.info(f"⚠️ Skipping queued analysis for {cluster_id} - already active")
+                            
+                    except queue.Empty:
+                        break
+                    except Exception as e:
+                        logger.error(f"❌ Error processing analysis queue: {e}")
+                        
+            except Exception as e:
+                logger.error(f"❌ Analysis queue processor error: {e}")
+                time.sleep(60)
+    
+    processor_thread = threading.Thread(target=queue_processor, daemon=True, name="AnalysisQueueProcessor")
+    processor_thread.start()
+    logger.info("✅ Analysis queue processor started")
+
+def initialize_background_analysis_system():
+    """Initialize the background analysis system with thread management"""
+    try:
+        start_analysis_queue_processor()
+        logger.info(f"✅ Background analysis system initialized - Max concurrent: {MAX_CONCURRENT_ANALYSES}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize background analysis system: {e}")
+        return False
 
 def check_subscription_aware_alerts_after_analysis(cluster_id: str, analysis_results: dict, subscription_id: str):
     """Enhanced alert checking with subscription context"""
@@ -297,7 +413,6 @@ def check_subscription_aware_alerts_after_analysis(cluster_id: str, analysis_res
             
             for alert in cluster_alerts:
                 try:
-                    # Enhanced threshold check with subscription context
                     threshold = alert.get('threshold_amount', 0)
                     
                     if threshold > 0 and current_cost >= threshold:
@@ -307,12 +422,9 @@ def check_subscription_aware_alerts_after_analysis(cluster_id: str, analysis_res
                         logger.info(f"🚨 Alert would trigger for cluster {cluster_id} in {subscription_name}: ${current_cost:.2f} >= ${threshold:.2f}")
                         alerts_triggered += 1
                         
-                        # Record alert trigger metric
                         enhanced_cluster_manager.record_subscription_performance_metric(
                             subscription_id, 'alerts_triggered', 1
                         )
-                        
-                        # For now, just log it - full alert sending would be implemented here
                         
                 except Exception as alert_error:
                     logger.error(f"❌ Error checking subscription-aware alert {alert.get('id')}: {alert_error}")
@@ -328,14 +440,16 @@ def check_subscription_aware_alerts_after_analysis(cluster_id: str, analysis_res
     except Exception as e:
         logger.error(f"❌ Error checking subscription-aware alerts after analysis: {e}")
 
-def run_batch_subscription_analysis(cluster_configs: list, max_concurrent: int = 3):
-    """Run analysis for multiple clusters across subscriptions with concurrency control"""
-    import concurrent.futures
+def run_batch_subscription_analysis(cluster_configs: list, max_concurrent: int = 2):
+    """Run analysis for multiple clusters with proper thread management"""
     
-    logger.info(f"🌐 Starting batch subscription-aware analysis for {len(cluster_configs)} clusters")
+    effective_max = min(max_concurrent, MAX_CONCURRENT_ANALYSES)
     
-    def analyze_single_cluster(config):
-        """Wrapper for single cluster analysis"""
+    logger.info(f"🌐 Starting batch subscription-aware analysis for {len(cluster_configs)} clusters (max concurrent: {effective_max})")
+    
+    results = []
+    
+    for config in cluster_configs:
         try:
             cluster_id = config['cluster_id']
             resource_group = config['resource_group']
@@ -344,61 +458,17 @@ def run_batch_subscription_analysis(cluster_configs: list, max_concurrent: int =
             days = config.get('days', 30)
             enable_pod_analysis = config.get('enable_pod_analysis', True)
             
-            run_subscription_aware_background_analysis(
+            future = ANALYSIS_THREAD_POOL.submit(
+                run_subscription_aware_background_analysis,
                 cluster_id, resource_group, cluster_name, subscription_id, days, enable_pod_analysis
             )
             
-            return {'cluster_id': cluster_id, 'status': 'success'}
+            logger.info(f"📋 Submitted batch analysis for {cluster_id}")
+            results.append({'cluster_id': cluster_id, 'status': 'submitted', 'future': future})
             
         except Exception as e:
-            logger.error(f"❌ Batch analysis failed for cluster {config.get('cluster_id', 'unknown')}: {e}")
-            return {'cluster_id': config.get('cluster_id', 'unknown'), 'status': 'failed', 'error': str(e)}
-    
-    # Group clusters by subscription for better resource management
-    clusters_by_subscription = {}
-    for config in cluster_configs:
-        sub_id = config.get('subscription_id', 'unknown')
-        if sub_id not in clusters_by_subscription:
-            clusters_by_subscription[sub_id] = []
-        clusters_by_subscription[sub_id].append(config)
-    
-    logger.info(f"🌐 Batch analysis across {len(clusters_by_subscription)} subscriptions")
-    
-    results = []
-    
-    # Use ThreadPoolExecutor for concurrent analysis
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-        # Submit all analysis tasks
-        future_to_config = {
-            executor.submit(analyze_single_cluster, config): config 
-            for config in cluster_configs
-        }
-        
-        # Collect results as they complete
-        for future in concurrent.futures.as_completed(future_to_config, timeout=1800):  # 30 min timeout
-            config = future_to_config[future]
-            try:
-                result = future.result()
-                results.append(result)
-                
-                if result['status'] == 'success':
-                    logger.info(f"✅ Batch analysis completed for cluster {result['cluster_id']}")
-                else:
-                    logger.error(f"❌ Batch analysis failed for cluster {result['cluster_id']}")
-                    
-            except Exception as exc:
-                logger.error(f"❌ Batch analysis exception for cluster {config.get('cluster_id', 'unknown')}: {exc}")
-                results.append({
-                    'cluster_id': config.get('cluster_id', 'unknown'),
-                    'status': 'failed',
-                    'error': str(exc)
-                })
-    
-    # Summary
-    successful = len([r for r in results if r['status'] == 'success'])
-    failed = len([r for r in results if r['status'] == 'failed'])
-    
-    logger.info(f"🌐 Batch subscription analysis completed: {successful} successful, {failed} failed")
+            logger.error(f"❌ Failed to submit batch analysis for {config.get('cluster_id', 'unknown')}: {e}")
+            results.append({'cluster_id': config.get('cluster_id', 'unknown'), 'status': 'failed', 'error': str(e)})
     
     return results
 
@@ -453,18 +523,14 @@ def schedule_subscription_analysis_maintenance():
     def maintenance_worker():
         while True:
             try:
-                # Run health check every 30 minutes
                 time.sleep(1800)  # 30 minutes
                 
                 logger.info("🧹 Running scheduled subscription analysis maintenance...")
                 
-                # Clean up stale sessions
                 stale_cleaned = enhanced_cluster_manager.cleanup_stale_subscription_sessions()
                 
-                # Validate subscription contexts
                 validation_results = enhanced_cluster_manager.validate_all_subscription_contexts()
                 
-                # Clean up old performance metrics (keep last 7 days)
                 cutoff_time = datetime.now() - timedelta(days=7)
                 with sqlite3.connect(enhanced_cluster_manager.db_path) as conn:
                     cursor = conn.execute('''
@@ -480,13 +546,11 @@ def schedule_subscription_analysis_maintenance():
             except Exception as e:
                 logger.error(f"❌ Subscription analysis maintenance error: {e}")
     
-    # Start maintenance thread
     maintenance_thread = threading.Thread(target=maintenance_worker, daemon=True)
     maintenance_thread.start()
     
     logger.info("🧹 Subscription analysis maintenance scheduler started")
 
-# Legacy compatibility functions
 def run_background_analysis(cluster_id: str, resource_group: str, cluster_name: str):
     """Legacy function - redirects to subscription-aware analysis"""
     logger.info(f"⚠️ Legacy analysis call for {cluster_id} - upgrading to subscription-aware analysis")
@@ -496,13 +560,8 @@ def check_alerts_after_analysis(cluster_id: str, analysis_results: dict):
     """Legacy function - redirects to subscription-aware alert checking"""
     logger.info(f"⚠️ Legacy alert check for {cluster_id} - upgrading to subscription-aware alerts")
     
-    # Try to get subscription ID from cluster
     cluster = enhanced_cluster_manager.get_cluster(cluster_id)
     subscription_id = cluster.get('subscription_id') if cluster else None
     
     if subscription_id:
         check_subscription_aware_alerts_after_analysis(cluster_id, analysis_results, subscription_id)
-    else:
-        logger.warning(f"⚠️ No subscription context for cluster {cluster_id} - using legacy alert check")
-        # Fall back to original logic if needed
-        pass
