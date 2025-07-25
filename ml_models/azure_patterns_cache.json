@@ -17,16 +17,7 @@
       "optimization_potential": 0.25
     }
   },
-  "service_costs": {
-    "container_insights_per_node_monthly": 12.5,
-    "managed_prometheus_per_million_samples": 0.5,
-    "log_analytics_analytics_tier_per_gb": 2.3,
-    "log_analytics_basic_tier_per_gb": 0.92,
-    "cost_analysis_addon_monthly": 0.0,
-    "grafana_workspace_monthly": 240.0,
-    "spot_vm_discount": 0.7,
-    "reserved_instance_discount": 0.3
-  },
+  "service_costs": {},
   "implementation_patterns": {
     "prometheus_migration_effort_hours": {
       "small_cluster": 1.5,
@@ -43,5 +34,5 @@
       "advanced": 1.0
     }
   },
-  "last_updated": "2025-07-24T15:38:21.528112"
+  "last_updated": "2025-07-25T23:01:55.330839"
 }

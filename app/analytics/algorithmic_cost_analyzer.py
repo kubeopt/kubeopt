@@ -3,6 +3,7 @@ AKS Algorithmic Cost Analyzer - Updated for Comprehensive Self-Learning ML
 --------------------------------------------------------------------------
 Provides intelligent cost analysis and optimization recommendations
 using comprehensive self-learning machine learning approaches.
+FIXED: Added ML operation deduplication to prevent duplicate expensive ML calls
 """
 
 # ============================================================================
@@ -14,6 +15,8 @@ import pandas as pd
 import logging
 import math
 import statistics
+import threading
+import time
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -25,6 +28,143 @@ from app.ml.workload_performance_analyzer import create_comprehensive_self_learn
 warnings.filterwarnings('ignore')
 
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# ML OPERATION DEDUPLICATION SYSTEM
+# ============================================================================
+
+class MLOperationCache:
+    """Thread-safe cache for expensive ML operations to prevent duplicates"""
+    
+    def __init__(self):
+        self.cache = {}
+        self.active_operations = {}
+        self.lock = threading.RLock()
+        self.operation_timeouts = {}
+        self.max_cache_age = 300  # 5 minutes
+        self.max_active_wait = 120  # 2 minutes max wait for active operations
+    
+    def get_or_compute(self, cache_key: str, compute_func, *args, **kwargs):
+        """Get cached result or compute if not available, preventing duplicates"""
+        current_time = time.time()
+        
+        with self.lock:
+            # Check for cached result first
+            if cache_key in self.cache:
+                cache_entry = self.cache[cache_key]
+                if current_time - cache_entry['timestamp'] < self.max_cache_age:
+                    logger.info(f"🎯 ML CACHE HIT: Using cached result for {cache_key[:32]}...")
+                    return cache_entry['result']
+                else:
+                    # Remove expired cache entry
+                    del self.cache[cache_key]
+                    logger.info(f"🗑️ ML CACHE: Expired entry removed for {cache_key[:32]}...")
+            
+            # Check if operation is currently active
+            if cache_key in self.active_operations:
+                operation_info = self.active_operations[cache_key]
+                wait_event = operation_info['completion_event']
+                start_time = operation_info['start_time']
+                thread_id = operation_info['thread_id']
+                
+                # Check if operation has been running too long
+                if current_time - start_time > self.max_active_wait:
+                    logger.warning(f"⚠️ ML CACHE: Operation {cache_key[:32]}... timed out, removing stale entry")
+                    del self.active_operations[cache_key]
+                else:
+                    logger.info(f"🔄 ML CACHE: Operation {cache_key[:32]}... already running on thread {thread_id}, waiting...")
+        
+        # Wait for active operation to complete (outside the lock)
+        if cache_key in self.active_operations:
+            wait_event.wait(timeout=self.max_active_wait)
+            
+            # Check if we now have a cached result
+            with self.lock:
+                if cache_key in self.cache:
+                    cache_entry = self.cache[cache_key]
+                    if current_time - cache_entry['timestamp'] < self.max_cache_age:
+                        logger.info(f"✅ ML CACHE: Using result from completed operation for {cache_key[:32]}...")
+                        return cache_entry['result']
+        
+        # Execute the operation
+        return self._execute_operation(cache_key, compute_func, *args, **kwargs)
+    
+    def _execute_operation(self, cache_key: str, compute_func, *args, **kwargs):
+        """Execute the ML operation with proper synchronization"""
+        completion_event = threading.Event()
+        current_time = time.time()
+        thread_id = threading.current_thread().ident
+        
+        with self.lock:
+            # Mark operation as active
+            self.active_operations[cache_key] = {
+                'thread_id': thread_id,
+                'start_time': current_time,
+                'completion_event': completion_event
+            }
+        
+        try:
+            logger.info(f"🚀 ML CACHE: Executing operation {cache_key[:32]}... on thread {thread_id}")
+            result = compute_func(*args, **kwargs)
+            
+            with self.lock:
+                # Cache the result
+                self.cache[cache_key] = {
+                    'result': result,
+                    'timestamp': current_time,
+                    'thread_id': thread_id
+                }
+                
+                # Remove from active operations
+                if cache_key in self.active_operations:
+                    del self.active_operations[cache_key]
+            
+            # Signal completion to waiting threads
+            completion_event.set()
+            
+            logger.info(f"✅ ML CACHE: Operation {cache_key[:32]}... completed and cached")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ ML CACHE: Operation {cache_key[:32]}... failed: {e}")
+            
+            with self.lock:
+                # Remove from active operations on failure
+                if cache_key in self.active_operations:
+                    del self.active_operations[cache_key]
+            
+            # Signal completion even on failure
+            completion_event.set()
+            raise
+    
+    def cleanup_expired_entries(self):
+        """Clean up expired cache entries and stale operations"""
+        current_time = time.time()
+        
+        with self.lock:
+            # Clean expired cache entries
+            expired_keys = [
+                key for key, entry in self.cache.items()
+                if current_time - entry['timestamp'] > self.max_cache_age
+            ]
+            
+            for key in expired_keys:
+                del self.cache[key]
+            
+            # Clean stale active operations
+            stale_operations = [
+                key for key, operation in self.active_operations.items()
+                if current_time - operation['start_time'] > self.max_active_wait * 2
+            ]
+            
+            for key in stale_operations:
+                del self.active_operations[key]
+            
+            if expired_keys or stale_operations:
+                logger.info(f"🧹 ML CACHE: Cleaned {len(expired_keys)} expired entries, {len(stale_operations)} stale operations")
+
+# Global ML operation cache
+ml_operation_cache = MLOperationCache()
 
 # ============================================================================
 # UTILITY FUNCTIONS
@@ -87,59 +227,110 @@ def ensure_numeric(value, default=0.0) -> float:
 class MLEnhancedHPARecommendationEngine:
     """
     UPDATED: ML-Enhanced HPA Recommendation Engine using Comprehensive Self-Learning Model
+    FIXED: Added deduplication to prevent expensive ML operations from running multiple times
     """
     
     def __init__(self):
-        self.ml_engine = create_comprehensive_self_learning_hpa_engine(
-            model_path="app/ml/data_feed",
-            enable_self_learning=True
-        )
+        # PERFORMANCE FIX: Cache ML engine instances to avoid recreation
+        self._ml_engine_cache = {}
+        self._ml_engine_lock = threading.Lock()
         self.parser = KubernetesParsingUtils() if 'KubernetesParsingUtils' in globals() else None
+    
+    def _get_ml_engine(self):
+        """Get or create ML engine with caching"""
+        thread_id = threading.current_thread().ident
+        
+        with self._ml_engine_lock:
+            if thread_id not in self._ml_engine_cache:
+                self._ml_engine_cache[thread_id] = create_comprehensive_self_learning_hpa_engine(
+                    model_path="app/ml/data_feed",
+                    enable_self_learning=True
+                )
+                logger.info(f"🤖 Created new ML engine instance for thread {thread_id}")
+            
+            return self._ml_engine_cache[thread_id]
     
     def generate_hpa_recommendations(self, metrics_data: Dict, actual_costs: Dict) -> Dict:
         """
         UPDATED: Generate HPA recommendations with comprehensive self-learning ML
+        FIXED: Added deduplication to prevent multiple expensive ML operations
         """
         try:
-            logger.info("🤖 Generating comprehensive self-learning HPA recommendations...")
+            # PERFORMANCE FIX: Create cache key based on metrics and costs
+            cache_key = self._create_hpa_cache_key(metrics_data, actual_costs)
             
-            # Step 1: Validate ML engine is available
-            learning_status = self.ml_engine.get_learning_insights()
-            logger.info(f"📊 ML Engine Status: Learning={learning_status.get('learning_enabled', False)}, Samples={learning_status.get('samples', {}).get('total_collected', 0)}")
-            
-            # Step 2: Prepare data for comprehensive ML analysis
-            enhanced_features = self._prepare_comprehensive_ml_data(metrics_data)
-            
-            # Step 3: Run comprehensive ML analysis with self-learning
-            ml_results = self.ml_engine.analyze_and_recommend_with_comprehensive_insights(
-                metrics_data=enhanced_features, 
-                current_hpa_config={},
-                cluster_id=f"cost_analyzer_{datetime.now().strftime('%Y%m%d')}"
+            # Use ML operation cache to prevent duplicates
+            return ml_operation_cache.get_or_compute(
+                cache_key,
+                self._generate_hpa_recommendations_internal,
+                metrics_data,
+                actual_costs
             )
-            
-            # Step 4: Convert comprehensive ML results to consistent outputs
-            consistent_recommendation = self._convert_comprehensive_ml_to_output(
-                ml_results, metrics_data, actual_costs
-            )
-            
-            # Step 5: Validate consistency and add HPA efficiency
-            validation_result = self._validate_comprehensive_ml_consistency(consistent_recommendation)
-            if not validation_result['consistent']:
-                logger.warning(f"⚠️ ML output inconsistencies detected: {validation_result['issues']}")
-                consistent_recommendation = self._fix_comprehensive_ml_contradictions(
-                    consistent_recommendation, ml_results
-                )
-
-            # Calculate comprehensive HPA efficiency
-            hpa_efficiency = self._calculate_comprehensive_hpa_efficiency(ml_results, metrics_data)
-            consistent_recommendation['hpa_efficiency_percentage'] = hpa_efficiency
-            
-            logger.info("✅ Comprehensive self-learning HPA recommendations generated successfully")
-            return consistent_recommendation
             
         except Exception as e:
             logger.error(f"❌ Comprehensive ML HPA recommendation failed: {e}")
             raise ValueError(f"Comprehensive ML recommendation engine failed: {e}")
+    
+    def _create_hpa_cache_key(self, metrics_data: Dict, actual_costs: Dict) -> str:
+        """Create a unique cache key for HPA recommendations"""
+        try:
+            # Create a hash-like key based on key data points
+            node_count = len(metrics_data.get('nodes', []))
+            total_cost = actual_costs.get('monthly_actual_total', 0)
+            hpa_pattern = metrics_data.get('hpa_implementation', {}).get('current_hpa_pattern', 'none')
+            
+            # Get representative CPU/memory values
+            nodes = metrics_data.get('nodes', [])
+            avg_cpu = safe_mean([node.get('cpu_usage_pct', 0) for node in nodes])
+            avg_memory = safe_mean([node.get('memory_usage_pct', 0) for node in nodes])
+            
+            # Create cache key (truncated for readability but unique enough)
+            cache_key = f"hpa_rec_{node_count}n_{total_cost:.0f}c_{avg_cpu:.1f}cpu_{avg_memory:.1f}mem_{hpa_pattern}_{int(time.time() // 300)}"  # 5-minute windows
+            
+            return cache_key
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to create HPA cache key: {e}")
+            return f"hpa_rec_fallback_{int(time.time() // 300)}"
+    
+    def _generate_hpa_recommendations_internal(self, metrics_data: Dict, actual_costs: Dict) -> Dict:
+        """Internal method that does the actual ML work"""
+        logger.info("🤖 Generating comprehensive self-learning HPA recommendations...")
+        
+        # Step 1: Validate ML engine is available
+        ml_engine = self._get_ml_engine()
+        learning_status = ml_engine.get_learning_insights()
+        logger.info(f"📊 ML Engine Status: Learning={learning_status.get('learning_enabled', False)}, Samples={learning_status.get('samples', {}).get('total_collected', 0)}")
+        
+        # Step 2: Prepare data for comprehensive ML analysis
+        enhanced_features = self._prepare_comprehensive_ml_data(metrics_data)
+        
+        # Step 3: Run comprehensive ML analysis with self-learning
+        ml_results = ml_engine.analyze_and_recommend_with_comprehensive_insights(
+            metrics_data=enhanced_features, 
+            current_hpa_config={},
+            cluster_id=f"cost_analyzer_{datetime.now().strftime('%Y%m%d')}"
+        )
+        
+        # Step 4: Convert comprehensive ML results to consistent outputs
+        consistent_recommendation = self._convert_comprehensive_ml_to_output(
+            ml_results, metrics_data, actual_costs
+        )
+        
+        # Step 5: Validate consistency and add HPA efficiency
+        validation_result = self._validate_comprehensive_ml_consistency(consistent_recommendation)
+        if not validation_result['consistent']:
+            logger.warning(f"⚠️ ML output inconsistencies detected: {validation_result['issues']}")
+            consistent_recommendation = self._fix_comprehensive_ml_contradictions(
+                consistent_recommendation, ml_results
+            )
+
+        # Calculate comprehensive HPA efficiency
+        hpa_efficiency = self._calculate_comprehensive_hpa_efficiency(ml_results, metrics_data)
+        consistent_recommendation['hpa_efficiency_percentage'] = hpa_efficiency
+        
+        logger.info("✅ Comprehensive self-learning HPA recommendations generated successfully")
+        return consistent_recommendation
     
     def _calculate_comprehensive_hpa_efficiency(self, ml_results: Dict, metrics_data: Dict) -> float:
         """Calculate HPA efficiency with ACTUAL HPA coverage as primary factor"""
@@ -789,7 +980,8 @@ class MLEnhancedHPARecommendationEngine:
     def provide_ml_feedback(self, analysis_timestamp: str, correct_workload_type: str, feedback_score: float = 1.0):
         """Provide feedback to the comprehensive self-learning model"""
         try:
-            self.ml_engine.provide_feedback(
+            ml_engine = self._get_ml_engine()
+            ml_engine.provide_feedback(
                 analysis_timestamp=analysis_timestamp,
                 correct_workload_type=correct_workload_type,
                 feedback_score=feedback_score,
@@ -806,6 +998,7 @@ class MLEnhancedHPARecommendationEngine:
 class ConsistentCostAnalyzer:
     """
     CONSISTENT COST ANALYZER - Main Analysis Engine with Comprehensive ML
+    FIXED: Added deduplication to prevent expensive operations from running multiple times
     """
     
     def __init__(self):
@@ -815,68 +1008,116 @@ class ConsistentCostAnalyzer:
             'efficiency_evaluator': EfficiencyEvaluatorAlgorithm(),
             'confidence_scorer': ConfidenceScorerAlgorithm()
         }
+        
+        # PERFORMANCE FIX: Operation cache to prevent duplicate expensive operations
+        self.operation_cache = {}
+        self.operation_lock = threading.Lock()
 
     def _generate_hpa_recommendations(self, cost_data: Dict, metrics_data: Dict) -> Dict:
         """
         UPDATED: Generate HPA recommendations using comprehensive self-learning ML engine
+        FIXED: Added deduplication to prevent multiple expensive ML operations
         """
         try:
-            logger.info("🤖 Generating comprehensive self-learning HPA recommendations...")
+            # PERFORMANCE FIX: Create cache key for HPA recommendations
+            cache_key = self._create_analysis_cache_key(cost_data, metrics_data, 'hpa_recommendations')
             
-            # Initialize comprehensive ML-enhanced HPA engine
-            ml_hpa_engine = MLEnhancedHPARecommendationEngine()
-            
-            # Generate comprehensive ML-driven recommendations
-            hpa_recommendations = ml_hpa_engine.generate_hpa_recommendations(metrics_data, cost_data)
-
-            # CRITICAL FIX: Calculate comprehensive HPA efficiency percentage
-            hpa_efficiency = ml_hpa_engine._calculate_comprehensive_hpa_efficiency(
-                hpa_recommendations.get('workload_characteristics', {}), 
+            # Use ML operation cache to prevent duplicates
+            return ml_operation_cache.get_or_compute(
+                cache_key,
+                self._generate_hpa_recommendations_internal,
+                cost_data,
                 metrics_data
             )
-
-            # Log the efficiency calculation details
-            logger.info(f"🔧 HPA Efficiency Debug:")
-            logger.info(f"   - Calculated efficiency: {hpa_efficiency:.1f}%")
-            logger.info(f"   - Metrics data keys: {list(metrics_data.keys()) if metrics_data else 'None'}")
-            if metrics_data and 'hpa_implementation' in metrics_data:
-                hpa_impl = metrics_data['hpa_implementation']
-                logger.info(f"   - HPA implementation: {hpa_impl.get('total_hpas', 'unknown')} HPAs")
-                logger.info(f"   - HPA pattern: {hpa_impl.get('current_hpa_pattern', 'unknown')}")
-            
-            # CRITICAL FIX: Ensure efficiency is properly included
-            hpa_recommendations['hpa_efficiency_percentage'] = hpa_efficiency
-            hpa_recommendations['hpa_efficiency'] = hpa_efficiency  # Also add this key
-            
-            # Log the calculated efficiency for debugging
-            logger.info(f"✅ HPA efficiency calculated: {hpa_efficiency:.1f}%")
-            
-            # Validate the recommendations are consistent
-            if not isinstance(hpa_recommendations, dict):
-                raise ValueError("Comprehensive ML HPA engine returned invalid recommendations structure")
-            
-            required_keys = ['hpa_chart_data', 'optimization_recommendation', 'current_implementation']
-            for key in required_keys:
-                if key not in hpa_recommendations:
-                    logger.warning(f"⚠️ Missing key in comprehensive ML HPA recommendations: {key}")
-            
-            # Add comprehensive ML enhancement metadata
-            hpa_recommendations['ml_enhanced'] = True
-            hpa_recommendations['comprehensive_self_learning'] = True
-            hpa_recommendations['analysis_method'] = 'comprehensive_self_learning_intelligent_hpa'
-            hpa_recommendations['contradiction_free'] = True
-            hpa_recommendations['enterprise_ready'] = True
-            
-            logger.info("✅ Comprehensive self-learning HPA recommendations generated successfully")
-            return hpa_recommendations
             
         except Exception as e:
             logger.error(f"❌ Failed to generate comprehensive self-learning HPA recommendations: {e}")
             raise ValueError(f"Comprehensive self-learning ML HPA recommendation failed: {str(e)}")
+    
+    def _create_analysis_cache_key(self, cost_data: Dict, metrics_data: Dict, operation_type: str) -> str:
+        """Create cache key for analysis operations"""
+        try:
+            total_cost = cost_data.get('total_cost', 0)
+            node_count = len(metrics_data.get('nodes', []))
+            hpa_count = metrics_data.get('hpa_implementation', {}).get('total_hpas', 0)
+            
+            # Create a unique but stable key
+            cache_key = f"{operation_type}_{total_cost:.0f}c_{node_count}n_{hpa_count}h_{int(time.time() // 180)}"  # 3-minute windows
+            
+            return cache_key
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to create analysis cache key: {e}")
+            return f"{operation_type}_fallback_{int(time.time() // 180)}"
 
+    def _generate_hpa_recommendations_internal(self, cost_data: Dict, metrics_data: Dict) -> Dict:
+        """Internal method that generates HPA recommendations"""
+        logger.info("🤖 Generating comprehensive self-learning HPA recommendations...")
+        
+        # Initialize comprehensive ML-enhanced HPA engine
+        ml_hpa_engine = MLEnhancedHPARecommendationEngine()
+        
+        # Generate comprehensive ML-driven recommendations
+        hpa_recommendations = ml_hpa_engine.generate_hpa_recommendations(metrics_data, cost_data)
+
+        # CRITICAL FIX: Calculate comprehensive HPA efficiency percentage
+        hpa_efficiency = ml_hpa_engine._calculate_comprehensive_hpa_efficiency(
+            hpa_recommendations.get('workload_characteristics', {}), 
+            metrics_data
+        )
+
+        # Log the efficiency calculation details
+        logger.info(f"🔧 HPA Efficiency Debug:")
+        logger.info(f"   - Calculated efficiency: {hpa_efficiency:.1f}%")
+        logger.info(f"   - Metrics data keys: {list(metrics_data.keys()) if metrics_data else 'None'}")
+        if metrics_data and 'hpa_implementation' in metrics_data:
+            hpa_impl = metrics_data['hpa_implementation']
+            logger.info(f"   - HPA implementation: {hpa_impl.get('total_hpas', 'unknown')} HPAs")
+            logger.info(f"   - HPA pattern: {hpa_impl.get('current_hpa_pattern', 'unknown')}")
+        
+        # CRITICAL FIX: Ensure efficiency is properly included
+        hpa_recommendations['hpa_efficiency_percentage'] = hpa_efficiency
+        hpa_recommendations['hpa_efficiency'] = hpa_efficiency  # Also add this key
+        
+        # Log the calculated efficiency for debugging
+        logger.info(f"✅ HPA efficiency calculated: {hpa_efficiency:.1f}%")
+        
+        # Validate the recommendations are consistent
+        if not isinstance(hpa_recommendations, dict):
+            raise ValueError("Comprehensive ML HPA engine returned invalid recommendations structure")
+        
+        required_keys = ['hpa_chart_data', 'optimization_recommendation', 'current_implementation']
+        for key in required_keys:
+            if key not in hpa_recommendations:
+                logger.warning(f"⚠️ Missing key in comprehensive ML HPA recommendations: {key}")
+        
+        # Add comprehensive ML enhancement metadata
+        hpa_recommendations['ml_enhanced'] = True
+        hpa_recommendations['comprehensive_self_learning'] = True
+        hpa_recommendations['analysis_method'] = 'comprehensive_self_learning_intelligent_hpa'
+        hpa_recommendations['contradiction_free'] = True
+        hpa_recommendations['enterprise_ready'] = True
+        
+        logger.info("✅ Comprehensive self-learning HPA recommendations generated successfully")
+        return hpa_recommendations
 
     def analyze(self, cost_data: Dict, metrics_data: Dict, pod_data: Dict = None) -> Dict:
-        """ENHANCED: Main analysis function with comprehensive self-learning HPA recommendations"""
+        """ENHANCED: Main analysis function with comprehensive self-learning HPA recommendations and deduplication"""
+        
+        # PERFORMANCE FIX: Create cache key for entire analysis
+        analysis_cache_key = self._create_analysis_cache_key(cost_data, metrics_data, 'full_analysis')
+        
+        # Check if we already have this analysis in progress or cached
+        with self.operation_lock:
+            if analysis_cache_key in self.operation_cache:
+                cache_entry = self.operation_cache[analysis_cache_key]
+                if time.time() - cache_entry['timestamp'] < 300:  # 5 minute cache
+                    logger.info(f"🎯 ANALYSIS CACHE HIT: Using cached analysis result")
+                    return cache_entry['result']
+                else:
+                    # Remove expired entry
+                    del self.operation_cache[analysis_cache_key]
+        
         logger.info("🎯 Starting CONSISTENT cost analysis with comprehensive self-learning ML")
         
         try:
@@ -988,6 +1229,18 @@ class ConsistentCostAnalyzer:
             if not validation_result['valid']:
                 logger.warning(f"⚠️ Validation warnings: {validation_result['warnings']}")
                 results = self._auto_fix_results(results, validation_result['warnings'])
+            
+            # PERFORMANCE FIX: Cache the results
+            with self.operation_lock:
+                self.operation_cache[analysis_cache_key] = {
+                    'result': results,
+                    'timestamp': time.time()
+                }
+                
+                # Clean old cache entries if too many
+                if len(self.operation_cache) > 10:
+                    oldest_key = min(self.operation_cache.keys(), key=lambda k: self.operation_cache[k]['timestamp'])
+                    del self.operation_cache[oldest_key]
             
             logger.info("✅ ENHANCED CONSISTENT analysis completed with comprehensive self-learning HPA recommendations")
             logger.info(f"📊 Final validation: Total=${results['total_cost']:.2f}, Savings=${results['total_savings']:.2f}")
@@ -1941,12 +2194,16 @@ def integrate_consistent_analysis(resource_group: str, cluster_name: str,
     """
     CONSISTENT ANALYSIS INTEGRATION with Comprehensive Self-Learning ML
     Main integration function for app.py
+    FIXED: Added deduplication and performance optimizations
     """
     
     logger.info("🎯 Starting CONSISTENT algorithmic integration with comprehensive self-learning ML")
     logger.info("✅ Approach: Validated actual costs + realistic optimization estimates + comprehensive ML insights")
     
     try:
+        # PERFORMANCE FIX: Clean up expired cache entries periodically
+        ml_operation_cache.cleanup_expired_entries()
+        
         # Initialize updated analyzer
         analyzer = ConsistentCostAnalyzer()
         
@@ -1962,13 +2219,16 @@ def integrate_consistent_analysis(resource_group: str, cluster_name: str,
             'comprehensive_ml_enabled': True,
             'self_learning_enabled': True,
             'validation_applied': True,
+            'deduplication_enabled': True,  # NEW: Indicate deduplication is active
             'fixes_applied': [
                 'Cost reconciliation',
                 'Savings validation',
                 'Percentage calculation fixes',
                 'Realistic optimization bounds',
                 'Enhanced error handling',
-                'Comprehensive self-learning ML integration'
+                'Comprehensive self-learning ML integration',
+                'ML operation deduplication',  # NEW
+                'Cache-based performance optimization'  # NEW
             ],
             'algorithms_count': len(results.get('algorithms_used', [])),
             'confidence_basis': 'Validated current usage pattern analysis with comprehensive ML insights and realistic cost baseline'
@@ -2043,7 +2303,7 @@ def test_comprehensive_ml_integration():
             logger.info(f"🎯 Test result: {result['optimization_recommendation'].get('title', 'Unknown')}")
             
             # Test learning capabilities
-            learning_status = ml_engine.ml_engine.get_learning_insights()
+            learning_status = ml_engine._get_ml_engine().get_learning_insights()
             logger.info(f"🧠 Learning Status: Enabled={learning_status.get('learning_enabled', False)}, Samples={learning_status.get('samples', {}).get('total_collected', 0)}")
             
             # Test feedback capability
