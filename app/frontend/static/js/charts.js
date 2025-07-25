@@ -467,11 +467,11 @@ function createCPUMetricsDisplay(cpuMetrics) {
                             ${statusConfig.statusText}
                         </div>
                     </div>
-                    <div class="cpu-severity-indicator">
+                    <!--<div class="cpu-severity-indicator">
                         <div class="severity-level ${statusConfig.severityClass}">
                             ${severityLevel.toUpperCase()}
                         </div>
-                    </div>
+                    </div>-->
                 </div>
             </div>
             
