@@ -1326,6 +1326,47 @@ class EnhancedMultiSubscriptionClusterManager:
             self.logger.error(f"❌ Failed to update analysis status: {e}")
             raise
 
+
+    def update_analysis_status_with_sse(self, cluster_id: str, status: str, progress: int, message: str):
+        """Enhanced status update that also triggers SSE events"""
+        try:
+            # Update database as before (call existing method)
+            self.update_analysis_status(cluster_id, status, progress, message)
+            
+            # Store in memory for SSE streaming
+            status_data = {
+                'analysis_status': status,
+                'progress': progress,
+                'message': message,
+                'timestamp': datetime.now().isoformat(),
+                'cluster_id': cluster_id
+            }
+            
+            # Store for SSE retrieval
+            if not hasattr(self, '_sse_status_cache'):
+                self._sse_status_cache = {}
+            
+            self._sse_status_cache[cluster_id] = status_data
+            
+            logger.info(f"📊 SSE progress update for {cluster_id}: {progress}% - {message}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error updating analysis status with SSE: {e}")
+
+    def get_analysis_status_for_sse(self, cluster_id: str) -> Dict[str, Any]:
+        """Get analysis status specifically for SSE streaming"""
+        try:
+            # Check memory cache first (for real-time updates)
+            if hasattr(self, '_sse_status_cache') and cluster_id in self._sse_status_cache:
+                return self._sse_status_cache[cluster_id]
+            
+            # Fallback to existing database method
+            return self.get_analysis_status(cluster_id)
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting SSE status for {cluster_id}: {e}")
+            return {}    
+
     def get_analysis_status(self, cluster_id: str) -> Optional[Dict]:
         """Get current analysis status for a cluster"""
         try:
