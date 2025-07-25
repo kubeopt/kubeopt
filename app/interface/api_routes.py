@@ -5,7 +5,7 @@ with Enhanced Alerts Integration - FIXED REGISTRATION
 
 import traceback
 from datetime import datetime
-from flask import request, jsonify
+from flask import request, jsonify, Response
 import sys
 import os
 import threading
@@ -262,14 +262,60 @@ def register_api_routes(app):
                 'status': 'error',
                 'message': f'Validation error: {str(e)}'
             }), 500
+        
+    @app.route('/api/clusters/<cluster_id>/analysis-progress-stream')
+    def analysis_progress_stream(cluster_id):
+        """Server-Sent Events endpoint for real-time analysis progress"""
+        import time
+        import json
+        from flask import Response
+        
+        def generate():
+            last_update = time.time()
+            max_duration = 600  # 10 minutes max
+            
+            while time.time() - last_update < max_duration:
+                try:
+                    # Get current analysis status using existing method
+                    status_data = enhanced_cluster_manager.get_analysis_status_for_sse(cluster_id)
+                    
+                    if status_data:
+                        # Send SSE formatted data
+                        yield f"data: {json.dumps(status_data)}\n\n"
+                        
+                        # Check if analysis is complete
+                        if status_data.get('analysis_status') in ['completed', 'success', 'failed']:
+                            logger.info(f"📊 SSE: Analysis {status_data.get('analysis_status')} for {cluster_id}")
+                            break
+                        
+                        last_update = time.time()
+                    
+                    time.sleep(2)  # 2-second intervals instead of 20-second polling
+                    
+                except Exception as e:
+                    logger.error(f"❌ SSE error for {cluster_id}: {e}")
+                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                    break
+        
+        response = Response(
+            generate(),
+            mimetype='text/plain',
+            headers={
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'Access-Control-Allow-Origin': '*'
+            }
+        )
+        response.headers['Content-Type'] = 'text/event-stream'
+        return response   
 
     @app.route('/api/chart-data')
     def api_chart_data():
         """
-        UNIFIED: Enhanced Chart data API with CPU workload integration - REAL DATA ONLY
+        Chart data API with CPU workload integration
         """
         try:
-            logger.info("📊 Enhanced chart data API called - REAL DATA ONLY")
+            logger.info("📊 Enhanced chart data API called")
             
             # Get cluster ID from request
             cluster_id = request.args.get('cluster_id')
