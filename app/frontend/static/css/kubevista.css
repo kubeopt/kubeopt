@@ -1822,3 +1822,13 @@ position: relative;
 [data-theme="dark"] .section-title {
     color: #f8fafc !important;
 }
+
+.p-6 {
+    padding: 1.5rem !important;
+}
+
+.text-3xl {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    color: #1fb371;
+}

@@ -13,7 +13,7 @@ import { showNotification, showProgressNotification } from './notifications.js';
 import { setupFormHandlers, setupInputValidation } from './forms.js';
 import { testAPIConnectivity } from './utils.js';
 import { initializeCharts } from './charts.js';
-import { loadImplementationPlan } from './implementation-plan.js';
+// import { loadImplementationPlan } from './implementation-plan.js';
 
 // Import functions that need to be globally available
 import './cluster-management.js';
@@ -31,7 +31,7 @@ function ensureGlobalFunctions() {
     // Assign imported functions to window for backward compatibility
     if (typeof window !== 'undefined') {
         window.initializeCharts = initializeCharts;
-        window.loadImplementationPlan = loadImplementationPlan;
+       // window.loadImplementationPlan = loadImplementationPlan;
         window.showNotification = showNotification;
         
         // These should be available from other modules

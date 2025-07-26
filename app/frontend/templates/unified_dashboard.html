@@ -23,24 +23,58 @@
     <script src="{{ url_for('static', filename='js/smooth.js') }}"></script>
     <script src="{{ url_for('static', filename='js/enhanced-ui.js') }}"></script>
     <script src="{{ url_for('static', filename='js/alerts/main.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/implementation/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/controls/controls.js') }}"></script>
+
     
     <!-- <script src="{{ url_for('static', filename='js/magic.js') }}"></script> -->
     
     <!-- KubeVista Enhanced Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/kubevista.css') }}">
-    <link
-  rel="stylesheet"
-  href="{{ url_for('static', filename='css/smooth.css') }}"
-/>
-<link
-  rel="stylesheet"
-  href="{{ url_for('static', filename='css/alerts.css') }}"
-/>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/smooth.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/alerts.css') }}" />
     
-    <!-- FIXED: Enhanced CSS for remaining UI issues -->
     <style>
-        /* Fix chart loading state issues */
-        
+        /* Additional theme-specific styles to ensure consistency */
+        .bg-azure-50 {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+
+        /* Custom scrollbar for the execution plan */
+        .max-h-64::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .max-h-64::-webkit-scrollbar-track {
+            background: rgba(75, 85, 99, 0.2);
+            border-radius: 3px;
+        }
+
+        .max-h-64::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.5);
+            border-radius: 3px;
+        }
+
+        .max-h-64::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.8);
+        }
+
+        /* Transition effects */
+        .transition-colors {
+            transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+        }
+
+        /* Status badge transitions */
+        [id$="-status"] {
+            transition: all 0.3s ease-in-out;
+        }
+
+        /* Card hover effects */
+        .bg-gray-800:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            transition: box-shadow 0.3s ease-in-out;
+        }
     </style>
 </head>
 <body class="bg-gradient-custom">
@@ -51,7 +85,7 @@
                 <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-4">
                     <i class="fas fa-dharmachakra text-white text-xl"></i>
                 </div>
-                <h1 class="text-xl font-bold tracking-wider">KUBEVISTA</h1>
+                <h1 class="text-xl font-bold text-white tracking-wider">KUBEVISTA</h1>
             </div>
             <nav class="flex-grow pt-4">
                 <ul class="space-y-2" id="main-nav">
@@ -60,6 +94,12 @@
                     <!-- Main Navigation Links -->
                     <li><a href="#dashboard-content" data-target="#dashboard-content" onclick="showContent('dashboard', this)" class="nav-link active-nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2"><i class="fas fa-chart-line w-8 text-center text-lg"></i><span class="font-semibold text-sm">DASHBOARD</span></a></li>
                     <li><a href="#implementation-content" data-target="#implementation-content" onclick="showContent('implementation', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2"><i class="fas fa-rocket w-8 text-center text-lg"></i><span class="font-semibold text-sm">IMPLEMENTATION</span></a></li>
+                    <li><a href="#projectcontrols-content" data-target="#projectcontrols-content" onclick="showContent('projectcontrols', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2"><i class="fas fa-shield w-8 text-center text-lg"></i><span class="font-semibold text-sm">PROJECT CONTROLS</span></a></li>
+                    <li><a href="#securityposture-content" data-target="#securityposture-content" onclick="showContent('securityposture', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2" title="Your compliance features and security controls"><i class="fas fa-shield-alt w-8 text-center text-lg"></i><span class="font-semibold text-sm">SECURITY POSTURE</span></a></li>
+
+                    <li><a href="#compliance-content" data-target="#compliance-content" onclick="showContent('compliance', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2" title="Audit trails, reports, and compliance documentation"><i class="fas fa-clipboard-list w-8 text-center text-lg"></i><span class="font-semibold text-sm">COMPLIANCE</span></a></li>
+
+                    <li><a href="#vulnerabilities-content" data-target="#vulnerabilities-content" onclick="showContent('vulnerabilities', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2" title="Security scanning results and vulnerability assessments"><i class="fas fa-search w-8 text-center text-lg"></i><span class="font-semibold text-sm">VULNERABILITIES</span></a></li>
                     <li><a href="#alerts-content" data-target="#alerts-content" onclick="showContent('alerts', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2"><i class="fas fa-bell w-8 text-center text-lg"></i><span class="font-semibold text-sm">ALERTS</span></a></li>
                     
                     <hr class="border-gray-600/40 my-4 mx-2">
@@ -377,7 +417,7 @@
                     <div id="implementation-content" class="tab-content-panel hidden">
                         <div class="bg-white rounded-xl shadow-lg p-6">
                             <div class="flex items-center justify-between mb-6">
-                                <h2 class="text-xl font-bold text-gray-700 flex items-center">
+                                <h2 class="text-xl font-bold flex items-center">
                                     <div class="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center mr-3">
                                         <i class="fas fa-rocket text-white text-lg"></i>
                                     </div>
@@ -403,6 +443,211 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- ENHANCED PROJECT CONTROLS TAB CONTENT -->
+                    <div id="projectcontrols-content" class="tab-content-panel hidden space-y-6">
+                        
+                        <!-- Header with Actions -->
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-xl font-semibold flex items-center">
+                                <i class="fas fa-shield-alt text-teal-400 mr-3"></i>
+                                Project Controls Framework
+                            </h2>
+                            <div class="flex space-x-3">
+                                <button id="debug-controls" class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors flex items-center">
+                                    <i class="fas fa-bug mr-2"></i>Debug
+                                </button>
+                                <button id="refresh-controls" class="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm rounded-lg transition-colors flex items-center">
+                                    <i class="fas fa-sync-alt mr-2"></i>Refresh
+                                </button>
+                                <button id="export-controls" class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors flex items-center">
+                                    <i class="fas fa-download mr-2"></i>Export
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Loading State -->
+                        <div id="controls-loading" class="hidden text-center py-16">
+                            <div class="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-teal-400"></div>
+                            <p class="mt-4 text-gray-400">Loading project controls framework...</p>
+                        </div>
+
+                        <!-- Error State -->
+                        <div id="controls-error" class="hidden bg-red-900/30 border border-red-700 rounded-lg p-6">
+                            <div class="flex items-center">
+                                <i class="fas fa-exclamation-triangle text-red-400 text-xl mr-3"></i>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-red-300">Error Loading Project Controls</h3>
+                                    <p id="controls-error-message" class="text-red-400 mt-1"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Main Content -->
+                        <div id="controls-main-content" class="space-y-6">
+                            
+                            <!-- Framework Overview -->
+                            <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-6">
+                                <div class="flex items-center mb-4">
+                                    <i class="fas fa-chart-pie text-teal-400 text-lg mr-3"></i>
+                                    <h3 class="text-lg font-semibold text-white">Framework Overview</h3>
+                                </div>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div class="text-center p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
+                                        <div class="text-2xl font-bold text-blue-400" id="enabled-controls-count">0/8</div>
+                                        <div class="text-sm text-gray-400">Active Controls</div>
+                                    </div>
+                                    <div class="text-center p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
+                                        <div class="text-2xl font-bold text-green-400" id="ml-confidence-score">0%</div>
+                                        <div class="text-sm text-gray-400">ML Confidence</div>
+                                    </div>
+                                    <div class="text-center p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
+                                        <div class="text-lg font-bold text-purple-400" id="governance-level">Standard</div>
+                                        <div class="text-sm text-gray-400">Governance Level</div>
+                                    </div>
+                                    <div class="text-center p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
+                                        <div class="text-lg font-bold text-teal-400" id="total-commands-count">0</div>
+                                        <div class="text-sm text-gray-400">Total Commands</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Framework Components Grid -->
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                
+                                <!-- Cost Protection -->
+                                <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg">
+                                    <div class="p-4 border-b border-gray-700">
+                                        <div class="flex items-center justify-between">
+                                            <h3 class="font-semibold text-white flex items-center">
+                                                <i class="fas fa-shield-alt text-green-400 mr-3"></i>
+                                                Cost Protection
+                                            </h3>
+                                            <span id="cost-protection-status" class="px-2 py-1 text-xs rounded-full bg-gray-600 text-gray-300">Unknown</span>
+                                        </div>
+                                    </div>
+                                    <div id="cost-protection-content" class="p-4">
+                                        <div class="text-gray-400 text-sm">Loading cost protection data...</div>
+                                    </div>
+                                </div>
+
+                                <!-- Governance Framework -->
+                                <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg">
+                                    <div class="p-4 border-b border-gray-700">
+                                        <div class="flex items-center justify-between">
+                                            <h3 class="font-semibold text-white flex items-center">
+                                                <i class="fas fa-balance-scale text-blue-400 mr-3"></i>
+                                                Governance Framework
+                                            </h3>
+                                            <span id="governance-status" class="px-2 py-1 text-xs rounded-full bg-gray-600 text-gray-300">Unknown</span>
+                                        </div>
+                                    </div>
+                                    <div id="governance-content" class="p-4">
+                                        <div class="text-gray-400 text-sm">Loading governance framework data...</div>
+                                    </div>
+                                </div>
+
+                                <!-- Monitoring Strategy -->
+                                <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg">
+                                    <div class="p-4 border-b border-gray-700">
+                                        <div class="flex items-center justify-between">
+                                            <h3 class="font-semibold text-white flex items-center">
+                                                <i class="fas fa-chart-line text-yellow-400 mr-3"></i>
+                                                Monitoring Strategy
+                                            </h3>
+                                            <span id="monitoring-status" class="px-2 py-1 text-xs rounded-full bg-gray-600 text-gray-300">Unknown</span>
+                                        </div>
+                                    </div>
+                                    <div id="monitoring-content" class="p-4">
+                                        <div class="text-gray-400 text-sm">Loading monitoring strategy data...</div>
+                                    </div>
+                                </div>
+
+                                <!-- Risk Mitigation -->
+                                <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg">
+                                    <div class="p-4 border-b border-gray-700">
+                                        <div class="flex items-center justify-between">
+                                            <h3 class="font-semibold text-white flex items-center">
+                                                <i class="fas fa-exclamation-triangle text-red-400 mr-3"></i>
+                                                Risk Mitigation
+                                            </h3>
+                                            <span id="risk-status" class="px-2 py-1 text-xs rounded-full bg-gray-600 text-gray-300">Unknown</span>
+                                        </div>
+                                    </div>
+                                    <div id="risk-content" class="p-4">
+                                        <div class="text-gray-400 text-sm">Loading risk mitigation data...</div>
+                                    </div>
+                                </div>
+
+                                <!-- Contingency Planning -->
+                                <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg">
+                                    <div class="p-4 border-b border-gray-700">
+                                        <div class="flex items-center justify-between">
+                                            <h3 class="font-semibold text-white flex items-center">
+                                                <i class="fas fa-life-ring text-orange-400 mr-3"></i>
+                                                Contingency Planning
+                                            </h3>
+                                            <span id="contingency-status" class="px-2 py-1 text-xs rounded-full bg-gray-600 text-gray-300">Unknown</span>
+                                        </div>
+                                    </div>
+                                    <div id="contingency-content" class="p-4">
+                                        <div class="text-gray-400 text-sm">Loading contingency planning data...</div>
+                                    </div>
+                                </div>
+
+                                <!-- Success Criteria -->
+                                <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg">
+                                    <div class="p-4 border-b border-gray-700">
+                                        <div class="flex items-center justify-between">
+                                            <h3 class="font-semibold text-white flex items-center">
+                                                <i class="fas fa-bullseye text-green-400 mr-3"></i>
+                                                Success Criteria
+                                            </h3>
+                                            <span id="success-status" class="px-2 py-1 text-xs rounded-full bg-gray-600 text-gray-300">Unknown</span>
+                                        </div>
+                                    </div>
+                                    <div id="success-content" class="p-4">
+                                        <div class="text-gray-400 text-sm">Loading success criteria data...</div>
+                                    </div>
+                                </div>
+
+                                <!-- Timeline Optimization -->
+                                <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg">
+                                    <div class="p-4 border-b border-gray-700">
+                                        <div class="flex items-center justify-between">
+                                            <h3 class="font-semibold text-white flex items-center">
+                                                <i class="fas fa-clock text-indigo-400 mr-3"></i>
+                                                Timeline Optimization
+                                            </h3>
+                                            <span id="timeline-status" class="px-2 py-1 text-xs rounded-full bg-gray-600 text-gray-300">Unknown</span>
+                                        </div>
+                                    </div>
+                                    <div id="timeline-content" class="p-4">
+                                        <div class="text-gray-400 text-sm">Loading timeline optimization data...</div>
+                                    </div>
+                                </div>
+
+                                <!-- Intelligence Insights -->
+                                <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg">
+                                    <div class="p-4 border-b border-gray-700">
+                                        <div class="flex items-center justify-between">
+                                            <h3 class="font-semibold text-white flex items-center">
+                                                <i class="fas fa-brain text-pink-400 mr-3"></i>
+                                                Intelligence Insights
+                                            </h3>
+                                            <span id="intelligence-status" class="px-2 py-1 text-xs rounded-full bg-gray-600 text-gray-300">Unknown</span>
+                                        </div>
+                                    </div>
+                                    <div id="intelligence-content" class="p-4">
+                                        <div class="text-gray-400 text-sm">Loading intelligence insights data...</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Execution Plan Section will be dynamically added here by JavaScript -->
+
                         </div>
                     </div>
 
@@ -504,7 +749,6 @@
         </div>
     </div>
 
-    
 
 </body>
 </html>

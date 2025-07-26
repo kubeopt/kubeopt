@@ -1799,8 +1799,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             return implementation_plan
     
     def _ensure_complete_framework_structure(self, implementation_plan: Dict, 
-                                           analysis_results: Dict, ml_session: Dict, cluster_config: Dict) -> Dict:
-        """Ensure ALL 7 framework components are populated with cluster config"""
+                                        analysis_results: Dict, ml_session: Dict, cluster_config: Dict) -> Dict:
+        """Ensure ALL 8 framework components are populated with cluster config"""
         
         logger.info("🔧 Ensuring complete framework structure with cluster config...")
         
@@ -1843,7 +1843,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             comprehensive_state = ml_session.get('comprehensive_state', {})
             total_optimization_opportunities = comprehensive_state.get('total_optimization_opportunities', 0)
             
-            logger.info("🔧 Adding framework components with cluster config insights...")
+            logger.info("🔧 Adding ALL 8 framework components with cluster config insights...")
             
             # 1. Cost Protection (enhanced with cluster config)
             implementation_plan['costProtection'] = {
@@ -1991,10 +1991,15 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 }
             }
             
+            # 8. NEW: Intelligence Insights (extract from analysis data and enhance with ML)
+            implementation_plan['intelligence_insights'] = self._create_intelligence_insights_from_analysis(
+                analysis_results, ml_session, cluster_config, overall_ml_confidence
+            )
+            
             # Final validation log
             phases_count = len(implementation_plan.get('implementation_phases', []))
             logger.info(f"✅ Framework complete: {phases_count} phases in implementation_phases")
-            logger.info("✅ ALL 7 framework components populated with ML intelligence and cluster config")
+            logger.info("✅ ALL 8 framework components populated with ML intelligence and cluster config")
             logger.info(f"🔍 Cluster insights applied: complexity={cluster_complexity}, scaling={scaling_readiness}, security={security_posture}")
             
             return implementation_plan
@@ -2009,6 +2014,70 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'cluster_config_available': cluster_config is not None and cluster_config.get('status') == 'completed' if cluster_config else False
             })
             raise RuntimeError(f"❌ {error_msg}") from e
+
+    def _create_intelligence_insights_from_analysis(self, analysis_results: Dict, 
+                                                ml_session: Dict, cluster_config: Dict, 
+                                                overall_ml_confidence: float) -> Dict:
+        """Create intelligence insights component from REAL analysis data"""
+        try:
+            logger.info("🧠 Creating intelligence insights from REAL analysis data...")
+            
+            # Extract cluster profile from analysis and ML session
+            cluster_profile = {
+                'mlClusterType': analysis_results.get('cluster_type', 
+                                ml_session.get('dna_metadata', {}).get('cluster_personality', 'unknown')),
+                'complexityScore': analysis_results.get('complexity_score', 
+                                ml_session.get('config_insights', {}).get('cluster_complexity', 'unknown')),
+                'readinessScore': analysis_results.get('optimization_readiness_score', overall_ml_confidence)
+            }
+            
+            # Extract ML predictions from session and analysis
+            ml_predictions = {
+                'confidence': overall_ml_confidence,
+                'model_performance': 'high' if overall_ml_confidence > 0.8 else 'medium' if overall_ml_confidence > 0.6 else 'low',
+                'learning_enabled': len(ml_session.get('learning_events', [])) > 0,
+                'temporal_intelligence': ml_session.get('dna_metadata', {}).get('has_temporal_intelligence', False)
+            }
+            
+            # Extract recommendations from analysis
+            recommendations = {
+                'priority': 'high' if analysis_results.get('total_savings', 0) > analysis_results.get('total_cost', 1) * 0.2 else 'medium',
+                'implementation_readiness': ml_session.get('config_insights', {}).get('scaling_readiness', 'unknown'),
+                'optimization_potential': analysis_results.get('optimization_score', overall_ml_confidence * 100)
+            }
+            
+            # Intelligence metrics from REAL data
+            intelligence_insights = {
+                'enabled': True,
+                'ml_derived': True,
+                'ml_confidence': overall_ml_confidence,
+                'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'clusterProfile': cluster_profile,
+                'ml_predictions': ml_predictions,
+                'recommendations': recommendations,
+                'analysisConfidence': overall_ml_confidence,
+                'actual_cv_score': analysis_results.get('cv_score', overall_ml_confidence),
+                'dataAvailable': True,  # We have real analysis data
+                'azure_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'intelligence_quality': ml_session.get('intelligence_quality', 'high'),
+                'learning_events_count': len(ml_session.get('learning_events', [])),
+                'optimization_opportunities': ml_session.get('comprehensive_state', {}).get('total_optimization_opportunities', 0)
+            }
+            
+            logger.info(f"✅ Intelligence insights created with confidence: {overall_ml_confidence:.2f}")
+            return intelligence_insights
+            
+        except Exception as e:
+            logger.error(f"❌ Intelligence insights creation failed: {e}")
+            # Return minimal structure with real data only
+            return {
+                'enabled': True,
+                'ml_derived': True,
+                'ml_confidence': overall_ml_confidence,
+                'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'dataAvailable': True,
+                'creation_error': str(e)
+            }
     
     # ========================================================================
     # VALIDATION AND HELPER METHODS

@@ -54,59 +54,75 @@ if (!window.chartInstances) {
 }
 
 // --- Content Panel Management ---
-function showContent(contentName, clickedElement) {
-    if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-    }
-    
-    // Defensive check for valid content name
-    if (!contentName || typeof contentName !== 'string') {
-        console.warn('Invalid content name provided to showContent:', contentName);
-        return;
-    }
-    
-    // Hide all panels
-    document.querySelectorAll('.tab-content-panel').forEach(panel => {
-        panel.classList.add('hidden');
-        panel.classList.remove('active');
-    });
+
+
+function showContent(contentType, element) {
+    // Hide all tab content panels
+    const allPanels = document.querySelectorAll('.tab-content-panel');
+    allPanels.forEach(panel => panel.classList.add('hidden'));
     
     // Remove active class from all nav links
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.classList.remove('active-nav-link');
-    });
+    const allNavLinks = document.querySelectorAll('.nav-link');
+    allNavLinks.forEach(link => link.classList.remove('active-nav-link'));
     
-    // Show target panel
-    const activePanel = document.getElementById(`${contentName}-content`);
-    if (activePanel) {
-        activePanel.classList.remove('hidden');
-        activePanel.classList.add('active');
-        console.log(`Switched to ${contentName} tab`);
-    } else {
-        console.warn(`Panel not found: ${contentName}-content`);
+    // Add active class to clicked nav link
+    if (element) {
+        element.classList.add('active-nav-link');
     }
     
-    // Add active class to clicked element
-    if (clickedElement) {
-        clickedElement.classList.add('active-nav-link');
+    // Show selected content panel
+    const targetPanel = document.getElementById(`${contentType}-content`);
+    if (targetPanel) {
+        targetPanel.classList.remove('hidden');
     }
     
-    // Trigger tab-specific initialization
-    switch (contentName) {
+    // Handle specific tab logic
+    switch (contentType) {
         case 'dashboard':
-            if (typeof window.initializeCharts === 'function') {
-                setTimeout(() => window.initializeCharts(), 100);
+            // Load dashboard data
+            if (typeof loadDashboardData === 'function') {
+                loadDashboardData();
             }
             break;
+            
         case 'implementation':
-            if (typeof window.loadImplementationPlan === 'function') {
-                setTimeout(() => window.loadImplementationPlan(), 100);
+            // Load implementation plan
+            if (typeof loadImplementationPlan === 'function') {
+                loadImplementationPlan();
             }
             break;
-        case 'alerts':
-            console.log('Alerts tab activated');
+            
+        case 'projectcontrols':
+            // Load project controls when tab is activated
+            if (typeof loadProjectControlsTab === 'function') {
+                loadProjectControlsTab();
+            }
             break;
+            
+        case 'alerts':
+            // Load alerts data
+            if (typeof loadAlertsData === 'function') {
+                loadAlertsData();
+            }
+            break;
+            
+        case 'securityposture':
+            // Load security posture data
+            console.log('Security Posture tab selected');
+            break;
+            
+        case 'compliance':
+            // Load compliance data
+            console.log('Compliance tab selected');
+            break;
+            
+        case 'vulnerabilities':
+            // Load vulnerabilities data
+            console.log('Vulnerabilities tab selected');
+            break;
+            
+        default:
+            console.log(`Tab ${contentType} selected`);
     }
 }
 
