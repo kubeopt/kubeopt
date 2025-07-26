@@ -7,7 +7,7 @@
  */
 
 import { getCurrentClusterId, validateClusterContext, makeClusterAwareAPICall } from './charts.js';
-import { refreshImplementationPlan } from './implementation-plan.js';
+//import { refreshImplementationPlan } from './implementation-plan-bkp.js';
 import { showNotification } from './notifications.js';
 
 

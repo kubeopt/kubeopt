@@ -23,7 +23,7 @@ import './ui-navigation.js';
 import './css-injection.js';
 import './progress-animations.js';
 import './dynamic-insights.js';
-import './implementation-plan.js';
+// import './implementation-plan.js';
 
 // Import main dashboard LAST (after all dependencies are loaded)
 import { initializeDashboard } from './main.js';

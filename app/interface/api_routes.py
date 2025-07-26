@@ -29,6 +29,8 @@ from app.data.processing.analysis_engine import multi_subscription_analysis_engi
 # FIXED: Import alerts integration
 from app.services.alerts_integration import initialize_alerts_system, register_alerts_routes, get_alerts_manager
 
+from app.interface.project_controls_api import integrate_project_controls_api
+
 # FIXED: Import chart functions from correct location
 chart_generator_functions = {}
 try:
@@ -148,12 +150,13 @@ def trigger_alert_checking_after_analysis(cluster_id: str, analysis_results: dic
 def register_api_routes(app):
     """Register all API routes with multi-subscription support and complete alerts integration"""
     
-    # FIXED: Initialize and register alerts system
+    # Initialize and register alerts system
     global alerts_manager
     try:
         alerts_manager = initialize_alerts_system()
         register_alerts_routes(app)
-        logger.info("✅ Alerts system routes registered successfully")
+        integrate_project_controls_api(app)
+        logger.info("✅ Routes registered successfully")
     except Exception as e:
         logger.error(f"❌ Failed to register alerts routes: {e}")
 
@@ -700,43 +703,7 @@ def register_api_routes(app):
                         logger.warning(f"⚠️ Timeline conversion failed: {convert_error}")
                         # Continue with original plan
             
-            # **FIX: Extract framework components from the correct nested structure**
-            ml_integration = implementation_plan.get('ml_integration', {})
-            ml_structure = ml_integration.get('ml_structure', {})
-            
-            # Map the correct data structure for frontend
-            if ml_structure:
-                # Extract from ml_structure and map to expected names
-                implementation_plan['cost_protection'] = ml_structure.get('costProtection', {})
-                implementation_plan['governance_framework'] = ml_structure.get('governance', {})
-                implementation_plan['monitoring_strategy'] = ml_structure.get('monitoring', {})
-                implementation_plan['contingency_planning'] = ml_structure.get('contingency', {})
-                implementation_plan['success_criteria'] = ml_structure.get('successCriteria', {})
-                implementation_plan['timeline_optimization'] = ml_structure.get('timelineOptimization', {})
-                implementation_plan['risk_mitigation'] = ml_structure.get('riskMitigation', {})
-                implementation_plan['intelligence_insights'] = ml_structure.get('intelligenceInsights', {})
-                
-                logger.info(f"✅ Mapped framework components from ml_structure:")
-                logger.info(f"   - costProtection: {bool(implementation_plan['cost_protection'])}")
-                logger.info(f"   - governance: {bool(implementation_plan['governance_framework'])}")
-                logger.info(f"   - monitoring: {bool(implementation_plan['monitoring_strategy'])}")
-                logger.info(f"   - contingency: {bool(implementation_plan['contingency_planning'])}")
-                logger.info(f"   - successCriteria: {bool(implementation_plan['success_criteria'])}")
-                logger.info(f"   - timelineOptimization: {bool(implementation_plan['timeline_optimization'])}")
-                logger.info(f"   - riskMitigation: {bool(implementation_plan['risk_mitigation'])}")
-                logger.info(f"   - intelligence: {bool(implementation_plan['intelligence_insights'])}")
-            else:
-                logger.warning("⚠️ No ml_structure found in implementation plan")
-            
-            # Also check for direct intelligence_insights in the main data
-            if not implementation_plan.get('intelligence_insights') and 'intelligenceInsights' in current_analysis:
-                implementation_plan['intelligence_insights'] = current_analysis['intelligenceInsights']
-                logger.info(f"✅ Using intelligence_insights from current_analysis")
-                
-            # Add executive summary from the correct location
-            if not implementation_plan.get('executive_summary') and 'executiveSummary' in current_analysis:
-                implementation_plan['executive_summary'] = current_analysis['executiveSummary']
-                logger.info(f"✅ Using executive_summary from current_analysis")
+            # REMOVED: Problematic framework mapping logic - now handled by implementation generator
             
             # Final validation before returning - adapted for format
             if format_type == 'timeline':
@@ -803,7 +770,7 @@ def register_api_routes(app):
                 'error_type': type(e).__name__,
                 'format_type': request.args.get('format', 'comprehensive')
             }), 500
-
+        
     @app.route('/api/clusters', methods=['GET', 'POST'])
     def api_clusters():
         """API for cluster management with subscription support"""
