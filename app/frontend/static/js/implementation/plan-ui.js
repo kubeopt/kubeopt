@@ -1259,9 +1259,9 @@ export function renderEnhancedCompleteTimeline(data) {
                                     ` : ''}
                                 </div>
                             </div>
-                            <div class="progress-circle" style="--progress: ${phase.progress * 3.6}deg;">
+                            <!--<div class="progress-circle" style="--progress: ${phase.progress * 3.6}deg;">
                                 <div class="progress-text">${phase.progress}%</div>
-                            </div>
+                            </div>-->
                         </div>
                         
                         <div id="complete-content-${phase.id}" style="max-height: 0; overflow: hidden; transition: all 0.4s ease;">

@@ -448,6 +448,7 @@ function createCPUMetricsDisplay(cpuMetrics) {
     const maxCPU = cpuMetrics.max_cpu_utilization || 0;
     const highCpuCount = cpuMetrics.high_cpu_count || 0;
     const severityLevel = cpuMetrics.severity_level || 'none';
+    const efficiencyScore = getEfficiencyScore(avgCPU, maxCPU);
     
     // Determine status styling
     const statusConfig = getCPUStatusConfig(hasHighCPU, severityLevel, maxCPU);
@@ -519,16 +520,16 @@ function createCPUMetricsDisplay(cpuMetrics) {
                     </div>
                 </div>
                 
-                <div class="cpu-metric-item ${getMetricColorClass(avgCPU, 'text')}">
+                <div class="cpu-metric-item ${getMetricColorClass(efficiencyScore, 'efficiency')}">
                     <div class="metric-icon-bg">
                         <i class="fas fa-gauge-high text-white"></i>
                     </div>
                     <div class="metric-content">
-                        <div class="metric-value">${getEfficiencyScore(avgCPU, maxCPU)}%</div>
+                        <div class="metric-value">${efficiencyScore}%</div>
                         <div class="metric-label">CPU Efficiency</div>
-                        <div class="metric-trend ${getMetricColorClass(avgCPU, 'text')}">
+                        <div class="metric-trend ${getMetricColorClass(efficiencyScore, 'efficiency')}">
                             <i class="fas fa-chart-pie"></i>
-                            <span>${getMetricTrendText(avgCPU, 'text')}</span>
+                            <span>${getMetricTrendText(efficiencyScore, 'efficiency')}</span>
                         </div>
                     </div>
                 </div>
@@ -667,6 +668,12 @@ function getMetricColorClass(value, type) {
             if (value > 2) return 'metric-warning';
             if (value > 0) return 'metric-info';
             return 'metric-success';
+        case 'efficiency':
+            if (value > 80) return 'metric-excellent';
+            if (value > 60) return 'metric-good';
+            if (value > 40) return 'metric-moderate';
+            if (value > 20) return 'metric-poor';
+            return 'metric-critical';
         default:
             return 'metric-info';
     }
@@ -708,12 +715,12 @@ function getMetricTrendText(value, type) {
             if (value > 2) return 'Several Issues';
             if (value > 0) return 'Some Issues';
             return 'No Issues';
-        case 'text':
-            if (value > 80) return 'Very High';
-            if (value > 60) return 'High';
-            if (value > 40) return 'Moderate';
-            if (value > 20) return 'Normal';
-            return 'CPU Score';
+        case 'efficiency': 
+            if (value > 80) return 'Excellent';
+            if (value > 60) return 'Good';
+            if (value > 40) return 'Fair';
+            if (value > 20) return 'Poor';
+            return 'Critical';
         default:
             return 'Unknown';
     }
@@ -723,7 +730,10 @@ function getEfficiencyScore(avgCPU, maxCPU) {
     // Calculate efficiency score based on CPU usage patterns
     if (maxCPU === 0) return 0;
     
-    const efficiency = Math.max(0, 100 - (maxCPU - avgCPU) / maxCPU * 100);
+    // More realistic efficiency calculation
+    // High efficiency means stable, predictable CPU usage
+    const volatility = (maxCPU - avgCPU) / maxCPU;
+    const efficiency = Math.max(0, 100 - (volatility * 100));
     return Math.round(efficiency);
 }
 
