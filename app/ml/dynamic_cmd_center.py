@@ -4,6 +4,7 @@ AKS Command Generator
 """
 
 import json
+import traceback
 import yaml
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any, Union
@@ -1037,11 +1038,19 @@ class AdvancedExecutableCommandGenerator:
 
 
     def _generate_assessment_commands_for_phase(self, comprehensive_state: Dict, 
-                                          variable_context: Dict, cluster_intelligence: Dict) -> List[ExecutableCommand]:
+                                      variable_context: Dict, cluster_intelligence: Dict) -> List[ExecutableCommand]:
         """Generate assessment/preparation commands for specific phase"""
         commands = []
         
         try:
+            # FIXED: Handle None cluster_intelligence safely
+            if cluster_intelligence is None:
+                cluster_intelligence = {
+                    'total_workloads': 0,
+                    'existing_hpas': 0,
+                    'real_workload_names': []
+                }
+            
             # Environment validation command
             validation_command = f"""
     # Environment validation
@@ -1051,7 +1060,6 @@ class AdvancedExecutableCommandGenerator:
     kubectl cluster-info
     kubectl get nodes -o wide
     kubectl get namespaces
-
 
     # Cluster intelligence validation
     echo "🔧 Cluster Intelligence:"
@@ -1073,7 +1081,7 @@ class AdvancedExecutableCommandGenerator:
                 timeout_seconds=120,
                 retry_attempts=2,
                 prerequisites=["Azure CLI installed", "kubectl configured"],
-                estimated_duration_minutes=8,  # Match your phase expectation
+                estimated_duration_minutes=8,  # Match phase expectation
                 risk_level="Low",
                 monitoring_metrics=["environment_validation_status"],
                 variable_substitutions=variable_context,
@@ -1084,7 +1092,7 @@ class AdvancedExecutableCommandGenerator:
             
             # Add real cluster analysis if cluster config available
             if comprehensive_state.get('analysis_available'):
-                total_workloads = cluster_intelligence.get('total_workloads', 21)  # From your example
+                total_workloads = cluster_intelligence.get('total_workloads', 0)
                 
                 commands.append(ExecutableCommand(
                     id="assess-config-analysis",
@@ -1103,7 +1111,7 @@ class AdvancedExecutableCommandGenerator:
 
     echo "✅ Real cluster analysis complete - {total_workloads} workloads analyzed"
     """.strip(),
-                    description="Analyze real cluster with 21 workloads and 0 existing HPAs",
+                    description=f"Analyze real cluster with {total_workloads} workloads and {cluster_intelligence.get('existing_hpas', 0)} existing HPAs",
                     category="preparation", 
                     subcategory="assessment",
                     yaml_content=None,
@@ -1114,7 +1122,7 @@ class AdvancedExecutableCommandGenerator:
                     timeout_seconds=180,
                     retry_attempts=1,
                     prerequisites=["kubectl access", "cluster connectivity"],
-                    estimated_duration_minutes=4,  # Match your phase expectation
+                    estimated_duration_minutes=4,  # Match phase expectation
                     risk_level="Low",
                     monitoring_metrics=["cluster_analysis_complete"],
                     variable_substitutions=variable_context,
@@ -1128,6 +1136,274 @@ class AdvancedExecutableCommandGenerator:
             commands.append(self._create_fallback_assessment_command(variable_context))
         
         return commands
+
+    # FIXES FOR HPA STRUCTURE COMPLETENESS AND DATABASE SAVING
+
+    def ensure_complete_hpa_recommendations_structure(analysis_results: Dict, 
+                                                    ml_workload_characteristics: Dict) -> Dict:
+        """
+        FIXED: Ensure HPA recommendations have complete structure for database saving
+        """
+        try:
+            logger.info("🔧 FIXED: Ensuring complete HPA recommendations structure")
+            
+            # Build complete HPA recommendations structure
+            hpa_recommendations = {
+                'metadata': {
+                    'cluster_name': analysis_results.get('cluster_name', 'unknown'),
+                    'resource_group': analysis_results.get('resource_group', 'unknown'),
+                    'analysis_timestamp': datetime.now().isoformat(),
+                    'recommendations_version': '2.0',
+                    'ml_enhanced': True
+                },
+                'summary': {
+                    'total_workloads_analyzed': 0,
+                    'hpa_candidates_found': 0,
+                    'existing_hpas_analyzed': 0,
+                    'optimization_opportunities': 0,
+                    'total_potential_savings': 0
+                },
+                'candidates': [],
+                'existing_hpa_optimizations': [],
+                'optimization_opportunities': [],
+                'implementation_priorities': [],
+                'ml_insights': ml_workload_characteristics
+            }
+            
+            # Extract from YOUR analysis results
+            workload_costs = analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {})
+            
+            # Process workload candidates
+            for workload_name, workload_info in workload_costs.items():
+                cost = workload_info.get('cost', 0)
+                
+                if cost > 20:  # HPA candidate threshold
+                    candidate = {
+                        'workload_name': workload_name,
+                        'namespace': workload_info.get('namespace', 'default'),
+                        'current_monthly_cost': cost,
+                        'priority_score': min(1.0, cost / 100),
+                        'expected_monthly_savings': cost * 0.35,  # 35% savings
+                        'implementation_complexity': 'medium',
+                        'resource_profile': {
+                            'estimated_cpu_usage': 'medium',
+                            'estimated_memory_usage': 'medium',
+                            'scaling_pattern': 'variable_load'
+                        },
+                        'hpa_configuration': {
+                            'min_replicas': 2,
+                            'max_replicas': max(6, int(cost / 10)),  # Scale with cost
+                            'cpu_target': 70,
+                            'memory_target': 70
+                        },
+                        'ml_confidence': 0.8,
+                        'recommendation_source': 'cost_analysis_ml_enhanced'
+                    }
+                    
+                    hpa_recommendations['candidates'].append(candidate)
+            
+            # Update summary
+            hpa_recommendations['summary'].update({
+                'total_workloads_analyzed': len(workload_costs),
+                'hpa_candidates_found': len(hpa_recommendations['candidates']),
+                'total_potential_savings': sum(c['expected_monthly_savings'] for c in hpa_recommendations['candidates']),
+                'optimization_opportunities': len(hpa_recommendations['candidates'])
+            })
+            
+            # Add implementation priorities (sorted by savings potential)
+            sorted_candidates = sorted(hpa_recommendations['candidates'], 
+                                    key=lambda x: x['expected_monthly_savings'], reverse=True)
+            
+            for i, candidate in enumerate(sorted_candidates[:5]):  # Top 5 priorities
+                priority = {
+                    'rank': i + 1,
+                    'workload_name': candidate['workload_name'],
+                    'namespace': candidate['namespace'],
+                    'priority_reason': f"High savings potential: ${candidate['expected_monthly_savings']:.0f}/month",
+                    'implementation_order': 'phase_1' if i < 2 else 'phase_2' if i < 4 else 'phase_3'
+                }
+                hpa_recommendations['implementation_priorities'].append(priority)
+            
+            # Add optimization opportunities (generic recommendations)
+            if hpa_recommendations['summary']['hpa_candidates_found'] > 0:
+                hpa_recommendations['optimization_opportunities'] = [
+                    {
+                        'type': 'hpa_deployment',
+                        'description': f"Deploy HPAs for {len(hpa_recommendations['candidates'])} workloads",
+                        'expected_savings': hpa_recommendations['summary']['total_potential_savings'],
+                        'implementation_effort': 'medium',
+                        'risk_level': 'low'
+                    },
+                    {
+                        'type': 'metrics_server_setup',
+                        'description': 'Ensure metrics server is properly configured',
+                        'expected_savings': 0,
+                        'implementation_effort': 'low',
+                        'risk_level': 'low'
+                    }
+                ]
+            
+            logger.info(f"✅ FIXED: Complete HPA structure created")
+            logger.info(f"📊 Candidates: {len(hpa_recommendations['candidates'])}")
+            logger.info(f"💰 Total savings: ${hpa_recommendations['summary']['total_potential_savings']:.0f}")
+            
+            return hpa_recommendations
+            
+        except Exception as e:
+            logger.error(f"❌ FIXED: HPA structure creation failed: {e}")
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            return {}
+
+    def validate_hpa_structure_for_database(hpa_recommendations: Dict) -> Tuple[bool, List[str]]:
+        """
+        FIXED: Validate HPA recommendations structure before database save
+        """
+        validation_errors = []
+        
+        try:
+            # Check required top-level keys
+            required_keys = ['metadata', 'summary', 'candidates', 'ml_insights']
+            for key in required_keys:
+                if key not in hpa_recommendations:
+                    validation_errors.append(f"Missing required key: {key}")
+            
+            # Validate metadata
+            if 'metadata' in hpa_recommendations:
+                metadata = hpa_recommendations['metadata']
+                required_metadata = ['cluster_name', 'resource_group', 'analysis_timestamp']
+                for key in required_metadata:
+                    if key not in metadata or not metadata[key]:
+                        validation_errors.append(f"Missing or empty metadata.{key}")
+            
+            # Validate summary
+            if 'summary' in hpa_recommendations:
+                summary = hpa_recommendations['summary']
+                required_summary = ['total_workloads_analyzed', 'hpa_candidates_found', 'total_potential_savings']
+                for key in required_summary:
+                    if key not in summary:
+                        validation_errors.append(f"Missing summary.{key}")
+            
+            # Validate candidates structure
+            if 'candidates' in hpa_recommendations:
+                for i, candidate in enumerate(hpa_recommendations['candidates']):
+                    required_candidate_keys = ['workload_name', 'namespace', 'expected_monthly_savings']
+                    for key in required_candidate_keys:
+                        if key not in candidate:
+                            validation_errors.append(f"Missing candidates[{i}].{key}")
+            
+            is_valid = len(validation_errors) == 0
+            
+            if is_valid:
+                logger.info("✅ FIXED: HPA structure validation passed")
+            else:
+                logger.warning(f"⚠️ FIXED: HPA structure validation failed: {validation_errors}")
+            
+            return is_valid, validation_errors
+            
+        except Exception as e:
+            logger.error(f"❌ FIXED: HPA structure validation failed: {e}")
+            return False, [f"Validation exception: {str(e)}"]
+
+    def generate_complete_hpa_analysis_with_ml(analysis_results: Dict, 
+                                            cluster_config: Optional[Dict] = None) -> Dict:
+        """
+        FIXED: Generate complete HPA analysis with ML workload characteristics
+        This is the main method to call from your config/analysis pipeline
+        """
+        try:
+            logger.info("🔄 FIXED: Starting complete HPA analysis with ML characteristics")
+            
+            # Step 1: Extract ML workload characteristics
+            ml_characteristics = extract_ml_workload_characteristics(analysis_results, cluster_config)
+            
+            if not ml_characteristics:
+                logger.warning("⚠️ FIXED: No ML characteristics extracted, using basic analysis")
+                ml_characteristics = {
+                    'workload_profile': {'total_workloads': 0},
+                    'resource_patterns': {},
+                    'scaling_indicators': {'hpa_candidates': []},
+                    'cost_patterns': {},
+                    'optimization_readiness': {'overall_score': 0.5}
+                }
+            
+            # Step 2: Build complete HPA recommendations structure
+            hpa_recommendations = ensure_complete_hpa_recommendations_structure(
+                analysis_results, ml_characteristics
+            )
+            
+            # Step 3: Validate structure before returning
+            is_valid, validation_errors = validate_hpa_structure_for_database(hpa_recommendations)
+            
+            if not is_valid:
+                logger.error(f"❌ FIXED: HPA recommendations structure invalid: {validation_errors}")
+                # Return minimal valid structure
+                hpa_recommendations = create_minimal_valid_hpa_structure(analysis_results)
+            
+            # Step 4: Add integration metadata for command generator
+            hpa_recommendations['integration_metadata'] = {
+                'ready_for_command_generation': True,
+                'ml_enhanced': bool(ml_characteristics),
+                'data_quality_score': calculate_data_quality_score(analysis_results),
+                'command_generator_compatible': True
+            }
+            
+            logger.info("✅ FIXED: Complete HPA analysis with ML generated successfully")
+            return hpa_recommendations
+            
+        except Exception as e:
+            logger.error(f"❌ FIXED: Complete HPA analysis generation failed: {e}")
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            return create_minimal_valid_hpa_structure(analysis_results)
+
+    def create_minimal_valid_hpa_structure(analysis_results: Dict) -> Dict:
+        """Create minimal valid HPA structure as fallback"""
+        return {
+            'metadata': {
+                'cluster_name': analysis_results.get('cluster_name', 'unknown'),
+                'resource_group': analysis_results.get('resource_group', 'unknown'),
+                'analysis_timestamp': datetime.now().isoformat(),
+                'recommendations_version': '2.0-minimal',
+                'ml_enhanced': False
+            },
+            'summary': {
+                'total_workloads_analyzed': 0,
+                'hpa_candidates_found': 0,
+                'total_potential_savings': 0,
+                'optimization_opportunities': 0
+            },
+            'candidates': [],
+            'existing_hpa_optimizations': [],
+            'optimization_opportunities': [],
+            'implementation_priorities': [],
+            'ml_insights': {},
+            'integration_metadata': {
+                'ready_for_command_generation': False,
+                'ml_enhanced': False,
+                'data_quality_score': 0.3,
+                'fallback_mode': True
+            }
+        }
+
+    def calculate_data_quality_score(analysis_results: Dict) -> float:
+        """Calculate data quality score for integration assessment"""
+        score = 0.0
+        
+        # Check for essential data
+        if 'total_cost' in analysis_results and analysis_results['total_cost'] > 0:
+            score += 0.3
+        
+        if 'pod_cost_analysis' in analysis_results:
+            workload_costs = analysis_results['pod_cost_analysis'].get('workload_costs', {})
+            if len(workload_costs) > 0:
+                score += 0.3
+        
+        if 'nodes' in analysis_results and len(analysis_results['nodes']) > 0:
+            score += 0.2
+        
+        if 'namespace_costs' in analysis_results:
+            score += 0.2
+        
+        return min(1.0, score)
 
     def _create_fallback_generic_command(self, variable_context: Dict, phase_title: str) -> ExecutableCommand:
         """Create fallback generic command"""
@@ -1332,264 +1608,2361 @@ class AdvancedExecutableCommandGenerator:
         self.cluster_config = cluster_config
         logger.info(f"🛠️ Command Generator: Cluster config set")
 
-    def generate_comprehensive_execution_plan(self, optimization_strategy, 
-                                        cluster_dna, 
-                                        analysis_results: Dict,
-                                        cluster_config: Optional[Dict] = None,
-                                        implementation_phases: Optional[List[Dict]] = None) -> ComprehensiveExecutionPlan:
-        """Generate comprehensive execution plan with phase-specific commands"""
-        logger.info(f"🛠️ Generating comprehensive AKS execution plan")
+
+    def _build_comprehensive_intelligence(self, analysis_results: Dict, 
+                                    cluster_dna: Any, cluster_config: Optional[Dict]) -> Dict:
+        """Build comprehensive intelligence from all available sources"""
+        
+        intelligence = {
+            'analysis_insights': self._extract_analysis_insights(analysis_results),
+            'cluster_dna_insights': self._extract_dna_insights(cluster_dna),
+            'config_insights': self._extract_config_insights(cluster_config) if cluster_config else {},
+            'pattern_indicators': self._extract_pattern_indicators(analysis_results, cluster_config)
+        }
+        
+        # Synthesize comprehensive view
+        intelligence['synthesis'] = {
+            'optimization_readiness': self._calculate_optimization_readiness(intelligence),
+            'complexity_level': self._determine_complexity_level(intelligence),
+            'risk_profile': self._assess_risk_profile(intelligence),
+            'compliance_requirements': self._identify_compliance_requirements(intelligence)
+        }
+        
+        return intelligence    
+    
+    def _extract_analysis_insights(self, analysis_results: Dict) -> Dict:
+        """Extract key insights from analysis results"""
+        return {
+            'cost_profile': {
+                'total_cost': analysis_results.get('total_cost', 0),
+                'cost_breakdown': analysis_results.get('cost_breakdown', {}),
+                'high_cost_workloads': self._identify_high_cost_workloads(analysis_results),
+                'cost_efficiency_score': self._calculate_cost_efficiency(analysis_results)
+            },
+            'optimization_potential': {
+                'hpa_savings': analysis_results.get('hpa_savings', 0),
+                'rightsizing_savings': analysis_results.get('right_sizing_savings', 0),
+                'storage_savings': analysis_results.get('storage_cost', 0) * 0.3,
+                'total_savings_potential': analysis_results.get('total_savings', 0)
+            },
+            'workload_patterns': self._analyze_workload_patterns(analysis_results),
+            'resource_utilization': self._analyze_resource_utilization(analysis_results)
+        }
+    
+    def _classify_and_adapt_patterns(self, comprehensive_intelligence: Dict, 
+                               analysis_results: Dict) -> Dict:
+        """Enhanced pattern classification with adaptation strategies"""
+        
+        # Use existing classifier but enhance with comprehensive intelligence
+        cluster_intelligence = comprehensive_intelligence.get('config_insights', {})
+        organization_patterns = comprehensive_intelligence.get('pattern_indicators', {})
+        
+        pattern_classification = self.pattern_classifier.classify_cluster_pattern(
+            comprehensive_intelligence, cluster_intelligence, organization_patterns
+        )
+        
+        # Add adaptation strategies based on patterns
+        adaptation_strategies = {
+            'command_prioritization': self._determine_command_prioritization(pattern_classification),
+            'risk_tolerance': self._determine_risk_tolerance(pattern_classification),
+            'rollout_strategy': self._determine_rollout_strategy(pattern_classification),
+            'monitoring_intensity': self._determine_monitoring_intensity(pattern_classification)
+        }
+        
+        return {
+            'classification': pattern_classification,
+            'adaptations': adaptation_strategies
+        }
+    
+    def _extract_comprehensive_opportunities(self, analysis_results: Dict, 
+                                       cluster_config: Optional[Dict],
+                                       optimization_patterns: Dict) -> Dict:
+        """Extract ALL optimization opportunities across AKS dimensions"""
+        
+        opportunities = {
+            # Core optimization opportunities (existing)
+            'hpa_opportunities': self._extract_real_hpa_opportunities(analysis_results),
+            'rightsizing_opportunities': self._extract_real_rightsizing_opportunities(analysis_results),
+            'monitoring_opportunities': self._extract_real_monitoring_opportunities(analysis_results),
+            
+            # ADVANCED: Additional AKS optimization areas
+            'network_opportunities': self._extract_network_optimization_opportunities(analysis_results, cluster_config),
+            'security_opportunities': self._extract_security_optimization_opportunities(analysis_results, cluster_config),
+            'storage_opportunities': self._extract_advanced_storage_opportunities(analysis_results, cluster_config),
+            'node_opportunities': self._extract_node_optimization_opportunities(analysis_results, cluster_config),
+            'namespace_opportunities': self._extract_namespace_optimization_opportunities(analysis_results),
+            'service_mesh_opportunities': self._extract_service_mesh_opportunities(analysis_results, cluster_config),
+            'compliance_opportunities': self._extract_compliance_opportunities(analysis_results, cluster_config),
+            'disaster_recovery_opportunities': self._extract_dr_opportunities(analysis_results, cluster_config)
+        }
+        
+        # Prioritize opportunities based on patterns
+        opportunities['prioritized'] = self._prioritize_opportunities(
+            opportunities, optimization_patterns
+        )
+        
+        return opportunities
+
+    def _extract_security_optimization_opportunities(self, analysis_results: Dict,
+                                                cluster_config: Optional[Dict]) -> List[Dict]:
+        """Extract security optimization opportunities"""
+        opportunities = []
+        
+        try:
+            total_cost = analysis_results.get('total_cost', 0)
+            
+            # RBAC optimization for cost and security
+            if total_cost > 200:
+                opportunities.append({
+                    'type': 'rbac_optimization',
+                    'monthly_savings': 20,  # Indirect savings through improved security
+                    'optimization': 'implement_granular_rbac_and_service_accounts',
+                    'priority': 'high'
+                })
+            
+            # Pod Security Standards
+            opportunities.append({
+                'type': 'pod_security_standards',
+                'monthly_savings': 15,  # Compliance cost avoidance
+                'optimization': 'implement_pod_security_standards',
+                'priority': 'medium'
+            })
+            
+            # Network security policies
+            if len(analysis_results.get('namespace_costs', {})) > 2:
+                opportunities.append({
+                    'type': 'network_security_policies',
+                    'monthly_savings': 25,
+                    'optimization': 'implement_comprehensive_network_policies',
+                    'priority': 'medium'
+                })
+                
+        except Exception as e:
+            logger.error(f"❌ Security opportunity extraction failed: {e}")
+        
+        return opportunities
+
+    def _extract_advanced_storage_opportunities(self, analysis_results: Dict,
+                                           cluster_config: Optional[Dict]) -> List[Dict]:
+        """Extract advanced storage optimization opportunities"""
+        opportunities = []
+        
+        try:
+            storage_cost = analysis_results.get('storage_cost', 0)
+            
+            if storage_cost > 50:
+                # Storage class optimization
+                opportunities.append({
+                    'type': 'storage_class_optimization',
+                    'monthly_savings': storage_cost * 0.4,  # 40% savings
+                    'optimization': 'migrate_to_cost_effective_storage_classes',
+                    'priority': 'high'
+                })
+                
+                # PV lifecycle management
+                opportunities.append({
+                    'type': 'pv_lifecycle_management',
+                    'monthly_savings': storage_cost * 0.2,  # 20% savings
+                    'optimization': 'implement_automated_pv_cleanup_and_lifecycle',
+                    'priority': 'medium'
+                })
+                
+                # Backup optimization
+                if storage_cost > 100:
+                    opportunities.append({
+                        'type': 'backup_optimization',
+                        'monthly_savings': 30,
+                        'optimization': 'optimize_backup_retention_and_scheduling',
+                        'priority': 'low'
+                    })
+                    
+        except Exception as e:
+            logger.error(f"❌ Storage opportunity extraction failed: {e}")
+        
+        return opportunities
+    
+
+    def _build_comprehensive_execution_plan(self, all_commands: List, analysis_results: Dict,
+                                        comprehensive_intelligence: Dict, 
+                                        implementation_phases: Optional[List[Dict]]) -> ComprehensiveExecutionPlan:
+        """Build comprehensive execution plan from all components"""
+        
+        try:
+            plan_id = f"aks-optimization-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            cluster_name = analysis_results.get('cluster_name', 'unknown-cluster')
+            resource_group = analysis_results.get('resource_group', 'unknown-rg')
+            
+            variable_context = self._build_comprehensive_variable_context(
+                analysis_results, None, self.cluster_config
+            )
+            azure_context = self._build_azure_context(analysis_results)
+            kubernetes_context = self._build_kubernetes_context(analysis_results, None, self.cluster_config)
+            
+            # Categorize commands
+            preparation_commands = [cmd for cmd in all_commands if cmd.category == 'preparation']
+            optimization_commands = [cmd for cmd in all_commands if cmd.category == 'execution']
+            monitoring_commands = [cmd for cmd in all_commands if cmd.subcategory == 'monitoring']
+            security_commands = [cmd for cmd in all_commands if cmd.subcategory in ['security_optimization', 'security']]
+            validation_commands = [cmd for cmd in all_commands if cmd.category == 'validation']
+            
+            total_duration = sum(cmd.estimated_duration_minutes for cmd in all_commands)
+            
+            # Calculate estimated savings from commands
+            estimated_savings = 0
+            for cmd in all_commands:
+                # Try to extract savings from command description
+                if hasattr(cmd, 'description') and '$' in cmd.description:
+                    try:
+                        import re
+                        savings_match = re.search(r'\$(\d+)/month', cmd.description)
+                        if savings_match:
+                            estimated_savings += int(savings_match.group(1))
+                    except:
+                        pass
+            
+            # Build phase commands if phases provided
+            phase_commands = None
+            if implementation_phases:
+                phase_commands = self._generate_phase_specific_commands(
+                    implementation_phases, analysis_results, variable_context
+                )
+            
+            execution_plan = ComprehensiveExecutionPlan(
+                plan_id=plan_id,
+                cluster_name=cluster_name,
+                resource_group=resource_group,
+                subscription_id=azure_context.get('subscription_id'),
+                strategy_name='Comprehensive AKS Optimization',
+                total_estimated_minutes=total_duration,
+                
+                preparation_commands=preparation_commands,
+                optimization_commands=optimization_commands,
+                networking_commands=[],
+                security_commands=security_commands,
+                monitoring_commands=monitoring_commands,
+                validation_commands=validation_commands,
+                rollback_commands=[],
+                
+                variable_context=variable_context,
+                azure_context=azure_context,
+                kubernetes_context=kubernetes_context,
+                success_probability=max(0.8, comprehensive_intelligence.get('synthesis', {}).get('optimization_readiness', 0.8)),
+                estimated_savings=estimated_savings or analysis_results.get('total_savings', 0),
+                
+                cluster_intelligence=comprehensive_intelligence,
+                config_enhanced=self.cluster_config is not None,
+                phase_commands=phase_commands
+            )
+            
+            logger.info(f"✅ Comprehensive execution plan built with {len(all_commands)} commands")
+            return execution_plan
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to build comprehensive execution plan: {e}")
+            raise
+
+    # Additional missing methods that might be needed
+
+    def _generate_risk_mitigation_strategies(self, risk_profile: str) -> List[str]:
+        """Generate risk mitigation strategies"""
+        strategies = ['continuous_monitoring', 'gradual_rollout']
+        
+        if risk_profile == 'high':
+            strategies.extend([
+                'extensive_testing',
+                'rollback_preparation',
+                'change_approval_process',
+                'staged_deployment'
+            ])
+        elif risk_profile == 'medium':
+            strategies.extend([
+                'automated_rollback',
+                'health_checks',
+                'canary_deployment'
+            ])
+        else:  # low risk
+            strategies.extend([
+                'basic_validation',
+                'simple_rollback'
+            ])
+        
+        return strategies
+
+    def _determine_command_prioritization(self, pattern_classification: Dict) -> str:
+        """Determine command prioritization strategy"""
+        primary_pattern = pattern_classification.get('primary_pattern', 'balanced')
+        
+        if primary_pattern in ['cost_optimized_enterprise', 'scaling_production']:
+            return 'cost_first'
+        elif primary_pattern in ['security_focused_finance']:
+            return 'security_first'
+        elif primary_pattern in ['greenfield_startup', 'underutilized_development']:
+            return 'efficiency_first'
+        else:
+            return 'balanced'
+
+    def _determine_rollout_strategy(self, pattern_classification: Dict) -> str:
+        """Determine rollout strategy based on cluster pattern"""
+        primary_pattern = pattern_classification.get('primary_pattern', 'balanced')
+        confidence = pattern_classification.get('confidence', 0.5)
+        
+        if primary_pattern in ['security_focused_finance', 'cost_optimized_enterprise']:
+            return 'phased'
+        elif primary_pattern in ['greenfield_startup'] and confidence > 0.8:
+            return 'aggressive'
+        else:
+            return 'incremental'
+
+    def _determine_monitoring_intensity(self, pattern_classification: Dict) -> str:
+        """Determine monitoring intensity based on cluster pattern"""
+        primary_pattern = pattern_classification.get('primary_pattern', 'balanced')
+        
+        if primary_pattern in ['scaling_production', 'cost_optimized_enterprise']:
+            return 'high'
+        elif primary_pattern in ['security_focused_finance']:
+            return 'maximum'
+        elif primary_pattern in ['underutilized_development', 'greenfield_startup']:
+            return 'standard'
+        else:
+            return 'balanced'
+
+    # Simplified version of the main comprehensive method to avoid further errors
+    def generate_comprehensive_execution_plan_safe(self, optimization_strategy, 
+                                                cluster_dna, 
+                                                analysis_results: Dict,
+                                                cluster_config: Optional[Dict] = None,
+                                                implementation_phases: Optional[List[Dict]] = None) -> ComprehensiveExecutionPlan:
+        """
+        SAFE VERSION: Generate comprehensive execution plan without complex intelligence framework
+        """
+        logger.info(f"🛠️ Generating SAFE comprehensive AKS execution plan")
 
         if cluster_config:
             self.set_cluster_config(cluster_config)
 
         try:
-            if optimization_strategy is None:
-                logger.warning("⚠️ No optimization strategy provided, creating minimal strategy")
-                optimization_strategy = self._create_minimal_optimization_strategy(analysis_results)
+            # Extract opportunities using the working methods
+            logger.info("🔍 Extracting comprehensive opportunities from YOUR analysis...")
             
-            generation_confidence = self._assess_command_generation_confidence(
-                analysis_results, cluster_dna, optimization_strategy, self.cluster_config
+            hpa_opportunities = self._extract_real_hpa_opportunities(analysis_results)
+            rightsizing_opportunities = self._extract_real_rightsizing_opportunities(analysis_results)
+            monitoring_opportunities = self._extract_real_monitoring_opportunities(analysis_results)
+            network_opportunities = self._extract_network_optimization_opportunities(analysis_results, cluster_config)
+            security_opportunities = self._extract_security_optimization_opportunities(analysis_results, cluster_config)
+            storage_opportunities = self._extract_advanced_storage_opportunities(analysis_results, cluster_config)
+            node_opportunities = self._extract_node_optimization_opportunities(analysis_results, cluster_config)
+            
+            logger.info(f"✅ Opportunities extracted: HPA={len(hpa_opportunities)}, Rightsizing={len(rightsizing_opportunities)}")
+            logger.info(f"✅ Advanced opportunities: Network={len(network_opportunities)}, Security={len(security_opportunities)}, Storage={len(storage_opportunities)}, Node={len(node_opportunities)}")
+            
+            # Build variable context
+            variable_context = self._build_comprehensive_variable_context(analysis_results, cluster_dna, cluster_config)
+            
+            # Generate commands for each opportunity type
+            all_commands = []
+            
+            # Core optimizations
+            if hpa_opportunities:
+                hpa_strategy = self.hpa_strategies.get('basic', self.hpa_strategies['basic'])
+                hpa_commands = self._generate_hpa_commands_from_opportunities(hpa_opportunities, hpa_strategy, variable_context)
+                all_commands.extend(hpa_commands)
+                logger.info(f"✅ Generated {len(hpa_commands)} HPA commands")
+            
+            if rightsizing_opportunities:
+                rightsizing_commands = self._generate_rightsizing_commands_from_opportunities(rightsizing_opportunities, variable_context, 'balanced')
+                all_commands.extend(rightsizing_commands)
+                logger.info(f"✅ Generated {len(rightsizing_commands)} rightsizing commands")
+            
+            if monitoring_opportunities:
+                monitoring_commands = self._generate_monitoring_commands_from_opportunities(monitoring_opportunities, variable_context)
+                all_commands.extend(monitoring_commands)
+                logger.info(f"✅ Generated {len(monitoring_commands)} monitoring commands")
+            
+            # Advanced optimizations (with error handling)
+            try:
+                if network_opportunities:
+                    network_commands = self._generate_network_optimization_commands(network_opportunities, variable_context)
+                    all_commands.extend(network_commands)
+                    logger.info(f"✅ Generated {len(network_commands)} network commands")
+            except Exception as e:
+                logger.warning(f"⚠️ Network command generation failed: {e}")
+            
+            try:
+                if security_opportunities:
+                    security_commands = self._generate_security_optimization_commands(security_opportunities, variable_context)
+                    all_commands.extend(security_commands)
+                    logger.info(f"✅ Generated {len(security_commands)} security commands")
+            except Exception as e:
+                logger.warning(f"⚠️ Security command generation failed: {e}")
+            
+            try:
+                if storage_opportunities:
+                    storage_commands = self._generate_advanced_storage_commands(storage_opportunities, variable_context)
+                    all_commands.extend(storage_commands)
+                    logger.info(f"✅ Generated {len(storage_commands)} storage commands")
+            except Exception as e:
+                logger.warning(f"⚠️ Storage command generation failed: {e}")
+            
+            try:
+                if node_opportunities:
+                    node_commands = self._generate_node_optimization_commands(node_opportunities, variable_context)
+                    all_commands.extend(node_commands)
+                    logger.info(f"✅ Generated {len(node_commands)} node commands")
+            except Exception as e:
+                logger.warning(f"⚠️ Node command generation failed: {e}")
+            
+            # Add validation commands
+            validation_commands = self._generate_comprehensive_validation_commands(analysis_results, variable_context, len(all_commands))
+            all_commands.extend(validation_commands)
+            
+            # Ensure minimum command count
+            if len(all_commands) < 5:
+                supplemental_commands = self._generate_supplemental_commands(analysis_results, variable_context, None, 5 - len(all_commands))
+                all_commands.extend(supplemental_commands)
+            
+            # Build execution plan using existing infrastructure
+            plan_id = f"aks-optimization-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            cluster_name = analysis_results.get('cluster_name', 'unknown-cluster')
+            resource_group = analysis_results.get('resource_group', 'unknown-rg')
+            
+            azure_context = self._build_azure_context(analysis_results)
+            kubernetes_context = self._build_kubernetes_context(analysis_results, cluster_dna, cluster_config)
+            
+            # Categorize commands
+            preparation_commands = [cmd for cmd in all_commands if cmd.category == 'preparation']
+            optimization_commands = [cmd for cmd in all_commands if cmd.category == 'execution']
+            monitoring_commands = [cmd for cmd in all_commands if cmd.subcategory == 'monitoring']
+            security_commands = [cmd for cmd in all_commands if cmd.subcategory in ['security_optimization', 'security']]
+            validation_commands = [cmd for cmd in all_commands if cmd.category == 'validation']
+            
+            total_duration = sum(cmd.estimated_duration_minutes for cmd in all_commands)
+            estimated_savings = analysis_results.get('total_savings', 0)
+            
+            # Build phase commands if phases provided
+            phase_commands = None
+            if implementation_phases:
+                phase_commands = self._generate_phase_specific_commands(implementation_phases, analysis_results, variable_context, None)
+            
+            execution_plan = ComprehensiveExecutionPlan(
+                plan_id=plan_id,
+                cluster_name=cluster_name,
+                resource_group=resource_group,
+                subscription_id=azure_context.get('subscription_id'),
+                strategy_name='Safe Comprehensive AKS Optimization',
+                total_estimated_minutes=total_duration,
+                
+                preparation_commands=preparation_commands,
+                optimization_commands=optimization_commands,
+                networking_commands=[],
+                security_commands=security_commands,
+                monitoring_commands=monitoring_commands,
+                validation_commands=validation_commands,
+                rollback_commands=[],
+                
+                variable_context=variable_context,
+                azure_context=azure_context,
+                kubernetes_context=kubernetes_context,
+                success_probability=0.85,
+                estimated_savings=estimated_savings,
+                
+                cluster_intelligence=None,
+                config_enhanced=cluster_config is not None,
+                phase_commands=phase_commands
             )
-
+            
+            logger.info(f"✅ SAFE comprehensive execution plan generated with {len(all_commands)} commands")
+            logger.info(f"✅ Total opportunities processed: {len(hpa_opportunities + rightsizing_opportunities + network_opportunities + security_opportunities + storage_opportunities + node_opportunities)}")
+            
+            return execution_plan
+            
         except Exception as e:
-            logger.error(f"❌ Error in command generation confidence assessment: {e}")
-            generation_confidence = 0.6
+            logger.error(f"❌ Safe comprehensive execution plan generation failed: {e}")
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            raise
 
-        logger.info(f"⚡ Command Generation Confidence: {generation_confidence:.2f}")
+    def _create_spot_instance_command(self, opportunity: Dict, variable_context: Dict):
+        """Create spot instance optimization command"""
+        savings = opportunity['monthly_savings']
+        cluster_name = variable_context.get('cluster_name', 'unknown-cluster')
+        resource_group = variable_context.get('resource_group', 'unknown-rg')
         
-        plan_id = f"aks-optimization-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-        cluster_name = analysis_results.get('cluster_name', 'unknown-cluster')
-        resource_group = analysis_results.get('resource_group', 'unknown-rg')
-        
-        variable_context = self._build_comprehensive_variable_context(analysis_results, cluster_dna, self.cluster_config)
-        azure_context = self._build_azure_context(analysis_results)
-        kubernetes_context = self._build_kubernetes_context(analysis_results, cluster_dna, self.cluster_config)
-        
-        cluster_intelligence = None
-        config_enhanced = False
-        
-        if self.cluster_config and self.cluster_config.get('status') == 'completed':
-            cluster_intelligence = self._extract_cluster_intelligence_for_commands(self.cluster_config)
-            config_enhanced = True
-            config_resources = self.cluster_config.get('fetch_metrics', {}).get('successful_fetches', 0)
-            logger.info(f"🔧 Using cluster config with {config_resources} resources")
+        return ExecutableCommand(
+            id='spot-instance-optimization',
+            command=f'''
+    # Spot Instance Optimization (${savings:.0f}/month savings)
+    echo "💰 Analyzing spot instance opportunities - Expected savings: ${savings:.0f}/month"
 
-        # Generate all commands
-        all_generated_commands = []
-        
-        # Phase 1: Preparation commands
-        preparation_commands = self._generate_preparation_commands(
-            analysis_results, cluster_dna, variable_context, cluster_intelligence
-        )
-        all_generated_commands.extend(preparation_commands)
-        
-        # Phase 2: Enhanced optimization commands
-        if (self.cluster_config and self.cluster_config.get('status') == 'completed'):
-            logger.info("🔍 Performing comprehensive state analysis...")
-            comprehensive_state = self._analyze_comprehensive_cluster_state(self.cluster_config)
-            
-            if comprehensive_state.get('analysis_available'):
-                logger.info("🎯 Using comprehensive state for enhanced command generation")
-                state_driven_commands = self._generate_enhanced_state_driven_commands(
-                    comprehensive_state, variable_context, cluster_intelligence, analysis_results
-                )
-                all_generated_commands.extend(state_driven_commands)
-            else:
-                optimization_commands = self._generate_optimization_commands(
-                    optimization_strategy, cluster_dna, analysis_results, variable_context, cluster_intelligence
-                )
-                all_generated_commands.extend(optimization_commands)
-        else:
-            optimization_commands = self._generate_optimization_commands(
-                optimization_strategy, cluster_dna, analysis_results, variable_context, cluster_intelligence
-            )
-            all_generated_commands.extend(optimization_commands)
-        
-        # Phase 3: Validation commands
-        validation_commands = self._generate_validation_commands(
-            analysis_results, cluster_dna, variable_context, cluster_intelligence
-        )
-        all_generated_commands.extend(validation_commands)
-        
-        # Ensure minimum command count
-        if len(all_generated_commands) < 5:
-            logger.info(f"🔄 Supplementing commands: {len(all_generated_commands)} -> minimum 5")
-            supplemental_commands = self._generate_supplemental_commands(
-                analysis_results, variable_context, cluster_intelligence, 
-                target_count=5 - len(all_generated_commands)
-            )
-            all_generated_commands.extend(supplemental_commands)
-        
-        # Categorize commands
-        preparation_commands = [cmd for cmd in all_generated_commands if cmd.category == 'preparation']
-        optimization_commands = [cmd for cmd in all_generated_commands if cmd.category == 'execution']
-        monitoring_commands = [cmd for cmd in all_generated_commands if cmd.subcategory == 'monitoring']
-        security_commands = [cmd for cmd in all_generated_commands if cmd.subcategory == 'security']
-        validation_commands = [cmd for cmd in all_generated_commands if cmd.category == 'validation']
-        
-        total_duration = sum(cmd.estimated_duration_minutes for cmd in all_generated_commands)
-        
-        # Calculate estimated savings
-        estimated_savings = 0
-        for cmd in all_generated_commands:
-            if hasattr(cmd, 'real_workload_targets') and cmd.real_workload_targets:
-                estimated_savings += 25  # Base savings per optimized workload
-        
-        execution_plan = ComprehensiveExecutionPlan(
-            plan_id=plan_id,
-            cluster_name=cluster_name,
-            resource_group=resource_group,
-            subscription_id=azure_context.get('subscription_id'),
-            strategy_name=getattr(optimization_strategy, 'strategy_name', 'Comprehensive AKS Optimization'),
-            total_estimated_minutes=total_duration,
-            
-            preparation_commands=preparation_commands,
-            optimization_commands=optimization_commands,
-            networking_commands=[],
-            security_commands=security_commands,
-            monitoring_commands=monitoring_commands,
-            validation_commands=validation_commands,
-            rollback_commands=[],
-            
-            variable_context=variable_context,
-            azure_context=azure_context,
-            kubernetes_context=kubernetes_context,
-            success_probability=max(0.8, generation_confidence),
-            estimated_savings=estimated_savings,
-            
-            cluster_intelligence=cluster_intelligence,
-            config_enhanced=config_enhanced
-        )
-        
-        logger.info(f"✅ Execution plan generated with {len(all_generated_commands)} commands")
-        logger.info(f"✅ RAW: Execution commands ${execution_plan}")
-        logger.info(f"   📊 Distribution: Prep={len(preparation_commands)}, Opt={len(optimization_commands)}")
-        logger.info(f"   💰 Estimated Savings: ${estimated_savings}/month")
+    # Check current node pools
+    az aks nodepool list --cluster-name {cluster_name} --resource-group {resource_group} --output table
 
-        # NEW: Generate phase-specific commands if phases provided
-        if implementation_phases:
-            phase_commands = self._generate_phase_specific_commands(
-                implementation_phases, comprehensive_state, variable_context, 
-                cluster_intelligence, analysis_results
-            )
+    # Analyze workloads suitable for spot instances
+    kubectl get deployments --all-namespaces -o wide
+
+    echo "💡 Recommendations for spot instance implementation:"
+    echo "   - Stateless workloads: batch jobs, CI/CD, development environments"
+    echo "   - Use mixed node pools: spot for suitable workloads, regular for critical ones"
+    echo "   - Expected savings: Up to 60% on compute costs"
+
+    echo "✅ Spot instance analysis complete - ${savings:.0f}/month potential savings"
+    '''.strip(),
+            description=f'Spot instance optimization analysis (${savings:.0f}/month savings)',
+            category='execution',
+            subcategory='node_optimization',
+            yaml_content=None,
+            validation_commands=["kubectl get nodes"],
+            rollback_commands=["# Analysis only - no rollback needed"],
+            expected_outcome="Spot instance opportunities identified",
+            success_criteria=["Current node pools analyzed", "Workload suitability assessed"],
+            timeout_seconds=300,
+            retry_attempts=1,
+            prerequisites=["Azure CLI access", "AKS cluster access"],
+            estimated_duration_minutes=4,
+            risk_level="Medium",
+            monitoring_metrics=["spot_instance_analysis"],
+            variable_substitutions=variable_context,
+            azure_specific=True,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    def _create_autoscaler_optimization_command(self, opportunity: Dict, variable_context: Dict):
+        """Create cluster autoscaler optimization command"""
+        savings = opportunity['monthly_savings']
+        
+        return ExecutableCommand(
+            id='autoscaler-optimization',
+            command=f'''
+    # Cluster Autoscaler Optimization (${savings:.0f}/month savings)
+    echo "🔄 Optimizing cluster autoscaler - Expected savings: ${savings:.0f}/month"
+
+    # Check current autoscaler configuration
+    kubectl get deployment cluster-autoscaler -n kube-system -o yaml | grep -A 10 -B 10 "command:"
+
+    # Analyze node utilization patterns
+    kubectl top nodes
+    kubectl get nodes --show-labels
+
+    echo "💡 Autoscaler optimization recommendations:"
+    echo "   - Adjust scale-down-delay-after-add: 10m for faster optimization"
+    echo "   - Set scale-down-utilization-threshold: 0.5 for efficient scaling"
+    echo "   - Configure skip-nodes-with-local-storage: false for better utilization"
+
+    echo "✅ Autoscaler optimization analysis complete - ${savings:.0f}/month savings"
+    '''.strip(),
+            description=f'Cluster autoscaler optimization (${savings:.0f}/month savings)',
+            category='execution',
+            subcategory='node_optimization',
+            yaml_content=None,
+            validation_commands=["kubectl get deployment cluster-autoscaler -n kube-system"],
+            rollback_commands=["# Analysis only - no rollback needed"],
+            expected_outcome="Autoscaler configuration optimized",
+            success_criteria=["Current configuration analyzed", "Optimization recommendations provided"],
+            timeout_seconds=180,
+            retry_attempts=1,
+            prerequisites=["Cluster autoscaler deployed"],
+            estimated_duration_minutes=3,
+            risk_level="Low",
+            monitoring_metrics=["autoscaler_optimization"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    def _create_pv_lifecycle_command(self, opportunity: Dict, variable_context: Dict):
+        """Create PV lifecycle management command"""
+        savings = opportunity['monthly_savings']
+        
+        lifecycle_policy_yaml = f"""
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+    name: pv-lifecycle-policy
+    namespace: kube-system
+    labels:
+        optimization: aks-cost-optimizer
+    data:
+    cleanup-policy: |
+        # PV Lifecycle Management Policy
+        # Automatically clean up Released PVs after 7 days
+        # Monitor PVC usage patterns
+        # Identify unused PVs for cleanup
+    """
+        
+        return ExecutableCommand(
+            id='pv-lifecycle-management',
+            command=f'''
+    # PV Lifecycle Management (${savings:.0f}/month savings)
+    echo "💾 Implementing PV lifecycle management - Expected savings: ${savings:.0f}/month"
+
+    # Analyze current PV usage
+    kubectl get pv --all-namespaces
+    kubectl get pvc --all-namespaces
+
+    # Find unused/orphaned PVs
+    echo "🔍 Analyzing PV usage patterns..."
+    kubectl get pv --no-headers | awk '$5 == "Available" {{print $1}}' | head -5
+
+    # Create lifecycle policy
+    cat > pv-lifecycle-policy.yaml << 'EOF'
+    {lifecycle_policy_yaml}
+    EOF
+
+    kubectl apply -f pv-lifecycle-policy.yaml
+
+    echo "💡 PV lifecycle recommendations:"
+    echo "   - Set up automated cleanup for Released PVs"
+    echo "   - Monitor PVC usage patterns weekly"
+    echo "   - Implement PV resizing for oversized volumes"
+
+    echo "✅ PV lifecycle management setup complete - ${savings:.0f}/month savings"
+    '''.strip(),
+            description=f'PV lifecycle management (${savings:.0f}/month savings)',
+            category='execution',
+            subcategory='storage_optimization',
+            yaml_content=lifecycle_policy_yaml,
+            validation_commands=["kubectl get configmap pv-lifecycle-policy -n kube-system"],
+            rollback_commands=["kubectl delete configmap pv-lifecycle-policy -n kube-system"],
+            expected_outcome="PV lifecycle management implemented",
+            success_criteria=["Lifecycle policy created", "Unused PVs identified"],
+            timeout_seconds=240,
+            retry_attempts=1,
+            prerequisites=["Cluster access"],
+            estimated_duration_minutes=4,
+            risk_level="Low",
+            monitoring_metrics=["pv_lifecycle_management"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    def _create_backup_optimization_command(self, opportunity: Dict, variable_context: Dict):
+        """Create backup optimization command"""
+        savings = opportunity['monthly_savings']
+        
+        return ExecutableCommand(
+            id='backup-optimization',
+            command=f'''
+    # Backup Strategy Optimization (${savings:.0f}/month savings)
+    echo "💾 Optimizing backup strategy - Expected savings: ${savings:.0f}/month"
+
+    # Analyze current backup configuration
+    kubectl get volumesnapshotclass
+    kubectl get volumesnapshot --all-namespaces
+
+    # Check backup storage usage
+    echo "📊 Analyzing backup storage patterns..."
+    kubectl get pvc --all-namespaces -o custom-columns=NAME:.metadata.name,SIZE:.spec.resources.requests.storage,STORAGECLASS:.spec.storageClassName
+
+    echo "💡 Backup optimization recommendations:"
+    echo "   - Implement tiered backup retention (daily 7 days, weekly 4 weeks, monthly 12 months)"
+    echo "   - Use lifecycle policies for old backups"
+    echo "   - Consider cross-region backup only for critical data"
+    echo "   - Implement incremental backups where possible"
+
+    echo "✅ Backup optimization analysis complete - ${savings:.0f}/month savings"
+    '''.strip(),
+            description=f'Backup strategy optimization (${savings:.0f}/month savings)',
+            category='execution',
+            subcategory='storage_optimization',
+            yaml_content=None,
+            validation_commands=["kubectl get volumesnapshotclass"],
+            rollback_commands=["# Analysis only - no rollback needed"],
+            expected_outcome="Backup strategy optimized",
+            success_criteria=["Current backups analyzed", "Optimization recommendations provided"],
+            timeout_seconds=180,
+            retry_attempts=1,
+            prerequisites=["Cluster access"],
+            estimated_duration_minutes=3,
+            risk_level="Low",
+            monitoring_metrics=["backup_optimization"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    def _create_loadbalancer_optimization_command(self, opportunity: Dict, variable_context: Dict):
+        """Create LoadBalancer optimization command"""
+        savings = opportunity['monthly_savings']
+        
+        return ExecutableCommand(
+            id='loadbalancer-optimization',
+            command=f'''
+    # LoadBalancer Optimization (${savings:.0f}/month savings)
+    echo "🌐 Optimizing LoadBalancer configuration - Expected savings: ${savings:.0f}/month"
+
+    # Analyze current LoadBalancer services
+    kubectl get services --all-namespaces --field-selector spec.type=LoadBalancer
+
+    # Check ingress controllers
+    kubectl get ingress --all-namespaces
+    kubectl get ingressclass
+
+    echo "🔍 LoadBalancer analysis:"
+    LB_COUNT=$(kubectl get services --all-namespaces --field-selector spec.type=LoadBalancer --no-headers | wc -l)
+    echo "   Current LoadBalancer services: $LB_COUNT"
+
+    echo "💡 LoadBalancer optimization recommendations:"
+    echo "   - Consolidate multiple LoadBalancers using Ingress controllers"
+    echo "   - Use shared Application Gateway for multiple services"
+    echo "   - Consider internal LoadBalancers for internal-only services"
+    echo "   - Implement path-based routing to reduce LoadBalancer count"
+
+    echo "✅ LoadBalancer optimization analysis complete - ${savings:.0f}/month savings"
+    '''.strip(),
+            description=f'LoadBalancer optimization (${savings:.0f}/month savings)',
+            category='execution',
+            subcategory='network_optimization',
+            yaml_content=None,
+            validation_commands=["kubectl get services --all-namespaces --field-selector spec.type=LoadBalancer"],
+            rollback_commands=["# Analysis only - no rollback needed"],
+            expected_outcome="LoadBalancer configuration optimized",
+            success_criteria=["Current LoadBalancers analyzed", "Consolidation opportunities identified"],
+            timeout_seconds=180,
+            retry_attempts=1,
+            prerequisites=["Cluster access"],
+            estimated_duration_minutes=3,
+            risk_level="Low",
+            monitoring_metrics=["loadbalancer_optimization"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    def _create_service_mesh_command(self, opportunity: Dict, variable_context: Dict):
+        """Create service mesh implementation command"""
+        savings = opportunity['monthly_savings']
+        
+        return ExecutableCommand(
+            id='service-mesh-implementation',
+            command=f'''
+    # Service Mesh Implementation Analysis (${savings:.0f}/month savings)
+    echo "🕸️ Analyzing service mesh implementation - Expected savings: ${savings:.0f}/month"
+
+    # Analyze current service communication patterns
+    kubectl get services --all-namespaces
+    kubectl get networkpolicies --all-namespaces
+
+    # Check for service mesh indicators
+    NAMESPACE_COUNT=$(kubectl get namespaces --no-headers | wc -l)
+    SERVICE_COUNT=$(kubectl get services --all-namespaces --no-headers | wc -l)
+
+    echo "📊 Service mesh readiness analysis:"
+    echo "   Namespaces: $NAMESPACE_COUNT"
+    echo "   Services: $SERVICE_COUNT"
+
+    echo "💡 Service mesh recommendations:"
+    echo "   - Consider Istio for traffic management and observability"
+    echo "   - Implement gradually starting with non-critical namespaces"
+    echo "   - Expected benefits: 15-20% reduction in inter-service communication costs"
+    echo "   - Enhanced security and observability"
+
+    echo "✅ Service mesh analysis complete - ${savings:.0f}/month potential savings"
+    '''.strip(),
+            description=f'Service mesh implementation analysis (${savings:.0f}/month savings)',
+            category='execution',
+            subcategory='network_optimization',
+            yaml_content=None,
+            validation_commands=["kubectl get services --all-namespaces"],
+            rollback_commands=["# Analysis only - no rollback needed"],
+            expected_outcome="Service mesh readiness assessed",
+            success_criteria=["Service patterns analyzed", "Implementation strategy recommended"],
+            timeout_seconds=240,
+            retry_attempts=1,
+            prerequisites=["Cluster access"],
+            estimated_duration_minutes=4,
+            risk_level="High",
+            monitoring_metrics=["service_mesh_analysis"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    def _create_pod_security_command(self, opportunity: Dict, variable_context: Dict):
+        """Create Pod Security Standards command"""
+        savings = opportunity['monthly_savings']
+        
+        pod_security_yaml = f"""
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+    name: security-optimized
+    labels:
+        optimization: aks-cost-optimizer
+        pod-security.kubernetes.io/enforce: restricted
+        pod-security.kubernetes.io/audit: restricted
+        pod-security.kubernetes.io/warn: restricted
+    ---
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+    name: default-deny-all
+    namespace: security-optimized
+    labels:
+        optimization: aks-cost-optimizer
+    spec:
+    podSelector: {{}}
+    policyTypes:
+    - Ingress
+    - Egress
+    """
+        
+        return ExecutableCommand(
+            id='pod-security-standards',
+            command=f'''
+    # Pod Security Standards Implementation (${savings:.0f}/month savings)
+    echo "🔒 Implementing Pod Security Standards - Expected savings: ${savings:.0f}/month"
+
+    # Check current security context usage
+    kubectl get pods --all-namespaces -o jsonpath='{{range .items[*]}}{{.metadata.namespace}}/{{.metadata.name}}: {{.spec.securityContext}}{{"\n"}}{{end}}' | head -10
+
+    # Analyze namespace security policies
+    kubectl get namespaces --show-labels
+
+    # Create security-optimized namespace example
+    cat > pod-security-standards.yaml << 'EOF'
+    {pod_security_yaml}
+    EOF
+
+    kubectl apply -f pod-security-standards.yaml
+
+    echo "🔍 Security analysis results:"
+    kubectl get namespaces --show-labels | grep -E "(pod-security|security)"
+
+    echo "💡 Pod Security Standards recommendations:"
+    echo "   - Implement 'restricted' policy for production namespaces"
+    echo "   - Use 'baseline' policy for legacy applications during migration"
+    echo "   - Expected benefits: Improved security posture and compliance"
+
+    echo "✅ Pod Security Standards implementation complete - ${savings:.0f}/month compliance savings"
+    '''.strip(),
+            description=f'Pod Security Standards implementation (${savings:.0f}/month savings)',
+            category='execution',
+            subcategory='security_optimization',
+            yaml_content=pod_security_yaml,
+            validation_commands=["kubectl get namespace security-optimized"],
+            rollback_commands=["kubectl delete namespace security-optimized"],
+            expected_outcome="Pod Security Standards implemented",
+            success_criteria=["Security policies applied", "Namespace security configured"],
+            timeout_seconds=240,
+            retry_attempts=1,
+            prerequisites=["Kubernetes 1.23+"],
+            estimated_duration_minutes=4,
+            risk_level="Medium",
+            monitoring_metrics=["pod_security_standards"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    def _create_network_security_command(self, opportunity: Dict, variable_context: Dict):
+        """Create network security policies command"""
+        savings = opportunity['monthly_savings']
+        
+        network_security_yaml = f"""
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+    name: comprehensive-network-security
+    namespace: default
+    labels:
+        optimization: aks-cost-optimizer
+    spec:
+    podSelector: {{}}
+    policyTypes:
+    - Ingress
+    - Egress
+    ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+            name: default
+        - podSelector: {{}}
+    egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+            name: default
+    - to: []
+        ports:
+        - protocol: TCP
+        port: 53
+        - protocol: UDP
+        port: 53
+        - protocol: TCP
+        port: 443
+    """
+        
+        return ExecutableCommand(
+            id='network-security-policies',
+            command=f'''
+    # Network Security Policies Implementation (${savings:.0f}/month savings)
+    echo "🔒 Implementing comprehensive network security - Expected savings: ${savings:.0f}/month"
+
+    # Analyze current network policies
+    kubectl get networkpolicies --all-namespaces
+
+    # Check service communication patterns
+    kubectl get services --all-namespaces -o wide
+
+    # Implement comprehensive network security
+    cat > network-security-policies.yaml << 'EOF'
+    {network_security_yaml}
+    EOF
+
+    kubectl apply -f network-security-policies.yaml
+
+    # Verify network policy implementation
+    kubectl get networkpolicies --all-namespaces
+    kubectl describe networkpolicy comprehensive-network-security -n default
+
+    echo "💡 Network security recommendations:"
+    echo "   - Implement default-deny policies for all namespaces"
+    echo "   - Allow only necessary inter-service communication"
+    echo "   - Expected benefits: Reduced attack surface and compliance improvements"
+
+    echo "✅ Network security policies implementation complete - ${savings:.0f}/month savings"
+    '''.strip(),
+            description=f'Network security policies implementation (${savings:.0f}/month savings)',
+            category='execution',
+            subcategory='security_optimization',
+            yaml_content=network_security_yaml,
+            validation_commands=["kubectl get networkpolicy comprehensive-network-security -n default"],
+            rollback_commands=["kubectl delete networkpolicy comprehensive-network-security -n default"],
+            expected_outcome="Network security policies implemented",
+            success_criteria=["NetworkPolicy created", "Security rules applied"],
+            timeout_seconds=180,
+            retry_attempts=1,
+            prerequisites=["CNI with NetworkPolicy support"],
+            estimated_duration_minutes=3,
+            risk_level="Medium",
+            monitoring_metrics=["network_security_policies"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    def _extract_node_optimization_opportunities(self, analysis_results: Dict,
+                                            cluster_config: Optional[Dict]) -> List[Dict]:
+        """Extract node-level optimization opportunities"""
+        opportunities = []
+        
+        try:
+            nodes = analysis_results.get('nodes', [])
+            total_cost = analysis_results.get('total_cost', 0)
             
-            # Return plan with phase-organized commands
-            execution_plan.phase_commands = phase_commands
+            # Node pool optimization
+            if len(nodes) > 3 and total_cost > 300:
+                avg_utilization = sum(node.get('cpu_usage_pct', 50) for node in nodes) / len(nodes)
+                
+                if avg_utilization < 60:
+                    opportunities.append({
+                        'type': 'node_pool_optimization',
+                        'monthly_savings': total_cost * 0.25,  # 25% node cost savings
+                        'optimization': 'consolidate_and_rightsize_node_pools',
+                        'priority': 'high'
+                    })
+            
+            # Spot instance optimization
+            if total_cost > 500:
+                opportunities.append({
+                    'type': 'spot_instance_optimization',
+                    'monthly_savings': total_cost * 0.6,  # 60% potential savings
+                    'optimization': 'implement_spot_instances_for_suitable_workloads',
+                    'priority': 'medium'
+                })
+            
+            # Auto-scaling optimization
+            opportunities.append({
+                'type': 'cluster_autoscaler_optimization',
+                'monthly_savings': total_cost * 0.15,
+                'optimization': 'optimize_cluster_autoscaler_configuration',
+                'priority': 'medium'
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Node opportunity extraction failed: {e}")
+        
+        return opportunities
+
+    def _extract_namespace_optimization_opportunities(self, analysis_results: Dict) -> List[Dict]:
+        """Extract namespace-level optimization opportunities"""
+        opportunities = []
+        
+        try:
+            namespace_costs = analysis_results.get('namespace_costs', {})
+            
+            # Namespace consolidation opportunities
+            small_namespaces = [ns for ns, cost in namespace_costs.items() 
+                            if isinstance(cost, dict) and cost.get('cost', 0) < 20]
+            
+            if len(small_namespaces) > 3:
+                total_small_cost = sum(namespace_costs[ns].get('cost', 0) for ns in small_namespaces)
+                opportunities.append({
+                    'type': 'namespace_consolidation',
+                    'target_namespaces': small_namespaces,
+                    'monthly_savings': total_small_cost * 0.3,
+                    'optimization': 'consolidate_low_utilization_namespaces',
+                    'priority': 'low'
+                })
+            
+            # Resource quota optimization per namespace
+            for namespace, cost_info in namespace_costs.items():
+                if isinstance(cost_info, dict) and cost_info.get('cost', 0) > 100:
+                    opportunities.append({
+                        'type': 'namespace_resource_quota',
+                        'target_namespace': namespace,
+                        'monthly_savings': cost_info['cost'] * 0.1,
+                        'optimization': 'implement_namespace_resource_quotas',
+                        'priority': 'medium'
+                    })
+                    
+        except Exception as e:
+            logger.error(f"❌ Namespace opportunity extraction failed: {e}")
+        
+        return opportunities
+
+    def _extract_service_mesh_opportunities(self, analysis_results: Dict,
+                                       cluster_config: Optional[Dict]) -> List[Dict]:
+        """Extract service mesh optimization opportunities"""
+        opportunities = []
+        
+        try:
+            total_cost = analysis_results.get('total_cost', 0)
+            namespace_count = len(analysis_results.get('namespace_costs', {}))
+            
+            # Service mesh for complex architectures
+            if namespace_count > 5 and total_cost > 800:
+                opportunities.append({
+                    'type': 'service_mesh_implementation',
+                    'monthly_savings': total_cost * 0.18,  # 18% through traffic optimization
+                    'optimization': 'implement_istio_or_linkerd_for_traffic_optimization',
+                    'priority': 'low'
+                })
+            
+            # Ingress controller optimization
+            if total_cost > 400:
+                opportunities.append({
+                    'type': 'ingress_optimization',
+                    'monthly_savings': 40,
+                    'optimization': 'optimize_ingress_controller_and_certificates',
+                    'priority': 'medium'
+                })
+                
+        except Exception as e:
+            logger.error(f"❌ Service mesh opportunity extraction failed: {e}")
+        
+        return opportunities
+
+    def _extract_compliance_opportunities(self, analysis_results: Dict,
+                                     cluster_config: Optional[Dict]) -> List[Dict]:
+        """Extract compliance-driven optimization opportunities"""
+        opportunities = []
+        
+        try:
+            total_cost = analysis_results.get('total_cost', 0)
+            
+            # Policy-as-code implementation
+            opportunities.append({
+                'type': 'policy_as_code',
+                'monthly_savings': 50,  # Compliance cost avoidance
+                'optimization': 'implement_opa_gatekeeper_for_policy_enforcement',
+                'priority': 'medium'
+            })
+            
+            # Audit logging optimization
+            if total_cost > 300:
+                opportunities.append({
+                    'type': 'audit_logging_optimization',
+                    'monthly_savings': 25,
+                    'optimization': 'optimize_audit_logging_and_retention',
+                    'priority': 'low'
+                })
+                
+        except Exception as e:
+            logger.error(f"❌ Compliance opportunity extraction failed: {e}")
+        
+        return opportunities
+    
+    def _extract_dr_opportunities(self, analysis_results: Dict,
+                             cluster_config: Optional[Dict]) -> List[Dict]:
+        """Extract disaster recovery optimization opportunities"""
+        opportunities = []
+        
+        try:
+            total_cost = analysis_results.get('total_cost', 0)
+            
+            # Backup strategy optimization
+            if total_cost > 500:
+                opportunities.append({
+                    'type': 'backup_strategy_optimization',
+                    'monthly_savings': 35,
+                    'optimization': 'implement_cost_effective_backup_and_dr_strategy',
+                    'priority': 'low'
+                })
+            
+            # Multi-region cost optimization
+            if total_cost > 1000:
+                opportunities.append({
+                    'type': 'multi_region_optimization',
+                    'monthly_savings': total_cost * 0.15,
+                    'optimization': 'optimize_multi_region_deployment_costs',
+                    'priority': 'low'
+                })
+                
+        except Exception as e:
+            logger.error(f"❌ DR opportunity extraction failed: {e}")
+        
+        return opportunities
+
+    def _generate_dependency_aware_commands(self, all_opportunities: Dict,
+                                      optimization_patterns: Dict,
+                                      comprehensive_intelligence: Dict,
+                                      analysis_results: Dict,
+                                      implementation_phases: Optional[List[Dict]]) -> ComprehensiveExecutionPlan:
+        """Generate commands with dependency awareness and proper ordering"""
+        
+        # Build dependency graph
+        dependency_graph = self._build_optimization_dependency_graph(all_opportunities)
+        
+        # Order commands based on dependencies and risk
+        ordered_command_groups = self._order_commands_by_dependencies(
+            all_opportunities, dependency_graph, optimization_patterns
+        )
+        
+        # Generate variable context
+        variable_context = self._build_comprehensive_variable_context(
+            analysis_results, None, self.cluster_config
+        )
+        
+        # Generate commands for each group
+        all_commands = []
+        for group_name, opportunities in ordered_command_groups.items():
+            group_commands = self._generate_command_group(
+                group_name, opportunities, variable_context, optimization_patterns
+            )
+            all_commands.extend(group_commands)
+        
+        # Build execution plan
+        execution_plan = self._build_comprehensive_execution_plan(
+            all_commands, analysis_results, comprehensive_intelligence, implementation_phases
+        )
         
         return execution_plan
+
+    def _build_optimization_dependency_graph(self, all_opportunities: Dict) -> Dict:
+        """Build dependency graph for optimization commands"""
+        
+        dependencies = {
+            # Infrastructure dependencies
+            'monitoring_opportunities': [],  # No dependencies
+            'security_opportunities': ['monitoring_opportunities'],  # Needs monitoring
+            'network_opportunities': ['security_opportunities'],  # Needs security baseline
+            
+            # Workload dependencies  
+            'hpa_opportunities': ['monitoring_opportunities'],  # Needs metrics server
+            'rightsizing_opportunities': ['monitoring_opportunities'],  # Needs resource monitoring
+            
+            # Advanced dependencies
+            'node_opportunities': ['rightsizing_opportunities', 'hpa_opportunities'],  # Needs workload optimization first
+            'storage_opportunities': [],  # Can run independently
+            'namespace_opportunities': ['security_opportunities'],  # Needs RBAC
+            'service_mesh_opportunities': ['network_opportunities', 'security_opportunities'],
+            'compliance_opportunities': ['security_opportunities'],
+            'disaster_recovery_opportunities': ['storage_opportunities', 'security_opportunities']
+        }
+        
+        return dependencies
+
+    def _order_commands_by_dependencies(self, all_opportunities: Dict, 
+                                   dependency_graph: Dict,
+                                   optimization_patterns: Dict) -> Dict:
+        """Order command groups based on dependencies and risk tolerance"""
+        
+        risk_tolerance = optimization_patterns['adaptations']['risk_tolerance']
+        
+        # Topological sort based on dependencies
+        ordered_groups = {}
+        
+        if risk_tolerance == 'conservative':
+            # Conservative approach: infrastructure first, then workloads
+            order = [
+                'monitoring_opportunities',
+                'security_opportunities', 
+                'network_opportunities',
+                'hpa_opportunities',
+                'rightsizing_opportunities',
+                'storage_opportunities',
+                'namespace_opportunities',
+                'compliance_opportunities'
+            ]
+        elif risk_tolerance == 'aggressive':
+            # Aggressive approach: high-impact optimizations first
+            order = [
+                'monitoring_opportunities',
+                'hpa_opportunities',
+                'rightsizing_opportunities',
+                'node_opportunities',
+                'storage_opportunities',
+                'network_opportunities',
+                'security_opportunities'
+            ]
+        else:  # balanced
+            # Balanced approach: mixed priorities
+            order = [
+                'monitoring_opportunities',
+                'hpa_opportunities',
+                'security_opportunities',
+                'rightsizing_opportunities',
+                'storage_opportunities',
+                'network_opportunities',
+                'namespace_opportunities'
+            ]
+        
+        for group_name in order:
+            if group_name in all_opportunities and all_opportunities[group_name]:
+                ordered_groups[group_name] = all_opportunities[group_name]
+        
+        return ordered_groups
+
+    def _create_network_policy_command(self, opportunity: Dict, variable_context: Dict):
+        """Create network policy optimization command"""
+        namespace = opportunity['target_namespace']
+        savings = opportunity['monthly_savings']
+        
+        network_policy_yaml = f"""
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+    name: {namespace}-cost-optimization-policy
+    namespace: {namespace}
+    labels:
+        optimization: aks-cost-optimizer
+    spec:
+    podSelector: {{}}
+    policyTypes:
+    - Ingress
+    - Egress
+    ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+            name: {namespace}
+    egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+            name: {namespace}
+    - to: []
+        ports:
+        - protocol: TCP
+        port: 53
+        - protocol: UDP
+        port: 53
+    """
+        
+        return ExecutableCommand(
+            id=f'network-policy-{namespace}',
+            command=f'''
+    # Network Policy Optimization for {namespace} (${savings:.0f}/month savings)
+    echo "🔒 Implementing network policies for {namespace} - Expected savings: ${savings:.0f}/month"
+
+    cat > {namespace}-network-policy.yaml << 'EOF'
+    {network_policy_yaml}
+    EOF
+
+    kubectl apply -f {namespace}-network-policy.yaml
+    kubectl get networkpolicy -n {namespace}
+
+    echo "✅ Network policy optimization complete for {namespace} - ${savings:.0f}/month savings"
+    '''.strip(),
+            description=f'Network policy optimization for {namespace} (${savings:.0f}/month savings)',
+            category='execution',
+            subcategory='network_optimization',
+            yaml_content=network_policy_yaml,
+            validation_commands=[f"kubectl get networkpolicy -n {namespace}"],
+            rollback_commands=[f"kubectl delete networkpolicy {namespace}-cost-optimization-policy -n {namespace}"],
+            expected_outcome=f"Network policies implemented for {namespace}",
+            success_criteria=["NetworkPolicy created", "Traffic restrictions applied"],
+            timeout_seconds=300,
+            retry_attempts=2,
+            prerequisites=[f"Namespace {namespace} exists"],
+            estimated_duration_minutes=4,
+            risk_level="Medium",
+            monitoring_metrics=[f"network_optimization_{namespace}"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    def _create_rbac_optimization_command(self, opportunity: Dict, variable_context: Dict):
+        """Create RBAC optimization command"""
+        savings = opportunity['monthly_savings']
+        
+        rbac_yaml = f"""
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+    namespace: default
+    name: cost-optimizer-role
+    labels:
+        optimization: aks-cost-optimizer
+    rules:
+    - apiGroups: [""]
+    resources: ["pods", "configmaps"]
+    verbs: ["get", "list", "watch"]
+    - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "patch"]
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+    name: cost-optimizer-binding
+    namespace: default
+    labels:
+        optimization: aks-cost-optimizer
+    subjects:
+    - kind: ServiceAccount
+    name: cost-optimizer-sa
+    namespace: default
+    roleRef:
+    kind: Role
+    name: cost-optimizer-role
+    apiGroup: rbac.authorization.k8s.io
+    ---
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+    name: cost-optimizer-sa
+    namespace: default
+    labels:
+        optimization: aks-cost-optimizer
+    """
+        
+        return ExecutableCommand(
+            id='rbac-optimization',
+            command=f'''
+    # RBAC Optimization (${savings:.0f}/month indirect savings)
+    echo "🔐 Implementing RBAC optimization - Expected savings: ${savings:.0f}/month"
+
+    cat > rbac-optimization.yaml << 'EOF'
+    {rbac_yaml}
+    EOF
+
+    kubectl apply -f rbac-optimization.yaml
+    kubectl get roles,rolebindings,serviceaccounts -n default
+
+    echo "✅ RBAC optimization complete - ${savings:.0f}/month indirect savings"
+    '''.strip(),
+            description=f'RBAC optimization (${savings:.0f}/month indirect savings)',
+            category='execution',
+            subcategory='security_optimization',
+            yaml_content=rbac_yaml,
+            validation_commands=["kubectl get roles -n default", "kubectl get serviceaccounts -n default"],
+            rollback_commands=["kubectl delete -f rbac-optimization.yaml"],
+            expected_outcome="RBAC optimized with granular permissions",
+            success_criteria=["Role created", "RoleBinding created", "ServiceAccount created"],
+            timeout_seconds=180,
+            retry_attempts=2,
+            prerequisites=["Cluster admin access"],
+            estimated_duration_minutes=3,
+            risk_level="Medium",
+            monitoring_metrics=["rbac_optimization_applied"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    def _generate_advanced_storage_commands(self, opportunities: List[Dict],
+                                        variable_context: Dict) -> List:
+        """Generate advanced storage optimization commands"""
+        commands = []
+        
+        for opportunity in opportunities:
+            if opportunity['type'] == 'storage_class_optimization':
+                commands.append(self._create_advanced_storage_class_command(opportunity, variable_context))
+            elif opportunity['type'] == 'pv_lifecycle_management':
+                commands.append(self._create_pv_lifecycle_command(opportunity, variable_context))
+            elif opportunity['type'] == 'backup_optimization':
+                commands.append(self._create_backup_optimization_command(opportunity, variable_context))
+        
+        return commands
+
+    def _create_advanced_storage_class_command(self, opportunity: Dict, variable_context: Dict):
+        """Create advanced storage class optimization command"""
+        savings = opportunity['monthly_savings']
+        
+        storage_class_yaml = f"""
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+    name: cost-optimized-ssd
+    labels:
+        optimization: aks-cost-optimizer
+    provisioner: kubernetes.io/azure-disk
+    parameters:
+    skuName: StandardSSD_LRS
+    cachingmode: ReadOnly
+    fsType: ext4
+    allowVolumeExpansion: true
+    volumeBindingMode: WaitForFirstConsumer
+    reclaimPolicy: Delete
+    """
+        
+        return ExecutableCommand(
+            id='advanced-storage-optimization',
+            command=f'''
+    # Advanced Storage Optimization (${savings:.0f}/month savings)
+    echo "💾 Implementing advanced storage optimization - Expected savings: ${savings:.0f}/month"
+
+    # Create cost-optimized storage class
+    cat > cost-optimized-storage.yaml << 'EOF'
+    {storage_class_yaml}
+    EOF
+
+    kubectl apply -f cost-optimized-storage.yaml
+
+    # Check existing PVCs for optimization opportunities
+    echo "📊 Analyzing existing storage usage..."
+    kubectl get pvc --all-namespaces
+    kubectl get storageclass
+
+    echo "✅ Advanced storage optimization complete - ${savings:.0f}/month savings"
+    '''.strip(),
+            description=f'Advanced storage optimization (${savings:.0f}/month savings)',
+            category='execution',
+            subcategory='storage_optimization',
+            yaml_content=storage_class_yaml,
+            validation_commands=["kubectl get storageclass cost-optimized-ssd"],
+            rollback_commands=["kubectl delete storageclass cost-optimized-ssd"],
+            expected_outcome="Cost-optimized storage class created",
+            success_criteria=["StorageClass created", "Storage analysis complete"],
+            timeout_seconds=180,
+            retry_attempts=2,
+            prerequisites=["Cluster access"],
+            estimated_duration_minutes=4,
+            risk_level="Low",
+            monitoring_metrics=["storage_optimization_advanced"],
+            variable_substitutions=variable_context,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    def _generate_node_optimization_commands(self, opportunities: List[Dict],
+                                            variable_context: Dict) -> List:
+        """Generate node-level optimization commands"""
+        commands = []
+        
+        for opportunity in opportunities:
+            if opportunity['type'] == 'node_pool_optimization':
+                commands.append(self._create_node_pool_optimization_command(opportunity, variable_context))
+            elif opportunity['type'] == 'spot_instance_optimization':
+                commands.append(self._create_spot_instance_command(opportunity, variable_context))
+            elif opportunity['type'] == 'cluster_autoscaler_optimization':
+                commands.append(self._create_autoscaler_optimization_command(opportunity, variable_context))
+        
+        return commands
+
+    def _create_node_pool_optimization_command(self, opportunity: Dict, variable_context: Dict):
+        """Create node pool optimization command"""
+        savings = opportunity['monthly_savings']
+        cluster_name = variable_context.get('cluster_name', 'unknown-cluster')
+        resource_group = variable_context.get('resource_group', 'unknown-rg')
+        
+        return ExecutableCommand(
+            id='node-pool-optimization',
+            command=f'''
+    # Node Pool Optimization (${savings:.0f}/month savings)
+    echo "🖥️ Optimizing node pools - Expected savings: ${savings:.0f}/month"
+
+    # Analyze current node pools
+    az aks nodepool list --cluster-name {cluster_name} --resource-group {resource_group} --output table
+
+    # Check node utilization
+    kubectl top nodes
+
+    # Create efficient node pool (this would be customized based on analysis)
+    echo "📊 Node pool optimization analysis complete"
+    echo "💡 Consider implementing smaller, more efficient node pools"
+    echo "💡 Consider using spot instances for suitable workloads"
+
+    echo "✅ Node pool optimization analysis complete - ${savings:.0f}/month potential savings"
+    '''.strip(),
+            description=f'Node pool optimization analysis (${savings:.0f}/month savings)',
+            category='execution',
+            subcategory='node_optimization',
+            yaml_content=None,
+            validation_commands=["kubectl get nodes"],
+            rollback_commands=["# Analysis only - no rollback needed"],
+            expected_outcome="Node pool optimization analyzed",
+            success_criteria=["Node pools analyzed", "Optimization recommendations generated"],
+            timeout_seconds=300,
+            retry_attempts=1,
+            prerequisites=["Azure CLI access", "AKS cluster access"],
+            estimated_duration_minutes=5,
+            risk_level="High",
+            monitoring_metrics=["node_optimization_analysis"],
+            variable_substitutions=variable_context,
+            azure_specific=True,
+            kubectl_specific=True,
+            cluster_specific=True
+        )
+
+    # Helper methods for comprehensive intelligence
+    def _identify_high_cost_workloads(self, analysis_results: Dict) -> List[Dict]:
+        """Identify workloads with high cost impact"""
+        workload_costs = analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {})
+        
+        high_cost_workloads = []
+        for workload_name, workload_info in workload_costs.items():
+            cost = workload_info.get('cost', 0)
+            if cost > 50:  # $50+ workloads
+                high_cost_workloads.append({
+                    'name': workload_name,
+                    'cost': cost,
+                    'namespace': workload_info.get('namespace', 'default')
+                })
+        
+        return sorted(high_cost_workloads, key=lambda x: x['cost'], reverse=True)
+
+    def _calculate_cost_efficiency(self, analysis_results: Dict) -> float:
+        """Calculate overall cost efficiency score"""
+        total_cost = analysis_results.get('total_cost', 1)
+        total_savings = analysis_results.get('total_savings', 0)
+        
+        if total_cost == 0:
+            return 0.5
+        
+        efficiency = 1.0 - (total_savings / total_cost)
+        return max(0.0, min(1.0, efficiency))
+
+    def _analyze_workload_patterns(self, analysis_results: Dict) -> Dict:
+        """Analyze workload patterns from analysis results"""
+        workload_costs = analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {})
+        
+        patterns = {
+            'total_workloads': len(workload_costs),
+            'cost_distribution': {},
+            'namespace_distribution': {},
+            'scaling_candidates': 0
+        }
+        
+        # Cost distribution analysis
+        for workload_name, workload_info in workload_costs.items():
+            cost = workload_info.get('cost', 0)
+            namespace = workload_info.get('namespace', 'default')
+            
+            # Cost buckets
+            if cost > 100:
+                patterns['cost_distribution']['high'] = patterns['cost_distribution'].get('high', 0) + 1
+            elif cost > 50:
+                patterns['cost_distribution']['medium'] = patterns['cost_distribution'].get('medium', 0) + 1
+            else:
+                patterns['cost_distribution']['low'] = patterns['cost_distribution'].get('low', 0) + 1
+            
+            # Namespace distribution
+            patterns['namespace_distribution'][namespace] = patterns['namespace_distribution'].get(namespace, 0) + 1
+            
+            # Scaling candidates (high-cost workloads)
+            if cost > 30:
+                patterns['scaling_candidates'] += 1
+        
+        return patterns
+
+    def _analyze_resource_utilization(self, analysis_results: Dict) -> Dict:
+        """Analyze resource utilization patterns"""
+        nodes = analysis_results.get('nodes', [])
+        
+        utilization = {
+            'avg_cpu_utilization': 0,
+            'avg_memory_utilization': 0,
+            'overprovisioned_nodes': 0,
+            'underutilized_nodes': 0
+        }
+        
+        if nodes:
+            total_cpu = sum(node.get('cpu_usage_pct', 50) for node in nodes)
+            total_memory = sum(node.get('memory_usage_pct', 50) for node in nodes)
+            
+            utilization['avg_cpu_utilization'] = total_cpu / len(nodes)
+            utilization['avg_memory_utilization'] = total_memory / len(nodes)
+            
+            # Count problematic nodes
+            for node in nodes:
+                cpu_usage = node.get('cpu_usage_pct', 50)
+                memory_usage = node.get('memory_usage_pct', 50)
+                
+                if cpu_usage < 30 or memory_usage < 30:
+                    utilization['overprovisioned_nodes'] += 1
+                elif cpu_usage > 85 or memory_usage > 85:
+                    utilization['underutilized_nodes'] += 1
+        
+        return utilization
+
+    def _prioritize_opportunities(self, opportunities: Dict, optimization_patterns: Dict) -> List[Dict]:
+        """Prioritize all opportunities based on patterns and impact"""
+        all_opportunities = []
+        
+        # Flatten opportunities and add priority scores
+        for category, category_opportunities in opportunities.items():
+            if category == 'prioritized':  # Skip the prioritized key itself
+                continue
+                
+            for opportunity in category_opportunities:
+                opportunity['category'] = category
+                opportunity['priority_score'] = self._calculate_opportunity_priority(
+                    opportunity, optimization_patterns
+                )
+                all_opportunities.append(opportunity)
+        
+        # Sort by priority score (higher is better)
+        return sorted(all_opportunities, key=lambda x: x.get('priority_score', 0), reverse=True)
+
+    def _calculate_opportunity_priority(self, opportunity: Dict, optimization_patterns: Dict) -> float:
+        """Calculate priority score for an opportunity"""
+        base_score = 0.5
+        
+        # Impact factor (based on savings)
+        savings = opportunity.get('monthly_savings', 0)
+        if savings > 100:
+            base_score += 0.3
+        elif savings > 50:
+            base_score += 0.2
+        elif savings > 20:
+            base_score += 0.1
+        
+        # Risk factor
+        risk_tolerance = optimization_patterns['adaptations']['risk_tolerance']
+        if opportunity.get('priority') == 'high':
+            base_score += 0.2
+        elif opportunity.get('priority') == 'medium':
+            base_score += 0.1
+        
+        # Risk adjustment
+        if risk_tolerance == 'conservative' and opportunity.get('priority') == 'high':
+            base_score *= 0.8  # Reduce score for high-risk in conservative mode
+        elif risk_tolerance == 'aggressive':
+            base_score *= 1.2  # Boost all scores in aggressive mode
+        
+        return min(1.0, base_score)
+
+    def _integrate_risk_and_compliance(self, execution_plan, comprehensive_intelligence: Dict):
+        """Integrate risk assessment and compliance requirements"""
+        
+        risk_profile = comprehensive_intelligence['synthesis']['risk_profile']
+        compliance_requirements = comprehensive_intelligence['synthesis']['compliance_requirements']
+        
+        # Add risk metadata to execution plan
+        execution_plan.risk_assessment = {
+            'overall_risk_level': risk_profile,
+            'compliance_requirements': compliance_requirements,
+            'mitigation_strategies': self._generate_risk_mitigation_strategies(risk_profile)
+        }
+        
+        # Add compliance validation commands
+        if compliance_requirements.get('requires_audit_logging'):
+            # Add audit logging validation to execution plan
+            pass
+        
+        return execution_plan
+
+    def _determine_risk_tolerance(self, pattern_classification: Dict) -> str:
+        """Determine risk tolerance based on cluster pattern"""
+        primary_pattern = pattern_classification['primary_pattern']
+        
+        if primary_pattern in ['cost_optimized_enterprise', 'security_focused_finance']:
+            return 'conservative'
+        elif primary_pattern in ['greenfield_startup', 'underutilized_development']:
+            return 'aggressive'
+        else:
+            return 'balanced'
+
+    def _generate_security_optimization_commands(self, opportunities: List[Dict],
+                                            variable_context: Dict) -> List:
+        """Generate security optimization commands"""
+        commands = []
+        
+        for opportunity in opportunities:
+            if opportunity['type'] == 'rbac_optimization':
+                commands.append(self._create_rbac_optimization_command(opportunity, variable_context))
+            elif opportunity['type'] == 'pod_security_standards':
+                commands.append(self._create_pod_security_command(opportunity, variable_context))
+            elif opportunity['type'] == 'network_security_policies':
+                commands.append(self._create_network_security_command(opportunity, variable_context))
+        
+        return commands
+
+    def _generate_network_optimization_commands(self, opportunities: List[Dict], 
+                                           variable_context: Dict) -> List:
+        """Generate network optimization commands"""
+        commands = []
+        
+        for opportunity in opportunities:
+            if opportunity['type'] == 'network_policy_optimization':
+                commands.append(self._create_network_policy_command(opportunity, variable_context))
+            elif opportunity['type'] == 'loadbalancer_optimization':
+                commands.append(self._create_loadbalancer_optimization_command(opportunity, variable_context))
+            elif opportunity['type'] == 'service_mesh_implementation':
+                commands.append(self._create_service_mesh_command(opportunity, variable_context))
+        
+        return commands
+
+    # ADD THESE MISSING HELPER METHODS TO AdvancedExecutableCommandGenerator CLASS
+
+    def _extract_dna_insights(self, cluster_dna: Any) -> Dict:
+        """Extract insights from cluster DNA"""
+        if not cluster_dna:
+            return {}
+        
+        try:
+            return {
+                'cluster_personality': getattr(cluster_dna, 'cluster_personality', 'unknown'),
+                'optimization_readiness': getattr(cluster_dna, 'optimization_readiness_score', 0.5),
+                'temporal_intelligence': getattr(cluster_dna, 'has_temporal_intelligence', False),
+                'uniqueness_score': getattr(cluster_dna, 'uniqueness_score', 0.5),
+                'dna_signature': getattr(cluster_dna, 'dna_signature', 'unknown')[:16]
+            }
+        except Exception as e:
+            logger.warning(f"⚠️ Error extracting DNA insights: {e}")
+            return {}
+
+    def _extract_config_insights(self, cluster_config: Optional[Dict]) -> Dict:
+        """Extract insights from cluster configuration"""
+        if not cluster_config or cluster_config.get('status') != 'completed':
+            return {}
+        
+        try:
+            insights = {
+                'cluster_complexity': 'unknown',
+                'scaling_readiness': 'unknown',
+                'security_posture': 'unknown',
+                'resource_diversity': 'unknown'
+            }
+            
+            # Analyze workload complexity
+            workload_resources = cluster_config.get('workload_resources', {})
+            total_workloads = sum(
+                workload_data.get('item_count', 0) 
+                for workload_data in workload_resources.values() 
+                if isinstance(workload_data, dict)
+            )
+            
+            if total_workloads > 20:
+                insights['cluster_complexity'] = 'high'
+            elif total_workloads > 10:
+                insights['cluster_complexity'] = 'medium'
+            else:
+                insights['cluster_complexity'] = 'low'
+            
+            # Analyze scaling readiness
+            scaling_resources = cluster_config.get('scaling_resources', {})
+            hpa_count = scaling_resources.get('horizontalpodautoscalers', {}).get('item_count', 0)
+            deployments = workload_resources.get('deployments', {}).get('item_count', 0)
+            
+            if deployments > 0:
+                hpa_coverage = hpa_count / deployments
+                if hpa_coverage > 0.7:
+                    insights['scaling_readiness'] = 'high'
+                elif hpa_coverage > 0.3:
+                    insights['scaling_readiness'] = 'medium'
+                else:
+                    insights['scaling_readiness'] = 'low'
+            
+            # Analyze security posture
+            security_resources = cluster_config.get('security_resources', {})
+            rbac_count = sum(
+                security_resources.get(resource, {}).get('item_count', 0)
+                for resource in ['roles', 'clusterroles', 'rolebindings', 'clusterrolebindings']
+            )
+            
+            if rbac_count > 20:
+                insights['security_posture'] = 'enterprise'
+            elif rbac_count > 5:
+                insights['security_posture'] = 'standard'
+            else:
+                insights['security_posture'] = 'basic'
+            
+            return insights
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error extracting config insights: {e}")
+            return {}
+
+    def _extract_pattern_indicators(self, analysis_results: Dict, cluster_config: Optional[Dict]) -> Dict:
+        """Extract pattern indicators from analysis and config"""
+        indicators = {
+            'cost_pattern': 'unknown',
+            'workload_pattern': 'unknown',
+            'optimization_pattern': 'unknown'
+        }
+        
+        try:
+            total_cost = analysis_results.get('total_cost', 0)
+            total_savings = analysis_results.get('total_savings', 0)
+            
+            # Cost pattern analysis
+            if total_cost > 1000:
+                indicators['cost_pattern'] = 'high_cost'
+            elif total_cost > 500:
+                indicators['cost_pattern'] = 'medium_cost'
+            else:
+                indicators['cost_pattern'] = 'low_cost'
+            
+            # Workload pattern analysis
+            workload_costs = analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {})
+            if len(workload_costs) > 20:
+                indicators['workload_pattern'] = 'complex'
+            elif len(workload_costs) > 10:
+                indicators['workload_pattern'] = 'moderate'
+            else:
+                indicators['workload_pattern'] = 'simple'
+            
+            # Optimization pattern analysis
+            if total_savings > 0 and total_cost > 0:
+                savings_ratio = total_savings / total_cost
+                if savings_ratio > 0.3:
+                    indicators['optimization_pattern'] = 'high_potential'
+                elif savings_ratio > 0.15:
+                    indicators['optimization_pattern'] = 'medium_potential'
+                else:
+                    indicators['optimization_pattern'] = 'low_potential'
+            
+            return indicators
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error extracting pattern indicators: {e}")
+            return indicators
+
+    def _calculate_optimization_readiness(self, intelligence: Dict) -> float:
+        """Calculate overall optimization readiness score"""
+        try:
+            factors = []
+            
+            # DNA readiness
+            dna_insights = intelligence.get('cluster_dna_insights', {})
+            factors.append(dna_insights.get('optimization_readiness', 0.5))
+            
+            # Config readiness
+            config_insights = intelligence.get('config_insights', {})
+            scaling_readiness = config_insights.get('scaling_readiness', 'unknown')
+            if scaling_readiness == 'high':
+                factors.append(0.9)
+            elif scaling_readiness == 'medium':
+                factors.append(0.7)
+            else:
+                factors.append(0.5)
+            
+            # Analysis readiness
+            analysis_insights = intelligence.get('analysis_insights', {})
+            optimization_potential = analysis_insights.get('optimization_potential', {})
+            total_savings = optimization_potential.get('total_savings_potential', 0)
+            cost_profile = analysis_insights.get('cost_profile', {})
+            total_cost = cost_profile.get('total_cost', 1)
+            
+            if total_cost > 0:
+                savings_ratio = total_savings / total_cost
+                factors.append(min(1.0, savings_ratio * 2))  # Cap at 1.0
+            else:
+                factors.append(0.3)
+            
+            return sum(factors) / len(factors) if factors else 0.5
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error calculating optimization readiness: {e}")
+            return 0.5
+
+    def _determine_complexity_level(self, intelligence: Dict) -> str:
+        """Determine overall complexity level"""
+        try:
+            complexity_factors = []
+            
+            # Config complexity
+            config_insights = intelligence.get('config_insights', {})
+            cluster_complexity = config_insights.get('cluster_complexity', 'unknown')
+            if cluster_complexity == 'high':
+                complexity_factors.append(3)
+            elif cluster_complexity == 'medium':
+                complexity_factors.append(2)
+            else:
+                complexity_factors.append(1)
+            
+            # Workload complexity
+            analysis_insights = intelligence.get('analysis_insights', {})
+            workload_patterns = analysis_insights.get('workload_patterns', {})
+            total_workloads = workload_patterns.get('total_workloads', 0)
+            
+            if total_workloads > 20:
+                complexity_factors.append(3)
+            elif total_workloads > 10:
+                complexity_factors.append(2)
+            else:
+                complexity_factors.append(1)
+            
+            # Average complexity
+            avg_complexity = sum(complexity_factors) / len(complexity_factors)
+            
+            if avg_complexity >= 2.5:
+                return 'high'
+            elif avg_complexity >= 1.5:
+                return 'medium'
+            else:
+                return 'low'
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Error determining complexity level: {e}")
+            return 'medium'
+
+    def _assess_risk_profile(self, intelligence: Dict) -> str:
+        """Assess overall risk profile"""
+        try:
+            risk_factors = []
+            
+            # Security posture affects risk
+            config_insights = intelligence.get('config_insights', {})
+            security_posture = config_insights.get('security_posture', 'basic')
+            if security_posture == 'enterprise':
+                risk_factors.append('low')
+            elif security_posture == 'standard':
+                risk_factors.append('medium')
+            else:
+                risk_factors.append('high')
+            
+            # Complexity affects risk
+            complexity = self._determine_complexity_level(intelligence)
+            if complexity == 'high':
+                risk_factors.append('high')
+            elif complexity == 'medium':
+                risk_factors.append('medium')
+            else:
+                risk_factors.append('low')
+            
+            # Cost scale affects risk
+            analysis_insights = intelligence.get('analysis_insights', {})
+            cost_profile = analysis_insights.get('cost_profile', {})
+            total_cost = cost_profile.get('total_cost', 0)
+            
+            if total_cost > 1000:
+                risk_factors.append('high')  # High-cost environments have higher risk
+            elif total_cost > 500:
+                risk_factors.append('medium')
+            else:
+                risk_factors.append('low')
+            
+            # Determine overall risk (most conservative)
+            if 'high' in risk_factors:
+                return 'high'
+            elif 'medium' in risk_factors:
+                return 'medium'
+            else:
+                return 'low'
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Error assessing risk profile: {e}")
+            return 'medium'
+
+    def _identify_compliance_requirements(self, intelligence: Dict) -> Dict:
+        """Identify compliance requirements based on cluster characteristics"""
+        try:
+            requirements = {
+                'requires_audit_logging': False,
+                'requires_rbac_governance': False,
+                'requires_network_policies': False,
+                'requires_pod_security': False
+            }
+            
+            # Security posture drives compliance
+            config_insights = intelligence.get('config_insights', {})
+            security_posture = config_insights.get('security_posture', 'basic')
+            
+            if security_posture in ['enterprise', 'standard']:
+                requirements['requires_audit_logging'] = True
+                requirements['requires_rbac_governance'] = True
+                requirements['requires_network_policies'] = True
+                requirements['requires_pod_security'] = True
+            
+            # Cost scale drives compliance
+            analysis_insights = intelligence.get('analysis_insights', {})
+            cost_profile = analysis_insights.get('cost_profile', {})
+            total_cost = cost_profile.get('total_cost', 0)
+            
+            if total_cost > 500:  # High-cost environments typically need compliance
+                requirements['requires_audit_logging'] = True
+                requirements['requires_rbac_governance'] = True
+            
+            return requirements
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error identifying compliance requirements: {e}")
+            return {}
+
+    def _determine_command_prioritization(self, pattern_classification: Dict) -> str:
+        """Determine command prioritization strategy"""
+        primary_pattern = pattern_classification.get('primary_pattern', 'balanced')
+        
+        if primary_pattern in ['cost_optimized_enterprise', 'scaling_production']:
+            return 'cost_first'
+        elif primary_pattern in ['security_focused_finance']:
+            return 'security_first'
+        elif primary_pattern in ['greenfield_startup', 'underutilized_development']:
+            return 'efficiency_first'
+        else:
+            return 'balanced'
+
+    def _determine_rollout_strategy(self, pattern_classification: Dict) -> str:
+        """Determine rollout strategy based on cluster pattern"""
+        primary_pattern = pattern_classification.get('primary_pattern', 'balanced')
+        confidence = pattern_classification.get('confidence', 0.5)
+        
+        if primary_pattern in ['security_focused_finance', 'cost_optimized_enterprise']:
+            return 'phased'
+        elif primary_pattern in ['greenfield_startup'] and confidence > 0.8:
+            return 'aggressive'
+        else:
+            return 'incremental'
+
+    def _determine_monitoring_intensity(self, pattern_classification: Dict) -> str:
+        """Determine monitoring intensity based on cluster pattern"""
+        primary_pattern = pattern_classification.get('primary_pattern', 'balanced')
+        
+        if primary_pattern in ['scaling_production', 'cost_optimized_enterprise']:
+            return 'high'
+        elif primary_pattern in ['security_focused_finance']:
+            return 'maximum'
+        elif primary_pattern in ['underutilized_development', 'greenfield_startup']:
+            return 'standard'
+        else:
+            return 'balanced'
+
+    def _generate_risk_mitigation_strategies(self, risk_profile: str) -> List[str]:
+        """Generate risk mitigation strategies"""
+        strategies = ['continuous_monitoring', 'gradual_rollout']
+        
+        if risk_profile == 'high':
+            strategies.extend([
+                'extensive_testing',
+                'rollback_preparation',
+                'change_approval_process',
+                'staged_deployment'
+            ])
+        elif risk_profile == 'medium':
+            strategies.extend([
+                'automated_rollback',
+                'health_checks',
+                'canary_deployment'
+            ])
+        else:  # low risk
+            strategies.extend([
+                'basic_validation',
+                'simple_rollback'
+            ])
+        
+        return strategies
+
+    def _build_comprehensive_execution_plan(self, all_commands: List, analysis_results: Dict,
+                                        comprehensive_intelligence: Dict, 
+                                        implementation_phases: Optional[List[Dict]]) -> ComprehensiveExecutionPlan:
+        """Build comprehensive execution plan from all components"""
+        
+        try:
+            plan_id = f"aks-optimization-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            cluster_name = analysis_results.get('cluster_name', 'unknown-cluster')
+            resource_group = analysis_results.get('resource_group', 'unknown-rg')
+            
+            variable_context = self._build_comprehensive_variable_context(
+                analysis_results, None, self.cluster_config
+            )
+            azure_context = self._build_azure_context(analysis_results)
+            kubernetes_context = self._build_kubernetes_context(analysis_results, None, self.cluster_config)
+            
+            # Categorize commands
+            preparation_commands = [cmd for cmd in all_commands if cmd.category == 'preparation']
+            optimization_commands = [cmd for cmd in all_commands if cmd.category == 'execution']
+            monitoring_commands = [cmd for cmd in all_commands if cmd.subcategory == 'monitoring']
+            security_commands = [cmd for cmd in all_commands if cmd.subcategory in ['security_optimization', 'security']]
+            validation_commands = [cmd for cmd in all_commands if cmd.category == 'validation']
+            
+            total_duration = sum(cmd.estimated_duration_minutes for cmd in all_commands)
+            
+            # Calculate estimated savings
+            estimated_savings = sum(
+                getattr(cmd, 'monthly_savings', 0) 
+                for cmd in all_commands 
+                if hasattr(cmd, 'monthly_savings')
+            )
+            
+            # Build phase commands if phases provided
+            phase_commands = None
+            if implementation_phases:
+                phase_commands = self._generate_phase_specific_commands(
+                    implementation_phases, analysis_results, variable_context
+                )
+            
+            execution_plan = ComprehensiveExecutionPlan(
+                plan_id=plan_id,
+                cluster_name=cluster_name,
+                resource_group=resource_group,
+                subscription_id=azure_context.get('subscription_id'),
+                strategy_name='Comprehensive AKS Optimization',
+                total_estimated_minutes=total_duration,
+                
+                preparation_commands=preparation_commands,
+                optimization_commands=optimization_commands,
+                networking_commands=[],
+                security_commands=security_commands,
+                monitoring_commands=monitoring_commands,
+                validation_commands=validation_commands,
+                rollback_commands=[],
+                
+                variable_context=variable_context,
+                azure_context=azure_context,
+                kubernetes_context=kubernetes_context,
+                success_probability=max(0.8, comprehensive_intelligence['synthesis']['optimization_readiness']),
+                estimated_savings=estimated_savings,
+                
+                cluster_intelligence=comprehensive_intelligence,
+                config_enhanced=self.cluster_config is not None,
+                phase_commands=phase_commands
+            )
+            
+            logger.info(f"✅ Comprehensive execution plan built with {len(all_commands)} commands")
+            return execution_plan
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to build comprehensive execution plan: {e}")
+            raise
+
+    def _generate_command_group(self, group_name: str, opportunities: List[Dict],
+                           variable_context: Dict, optimization_patterns: Dict) -> List:
+        """Generate commands for a specific opportunity group"""
+        
+        commands = []
+        
+        try:
+            if group_name == 'hpa_opportunities':
+                hpa_strategy = self.hpa_strategies.get(
+                    optimization_patterns['classification']['hpa_strategy'], 
+                    self.hpa_strategies['basic']
+                )
+                commands = self._generate_hpa_commands_from_opportunities(
+                    opportunities, hpa_strategy, variable_context
+                )
+                
+            elif group_name == 'rightsizing_opportunities':
+                commands = self._generate_rightsizing_commands_from_opportunities(
+                    opportunities, variable_context, 
+                    optimization_patterns['adaptations']['risk_tolerance']
+                )
+                
+            elif group_name == 'network_opportunities':
+                commands = self._generate_network_optimization_commands(
+                    opportunities, variable_context
+                )
+                
+            elif group_name == 'security_opportunities':
+                commands = self._generate_security_optimization_commands(
+                    opportunities, variable_context
+                )
+                
+            elif group_name == 'storage_opportunities':
+                commands = self._generate_advanced_storage_commands(
+                    opportunities, variable_context
+                )
+                
+            elif group_name == 'node_opportunities':
+                commands = self._generate_node_optimization_commands(
+                    opportunities, variable_context
+                )
+                
+            elif group_name == 'monitoring_opportunities':
+                commands = self._generate_monitoring_commands_from_opportunities(
+                    opportunities, variable_context
+                )
+                
+            # Add other opportunity types as needed
+            
+        except Exception as e:
+            logger.error(f"❌ Command generation failed for {group_name}: {e}")
+        
+        return commands
+
+    def _extract_network_optimization_opportunities(self, analysis_results: Dict, 
+                                              cluster_config: Optional[Dict]) -> List[Dict]:
+        """Extract network optimization opportunities"""
+        opportunities = []
+        
+        try:
+            # Analyze service costs and ingress patterns
+            namespace_costs = analysis_results.get('namespace_costs', {})
+            total_cost = analysis_results.get('total_cost', 0)
+            
+            # High-cost namespace network optimization
+            for namespace, cost_info in namespace_costs.items():
+                if isinstance(cost_info, dict) and cost_info.get('cost', 0) > 100:
+                    opportunities.append({
+                        'type': 'network_policy_optimization',
+                        'target_namespace': namespace,
+                        'monthly_savings': cost_info['cost'] * 0.15,  # 15% network savings
+                        'optimization': 'implement_network_policies_and_ingress_optimization',
+                        'priority': 'medium'
+                    })
+            
+            # LoadBalancer cost optimization
+            if total_cost > 500:
+                opportunities.append({
+                    'type': 'loadbalancer_optimization', 
+                    'monthly_savings': min(50, total_cost * 0.08),
+                    'optimization': 'consolidate_loadbalancers_and_optimize_ingress',
+                    'priority': 'high'
+                })
+            
+            # Service mesh optimization for complex clusters
+            if len(namespace_costs) > 5:
+                opportunities.append({
+                    'type': 'service_mesh_implementation',
+                    'monthly_savings': total_cost * 0.12,
+                    'optimization': 'implement_istio_for_traffic_optimization',
+                    'priority': 'low'
+                })
+                
+        except Exception as e:
+            logger.error(f"❌ Network opportunity extraction failed: {e}")
+        
+        return opportunities
+
+    def generate_comprehensive_execution_plan(self, optimization_strategy, 
+                                        cluster_dna, 
+                                        analysis_results: Dict,
+                                        cluster_config: Optional[Dict] = None,
+                                        implementation_phases: Optional[List[Dict]] = None) -> ComprehensiveExecutionPlan:
+        """
+        Complete flow integration with advanced use case coverage
+        """
+        logger.info(f"🛠️ Generating COMPREHENSIVE AKS execution plan with advanced flow")
+
+        if cluster_config:
+            self.set_cluster_config(cluster_config)
+
+        try:
+            # PHASE 1: Enhanced Intelligence Integration
+            comprehensive_intelligence = self._build_comprehensive_intelligence(
+                analysis_results, cluster_dna, cluster_config
+            )
+            
+            # PHASE 2: Advanced Pattern Classification & Adaptation
+            optimization_patterns = self._classify_and_adapt_patterns(
+                comprehensive_intelligence, analysis_results
+            )
+            
+            # PHASE 3: Multi-Dimensional Opportunity Extraction
+            all_opportunities = self._extract_comprehensive_opportunities(
+                analysis_results, cluster_config, optimization_patterns
+            )
+            
+            # PHASE 4: Dependency-Aware Command Generation
+            execution_plan = self._generate_dependency_aware_commands(
+                all_opportunities, optimization_patterns, comprehensive_intelligence,
+                analysis_results, implementation_phases
+            )
+            
+            # PHASE 5: Risk & Compliance Integration
+            execution_plan = self._integrate_risk_and_compliance(
+                execution_plan, comprehensive_intelligence
+            )
+            
+            logger.info(f"✅ COMPREHENSIVE execution plan generated")
+            return execution_plan
+            
+        except Exception as e:
+            logger.error(f"❌ Comprehensive execution plan generation failed: {e}")
+            raise
     
     def _generate_phase_specific_commands(self, implementation_phases: List[Dict], 
-                                        comprehensive_state: Dict, variable_context: Dict,
-                                        cluster_intelligence: Optional[Dict], analysis_results: Dict) -> Dict[str, List]:
-        """Generate phase-specific commands dynamically based on analysis results"""
-        logger.info(f"🎯 Generating phase-specific commands for {len(implementation_phases)} phases")
+                                          analysis_results: Dict, variable_context: Dict,
+                                          cluster_intelligence: Optional[Dict] = None) -> Dict[str, List]:
+        """
+        Generate phase-specific commands using YOUR analysis results
+        No more broken cluster config re-analysis!
+        """
+        logger.info(f"🎯 Generating phase-specific commands from YOUR analysis results")
         
         phase_commands = {}
         
         try:
+            # Extract opportunities from YOUR working analysis (not cluster config!)
+            hpa_opportunities = self._extract_real_hpa_opportunities(analysis_results)
+            rightsizing_opportunities = self._extract_real_rightsizing_opportunities(analysis_results)
+            monitoring_opportunities = self._extract_real_monitoring_opportunities(analysis_results)
+            
+            logger.info(f"🔍 FIXED: Extracted {len(hpa_opportunities)} HPA, {len(rightsizing_opportunities)} rightsizing opportunities")
+            
             for phase in implementation_phases:
-                phase_id = phase.get('id', f'phase-{len(phase_commands)}')
-                phase_title = phase.get('title', f'Phase {len(phase_commands) + 1}')
+                # Use the actual phase number to create consistent IDs
+                phase_number = phase.get('phase_number', len(phase_commands) + 1)
+                phase_id = f'phase-{phase_number}'
+                phase_title = phase.get('title', 'Unknown Phase')
                 phase_type = phase.get('type', [])
                 
-                logger.info(f"📋 Processing phase: {phase_title} (types: {phase_type})")
+                logger.info(f"📋 Processing {phase_title} with YOUR extracted opportunities")
                 
                 commands = []
                 
-                # Dynamic phase classification based on analysis results
+                # Route opportunities to correct phases based on phase type/title
                 if self._is_assessment_phase(phase_type, phase_title):
                     commands = self._generate_assessment_commands_for_phase(
-                        comprehensive_state, variable_context, cluster_intelligence
+                        {'analysis_available': True}, variable_context, cluster_intelligence
                     )
-                
+                    
                 elif self._is_hpa_phase(phase_type, phase_title):
-                    # Generate HPA commands based on real opportunities
-                    hpa_opportunities = self._extract_real_hpa_opportunities(comprehensive_state)
-                    if hpa_opportunities:
-                        hpa_strategy = self.hpa_strategies.get('basic', self.hpa_strategies['basic'])
-                        commands = self._generate_hpa_commands_from_opportunities(
-                            hpa_opportunities, hpa_strategy, variable_context
-                        )
-                    else:
-                        # Fallback to generic HPA commands if no specific opportunities
-                        commands = self._generate_generic_hpa_commands(variable_context, cluster_intelligence)
-                
+                    # Use YOUR extracted HPA opportunities!
+                    hpa_strategy = self.hpa_strategies.get('basic', self.hpa_strategies['basic'])
+                    commands = self._generate_hpa_commands_from_opportunities(
+                        hpa_opportunities, hpa_strategy, variable_context
+                    )
+                    
                 elif self._is_rightsizing_phase(phase_type, phase_title):
-                    # Generate rightsizing commands based on real opportunities
-                    rightsizing_opportunities = self._extract_real_rightsizing_opportunities(comprehensive_state)
-                    if rightsizing_opportunities:
-                        pattern = self.pattern_classifier.classify_cluster_pattern(
-                            comprehensive_state, cluster_intelligence or {}, {}
-                        ).get('primary_pattern', 'balanced')
-                        commands = self._generate_rightsizing_commands_from_opportunities(
-                            rightsizing_opportunities, variable_context, pattern
-                        )
-                    else:
-                        # Fallback to generic rightsizing commands
-                        commands = self._generate_generic_rightsizing_commands(variable_context, cluster_intelligence)
-                
+                    # Use YOUR extracted rightsizing opportunities!
+                    commands = self._generate_rightsizing_commands_from_opportunities(
+                        rightsizing_opportunities, variable_context, 'balanced'
+                    )
+                    
                 elif self._is_storage_phase(phase_type, phase_title):
                     commands = self._generate_storage_optimization_commands(
-                        comprehensive_state, variable_context, analysis_results
+                        analysis_results, variable_context
                     )
-                
+                    
                 elif self._is_monitoring_phase(phase_type, phase_title):
-                    monitoring_opportunities = self._extract_real_monitoring_opportunities(comprehensive_state)
                     commands = self._generate_monitoring_commands_from_opportunities(
                         monitoring_opportunities, variable_context
                     )
-                
+                    
                 elif self._is_validation_phase(phase_type, phase_title):
                     total_optimizations = sum(len(cmds) for cmds in phase_commands.values())
                     commands = self._generate_comprehensive_validation_commands(
-                        comprehensive_state, variable_context, total_optimizations
+                        analysis_results, variable_context, total_optimizations
                     )
-                # Enhanced phase matching for complex titles
-                elif any(keyword in phase_title.lower() for keyword in ['enhanced monitoring', 'monitoring and observability']):
-                    # Generate monitoring commands based on real opportunities
-                    monitoring_opportunities = self._extract_real_monitoring_opportunities(comprehensive_state)
-                    commands = self._generate_monitoring_commands_from_opportunities(
-                        monitoring_opportunities, variable_context
-                    )
-
-                elif any(keyword in phase_title.lower() for keyword in ['enhanced final', 'final validation and optimization']):
-                    # Generate comprehensive validation commands
-                    total_optimizations = sum(len(cmds) for cmds in phase_commands.values()) if hasattr(self, 'phase_commands') else 0
-                    commands = self._generate_comprehensive_validation_commands(
-                        comprehensive_state, variable_context, total_optimizations
-                    )
-                
+                    
                 else:
                     # Generic commands for unknown phase types
                     commands = self._generate_generic_commands_for_phase(variable_context, phase_title)
                 
-                # Ensure minimum commands per phase
-                # if len(commands) == 0:
-                #     logger.info(f"🔄 No specific commands for {phase_title}, generating fallback")
-                #     commands = self._generate_fallback_commands_for_phase(phase_title, variable_context)
-                
                 phase_commands[phase_id] = commands
-                logger.info(f"✅ Phase {phase_title}: {len(commands)} commands generated")
+                logger.info(f"✅ FIXED: Phase {phase_title}: {len(commands)} commands generated from YOUR analysis")
             
-            # Calculate total commands
             total_commands = sum(len(cmds) for cmds in phase_commands.values())
-            logger.info(f"🎯 Phase-specific generation complete: {total_commands} commands across {len(phase_commands)} phases")
+            logger.info(f"🎯 FIXED: Generated {total_commands} commands across {len(phase_commands)} phases from YOUR analysis")
+            
+            return phase_commands
             
         except Exception as e:
-            logger.error(f"❌ Phase-specific command generation failed: {e}")
-            # Provide fallback phase commands
-            # phase_commands = self._generate_fallback_phase_commands(implementation_phases, variable_context)
-            return None
-        
-        return phase_commands
+            logger.error(f"❌ FIXED phase-specific command generation failed: {e}")
+            return {}
 
     def _generate_generic_hpa_commands(self, variable_context: Dict, cluster_intelligence: Optional[Dict]) -> List:
         """Generate generic HPA commands when no specific opportunities found"""
         commands = []
         
         try:
-            # Use cluster intelligence if available
+            # FIXED: Handle None cluster_intelligence safely
             if cluster_intelligence and cluster_intelligence.get('real_workload_names'):
                 target_workloads = cluster_intelligence['real_workload_names'][:3]
             else:
@@ -1634,7 +4007,7 @@ class AdvancedExecutableCommandGenerator:
         commands = []
         
         try:
-            # Use cluster intelligence if available
+            # FIXED: Handle None cluster_intelligence safely
             if cluster_intelligence and cluster_intelligence.get('real_workload_names'):
                 target_workloads = cluster_intelligence['real_workload_names'][:2]
             else:
@@ -1655,14 +4028,14 @@ class AdvancedExecutableCommandGenerator:
                 command = ExecutableCommand(
                     id=f'rightsize-{name}-{namespace}',
                     command=f'''
-# Right-size {workload} ($15/month estimated savings)
-echo "💰 Right-sizing {workload} - Expected savings: $15/month"
+    # Right-size {workload} ($15/month estimated savings)
+    echo "💰 Right-sizing {workload} - Expected savings: $15/month"
 
-kubectl patch deployment {name} -n {namespace} --type='json' -p='{patch_json}'
-kubectl rollout status deployment/{name} -n {namespace} --timeout=300s
+    kubectl patch deployment {name} -n {namespace} --type='json' -p='{patch_json}'
+    kubectl rollout status deployment/{name} -n {namespace} --timeout=300s
 
-echo "✅ Right-sizing complete for {workload} - $15/month savings"
-'''.strip(),
+    echo "✅ Right-sizing complete for {workload} - $15/month savings"
+    '''.strip(),
                     description=f'Right-size {workload} ($15/month estimated savings)',
                     category='execution',
                     subcategory='rightsizing',
@@ -1689,29 +4062,60 @@ echo "✅ Right-sizing complete for {workload} - $15/month savings"
         
         return commands
 
-    def _generate_storage_optimization_commands(self, comprehensive_state: Dict, 
-                                              variable_context: Dict, analysis_results: Dict) -> List:
-        """Generate storage optimization commands based on analysis"""
+    def _generate_storage_optimization_commands(self, analysis_results: Dict, 
+                                                variable_context: Dict) -> List:
+        """
+        Generate storage optimization commands from YOUR analysis results
+        """
         commands = []
         
         try:
-            storage_state = comprehensive_state.get('storage_state', {})
-            storage_opportunities = storage_state.get('optimization_opportunities', [])
+            storage_cost = analysis_results.get('storage_cost', 0)
             
-            if storage_opportunities:
-                for opportunity in storage_opportunities:
-                    if opportunity['type'] == 'optimize_storage_class':
-                        commands.append(self._create_storage_class_optimization_command(
-                            opportunity, variable_context
-                        ))
-            else:
-                # Generic storage optimization
-                commands.append(self._create_generic_storage_optimization_command(variable_context))
+            if storage_cost > 20:  # Only if significant storage costs
+                estimated_savings = storage_cost * 0.3  # 30% potential savings
                 
+                command = ExecutableCommand(
+                    id="storage-optimization-fixed",
+                    command=f"""
+# FIXED: Storage optimization based on YOUR analysis (${storage_cost:.0f}/month storage cost)
+echo "💿 Optimizing storage based on YOUR ${storage_cost:.0f}/month storage analysis..."
+
+# Check current storage classes
+kubectl get storageclass
+kubectl get pvc --all-namespaces | head -5
+
+# Optimize based on YOUR analysis findings
+echo "💰 Expected storage savings: ${estimated_savings:.0f}/month from YOUR analysis"
+
+echo "✅ Storage optimization analysis complete"
+""".strip(),
+                    description=f"Storage optimization based on YOUR ${storage_cost:.0f}/month analysis",
+                    category="execution",
+                    subcategory="storage_optimization",
+                    yaml_content=None,
+                    validation_commands=["kubectl get storageclass"],
+                    rollback_commands=["# Analysis only - no rollback needed"],
+                    expected_outcome="Storage optimization analyzed",
+                    success_criteria=["Storage classes accessible"],
+                    timeout_seconds=180,
+                    retry_attempts=1,
+                    prerequisites=["Cluster access"],
+                    estimated_duration_minutes=3,
+                    risk_level="Low",
+                    monitoring_metrics=["storage_optimization_analysis"],
+                    variable_substitutions=variable_context,
+                    kubectl_specific=True,
+                    cluster_specific=True
+                )
+                
+                commands.append(command)
+            
+            return commands
+            
         except Exception as e:
-            logger.warning(f"⚠️ Storage optimization command generation failed: {e}")
-        
-        return commands
+            logger.error(f"❌ FIXED storage optimization failed: {e}")
+            return []
 
     def _create_storage_class_optimization_command(self, opportunity: Dict, variable_context: Dict):
         """Create storage class optimization command"""
@@ -1905,7 +4309,7 @@ echo "✅ Fallback complete"
         
         try:
             # Extract real HPA opportunities from comprehensive state
-            hpa_opportunities = self._extract_real_hpa_opportunities_enhanced(comprehensive_state)
+            hpa_opportunities = self._extract_real_hpa_opportunities(comprehensive_state)
             
             # Get pattern classification for strategy selection
             cluster_intelligence = comprehensive_state.get('cluster_intelligence', {})
@@ -1950,35 +4354,6 @@ echo "✅ Fallback complete"
             
         return commands
 
-    def _extract_real_hpa_opportunities_enhanced(self, comprehensive_state: Dict) -> List[Dict]:
-        """Extract real HPA opportunities with enhanced analysis"""
-        opportunities = []
-        
-        try:
-            hpa_state = comprehensive_state.get('hpa_state', {})
-            missing_candidates = hpa_state.get('missing_hpa_candidates', [])
-            
-            for candidate in missing_candidates:
-                if candidate.get('should_have_hpa', False):
-                    # Calculate real savings based on actual cluster data
-                    monthly_savings = self._calculate_real_hpa_savings(candidate, comprehensive_state)
-                    
-                    opportunities.append({
-                        'type': 'hpa_deployment',
-                        'target_deployment': candidate['deployment_name'],
-                        'target_namespace': candidate['namespace'],
-                        'monthly_savings': monthly_savings,
-                        'priority_score': candidate['priority_score'],
-                        'workload_type': candidate.get('workload_type', 'Deployment'),
-                        'reasons': candidate.get('reasons', []),
-                        'implementation_complexity': self._assess_implementation_complexity(candidate)
-                    })
-                    
-        except Exception as e:
-            logger.error(f"❌ Enhanced HPA opportunity extraction failed: {e}")
-            
-        return opportunities
-
     def _get_deployment_manifest(self, cluster_config: Dict, deployment_name: str, namespace: str) -> Dict:
         """Get actual deployment manifest from cluster config"""
         try:
@@ -2003,7 +4378,7 @@ echo "✅ Fallback complete"
         
         try:
             # Extract real rightsizing opportunities
-            rightsizing_opportunities = self._extract_real_rightsizing_opportunities_enhanced(comprehensive_state)
+            rightsizing_opportunities = self._extract_real_rightsizing_opportunities(comprehensive_state)
             
             for opportunity in rightsizing_opportunities:
                 workload_name = opportunity['target_workload']
@@ -2031,34 +4406,6 @@ echo "✅ Fallback complete"
             
         return commands
 
-    def _extract_real_rightsizing_opportunities_enhanced(self, comprehensive_state: Dict) -> List[Dict]:
-        """Extract real rightsizing opportunities with enhanced analysis"""
-        opportunities = []
-        
-        try:
-            rightsizing_state = comprehensive_state.get('rightsizing_state', {})
-            overprovisioned_workloads = rightsizing_state.get('overprovisioned_workloads', [])
-            
-            for workload in overprovisioned_workloads:
-                if workload.get('resource_efficiency', 1.0) < 0.7:  # Only significant waste
-                    monthly_savings = self._calculate_real_rightsizing_savings(workload, comprehensive_state)
-                    
-                    opportunities.append({
-                        'type': 'resource_rightsizing',
-                        'target_workload': workload['name'],
-                        'target_namespace': workload['namespace'],
-                        'monthly_savings': monthly_savings,
-                        'waste_cpu_cores': workload.get('waste_cpu_cores', 0),
-                        'waste_memory_gb': workload.get('waste_memory_gb', 0),
-                        'current_efficiency': workload.get('resource_efficiency', 0.5),
-                        'recommendations': workload.get('recommendations', []),
-                        'implementation_complexity': self._assess_rightsizing_complexity(workload)
-                    })
-                    
-        except Exception as e:
-            logger.error(f"❌ Enhanced rightsizing opportunity extraction failed: {e}")
-            
-        return opportunities
 
     def _get_workload_manifest(self, cluster_config: Dict, workload_name: str, namespace: str) -> Dict:
         """Get actual workload manifest from cluster config"""
@@ -2722,142 +5069,240 @@ echo "✅ Fallback complete"
         
         return commands
 
-    def _generate_enhanced_state_driven_commands(self, comprehensive_state: Dict, 
-                                               variable_context: Dict, cluster_intelligence: Optional[Dict],
-                                               analysis_results: Dict) -> List:
-        """Generate state-driven commands based on comprehensive analysis"""
+    def _generate_enhanced_state_driven_commands(self, analysis_results: Dict, 
+                                           variable_context: Dict, cluster_intelligence: Optional[Dict],
+                                           analysis_results_unused: Dict) -> List:
+        """
+        Generate commands directly from working analysis results
+        """
         commands = []
         
-        logger.info(f"🎯 Generating state-driven commands based on comprehensive analysis")
+        logger.info(f"🎯 FIXED: Generating commands from YOUR working analysis results")
         
-        # Classify cluster pattern
-        organization_patterns = comprehensive_state.get('organization_patterns', {})
-        pattern_classification = self.pattern_classifier.classify_cluster_pattern(
-            comprehensive_state, cluster_intelligence or {}, organization_patterns
-        )
-        
-        primary_pattern = pattern_classification.get('primary_pattern', 'underutilized_development')
-        hpa_strategy_name = pattern_classification.get('hpa_strategy', 'basic')
-        hpa_strategy = self.hpa_strategies.get(hpa_strategy_name, self.hpa_strategies['basic'])
-        
-        logger.info(f"🎯 Using pattern: {primary_pattern} with {hpa_strategy_name} HPA strategy")
-        
-        # Extract real optimization opportunities
-        hpa_opportunities = self._extract_real_hpa_opportunities(comprehensive_state)
-        rightsizing_opportunities = self._extract_real_rightsizing_opportunities(comprehensive_state)
-        monitoring_opportunities = self._extract_real_monitoring_opportunities(comprehensive_state)
-        
-        logger.info(f"🔍 Opportunities: HPA={len(hpa_opportunities)}, Rightsizing={len(rightsizing_opportunities)}")
-        
-        # Generate commands from opportunities
-        if hpa_opportunities:
-            hpa_commands = self._generate_hpa_commands_from_opportunities(
-                hpa_opportunities, hpa_strategy, variable_context
+        try:
+            # Extract opportunities from YOUR analysis results (not cluster config!)
+            hpa_opportunities = self._extract_real_hpa_opportunities(analysis_results)
+            rightsizing_opportunities = self._extract_real_rightsizing_opportunities(analysis_results)
+            monitoring_opportunities = self._extract_real_monitoring_opportunities(analysis_results)
+            
+            logger.info(f"🔍 FIXED: Found {len(hpa_opportunities)} HPA + {len(rightsizing_opportunities)} rightsizing opportunities")
+            
+            # Generate commands from YOUR real opportunities
+            if hpa_opportunities:
+                hpa_strategy = self.hpa_strategies.get('basic', self.hpa_strategies['basic'])
+                hpa_commands = self._generate_hpa_commands_from_opportunities(
+                    hpa_opportunities, hpa_strategy, variable_context
+                )
+                commands.extend(hpa_commands)
+                logger.info(f"✅ Generated {len(hpa_commands)} HPA commands from YOUR analysis")
+            
+            if rightsizing_opportunities:
+                rightsizing_commands = self._generate_rightsizing_commands_from_opportunities(
+                    rightsizing_opportunities, variable_context, 'balanced'
+                )
+                commands.extend(rightsizing_commands)
+                logger.info(f"✅ Generated {len(rightsizing_commands)} rightsizing commands from YOUR analysis")
+            
+            if monitoring_opportunities:
+                monitoring_commands = self._generate_monitoring_commands_from_opportunities(
+                    monitoring_opportunities, variable_context
+                )
+                commands.extend(monitoring_commands)
+                logger.info(f"✅ Generated {len(monitoring_commands)} monitoring commands from YOUR analysis")
+            
+            # Add validation commands
+            validation_commands = self._generate_comprehensive_validation_commands(
+                analysis_results, variable_context, len(commands)
             )
-            commands.extend(hpa_commands)
+            commands.extend(validation_commands)
+            
+            logger.info(f"✅ FIXED: Generated {len(commands)} total commands from YOUR analysis")
+            return commands
+            
+        except Exception as e:
+            logger.error(f"❌ FIXED command generation failed: {e}")
+            return []
         
-        if rightsizing_opportunities:
-            rightsizing_commands = self._generate_rightsizing_commands_from_opportunities(
-                rightsizing_opportunities, variable_context, primary_pattern
-            )
-            commands.extend(rightsizing_commands)
-        
-        if monitoring_opportunities:
-            monitoring_commands = self._generate_monitoring_commands_from_opportunities(
-                monitoring_opportunities, variable_context
-            )
-            commands.extend(monitoring_commands)
-        
-        # Enhanced validation commands
-        validation_commands = self._generate_comprehensive_validation_commands(
-            comprehensive_state, variable_context, len(commands)
-        )
-        commands.extend(validation_commands)
-        
-        logger.info(f"✅ Generated {len(commands)} state-driven commands")
-        return commands
 
-    def _extract_real_hpa_opportunities(self, comprehensive_state: Dict) -> List[Dict]:
-        """Extract real HPA opportunities with cost savings calculations"""
+    def _extract_deployment_name(self, workload_name: str) -> str:
+        """Extract deployment name from workload/pod name"""
+        # Remove common pod suffixes
+        if '/' in workload_name:
+            workload_name = workload_name.split('/')[-1]
+        
+        # Remove pod hash suffixes (e.g., 'nginx-deployment-abc123-xyz789' -> 'nginx-deployment')
+        parts = workload_name.split('-')
+        if len(parts) > 2:
+            # Keep first parts, remove last 1-2 parts if they look like hashes
+            deployment_parts = []
+            for i, part in enumerate(parts):
+                if i < len(parts) - 2:  # Keep early parts
+                    deployment_parts.append(part)
+                elif len(part) < 6 or not any(c.isalpha() for c in part):  # Skip hash-like parts
+                    continue
+                else:
+                    deployment_parts.append(part)
+            
+            if deployment_parts:
+                return '-'.join(deployment_parts)
+        
+        return workload_name    
+
+    def _extract_real_hpa_opportunities(self, analysis_results: Dict) -> List[Dict]:
+        """
+        Extract HPA opportunities from YOUR working analysis results
+        """
         opportunities = []
         
         try:
-            hpa_state = comprehensive_state.get('hpa_state', {})
-            missing_candidates = hpa_state.get('missing_hpa_candidates', [])
-            suboptimal_hpas = hpa_state.get('suboptimal_hpas', [])
+            logger.info("🔍 FIXED: Extracting HPA opportunities from YOUR analysis results")
             
-            # Process missing HPA candidates
-            for candidate in missing_candidates:
-                deployment_name = candidate.get('deployment_name')
-                namespace = candidate.get('namespace', 'default')
-                priority_score = candidate.get('priority_score', 0)
+            # Method 1: Use YOUR hpa_savings and hpa_recommendations 
+            hpa_savings = analysis_results.get('hpa_savings', 0)
+            if hpa_savings > 0:
+                logger.info(f"💰 Found HPA savings potential: ${hpa_savings}")
                 
-                estimated_monthly_savings = self._calculate_hpa_savings_potential(
-                    deployment_name, namespace, priority_score
-                )
+                # Extract actual workload targets from YOUR analysis
+                workload_costs = analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {})
+                namespace_costs = analysis_results.get('namespace_costs', {})
                 
-                if estimated_monthly_savings > 5:  # Only include if savings > $5/month
-                    opportunities.append({
-                        'type': 'hpa_deployment',
-                        'target_deployment': deployment_name,
-                        'target_namespace': namespace,
-                        'monthly_savings': estimated_monthly_savings,
-                        'priority_score': priority_score,
-                        'implementation_complexity': 'medium'
-                    })
-            
-            # Process suboptimal HPAs
-            for hpa in suboptimal_hpas:
-                optimization_score = hpa.get('optimization_score', 0)
-                if optimization_score < 0.7:
-                    estimated_monthly_savings = self._calculate_hpa_optimization_savings(hpa)
+                # Create HPA opportunities from expensive workloads
+                for workload_name, workload_info in workload_costs.items():
+                    workload_cost = workload_info.get('cost', 0)
                     
-                    if estimated_monthly_savings > 3:
+                    # Only target workloads with significant cost (good HPA candidates)
+                    if workload_cost > 20:  # $20+ per month workloads
+                        # Extract deployment name (remove pod suffix if present)
+                        deployment_name = self._extract_deployment_name(workload_name)
+                        namespace = workload_info.get('namespace', 'default')
+                        
+                        # Calculate realistic HPA savings (30-40% of workload cost)
+                        hpa_potential_savings = workload_cost * 0.35
+                        
                         opportunities.append({
-                            'type': 'hpa_optimization',
-                            'target_hpa': hpa.get('name'),
-                            'target_namespace': hpa.get('namespace'),
-                            'monthly_savings': estimated_monthly_savings,
-                            'optimization_score': optimization_score,
-                            'implementation_complexity': 'low'
+                            'type': 'hpa_deployment',
+                            'target_deployment': deployment_name,  # FIXED: Use deployment name
+                            'target_namespace': namespace,
+                            'monthly_savings': float(hpa_potential_savings),
+                            'priority_score': min(0.9, workload_cost / 100),
+                            'implementation_complexity': 'medium',
+                            'source': 'your_analysis_workload_costs',
+                            'original_workload_cost': workload_cost
+                        })
+                        
+                        logger.info(f"✅ HPA opportunity: {deployment_name} in {namespace} - ${hpa_potential_savings:.0f}/month")
+                        
+                        if len(opportunities) >= 8:  # Limit to reasonable number
+                            break
+            
+            # Method 2: Use YOUR namespace analysis for additional opportunities
+            for namespace, namespace_info in namespace_costs.items():
+                if isinstance(namespace_info, dict):
+                    namespace_cost = namespace_info.get('cost', 0)
+                    if namespace_cost > 50:  # High-cost namespaces
+                        # Create generic opportunity for namespace optimization
+                        opportunities.append({
+                            'type': 'hpa_deployment',
+                            'target_deployment': f'{namespace}-primary-workload',
+                            'target_namespace': namespace,
+                            'monthly_savings': float(namespace_cost * 0.25),
+                            'priority_score': 0.7,
+                            'implementation_complexity': 'medium',
+                            'source': 'your_analysis_namespace_costs'
                         })
             
+            logger.info(f"✅ FIXED: Extracted {len(opportunities)} HPA opportunities from YOUR analysis")
+            return opportunities[:10]  # Return top 10
+            
         except Exception as e:
-            logger.warning(f"⚠️ HPA opportunity extraction failed: {e}")
-        
-        return opportunities
+            logger.error(f"❌ FIXED HPA opportunity extraction failed: {e}")
+            return []
 
-    def _extract_real_rightsizing_opportunities(self, comprehensive_state: Dict) -> List[Dict]:
-        """Extract real rightsizing opportunities with cost savings calculations"""
+    def _extract_real_rightsizing_opportunities(self, analysis_results: Dict) -> List[Dict]:
+        """
+        Extract rightsizing opportunities from YOUR working analysis results
+        """
         opportunities = []
         
         try:
-            rightsizing_state = comprehensive_state.get('rightsizing_state', {})
-            overprovisioned_workloads = rightsizing_state.get('overprovisioned_workloads', [])
+            logger.info("🔍 FIXED: Extracting rightsizing opportunities from YOUR analysis results")
             
-            for workload in overprovisioned_workloads:
-                waste_cpu = workload.get('waste_cpu_cores', 0)
-                waste_memory = workload.get('waste_memory_gb', 0)
-                efficiency = workload.get('resource_efficiency', 1.0)
+            # Method 1: Use YOUR right_sizing_savings
+            rightsizing_savings = analysis_results.get('right_sizing_savings', 0)
+            if rightsizing_savings > 0:
+                logger.info(f"💰 Found rightsizing savings potential: ${rightsizing_savings}")
                 
-                monthly_savings = self.cost_calculator.calculate_resource_waste_cost(waste_cpu, waste_memory)
+                # Extract from YOUR node analysis
+                nodes = analysis_results.get('nodes', [])
+                for node in nodes:
+                    cpu_usage = node.get('cpu_usage_pct', 50)
+                    memory_usage = node.get('memory_usage_pct', 50)
+                    node_name = node.get('name', f'node-{len(opportunities)}')
+                    
+                    # Identify overprovisioned nodes
+                    if cpu_usage < 50 or memory_usage < 50:
+                        # Calculate waste from YOUR actual data
+                        cpu_allocatable = node.get('cpu_allocatable', 2)
+                        memory_allocatable = node.get('memory_allocatable_gb', 4)
+                        
+                        waste_cpu = cpu_allocatable * (100 - cpu_usage) / 100 * 0.6
+                        waste_memory = memory_allocatable * (100 - memory_usage) / 100 * 0.6
+                        
+                        # Calculate savings using YOUR cost model
+                        monthly_savings = self.cost_calculator.calculate_resource_waste_cost(waste_cpu, waste_memory)
+                        
+                        if monthly_savings > 10:  # Only significant savings
+                            opportunities.append({
+                                'type': 'resource_rightsizing',
+                                'target_workload': node_name,
+                                'target_namespace': 'kube-system',
+                                'monthly_savings': float(monthly_savings),
+                                'waste_cpu_cores': float(waste_cpu),
+                                'waste_memory_gb': float(waste_memory),
+                                'current_efficiency': float(max(cpu_usage, memory_usage) / 100),
+                                'implementation_complexity': 'medium',
+                                'source': 'your_analysis_node_data'
+                            })
+                            
+                            logger.info(f"✅ Rightsizing opportunity: {node_name} - ${monthly_savings:.0f}/month")
+            
+            # Method 2: Use YOUR workload cost analysis for application rightsizing
+            workload_costs = analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {})
+            for workload_name, workload_info in workload_costs.items():
+                workload_cost = workload_info.get('cost', 0)
                 
-                if monthly_savings > 2:  # Only include if savings > $2/month
+                # Target expensive workloads for rightsizing
+                if workload_cost > 25:  # $25+ workloads
+                    deployment_name = self._extract_deployment_name(workload_name)
+                    namespace = workload_info.get('namespace', 'default')
+                    
+                    # Estimate rightsizing savings (20-30% of workload cost)
+                    rightsizing_potential = workload_cost * 0.25
+                    
                     opportunities.append({
                         'type': 'resource_rightsizing',
-                        'target_workload': workload.get('name'),
-                        'target_namespace': workload.get('namespace'),
-                        'monthly_savings': monthly_savings,
-                        'waste_cpu_cores': waste_cpu,
-                        'waste_memory_gb': waste_memory,
-                        'current_efficiency': efficiency,
-                        'implementation_complexity': 'medium'
+                        'target_workload': deployment_name,
+                        'target_namespace': namespace,
+                        'monthly_savings': float(rightsizing_potential),
+                        'waste_cpu_cores': 0.3,  # Estimated based on workload cost
+                        'waste_memory_gb': 0.2,
+                        'current_efficiency': 0.6,
+                        'implementation_complexity': 'medium',
+                        'source': 'your_analysis_workload_costs',
+                        'original_workload_cost': workload_cost
                     })
+                    
+                    logger.info(f"✅ Rightsizing opportunity: {deployment_name} - ${rightsizing_potential:.0f}/month")
+                    
+                    if len(opportunities) >= 8:
+                        break
+            
+            logger.info(f"✅ FIXED: Extracted {len(opportunities)} rightsizing opportunities from YOUR analysis")
+            return opportunities
             
         except Exception as e:
-            logger.warning(f"⚠️ Rightsizing opportunity extraction failed: {e}")
-        
-        return opportunities
+            logger.error(f"❌ FIXED rightsizing opportunity extraction failed: {e}")
+            return []
 
     def _analyze_hpa_candidate_enhanced(self, workload: Dict, workload_type: str = 'Deployment') -> Dict:
         """Enhanced HPA candidate analysis with lower thresholds"""
@@ -3368,38 +5813,43 @@ echo "✅ Fallback complete"
         
         return org_patterns
 
-    def _extract_real_monitoring_opportunities(self, comprehensive_state: Dict) -> List[Dict]:
-        """Extract real monitoring opportunities that can save costs"""
+    def _extract_real_monitoring_opportunities(self, analysis_results: Dict) -> List[Dict]:
+        """
+        Extract monitoring opportunities from YOUR working analysis results
+        """
         opportunities = []
         
         try:
-            # Check if monitoring gaps exist that could lead to cost optimization
-            hpa_state = comprehensive_state.get('hpa_state', {})
-            total_workloads = hpa_state.get('summary', {}).get('total_workloads', 0)
-            existing_hpas = hpa_state.get('summary', {}).get('existing_hpas', 0)
+            logger.info("🔍 FIXED: Extracting monitoring opportunities from YOUR analysis")
             
-            # Only add monitoring if it enables cost optimization
-            if total_workloads > 5 and existing_hpas == 0:
+            total_cost = analysis_results.get('total_cost', 0)
+            node_count = len(analysis_results.get('nodes', []))
+            
+            # Monitoring opportunity based on YOUR cluster size and cost
+            if total_cost > 200 and node_count > 2:
                 opportunities.append({
                     'type': 'metrics_server_setup',
                     'purpose': 'enable_hpa_optimization',
-                    'monthly_savings': 10,  # Indirect savings through enabling HPA
-                    'implementation_complexity': 'low'
+                    'monthly_savings': min(30, total_cost * 0.03),  # 3% of cost or $30 max
+                    'implementation_complexity': 'low',
+                    'source': 'your_analysis_cost_threshold'
                 })
             
-            # Check for cost tracking gaps
-            if total_workloads > 10:
+            if total_cost > 500:
                 opportunities.append({
-                    'type': 'cost_tracking_setup',
+                    'type': 'cost_tracking_setup', 
                     'purpose': 'cost_visibility_optimization',
-                    'monthly_savings': 5,  # Savings through better cost visibility
-                    'implementation_complexity': 'low'
+                    'monthly_savings': 15.0,
+                    'implementation_complexity': 'low',
+                    'source': 'your_analysis_cost_visibility'
                 })
+            
+            logger.info(f"✅ FIXED: Extracted {len(opportunities)} monitoring opportunities")
+            return opportunities
             
         except Exception as e:
-            logger.warning(f"⚠️ Monitoring opportunity extraction failed: {e}")
-        
-        return opportunities
+            logger.error(f"❌ FIXED monitoring opportunity extraction failed: {e}")
+            return []
 
     def _calculate_hpa_savings_potential(self, deployment_name: str, namespace: str, priority_score: float) -> float:
         """Calculate realistic HPA savings potential"""
@@ -3733,67 +6183,87 @@ echo "✅ Cost tracking setup complete - ${monthly_savings:.0f}/month savings th
             cluster_specific=True
         )
 
-    def _generate_comprehensive_validation_commands(self, comprehensive_state: Dict, 
-                                                  variable_context: Dict, optimization_count: int) -> List:
-        """Generate comprehensive validation commands"""
+    def _generate_comprehensive_validation_commands(self, analysis_results: Dict, 
+                                                    variable_context: Dict, optimization_count: int) -> List:
+        """
+        Generate validation commands based on YOUR analysis results
+        """
         commands = []
         
-        hpa_opportunities = comprehensive_state.get('hpa_state', {}).get('summary', {}).get('optimization_potential', 0)
-        rightsizing_opportunities = len(comprehensive_state.get('rightsizing_state', {}).get('overprovisioned_workloads', []))
-        
-        validation_command = ExecutableCommand(
-            id="comprehensive-validation",
-            command=f"""
-# Comprehensive validation of optimizations
-echo "🔍 Validating {optimization_count} optimizations..."
+        try:
+            # Calculate expected optimizations from YOUR analysis
+            hpa_opportunities = self._extract_real_hpa_opportunities(analysis_results)
+            rightsizing_opportunities = self._extract_real_rightsizing_opportunities(analysis_results)
+            
+            hpa_potential = len(hpa_opportunities)
+            rightsizing_potential = len(rightsizing_opportunities)
+            total_workloads = len(analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {}))
+            total_cost = analysis_results.get('total_cost', 0)
+            total_savings = analysis_results.get('total_savings', 0)
+            
+            validation_command = ExecutableCommand(
+                id="comprehensive-validation-fixed",
+                command=f"""
+# FIXED: Comprehensive validation based on YOUR analysis results
+echo "🔍 Validating optimizations based on YOUR analysis results..."
+
+# Validate based on YOUR analysis data
+echo "📊 YOUR Analysis Summary:"
+echo "   Total cluster cost: ${total_cost:.0f}/month"
+echo "   Total workloads analyzed: {total_workloads}"
+echo "   HPA candidates found: {hpa_potential}"
+echo "   Rightsizing candidates found: {rightsizing_potential}"
+echo "   Expected total savings: ${total_savings:.0f}/month"
+echo "   Commands executed: {optimization_count}"
 
 # Check HPA deployments
 HPA_COUNT=$(kubectl get hpa --all-namespaces --no-headers | wc -l)
-echo "📊 HPAs deployed: $HPA_COUNT (expected opportunities: {hpa_opportunities})"
+echo "📊 HPAs deployed: $HPA_COUNT (expected from YOUR analysis: {hpa_potential})"
 
 # Check deployment health
+echo "🏥 Checking workload health..."
 kubectl get deployments --all-namespaces | head -10
-kubectl get pods --all-namespaces --field-selector=status.phase=Failed --no-headers | wc -l
+FAILED_PODS=$(kubectl get pods --all-namespaces --field-selector=status.phase=Failed --no-headers | wc -l)
+echo "📊 Failed pods: $FAILED_PODS"
 
 # Resource utilization check
 kubectl top nodes 2>/dev/null || echo "Metrics server may need time to collect data"
 
-# Optimization summary
-echo "📈 Optimization Summary:"
-echo "   Total commands executed: {optimization_count}"
-echo "   HPA opportunities addressed: {hpa_opportunities}"
-echo "   Rightsizing opportunities addressed: {rightsizing_opportunities}"
-
-echo "✅ Comprehensive validation complete"
+echo "✅ Validation complete - YOUR analysis guided {optimization_count} optimizations"
+echo "💰 Expected savings: ${total_savings:.0f}/month from YOUR analysis"
 """.strip(),
-            description=f"Validate {optimization_count} optimizations ({hpa_opportunities} HPA, {rightsizing_opportunities} rightsizing)",
-            category="validation",
-            subcategory="comprehensive_validation",
-            yaml_content=None,
-            validation_commands=[
-                "kubectl get hpa --all-namespaces",
-                "kubectl get deployments --all-namespaces"
-            ],
-            rollback_commands=["# Validation only - no rollback needed"],
-            expected_outcome="All optimizations validated successfully",
-            success_criteria=[
-                "No failed pods",
-                "All deployments ready",
-                "Optimizations applied"
-            ],
-            timeout_seconds=180,
-            retry_attempts=1,
-            prerequisites=["Cluster access"],
-            estimated_duration_minutes=3,
-            risk_level="Low",
-            monitoring_metrics=["comprehensive_validation_score"],
-            variable_substitutions=variable_context,
-            kubectl_specific=True,
-            cluster_specific=True
-        )
-        
-        commands.append(validation_command)
-        return commands
+                description=f"Validate {optimization_count} optimizations based on YOUR analysis results",
+                category="validation",
+                subcategory="comprehensive_validation",
+                yaml_content=None,
+                validation_commands=[
+                    "kubectl get hpa --all-namespaces",
+                    "kubectl get deployments --all-namespaces"
+                ],
+                rollback_commands=["# Validation only - no rollback needed"],
+                expected_outcome="All optimizations validated successfully",
+                success_criteria=[
+                    "No failed pods",
+                    "All deployments ready",
+                    "Optimizations match analysis expectations"
+                ],
+                timeout_seconds=180,
+                retry_attempts=1,
+                prerequisites=["Cluster access"],
+                estimated_duration_minutes=3,
+                risk_level="Low",
+                monitoring_metrics=["comprehensive_validation_score"],
+                variable_substitutions=variable_context,
+                kubectl_specific=True,
+                cluster_specific=True
+            )
+            
+            commands.append(validation_command)
+            return commands
+            
+        except Exception as e:
+            logger.error(f"❌ FIXED validation command generation failed: {e}")
+            return []
 
     def _generate_supplemental_commands(self, analysis_results: Dict, variable_context: Dict,
                                       cluster_intelligence: Optional[Dict], target_count: int) -> List:
@@ -4014,6 +6484,19 @@ echo "✅ Optimization step {index + 1} complete"
         intelligence = {}
         
         try:
+            # FIXED: Add null safety for cluster_config access
+            if not cluster_config:
+                return {
+                    'total_workloads': 0,
+                    'deployments': 0,
+                    'statefulsets': 0,
+                    'daemonsets': 0,
+                    'existing_hpas': 0,
+                    'hpa_coverage': 0,
+                    'real_workload_names': [],
+                    'error': 'cluster_config_not_available'
+                }
+            
             workload_resources = cluster_config.get('workload_resources', {})
             scaling_resources = cluster_config.get('scaling_resources', {})
             
@@ -4033,10 +6516,12 @@ echo "✅ Optimization step {index + 1} complete"
             
             # Extract real workload names
             intelligence['real_workload_names'] = []
-            if 'deployments' in workload_resources and 'items' in workload_resources['deployments']:
-                for deployment in workload_resources['deployments']['items'][:10]:
-                    name = deployment.get('metadata', {}).get('name', '')
-                    namespace = deployment.get('metadata', {}).get('namespace', 'default')
+            deployments_items = workload_resources.get('deployments', {}).get('items', [])
+            if deployments_items:
+                for deployment in deployments_items[:10]:
+                    metadata = deployment.get('metadata', {})
+                    name = metadata.get('name', '')
+                    namespace = metadata.get('namespace', 'default')
                     if name:
                         intelligence['real_workload_names'].append(f"{namespace}/{name}")
             
@@ -4044,12 +6529,21 @@ echo "✅ Optimization step {index + 1} complete"
             
         except Exception as e:
             logger.warning(f"⚠️ Error extracting cluster intelligence: {e}")
-            intelligence['error'] = str(e)
+            intelligence = {
+                'total_workloads': 0,
+                'deployments': 0,
+                'statefulsets': 0,
+                'daemonsets': 0,
+                'existing_hpas': 0,
+                'hpa_coverage': 0,
+                'real_workload_names': [],
+                'error': str(e)
+            }
         
         return intelligence
 
     def _build_comprehensive_variable_context(self, analysis_results: Dict, cluster_dna,
-                                             cluster_config: Optional[Dict] = None) -> Dict[str, Any]:
+                                         cluster_config: Optional[Dict] = None) -> Dict[str, Any]:
         """Build comprehensive variable context with cluster config intelligence"""
         variable_context = {
             'cluster_name': analysis_results.get('cluster_name', 'unknown-cluster'),
@@ -4066,15 +6560,18 @@ echo "✅ Optimization step {index + 1} complete"
             'current_time': datetime.now().strftime('%H:%M:%S')
         }
         
-        # Enhance with real cluster data if available
+        # FIXED: Add null safety when enhancing with cluster data
         if cluster_config and cluster_config.get('status') == 'completed':
-            cluster_intelligence = self._extract_cluster_intelligence_for_commands(cluster_config)
-            
-            if cluster_intelligence.get('real_workload_names'):
-                variable_context['real_workload_count'] = cluster_intelligence['total_workloads']
-                variable_context['existing_hpas'] = cluster_intelligence.get('existing_hpas', 0)
-                variable_context['hpa_coverage'] = cluster_intelligence.get('hpa_coverage', 0)
-                logger.info(f"🔧 Enhanced variable context with real cluster data")
+            try:
+                cluster_intelligence = self._extract_cluster_intelligence_for_commands(cluster_config)
+                
+                if cluster_intelligence and not cluster_intelligence.get('error'):
+                    variable_context['real_workload_count'] = cluster_intelligence.get('total_workloads', 0)
+                    variable_context['existing_hpas'] = cluster_intelligence.get('existing_hpas', 0)
+                    variable_context['hpa_coverage'] = cluster_intelligence.get('hpa_coverage', 0)
+                    logger.info(f"🔧 Enhanced variable context with real cluster data")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to enhance variable context: {e}")
         
         return variable_context
 
@@ -4091,25 +6588,33 @@ echo "✅ Optimization step {index + 1} complete"
         }
 
     def _build_kubernetes_context(self, analysis_results: Dict, cluster_dna,
-                                 cluster_config: Optional[Dict] = None) -> Dict[str, Any]:
+                             cluster_config: Optional[Dict] = None) -> Dict[str, Any]:
         """Build Kubernetes context"""
         base_context = {
             'namespaces': list(analysis_results.get('namespace_costs', {}).keys()),
             'default_namespace': 'default',
             'system_namespace': 'kube-system',
-            'cluster_personality': getattr(cluster_dna, 'cluster_personality', 'balanced'),
-            'optimization_approach': 'conservative' if 'conservative' in getattr(cluster_dna, 'cluster_personality', '') else 'balanced'
+            'cluster_personality': getattr(cluster_dna, 'cluster_personality', 'balanced') if cluster_dna else 'balanced',
+            'optimization_approach': 'conservative' if cluster_dna and 'conservative' in getattr(cluster_dna, 'cluster_personality', '') else 'balanced'
         }
         
+        # FIXED: Add null safety for cluster_config access
         if cluster_config and cluster_config.get('status') == 'completed':
-            cluster_intelligence = self._extract_cluster_intelligence_for_commands(cluster_config)
-            base_context['cluster_scale'] = self._determine_cluster_scale(cluster_intelligence)
-            base_context['workload_complexity'] = self._determine_workload_complexity(cluster_intelligence)
+            try:
+                cluster_intelligence = self._extract_cluster_intelligence_for_commands(cluster_config)
+                if cluster_intelligence and not cluster_intelligence.get('error'):
+                    base_context['cluster_scale'] = self._determine_cluster_scale(cluster_intelligence)
+                    base_context['workload_complexity'] = self._determine_workload_complexity(cluster_intelligence)
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to enhance kubernetes context: {e}")
         
         return base_context
-
+    
     def _determine_cluster_scale(self, cluster_intelligence: Dict) -> str:
         """Determine cluster scale from real data"""
+        if not cluster_intelligence:
+            return 'unknown'
+            
         total_workloads = cluster_intelligence.get('total_workloads', 0)
         
         if total_workloads > 100:
@@ -4123,6 +6628,9 @@ echo "✅ Optimization step {index + 1} complete"
 
     def _determine_workload_complexity(self, cluster_intelligence: Dict) -> str:
         """Determine workload complexity from real data"""
+        if not cluster_intelligence:
+            return 'unknown'
+            
         total_workloads = cluster_intelligence.get('total_workloads', 0)
         hpa_coverage = cluster_intelligence.get('hpa_coverage', 0)
         

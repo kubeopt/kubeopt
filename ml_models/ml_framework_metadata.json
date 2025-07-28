@@ -1,7 +1,7 @@
 {
-  "model_version": "1.0.0",
-  "training_date": "2025-07-09T23:47:53.261578",
-  "avg_cv_score": 0.966392154391782,
+  "model_version": "3.0.0",
+  "training_date": "2025-07-27T22:01:13.384088",
+  "avg_cv_score": 0.9961290591726932,
   "total_models": 21,
   "components": [
     "cost_protection",
@@ -12,6 +12,7 @@
     "timeline",
     "risk_mitigation"
   ],
-  "training_samples": 5000,
-  "feature_count": 50
+  "pure_dynamic": true,
+  "no_fallbacks": true,
+  "azure_required": true
 }

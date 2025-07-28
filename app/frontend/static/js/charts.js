@@ -519,16 +519,16 @@ function createCPUMetricsDisplay(cpuMetrics) {
                     </div>
                 </div>
                 
-                <div class="cpu-metric-item metric-status">
+                <div class="cpu-metric-item ${getMetricColorClass(avgCPU, 'text')}">
                     <div class="metric-icon-bg">
-                        <i class="fas fa-shield-check text-white"></i>
+                        <i class="fas fa-gauge-high text-white"></i>
                     </div>
                     <div class="metric-content">
                         <div class="metric-value">${getEfficiencyScore(avgCPU, maxCPU)}%</div>
                         <div class="metric-label">CPU Efficiency</div>
-                        <div class="metric-trend text-blue-600">
+                        <div class="metric-trend ${getMetricColorClass(avgCPU, 'text')}">
                             <i class="fas fa-chart-pie"></i>
-                            <span>Calculated Score</span>
+                            <span>${getMetricTrendText(avgCPU, 'text')}</span>
                         </div>
                     </div>
                 </div>
@@ -708,6 +708,12 @@ function getMetricTrendText(value, type) {
             if (value > 2) return 'Several Issues';
             if (value > 0) return 'Some Issues';
             return 'No Issues';
+        case 'text':
+            if (value > 80) return 'Very High';
+            if (value > 60) return 'High';
+            if (value > 40) return 'Moderate';
+            if (value > 20) return 'Normal';
+            return 'CPU Score';
         default:
             return 'Unknown';
     }
@@ -715,7 +721,7 @@ function getMetricTrendText(value, type) {
 
 function getEfficiencyScore(avgCPU, maxCPU) {
     // Calculate efficiency score based on CPU usage patterns
-    if (maxCPU === 0) return 100;
+    if (maxCPU === 0) return 0;
     
     const efficiency = Math.max(0, 100 - (maxCPU - avgCPU) / maxCPU * 100);
     return Math.round(efficiency);
