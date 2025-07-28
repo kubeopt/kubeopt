@@ -1,38 +1,61 @@
 {
   "monitoring_migration_trends": {
+    "container_insights_to_prometheus": {
+      "adoption_rate": 0.8349999999999653,
+      "cost_savings_average": 0.42,
+      "migration_complexity": 0.6,
+      "success_rate": 0.8946666666666666
+    },
     "basic_logs_adoption": {
-      "adoption_rate": 0.68,
+      "adoption_rate": 0.55,
       "cost_savings_average": 0.6,
       "ideal_log_volume_gb_monthly": 100,
-      "query_impact": 0.15
-    }
+      "query_impact": 0.13625
+    },
+    "prometheus_adoption_rate": 0.8349999999999653,
+    "container_insights_migration_rate": 0.7097499999999705,
+    "cost_savings_average": 0.42
   },
   "cost_optimization_patterns": {
     "spot_instances": {
+      "adoption_rate": 0.7020000000000001,
       "cost_savings": 0.7,
       "reliability_impact": 0.12
     },
     "node_right_sizing": {
-      "average_over_provisioning": 0.35,
-      "optimization_potential": 0.25
+      "over_provisioning_rate": 0.36,
+      "optimization_potential": 0.27
     }
   },
-  "service_costs": {},
+  "service_costs": {
+    "grafana_workspace_monthly": 237.6,
+    "cost_analysis_addon_monthly": 0.0,
+    "spot_vm_discount_rate": 0.7,
+    "container_insights_per_node_monthly": 19945.93354166667,
+    "log_analytics_analytics_tier_per_gb": 2252.7172,
+    "managed_prometheus_per_million_samples": 657.0425166666666
+  },
   "implementation_patterns": {
     "prometheus_migration_effort_hours": {
-      "small_cluster": 1.5,
-      "medium_cluster": 3.0,
-      "large_cluster": 6.0,
-      "enterprise_cluster": 12.0
+      "small_cluster": 1.7160000000000002,
+      "medium_cluster": 4.290000000000001,
+      "large_cluster": 9.438,
+      "enterprise_cluster": 18.876
     },
     "basic_logs_setup_effort_hours": {
-      "simple": 0.5,
-      "complex": 2.0
+      "simple": 0.3999999999999999,
+      "complex": 1.5999999999999996
     },
     "cost_analysis_setup_effort_hours": {
-      "basic": 0.25,
-      "advanced": 1.0
+      "basic": 0.1,
+      "advanced": 0.4
     }
   },
-  "last_updated": "2025-07-25T23:01:55.330839"
+  "last_updated": "2025-07-28T16:31:21.023801",
+  "data_sources": [
+    "migration_trends",
+    "implementation_patterns",
+    "optimization_patterns",
+    "service_costs"
+  ]
 }

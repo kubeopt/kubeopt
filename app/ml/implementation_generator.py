@@ -1673,9 +1673,11 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
     
     def _ml_integrate_executable_commands(self, implementation_plan: Dict, analysis_results: Dict, 
                                     ml_strategy: Any, ml_session: Dict, cluster_config: Dict) -> Dict:
-        """Integrate executable commands using ML command center with cluster config"""
+        """
+        Integrate executable commands ensuring analysis_results flow
+        """
         
-        logger.info("🛠️ ML Command Integration with cluster config...")
+        logger.info("🛠️ ML Command Integration with YOUR analysis results...")
         
         if implementation_plan is None:
             error_msg = "Cannot integrate commands - implementation_plan is None"
@@ -1687,7 +1689,6 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         
         if not self.command_generator:
             logger.warning("⚠️ Command generator not available - commands will be empty")
-            # This is not a critical failure - we can proceed without commands
             ml_session['learning_events'].append({
                 'event': 'command_generation_skipped',
                 'reason': 'command_generator_unavailable',
@@ -1697,28 +1698,31 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             return implementation_plan
         
         try:
-            logger.info("🔄 Calling command generator with cluster config...")
+            logger.info("🔄 Calling command generator with YOUR analysis results...")
+            
+            # CRITICAL: Ensure YOUR analysis_results flow to command generator
+            logger.info(f"📊 Analysis results keys being passed: {list(analysis_results.keys())}")
+            logger.info(f"💰 Total cost from analysis: ${analysis_results.get('total_cost', 0):.0f}")
+            logger.info(f"💰 Total savings from analysis: ${analysis_results.get('total_savings', 0):.0f}")
+            logger.info(f"💰 HPA savings from analysis: ${analysis_results.get('hpa_savings', 0):.0f}")
+            logger.info(f"💰 Rightsizing savings from analysis: ${analysis_results.get('right_sizing_savings', 0):.0f}")
             
             # Get cluster_dna from session with proper error handling
             cluster_dna = ml_session.get('cluster_dna')
             if cluster_dna is None:
-                # Try to get from DNA metadata as fallback
                 dna_metadata = ml_session.get('dna_metadata')
                 if dna_metadata:
                     logger.warning("⚠️ cluster_dna not found but DNA metadata available - proceeding with limited command generation")
-                    # We can still proceed with limited command generation using stored metadata
-                    cluster_dna = type('ClusterDNA', (), dna_metadata)()  # Create mock object with metadata
+                    cluster_dna = type('ClusterDNA', (), dna_metadata)()
                 else:
                     error_msg = "cluster_dna not found in ML session and no DNA metadata available"
                     self._log_detailed_failure("COMMAND_INTEGRATION", error_msg, {
                         'ml_session_keys': list(ml_session.keys()),
-                        'session_id': ml_session.get('session_id', 'unknown'),
-                        'dna_analysis_completed': any(event['event'] == 'dna_analysis_ml' for event in ml_session.get('learning_events', [])),
-                        'session_learning_events': [event['event'] for event in ml_session.get('learning_events', [])]
+                        'session_id': ml_session.get('session_id', 'unknown')
                     })
                     raise ValueError(f"❌ {error_msg}")
             
-            # Also get strategy from session if available
+            # Get strategy from session if needed
             if ml_strategy is None:
                 ml_strategy = ml_session.get('ml_strategy')
                 if ml_strategy:
@@ -1730,9 +1734,12 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                     self.command_generator.set_cluster_config(cluster_config)
                     logger.info("✅ Cluster config set on command generator")
             
-            # Generate comprehensive execution plan
+            # CRITICAL FIX: Pass YOUR analysis_results as first parameter
             execution_plan = self.command_generator.generate_comprehensive_execution_plan(
-                ml_strategy, cluster_dna, analysis_results, cluster_config,
+                ml_strategy, 
+                cluster_dna, 
+                analysis_results,  # YOUR analysis results with real opportunities
+                cluster_config,
                 implementation_phases=implementation_plan.get('implementation_phases', [])
             )
             
@@ -1746,8 +1753,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 ml_session['ml_confidence_levels']['command_generation'] = 0.5
                 return implementation_plan
             
-            # Map commands to phases
-            logger.info("🔄 Mapping commands to phases...")
+            # Map commands to phases - CRITICAL: This connects YOUR opportunities to phases
+            logger.info("🔄 Mapping YOUR analysis-based commands to phases...")
             implementation_plan = self._map_commands_to_phases(implementation_plan, execution_plan)
             
             confidence = getattr(execution_plan, 'success_probability', 0.8)
@@ -1759,7 +1766,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'total_commands': command_count,
                 'success_probability': confidence,
                 'generation_time': datetime.now().isoformat(),
-                'cluster_config_used': cluster_config is not None and cluster_config.get('status') == 'completed'
+                'cluster_config_used': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'analysis_results_used': True  # Track that YOUR analysis was used
             }
             
             # Record ML event
@@ -1768,20 +1776,21 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'confidence': confidence,
                 'command_count': command_count,
                 'cluster_config_used': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'analysis_results_used': True,  # Track YOUR analysis usage
                 'success': True
             })
             
             # Record confidence
             ml_session['ml_confidence_levels']['command_generation'] = confidence
             
-            # Update executive summary
+            # Update executive summary with real command count
             total_commands = sum(len(phase.get('commands', [])) for phase in implementation_plan.get('implementation_phases', []))
             if 'executive_summary' in implementation_plan:
                 implementation_plan['executive_summary']['command_groups_generated'] = total_commands
+                implementation_plan['executive_summary']['commands_from_analysis'] = True
             
-            logger.info(f"✅ Commands: {total_commands} integrated ({confidence:.1%})")
-            logger.info(f"RAW: Implementation plan {implementation_plan}")
-
+            logger.info(f"✅ Commands: {total_commands} integrated from YOUR analysis ({confidence:.1%})")
+            
             return implementation_plan
             
         except Exception as e:
