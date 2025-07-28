@@ -661,7 +661,19 @@ input[type="number"], input[type="time"], .form-control {
     animation: pulse-danger 2s infinite;
 }
 
+.metric-critical .metric-icon-bg {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    animation: pulse-danger 2s infinite;
+}
+
 .metric-danger .metric-value {
+    background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+}
+
+.metric-critical .metric-value {
     background: linear-gradient(135deg, #ef4444, #dc2626) !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
