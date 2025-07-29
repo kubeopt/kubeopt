@@ -80,7 +80,7 @@ export function validateClusterContext(actionName) {
 }
 
 /**
- * ENHANCED: Make cluster-aware API calls with CPU data handling
+ * Make cluster-aware API calls with CPU data handling
  */
 export function makeClusterAwareAPICall(endpoint, options = {}) {
     const clusterId = getCurrentClusterId();
@@ -113,7 +113,7 @@ export function makeClusterAwareAPICall(endpoint, options = {}) {
 }
 
 /**
- * ENHANCED: Initialize charts with comprehensive CPU data handling and cluster isolation
+ * Initialize charts with comprehensive CPU data handling and cluster isolation
  */
 export function initializeCharts() {
     console.log('📊 Initializing enhanced charts with CPU workload analysis and cluster isolation...');
@@ -203,7 +203,7 @@ export function refreshChartsSmooth() {
 }
 
 /**
- * ENHANCED: Update dashboard metrics including CPU workload data
+ * Update dashboard metrics including CPU workload data
  */
 export function updateDashboardMetricsWithCPU(metrics, cpuWorkloadMetrics) {
     console.log('📊 Updating metrics with CPU workload data:', { metrics, cpuWorkloadMetrics });
@@ -221,7 +221,7 @@ export function updateDashboardMetricsWithCPU(metrics, cpuWorkloadMetrics) {
 }
 
 /**
- * ENHANCED: Update CPU metrics in dashboard
+ * Update CPU metrics in dashboard
  */
 function updateCPUMetrics(cpuMetrics) {
     console.log('🔧 Updating CPU metrics:', cpuMetrics);
@@ -269,7 +269,7 @@ function updateCPUMetrics(cpuMetrics) {
 }
 
 /**
- * ENHANCED: Display CPU workload status throughout the UI
+ * Display CPU workload status throughout the UI
  */
 function displayCPUWorkloadStatus(cpuMetrics) {
     console.log('🔧 Displaying CPU workload status:', cpuMetrics);
@@ -297,7 +297,7 @@ function displayCPUWorkloadStatus(cpuMetrics) {
 }
 
 /**
- * ENHANCED: Show high CPU alerts throughout the UI
+ * Show high CPU alerts throughout the UI
  */
 function showHighCPUAlerts(cpuMetrics) {
     console.log('🚨 Showing high CPU alerts:', cpuMetrics);
@@ -333,7 +333,7 @@ function showHighCPUAlerts(cpuMetrics) {
 }
 
 /**
- * ENHANCED: Hide high CPU alerts when not needed
+ * Hide high CPU alerts when not needed
  */
 function hideHighCPUAlerts() {
     const alertSection = document.getElementById('high-cpu-alert-section');
@@ -353,7 +353,7 @@ function hideHighCPUAlerts() {
 }
 
 /**
- * ENHANCED: Create floating CPU alert notification
+ * Create floating CPU alert notification
  */
 function createFloatingCPUAlert(cpuMetrics) {
     // Remove any existing alerts
@@ -412,10 +412,10 @@ function createFloatingCPUAlert(cpuMetrics) {
 }
 
 /**
- * ENHANCED: Create dedicated CPU metrics display
+ * Create dedicated CPU metrics display
  */
 /**
- * ENHANCED: Create beautiful CPU metrics display that matches the dashboard design
+ * Create beautiful CPU metrics display that matches the dashboard design
  */
 function createCPUMetricsDisplay(cpuMetrics) {
     console.log('📊 Creating enhanced CPU metrics display');
@@ -751,7 +751,7 @@ window.enableCPUMonitoring = function() {
 };
 
 /**
- * ENHANCED: Update action panel with CPU status
+ * Update action panel with CPU status
  */
 function updateActionPanelCPUStatus(cpuMetrics) {
     const cpuWarning = document.getElementById('cpu-action-warning');
@@ -788,7 +788,7 @@ function updateActionPanelCPUStatus(cpuMetrics) {
 }
 
 /**
- * ENHANCED: Update HPA section with CPU warnings
+ * Update HPA section with CPU warnings
  */
 function updateHPASectionCPUWarnings(cpuMetrics) {
     const hpaInsightBox = document.getElementById('hpa-insight-box');
@@ -819,7 +819,7 @@ function updateHPASectionCPUWarnings(cpuMetrics) {
 }
 
 /**
- * ENHANCED: Create all charts with CPU awareness and improved layout
+ * Create all charts with CPU awareness and improved layout
  */
 export function createAllChartsWithCPU(data) {
     console.log('🎨 Creating all charts with enhanced CPU analysis and improved layout...');
@@ -883,7 +883,7 @@ export function createAllChartsWithCPU(data) {
 }
 
 /**
- * ENHANCED: Create HPA comparison chart with better CPU integration
+ * Create HPA comparison chart with better CPU integration
  */
 export function createEnhancedHPAComparisonChart(data, isRealData) {
     const canvas = document.getElementById('hpaComparisonChart');
@@ -990,7 +990,7 @@ export function createEnhancedHPAComparisonChart(data, isRealData) {
 }
 
 /**
- * ENHANCED: Update ML workload badge with CPU information
+ * Update ML workload badge with CPU information
  */
 function updateMLWorkloadBadgeWithCPU(data) {
     const badge = document.getElementById('ml-workload-badge');
@@ -1028,7 +1028,7 @@ function updateMLWorkloadBadgeWithCPU(data) {
 }
 
 /**
- * ENHANCED: Update HPA recommendation with comprehensive CPU considerations
+ * Update HPA recommendation with comprehensive CPU considerations
  */
 function updateHPARecommendationTextWithCPU(data) {
     // Update optimization potential section
@@ -1069,7 +1069,7 @@ function updateHPARecommendationTextWithCPU(data) {
 }
 
 /**
- * ENHANCED: Create node utilization chart with better layout and CPU awareness
+ * Create node utilization chart with better layout and CPU awareness
  */
 export function createEnhancedNodeUtilizationChart(data, isRealData) {
     const canvas = document.getElementById('nodeUtilizationChart');
