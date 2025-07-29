@@ -526,7 +526,7 @@ class MLEnhancedHPARecommendationEngine:
     def _convert_comprehensive_ml_to_output(self, ml_results: Dict, metrics_data: Dict, actual_costs: Dict) -> Dict:
         """
         Convert comprehensive ML results to consistent chart + recommendation output
-        FIXED: Flattened data structure for chart generator compatibility
+        Save ALL workloads, not just high CPU ones
         """
         try:
             # Extract comprehensive ML results
@@ -542,66 +542,160 @@ class MLEnhancedHPARecommendationEngine:
             logger.info(f"🤖 Comprehensive ML Classification: {workload_type} (confidence: {confidence:.2f})")
             logger.info(f"🎯 Comprehensive ML Recommendation: {primary_action}")
             
-            # ===== CRITICAL FIX: Extract ML utilization data directly =====
-            # Get the utilization data from the ML workload characteristics
+            # Extract ML utilization data directly
             ml_cpu_utilization = workload_characteristics.get('cpu_utilization', 35.0)
             ml_memory_utilization = workload_characteristics.get('memory_utilization', 60.0)
             
             logger.info(f"🔍 ML Analysis: CPU={ml_cpu_utilization:.1f}%, Memory={ml_memory_utilization:.1f}%, Type={workload_type}")
             
-            # ===== PRESERVE HIGH CPU WORKLOAD DATA =====
+            # ===== CRITICAL FIX: SAVE ALL WORKLOADS, NOT JUST HIGH CPU =====
+            all_workloads = []
             high_cpu_workloads = []
             max_cpu_utilization = 0
             avg_cpu_utilization = 0
             
-            # Extract from metrics_data HPA implementation
-            if metrics_data and 'hpa_implementation' in metrics_data:
-                hpa_data = metrics_data['hpa_implementation']
-                high_cpu_hpas = hpa_data.get('high_cpu_hpas', [])
-                
-                logger.info(f"🔍 EXTRACTING: Found {len(high_cpu_hpas)} high CPU HPAs in metrics_data")
-                
-                for hpa in high_cpu_hpas:
-                    high_cpu_workload = {
-                        'name': hpa.get('name', 'unknown'),
-                        'namespace': hpa.get('namespace', 'unknown'),
-                        'cpu_utilization': float(hpa.get('cpu_utilization', 0)),
-                        'target': float(hpa.get('target_cpu', 80)),
-                        'severity': hpa.get('severity', 'medium')
-                    }
-                    high_cpu_workloads.append(high_cpu_workload)
-                    max_cpu_utilization = max(max_cpu_utilization, high_cpu_workload['cpu_utilization'])
+            # Extract ALL workloads from metrics_data
+            if metrics_data:
+                # Method 1: Extract from HPA implementation (ALL HPAs, not just high CPU)
+                if 'hpa_implementation' in metrics_data:
+                    hpa_data = metrics_data['hpa_implementation']
                     
-                    logger.info(f"🔥 PRESERVED HIGH CPU WORKLOAD: {high_cpu_workload['namespace']}/{high_cpu_workload['name']} = {high_cpu_workload['cpu_utilization']}%")
-            
-            # Also check workload_cpu_analysis if available
-            if metrics_data and 'workload_cpu_analysis' in metrics_data:
-                workload_analysis = metrics_data['workload_cpu_analysis']
-                existing_high_cpu = workload_analysis.get('high_cpu_workloads', [])
+                    # Get ALL HPA details, not just high CPU ones
+                    all_hpa_details = hpa_data.get('hpa_details', [])
+                    high_cpu_hpas = hpa_data.get('high_cpu_hpas', [])
+                    
+                    logger.info(f"🔍 EXTRACTING: Found {len(all_hpa_details)} total HPAs, {len(high_cpu_hpas)} high CPU")
+                    
+                    # Process ALL HPA details
+                    for hpa in all_hpa_details:
+                        workload = {
+                            'name': hpa.get('name', 'unknown'),
+                            'namespace': hpa.get('namespace', 'unknown'),
+                            'cpu_utilization': float(hpa.get('current_cpu', 0)),
+                            'target': float(hpa.get('target_cpu', 80)),
+                            'severity': 'normal',
+                            'type': 'hpa_managed'
+                        }
+                        
+                        # Determine severity
+                        if workload['cpu_utilization'] > 200:
+                            workload['severity'] = 'critical' if workload['cpu_utilization'] > 1000 else 'high'
+                            high_cpu_workloads.append(workload)
+                        
+                        all_workloads.append(workload)
+                        max_cpu_utilization = max(max_cpu_utilization, workload['cpu_utilization'])
+                        
+                        logger.info(f"💾 SAVED WORKLOAD: {workload['namespace']}/{workload['name']} = {workload['cpu_utilization']}% (severity: {workload['severity']})")
+                    
+                    # Also preserve the high CPU ones separately for compatibility
+                    for hpa in high_cpu_hpas:
+                        if not any(w['name'] == hpa.get('name') and w['namespace'] == hpa.get('namespace') for w in all_workloads):
+                            high_cpu_workload = {
+                                'name': hpa.get('name', 'unknown'),
+                                'namespace': hpa.get('namespace', 'unknown'),
+                                'cpu_utilization': float(hpa.get('cpu_utilization', 0)),
+                                'target': float(hpa.get('target_cpu', 80)),
+                                'severity': hpa.get('severity', 'high'),
+                                'type': 'high_cpu_detected'
+                            }
+                            all_workloads.append(high_cpu_workload)
+                            high_cpu_workloads.append(high_cpu_workload)
+                            max_cpu_utilization = max(max_cpu_utilization, high_cpu_workload['cpu_utilization'])
+                            
+                            logger.info(f"🔥 ADDITIONAL HIGH CPU WORKLOAD: {high_cpu_workload['namespace']}/{high_cpu_workload['name']} = {high_cpu_workload['cpu_utilization']}%")
                 
-                for workload in existing_high_cpu:
-                    if not any(w['name'] == workload.get('name') and w['namespace'] == workload.get('namespace') for w in high_cpu_workloads):
-                        high_cpu_workloads.append({
-                            'name': workload.get('name', 'unknown'),
-                            'namespace': workload.get('namespace', 'unknown'),
-                            'cpu_utilization': float(workload.get('cpu_utilization', 0)),
-                            'target': 80.0,
-                            'severity': workload.get('severity', 'medium')
-                        })
+                # Method 2: Extract from workload CPU analysis (ALL workloads)
+                if 'workload_cpu_analysis' in metrics_data:
+                    workload_analysis = metrics_data['workload_cpu_analysis']
+                    
+                    # Get ALL workloads from raw workload data
+                    raw_workload_data = workload_analysis.get('raw_workload_data', [])
+                    logger.info(f"🔍 EXTRACTING: Found {len(raw_workload_data)} raw workloads in CPU analysis")
+                    
+                    for workload_data in raw_workload_data:
+                        # Check if we already have this workload
+                        existing = any(
+                            w['name'] == workload_data.get('pod') and w['namespace'] == workload_data.get('namespace') 
+                            for w in all_workloads
+                        )
+                        
+                        if not existing:
+                            workload = {
+                                'name': workload_data.get('pod', 'unknown'),
+                                'namespace': workload_data.get('namespace', 'unknown'),
+                                'cpu_utilization': workload_data.get('cpu_percentage', 0),
+                                'cpu_millicores': workload_data.get('cpu_millicores', 0),
+                                'memory_bytes': workload_data.get('memory_bytes', 0),
+                                'target': 80.0,
+                                'severity': 'normal',
+                                'type': 'pod_metrics'
+                            }
+                            
+                            # Determine severity based on CPU
+                            if workload['cpu_utilization'] > 200:
+                                workload['severity'] = 'critical' if workload['cpu_utilization'] > 1000 else 'high'
+                                if workload not in high_cpu_workloads:
+                                    high_cpu_workloads.append(workload)
+                            
+                            all_workloads.append(workload)
+                            max_cpu_utilization = max(max_cpu_utilization, workload['cpu_utilization'])
+                            
+                            logger.info(f"💾 SAVED POD WORKLOAD: {workload['namespace']}/{workload['name']} = {workload['cpu_utilization']}%")
+                
+                # Method 3: Extract from pod resource data if available
+                if 'pod_resource_data' in metrics_data:
+                    pod_data = metrics_data['pod_resource_data']
+                    all_pods = pod_data.get('pods', [])
+                    
+                    logger.info(f"🔍 EXTRACTING: Found {len(all_pods)} pods in resource data")
+                    
+                    for pod in all_pods:
+                        # Check if we already have this workload
+                        existing = any(
+                            w['name'] == pod.get('name') and w['namespace'] == pod.get('namespace') 
+                            for w in all_workloads
+                        )
+                        
+                        if not existing:
+                            cpu_pct = pod.get('cpu_percentage', 0)
+                            workload = {
+                                'name': pod.get('name', 'unknown'),
+                                'namespace': pod.get('namespace', 'unknown'),
+                                'cpu_utilization': cpu_pct,
+                                'cpu_millicores': pod.get('cpu_millicores', 0),
+                                'memory_bytes': pod.get('memory_bytes', 0),
+                                'target': 80.0,
+                                'severity': 'normal',
+                                'type': 'pod_resource'
+                            }
+                            
+                            # Determine severity
+                            if cpu_pct > 200:
+                                workload['severity'] = 'critical' if cpu_pct > 1000 else 'high'
+                                if workload not in high_cpu_workloads:
+                                    high_cpu_workloads.append(workload)
+                            
+                            all_workloads.append(workload)
+                            max_cpu_utilization = max(max_cpu_utilization, cpu_pct)
+                            
+                            logger.info(f"💾 SAVED RESOURCE WORKLOAD: {workload['namespace']}/{workload['name']} = {cpu_pct}%")
             
-            # Calculate averages
-            if high_cpu_workloads:
-                avg_cpu_utilization = sum([w['cpu_utilization'] for w in high_cpu_workloads]) / len(high_cpu_workloads)
-                logger.info(f"✅ HIGH CPU SUMMARY: {len(high_cpu_workloads)} workloads, max: {max_cpu_utilization:.1f}%, avg: {avg_cpu_utilization:.1f}%")
+            # Calculate averages from ALL workloads
+            if all_workloads:
+                all_cpu_values = [w['cpu_utilization'] for w in all_workloads if w['cpu_utilization'] > 0]
+                avg_cpu_utilization = sum(all_cpu_values) / len(all_cpu_values) if all_cpu_values else 0
+                
+                logger.info(f"✅ WORKLOAD SUMMARY: {len(all_workloads)} total workloads, {len(high_cpu_workloads)} high CPU")
+                logger.info(f"✅ CPU STATS: max: {max_cpu_utilization:.1f}%, avg: {avg_cpu_utilization:.1f}%")
             
-            # Get current utilization for chart calculations (fallback to nodes if ML data not available)
+            # Get current utilization for chart calculations
             nodes = metrics_data.get('nodes', [])
             if nodes:
                 fallback_cpu = np.mean([node.get('cpu_usage_pct', 0) for node in nodes])
                 fallback_memory = np.mean([node.get('memory_usage_pct', 0) for node in nodes])
                 current_replicas = len(nodes)
             else:
-                fallback_cpu, fallback_memory, current_replicas = 35, 60, 3
+                logger.info(f"⚠️ Node data is not available")
             
             # Use ML data if available, fallback to node data
             chart_cpu = ml_cpu_utilization if ml_cpu_utilization > 0 else fallback_cpu
@@ -612,25 +706,32 @@ class MLEnhancedHPARecommendationEngine:
                 workload_type, primary_action, chart_cpu, chart_memory, current_replicas, hpa_recommendation
             )
             
-            # Generate recommendation text based on comprehensive ML analysis
+            # Generate recommendation text
             recommendation = self._generate_comprehensive_ml_recommendation(
                 workload_type, primary_action, confidence, chart_cpu, chart_memory, 
                 actual_costs, hpa_recommendation, optimization_analysis
             )
             
-            # ===== CRITICAL FIX: FLATTEN THE DATA STRUCTURE =====
-            # Instead of nesting workload_characteristics inside workload_characteristics,
-            # put the ML utilization data directly at the top level where chart generator expects it
-            
+            # ===== CRITICAL FIX: SAVE ALL WORKLOAD DATA IN FLATTENED STRUCTURE =====
             flattened_workload_characteristics = {
-                # ===== TOP-LEVEL DATA FOR CHART GENERATOR =====
-                'cpu_utilization': ml_cpu_utilization,           # ✅ Chart generator looks here
-                'memory_utilization': ml_memory_utilization,     # ✅ Chart generator looks here
+                # Top-level data for chart generator
+                'cpu_utilization': ml_cpu_utilization,
+                'memory_utilization': ml_memory_utilization,
                 'workload_type': workload_type,
                 'confidence': confidence,
                 'primary_action': primary_action,
                 
-                # ===== HIGH CPU WORKLOAD DATA =====
+                # ===== ALL WORKLOAD DATA (NOT JUST HIGH CPU) =====
+                'all_workloads': all_workloads,                    # 🆕 ALL workloads saved here
+                'total_workloads': len(all_workloads),             # 🆕 Total count
+                'workloads_by_severity': {                         # 🆕 Breakdown by severity
+                    'normal': [w for w in all_workloads if w['severity'] == 'normal'],
+                    'high': [w for w in all_workloads if w['severity'] == 'high'],
+                    'critical': [w for w in all_workloads if w['severity'] == 'critical']
+                },
+                'workloads_by_namespace': {},                      # 🆕 Will be populated below
+                
+                # ===== HIGH CPU WORKLOAD DATA (PRESERVED FOR COMPATIBILITY) =====
                 'high_cpu_workloads': high_cpu_workloads,
                 'max_cpu_utilization': max_cpu_utilization,
                 'average_cpu_utilization': avg_cpu_utilization,
@@ -641,7 +742,7 @@ class MLEnhancedHPARecommendationEngine:
                 'optimization_analysis': optimization_analysis,
                 'hpa_recommendation': hpa_recommendation,
                 
-                # ===== ADDITIONAL ML INSIGHTS (flattened from nested workload_characteristics) =====
+                # Additional ML insights
                 'resource_balance': workload_characteristics.get('resource_balance', 25),
                 'performance_stability': workload_characteristics.get('performance_stability', 0.8),
                 'burst_patterns': workload_characteristics.get('burst_patterns', 0.1),
@@ -651,14 +752,21 @@ class MLEnhancedHPARecommendationEngine:
                 'ml_classification': workload_characteristics.get('ml_classification', {}),
                 
                 # ===== DEBUGGING INFO =====
-                'data_structure_version': 'flattened_for_chart_compatibility',
+                'data_structure_version': 'all_workloads_preserved',
                 'ml_data_source': 'comprehensive_self_learning_analysis',
-                'chart_data_ready': True
+                'chart_data_ready': True,
+                'workloads_saved': True  # 🆕 Flag indicating all workloads are saved
             }
             
-            logger.info("✅ FIXED: Data structure flattened for chart generator compatibility")
-            logger.info(f"✅ CPU utilization at top level: {flattened_workload_characteristics['cpu_utilization']:.1f}%")
-            logger.info(f"✅ Memory utilization at top level: {flattened_workload_characteristics['memory_utilization']:.1f}%")
+            # Populate workloads by namespace
+            for workload in all_workloads:
+                namespace = workload['namespace']
+                if namespace not in flattened_workload_characteristics['workloads_by_namespace']:
+                    flattened_workload_characteristics['workloads_by_namespace'][namespace] = []
+                flattened_workload_characteristics['workloads_by_namespace'][namespace].append(workload)
+            
+            logger.info("✅ FIXED: All workload data preserved in flattened structure")
+            logger.info(f"✅ Total workloads saved: {len(all_workloads)} (was only saving {len(high_cpu_workloads)} high CPU ones)")
             
             return {
                 'hpa_chart_data': chart_data,
@@ -669,10 +777,11 @@ class MLEnhancedHPARecommendationEngine:
                     'ml_analysis': True,
                     'self_learning_enabled': True
                 },
-                'workload_characteristics': flattened_workload_characteristics,  # ✅ FIXED: Flattened structure
+                'workload_characteristics': flattened_workload_characteristics,  # ✅ FIXED: All workloads included
                 'ml_enhanced': True,
                 'comprehensive_self_learning': True,
-                'consistency_verified': True
+                'consistency_verified': True,
+                'all_workloads_preserved': True  # 🆕 Flag for debugging
             }
             
         except Exception as e:
