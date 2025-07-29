@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% if cluster %}{{ cluster.name }} - {% endif %}AKS Cost Intelligence</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/nivaya_fevicon.png') }}" />
+
+    <meta name="description" content="KUBEVISTA is an intelligent AKS cost optimization platform leveraging ML insights for actionable cloud savings.">
+    <meta name="author" content="NIVAYA">
+    <meta name="theme-color" content="#0d6efd" />
     
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -751,4 +756,15 @@
 
 
 </body>
+
+<footer class="footer mt-auto py-3 text-center text-muted">
+  <div class="container">
+    <small class="d-block mb-1">
+      © {{ current_year }} <strong>KUBEVISTA</strong> · Built for Kubernetes · Intelligent. Insightful. Efficient.
+    </small>
+    <small class="d-block">
+      All rights reserved by <strong>Nivaya Technologies</strong>
+    </small>
+  </div>
+</footer>
 </html>
