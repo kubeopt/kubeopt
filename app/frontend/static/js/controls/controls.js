@@ -1,43 +1,26 @@
 /**
- * FIXED Project Controls Frontend - Themed & With Commands
- * Matches app theme and displays commands properly
+ * Modern Project Controls Manager - Clean & User-Friendly Design
  */
 
-class FixedProjectControlsManager {
+class ProjectControlsManager {
     constructor() {
         this.clusterId = null;
         this.frameworkData = null;
         this.isLoading = false;
         
         this.initializeEventListeners();
-        this.setupDebugging();
-    }
-
-    setupDebugging() {
-        window.projectControlsDebug = true;
-        console.log('🔧 FIXED Project Controls Manager initialized');
     }
 
     initializeEventListeners() {
-        // Refresh button
         document.getElementById('refresh-controls')?.addEventListener('click', () => {
             this.loadProjectControls();
         });
 
-        // Export button
         document.getElementById('export-controls')?.addEventListener('click', () => {
             this.exportFrameworkData();
         });
-
-        // Debug button
-        document.getElementById('debug-controls')?.addEventListener('click', () => {
-            this.debugFrameworkData();
-        });
     }
 
-    /**
-     * Load project controls with comprehensive debugging
-     */
     async loadProjectControls(clusterId = null) {
         if (clusterId) {
             this.clusterId = clusterId;
@@ -55,9 +38,6 @@ class FixedProjectControlsManager {
         this.showLoading();
 
         try {
-            console.log('🔄 FIXED: Loading project controls for cluster:', this.clusterId);
-            
-            // Fetch from FIXED endpoint
             const response = await fetch(`/api/project-controls?cluster_id=${this.clusterId}`);
             
             if (!response.ok) {
@@ -66,75 +46,19 @@ class FixedProjectControlsManager {
 
             const data = await response.json();
             
-            // COMPREHENSIVE DEBUGGING
-            console.group('🐛 FIXED PROJECT CONTROLS DEBUG');
-            console.log('📊 COMPLETE DATA RECEIVED:', data);
-            console.log('🔍 Framework components:', Object.keys(data.framework || {}));
-            console.log('📋 Execution plan:', data.execution_plan);
-            console.log('🎯 ML Confidence:', data.ml_confidence);
-            console.log('🛠️ Commands extracted:', data.commands_extracted);
-            console.log('📈 Debug info:', data.debug_info);
-            
-            // Log each framework component
-            if (data.framework) {
-                console.group('🔧 FRAMEWORK COMPONENTS WITH COMMANDS');
-                Object.entries(data.framework).forEach(([key, value]) => {
-                    console.log(`📋 ${key}:`, value);
-                    if (value && value.commands_available) {
-                        console.log(`   🛠️ Commands Available: ${value.total_commands} commands in ${value.total_command_groups} groups`);
-                        if (value.related_commands) {
-                            value.related_commands.forEach((cmd, idx) => {
-                                console.log(`     Group ${idx + 1}: ${cmd.phase_title} (${cmd.total_commands} commands)`);
-                            });
-                        }
-                    } else {
-                        console.log(`   ⚠️ No commands available for ${key}`);
-                    }
-                });
-                console.groupEnd();
-            }
-            console.groupEnd();
-            
             if (data.status === 'error') {
-                console.error('❌ API returned error:', data.message);
-                throw new Error(data.message || 'Unknown error occurred');
+                throw new Error(data.message);
             }
 
             this.frameworkData = data;
-            this.renderFixedFrameworkComponents();
+            this.renderFrameworkComponents();
             this.hideLoading();
-            
-            console.log('✅ FIXED: Project controls loaded successfully with commands');
 
         } catch (error) {
-            console.error('❌ Error loading FIXED project controls:', error);
+            console.error('Error loading project controls:', error);
             this.showError(error.message);
             this.hideLoading();
         }
-    }
-
-    debugFrameworkData() {
-        if (!this.frameworkData) {
-            console.warn('⚠️ No framework data to debug');
-            return;
-        }
-
-        console.group('🐛 DETAILED FRAMEWORK DEBUG');
-        console.log('📊 Complete Data Object:', this.frameworkData);
-        console.log('🔍 Components Found:', this.frameworkData.components_found);
-        console.log('📋 Commands Extracted:', this.frameworkData.commands_extracted);
-        
-        if (this.frameworkData.framework) {
-            Object.entries(this.frameworkData.framework).forEach(([key, component]) => {
-                console.group(`🔧 ${key.toUpperCase()}`);
-                console.log('Component Data:', component);
-                if (component.related_commands) {
-                    console.log('Related Commands:', component.related_commands);
-                }
-                console.groupEnd();
-            });
-        }
-        console.groupEnd();
     }
 
     extractClusterIdFromUrl() {
@@ -167,155 +91,127 @@ class FixedProjectControlsManager {
         }
     }
 
-    /**
-     * Render framework components with FIXED theme and commands
-     */
-    renderFixedFrameworkComponents() {
-        if (!this.frameworkData || !this.frameworkData.framework) {
+    renderFrameworkComponents() {
+        if (!this.frameworkData?.framework) {
             this.showError('No framework data available');
             return;
         }
 
-        console.log('🎨 FIXED: Rendering themed components with commands...');
-
-        // Update overview metrics
-        this.updateFixedOverviewMetrics();
-
-        // Render each component with commands
-        this.renderFixedCostProtection();
-        this.renderFixedGovernanceFramework();
-        this.renderFixedMonitoringStrategy();
-        this.renderFixedRiskMitigation();
-        this.renderFixedContingencyPlanning();
-        this.renderFixedSuccessCriteria();
-        this.renderFixedTimelineOptimization();
-        this.renderFixedIntelligenceInsights();
-
-        // Render execution plan
-        this.renderFixedExecutionPlan();
+        this.updateOverviewMetrics();
+        
+        // Render all components with new clean design
+        this.renderCostProtection();
+        this.renderGovernanceFramework();
+        this.renderMonitoringStrategy();
+        this.renderRiskMitigation();
+        this.renderContingencyPlanning();
+        this.renderSuccessCriteria();
+        this.renderTimelineOptimization();
+        this.renderIntelligenceInsights();
     }
 
-    updateFixedOverviewMetrics() {
-        const framework = this.frameworkData.framework || {};
+    updateOverviewMetrics() {
+        const framework = this.frameworkData.framework;
         
-        // Count enabled controls
-        const enabledControls = Object.values(framework).filter(control => 
-            control && control.enabled === true
-        ).length;
-
-        // Get ML confidence (handle > 1.0 values)
-        let mlConfidence = this.frameworkData.ml_confidence || 0;
-        if (mlConfidence > 1) mlConfidence = mlConfidence / 1; // Keep as percentage if > 100%
-        const mlConfidencePercent = Math.round(mlConfidence * 100);
-
-        // Get governance level
-        const governance = framework.governance_framework || {};
-        const governanceLevel = governance.governanceLevel || 'Standard';
-
-        // Get total commands
+        const enabledControls = Object.values(framework).filter(control => control?.enabled === true).length;
+        const mlConfidence = Math.round((this.frameworkData.ml_confidence || 0) * 100);
+        const governanceLevel = framework.governance_framework?.governanceLevel || 'standard';
         const totalCommands = Object.values(framework).reduce((sum, component) => {
-            return sum + (component.total_commands || 0);
+            return sum + (component?.total_commands || 0);
         }, 0);
 
-        // Update UI elements
         this.updateElement('enabled-controls-count', `${enabledControls}/8`);
-        this.updateElement('ml-confidence-score', `${mlConfidencePercent}%`);
+        this.updateElement('ml-confidence-score', `${mlConfidence}%`);
         this.updateElement('governance-level', governanceLevel);
-        
-        // Add commands count if element exists
-        const commandsElement = document.getElementById('total-commands-count');
-        if (commandsElement) {
-            commandsElement.textContent = totalCommands;
-        }
-
-        console.log(`📊 FIXED Overview: ${enabledControls}/8 controls, ${mlConfidencePercent}% ML confidence, ${totalCommands} total commands`);
+        this.updateElement('total-commands-count', totalCommands);
     }
 
-    /**
-     * Get component data with proper error handling
-     */
-    getComponentData(primaryKey, fallbackKey = null) {
-        const framework = this.frameworkData.framework || {};
-        const component = framework[primaryKey] || (fallbackKey ? framework[fallbackKey] : null) || {};
+    renderCostProtection() {
+        const costProtection = this.frameworkData.framework.cost_protection;
         
-        console.log(`🔍 FIXED: Getting ${primaryKey}:`, component);
-        return component;
-    }
-
-    /**
-     * Render Cost Protection with FIXED theme and commands
-     */
-    renderFixedCostProtection() {
-        const costProtection = this.getComponentData('cost_protection', 'costProtection');
-        
-        console.log('🔒 FIXED: Rendering Cost Protection with commands:', costProtection);
-        this.updateStatusBadge('cost-protection-status', costProtection.enabled);
+        this.updateStatusBadge('cost-protection-status', costProtection?.enabled);
         
         const content = document.getElementById('cost-protection-content');
-        if (!content) return;
+        if (!content || !costProtection) return;
 
         const budgetLimits = costProtection.budgetLimits || {};
         const savingsProtection = costProtection.savingsProtection || {};
-        const relatedCommands = costProtection.related_commands || [];
 
         content.innerHTML = `
             <div class="space-y-4">
-                <!-- Budget & Savings Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
-                        <h4 class="font-semibold text-green-400 mb-3 flex items-center">
-                            <i class="fas fa-dollar-sign mr-2"></i>Budget Limits
-                        </h4>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between text-gray-300">
-                                <span>Monthly Budget:</span>
-                                <span class="font-medium text-white">$${this.formatNumber(budgetLimits.monthlyBudget || 0)}</span>
-                            </div>
-                            <div class="flex justify-between text-gray-300">
-                                <span>Alert Threshold:</span>
-                                <span class="font-medium text-yellow-400">$${this.formatNumber(budgetLimits.alertThreshold || 0)}</span>
-                            </div>
-                            <div class="flex justify-between text-gray-300">
-                                <span>Hard Limit:</span>
-                                <span class="font-medium text-red-400">$${this.formatNumber(budgetLimits.hardLimit || 0)}</span>
-                            </div>
+                <!-- Budget Overview - Clean Card -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <div class="flex items-center mb-6">
+                        <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center mr-3">
+                            <i class="fas fa-dollar-sign text-white text-sm"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-900">Budget Management</h4>
+                            <p class="text-sm text-gray-500">Monitor and control cluster spending</p>
                         </div>
                     </div>
-                    <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
-                        <h4 class="font-semibold text-blue-400 mb-3 flex items-center">
-                            <i class="fas fa-piggy-bank mr-2"></i>Savings Protection
-                        </h4>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between text-gray-300">
-                                <span>Target Savings:</span>
-                                <span class="font-medium text-white">$${this.formatNumber(savingsProtection.minimumSavingsTarget || 0)}</span>
-                            </div>
-                            <div class="flex justify-between text-gray-300">
-                                <span>Predicted Savings:</span>
-                                <span class="font-medium text-green-400">$${this.formatNumber(savingsProtection.predicted_savings || 0)}</span>
-                            </div>
-                            <div class="flex justify-between text-gray-300">
-                                <span>Opportunities:</span>
-                                <span class="font-medium text-white">${savingsProtection.optimization_opportunities_identified || 0}</span>
-                            </div>
+                    
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="text-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="text-2xl font-bold text-gray-900 mb-1">$${this.formatNumber(budgetLimits.monthlyBudget || 0)}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Monthly Budget</div>
+                        </div>
+                        <div class="text-center p-4 bg-orange-50 rounded-lg border border-orange-100">
+                            <div class="text-2xl font-bold text-orange-600 mb-1">$${this.formatNumber(budgetLimits.alertThreshold || 0)}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Alert Threshold</div>
+                        </div>
+                        <div class="text-center p-4 bg-red-50 rounded-lg border border-red-100">
+                            <div class="text-2xl font-bold text-red-600 mb-1">$${this.formatNumber(budgetLimits.hardLimit || 0)}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Hard Limit</div>
+                        </div>
+                        <div class="text-center p-4 bg-green-50 rounded-lg border border-green-100">
+                            <div class="text-2xl font-bold text-green-600 mb-1">$${this.formatNumber(savingsProtection.predicted_savings || 0)}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Predicted Savings</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Commands Section -->
-                ${this.renderCommandsSection(relatedCommands, 'Cost Protection Commands')}
-
-                <!-- ML Enhancement Status -->
-                <div class="p-3 bg-gray-800/50 border border-gray-600 rounded-lg">
-                    <div class="flex items-center justify-between text-sm">
-                        <div class="flex items-center text-gray-300">
-                            <i class="fas fa-robot text-blue-400 mr-2"></i>
-                            <span>ML Enhanced: ${costProtection.ml_derived ? 'Yes' : 'No'}</span>
-                            ${costProtection.ml_confidence ? `<span class="ml-4">Confidence: ${Math.round(costProtection.ml_confidence * 100)}%</span>` : ''}
+                <!-- Savings Protection - Clean Card -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <div class="flex items-center mb-6">
+                        <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center mr-3">
+                            <i class="fas fa-shield-alt text-white text-sm"></i>
                         </div>
-                        <div class="flex items-center text-xs">
-                            <i class="fas fa-database text-teal-400 mr-1"></i>
-                            <span class="text-gray-400">Commands: ${costProtection.total_commands || 0}</span>
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-900">Savings Protection</h4>
+                            <p class="text-sm text-gray-500">Optimize costs and protect savings</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="flex items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="flex-1">
+                                <div class="text-sm text-gray-500 mb-1">Minimum Target</div>
+                                <div class="text-xl font-bold text-gray-900">$${this.formatNumber(savingsProtection.minimumSavingsTarget || 0)}</div>
+                            </div>
+                            <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-target text-green-600"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="flex-1">
+                                <div class="text-sm text-gray-500 mb-1">Opportunities</div>
+                                <div class="text-xl font-bold text-gray-900">${savingsProtection.optimization_opportunities_identified || 0}</div>
+                            </div>
+                            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-lightbulb text-blue-600"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="flex-1">
+                                <div class="text-sm text-gray-500 mb-1">ML Confidence</div>
+                                <div class="text-xl font-bold text-gray-900">${Math.round((costProtection.ml_confidence || 0) * 100)}%</div>
+                            </div>
+                            <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-brain text-purple-600"></i>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -323,71 +219,483 @@ class FixedProjectControlsManager {
         `;
     }
 
-    /**
-     * Render commands section with proper theme
-     */
-    renderCommandsSection(relatedCommands, title) {
-        if (!relatedCommands || relatedCommands.length === 0) {
-            return `
-                <div class="p-4 bg-gray-700/30 border border-gray-600 rounded-lg">
-                    <h4 class="font-semibold text-gray-400 mb-2 flex items-center">
-                        <i class="fas fa-terminal mr-2"></i>${title}
-                    </h4>
-                    <p class="text-sm text-gray-500">No commands available for this component.</p>
-                </div>
-            `;
-        }
+    renderGovernanceFramework() {
+        const governance = this.frameworkData.framework.governance_framework;
+        
+        this.updateStatusBadge('governance-status', governance?.enabled);
+        
+        const content = document.getElementById('governance-content');
+        if (!content || !governance) return;
 
-        return `
-            <div class="p-4 bg-gray-700/30 border border-gray-600 rounded-lg">
-                <h4 class="font-semibold text-teal-400 mb-3 flex items-center">
-                    <i class="fas fa-terminal mr-2"></i>${title} (${relatedCommands.length} groups)
-                </h4>
-                <div class="space-y-3">
-                    ${relatedCommands.map((cmdGroup, idx) => `
-                        <div class="border border-gray-600 rounded-lg">
-                            <div class="p-3 bg-gray-800/50 border-b border-gray-600">
-                                <div class="flex justify-between items-center">
-                                    <h5 class="font-medium text-white text-sm">${cmdGroup.phase_title}</h5>
-                                    <div class="flex items-center space-x-2 text-xs">
-                                        <span class="px-2 py-1 bg-teal-600/20 text-teal-400 rounded">${cmdGroup.week_range}</span>
-                                        <span class="text-gray-400">${cmdGroup.total_commands} commands</span>
+        const approvalRequirements = governance.approvalRequirements || {};
+        const changeManagement = governance.changeManagement || {};
+
+        content.innerHTML = `
+            <div class="space-y-4">
+                <!-- Governance Overview -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center mr-3">
+                                <i class="fas fa-balance-scale text-white text-sm"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-semibold text-gray-900">Governance Framework</h4>
+                                <p class="text-sm text-gray-500">Control and approval processes</p>
+                            </div>
+                        </div>
+                        <span class="px-3 py-1 text-sm font-medium bg-purple-100 text-purple-800 rounded-full">
+                            ${governance.governanceLevel || 'Standard'} Level
+                        </span>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="text-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-layer-group text-gray-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${governance.cluster_complexity || 'Medium'}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Complexity</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-100">
+                            <div class="w-12 h-12 bg-blue-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-${approvalRequirements.business_approval ? 'check' : 'times'} text-blue-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${approvalRequirements.business_approval ? 'Required' : 'Optional'}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Business Approval</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-green-50 rounded-lg border border-green-100">
+                            <div class="w-12 h-12 bg-green-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-${approvalRequirements.technical_approval ? 'check' : 'times'} text-green-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${approvalRequirements.technical_approval ? 'Required' : 'Optional'}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Technical Approval</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Change Management -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <h5 class="text-base font-semibold text-gray-900 mb-4">Change Management</h5>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
+                                <i class="fas fa-undo text-orange-600 text-sm"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-gray-900 mb-1">Rollback Procedures</div>
+                                <div class="text-sm text-gray-600">${changeManagement.rollback_procedures || 'Automated with Manual Override'}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
+                                <i class="fas fa-clock text-blue-600 text-sm"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-gray-900 mb-1">Change Windows</div>
+                                <div class="text-sm text-gray-600">${(changeManagement.change_windows || []).join(', ') || 'Maintenance Window'}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderMonitoringStrategy() {
+        const monitoring = this.frameworkData.framework.monitoring_strategy;
+        
+        this.updateStatusBadge('monitoring-status', monitoring?.enabled);
+        
+        const content = document.getElementById('monitoring-content');
+        if (!content || !monitoring) return;
+
+        const alerting = monitoring.alerting || {};
+        const keyMetrics = monitoring.keyMetrics || [];
+
+        content.innerHTML = `
+            <div class="space-y-4">
+                <!-- Monitoring Overview -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <div class="flex items-center mb-6">
+                        <div class="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center mr-3">
+                            <i class="fas fa-chart-line text-white text-sm"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-900">Monitoring Strategy</h4>
+                            <p class="text-sm text-gray-500">Real-time cluster monitoring and alerts</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-100">
+                            <div class="w-12 h-12 bg-yellow-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-tachometer-alt text-yellow-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${monitoring.monitoringFrequency || 'Frequent'}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Frequency</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-100">
+                            <div class="w-12 h-12 bg-blue-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-list text-blue-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${keyMetrics.length}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Key Metrics</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-green-50 rounded-lg border border-green-100">
+                            <div class="w-12 h-12 bg-green-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-brain text-green-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${Math.round((monitoring.ml_confidence || 0) * 100)}%</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">ML Confidence</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alert Configuration -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <h5 class="text-base font-semibold text-gray-900 mb-4">Alert Configuration</h5>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="flex items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-4 ${alerting.cost_spike_alerts ? 'bg-green-100' : 'bg-red-100'}">
+                                <i class="fas fa-${alerting.cost_spike_alerts ? 'check text-green-600' : 'times text-red-600'}"></i>
+                            </div>
+                            <div>
+                                <div class="font-medium text-gray-900">Cost Spike Alerts</div>
+                                <div class="text-sm text-gray-500">${alerting.cost_spike_alerts ? 'Enabled' : 'Disabled'}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-4 ${alerting.performance_degradation_alerts ? 'bg-green-100' : 'bg-red-100'}">
+                                <i class="fas fa-${alerting.performance_degradation_alerts ? 'check text-green-600' : 'times text-red-600'}"></i>
+                            </div>
+                            <div>
+                                <div class="font-medium text-gray-900">Performance Alerts</div>
+                                <div class="text-sm text-gray-500">${alerting.performance_degradation_alerts ? 'Enabled' : 'Disabled'}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-4 ${alerting.scaling_inefficiency_alerts ? 'bg-green-100' : 'bg-red-100'}">
+                                <i class="fas fa-${alerting.scaling_inefficiency_alerts ? 'check text-green-600' : 'times text-red-600'}"></i>
+                            </div>
+                            <div>
+                                <div class="font-medium text-gray-900">Scaling Alerts</div>
+                                <div class="text-sm text-gray-500">${alerting.scaling_inefficiency_alerts ? 'Enabled' : 'Disabled'}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderRiskMitigation() {
+        const riskMitigation = this.frameworkData.framework.risk_mitigation;
+        
+        this.updateStatusBadge('risk-status', riskMitigation?.enabled);
+        
+        const content = document.getElementById('risk-content');
+        if (!content || !riskMitigation) return;
+
+        const identifiedRisks = riskMitigation.identifiedRisks || [];
+        const mlRiskAssessment = riskMitigation.ml_risk_assessment || {};
+
+        content.innerHTML = `
+            <div class="space-y-4">
+                <!-- Risk Overview -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <div class="flex items-center mb-6">
+                        <div class="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center mr-3">
+                            <i class="fas fa-exclamation-triangle text-white text-sm"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-900">Risk Assessment</h4>
+                            <p class="text-sm text-gray-500">Identify and mitigate potential risks</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="text-center p-4 bg-red-50 rounded-lg border border-red-100">
+                            <div class="w-12 h-12 bg-red-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-exclamation text-red-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${identifiedRisks.length}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Identified Risks</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-100">
+                            <div class="w-12 h-12 bg-blue-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-shield-alt text-blue-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${riskMitigation.security_posture || 'Enterprise'}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Security Posture</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-green-50 rounded-lg border border-green-100">
+                            <div class="w-12 h-12 bg-green-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-brain text-green-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${Math.round((mlRiskAssessment.model_confidence || 0) * 100)}%</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Model Confidence</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Risk Details -->
+                ${identifiedRisks.length > 0 ? `
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <h5 class="text-base font-semibold text-gray-900 mb-4">Risk Details</h5>
+                    <div class="space-y-3 max-h-64 overflow-y-auto">
+                        ${identifiedRisks.map(risk => `
+                            <div class="flex items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                <div class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
+                                    <i class="fas fa-warning text-orange-600 text-sm"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="font-medium text-gray-900 mb-1">${risk.risk_id}</div>
+                                    <div class="text-sm text-gray-600 mb-2">${risk.description}</div>
+                                    <div class="flex items-center space-x-3">
+                                        <span class="px-2 py-1 text-xs rounded-full ${this.getRiskBadgeClass(risk.probability)}">
+                                            ${risk.probability} Probability
+                                        </span>
+                                        <span class="text-xs text-gray-500">${risk.mitigation}</span>
                                     </div>
                                 </div>
                             </div>
-                            <div class="p-3">
-                                <div class="space-y-2">
-                                    ${cmdGroup.commands.slice(0, 2).map(cmd => `
-                                        <div class="bg-gray-900/50 border border-gray-700 rounded p-2">
-                                            <h6 class="text-xs font-medium text-teal-300 mb-1">${cmd.title}</h6>
-                                            <p class="text-xs text-gray-400">${cmd.command_count} commands available</p>
-                                        </div>
-                                    `).join('')}
-                                    ${cmdGroup.commands.length > 2 ? `
-                                        <div class="text-xs text-gray-500 text-center py-1">
-                                            +${cmdGroup.commands.length - 2} more command groups...
-                                        </div>
-                                    ` : ''}
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    renderContingencyPlanning() {
+        const contingency = this.frameworkData.framework.contingency_planning;
+        
+        this.updateStatusBadge('contingency-status', contingency?.enabled);
+        
+        const content = document.getElementById('contingency-content');
+        if (!content || !contingency) return;
+
+        const contingencyTriggers = contingency.contingencyTriggers || [];
+        const rollbackProcedures = contingency.rollbackProcedures || {};
+
+        content.innerHTML = `
+            <div class="space-y-4">
+                <!-- Contingency Overview -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <div class="flex items-center mb-6">
+                        <div class="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center mr-3">
+                            <i class="fas fa-life-ring text-white text-sm"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-900">Contingency Planning</h4>
+                            <p class="text-sm text-gray-500">Emergency procedures and rollback plans</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="text-center p-4 bg-orange-50 rounded-lg border border-orange-100">
+                            <div class="w-12 h-12 bg-orange-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-bolt text-orange-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${contingencyTriggers.length}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Configured Triggers</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-100">
+                            <div class="w-12 h-12 bg-blue-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-clock text-blue-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${rollbackProcedures.rollback_time_estimate || '15 minutes'}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Rollback Time</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-green-50 rounded-lg border border-green-100">
+                            <div class="w-12 h-12 bg-green-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-${rollbackProcedures.automated_rollback_available ? 'check' : 'times'} text-green-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${rollbackProcedures.automated_rollback_available ? 'Yes' : 'No'}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Auto Rollback</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Triggers -->
+                ${contingencyTriggers.length > 0 ? `
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <h5 class="text-base font-semibold text-gray-900 mb-4">Contingency Triggers</h5>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        ${contingencyTriggers.map(trigger => `
+                            <div class="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div class="w-6 h-6 bg-orange-100 rounded flex items-center justify-center mr-3">
+                                    <i class="fas fa-bolt text-orange-600 text-xs"></i>
                                 </div>
+                                <div class="text-sm font-medium text-gray-900">${trigger.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    renderSuccessCriteria() {
+        const successCriteria = this.frameworkData.framework.success_criteria;
+        
+        this.updateStatusBadge('success-status', successCriteria?.enabled);
+        
+        const content = document.getElementById('success-content');
+        if (!content || !successCriteria) return;
+
+        const financialTargets = successCriteria.financialTargets || {};
+        const technicalTargets = successCriteria.technicalTargets || {};
+
+        content.innerHTML = `
+            <div class="space-y-4">
+                <!-- Success Overview -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <div class="flex items-center mb-6">
+                        <div class="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center mr-3">
+                            <i class="fas fa-trophy text-white text-sm"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-900">Success Criteria</h4>
+                            <p class="text-sm text-gray-500">Measurable targets and goals</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="text-center p-4 bg-green-50 rounded-lg border border-green-100">
+                            <div class="w-12 h-12 bg-green-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-dollar-sign text-green-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">$${this.formatNumber(financialTargets.monthly_savings_target || 0)}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Monthly Savings Target</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-100">
+                            <div class="w-12 h-12 bg-blue-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-bullseye text-blue-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${financialTargets.optimization_opportunities_addressed || 0}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Opportunities Addressed</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-purple-50 rounded-lg border border-purple-100">
+                            <div class="w-12 h-12 bg-purple-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                                <i class="fas fa-brain text-purple-600"></i>
+                            </div>
+                            <div class="text-lg font-semibold text-gray-900 mb-1">${Math.round((financialTargets.ml_confidence_target || 0) * 100)}%</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">ML Confidence Target</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technical Targets -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <h5 class="text-base font-semibold text-gray-900 mb-4">Technical Targets</h5>
+                    <div class="space-y-3">
+                        <div class="flex items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-4 ${technicalTargets.zero_downtime_during_implementation ? 'bg-green-100' : 'bg-gray-100'}">
+                                <i class="fas fa-${technicalTargets.zero_downtime_during_implementation ? 'check text-green-600' : 'times text-gray-400'}"></i>
+                            </div>
+                            <div>
+                                <div class="font-medium text-gray-900">Zero Downtime Implementation</div>
+                                <div class="text-sm text-gray-500">${technicalTargets.zero_downtime_during_implementation ? 'Target Set' : 'Not Required'}</div>
                             </div>
                         </div>
-                    `).join('')}
+                        
+                        <div class="flex items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-4 ${technicalTargets.ml_prediction_accuracy_maintained ? 'bg-green-100' : 'bg-gray-100'}">
+                                <i class="fas fa-${technicalTargets.ml_prediction_accuracy_maintained ? 'check text-green-600' : 'times text-gray-400'}"></i>
+                            </div>
+                            <div>
+                                <div class="font-medium text-gray-900">ML Prediction Accuracy</div>
+                                <div class="text-sm text-gray-500">${technicalTargets.ml_prediction_accuracy_maintained ? 'Maintained' : 'Not Tracked'}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-4 ${technicalTargets.cluster_config_consistency_maintained ? 'bg-green-100' : 'bg-gray-100'}">
+                                <i class="fas fa-${technicalTargets.cluster_config_consistency_maintained ? 'check text-green-600' : 'times text-gray-400'}"></i>
+                            </div>
+                            <div>
+                                <div class="font-medium text-gray-900">Config Consistency</div>
+                                <div class="text-sm text-gray-500">${technicalTargets.cluster_config_consistency_maintained ? 'Maintained' : 'Not Tracked'}</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
     }
 
-    /**
-     * Render Intelligence Insights with FIXED structure
-     */
-    renderFixedIntelligenceInsights() {
-        const intelligence = this.getComponentData('intelligence_insights', 'intelligenceInsights');
+    renderTimelineOptimization() {
+        const timelineOpt = this.frameworkData.framework.timeline_optimization;
         
-        console.log('🧠 FIXED: Rendering Intelligence Insights:', intelligence);
-        this.updateStatusBadge('intelligence-status', intelligence.enabled);
+        this.updateStatusBadge('timeline-status', timelineOpt?.enabled);
+        
+        const content = document.getElementById('timeline-content');
+        if (!content || !timelineOpt) return;
+
+        content.innerHTML = `
+            <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                <div class="flex items-center mb-6">
+                    <div class="w-10 h-10 bg-indigo-500 rounded-lg flex items-center justify-center mr-3">
+                        <i class="fas fa-clock text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-900">Timeline Optimization</h4>
+                        <p class="text-sm text-gray-500">Optimized implementation schedule</p>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="text-center p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                        <div class="w-12 h-12 bg-indigo-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <i class="fas fa-calendar-check text-indigo-600"></i>
+                        </div>
+                        <div class="text-lg font-semibold text-gray-900 mb-1">${timelineOpt.optimizedTimelineWeeks || 0}</div>
+                        <div class="text-xs text-gray-500 uppercase tracking-wide">Optimized Weeks</div>
+                    </div>
+                    
+                    <div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-100">
+                        <div class="w-12 h-12 bg-blue-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <i class="fas fa-calendar text-blue-600"></i>
+                        </div>
+                        <div class="text-lg font-semibold text-gray-900 mb-1">${timelineOpt.originalTimelineWeeks || 0}</div>
+                        <div class="text-xs text-gray-500 uppercase tracking-wide">Original Weeks</div>
+                    </div>
+                    
+                    <div class="text-center p-4 bg-green-50 rounded-lg border border-green-100">
+                        <div class="w-12 h-12 bg-green-200 rounded-lg flex items-center justify-center mx-auto mb-3">
+                            <i class="fas fa-layer-group text-green-600"></i>
+                        </div>
+                        <div class="text-lg font-semibold text-gray-900 mb-1">${(timelineOpt.cluster_complexity_factor || 0).toFixed(1)}x</div>
+                        <div class="text-xs text-gray-500 uppercase tracking-wide">Complexity Factor</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderIntelligenceInsights() {
+        const intelligence = this.frameworkData.framework.intelligence_insights;
+        
+        this.updateStatusBadge('intelligence-status', intelligence?.enabled);
         
         const content = document.getElementById('intelligence-content');
-        if (!content) return;
+        if (!content || !intelligence) return;
 
         const clusterProfile = intelligence.clusterProfile || {};
         const mlPredictions = intelligence.ml_predictions || {};
@@ -395,104 +703,85 @@ class FixedProjectControlsManager {
 
         content.innerHTML = `
             <div class="space-y-4">
-                <!-- Intelligence Metrics Grid -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div class="text-center p-3 bg-gray-700/50 border border-gray-600 rounded-lg">
-                        <div class="font-bold text-lg text-purple-400">${Math.round((intelligence.analysisConfidence || 0) * 100)}%</div>
-                        <div class="text-xs text-gray-400">Analysis Confidence</div>
-                    </div>
-                    <div class="text-center p-3 bg-gray-700/50 border border-gray-600 rounded-lg">
-                        <div class="font-bold text-lg text-blue-400">${intelligence.actual_cv_score ? (intelligence.actual_cv_score * 100).toFixed(1) : 0}%</div>
-                        <div class="text-xs text-gray-400">CV Score</div>
-                    </div>
-                    <div class="text-center p-3 bg-gray-700/50 border border-gray-600 rounded-lg">
-                        <div class="font-bold text-lg text-green-400">${intelligence.dataAvailable ? 'Yes' : 'No'}</div>
-                        <div class="text-xs text-gray-400">Data Available</div>
-                    </div>
-                    <div class="text-center p-3 bg-gray-700/50 border border-gray-600 rounded-lg">
-                        <div class="font-bold text-lg text-teal-400">${intelligence.azure_enhanced ? 'Yes' : 'No'}</div>
-                        <div class="text-xs text-gray-400">Azure Enhanced</div>
-                    </div>
-                </div>
-
-                <!-- Detailed Analysis Sections -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
-                        <h4 class="font-semibold text-pink-400 mb-3 flex items-center">
-                            <i class="fas fa-brain mr-2"></i>Cluster Profile
-                        </h4>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between text-gray-300">
-                                <span>ML Cluster Type:</span>
-                                <span class="font-medium text-white">${clusterProfile.mlClusterType || 'Unknown'}</span>
-                            </div>
-                            <div class="flex justify-between text-gray-300">
-                                <span>Complexity Score:</span>
-                                <span class="font-medium text-white">${clusterProfile.complexityScore || 0}</span>
-                            </div>
-                            <div class="flex justify-between text-gray-300">
-                                <span>Readiness Score:</span>
-                                <span class="font-medium text-green-400">${Math.round((clusterProfile.readinessScore || 0) * 100)}%</span>
-                            </div>
+                <!-- Intelligence Overview -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <div class="flex items-center mb-6">
+                        <div class="w-10 h-10 bg-pink-500 rounded-lg flex items-center justify-center mr-3">
+                            <i class="fas fa-brain text-white text-sm"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-900">Intelligence Insights</h4>
+                            <p class="text-sm text-gray-500">AI-powered analysis and recommendations</p>
                         </div>
                     </div>
-                    <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
-                        <h4 class="font-semibold text-blue-400 mb-3 flex items-center">
-                            <i class="fas fa-chart-line mr-2"></i>ML Predictions
-                        </h4>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between text-gray-300">
-                                <span>Confidence:</span>
-                                <span class="font-medium text-white">${Math.round((mlPredictions.confidence || 0) * 100)}%</span>
+                    
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="text-center p-4 bg-pink-50 rounded-lg border border-pink-100">
+                            <div class="w-10 h-10 bg-pink-200 rounded-lg flex items-center justify-center mx-auto mb-2">
+                                <i class="fas fa-chart-line text-pink-600 text-sm"></i>
                             </div>
-                            <div class="flex justify-between text-gray-300">
-                                <span>Model Performance:</span>
-                                <span class="font-medium text-white">${mlPredictions.model_performance || 'Unknown'}</span>
-                            </div>
-                            <div class="flex items-center justify-between text-gray-300">
-                                <span>Learning Enabled:</span>
-                                <span class="flex items-center">
-                                    <i class="fas fa-${mlPredictions.learning_enabled ? 'check text-green-400' : 'times text-red-400'} mr-1"></i>
-                                    <span class="text-white">${mlPredictions.learning_enabled ? 'Yes' : 'No'}</span>
-                                </span>
-                            </div>
+                            <div class="text-lg font-bold text-gray-900">${Math.round((intelligence.analysisConfidence || 0) * 100)}%</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Analysis Confidence</div>
                         </div>
-                    </div>
-                    <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
-                        <h4 class="font-semibold text-green-400 mb-3 flex items-center">
-                            <i class="fas fa-lightbulb mr-2"></i>Recommendations
-                        </h4>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between text-gray-300">
-                                <span>Priority:</span>
-                                <span class="font-medium text-white">${recommendations.priority || 'Medium'}</span>
+                        
+                        <div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-100">
+                            <div class="w-10 h-10 bg-blue-200 rounded-lg flex items-center justify-center mx-auto mb-2">
+                                <i class="fas fa-percentage text-blue-600 text-sm"></i>
                             </div>
-                            <div class="flex justify-between text-gray-300">
-                                <span>Implementation Readiness:</span>
-                                <span class="font-medium text-white">${recommendations.implementation_readiness || 'Unknown'}</span>
+                            <div class="text-lg font-bold text-gray-900">${(intelligence.actual_cv_score * 100).toFixed(1)}%</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">CV Score</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-green-50 rounded-lg border border-green-100">
+                            <div class="w-10 h-10 bg-green-200 rounded-lg flex items-center justify-center mx-auto mb-2">
+                                <i class="fas fa-lightbulb text-green-600 text-sm"></i>
                             </div>
-                            <div class="flex justify-between text-gray-300">
-                                <span>Azure Optimizations:</span>
-                                <span class="font-medium text-teal-400">${recommendations.azure_optimizations_available ? 'Available' : 'Not Available'}</span>
+                            <div class="text-lg font-bold text-gray-900">${intelligence.optimization_opportunities || 0}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Opportunities</div>
+                        </div>
+                        
+                        <div class="text-center p-4 bg-purple-50 rounded-lg border border-purple-100">
+                            <div class="w-10 h-10 bg-purple-200 rounded-lg flex items-center justify-center mx-auto mb-2">
+                                <i class="fas fa-server text-purple-600 text-sm"></i>
                             </div>
+                            <div class="text-lg font-bold text-gray-900">${intelligence.total_workloads || 0}</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Workloads</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Commands Section for Intelligence -->
-                ${this.renderCommandsSection(intelligence.related_commands || [], 'Intelligence Commands')}
-
-                <!-- Enhancement Status -->
-                <div class="p-3 bg-gray-800/50 border border-gray-600 rounded-lg">
-                    <div class="flex items-center justify-between text-sm">
-                        <div class="flex items-center text-gray-300">
-                            <i class="fas fa-brain text-pink-400 mr-2"></i>
-                            <span>ML Generated: ${intelligence.improved_ml_generated ? 'Yes' : 'No'}</span>
-                            <span class="ml-4">Updated: ${intelligence.lastUpdated ? new Date(intelligence.lastUpdated).toLocaleDateString() : 'Unknown'}</span>
+                <!-- Recommendations -->
+                <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
+                    <h5 class="text-base font-semibold text-gray-900 mb-4">AI Recommendations</h5>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="flex items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
+                                <i class="fas fa-star text-yellow-600 text-sm"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-gray-900 mb-1">Priority</div>
+                                <div class="text-sm text-gray-600">${recommendations.priority || 'Medium'}</div>
+                            </div>
                         </div>
-                        <div class="flex items-center text-xs">
-                            <i class="fas fa-cogs text-teal-400 mr-1"></i>
-                            <span class="text-gray-400">Opportunities: ${intelligence.optimization_opportunities || 0}</span>
+                        
+                        <div class="flex items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
+                                <i class="fas fa-cog text-blue-600 text-sm"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-gray-900 mb-1">Implementation</div>
+                                <div class="text-sm text-gray-600">${recommendations.implementation_readiness || 'Review Needed'}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
+                            <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
+                                <i class="fas fa-cloud text-green-600 text-sm"></i>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-gray-900 mb-1">Azure Optimizations</div>
+                                <div class="text-sm text-gray-600">${recommendations.azure_optimizations_available ? 'Available' : 'Not Available'}</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -500,129 +789,17 @@ class FixedProjectControlsManager {
         `;
     }
 
-    /**
-     * Render execution plan with FIXED theme
-     */
-    renderFixedExecutionPlan() {
-        const executionPlan = this.frameworkData.execution_plan;
-        if (!executionPlan) return;
-
-        console.log('🎯 FIXED: Rendering Execution Plan:', executionPlan);
-
-        // Create execution plan section
-        const mainContent = document.getElementById('controls-main-content');
-        if (!mainContent) return;
-
-        // Remove existing execution plan
-        const existingPlan = document.getElementById('execution-plan-section');
-        if (existingPlan) {
-            existingPlan.remove();
-        }
-
-        const timeline = executionPlan.timeline_summary || {};
-        const phases = executionPlan.phases || [];
-        const metadata = executionPlan.metadata || {};
-
-        const executionSection = document.createElement('div');
-        executionSection.id = 'execution-plan-section';
-        executionSection.innerHTML = `
-            <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-6 mt-6">
-                <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
-                    <i class="fas fa-tasks text-teal-400 mr-2"></i>
-                    Execution Plan
-                </h3>
-                <div class="space-y-6">
-                    <!-- Timeline Summary -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div class="text-center p-3 bg-gray-700/50 border border-gray-600 rounded-lg">
-                            <div class="font-bold text-lg text-blue-400">${timeline.totalWeeks || 0}</div>
-                            <div class="text-sm text-gray-400">Total Weeks</div>
-                        </div>
-                        <div class="text-center p-3 bg-gray-700/50 border border-gray-600 rounded-lg">
-                            <div class="font-bold text-lg text-green-400">${timeline.totalPhases || 0}</div>
-                            <div class="text-sm text-gray-400">Total Phases</div>
-                        </div>
-                        <div class="text-center p-3 bg-gray-700/50 border border-gray-600 rounded-lg">
-                            <div class="font-bold text-lg text-purple-400">${metadata.total_command_groups || 0}</div>
-                            <div class="text-sm text-gray-400">Command Groups</div>
-                        </div>
-                        <div class="text-center p-3 bg-gray-700/50 border border-gray-600 rounded-lg">
-                            <div class="font-bold text-lg text-yellow-400">$${this.formatNumber(timeline.totalSavings || 0)}</div>
-                            <div class="text-sm text-gray-400">Total Savings</div>
-                        </div>
-                    </div>
-
-                    <!-- Phases Overview -->
-                    ${phases.length > 0 ? `
-                    <div class="space-y-3">
-                        <h4 class="font-semibold text-white flex items-center">
-                            <i class="fas fa-list text-teal-400 mr-2"></i>
-                            Implementation Phases (${phases.length})
-                        </h4>
-                        <div class="space-y-2 max-h-64 overflow-y-auto">
-                            ${phases.map(phase => `
-                                <div class="p-3 bg-gray-700/30 border border-gray-600 rounded-lg">
-                                    <div class="flex justify-between items-start">
-                                        <div class="flex-1">
-                                            <h5 class="font-medium text-white text-sm">${phase.title || 'Unnamed Phase'}</h5>
-                                            <p class="text-xs text-gray-400 mt-1">
-                                                Week ${phase.week_range} • ${phase.type?.join(', ') || 'General'}
-                                            </p>
-                                        </div>
-                                        <div class="text-right ml-4">
-                                            <div class="text-sm font-medium text-green-400">$${this.formatNumber(phase.projected_savings || 0)}</div>
-                                            <div class="text-xs text-gray-400">${phase.tasks_count || 0} tasks</div>
-                                        </div>
-                                    </div>
-                                    <div class="mt-2 flex items-center justify-between">
-                                        <span class="px-2 py-1 text-xs bg-${this.getRiskColor(phase.risk_level)}-600/20 text-${this.getRiskColor(phase.risk_level)}-400 border border-${this.getRiskColor(phase.risk_level)}-600/30 rounded">
-                                            ${phase.risk_level || 'Unknown'} Risk
-                                        </span>
-                                        <div class="flex items-center text-xs text-gray-400">
-                                            <i class="fas fa-${phase.commands_available ? 'check text-green-400' : 'times text-red-400'} mr-1"></i>
-                                            Commands ${phase.commands_available ? 'Available' : 'Not Available'}
-                                        </div>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                    ` : ''}
-
-                    <!-- Metadata -->
-                    <div class="p-3 bg-gray-800/50 border border-gray-600 rounded-lg">
-                        <div class="flex items-center justify-between text-sm text-gray-400">
-                            <span>Execution plan extracted: ${metadata.extracted_at ? new Date(metadata.extracted_at).toLocaleString() : 'Unknown'}</span>
-                            <span>Phases with commands: ${metadata.phases_with_commands || 0}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        mainContent.appendChild(executionSection);
-    }
-
-    getRiskColor(riskLevel) {
-        const level = (riskLevel || '').toLowerCase();
-        switch (level) {
-            case 'high': return 'red';
-            case 'medium': return 'yellow';
-            case 'low': return 'green';
-            default: return 'gray';
-        }
-    }
-
+    // Helper methods
     updateStatusBadge(elementId, enabled) {
         const element = document.getElementById(elementId);
         if (!element) return;
 
         if (enabled) {
             element.textContent = 'Enabled';
-            element.className = 'ml-auto px-2 py-1 text-xs rounded-full bg-green-600/20 text-green-400 border border-green-600/30';
+            element.className = 'ml-auto px-3 py-1 text-xs rounded-full bg-green-100 text-green-800 border border-green-200';
         } else {
             element.textContent = 'Disabled';
-            element.className = 'ml-auto px-2 py-1 text-xs rounded-full bg-red-600/20 text-red-400 border border-red-600/30';
+            element.className = 'ml-auto px-3 py-1 text-xs rounded-full bg-red-100 text-red-800 border border-red-200';
         }
     }
 
@@ -637,6 +814,16 @@ class FixedProjectControlsManager {
         return Number(num).toLocaleString();
     }
 
+    getRiskBadgeClass(riskLevel) {
+        const level = (riskLevel || '').toLowerCase();
+        switch (level) {
+            case 'high': return 'bg-red-100 text-red-800 border border-red-200';
+            case 'medium': return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+            case 'low': return 'bg-green-100 text-green-800 border border-green-200';
+            default: return 'bg-gray-100 text-gray-800 border border-gray-200';
+        }
+    }
+
     exportFrameworkData() {
         if (!this.frameworkData) {
             alert('No framework data available to export');
@@ -648,173 +835,31 @@ class FixedProjectControlsManager {
         
         const link = document.createElement('a');
         link.href = URL.createObjectURL(dataBlob);
-        link.download = `fixed-project-controls-${this.clusterId}-${new Date().toISOString().split('T')[0]}.json`;
+        link.download = `project-controls-${this.clusterId}-${new Date().toISOString().split('T')[0]}.json`;
         link.click();
     }
-
-    // Simplified render methods for other components (keeping core structure)
-    renderFixedGovernanceFramework() {
-        const governance = this.getComponentData('governance_framework', 'governance');
-        this.updateStatusBadge('governance-status', governance.enabled);
-        
-        const content = document.getElementById('governance-content');
-        if (!content) return;
-
-        content.innerHTML = `
-            <div class="space-y-4">
-                <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
-                    <h4 class="font-semibold text-blue-400 mb-3">Governance Level: ${governance.governanceLevel || 'Standard'}</h4>
-                    <div class="text-sm text-gray-300">
-                        <p>Cluster Complexity: ${governance.cluster_complexity || 'Unknown'}</p>
-                        <p>ML Confidence: ${Math.round((governance.ml_confidence || 0) * 100)}%</p>
-                    </div>
-                </div>
-                ${this.renderCommandsSection(governance.related_commands || [], 'Governance Commands')}
-            </div>
-        `;
-    }
-
-    renderFixedMonitoringStrategy() {
-        const monitoring = this.getComponentData('monitoring_strategy', 'monitoring');
-        this.updateStatusBadge('monitoring-status', monitoring.enabled);
-        
-        const content = document.getElementById('monitoring-content');
-        if (!content) return;
-
-        content.innerHTML = `
-            <div class="space-y-4">
-                <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
-                    <h4 class="font-semibold text-yellow-400 mb-3">Monitoring Configuration</h4>
-                    <div class="text-sm text-gray-300">
-                        <p>Frequency: ${monitoring.monitoringFrequency || 'Standard'}</p>
-                        <p>Scaling Readiness: ${monitoring.scaling_readiness || 'Unknown'}</p>
-                        <p>Key Metrics: ${(monitoring.keyMetrics || []).length} configured</p>
-                    </div>
-                </div>
-                ${this.renderCommandsSection(monitoring.related_commands || [], 'Monitoring Commands')}
-            </div>
-        `;
-    }
-
-    renderFixedRiskMitigation() {
-        const riskMitigation = this.getComponentData('risk_mitigation', 'riskMitigation');
-        this.updateStatusBadge('risk-status', riskMitigation.enabled);
-        
-        const content = document.getElementById('risk-content');
-        if (!content) return;
-
-        content.innerHTML = `
-            <div class="space-y-4">
-                <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
-                    <h4 class="font-semibold text-red-400 mb-3">Risk Assessment</h4>
-                    <div class="text-sm text-gray-300">
-                        <p>Security Posture: ${riskMitigation.security_posture || 'Unknown'}</p>
-                        <p>Identified Risks: ${(riskMitigation.identifiedRisks || []).length}</p>
-                        <p>Model Confidence: ${Math.round((riskMitigation.ml_confidence || 0) * 100)}%</p>
-                    </div>
-                </div>
-                ${this.renderCommandsSection(riskMitigation.related_commands || [], 'Risk Mitigation Commands')}
-            </div>
-        `;
-    }
-
-    renderFixedContingencyPlanning() {
-        const contingency = this.getComponentData('contingency_planning', 'contingency');
-        this.updateStatusBadge('contingency-status', contingency.enabled);
-        
-        const content = document.getElementById('contingency-content');
-        if (!content) return;
-
-        content.innerHTML = `
-            <div class="space-y-4">
-                <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
-                    <h4 class="font-semibold text-orange-400 mb-3">Contingency Configuration</h4>
-                    <div class="text-sm text-gray-300">
-                        <p>Triggers: ${(contingency.contingencyTriggers || []).length} configured</p>
-                        <p>Rollback Time: ${contingency.rollbackProcedures?.rollback_time_estimate || 'Unknown'}</p>
-                        <p>Auto Rollback: ${contingency.rollbackProcedures?.automated_rollback_available ? 'Available' : 'Not Available'}</p>
-                    </div>
-                </div>
-                ${this.renderCommandsSection(contingency.related_commands || [], 'Contingency Commands')}
-            </div>
-        `;
-    }
-
-    renderFixedSuccessCriteria() {
-        const successCriteria = this.getComponentData('success_criteria', 'successCriteria');
-        this.updateStatusBadge('success-status', successCriteria.enabled);
-        
-        const content = document.getElementById('success-content');
-        if (!content) return;
-
-        content.innerHTML = `
-            <div class="space-y-4">
-                <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg">
-                    <h4 class="font-semibold text-green-400 mb-3">Success Targets</h4>
-                    <div class="text-sm text-gray-300">
-                        <p>Monthly Target: $${this.formatNumber(successCriteria.financialTargets?.monthly_savings_target || 0)}</p>
-                        <p>Opportunities: ${successCriteria.financialTargets?.optimization_opportunities_addressed || 0}</p>
-                        <p>Zero Downtime: ${successCriteria.technicalTargets?.zero_downtime_during_implementation ? 'Required' : 'Not Required'}</p>
-                    </div>
-                </div>
-                ${this.renderCommandsSection(successCriteria.related_commands || [], 'Success Criteria Commands')}
-            </div>
-        `;
-    }
-
-    renderFixedTimelineOptimization() {
-        const timelineOpt = this.getComponentData('timeline_optimization', 'timelineOptimization');
-        this.updateStatusBadge('timeline-status', timelineOpt.enabled);
-        
-        const content = document.getElementById('timeline-content');
-        if (!content) return;
-
-        content.innerHTML = `
-            <div class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg text-center">
-                        <div class="text-2xl font-bold text-indigo-400 mb-1">
-                            ${timelineOpt.originalTimelineWeeks || 0}
-                        </div>
-                        <div class="text-sm text-gray-400">Original Weeks</div>
-                    </div>
-                    <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg text-center">
-                        <div class="text-2xl font-bold text-green-400 mb-1">
-                            ${timelineOpt.optimizedTimelineWeeks || 0}
-                        </div>
-                        <div class="text-sm text-gray-400">Optimized Weeks</div>
-                    </div>
-                    <div class="p-4 bg-gray-700/50 border border-gray-600 rounded-lg text-center">
-                        <div class="text-2xl font-bold text-purple-400 mb-1">
-                            ${timelineOpt.cluster_complexity_factor ? (timelineOpt.cluster_complexity_factor * 100).toFixed(0) + '%' : '100%'}
-                        </div>
-                        <div class="text-sm text-gray-400">Complexity Factor</div>
-                    </div>
-                </div>
-                ${this.renderCommandsSection(timelineOpt.related_commands || [], 'Timeline Commands')}
-            </div>
-        `;
-    }
 }
 
-// Initialize Fixed Project Controls Manager
-let fixedProjectControlsManager;
+// Initialize Project Controls Manager
+let projectControlsManager;
 
 document.addEventListener('DOMContentLoaded', function() {
-    fixedProjectControlsManager = new FixedProjectControlsManager();
-    console.log('✅ FIXED Project Controls Manager ready with theming and commands');
+    projectControlsManager = new ProjectControlsManager();
+    console.log('✅ Project Controls Manager initialized');
 });
 
+// Global function for tab loading
 function loadProjectControlsTab() {
-    if (fixedProjectControlsManager && !fixedProjectControlsManager.isLoading) {
-        fixedProjectControlsManager.loadProjectControls();
+    if (projectControlsManager && !projectControlsManager.isLoading) {
+        projectControlsManager.loadProjectControls();
     }
 }
 
+// Debug function
 window.debugProjectControls = function() {
-    if (fixedProjectControlsManager) {
-        fixedProjectControlsManager.debugFrameworkData();
+    if (projectControlsManager?.frameworkData) {
+        console.log('Project Controls Data:', projectControlsManager.frameworkData);
     } else {
-        console.warn('⚠️ FIXED Project Controls Manager not initialized');
+        console.warn('No project controls data available');
     }
 };

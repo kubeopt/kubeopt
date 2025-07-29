@@ -456,3 +456,8 @@
     line-height: 1.75rem;
     color: #059669;
 }
+
+ .bg-gray-800{
+            --tw-bg-opacity: 1;
+            background-color: rgb(48, 128, 113) !important;
+        }

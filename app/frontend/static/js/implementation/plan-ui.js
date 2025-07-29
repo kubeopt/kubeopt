@@ -93,7 +93,7 @@ export function renderEnhancedStyles() {
             }
             
             .enhanced-header {
-                background: linear-gradient(135deg,rgb(70, 125, 142) 0%,rgb(75, 160, 162) 100%);
+                background: linear-gradient(135deg, #429f9a 0%, #2b6e63 100%) !important
                 color: white;
                 border-radius: 20px;
                 padding: 40px;
