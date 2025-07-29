@@ -51,11 +51,11 @@
       "advanced": 0.4
     }
   },
-  "last_updated": "2025-07-29T00:06:53.736601",
+  "last_updated": "2025-07-29T22:01:58.756658",
   "data_sources": [
     "migration_trends",
-    "implementation_patterns",
     "optimization_patterns",
+    "implementation_patterns",
     "service_costs"
   ]
 }
