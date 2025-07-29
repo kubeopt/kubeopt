@@ -1129,7 +1129,9 @@ class EnhancedMultiSubscriptionClusterManager:
             self.logger.error(f"❌ Failed to update cluster subscription info: {e}")
 
     def update_cluster_analysis(self, cluster_id: str, analysis_data: dict):
-        """Update cluster with analysis results - preserves implementation plan"""
+        """
+        Update cluster with analysis results - preserves ALL workload data
+        """
         try:
             enhanced_analysis_data = analysis_data.copy()
             
@@ -1155,6 +1157,116 @@ class EnhancedMultiSubscriptionClusterManager:
                     enhanced_analysis_data['node_metrics'] = node_data
                     enhanced_analysis_data['real_node_data'] = node_data
             
+            # ===== CRITICAL FIX: PRESERVE ALL WORKLOAD DATA IN DATABASE =====
+            workload_data_preserved = False
+            total_workloads_saved = 0
+            
+            # Check for ALL workload data sources and preserve them
+            workload_sources = [
+                ('hpa_recommendations.workload_characteristics.all_workloads', 'HPA recommendations'),
+                ('workload_characteristics.all_workloads', 'ML workload characteristics'),
+                ('pod_resource_data.all_workloads', 'Pod resource data'),
+                ('workload_cpu_analysis.all_workloads', 'Workload CPU analysis'),
+                ('workload_cpu_analysis.raw_workload_data', 'Raw workload data')
+            ]
+            
+            # Extract and preserve ALL workload data from various sources
+            all_preserved_workloads = []
+            
+            for source_path, source_name in workload_sources:
+                try:
+                    # Navigate nested dictionary path
+                    current_data = enhanced_analysis_data
+                    path_parts = source_path.split('.')
+                    
+                    for part in path_parts:
+                        if isinstance(current_data, dict) and part in current_data:
+                            current_data = current_data[part]
+                        else:
+                            current_data = None
+                            break
+                    
+                    if current_data and isinstance(current_data, list) and len(current_data) > 0:
+                        # Found workload data - preserve it
+                        for workload in current_data:
+                            if isinstance(workload, dict):
+                                # Ensure each workload has required fields
+                                preserved_workload = {
+                                    'name': workload.get('name', workload.get('pod', 'unknown')),
+                                    'namespace': workload.get('namespace', 'unknown'),
+                                    'cpu_utilization': workload.get('cpu_utilization', workload.get('cpu_percentage', 0)),
+                                    'cpu_millicores': workload.get('cpu_millicores', 0),
+                                    'memory_bytes': workload.get('memory_bytes', 0),
+                                    'severity': workload.get('severity', 'normal'),
+                                    'type': workload.get('type', 'unknown'),
+                                    'source': source_name,
+                                    'preserved_at': datetime.now().isoformat()
+                                }
+                                
+                                # Avoid duplicates
+                                existing = any(
+                                    w['name'] == preserved_workload['name'] and 
+                                    w['namespace'] == preserved_workload['namespace']
+                                    for w in all_preserved_workloads
+                                )
+                                
+                                if not existing:
+                                    all_preserved_workloads.append(preserved_workload)
+                        
+                        self.logger.info(f"✅ DB SAVE: Preserved {len(current_data)} workloads from {source_name}")
+                        workload_data_preserved = True
+                    
+                except Exception as source_error:
+                    self.logger.debug(f"🔧 DB SAVE: Could not extract from {source_path}: {source_error}")
+                    continue
+            
+            # Store ALL preserved workloads in the analysis data
+            if all_preserved_workloads:
+                enhanced_analysis_data['all_workloads_preserved'] = all_preserved_workloads
+                enhanced_analysis_data['total_workloads_preserved'] = len(all_preserved_workloads)
+                total_workloads_saved = len(all_preserved_workloads)
+                
+                # Create namespace breakdown
+                namespace_breakdown = {}
+                severity_breakdown = {'normal': 0, 'moderate': 0, 'high': 0, 'critical': 0}
+                
+                for workload in all_preserved_workloads:
+                    namespace = workload['namespace']
+                    severity = workload['severity']
+                    
+                    namespace_breakdown[namespace] = namespace_breakdown.get(namespace, 0) + 1
+                    severity_breakdown[severity] = severity_breakdown.get(severity, 0) + 1
+                
+                enhanced_analysis_data['workload_namespace_breakdown'] = namespace_breakdown
+                enhanced_analysis_data['workload_severity_breakdown'] = severity_breakdown
+                
+                self.logger.info(f"✅ DB SAVE: Preserved {total_workloads_saved} total workloads across {len(namespace_breakdown)} namespaces")
+                self.logger.info(f"✅ DB SAVE: Severity breakdown - normal: {severity_breakdown['normal']}, moderate: {severity_breakdown['moderate']}, high: {severity_breakdown['high']}, critical: {severity_breakdown['critical']}")
+            
+            # ===== PRESERVE HIGH CPU DATA FOR COMPATIBILITY =====
+            high_cpu_workloads_saved = 0
+            if 'hpa_recommendations' not in analysis_data:
+                self.logger.warning(f"⚠️ DB SAVE: No HPA recommendations for {cluster_id}")
+            else:
+                self.logger.info(f"✅ DB SAVE: HPA recommendations found for {cluster_id}")
+                
+                # Validate HPA structure
+                hpa_recs = analysis_data['hpa_recommendations']
+                if isinstance(hpa_recs, dict) and 'optimization_recommendation' in hpa_recs:
+                    self.logger.info(f"✅ DB SAVE: HPA structure validated for {cluster_id}")
+                    
+                    # Extract high CPU workloads for compatibility
+                    workload_chars = hpa_recs.get('workload_characteristics', {})
+                    high_cpu_workloads = workload_chars.get('high_cpu_workloads', [])
+                    
+                    if high_cpu_workloads:
+                        enhanced_analysis_data['high_cpu_workloads_preserved'] = high_cpu_workloads
+                        high_cpu_workloads_saved = len(high_cpu_workloads)
+                        self.logger.info(f"✅ DB SAVE: Preserved {high_cpu_workloads_saved} high CPU workloads for compatibility")
+                    
+                else:
+                    self.logger.warning(f"⚠️ DB SAVE: HPA structure incomplete for {cluster_id}")
+            
             # CRITICAL: Generate implementation plan BEFORE serialization
             if 'implementation_plan' not in enhanced_analysis_data:
                 try:
@@ -1173,6 +1285,17 @@ class EnhancedMultiSubscriptionClusterManager:
                     self.logger.error(f"❌ Failed to generate implementation plan: {impl_error}")
                     self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
             
+            # ===== ADD METADATA ABOUT SAVED DATA =====
+            enhanced_analysis_data['database_save_metadata'] = {
+                'total_workloads_saved': total_workloads_saved,
+                'high_cpu_workloads_saved': high_cpu_workloads_saved,
+                'workload_data_preserved': workload_data_preserved,
+                'all_workloads_unconditionally_saved': True,  # 🆕 Flag indicating fix is applied
+                'conditional_save_logic_disabled': True,      # 🆕 Flag indicating conditional logic bypassed
+                'saved_at': datetime.now().isoformat(),
+                'database_version': 'all_workloads_preserved'
+            }
+            
             # Use specialized serialization for implementation plan
             serializable_data = serialize_implementation_plan(enhanced_analysis_data)
             
@@ -1180,18 +1303,6 @@ class EnhancedMultiSubscriptionClusterManager:
             total_savings = float(serializable_data.get('total_savings', 0))
             confidence = float(serializable_data.get('analysis_confidence', 0))
             
-            if 'hpa_recommendations' not in analysis_data:
-                self.logger.warning(f"⚠️ DB SAVE: No HPA recommendations for {cluster_id}")
-            else:
-                self.logger.info(f"✅ DB SAVE: HPA recommendations found for {cluster_id}")
-                
-                # Validate HPA structure
-                hpa_recs = analysis_data['hpa_recommendations']
-                if isinstance(hpa_recs, dict) and 'optimization_recommendation' in hpa_recs:
-                    self.logger.info(f"✅ DB SAVE: HPA structure validated for {cluster_id}")
-                else:
-                    self.logger.warning(f"⚠️ DB SAVE: HPA structure incomplete for {cluster_id}")
-
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute('''
                     UPDATE clusters 
@@ -1218,7 +1329,12 @@ class EnhancedMultiSubscriptionClusterManager:
                 ))
                 conn.commit()
 
-            self.logger.info(f"✅ Updated cluster analysis with implementation plan: {cluster_id}")
+            # ===== FINAL SUCCESS LOGGING =====
+            self.logger.info(f"✅ FIXED: Updated cluster analysis with ALL workload data preserved: {cluster_id}")
+            if total_workloads_saved > 0:
+                self.logger.info(f"✅ DATABASE: Saved {total_workloads_saved} total workloads (was only saving {high_cpu_workloads_saved} high CPU)")
+            else:
+                self.logger.warning(f"⚠️ DATABASE: No workload data found to save for {cluster_id}")
             
         except Exception as e:
             self.logger.error(f"❌ Failed to update cluster analysis: {e}")

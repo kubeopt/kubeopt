@@ -71,6 +71,60 @@ class AKSRealTimeMetricsFetcher:
         self.connection_verified = False
         self.parser = KubernetesParsingUtils()
 
+
+    # Add these methods to the AKSRealTimeMetricsFetcher class in aks_realtime_metrics.py
+
+    def _categorize_cpu_usage_severity(self, cpu_millicores: float, cpu_percentage: float) -> str:
+        """
+        Categorize CPU usage severity for ALL workloads
+        """
+        if cpu_millicores >= 4000 or cpu_percentage >= 100:  # >= 4 CPU cores or 100%
+            return 'critical'
+        elif cpu_millicores >= 2000 or cpu_percentage >= 75:  # >= 2 CPU cores or 75%
+            return 'high'
+        elif cpu_millicores >= 1000 or cpu_percentage >= 50:  # >= 1 CPU core or 50%
+            return 'moderate'
+        else:
+            return 'normal'
+
+    def _categorize_cpu_usage(self, cpu_millicores: float) -> str:
+        """Categorize CPU usage levels"""
+        if cpu_millicores >= 2000:  # >= 2 CPU cores
+            return 'very_high'
+        elif cpu_millicores >= 1000:  # >= 1 CPU core
+            return 'high'
+        elif cpu_millicores >= 500:  # >= 0.5 CPU cores
+            return 'moderate'
+        else:
+            return 'normal'
+
+    def _convert_millicores_to_percentage(self, cpu_millicores: float) -> float:
+        """Convert millicores to percentage (assuming 4-core nodes)"""
+        return min(100.0, (cpu_millicores / 4000) * 100)  # 4000m = 4 cores = 100%
+
+    def _convert_bytes_to_percentage(self, memory_bytes: float) -> float:
+        """Convert bytes to percentage (assuming 16GB nodes)"""
+        return min(100.0, (memory_bytes / (16 * 1024 * 1024 * 1024)) * 100)  # 16GB = 100%
+
+    def _calculate_resource_concentration(self, workload_data: List[Dict]) -> Dict:
+        """Calculate resource concentration metrics"""
+        if not workload_data:
+            return {}
+        
+        cpu_values = [w.get('cpu_millicores', 0) for w in workload_data]
+        memory_values = [w.get('memory_bytes', 0) for w in workload_data]
+        
+        # Top 20% resource consumers
+        top_20_cpu = sorted(cpu_values, reverse=True)[:len(cpu_values)//5] if cpu_values else []
+        top_20_memory = sorted(memory_values, reverse=True)[:len(memory_values)//5] if memory_values else []
+        
+        return {
+            'cpu_concentration': sum(top_20_cpu) / sum(cpu_values) if sum(cpu_values) > 0 else 0,
+            'memory_concentration': sum(top_20_memory) / sum(memory_values) if sum(memory_values) > 0 else 0,
+            'top_cpu_consumer': max(cpu_values) if cpu_values else 0,
+            'top_memory_consumer': max(memory_values) if memory_values else 0
+        }    
+
     def _process_enhanced_node_data(self, top_nodes_output: str, node_info_json: str, pod_resources: Dict) -> Dict:
         """
          Process enhanced node data with resource requests
@@ -1400,22 +1454,33 @@ class AKSRealTimeMetricsFetcher:
             return {'pods': [], 'namespace_aggregates': {}, 'total_pods': 0}
 
     def _analyze_high_cpu_workloads(self, hpa_metrics: Dict, pod_metrics: Dict) -> Dict:
-        """Analyze high CPU scenarios (like 3723% case)"""
+        """
+        Analyze high CPU scenarios while preserving ALL workload data
+        """
         try:
             high_cpu_hpas = hpa_metrics.get('high_cpu_hpas', [])
-            pods = pod_metrics.get('pods', [])
+            all_workloads = pod_metrics.get('all_workloads', [])  # 🆕 Use all workloads, not just pods
+            high_cpu_pods = pod_metrics.get('high_cpu_pods', [])
             
             analysis = {
                 'high_cpu_workloads': high_cpu_hpas,
-                'high_cpu_pods': [],
+                'high_cpu_pods': high_cpu_pods,
+                'all_workloads_analyzed': all_workloads,  # 🆕 Preserve ALL workloads
+                'total_workloads_analyzed': len(all_workloads),  # 🆕 Total count
                 'max_workload_cpu': 0,
                 'workload_cpu_distribution': {},
-                'recommendation_category': 'MONITOR'
+                'recommendation_category': 'MONITOR',
+                'namespace_workload_breakdown': {}  # 🆕 Preserve namespace breakdown
             }
             
-            # Find maximum CPU utilization
+            # Find maximum CPU utilization from ALL workloads, not just high CPU ones
+            all_cpu_values = []
+            
+            # Check HPA workloads
             if high_cpu_hpas:
-                max_hpa_cpu = max([hpa['cpu_utilization'] for hpa in high_cpu_hpas])
+                hpa_cpu_values = [hpa['cpu_utilization'] for hpa in high_cpu_hpas]
+                all_cpu_values.extend(hpa_cpu_values)
+                max_hpa_cpu = max(hpa_cpu_values)
                 analysis['max_workload_cpu'] = max_hpa_cpu
                 
                 # Categorize the CPU scenario
@@ -1430,30 +1495,75 @@ class AKSRealTimeMetricsFetcher:
                 
                 logger.info(f"🔥 Max workload CPU: {max_hpa_cpu:.0f}% → {analysis['recommendation_category']}")
             
-            # Find high CPU pods
-            for pod in pods:
-                if pod['cpu_percentage'] > 50:  # High CPU pods
-                    analysis['high_cpu_pods'].append({
-                        'namespace': pod['namespace'],
-                        'name': pod['name'],
-                        'cpu_percentage': pod['cpu_percentage'],
-                        'cpu_millicores': pod['cpu_millicores']
-                    })
+            # ===== CRITICAL: ANALYZE ALL WORKLOADS, NOT JUST HIGH CPU =====
+            if all_workloads:
+                # Create comprehensive workload analysis
+                namespace_breakdown = {}
+                cpu_ranges = {'0-25%': 0, '25-50%': 0, '50-100%': 0, '100%+': 0}
+                
+                for workload in all_workloads:
+                    namespace = workload.get('namespace', 'unknown')
+                    cpu_pct = workload.get('cpu_percentage', workload.get('cpu_utilization', 0))
+                    
+                    # Add to CPU values for overall analysis
+                    all_cpu_values.append(cpu_pct)
+                    
+                    # Update namespace breakdown
+                    if namespace not in namespace_breakdown:
+                        namespace_breakdown[namespace] = {
+                            'total_workloads': 0,
+                            'high_cpu_workloads': 0,
+                            'normal_workloads': 0,
+                            'avg_cpu': 0,
+                            'workloads': []
+                        }
+                    
+                    namespace_breakdown[namespace]['total_workloads'] += 1
+                    namespace_breakdown[namespace]['workloads'].append(workload)
+                    
+                    if cpu_pct > 50:  # High CPU threshold
+                        namespace_breakdown[namespace]['high_cpu_workloads'] += 1
+                    else:
+                        namespace_breakdown[namespace]['normal_workloads'] += 1
+                    
+                    # Update CPU distribution
+                    if cpu_pct <= 25:
+                        cpu_ranges['0-25%'] += 1
+                    elif cpu_pct <= 50:
+                        cpu_ranges['25-50%'] += 1
+                    elif cpu_pct <= 100:
+                        cpu_ranges['50-100%'] += 1
+                    else:
+                        cpu_ranges['100%+'] += 1
+                
+                # Calculate average CPU per namespace
+                for ns_data in namespace_breakdown.values():
+                    if ns_data['workloads']:
+                        ns_cpu_values = [w.get('cpu_percentage', w.get('cpu_utilization', 0)) for w in ns_data['workloads']]
+                        ns_data['avg_cpu'] = sum(ns_cpu_values) / len(ns_cpu_values)
+                
+                analysis['namespace_workload_breakdown'] = namespace_breakdown
+                analysis['workload_cpu_distribution'] = cpu_ranges
+                
+                # Update max CPU from all workloads
+                if all_cpu_values:
+                    analysis['max_workload_cpu'] = max(analysis['max_workload_cpu'], max(all_cpu_values))
+                    analysis['avg_workload_cpu'] = sum(all_cpu_values) / len(all_cpu_values)
+                
+                logger.info(f"✅ ANALYZED ALL WORKLOADS: {len(all_workloads)} total, max CPU: {analysis['max_workload_cpu']:.1f}%")
             
-            # Create CPU distribution
-            cpu_ranges = {'0-25%': 0, '25-50%': 0, '50-100%': 0, '100%+': 0}
-            for pod in pods:
-                cpu_pct = pod['cpu_percentage']
-                if cpu_pct <= 25:
-                    cpu_ranges['0-25%'] += 1
-                elif cpu_pct <= 50:
-                    cpu_ranges['25-50%'] += 1
-                elif cpu_pct <= 100:
-                    cpu_ranges['50-100%'] += 1
-                else:
-                    cpu_ranges['100%+'] += 1
-            
-            analysis['workload_cpu_distribution'] = cpu_ranges
+            # Find high CPU pods from all workloads
+            if not analysis['high_cpu_pods'] and all_workloads:
+                # Extract high CPU workloads from all workloads
+                for workload in all_workloads:
+                    cpu_pct = workload.get('cpu_percentage', workload.get('cpu_utilization', 0))
+                    if cpu_pct > 50:  # High CPU threshold
+                        analysis['high_cpu_pods'].append({
+                            'namespace': workload.get('namespace', 'unknown'),
+                            'name': workload.get('name', workload.get('pod', 'unknown')),
+                            'cpu_percentage': cpu_pct,
+                            'cpu_millicores': workload.get('cpu_millicores', 0)
+                        })
             
             return analysis
             
@@ -1461,8 +1571,11 @@ class AKSRealTimeMetricsFetcher:
             logger.error(f"❌ High CPU analysis failed: {e}")
             return {
                 'high_cpu_workloads': [],
+                'all_workloads_analyzed': pod_metrics.get('all_workloads', []),  # Preserve even on error
+                'total_workloads_analyzed': len(pod_metrics.get('all_workloads', [])),
                 'max_workload_cpu': 0,
-                'recommendation_category': 'MONITOR'
+                'recommendation_category': 'MONITOR',
+                'analysis_error': str(e)
             }
 
     def _add_ml_metadata(self, ml_data: Dict) -> Dict:
@@ -1481,25 +1594,25 @@ class AKSRealTimeMetricsFetcher:
 
     def get_ml_ready_metrics(self) -> Dict[str, Any]:
         """
-        COMPLETELY  Get ML-ready metrics with all fixes applied
+        Get metrics with ALL workloads data preserved
         """
         try:
-            logger.info("🤖 COMPLETELY  Collecting ML-ready metrics...")
+            logger.info("🤖 FIXED: Collecting ML-ready metrics with ALL workloads...")
             
             # Step 1: Get enhanced node-level metrics
             try:
                 node_metrics = self._get_enhanced_node_resource_data()
-                logger.info("✅  Got enhanced node metrics")
+                logger.info("✅ Got enhanced node metrics")
             except Exception as node_error:
                 logger.warning(f"⚠️ Enhanced node metrics failed: {node_error}")
                 # Fallback to basic node metrics
                 node_metrics = self.get_node_metrics()
-                logger.info("✅  Using basic node metrics as fallback")
+                logger.info("✅ Using basic node metrics as fallback")
             
             # Step 2: Get HPA metrics with FIXED method name
             try:
                 hpa_metrics = self._get_detailed_hpa_metrics()
-                logger.info("✅  Got HPA metrics with corrected method")
+                logger.info("✅ Got HPA metrics with corrected method")
             except Exception as hpa_error:
                 logger.warning(f"⚠️ HPA metrics failed: {hpa_error}")
                 hpa_metrics = {
@@ -1509,38 +1622,94 @@ class AKSRealTimeMetricsFetcher:
                     'high_cpu_hpas': []
                 }
             
-            # Step 3: Get pod-level resource consumption with FIXED parsing
+            # Step 3: CRITICAL FIX - Get ALL workload-level resource consumption
             try:
-                pod_metrics = self._get_detailed_pod_metrics()
-                logger.info("✅  Got pod metrics")
+                # Use the fixed method that saves ALL workloads
+                pod_metrics = self._get_workload_level_metrics()
+                logger.info("✅ Got ALL workload metrics (fixed method)")
+                
+                # Validate that we got all workloads
+                total_workloads = pod_metrics.get('total_workloads', 0)
+                high_cpu_count = pod_metrics.get('high_cpu_count', 0)
+                
+                if total_workloads > 0:
+                    logger.info(f"✅ WORKLOAD DATA: {total_workloads} total workloads, {high_cpu_count} high CPU")
+                    
+                    # Ensure all_workloads field is populated
+                    if 'all_workloads' not in pod_metrics or not pod_metrics['all_workloads']:
+                        # Fallback: use pods data as all_workloads
+                        pod_metrics['all_workloads'] = pod_metrics.get('pods', [])
+                        logger.info(f"🔧 Fallback: Used pods data as all_workloads ({len(pod_metrics['all_workloads'])} workloads)")
+                    
+                else:
+                    logger.warning("⚠️ No workload data found in metrics")
+                
             except Exception as pod_error:
-                logger.warning(f"⚠️ Pod metrics failed: {pod_error}")
-                pod_metrics = {'pods': [], 'namespace_aggregates': {}, 'total_pods': 0}
+                logger.warning(f"⚠️ Workload metrics failed: {pod_error}")
+                pod_metrics = {
+                    'pods': [], 
+                    'all_workloads': [],  # Ensure this field exists
+                    'namespace_aggregates': {}, 
+                    'total_workloads': 0,
+                    'high_cpu_count': 0,
+                    'data_completeness': {
+                        'all_workloads_saved': False,
+                        'error_occurred': True,
+                        'error_message': str(pod_error)
+                    }
+                }
             
-            # Step 4: Analyze high CPU workloads (existing method)
+            # Step 4: FIXED - Analyze high CPU workloads while preserving ALL workload data
             try:
                 high_cpu_analysis = self._analyze_high_cpu_workloads(hpa_metrics, pod_metrics)
-                logger.info("✅  Completed high CPU analysis")
+                
+                # ===== CRITICAL FIX: ENSURE ALL WORKLOADS ARE PRESERVED =====
+                # The high CPU analysis should not filter out normal workloads
+                if 'all_workloads' in pod_metrics and pod_metrics['all_workloads']:
+                    # Preserve ALL workloads in the analysis
+                    high_cpu_analysis['all_workloads_analyzed'] = pod_metrics['all_workloads']
+                    high_cpu_analysis['total_workloads_analyzed'] = len(pod_metrics['all_workloads'])
+                    
+                    # Also preserve namespace breakdown
+                    if 'namespace_aggregates' in pod_metrics:
+                        high_cpu_analysis['namespace_breakdown'] = pod_metrics['namespace_aggregates']
+                    
+                    logger.info(f"✅ HIGH CPU ANALYSIS: Preserved {len(pod_metrics['all_workloads'])} total workloads")
+                
+                logger.info("✅ Completed high CPU analysis with ALL workloads preserved")
+                
             except Exception as cpu_error:
                 logger.warning(f"⚠️ High CPU analysis failed: {cpu_error}")
                 high_cpu_analysis = {
                     'high_cpu_workloads': [],
+                    'all_workloads_analyzed': pod_metrics.get('all_workloads', []),  # Preserve even on error
+                    'total_workloads_analyzed': len(pod_metrics.get('all_workloads', [])),
                     'max_workload_cpu': 0,
-                    'recommendation_category': 'MONITOR'
+                    'recommendation_category': 'MONITOR',
+                    'analysis_error': str(cpu_error)
                 }
             
-            # Step 5: Combine into ML-ready format
+            # Step 5: Combine into ML-ready format with ALL workload data preserved
             ml_ready_data = {
                 'nodes': node_metrics.get('nodes', []),
                 'hpa_implementation': hpa_metrics,
                 'workload_cpu_analysis': high_cpu_analysis,
                 'pod_resource_data': pod_metrics,
+                
+                # ===== CRITICAL: PRESERVE ALL WORKLOAD DATA AT TOP LEVEL =====
+                'all_workloads': pod_metrics.get('all_workloads', []),  # 🆕 Top-level access to all workloads
+                'total_workloads': pod_metrics.get('total_workloads', 0),
+                'workload_namespace_breakdown': pod_metrics.get('namespace_aggregates', {}),
+                'workload_distribution': pod_metrics.get('workload_distribution', {}),
+                
+                # Status and metadata
                 'status': 'success',
                 'ml_features_ready': True,
                 'high_cpu_detected': high_cpu_analysis.get('max_workload_cpu', 0) > 200,
                 'enhanced_data_available': node_metrics.get('enhanced_data_available', False),
                 'nodes_with_real_requests': node_metrics.get('nodes_with_real_requests', 0),
-                'completely_fixed': True
+                'completely_fixed': True,
+                'all_workloads_preserved': True  # 🆕 Flag indicating the fix is applied
             }
             
             # Step 6: Add comprehensive metadata
@@ -1548,28 +1717,40 @@ class AKSRealTimeMetricsFetcher:
                 'feature_extraction_ready': True,
                 'has_real_request_data': node_metrics.get('nodes_with_real_requests', 0) > 0,
                 'has_workload_cpu_data': bool(high_cpu_analysis.get('high_cpu_workloads')),
+                'has_all_workload_data': bool(pod_metrics.get('all_workloads')),  # 🆕 Flag for all workloads
                 'has_hpa_data': hpa_metrics.get('total_hpas', 0) > 0,
                 'node_count': len(node_metrics.get('nodes', [])),
+                'total_workloads_collected': len(pod_metrics.get('all_workloads', [])),  # 🆕 Total workload count
+                'high_cpu_workloads_count': len(high_cpu_analysis.get('high_cpu_workloads', [])),
                 'max_detected_cpu': high_cpu_analysis.get('max_workload_cpu', 0),
                 'collection_timestamp': datetime.now().isoformat(),
                 'ready_for_enterprise_ml': True,
-                'collection_method': 'completely_fixed_enhanced',
+                'collection_method': 'all_workloads_preserved_fixed',  # 🆕 Indicates fix applied
                 'fixes_applied': [
                     'fixed_method_names',
                     'enhanced_json_parsing',
                     'large_output_handling',
-                    'fallback_mechanisms'
-                ]
+                    'fallback_mechanisms',
+                    'all_workloads_preservation',  # 🆕 New fix
+                    'conditional_filtering_removed'  # 🆕 New fix
+                ],
+                'data_completeness': pod_metrics.get('data_completeness', {})
             }
             
             total_nodes = len(ml_ready_data['nodes'])
-            logger.info(f"✅ COMPLETELY  ML-ready metrics collected - {total_nodes} nodes")
+            total_workloads = len(ml_ready_data.get('all_workloads', []))
+            
+            # ===== FINAL SUCCESS LOGGING =====
+            logger.info(f"✅ FIXED: ML-ready metrics collected with ALL workloads preserved")
+            logger.info(f"📊 SUMMARY: {total_nodes} nodes, {total_workloads} total workloads")
+            logger.info(f"📊 HIGH CPU: {len(high_cpu_analysis.get('high_cpu_workloads', []))} high CPU workloads")
+            logger.info(f"✅ ALL WORKLOADS SAVED: No conditional filtering applied")
             
             return ml_ready_data
             
         except Exception as e:
-            logger.error(f"❌ COMPLETELY  ML-ready metrics collection failed: {e}")
-            raise ValueError(f"Failed to collect completely fixed ML-ready metrics: {e}")
+            logger.error(f"❌ FIXED: ML-ready metrics collection failed: {e}")
+            raise ValueError(f"Failed to collect ML-ready metrics with all workloads: {e}")
 
 
     def get_enhanced_metrics_for_ml(self) -> Dict[str, Any]:
@@ -1612,26 +1793,41 @@ class AKSRealTimeMetricsFetcher:
             return self.get_comprehensive_metrics()  # Fallback to basic metrics
 
     def _get_workload_level_metrics(self) -> Optional[Dict]:
-        """Get actual workload-level CPU/Memory usage with high-CPU detection"""
+        """
+        FIXED: Get ALL workload-level CPU/Memory usage, not just high-CPU detection
+        Save all 393 pods, not just the high CPU ones
+        """
         try:
-            logger.info("🔍 Collecting workload-level metrics...")
+            logger.info("🔍 Collecting ALL workload-level metrics (not just high CPU)...")
             
             # Get pod-level resource usage
             pod_metrics_cmd = "kubectl top pods --all-namespaces --no-headers"
             pod_output = self.execute_kubectl_command(pod_metrics_cmd)
             
+            workload_data = {
+                'pods': [],
+                'namespace_aggregates': {},
+                'resource_totals': {'cpu_millicores': 0, 'memory_bytes': 0},
+                'all_workloads': [],      # 🆕 Store ALL workloads here
+                'high_cpu_pods': [],      # Preserve high CPU ones for compatibility
+                'workload_distribution': {},
+                'cpu_severity_breakdown': {
+                    'normal': [],
+                    'moderate': [],
+                    'high': [],
+                    'critical': []
+                }
+            }
+            
             if not pod_output:
                 logger.warning("⚠️ Could not get pod-level metrics")
-                return None
-            
-            workload_data = []
-            total_cpu_millicores = 0
-            total_memory_bytes = 0
-            high_cpu_pods = []
+                return workload_data  # Return empty structure instead of None
             
             # Enhanced parsing with better error handling
             lines = pod_output.split('\n')
             parsed_lines = 0
+            total_cpu_millicores = 0
+            total_memory_bytes = 0
             
             for line_num, line in enumerate(lines):
                 if not line.strip():
@@ -1658,76 +1854,156 @@ class AKSRealTimeMetricsFetcher:
                         memory_bytes = self.parser.parse_memory_safe(memory_str)
                         
                         if cpu_millicores >= 0 and memory_bytes >= 0:
-                            pod_data = {
+                            # Calculate CPU percentage (assuming 4-core nodes as baseline)
+                            cpu_percentage = self._convert_millicores_to_percentage(cpu_millicores)
+                            memory_percentage = self._convert_bytes_to_percentage(memory_bytes)
+                            
+                            # Determine severity level for ALL pods
+                            severity = self._categorize_cpu_usage_severity(cpu_millicores, cpu_percentage)
+                            
+                            # ===== CRITICAL FIX: CREATE WORKLOAD DATA FOR ALL PODS =====
+                            workload_entry = {
                                 'namespace': namespace,
                                 'pod': pod_name,
+                                'name': pod_name,  # Alias for compatibility
                                 'cpu_millicores': cpu_millicores,
                                 'memory_bytes': memory_bytes,
-                                'cpu_percentage': self._convert_millicores_to_percentage(cpu_millicores),
-                                'memory_percentage': self._convert_bytes_to_percentage(memory_bytes),
+                                'cpu_percentage': cpu_percentage,
+                                'memory_percentage': memory_percentage,
+                                'cpu_cores': cpu_millicores / 1000,
+                                'severity': severity,
+                                'category': self._categorize_cpu_usage(cpu_millicores),
                                 'line_number': line_num,
-                                'raw_line': line.strip()
+                                'raw_line': line.strip(),
+                                'type': 'pod_metrics',
+                                'saved_unconditionally': True  # 🆕 Flag to indicate this was saved regardless of CPU
                             }
                             
-                            workload_data.append(pod_data)
+                            # ===== SAVE ALL WORKLOADS UNCONDITIONALLY =====
+                            workload_data['pods'].append(workload_entry)
+                            workload_data['all_workloads'].append(workload_entry)  # 🆕 Save ALL workloads
+                            
+                            # Add to severity breakdown
+                            workload_data['cpu_severity_breakdown'][severity].append(workload_entry)
+                            
                             total_cpu_millicores += cpu_millicores
                             total_memory_bytes += memory_bytes
                             parsed_lines += 1
                             
-                            # Track high CPU pods with multiple thresholds
-                            if (cpu_millicores > 500 or  # > 0.5 CPU cores
-                                self._convert_millicores_to_percentage(cpu_millicores) > 50):  # > 50% of node
+                            # ===== ALSO TRACK HIGH CPU PODS (FOR COMPATIBILITY) =====
+                            # Only add to high_cpu_pods if it meets high CPU criteria
+                            if (cpu_millicores > 500 or cpu_percentage > 50):
+                                high_cpu_entry = {
+                                    **workload_entry,
+                                    'high_cpu_reason': f'CPU: {cpu_millicores}m ({cpu_percentage:.1f}%)'
+                                }
+                                workload_data['high_cpu_pods'].append(high_cpu_entry)
                                 
-                                high_cpu_pods.append({
-                                    **pod_data,
-                                    'cpu_cores': cpu_millicores / 1000,
-                                    'category': self._categorize_cpu_usage(cpu_millicores)
-                                })
-                                
-                                logger.info(f"🔥 High CPU pod found: {namespace}/{pod_name} = {cpu_millicores}m ({self._convert_millicores_to_percentage(cpu_millicores):.1f}%)")
-                                
+                                logger.info(f"🔥 High CPU pod: {namespace}/{pod_name} = {cpu_millicores}m ({cpu_percentage:.1f}%)")
+                            
+                            # Log ALL workloads being saved (not just high CPU ones)
+                            logger.debug(f"💾 SAVED WORKLOAD: {namespace}/{pod_name} = {cpu_millicores}m ({cpu_percentage:.1f}%) [severity: {severity}]")
+                            
                 except Exception as parse_error:
                     logger.warning(f"⚠️ Error parsing pod metrics line {line_num}: {parse_error}")
                     logger.debug(f"🔧 Problematic line: {line}")
                     continue
             
-            if not workload_data:
+            # Update totals
+            workload_data['resource_totals']['cpu_millicores'] = total_cpu_millicores
+            workload_data['resource_totals']['memory_bytes'] = total_memory_bytes
+            
+            if not workload_data['all_workloads']:
                 logger.warning("⚠️ No valid workload data parsed from pod metrics")
-                return None
+                return workload_data  # Still return the structure
+            
+            # ===== AGGREGATE BY NAMESPACE (FOR ALL WORKLOADS) =====
+            for workload in workload_data['all_workloads']:
+                namespace = workload['namespace']
+                
+                if namespace not in workload_data['namespace_aggregates']:
+                    workload_data['namespace_aggregates'][namespace] = {
+                        'pod_count': 0,
+                        'total_cpu': 0,
+                        'total_memory': 0,
+                        'workload_list': []
+                    }
+                
+                workload_data['namespace_aggregates'][namespace]['pod_count'] += 1
+                workload_data['namespace_aggregates'][namespace]['total_cpu'] += workload['cpu_millicores']
+                workload_data['namespace_aggregates'][namespace]['total_memory'] += workload['memory_bytes']
+                workload_data['namespace_aggregates'][namespace]['workload_list'].append(workload)
+            
+            # ===== CALCULATE DISTRIBUTION STATS =====
+            total_workloads = len(workload_data['all_workloads'])
+            high_cpu_count = len(workload_data['high_cpu_pods'])
+            
+            workload_data['workload_distribution'] = {
+                'total_workloads': total_workloads,
+                'high_cpu_count': high_cpu_count,
+                'normal_cpu_count': total_workloads - high_cpu_count,
+                'high_cpu_percentage': (high_cpu_count / total_workloads * 100) if total_workloads > 0 else 0,
+                'severity_counts': {
+                    severity: len(pods) for severity, pods in workload_data['cpu_severity_breakdown'].items()
+                }
+            }
             
             # Calculate cluster-wide workload metrics
             result = {
-                'total_workloads': len(workload_data),
+                **workload_data,
+                'total_workloads': total_workloads,  # 🆕 Total count of ALL workloads
                 'total_cpu_millicores': total_cpu_millicores,
                 'total_memory_bytes': total_memory_bytes,
-                'high_cpu_pods': high_cpu_pods,
-                'high_cpu_count': len(high_cpu_pods),
-                'average_cpu_per_pod': total_cpu_millicores / len(workload_data),
-                'average_memory_per_pod': total_memory_bytes / len(workload_data),
-                'workload_distribution': self._analyze_workload_distribution(workload_data),
-                'resource_concentration': self._calculate_resource_concentration(workload_data),
-                'raw_workload_data': workload_data,  # Limit to top 100 for performance, 'raw_workload_data': workload_data[:100],
+                'high_cpu_count': high_cpu_count,
+                'average_cpu_per_pod': total_cpu_millicores / total_workloads if total_workloads > 0 else 0,
+                'average_memory_per_pod': total_memory_bytes / total_workloads if total_workloads > 0 else 0,
+                'resource_concentration': self._calculate_resource_concentration(workload_data['all_workloads']),
+                'raw_workload_data': workload_data['all_workloads'],  # 🆕 ALL workloads, not limited
                 'parsing_stats': {
                     'lines_processed': len(lines),
                     'lines_parsed': parsed_lines,
                     'parsing_success_rate': (parsed_lines / max(len(lines), 1)) * 100
+                },
+                'data_completeness': {
+                    'all_workloads_saved': True,  # 🆕 Flag indicating all workloads are preserved
+                    'filtering_disabled': True,   # 🆕 Flag indicating no filtering was applied
+                    'conditional_save_disabled': True  # 🆕 Flag indicating conditional logic was bypassed
                 }
             }
             
-            logger.info(f"✅ Workload metrics: {len(workload_data)} pods, {len(high_cpu_pods)} high-CPU pods")
+            # ===== CRITICAL SUCCESS LOGGING =====
+            logger.info(f"✅ FIXED: ALL workload metrics collected - {total_workloads} total workloads")
+            logger.info(f"📊 Breakdown: {high_cpu_count} high-CPU, {total_workloads - high_cpu_count} normal-CPU")
+            logger.info(f"📊 Severity breakdown: normal={len(workload_data['cpu_severity_breakdown']['normal'])}, moderate={len(workload_data['cpu_severity_breakdown']['moderate'])}, high={len(workload_data['cpu_severity_breakdown']['high'])}, critical={len(workload_data['cpu_severity_breakdown']['critical'])}")
+            logger.info(f"✅ Data saved unconditionally for ALL {total_workloads} workloads")
+            
             return result
             
         except Exception as e:
             logger.error(f"❌ Error getting workload-level metrics: {e}")
-            return None
+            # Return empty structure instead of None to maintain data flow
+            return {
+                'pods': [],
+                'all_workloads': [],
+                'high_cpu_pods': [],
+                'total_workloads': 0,
+                'namespace_aggregates': {},
+                'data_completeness': {
+                    'all_workloads_saved': False,
+                    'error_occurred': True,
+                    'error_message': str(e)
+                }
+            }
 
-    def _categorize_cpu_usage(self, cpu_millicores: float) -> str:
-        """Categorize CPU usage levels"""
-        if cpu_millicores >= 2000:  # >= 2 CPU cores
-            return 'very_high'
-        elif cpu_millicores >= 1000:  # >= 1 CPU core
+    def _categorize_cpu_usage_severity(self, cpu_millicores: float, cpu_percentage: float) -> str:
+        """
+        Categorize CPU usage severity for ALL workloads
+        """
+        if cpu_millicores >= 4000 or cpu_percentage >= 100:  # >= 4 CPU cores or 100%
+            return 'critical'
+        elif cpu_millicores >= 2000 or cpu_percentage >= 75:  # >= 2 CPU cores or 75%
             return 'high'
-        elif cpu_millicores >= 500:  # >= 0.5 CPU cores
+        elif cpu_millicores >= 1000 or cpu_percentage >= 50:  # >= 1 CPU core or 50%
             return 'moderate'
         else:
             return 'normal'
