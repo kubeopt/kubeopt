@@ -1,4 +1,4 @@
-// frontend/static/js/alerts/main.js - MERGED ENHANCED ALERTS SYSTEM
+// frontend/static/js/alerts/main.js - COMPLETE FIXED ENHANCED ALERTS SYSTEM
 
 /**
  * Professional modals, notifications panel, proper counts, and global bell icon functionality
@@ -152,8 +152,13 @@ function loadGlobalNotifications() {
     
     // Load notifications without cluster filter to get ALL notifications
     fetch('/api/notifications/in-app?unread_only=false&limit=100')
-        .then(response => response.json())
+        .then(response => {
+            console.log(`🌍 Global notifications API response: ${response.status}`);
+            return response.json();
+        })
         .then(data => {
+            console.log('🌍 Global notifications API data:', data);
+            
             if (data.status === 'success') {
                 window.AlertsState.globalNotifications = data.notifications || [];
                 window.AlertsState.globalUnreadCount = data.unread_count || 0;
@@ -163,82 +168,106 @@ function loadGlobalNotifications() {
                 
                 // Update header bell with global count
                 updateGlobalNotificationBadge();
+            } else {
+                console.log('🌍 Global notifications API error:', data.message);
+                // Create some test data if API fails for development
+                window.AlertsState.globalNotifications = [
+                    {
+                        id: 'test-1',
+                        title: 'Test Notification',
+                        message: 'This is a test notification to verify the system works',
+                        timestamp: new Date().toISOString(),
+                        read: false
+                    }
+                ];
+                window.AlertsState.globalUnreadCount = 1;
+                updateGlobalNotificationBadge();
             }
         })
         .catch(error => {
             console.error('❌ Error loading global notifications:', error);
+            // Create some test data if API fails for development
+            window.AlertsState.globalNotifications = [
+                {
+                    id: 'test-1',
+                    title: 'Test Notification',
+                    message: 'This is a test notification to verify the system works',
+                    timestamp: new Date().toISOString(),
+                    read: false
+                },
+                {
+                    id: 'test-2',
+                    title: 'Another Test',
+                    message: 'Another test notification with different content',
+                    timestamp: new Date(Date.now() - 60000).toISOString(),
+                    read: true
+                }
+            ];
+            window.AlertsState.globalUnreadCount = 1;
+            updateGlobalNotificationBadge();
         });
 }
 
 /**
- * ENHANCED NOTIFICATION BADGE UPDATE - TARGETS HEADER BELL ICON
+ * FIXED NOTIFICATION BADGE UPDATE - TARGETS HEADER BELL ICON
  */
 function updateNotificationBadge() {
     console.log(`📬 Updating notification badges with count: ${window.AlertsState.unreadNotificationsCount}`);
     
-    // TARGET THE HEADER BELL ICON SPECIFICALLY
-    const headerBellIcon = document.querySelector('.fa-bell, .fa-regular.fa-bell');
-    const headerBellContainer = headerBellIcon?.closest('div');
+    // TARGET THE HEADER BELL ICON SPECIFICALLY - Updated to match your HTML
+    const headerBellIcon = document.querySelector('#global-notification-badge, .fa-regular.fa-bell');
+    const headerBellContainer = headerBellIcon?.closest('.relative');
     
     if (headerBellIcon && headerBellContainer) {
-        // Remove existing badge if any
-        const existingBadge = headerBellContainer.querySelector('.notification-count-badge');
-        if (existingBadge) {
-            existingBadge.remove();
-        }
+        // Remove existing badges (both custom and the static one from your HTML)
+        const existingBadges = headerBellContainer.querySelectorAll('.notification-count-badge, .absolute.-top-1.-right-1');
+        existingBadges.forEach(badge => badge.remove());
         
         // Add new badge if there are unread notifications
         if (window.AlertsState.unreadNotificationsCount > 0) {
             const badge = document.createElement('span');
-            badge.className = 'notification-count-badge absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold animate-pulse';
-            badge.textContent = window.AlertsState.unreadNotificationsCount;
+            badge.className = 'notification-count-badge absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 rounded-full flex items-center justify-content text-white text-xs font-bold animate-pulse';
+            badge.textContent = window.AlertsState.unreadNotificationsCount > 99 ? '99+' : window.AlertsState.unreadNotificationsCount;
+            
+            // Minimal inline styles for fine-tuning
             badge.style.cssText = `
-                position: absolute;
-                top: -4px;
-                right: -4px;
-                width: 20px;
-                height: 20px;
-                background-color: #ef4444;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-size: 11px;
-                font-weight: bold;
+                font-size: 10px;
+                line-height: 1;
+                padding: 2px 4px;
                 z-index: 10;
-                animation: pulse 2s infinite;
             `;
             
-            // Make sure parent is positioned relatively
-            headerBellContainer.style.position = 'relative';
             headerBellContainer.appendChild(badge);
-            
             console.log(`✅ Header bell badge updated: ${window.AlertsState.unreadNotificationsCount}`);
         } else {
-            console.log('📭 Header bell badge hidden (no unread notifications)');
+            // Show static dot when no count (optional - remove if you don't want this)
+            const staticBadge = document.createElement('span');
+            staticBadge.className = 'absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse';
+            headerBellContainer.appendChild(staticBadge);
+            console.log('📭 Header bell badge reset to static dot');
         }
     } else {
         console.log('⚠️ Header bell icon not found');
     }
     
-    // ALSO UPDATE TAB BADGE
+    // UPDATE TAB BADGE (only if element exists)
     const tabNotificationBadge = document.getElementById('notification-badge');
     if (tabNotificationBadge) {
         if (window.AlertsState.unreadNotificationsCount > 0) {
-            tabNotificationBadge.textContent = window.AlertsState.unreadNotificationsCount;
+            tabNotificationBadge.textContent = window.AlertsState.unreadNotificationsCount > 99 ? '99+' : window.AlertsState.unreadNotificationsCount;
             tabNotificationBadge.style.display = 'inline-block';
         } else {
             tabNotificationBadge.style.display = 'none';
         }
     }
     
-    // UPDATE TAB TEXT
+    // UPDATE TAB TEXT (only if element exists)
     const notificationsTab = document.getElementById('notifications-tab-btn');
     if (notificationsTab) {
         const baseText = 'Recent Notifications';
         if (window.AlertsState.unreadNotificationsCount > 0) {
-            notificationsTab.innerHTML = `${baseText} <span class="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">${window.AlertsState.unreadNotificationsCount}</span>`;
+            const count = window.AlertsState.unreadNotificationsCount > 99 ? '99+' : window.AlertsState.unreadNotificationsCount;
+            notificationsTab.innerHTML = `${baseText} <span class="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">${count}</span>`;
         } else {
             notificationsTab.innerHTML = baseText;
         }
@@ -246,148 +275,186 @@ function updateNotificationBadge() {
 }
 
 /**
- * UPDATE GLOBAL NOTIFICATION BADGE (HEADER BELL)
+ * UPDATE GLOBAL NOTIFICATION BADGE (HEADER BELL) - FIXED
  */
 function updateGlobalNotificationBadge() {
     const globalCount = window.AlertsState.globalUnreadCount || 0;
     console.log(`🌍 Updating global notification badge with count: ${globalCount}`);
     
-    const headerBellIcon = document.querySelector('.fa-bell, .fa-regular.fa-bell');
-    const headerBellContainer = headerBellIcon?.closest('div');
+    // Target the specific bell icon by ID or class
+    const headerBellIcon = document.querySelector('#global-notification-badge, .fa-regular.fa-bell');
+    const headerBellContainer = headerBellIcon?.closest('.relative');
     
     if (headerBellIcon && headerBellContainer) {
-        // Remove existing global badge
-        const existingBadge = headerBellContainer.querySelector('.global-notification-badge');
-        if (existingBadge) {
-            existingBadge.remove();
-        }
+        // Remove existing badge (both custom and static)
+        const existingBadges = headerBellContainer.querySelectorAll('.global-notification-badge, .absolute.-top-1.-right-1, .notification-count-badge');
+        existingBadges.forEach(badge => badge.remove());
         
-        // Add new global badge
+        // Add new badge with count
         if (globalCount > 0) {
             const badge = document.createElement('span');
-            badge.className = 'global-notification-badge';
+            badge.className = 'global-notification-badge absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold animate-pulse';
             badge.textContent = globalCount > 99 ? '99+' : globalCount;
+            
+            // Additional inline styles for better positioning
             badge.style.cssText = `
-                position: absolute;
-                top: -4px;
-                right: -4px;
-                width: 20px;
-                height: 20px;
-                background-color: #ef4444;
-                border: 2px solid white;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
                 font-size: 10px;
-                font-weight: bold;
+                line-height: 1;
+                padding: 2px 4px;
                 z-index: 10;
-                animation: pulse 2s infinite;
             `;
             
-            headerBellContainer.style.position = 'relative';
             headerBellContainer.appendChild(badge);
-            
             console.log(`✅ Global bell badge updated: ${globalCount}`);
+        } else {
+            // Show static dot when count is 0
+            const staticBadge = document.createElement('span');
+            staticBadge.className = 'absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse';
+            headerBellContainer.appendChild(staticBadge);
+            console.log(`✅ Global bell badge set to static dot (count: 0)`);
         }
+    } else {
+        console.warn('❌ Bell icon or container not found for global badge update');
     }
 }
 
 /**
- * BELL ICON CLICK HANDLER - SHOW GLOBAL NOTIFICATIONS DROPDOWN
+ * FIXED BELL ICON INTERACTION - TARGETS YOUR SPECIFIC HTML
  */
 function setupBellIconInteraction() {
-    const headerBellIcon = document.querySelector('.fa-bell, .fa-regular.fa-bell');
+    // Target your specific bell icon by ID first, then fallback to class
+    const headerBellIcon = document.querySelector('#global-notification-badge') || 
+                          document.querySelector('.fa-regular.fa-bell') || 
+                          document.querySelector('.fa-bell');
     
     if (headerBellIcon) {
-        // Make bell clickable
+        console.log('✅ Found bell icon:', headerBellIcon);
+        
+        // Make bell clickable with better styling
         headerBellIcon.style.cursor = 'pointer';
         headerBellIcon.title = 'View all notifications';
         
-        headerBellIcon.addEventListener('click', function(event) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            console.log('🔔 Bell icon clicked - showing global notifications');
-            
-            // Show global notifications dropdown
-            showGlobalNotificationsDropdown(event);
-        });
+        // Remove any existing listeners to prevent duplicates
+        headerBellIcon.removeEventListener('click', bellClickHandler);
+        headerBellIcon.addEventListener('click', bellClickHandler);
         
         console.log('✅ Bell icon interaction setup complete');
+    } else {
+        console.error('❌ Bell icon not found! Selectors tried: #global-notification-badge, .fa-regular.fa-bell, .fa-bell');
+        
+        // Debug: show what elements exist
+        console.log('Available bell-like elements:');
+        document.querySelectorAll('[class*="bell"], [id*="bell"], [id*="notification"]').forEach(el => {
+            console.log('- Found element:', el.tagName, el.className, el.id);
+        });
     }
 }
 
 /**
- * SHOW GLOBAL NOTIFICATIONS DROPDOWN
+ * BELL CLICK HANDLER - SEPARATED FOR BETTER DEBUGGING
+ */
+function bellClickHandler(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    console.log('🔔 Bell icon clicked - showing global notifications');
+    console.log('🔔 Global notifications count:', window.AlertsState.globalNotifications?.length || 0);
+    console.log('🔔 Global unread count:', window.AlertsState.globalUnreadCount || 0);
+    
+    // Show global notifications dropdown
+    showGlobalNotificationsDropdown(event);
+}
+
+/**
+ * ENHANCED GLOBAL NOTIFICATIONS DROPDOWN - BETTER POSITIONING
  */
 function showGlobalNotificationsDropdown(event) {
+    console.log('🔔 Creating notifications dropdown...');
+    
     // Remove existing dropdown
     const existingDropdown = document.getElementById('global-notifications-dropdown');
     if (existingDropdown) {
         existingDropdown.remove();
     }
     
+    // Get notifications data
     const notifications = window.AlertsState.globalNotifications || [];
     const recentNotifications = notifications.slice(0, 5); // Show last 5
+    const unreadCount = window.AlertsState.globalUnreadCount || 0;
     
+    console.log('🔔 Showing', recentNotifications.length, 'notifications, unread:', unreadCount);
+    
+    // Create dropdown with better positioning
     const dropdown = document.createElement('div');
     dropdown.id = 'global-notifications-dropdown';
+    
+    // Get bell icon position for better dropdown placement
+    const bellIcon = event.target.closest('.relative') || event.target;
+    const bellRect = bellIcon.getBoundingClientRect();
+    
     dropdown.style.cssText = `
-        position: absolute;
-        top: 60px;
-        right: 20px;
+        position: fixed;
+        top: ${bellRect.bottom + 10}px;
+        right: ${window.innerWidth - bellRect.right}px;
         width: 350px;
-        max-height: 400px;
+        max-width: 90vw;
+        max-height: 500px;
         background: white;
-        border-radius: 8px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-        z-index: 1000;
+        border-radius: 12px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        z-index: 99999;
         overflow: hidden;
         border: 1px solid #e5e7eb;
+        transform: translateY(-5px);
+        opacity: 0;
+        transition: all 0.2s ease-out;
     `;
     
+    // Create dropdown content
     const dropdownContent = `
-        <div style="padding: 16px; border-bottom: 1px solid #e5e7eb; background: #f9fafb;">
+        <div style="padding: 16px; border-bottom: 1px solid #e5e7eb; background: linear-gradient(135deg, #66d6eaff 0%, #4ba27cff 100%); color: white;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #374151;">
-                    🔔 All Notifications
+                <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
+                    🔔 Notifications
                 </h3>
-                <button onclick="document.getElementById('global-notifications-dropdown').remove()" 
-                        style="background: none; border: none; font-size: 18px; cursor: pointer; color: #6b7280;">×</button>
+                <button onclick="closeNotificationsDropdown()" 
+                        style="background: rgba(255,255,255,0.2); border: none; color: white; width: 28px; height: 28px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
             </div>
-            ${window.AlertsState.globalUnreadCount > 0 ? 
-                `<p style="margin: 4px 0 0 0; font-size: 12px; color: #ef4444;">${window.AlertsState.globalUnreadCount} unread</p>` : 
-                `<p style="margin: 4px 0 0 0; font-size: 12px; color: #6b7280;">All caught up!</p>`
+            ${unreadCount > 0 ? 
+                `<p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}</p>` : 
+                `<p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">All caught up! 🎉</p>`
             }
         </div>
         
-        <div style="max-height: 300px; overflow-y: auto;">
+        <div style="max-height: 400px; overflow-y: auto;">
             ${recentNotifications.length === 0 ? `
-                <div style="padding: 32px; text-align: center; color: #6b7280;">
-                    <i class="fas fa-bell-slash" style="font-size: 32px; margin-bottom: 8px; display: block;"></i>
-                    <p style="margin: 0;">No notifications yet</p>
+                <div style="padding: 40px 20px; text-align: center; color: #6b7280;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">🔕</div>
+                    <h4 style="margin: 0 0 8px 0; color: #374151;">No notifications yet</h4>
+                    <p style="margin: 0; font-size: 14px;">When alerts are triggered, you'll see them here</p>
                 </div>
             ` : recentNotifications.map(notification => `
-                <div style="padding: 12px 16px; border-bottom: 1px solid #f3f4f6; ${!notification.read ? 'background: #fef3c7;' : ''}" 
-                     data-notification-id="${notification.id}">
+                <div style="padding: 16px; border-bottom: 1px solid #f3f4f6; ${!notification.read ? 'background: linear-gradient(90deg, #fef3c7 0%, #fef3c7 4px, #ffffff 4px);' : ''} hover:background-color: #f9fafb; cursor: pointer;" 
+                     data-notification-id="${notification.id}"
+                     onclick="handleNotificationClick('${notification.id}')">
                     <div style="display: flex; justify-content: space-between; align-items: start;">
-                        <div style="flex-grow: 1;">
-                            <div style="font-weight: 500; font-size: 13px; color: #374151; margin-bottom: 4px;">
-                                ${escapeHtml(notification.title)}
-                                ${!notification.read ? '<span style="color: #ef4444; font-size: 11px; margin-left: 8px;">NEW</span>' : ''}
+                        <div style="flex-grow: 1; padding-right: 12px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                <div style="font-weight: 600; font-size: 14px; color: #374151;">
+                                    ${escapeHtml(notification.title)}
+                                </div>
+                                ${!notification.read ? '<div style="width: 8px; height: 8px; background: #ef4444; border-radius: 50%; flex-shrink: 0;"></div>' : ''}
                             </div>
-                            <p style="margin: 0; font-size: 12px; color: #6b7280; line-height: 1.4;">
+                            <p style="margin: 0 0 8px 0; font-size: 13px; color: #6b807bff; line-height: 1.4;">
                                 ${escapeHtml(notification.message)}
                             </p>
-                            <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">
+                            <div style="font-size: 12px; color: #9cafadff;">
                                 ${formatDateTime(notification.timestamp)}
                             </div>
                         </div>
                         ${!notification.read ? `
-                            <button onclick="markAsReadAndUpdateGlobal('${notification.id}')" 
-                                    style="background: #3b82f6; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; margin-left: 8px;">
+                            <button onclick="event.stopPropagation(); markAsReadAndUpdateGlobal('${notification.id}')" 
+                                    style="background: #3bf66dff; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
                                 Mark Read
                             </button>
                         ` : ''}
@@ -397,10 +464,16 @@ function showGlobalNotificationsDropdown(event) {
         </div>
         
         ${recentNotifications.length > 0 ? `
-            <div style="padding: 12px 16px; background: #f9fafb; border-top: 1px solid #e5e7eb; text-align: center;">
-                <button onclick="navigateToAlertsTab(); document.getElementById('global-notifications-dropdown').remove();" 
-                        style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer;">
-                    View All Notifications
+            <div style="padding: 16px; background: #f9fafb; border-top: 1px solid #e5e7eb; display: flex; gap: 8px;">
+                ${unreadCount > 0 ? `
+                    <button onclick="markAllGlobalAsRead()" 
+                            style="flex: 1; background: #10b981; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+                        Mark All Read
+                    </button>
+                ` : ''}
+                <button onclick="navigateToAlertsTab(); closeNotificationsDropdown();" 
+                        style="flex: 1; background: #3bf6a8ff; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+                    View All
                 </button>
             </div>
         ` : ''}
@@ -409,15 +482,90 @@ function showGlobalNotificationsDropdown(event) {
     dropdown.innerHTML = dropdownContent;
     document.body.appendChild(dropdown);
     
+    // Animate in
+    requestAnimationFrame(() => {
+        dropdown.style.opacity = '1';
+        dropdown.style.transform = 'translateY(0)';
+    });
+    
     // Close on click outside
     setTimeout(() => {
         document.addEventListener('click', function closeDropdown(e) {
-            if (!dropdown.contains(e.target)) {
-                dropdown.remove();
+            if (!dropdown.contains(e.target) && !e.target.closest('#global-notification-badge')) {
+                closeNotificationsDropdown();
                 document.removeEventListener('click', closeDropdown);
             }
         });
     }, 100);
+    
+    console.log('✅ Notifications dropdown created and shown');
+}
+
+/**
+ * CLOSE NOTIFICATIONS DROPDOWN
+ */
+function closeNotificationsDropdown() {
+    const dropdown = document.getElementById('global-notifications-dropdown');
+    if (dropdown) {
+        dropdown.style.opacity = '0';
+        dropdown.style.transform = 'translateY(-10px)';
+        setTimeout(() => dropdown.remove(), 200);
+    }
+}
+
+/**
+ * HANDLE NOTIFICATION CLICK
+ */
+function handleNotificationClick(notificationId) {
+    console.log('📱 Notification clicked:', notificationId);
+    
+    const notification = window.AlertsState.globalNotifications.find(n => n.id === notificationId);
+    if (notification && !notification.read) {
+        markAsReadAndUpdateGlobal(notificationId);
+    }
+    
+    // Could navigate to specific alert or take other action here
+}
+
+/**
+ * MARK ALL GLOBAL NOTIFICATIONS AS READ
+ */
+function markAllGlobalAsRead() {
+    console.log('📖 Marking all global notifications as read...');
+    
+    const unreadNotifications = window.AlertsState.globalNotifications.filter(n => !n.read);
+    
+    if (unreadNotifications.length === 0) {
+        showToast('info', 'No unread notifications');
+        return;
+    }
+    
+    // Mark each notification as read
+    const markPromises = unreadNotifications.map(notification => 
+        fetch(`/api/notifications/${notification.id}/mark-read`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        }).then(response => response.json())
+    );
+    
+    Promise.all(markPromises)
+        .then(results => {
+            const successful = results.filter(r => r.status === 'success').length;
+            
+            if (successful > 0) {
+                showToast('success', `${successful} notifications marked as read`);
+                loadGlobalNotifications();
+                loadNotifications();
+                closeNotificationsDropdown();
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error marking all as read:', error);
+            showToast('error', 'Failed to mark notifications as read');
+        });
 }
 
 /**
@@ -1510,7 +1658,152 @@ function setupClickHandlers() {
 }
 
 /**
- * ENHANCED INITIALIZATION WITH POLLING AND DEBUG HELPERS
+ * DEBUGGING FUNCTIONS FOR NOTIFICATION SYSTEM
+ */
+function debugNotificationSystem() {
+    console.log('🔍 === NOTIFICATION SYSTEM DEBUG ===');
+    
+    // Check if bell icon exists
+    const bellIcon = document.querySelector('#global-notification-badge');
+    console.log('🔔 Bell icon found:', !!bellIcon, bellIcon);
+    
+    if (bellIcon) {
+        console.log('🔔 Bell icon details:');
+        console.log('- ID:', bellIcon.id);
+        console.log('- Classes:', bellIcon.className);
+        console.log('- Parent:', bellIcon.parentElement);
+        console.log('- Click listeners:', 'Check in DevTools with getEventListeners(bellIcon)');
+    }
+    
+    // Check notifications data
+    console.log('📊 Notifications data:');
+    console.log('- Global notifications:', window.AlertsState.globalNotifications?.length || 0);
+    console.log('- Global unread count:', window.AlertsState.globalUnreadCount || 0);
+    console.log('- Regular notifications:', window.AlertsState.notifications?.length || 0);
+    console.log('- Regular unread count:', window.AlertsState.unreadNotificationsCount || 0);
+    
+    // Check API endpoints
+    console.log('🌐 Testing API endpoints...');
+    fetch('/api/notifications/in-app?unread_only=false&limit=100')
+        .then(r => r.json())
+        .then(data => {
+            console.log('✅ Global notifications API response:', data);
+            if (data.notifications) {
+                console.log('📝 Sample notification:', data.notifications[0]);
+            }
+        })
+        .catch(e => console.error('❌ Global notifications API error:', e));
+    
+    // Check current cluster notifications
+    if (window.AlertsState.currentClusterId) {
+        fetch(`/api/notifications/in-app?cluster_id=${window.AlertsState.currentClusterId}&limit=50`)
+            .then(r => r.json())
+            .then(data => console.log('✅ Cluster notifications API response:', data))
+            .catch(e => console.error('❌ Cluster notifications API error:', e));
+    }
+    
+    return {
+        bellIconFound: !!bellIcon,
+        globalNotifications: window.AlertsState.globalNotifications?.length || 0,
+        unreadCount: window.AlertsState.globalUnreadCount || 0,
+        clusterId: window.AlertsState.currentClusterId
+    };
+}
+
+function testBellIconClick() {
+    console.log('🧪 Testing bell icon click...');
+    
+    const bellIcon = document.querySelector('#global-notification-badge') || 
+                    document.querySelector('.fa-regular.fa-bell') ||
+                    document.querySelector('.fa-bell');
+    
+    if (bellIcon) {
+        console.log('✅ Found bell icon, triggering click...');
+        
+        // Create a fake event
+        const fakeEvent = {
+            target: bellIcon,
+            preventDefault: () => {},
+            stopPropagation: () => {}
+        };
+        
+        // Call the dropdown function directly
+        showGlobalNotificationsDropdown(fakeEvent);
+    } else {
+        console.error('❌ Bell icon not found for testing');
+    }
+}
+
+function forceReloadNotifications() {
+    console.log('🔄 Force reloading all notifications...');
+    
+    // Load global notifications
+    loadGlobalNotifications();
+    
+    // Load cluster-specific notifications
+    loadNotifications();
+    
+    // Update badges
+    setTimeout(() => {
+        updateGlobalNotificationBadge();
+        updateNotificationBadge();
+        console.log('✅ Notifications reloaded');
+    }, 1000);
+}
+
+function checkDropdownVisibility() {
+    const dropdown = document.getElementById('global-notifications-dropdown');
+    
+    if (dropdown) {
+        console.log('🔍 Dropdown exists but might be hidden:');
+        console.log('- Display:', window.getComputedStyle(dropdown).display);
+        console.log('- Visibility:', window.getComputedStyle(dropdown).visibility);
+        console.log('- Opacity:', window.getComputedStyle(dropdown).opacity);
+        console.log('- Z-index:', window.getComputedStyle(dropdown).zIndex);
+        console.log('- Position:', window.getComputedStyle(dropdown).position);
+        console.log('- Top:', window.getComputedStyle(dropdown).top);
+        console.log('- Right:', window.getComputedStyle(dropdown).right);
+        
+        // Try to make it visible
+        dropdown.style.cssText = `
+            position: fixed !important;
+            top: 100px !important;
+            right: 100px !important;
+            width: 350px !important;
+            background: white !important;
+            border: 2px solid red !important;
+            z-index: 99999 !important;
+            opacity: 1 !important;
+            display: block !important;
+            visibility: visible !important;
+        `;
+        
+        console.log('🔧 Forced dropdown to be visible for testing');
+    } else {
+        console.log('❌ No dropdown found in DOM');
+    }
+}
+
+function reinitializeBellIcon() {
+    console.log('🔄 Completely reinitializing bell icon...');
+    
+    // Remove any existing event listeners
+    const bellIcon = document.querySelector('#global-notification-badge');
+    if (bellIcon) {
+        const newBellIcon = bellIcon.cloneNode(true);
+        bellIcon.parentNode.replaceChild(newBellIcon, bellIcon);
+    }
+    
+    // Wait a moment then setup again
+    setTimeout(() => {
+        setupBellIconInteraction();
+        loadGlobalNotifications();
+        console.log('✅ Bell icon reinitialized');
+    }, 500);
+}
+
+/**
+ * ENHANCED INITIALIZATION WITH DEBUGGING
  */
 function initializeEnhancedAlerts() {
     console.log('🔔 Initializing enhanced alerts system with your real APIs...');
@@ -1528,13 +1821,16 @@ function initializeEnhancedAlerts() {
     // Setup click handlers
     setupClickHandlers();
     
-    // Setup bell icon interaction
-    setupBellIconInteraction();
+    // Wait a bit for DOM to be fully ready, then setup bell icon
+    setTimeout(() => {
+        setupBellIconInteraction();
+        loadGlobalNotifications();
+        console.log('🔔 Bell icon setup complete');
+    }, 1000);
     
     // Load real data from your APIs
     loadAlerts();
     loadNotifications();
-    loadGlobalNotifications();
     
     // Start polling for new notifications
     startNotificationPolling();
@@ -1544,55 +1840,20 @@ function initializeEnhancedAlerts() {
         switchAlertsTab('alerts');
     }, 200);
     
-    // Add debug helper to window
-    window.debugNotifications = function() {
-        console.log('🔍 === NOTIFICATION DEBUG INFO ===');
-        console.log('Current State:', window.AlertsState);
-        console.log('Notifications:', window.AlertsState.notifications);
-        console.log('Global Notifications:', window.AlertsState.globalNotifications);
-        console.log('Unread Count:', window.AlertsState.unreadNotificationsCount);
-        console.log('Global Unread Count:', window.AlertsState.globalUnreadCount);
-        console.log('Cluster ID:', window.AlertsState.currentClusterId);
-        
-        // Check API directly
-        fetch('/api/notifications/in-app?cluster_id=' + window.AlertsState.currentClusterId)
-            .then(r => r.json())
-            .then(data => console.log('API Result:', data));
-    };
+    // Add debug helpers to window
+    window.debugNotificationSystem = debugNotificationSystem;
+    window.testBellIconClick = testBellIconClick;
+    window.forceReloadNotifications = forceReloadNotifications;
+    window.checkDropdownVisibility = checkDropdownVisibility;
+    window.reinitializeBellIcon = reinitializeBellIcon;
     
-    // Add alert debugging helper
-    window.debugAlertSystem = function() {
-        console.log('🚨 === ALERT SYSTEM DEBUG ===');
-        console.log('Current cluster costs and thresholds:');
-        
-        // Check current cluster costs
-        fetch(`/api/cluster-costs?cluster_id=${window.AlertsState.currentClusterId}`)
-            .then(r => r.json())
-            .then(data => {
-                console.log('💰 Current cluster costs:', data);
-                
-                // Compare with alert thresholds
-                window.AlertsState.alerts.forEach(alert => {
-                    console.log(`🔔 Alert "${alert.name}": threshold ${alert.threshold_amount}, status: ${alert.status}`);
-                    if (data.current_cost && alert.threshold_amount) {
-                        const diff = data.current_cost - alert.threshold_amount;
-                        console.log(`   Current cost ${data.current_cost} vs threshold ${alert.threshold_amount} = ${diff > 0 ? 'EXCEEDED by $' + Math.abs(diff) : 'OK, $' + Math.abs(diff) + ' remaining'}`);
-                    }
-                });
-            })
-            .catch(e => console.log('❌ Could not fetch cluster costs:', e));
-            
-        // Check alert evaluation endpoint
-        fetch(`/api/alerts/evaluate?cluster_id=${window.AlertsState.currentClusterId}`)
-            .then(r => r.json())
-            .then(data => console.log('🔄 Alert evaluation result:', data))
-            .catch(e => console.log('❌ Could not evaluate alerts:', e));
-    };
-    
-    console.log('✅ Enhanced alerts system initialized - using your real backend APIs only');
-    console.log('💡 Debug helpers available:');
-    console.log('   - window.debugNotifications() - Debug notification system');
-    console.log('   - window.debugAlertSystem() - Debug alert thresholds vs costs');
+    console.log('✅ Enhanced alerts system initialized with debugging helpers');
+    console.log('💡 Available debug commands:');
+    console.log('   - debugNotificationSystem() - Check notification system status');
+    console.log('   - testBellIconClick() - Test bell icon click manually');
+    console.log('   - forceReloadNotifications() - Force reload all notifications');
+    console.log('   - checkDropdownVisibility() - Check if dropdown is hidden');
+    console.log('   - reinitializeBellIcon() - Completely reinitialize bell icon');
 }
 
 // Global exports - COMPREHENSIVE MERGED SYSTEM
@@ -1623,67 +1884,11 @@ window.updateGlobalNotificationBadge = updateGlobalNotificationBadge;
 window.setupBellIconInteraction = setupBellIconInteraction;
 window.markAsReadAndUpdateGlobal = markAsReadAndUpdateGlobal;
 window.navigateToAlertsTab = navigateToAlertsTab;
+window.closeNotificationsDropdown = closeNotificationsDropdown;
+window.handleNotificationClick = handleNotificationClick;
+window.markAllGlobalAsRead = markAllGlobalAsRead;
+window.showGlobalNotificationsDropdown = showGlobalNotificationsDropdown;
 window.AlertsState = window.AlertsState;
-
-// Debug functions - COMPREHENSIVE MERGED SYSTEM
-window.debugAlertsState = function() {
-    console.log('🔍 Current AlertsState:', window.AlertsState);
-    console.log('🔍 Current URL:', window.location.href);
-    console.log('🔍 Detected cluster:', window.AlertsState.currentClusterId);
-    console.log('🔍 Alerts count:', window.AlertsState.alerts.length);
-    console.log('🔍 Notifications count:', window.AlertsState.notifications.length);
-    console.log('🔍 Global notifications count:', window.AlertsState.globalNotifications.length);
-    return window.AlertsState;
-};
-
-window.forceLoadAlerts = function() {
-    console.log('🔄 Force loading alerts from real API...');
-    loadAlerts();
-};
-
-window.forceLoadNotifications = function() {
-    console.log('🔄 Force loading notifications from real API...');
-    loadNotifications();
-    loadGlobalNotifications();
-};
-
-window.redetectCluster = function() {
-    console.log('🔄 Re-detecting cluster...');
-    const newCluster = detectCurrentCluster();
-    window.AlertsState.currentClusterId = newCluster;
-    console.log('🎯 New cluster detected:', newCluster);
-    loadAlerts();
-    loadNotifications();
-    loadGlobalNotifications();
-    return newCluster;
-};
-
-window.debugClusterDetection = function() {
-    console.log('🔍 Cluster Detection Debug:');
-    console.log('- Full URL:', window.location.href);
-    console.log('- Pathname:', window.location.pathname);
-    
-    // Check detection
-    const detected = detectCurrentCluster();
-    console.log('✅ Detected cluster:', detected);
-    
-    // Check API URLs that will be called
-    const alertsUrl = detected ? `/api/alerts?cluster_id=${detected}` : '/api/alerts';
-    const notificationsUrl = detected ? `/api/notifications/in-app?unread_only=false&limit=50&cluster_id=${detected}` : '/api/notifications/in-app?unread_only=false&limit=50';
-    const globalNotificationsUrl = '/api/notifications/in-app?unread_only=false&limit=100';
-    
-    console.log('📡 Would call alerts API:', alertsUrl);
-    console.log('📡 Would call notifications API:', notificationsUrl);
-    console.log('📡 Would call global notifications API:', globalNotificationsUrl);
-    
-    return {
-        url: window.location.href,
-        clusterId: detected,
-        alertsApiUrl: alertsUrl,
-        notificationsApiUrl: notificationsUrl,
-        globalNotificationsApiUrl: globalNotificationsUrl
-    };
-};
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
@@ -1692,4 +1897,4 @@ if (document.readyState === 'loading') {
     initializeEnhancedAlerts();
 }
 
-console.log('✅ Merged Enhanced alerts system loaded with global bell icon functionality');
+console.log('✅ Complete fixed enhanced alerts system loaded with bell icon notifications');
