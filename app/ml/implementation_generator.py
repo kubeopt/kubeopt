@@ -1033,6 +1033,29 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                     cluster_config, security_frameworks, ml_session
                 )
             
+            if security_analysis:
+                try:
+                    from app.security.security_results_manager import security_results_manager
+                    
+                    # Extract cluster identifiers
+                    cluster_id = f"{resource_group}_{cluster_name}"
+                    
+                    # Store security results separately
+                    security_result_id = security_results_manager.store_security_results(
+                        cluster_id=cluster_id,
+                        resource_group=resource_group,
+                        cluster_name=cluster_name,
+                        security_analysis=security_analysis
+                    )
+                    
+                    # Add reference to ML session
+                    ml_session['security_result_id'] = security_result_id
+                    
+                    logger.info(f"✅ Security results stored separately: {security_result_id}")
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to store security results separately: {e}")
+                    
             # PHASE 4: Enhanced ML Plan Generation (with Security Integration)
             logger.info("🔄 PHASE 4: Enhanced ML Plan Generation")
             ml_plan = self._ml_generate_comprehensive_plan(

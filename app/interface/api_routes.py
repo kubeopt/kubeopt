@@ -30,6 +30,7 @@ from app.data.processing.analysis_engine import multi_subscription_analysis_engi
 from app.services.alerts_integration import initialize_alerts_system, register_alerts_routes, get_alerts_manager
 
 from app.interface.project_controls_api import integrate_project_controls_api
+from app.security.security_api_blueprint import security_api
 
 # FIXED: Import chart functions from correct location
 chart_generator_functions = {}
@@ -156,6 +157,7 @@ def register_api_routes(app):
         alerts_manager = initialize_alerts_system()
         register_alerts_routes(app)
         integrate_project_controls_api(app)
+        app.register_blueprint(security_api)
         logger.info("✅ Routes registered successfully")
     except Exception as e:
         logger.error(f"❌ Failed to register alerts routes: {e}")
@@ -1140,14 +1142,14 @@ def register_api_routes(app):
 
 # 🆕 ENHANCED BACKGROUND ANALYSIS WITH ALERT INTEGRATION
 def run_subscription_aware_background_analysis_with_alerts(cluster_id, resource_group, cluster_name, subscription_id, days=30, enable_pod_analysis=True):
-    """Enhanced background analysis that triggers alert checking"""
+    """Enhanced background analysis that triggers alert checking and stores security results"""
     try:
         logger.info(f"🚀 Starting subscription-aware analysis with alert checking for cluster: {cluster_id}")
         
         # Run the standard background analysis
         run_subscription_aware_background_analysis(cluster_id, resource_group, cluster_name, subscription_id, days, enable_pod_analysis)
         
-        # 🆕 AFTER ANALYSIS COMPLETES: Check for alerts
+        # After analysis completes: Check for alerts
         logger.info(f"🔍 Analysis completed, now checking alerts for cluster: {cluster_id}")
         
         # Get the completed analysis results
@@ -1155,6 +1157,21 @@ def run_subscription_aware_background_analysis_with_alerts(cluster_id, resource_
         
         if analysis_data:
             logger.info(f"✅ Retrieved analysis data for alert checking: {data_source}")
+            
+            # NEW: Check if security analysis was performed and store results
+            if 'security_analysis' in analysis_data and analysis_data['security_analysis']:
+                try:
+                    from app.security.security_results_manager import security_results_manager
+                    
+                    security_result_id = security_results_manager.store_security_results(
+                        cluster_id=cluster_id,
+                        resource_group=resource_group,
+                        cluster_name=cluster_name,
+                        security_analysis=analysis_data['security_analysis']
+                    )
+                    logger.info(f"✅ Security results stored: {security_result_id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to store security results: {e}")
             
             # Trigger alert checking
             triggered_alerts = trigger_alert_checking_after_analysis(cluster_id, analysis_data)

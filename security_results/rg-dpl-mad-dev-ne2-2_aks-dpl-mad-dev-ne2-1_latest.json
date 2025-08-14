@@ -1,0 +1,104 @@
+{
+  "result_id": "sec_rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1_20250814_230204",
+  "cluster_id": "rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1",
+  "resource_group": "rg-dpl-mad-dev-ne2-2",
+  "cluster_name": "aks-dpl-mad-dev-ne2-1",
+  "timestamp": "2025-08-14T23:02:04.362958",
+  "analysis": {
+    "timestamp": "2025-08-14T23:02:04.283723",
+    "confidence": 0.8875,
+    "frameworks_analyzed": [
+      "CIS",
+      "NIST"
+    ],
+    "based_on_real_data": true,
+    "analysis_errors": [],
+    "security_posture": {
+      "overall_score": 47.5283534048,
+      "grade": "F",
+      "breakdown": {
+        "rbac_score": 0,
+        "network_score": 100,
+        "encryption_score": 100,
+        "vulnerability_score": 0,
+        "compliance_score": 100.0,
+        "drift_score": 83.522356032
+      },
+      "trends": {
+        "trend": "declining",
+        "change": -8.238821983999998,
+        "recent_average": 53.961178016000005,
+        "historical_average": 62.2,
+        "data_points": 10,
+        "component_trends": {
+          "rbac": "declining",
+          "network": "improving",
+          "encryption": "improving",
+          "vulnerability": "declining",
+          "compliance": "stable",
+          "drift": "improving"
+        },
+        "time_range": {
+          "oldest": "2025-08-05 00:19:59.573130",
+          "newest": "2025-08-14 22:19:59.425744"
+        }
+      },
+      "based_on_actual_resources": true
+    },
+    "policy_compliance": {
+      "overall_compliance": 7.0,
+      "violations_count": 59,
+      "violations_by_severity": {
+        "CRITICAL": 8,
+        "HIGH": 14,
+        "MEDIUM": 37,
+        "LOW": 0
+      },
+      "compliance_by_category": {
+        "Security": 0,
+        "Network": 100.0,
+        "Governance": 0
+      },
+      "auto_remediable_violations": 0,
+      "actual_violations_found": true
+    },
+    "compliance_frameworks": {
+      "CIS": {
+        "overall_compliance": 99.99999999999999,
+        "grade": "A+",
+        "passed_controls": 3,
+        "failed_controls": 0,
+        "risk_level": "LOW",
+        "based_on_actual_controls": true
+      },
+      "NIST": {
+        "overall_compliance": 100.0,
+        "grade": "A+",
+        "passed_controls": 2,
+        "failed_controls": 0,
+        "risk_level": "LOW",
+        "based_on_actual_controls": true
+      }
+    },
+    "vulnerability_assessment": {
+      "scan_id": "scan_20250814_230204",
+      "total_vulnerabilities": 0,
+      "critical_vulnerabilities": 0,
+      "high_vulnerabilities": 0,
+      "exploitable_vulnerabilities": 0,
+      "coverage_percentage": 0.0,
+      "scan_duration": 2.7e-05,
+      "actual_containers_scanned": 0
+    },
+    "ml_context": {
+      "cluster_personality": "medium-scale-balanced-infrastructure-needs-optimization-hpa-ready-conservative-matureconfig",
+      "ml_confidence": 0.985,
+      "optimization_readiness": 0.985
+    }
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "complete": true,
+    "cached_until": "2025-08-15T00:02:04.362959"
+  }
+}

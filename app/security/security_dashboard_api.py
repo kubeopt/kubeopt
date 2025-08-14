@@ -23,6 +23,7 @@ from .security_posture_core import create_security_posture_engine, SecurityScore
 from .policy_analyzer import create_policy_analyzer, PolicyViolation, GovernanceReport
 from .compliance_framework import create_compliance_framework_engine, AuditReport, ComplianceHeatmap
 from .vulnerability_scanner import create_vulnerability_scanner, Vulnerability, ScanResult
+from app.security.security_results_manager import security_results_manager
 
 logger = logging.getLogger(__name__)
 
@@ -146,70 +147,64 @@ class SecurityDashboardAPI:
         
         # Security Overview Routes
         @self.app.get("/api/security/overview", response_model=SecurityOverviewResponse)
-        async def get_security_overview():
-            """Get comprehensive security overview"""
+        async def get_security_overview(self):
+            """Get comprehensive security overview from latest analysis"""
             try:
-                # Get latest security score
-                security_score = await self.security_engine.get_latest_security_score()
-                if not security_score:
-                    # Perform new analysis if no recent data
-                    security_score = await self.security_engine.analyze_security_posture()
+                # Get cluster ID from request context or session
+                cluster_id = self._get_current_cluster_id()
                 
-                # Get alert counts
-                alerts = await self.security_engine.get_security_alerts(limit=1000)
-                critical_alerts = len([a for a in alerts if a.severity == "CRITICAL"])
+                # Get latest security results
+                security_results = security_results_manager.get_latest_results(cluster_id)
                 
-                # Get vulnerability summary
-                latest_scan = await self.vulnerability_scanner.get_latest_scan_result()
-                critical_vulns = 0
-                scan_status = "NEVER_RUN"
+                if security_results and security_results.get('analysis'):
+                    analysis = security_results['analysis']
+                    
+                    # Extract real data from stored results
+                    security_posture = analysis.get('security_posture', {})
+                    vulnerability_assessment = analysis.get('vulnerability_assessment', {})
+                    policy_compliance = analysis.get('policy_compliance', {})
+                    
+                    return SecurityOverviewResponse(
+                        overall_score=security_posture.get('overall_score', 0),
+                        grade=security_posture.get('grade', 'N/A'),
+                        last_updated=datetime.fromisoformat(security_results['timestamp']),
+                        trend=self._calculate_trend(cluster_id),
+                        alerts_count=policy_compliance.get('violations_count', 0),
+                        critical_vulnerabilities=vulnerability_assessment.get('critical_vulnerabilities', 0),
+                        compliance_percentage=analysis.get('compliance_assessment', {}).get('overall_compliance', 0),
+                        scan_status='COMPLETED'
+                    )
                 
-                if latest_scan:
-                    critical_vulns = latest_scan.summary.get("CRITICAL", 0)
-                    scan_status = latest_scan.scan_status
-                
-                # Get compliance status
-                try:
-                    compliance_report = await self.compliance_engine.assess_framework_compliance("CIS")
-                    compliance_percentage = compliance_report.overall_compliance
-                except:
-                    compliance_percentage = 0.0
-                
-                return SecurityOverviewResponse(
-                    overall_score=security_score.overall_score,
-                    grade=security_score.grade,
-                    last_updated=security_score.last_updated,
-                    trend=security_score.trends.get("trend", "stable"),
-                    alerts_count=len(alerts),
-                    critical_vulnerabilities=critical_vulns,
-                    compliance_percentage=compliance_percentage,
-                    scan_status=scan_status
-                )
+                # Fallback to live analysis if no stored results
+                return await self._perform_live_analysis()
                 
             except Exception as e:
                 logger.error(f"Failed to get security overview: {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to get security overview: {str(e)}")
+                raise HTTPException(status_code=500, detail=str(e))
         
         @self.app.get("/api/security/score/detailed")
-        async def get_detailed_security_score():
-            """Get detailed security score breakdown"""
+        async def get_detailed_security_score(self):
+            """Get detailed security score breakdown from stored results"""
             try:
-                security_score = await self.security_engine.analyze_security_posture()
+                cluster_id = self._get_current_cluster_id()
+                security_results = security_results_manager.get_latest_results(cluster_id)
                 
-                return {
-                    "overall_score": security_score.overall_score,
-                    "grade": security_score.grade, 
-                    "breakdown": {
-                        "rbac_score": security_score.rbac_score,
-                        "network_score": security_score.network_score,
-                        "encryption_score": security_score.encryption_score,
-                        "vulnerability_score": security_score.vulnerability_score,
-                        "compliance_score": security_score.compliance_score,
-                        "drift_score": security_score.drift_score
-                    },
-                    "trends": security_score.trends,
-                    "last_updated": security_score.last_updated
-                }
+                if security_results and security_results.get('analysis'):
+                    analysis = security_results['analysis']
+                    security_posture = analysis.get('security_posture', {})
+                    
+                    return {
+                        "overall_score": security_posture.get('overall_score', 0),
+                        "grade": security_posture.get('grade', 'N/A'),
+                        "breakdown": security_posture.get('breakdown', {}),
+                        "trends": security_posture.get('trends', {}),
+                        "last_updated": security_results['timestamp'],
+                        "data_source": "stored_analysis",
+                        "cluster_name": security_results.get('cluster_name', 'Unknown')
+                    }
+                
+                # Fallback
+                return await self._get_live_security_score()
                 
             except Exception as e:
                 logger.error(f"Failed to get detailed security score: {e}")
@@ -217,41 +212,115 @@ class SecurityDashboardAPI:
         
         # Policy Violations Routes
         @self.app.get("/api/security/policy-violations", response_model=List[PolicyViolationResponse])
-        async def get_policy_violations(
-            severity: Optional[str] = Query(None, description="Filter by severity"),
-            limit: int = Query(100, description="Maximum number of results")
-        ):
-            """Get policy violations with optional filtering"""
+        async def get_policy_violations(self, severity: Optional[str] = None, limit: int = 100):
+            """Get policy violations from stored results"""
             try:
-                governance_report = await self.policy_analyzer.analyze_policy_compliance()
-                violations = governance_report.policy_violations
+                cluster_id = self._get_current_cluster_id()
+                security_results = security_results_manager.get_latest_results(cluster_id)
                 
-                # Filter by severity if specified
-                if severity:
-                    violations = [v for v in violations if v.severity == severity.upper()]
+                if security_results and security_results.get('analysis'):
+                    policy_compliance = security_results['analysis'].get('policy_compliance', {})
+                    violations = policy_compliance.get('violations', [])
+                    
+                    # Filter by severity if specified
+                    if severity:
+                        violations = [v for v in violations if v.get('severity') == severity.upper()]
+                    
+                    # Limit results
+                    violations = violations[:limit]
+                    
+                    return [self._format_violation(v) for v in violations]
                 
-                # Limit results
-                violations = violations[:limit]
-                
-                return [
-                    PolicyViolationResponse(
-                        violation_id=v.violation_id,
-                        policy_name=v.policy_name,
-                        severity=v.severity,
-                        resource_name=v.resource_name,
-                        namespace=v.namespace,
-                        description=v.violation_description,
-                        remediation_steps=v.remediation_steps,
-                        auto_remediable=v.auto_remediable,
-                        detected_at=v.detected_at
-                    )
-                    for v in violations
-                ]
+                # Fallback
+                return await self._get_live_policy_violations(severity, limit)
                 
             except Exception as e:
                 logger.error(f"Failed to get policy violations: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
         
+        def _get_current_cluster_id(self) -> str:
+            """Get current cluster ID from context"""
+            # This should be passed from your request context
+            # For now, you can get it from cluster_config
+            if hasattr(self, 'cluster_config'):
+                rg = self.cluster_config.get('resource_group', 'unknown')
+                name = self.cluster_config.get('cluster_name', 'unknown')
+                return f"{rg}_{name}"
+            return None
+
+        def _calculate_trend(self, cluster_id: str) -> str:
+            """Calculate security trend from historical data"""
+            history = security_results_manager.get_history(cluster_id, limit=2)
+            
+            if len(history) >= 2:
+                current = history[0]['summary']['security_score']
+                previous = history[1]['summary']['security_score']
+                
+                if current > previous + 5:
+                    return 'improving'
+                elif current < previous - 5:
+                    return 'declining'
+            
+            return 'stable'
+        
+        @self.app.post("/api/security/analyze/{cluster_id}")
+        async def trigger_security_analysis(cluster_id: str, background_tasks: BackgroundTasks):
+            """Trigger security analysis for a specific cluster"""
+            try:
+                # Start analysis in background
+                background_tasks.add_task(
+                    self._perform_cluster_security_analysis,
+                    cluster_id
+                )
+                
+                return {
+                    "message": "Security analysis started",
+                    "cluster_id": cluster_id,
+                    "status": "RUNNING"
+                }
+                
+            except Exception as e:
+                logger.error(f"Failed to trigger security analysis: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/api/security/results/{cluster_id}")
+        async def get_security_results(cluster_id: str):
+            """Get stored security results for a cluster"""
+            try:
+                results = security_results_manager.get_latest_results(cluster_id)
+                
+                if not results:
+                    raise HTTPException(status_code=404, detail="No security results found for this cluster")
+                
+                return {
+                    "cluster_id": cluster_id,
+                    "cluster_name": results.get('cluster_name'),
+                    "timestamp": results.get('timestamp'),
+                    "analysis": results.get('analysis'),
+                    "metadata": results.get('metadata')
+                }
+                
+            except Exception as e:
+                logger.error(f"Failed to get security results: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+
+        @self.app.get("/api/security/history/{cluster_id}")
+        async def get_security_history(cluster_id: str, limit: int = Query(10, description="Number of historical results")):
+            """Get security analysis history for a cluster"""
+            try:
+                history = security_results_manager.get_history(cluster_id, limit=limit)
+                
+                return {
+                    "cluster_id": cluster_id,
+                    "history": history,
+                    "count": len(history)
+                }
+                
+            except Exception as e:
+                logger.error(f"Failed to get security history: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+            
+            
         @self.app.get("/api/security/policy-violations/summary")
         async def get_policy_violations_summary():
             """Get policy violations summary statistics"""
