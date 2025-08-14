@@ -30,6 +30,7 @@
     <script src="{{ url_for('static', filename='js/alerts/main.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='js/implementation/main.js') }}"></script>
     <script src="{{ url_for('static', filename='js/controls/controls.js') }}"></script>
+    <!-- <script src="{{ url_for('static', filename='js/security/security.js') }}"></script> -->
 
     
     <!-- <script src="{{ url_for('static', filename='js/magic.js') }}"></script> -->
@@ -104,11 +105,20 @@
                     <li><a href="#dashboard-content" data-target="#dashboard-content" onclick="showContent('dashboard', this)" class="nav-link active-nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2"><i class="fas fa-chart-line w-8 text-center text-lg"></i><span class="font-semibold text-sm">DASHBOARD</span></a></li>
                     <li><a href="#implementation-content" data-target="#implementation-content" onclick="showContent('implementation', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2"><i class="fas fa-rocket w-8 text-center text-lg"></i><span class="font-semibold text-sm">IMPLEMENTATION</span></a></li>
                     <li><a href="#projectcontrols-content" data-target="#projectcontrols-content" onclick="showContent('projectcontrols', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2"><i class="fas fa-shield w-8 text-center text-lg"></i><span class="font-semibold text-sm">PROJECT CONTROLS</span></a></li>
-                    <li><a href="#securityposture-content" data-target="#securityposture-content" onclick="showContent('securityposture', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2" title="Your compliance features and security controls"><i class="fas fa-shield-alt w-8 text-center text-lg"></i><span class="font-semibold text-sm">SECURITY POSTURE</span></a></li>
+                    <li>
+    <a href="#securityposture-content" 
+       data-target="#securityposture-content" 
+       onclick="showContent('securityposture', this)" 
+       class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2"
+       title="Security posture and compliance monitoring">
+        <i class="fas fa-shield-alt w-8 text-center text-lg"></i>
+        <span class="font-semibold text-sm">SECURITY POSTURE</span>
+    </a>
+</li>
 
-                    <li><a href="#compliance-content" data-target="#compliance-content" onclick="showContent('compliance', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2" title="Audit trails, reports, and compliance documentation"><i class="fas fa-clipboard-list w-8 text-center text-lg"></i><span class="font-semibold text-sm">COMPLIANCE</span></a></li>
+                    <!-- <li><a href="#compliance-content" data-target="#compliance-content" onclick="showContent('compliance', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2" title="Audit trails, reports, and compliance documentation"><i class="fas fa-clipboard-list w-8 text-center text-lg"></i><span class="font-semibold text-sm">COMPLIANCE</span></a></li>
 
-                    <li><a href="#vulnerabilities-content" data-target="#vulnerabilities-content" onclick="showContent('vulnerabilities', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2" title="Security scanning results and vulnerability assessments"><i class="fas fa-search w-8 text-center text-lg"></i><span class="font-semibold text-sm">VULNERABILITIES</span></a></li>
+                    <li><a href="#vulnerabilities-content" data-target="#vulnerabilities-content" onclick="showContent('vulnerabilities', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2" title="Security scanning results and vulnerability assessments"><i class="fas fa-search w-8 text-center text-lg"></i><span class="font-semibold text-sm">VULNERABILITIES</span></a></li> -->
                     <li><a href="#alerts-content" data-target="#alerts-content" onclick="showContent('alerts', this)" class="nav-link flex items-center py-3 px-5 sidebar-text hover:bg-slate-700/50 rounded-lg mx-2"><i class="fas fa-bell w-8 text-center text-lg"></i><span class="font-semibold text-sm">ALERTS</span></a></li>
                     
                     <hr class="border-gray-600/40 my-4 mx-2">
@@ -654,70 +664,74 @@
                         </div>
                     </div>
 
+                    <div id="securityposture-content" class="content-section hidden">
+    <!-- Security dashboard will be dynamically loaded here -->
+</div>
+
                     <!-- Enhanced Alerts Content -->
 
                         <!-- In-App Notifications -->
                         <div id="alerts-content" class="tab-content-panel hidden space-y-6">
-    <!-- Simplified header with + button -->
-    <div class="bg-white rounded-xl shadow-lg p-6">
-        <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-bold text-gray-700 flex items-center">
-                <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center mr-3">
-                    <i class="fas fa-bell text-white text-lg"></i>
-                </div>
-                Alerts Management
-            </h2>
-            <!-- Change from rounded-full to rounded-lg -->
-<button onclick="showCreateAlertModal()" class="bg-green-500 text-white p-3 rounded-lg hover:bg-green-600 transition-all duration-300 shadow-lg hover:shadow-xl">
-    <i class="fas fa-plus text-lg"></i>
-</button>
-        </div>
+                                <!-- Simplified header with + button -->
+                                <div class="bg-white rounded-xl shadow-lg p-6">
+                                    <div class="flex justify-between items-center mb-6">
+                                        <h2 class="text-xl font-bold text-gray-700 flex items-center">
+                                            <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center mr-3">
+                                                <i class="fas fa-bell text-white text-lg"></i>
+                                            </div>
+                                            Alerts Management
+                                        </h2>
+                                        <!-- Change from rounded-full to rounded-lg -->
+                            <button onclick="showCreateAlertModal()" class="bg-green-500 text-white p-3 rounded-lg hover:bg-green-600 transition-all duration-300 shadow-lg hover:shadow-xl">
+                                <i class="fas fa-plus text-lg"></i>
+                            </button>
+                                    </div>
 
-        <!-- Tab Navigation -->
-        <div class="border-b border-gray-200 mb-6">
-            <nav class="-mb-px flex space-x-8">
-                <button onclick="switchAlertsTab('alerts')" id="alerts-tab-btn" class="alerts-tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 active">
-                    All Alerts
-                    <span class="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full" id="total-alerts-count">0</span>
-                </button>
-                <button onclick="switchAlertsTab('notifications')" id="notifications-tab-btn" class="alerts-tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
-                    Recent Notifications
-                    <span class="notification-badge ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full" id="notification-badge" style="display: none;">0</span>
-                </button>
-            </nav>
-        </div>
+                                    <!-- Tab Navigation -->
+                                    <div class="border-b border-gray-200 mb-6">
+                                        <nav class="-mb-px flex space-x-8">
+                                            <button onclick="switchAlertsTab('alerts')" id="alerts-tab-btn" class="alerts-tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300 active">
+                                                All Alerts
+                                                <span class="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full" id="total-alerts-count">0</span>
+                                            </button>
+                                            <button onclick="switchAlertsTab('notifications')" id="notifications-tab-btn" class="alerts-tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                                                Recent Notifications
+                                                <span class="notification-badge ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full" id="notification-badge" style="display: none;">0</span>
+                                            </button>
+                                        </nav>
+                                    </div>
 
-        <!-- Alerts Tab Content -->
-        <div id="alerts-tab-content" class="alerts-tab-content">
-            <!-- Filter buttons -->
-            <!-- <div class="flex justify-between items-center mb-4">
-                <div id="alerts-filter-buttons" class="flex space-x-2">
-                    <button onclick="filterAlerts('all')" class="filter-btn active px-3 py-1 text-sm rounded-full bg-blue-100 text-blue-700 border border-blue-200">
-                        All (<span id="all-count">0</span>)
-                    </button>
-                    <button onclick="filterAlerts('active')" class="filter-btn px-3 py-1 text-sm rounded-full bg-gray-100 text-gray-600 border border-gray-200">
-                        Active (<span id="active-count">0</span>)
-                    </button>
-                    <button onclick="filterAlerts('paused')" class="filter-btn px-3 py-1 text-sm rounded-full bg-gray-100 text-gray-600 border border-gray-200">
-                        Paused (<span id="paused-count">0</span>)
-                    </button>
-                </div>
-            </div> -->
-            
-            <!-- Alerts List Container -->
-            <div id="alerts-list-container" class="space-y-2 max-h-96 overflow-y-auto">
-                <!-- Dynamic alerts will be inserted here -->
-            </div>
-        </div>
+                                    <!-- Alerts Tab Content -->
+                                    <div id="alerts-tab-content" class="alerts-tab-content">
+                                        <!-- Filter buttons -->
+                                        <!-- <div class="flex justify-between items-center mb-4">
+                                            <div id="alerts-filter-buttons" class="flex space-x-2">
+                                                <button onclick="filterAlerts('all')" class="filter-btn active px-3 py-1 text-sm rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                                                    All (<span id="all-count">0</span>)
+                                                </button>
+                                                <button onclick="filterAlerts('active')" class="filter-btn px-3 py-1 text-sm rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                                                    Active (<span id="active-count">0</span>)
+                                                </button>
+                                                <button onclick="filterAlerts('paused')" class="filter-btn px-3 py-1 text-sm rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                                                    Paused (<span id="paused-count">0</span>)
+                                                </button>
+                                            </div>
+                                        </div> -->
+                                        
+                                        <!-- Alerts List Container -->
+                                        <div id="alerts-list-container" class="space-y-2 max-h-96 overflow-y-auto">
+                                            <!-- Dynamic alerts will be inserted here -->
+                                        </div>
+                                    </div>
 
-        <!-- Notifications Tab Content -->
-        <div id="notifications-tab-content" class="alerts-tab-content hidden">
-            <div id="in-app-notifications-container" class="space-y-2 max-h-96 overflow-y-auto">
-                <!-- Dynamic notifications will be inserted here -->
-            </div>
-        </div>
-    </div>
-</div>
+                                    <!-- Notifications Tab Content -->
+                                    <div id="notifications-tab-content" class="alerts-tab-content hidden">
+                                        <div id="in-app-notifications-container" class="space-y-2 max-h-96 overflow-y-auto">
+                                            <!-- Dynamic notifications will be inserted here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                     </div>
                 </div>
             </section>

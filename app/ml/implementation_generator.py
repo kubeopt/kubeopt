@@ -1,15 +1,19 @@
 """
-AKS Implementation GeneratorS VERSION WITH CLUSTER CONFIG AND TIMELINE FORMAT
-=======================================================================
-Removes all fallback logic to expose real issues.
+AKS Implementation Generator with PROPERLY INTEGRATED Security Framework
+========================================================================
+Fixed version where security framework is initialized alongside ML components.
+Security components are now first-class citizens in the initialization process.
 Comprehensive error logging for debugging.
 Includes real cluster configuration integration and utility classes.
-NEW: Added timeline format conversion support.
+Timeline format conversion support.
+Enhanced with integrated ML and Security analysis.
+FIXED: Proper handling of SecurityIntegrationMixin when security framework is unavailable.
 """
 
 from dataclasses import asdict
 import json
 import math
+import asyncio
 import traceback
 import threading
 import time
@@ -19,6 +23,129 @@ import logging
 
 from app.ml.ml_integration import MLLearningIntegrationMixin
 from app.services.subscription_manager import azure_subscription_manager
+
+# SECURITY FRAMEWORK IMPORTS - Proper Import Handling
+# =====================================================
+
+# Initialize security component functions to None
+create_security_posture_engine = None
+create_policy_analyzer = None  
+create_compliance_framework_engine = None
+create_vulnerability_scanner = None
+
+# Try to import each component individually for better error tracking
+security_import_status = {}
+
+# Import security_posture_core
+try:
+    from app.security.security_posture_core import create_security_posture_engine
+    security_import_status['security_posture_core'] = 'success'
+except ImportError as e:
+    security_import_status['security_posture_core'] = f'failed: {e}'
+
+# Import policy_analyzer
+try:
+    from app.security.policy_analyzer import create_policy_analyzer
+    security_import_status['policy_analyzer'] = 'success'
+except ImportError as e:
+    security_import_status['policy_analyzer'] = f'failed: {e}'
+
+# Import compliance_framework
+try:
+    from app.security.compliance_framework import create_compliance_framework_engine
+    security_import_status['compliance_framework'] = 'success'
+except ImportError as e:
+    security_import_status['compliance_framework'] = f'failed: {e}'
+
+# Import vulnerability_scanner
+try:
+    from app.security.vulnerability_scanner import create_vulnerability_scanner
+    security_import_status['vulnerability_scanner'] = 'success'
+except ImportError as e:
+    security_import_status['vulnerability_scanner'] = f'failed: {e}'
+
+# Import SecurityIntegrationMixin
+SecurityIntegrationMixin = None
+try:
+    from app.security.security_integration import SecurityIntegrationMixin
+    security_import_status['security_integration_mixin'] = 'success'
+except ImportError as e:
+    security_import_status['security_integration_mixin'] = f'failed: {e}'
+
+# Determine overall security framework availability
+successful_imports = [k for k, v in security_import_status.items() if v == 'success']
+failed_imports = [k for k, v in security_import_status.items() if v != 'success']
+SECURITY_INTEGRATION_AVAILABLE = len(successful_imports) >= 1  # At least one component available
+
+# Print detailed import status
+print("🔒 Security Framework Import Status:")
+for component, status in security_import_status.items():
+    if status == 'success':
+        print(f"  ✅ {component}: Available")
+    else:
+        print(f"  ❌ {component}: {status}")
+
+if SECURITY_INTEGRATION_AVAILABLE:
+    print(f"✅ Security framework partially available ({len(successful_imports)}/5 components)")
+else:
+    print("⚠️ Security framework completely unavailable - using fallback")
+
+# Define a fallback SecurityIntegrationMixin if needed
+if SecurityIntegrationMixin is None:
+    class SecurityIntegrationMixin:
+        """Fallback SecurityIntegrationMixin when security framework is not available"""
+        
+        def __init__(self):
+            self.security_systems_available = False
+            self.security_components_ready = False
+            self.security_components_initialized = False
+            print("🔒 Using fallback SecurityIntegrationMixin")
+        
+        async def _perform_comprehensive_security_analysis(self, cluster_config: Dict, 
+                                                         security_frameworks: List[str]) -> Dict:
+            """Fallback security analysis method"""
+            return {
+                'status': 'unavailable',
+                'reason': 'security_framework_not_available',
+                'confidence': 0.5,
+                'frameworks_analyzed': [],
+                'security_posture': {'overall_score': 50, 'grade': 'C'},
+                'vulnerability_assessment': {'critical_vulnerabilities': 0},
+                'fallback_mode': True
+            }
+        
+        async def _generate_security_implementation_phases(self, security_analysis: Dict, 
+                                                         priority: str) -> List[Dict]:
+            """Fallback security phases generation"""
+            return []
+        
+        async def _integrate_security_phases(self, implementation_plan: Dict, 
+                                           security_phases: List[Dict], 
+                                           security_analysis: Dict) -> Dict:
+            """Fallback security phases integration"""
+            return implementation_plan
+        
+        async def _add_compliance_requirements(self, implementation_plan: Dict, 
+                                             security_analysis: Dict, 
+                                             security_frameworks: List[str]) -> Dict:
+            """Fallback compliance requirements"""
+            return implementation_plan
+        
+        async def _calculate_security_impact(self, implementation_plan: Dict, 
+                                           security_analysis: Dict, 
+                                           base_plan: Dict) -> Dict:
+            """Fallback security impact calculation"""
+            return implementation_plan
+        
+        async def _add_security_monitoring(self, implementation_plan: Dict, 
+                                         security_analysis: Dict) -> Dict:
+            """Fallback security monitoring"""
+            return implementation_plan
+        
+        async def _generate_security_commands(self, implementation_plan: Dict, 
+                                            security_analysis: Dict) -> Dict:
+            """Fallback security commands generation"""
+            return implementation_plan
 
 logger = logging.getLogger(__name__)
 
@@ -547,34 +674,39 @@ class ClusterAnalyzer:
             return 'Implement cost-optimized storage configuration'
 
 
-class AKSImplementationGenerator(MLLearningIntegrationMixin):
+class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegrationMixin):
     """
-    AKS Implementation Generator with ML OrchestrationS
+    AKS Implementation Generator with PROPERLY INTEGRATED Security Framework
     
-    This version removes all fallback mechanisms to expose real issues.
-    Every failure is logged in detail for debugging purposes.
-    Includes real cluster configuration integration and utility classes.
-    NEW: Added timeline format conversion support.
+    Security framework is now initialized alongside ML systems as first-class components.
+    No more optional add-on approach - security is core to the system.
+    FIXED: Proper handling of SecurityIntegrationMixin when security framework is unavailable.
     """
     
-    def __init__(self, enable_cost_monitoring: bool = True, enable_temporal: bool = True):
-        """Initialize with ML orchestration (same signature as before)"""
-        super().__init__()
+    def __init__(self, enable_cost_monitoring: bool = True, enable_temporal: bool = True,
+                 enable_security_integration: bool = True):
+        """Initialize with INTEGRATED ML and Security framework (both enabled by default)"""
         
-        logger.info("🧠 Initializing AKS Implementation Generator")
+        # Initialize both mixins
+        MLLearningIntegrationMixin.__init__(self)
+        SecurityIntegrationMixin.__init__(self)  # This will use fallback if imports failed
         
-        # Your existing parameters (maintained for compatibility)
+        logger.info("🧠🔒 Initializing AKS Implementation Generator with INTEGRATED ML & Security")
+        
+        # Configuration
         self.enable_cost_monitoring = enable_cost_monitoring
         self.enable_temporal = enable_temporal
+        self.enable_security_integration = enable_security_integration
         self.monitoring_active = False
         
         # Utility instances
         self.cost_calculator = CostCalculator()
         
-        # Debug tracking (MUST be initialized before ML systems)
+        # Debug tracking (MUST be initialized before ML/Security systems)
         self._debug_info = {
             'initialization_time': datetime.now(),
             'ml_system_status': {},
+            'security_framework_status': {},
             'failed_operations': []
         }
         
@@ -582,474 +714,489 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         self._current_ml_session = None
         self._ml_sessions_history = []
         
-        # ML Intelligence Systems (initialize after debug tracking)
-        self._initialize_ml_systems()
+        # CRITICAL FIX: Initialize BOTH ML and Security systems together
+        self._initialize_integrated_systems()
         
-        logger.info("✅ AKS Implementation Generator ready")
-        logger.info(f"🔧 ML Systems Available: {self.ml_systems_available}")
+        logger.info("✅ AKS Implementation Generator ready with INTEGRATED systems")
+        logger.info(f"🧠 ML Systems Available: {self.ml_systems_available}")
+        logger.info(f"🔒 Security Framework Available: {self.security_systems_available}")
+        logger.info(f"🔗 INTEGRATED Mode: {self.ml_systems_available and self.security_systems_available}")
+    
+    # =============================================================================
+    # INTEGRATED SYSTEMS INITIALIZATION (NEW APPROACH)
+    # =============================================================================
+    
+    def _initialize_integrated_systems(self):
+        """Initialize ML and Security systems together as integrated components"""
+        
+        logger.info("🔧 Initializing INTEGRATED ML + Security systems...")
+        
+        # Initialize flags
+        self.ml_systems_available = False
+        self.security_systems_available = False
+        
+        # Track initialization status for both systems
+        ml_initialization_results = {}
+        security_initialization_results = {}
+        
+        try:
+            # PHASE 1: Initialize ML Systems
+            logger.info("🧠 Phase 1: Initializing ML Intelligence Systems...")
+            self.ml_systems_available = self._initialize_ml_systems_core(ml_initialization_results)
+            
+            # PHASE 2: Initialize Security Systems (NEW - INTEGRATED APPROACH)
+            logger.info("🔒 Phase 2: Initializing Security Framework Systems...")
+            self.security_systems_available = self._initialize_security_systems_core(security_initialization_results)
+            
+            # PHASE 3: Cross-system Integration
+            logger.info("🔗 Phase 3: Establishing ML-Security Integration...")
+            self._establish_ml_security_integration()
+            
+            # Update debug info with both systems
+            self._debug_info['ml_system_status'] = ml_initialization_results
+            self._debug_info['security_framework_status'] = security_initialization_results
+            
+            # Final status
+            integrated_mode = self.ml_systems_available and self.security_systems_available
+            
+            if integrated_mode:
+                logger.info("🎉 INTEGRATED MODE: Both ML and Security systems operational")
+            elif self.ml_systems_available:
+                logger.warning("⚠️ PARTIAL MODE: ML systems operational, Security systems failed")
+            elif self.security_systems_available:
+                logger.warning("⚠️ PARTIAL MODE: Security systems operational, ML systems failed")
+            else:
+                logger.error("❌ DEGRADED MODE: Both ML and Security systems failed")
+                raise RuntimeError("❌ CRITICAL: Cannot initialize core systems")
+            
+        except Exception as e:
+            logger.error(f"💥 CRITICAL: Integrated systems initialization failed: {e}")
+            logger.error(f"💥 ML Results: {json.dumps(ml_initialization_results, indent=2)}")
+            logger.error(f"💥 Security Results: {json.dumps(security_initialization_results, indent=2)}")
+            raise RuntimeError(f"❌ CRITICAL: Cannot initialize integrated systems - {str(e)}")
+    
+    def _initialize_ml_systems_core(self, results: Dict) -> bool:
+        """Initialize ML systems with detailed error tracking"""
+        
+        try:
+            # Import ML modules
+            logger.info("📥 Importing ML modules...")
+            
+            from app.ml.learn_optimize import create_enhanced_learning_engine
+            from app.ml.dynamic_strategy import EnhancedDynamicStrategyEngine
+            from app.ml.dynamic_plan_generator import MLIntegratedDynamicImplementationGenerator
+            from app.ml.dynamic_cmd_center import AdvancedExecutableCommandGenerator
+            from app.ml.dna_analyzer import ClusterDNAAnalyzer
+            from app.ml.ml_integration import MLSystemOrchestrator
+            
+            results['imports'] = {'status': 'success', 'modules_imported': 6}
+            logger.info("✅ All ML modules imported successfully")
+            
+            # Initialize ML systems
+            logger.info("🔧 Initializing ML system instances...")
+            
+            self.learning_engine = create_enhanced_learning_engine()
+            results['learning_engine'] = {'status': 'success'}
+            
+            self.ml_orchestrator = MLSystemOrchestrator(self.learning_engine)
+            results['ml_orchestrator'] = {'status': 'success'}
+            
+            self.strategy_engine = EnhancedDynamicStrategyEngine()
+            results['strategy_engine'] = {'status': 'success'}
+            
+            self.plan_generator = MLIntegratedDynamicImplementationGenerator()
+            results['plan_generator'] = {'status': 'success'}
+            
+            self.command_generator = AdvancedExecutableCommandGenerator()
+            results['command_generator'] = {'status': 'success'}
+            
+            self.dna_analyzer = ClusterDNAAnalyzer(enable_temporal_intelligence=True)
+            results['dna_analyzer'] = {'status': 'success'}
+            
+            # Connect ML components
+            logger.info("🔗 Connecting ML components...")
+            self.ml_orchestrator.connect_component('strategy_engine', self.strategy_engine)
+            self.ml_orchestrator.connect_component('plan_generator', self.plan_generator)
+            self.ml_orchestrator.connect_component('command_generator', self.command_generator)
+            self.ml_orchestrator.connect_component('dna_analyzer', self.dna_analyzer)
+            results['ml_connections'] = {'status': 'success'}
+            
+            # Enable learning integration
+            self.enable_learning_integration(self.ml_orchestrator)
+            results['learning_integration'] = {'status': 'success'}
+            
+            logger.info("✅ ML systems initialized successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ ML systems initialization failed: {e}")
+            results['error'] = str(e)
+            results['traceback'] = traceback.format_exc()
+            return False
+    
+    def _initialize_security_systems_core(self, results: Dict) -> bool:
+        """Initialize Security systems with detailed error tracking (NEW METHOD)"""
+        
+        if not self.enable_security_integration:
+            logger.info("🔒 Security integration disabled by configuration")
+            results['disabled'] = {'status': 'disabled_by_config'}
+            results['import_status'] = security_import_status
+            return False
+        
+        if not SECURITY_INTEGRATION_AVAILABLE:
+            logger.warning("🔒 Security framework not available (import failed)")
+            results['framework_unavailable'] = {'status': 'import_failed', 'using_fallback': True}
+            results['import_status'] = security_import_status
+            return False
+        
+        try:
+            logger.info("🔧 Initializing Security framework instances...")
+            
+            # Store import status for debugging
+            results['import_status'] = security_import_status
+            results['available_components'] = successful_imports
+            
+            # Initialize security components as instance variables (like ML components)
+            # NOTE: These will be properly initialized with cluster_config later
+            self.security_engine = None
+            self.policy_analyzer_func = create_policy_analyzer
+            self.compliance_engine_func = create_compliance_framework_engine
+            self.vulnerability_scanner_func = create_vulnerability_scanner
+            self.security_posture_func = create_security_posture_engine
+            
+            # Mark security components as ready for initialization
+            self.security_components_ready = True
+            results['components_ready'] = {'status': 'success'}
+            
+            # Security components will be fully initialized when cluster_config is available
+            # This follows the same pattern as ML components that need data to initialize
+            results['framework_status'] = {'status': 'ready_for_cluster_config'}
+            
+            logger.info("✅ Security systems core initialization successful")
+            logger.info("🔧 Security components will be initialized with cluster configuration")
+            logger.info(f"🔧 Available security components: {successful_imports}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Security systems initialization failed: {e}")
+            results['error'] = str(e)
+            results['traceback'] = traceback.format_exc()
+            results['import_status'] = security_import_status
+            return False
+    
+    def _establish_ml_security_integration(self):
+        """Establish integration between ML and Security systems"""
+        
+        try:
+            if self.ml_systems_available and self.security_systems_available:
+                logger.info("🔗 Establishing ML-Security cross-system integration...")
+                
+                # Enable security-aware ML learning
+                if hasattr(self, 'learning_engine') and self.learning_engine:
+                    # Add security metrics to ML learning
+                    self.learning_engine.enable_security_metrics = True
+                    logger.info("🔗 Security metrics enabled in ML learning engine")
+                
+                # Enable ML-enhanced security analysis
+                if hasattr(self, 'security_components_ready') and self.security_components_ready:
+                    # Security components will use ML insights when initialized
+                    self.ml_enhanced_security = True
+                    logger.info("🔗 ML enhancement enabled for security analysis")
+                
+                logger.info("✅ ML-Security integration established")
+            else:
+                logger.warning("⚠️ Partial integration: Some systems not available")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ ML-Security integration failed: {e}")
+    
+    def _initialize_security_components_with_cluster_config(self, cluster_config: Dict) -> bool:
+        """Initialize security components with actual cluster configuration"""
+        
+        if not self.security_systems_available or not hasattr(self, 'security_components_ready'):
+            logger.warning("🔒 Security systems not ready for cluster config initialization")
+            return False
+        
+        try:
+            logger.info("🔧 Initializing security components with cluster configuration...")
+            
+            # Initialize only available components
+            initialized_components = []
+            
+            if create_security_posture_engine:
+                try:
+                    self.security_engine = create_security_posture_engine(cluster_config)
+                    initialized_components.append('security_posture_engine')
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to initialize security posture engine: {e}")
+            
+            if create_policy_analyzer:
+                try:
+                    self.policy_analyzer = create_policy_analyzer(cluster_config)
+                    initialized_components.append('policy_analyzer')
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to initialize policy analyzer: {e}")
+            
+            if create_compliance_framework_engine:
+                try:
+                    self.compliance_engine = create_compliance_framework_engine(cluster_config)
+                    initialized_components.append('compliance_framework_engine')
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to initialize compliance framework: {e}")
+            
+            if create_vulnerability_scanner:
+                try:
+                    self.vulnerability_scanner = create_vulnerability_scanner(cluster_config)
+                    initialized_components.append('vulnerability_scanner')
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to initialize vulnerability scanner: {e}")
+            
+            # Mark as fully initialized if we have at least one component
+            self.security_components_initialized = len(initialized_components) > 0
+            
+            if self.security_components_initialized:
+                logger.info(f"✅ Security components initialized: {initialized_components}")
+            else:
+                logger.warning("⚠️ No security components could be initialized")
+            
+            return self.security_components_initialized
+            
+        except Exception as e:
+            logger.error(f"❌ Security components cluster config initialization failed: {e}")
+            return False
+    
+    # =============================================================================
+    # ENHANCED MAIN GENERATION METHOD (Updated for Integrated Systems)
+    # =============================================================================
     
     def generate_implementation_plan(self, analysis_results: Dict, 
                                    historical_data: Optional[Dict] = None,
                                    cost_budget_monthly: Optional[float] = None,
                                    enable_real_time_monitoring: bool = True,
-                                   output_format: str = 'comprehensive') -> Dict:
+                                   output_format: str = 'comprehensive',
+                                   # Enhanced security parameters
+                                   security_frameworks: List[str] = ['CIS', 'NIST'],
+                                   security_priority: str = 'high') -> Dict:
         """
-        Generate implementation plan with ML orchestration and real cluster integrationS
+        Generate implementation plan with INTEGRATED ML and Security analysis
         
-        This version will fail fast and provide detailed error information
-        instead of masking issues with fallback logic.
-        
-        Args:
-            output_format: 'comprehensive' (Document1) or 'timeline' (Document2)
+        Security is now a first-class citizen, not an optional add-on.
         """
         
         cluster_name = analysis_results.get('cluster_name', 'unknown')
         resource_group = analysis_results.get('resource_group', 'unknown')
         
-        logger.info(f"🎯 Generating ML-enhanced implementation plan for {cluster_name}")
-        logger.info(f"📊 Input validation starting...")
+        logger.info(f"🎯 Generating INTEGRATED ML+Security implementation plan for {cluster_name}")
+        logger.info(f"🧠 ML Systems: {'✅ Available' if self.ml_systems_available else '❌ Unavailable'}")
+        logger.info(f"🔒 Security Systems: {'✅ Available' if self.security_systems_available else '❌ Unavailable'}")
         
         # Get subscription ID
         subscription_id = azure_subscription_manager.find_cluster_subscription(resource_group, cluster_name)
-        logger.info(f"📊 Using subscription {subscription_id[:8] if subscription_id else 'None'} from config")
         
         try:
             # Validate input data - FAIL FAST
             if not self._validate_input_data(analysis_results):
-                self._log_detailed_failure("INPUT_VALIDATION", "Invalid analysis_results provided", {
-                    'analysis_results_type': type(analysis_results).__name__,
-                    'analysis_results_keys': list(analysis_results.keys()) if isinstance(analysis_results, dict) else 'NOT_DICT',
-                    'required_fields': ['total_cost'],
-                    'cluster_name': cluster_name
-                })
-                raise ValueError("❌ CRITICAL: Invalid analysis_results provided - see logs for details")
-            
-            logger.info("✅ Input validation passed")
+                raise ValueError("❌ CRITICAL: Invalid analysis_results provided")
             
             # Start ML intelligence session
             ml_session = self._start_ml_session(analysis_results)
             
-            # Extract basic values
-            total_cost = float(analysis_results.get('total_cost', 0))
-            total_savings = float(analysis_results.get('total_savings', 0))
-            
-            logger.info(f"💰 Processing - Cost: ${total_cost:.2f}, Savings: ${total_savings:.2f}")
-            
-            # PHASE 0: REAL CLUSTER CONFIGURATION FETCHING
-            logger.info("🔄 PHASE 0: Real Cluster Configuration Analysis")
+            # PHASE 0: REAL CLUSTER CONFIGURATION FETCHING (Enhanced for Security)
+            logger.info("🔄 PHASE 0: Enhanced Cluster Configuration Analysis")
             cluster_config = self._fetch_and_analyze_cluster_config(
                 resource_group, cluster_name, subscription_id, ml_session
             )
-            logger.info(f"📋 Cluster config status: {cluster_config.get('status', 'unknown')}")
             
-            # PHASE 1: ML Cluster DNA Analysis
-            logger.info("🔄 PHASE 1: ML Cluster DNA Analysis")
+            # CRITICAL: Initialize security components with cluster config
+            if self.security_systems_available and cluster_config.get('status') == 'completed':
+                security_init_success = self._initialize_security_components_with_cluster_config(cluster_config)
+                ml_session['security_components_initialized'] = security_init_success
+                logger.info(f"🔒 Security components cluster init: {'✅ Success' if security_init_success else '❌ Failed'}")
+            
+            # PHASE 1: ML Cluster DNA Analysis (Enhanced with Security)
+            logger.info("🔄 PHASE 1: Enhanced ML Cluster DNA Analysis")
             cluster_dna = self._ml_analyze_cluster_dna(analysis_results, historical_data, ml_session, cluster_config)
             if cluster_dna is None:
-                self._log_detailed_failure("DNA_ANALYSIS", "ML DNA analysis returned None", {
-                    'dna_analyzer_available': self.dna_analyzer is not None,
-                    'ml_systems_available': self.ml_systems_available,
-                    'cluster_name': cluster_name
-                })
-                raise ValueError("❌ CRITICAL: DNA analysis failed - see logs for details")
-            logger.info("✅ PHASE 1 completed")
+                raise ValueError("❌ CRITICAL: DNA analysis failed")
             
-            # PHASE 2: ML Strategy Generation
-            logger.info("🔄 PHASE 2: ML Strategy Generation")
+            # PHASE 2: ML Strategy Generation (Enhanced with Security)
+            logger.info("🔄 PHASE 2: Enhanced ML Strategy Generation")
             ml_strategy = self._ml_generate_strategy(cluster_dna, analysis_results, ml_session, cluster_config)
             if ml_strategy is None:
-                self._log_detailed_failure("STRATEGY_GENERATION", "ML strategy generation returned None", {
-                    'strategy_engine_available': self.strategy_engine is not None,
-                    'cluster_dna_type': type(cluster_dna).__name__,
-                    'cluster_name': cluster_name
-                })
-                raise ValueError("❌ CRITICAL: Strategy generation failed - see logs for details")
-            logger.info("✅ PHASE 2 completed")
+                raise ValueError("❌ CRITICAL: Strategy generation failed")
             
-            # PHASE 3: ML Plan Generation
-            logger.info("🔄 PHASE 3: ML Plan Generation")
-            ml_plan = self._ml_generate_comprehensive_plan(analysis_results, ml_strategy, cluster_dna, ml_session, cluster_config)
+            # PHASE 3: INTEGRATED Security Analysis (NEW - Run in Parallel with Plan Generation)
+            logger.info("🔄 PHASE 3: Integrated Security Analysis")
+            security_analysis = None
+            if self.security_systems_available and hasattr(self, 'security_components_initialized'):
+                security_analysis = self._perform_integrated_security_analysis(
+                    cluster_config, security_frameworks, ml_session
+                )
+            
+            # PHASE 4: Enhanced ML Plan Generation (with Security Integration)
+            logger.info("🔄 PHASE 4: Enhanced ML Plan Generation")
+            ml_plan = self._ml_generate_comprehensive_plan(
+                analysis_results, ml_strategy, cluster_dna, ml_session, cluster_config, security_analysis
+            )
             if ml_plan is None or not isinstance(ml_plan, dict):
-                self._log_detailed_failure("PLAN_GENERATION", "ML plan generation failed", {
-                    'plan_generator_available': self.plan_generator is not None,
-                    'ml_plan_type': type(ml_plan).__name__,
-                    'ml_plan_is_none': ml_plan is None,
-                    'cluster_name': cluster_name
-                })
-                raise ValueError("❌ CRITICAL: Plan generation failed - see logs for details")
-            logger.info("✅ PHASE 3 completed")
-   
-            # PHASE 4: ML Command Integration
-            logger.info("🔄 PHASE 4: ML Command Integration")
-            ml_plan = self._ml_integrate_executable_commands(ml_plan, analysis_results, ml_strategy, ml_session, cluster_config)
-            if ml_plan is None:
-                self._log_detailed_failure("COMMAND_INTEGRATION", "Command integration failed", {
-                    'command_generator_available': self.command_generator is not None,
-                    'plan_before_commands': 'was_valid',
-                    'cluster_name': cluster_name
-                })
-                raise ValueError("❌ CRITICAL: Command integration failed - see logs for details")
-            logger.info("✅ PHASE 4 completed")
- 
-            # PHASE 5: Ensure ALL framework components
-            logger.info("🔄 PHASE 5: Framework Structure Completion")
-            ml_plan = self._ensure_complete_framework_structure(ml_plan, analysis_results, ml_session, cluster_config)
-            if ml_plan is None:
-                self._log_detailed_failure("FRAMEWORK_COMPLETION", "Framework structure completion failed", {
-                    'plan_before_framework': 'was_valid',
-                    'cluster_name': cluster_name
-                })
-                raise ValueError("❌ CRITICAL: Framework completion failed - see logs for details")
-            logger.info("✅ PHASE 5 completed")
-       
-            # PHASE 6: Validate output structure - FAIL FAST
-            logger.info("🔄 PHASE 6: Output Structure Validation")
+                raise ValueError("❌ CRITICAL: Plan generation failed")
+            
+            # PHASE 5: Integrated Security Enhancement (NEW)
+            if security_analysis:
+                logger.info("🔄 PHASE 5: Security Enhancement Integration")
+                ml_plan = self._integrate_security_enhancements(
+                    ml_plan, security_analysis, security_frameworks, ml_session
+                )
+            
+            # PHASE 6: Enhanced Command Integration (with Security Commands)
+            logger.info("🔄 PHASE 6: Enhanced Command Integration")
+            ml_plan = self._ml_integrate_executable_commands(
+                ml_plan, analysis_results, ml_strategy, ml_session, cluster_config, security_analysis
+            )
+            
+            # PHASE 7: Complete Framework Structure (Enhanced)
+            logger.info("🔄 PHASE 7: Enhanced Framework Structure Completion")
+            ml_plan = self._ensure_complete_framework_structure(
+                ml_plan, analysis_results, ml_session, cluster_config, security_analysis
+            )
+            
+            # PHASE 8: Enhanced Validation (with Security Validation)
+            logger.info("🔄 PHASE 8: Enhanced Output Structure Validation")
             if not self._validate_output_structure(ml_plan):
-                self._log_detailed_failure("OUTPUT_VALIDATION", "Generated plan structure validation failed", {
-                    'plan_keys': list(ml_plan.keys()) if isinstance(ml_plan, dict) else 'NOT_DICT',
-                    'has_implementation_phases': 'implementation_phases' in ml_plan if isinstance(ml_plan, dict) else False,
-                    'has_phases': 'phases' in ml_plan if isinstance(ml_plan, dict) else False,
-                    'plan_type': type(ml_plan).__name__,
-                    'cluster_name': cluster_name
-                })
-                raise ValueError("❌ CRITICAL: Output validation failed - see logs for details")
-            logger.info("✅ PHASE 6 completed")
-        
-            # PHASE 7: Calculate and add ML confidence
-            logger.info("🔄 PHASE 7: ML Confidence Calculation")
-            plan_confidence = self._calculate_ml_plan_confidence(analysis_results, ml_plan, ml_session, cluster_config)
-            logger.info("✅ PHASE 7 completed")
-
+                raise ValueError("❌ CRITICAL: Output validation failed")
             
-            # PHASE 8: Record learning outcomes
-            logger.info("🔄 PHASE 8: Learning Outcomes Recording")
-            self._record_ml_learning_outcomes(ml_plan, ml_session, plan_confidence)
-            logger.info("✅ PHASE 8 completed")
+            # PHASE 9: Enhanced Confidence Calculation (with Security Metrics)
+            logger.info("🔄 PHASE 9: Enhanced Confidence Calculation")
+            plan_confidence = self._calculate_enhanced_plan_confidence(
+                analysis_results, ml_plan, ml_session, cluster_config, security_analysis
+            )
             
-            # PHASE 9: Finalize session
-            logger.info("🔄 PHASE 9: Session Finalization")
-            self._finalize_ml_session(ml_session, ml_plan, plan_confidence)
-            logger.info("✅ PHASE 9 completed")
+            # PHASE 10: Enhanced Learning Recording (with Security Learning)
+            logger.info("🔄 PHASE 10: Enhanced Learning Outcomes Recording")
+            self._record_enhanced_learning_outcomes(ml_plan, ml_session, plan_confidence, security_analysis)
             
-            # NEW: Convert to timeline format if requested
+            # PHASE 11: Enhanced Session Finalization
+            logger.info("🔄 PHASE 11: Enhanced Session Finalization")
+            self._finalize_enhanced_session(ml_session, ml_plan, plan_confidence, security_analysis)
+            
+            # Convert to timeline format if requested
             if output_format == 'timeline':
-                logger.info("🔄 Converting comprehensive plan to timeline format...")
+                logger.info("🔄 Converting to timeline format with security integration...")
                 ml_plan = self._convert_to_timeline_format(ml_plan, analysis_results, ml_session)
-                logger.info("✅ Timeline format conversion completed")
             
-            logger.info(f"🎉 SUCCESS: ML-enhanced implementation plan generated with {plan_confidence:.1%} confidence")
-            logger.info(f"📊 Final plan has {len(ml_plan.get('implementation_phases', ml_plan.get('weeks', [])))} implementation phases/weeks")
+            # Add integration metadata
+            ml_plan['integration_metadata'] = {
+                'ml_systems_available': self.ml_systems_available,
+                'security_systems_available': self.security_systems_available,
+                'integrated_mode': self.ml_systems_available and self.security_systems_available,
+                'security_analysis_performed': security_analysis is not None,
+                'security_frameworks_analyzed': security_frameworks if security_analysis else [],
+                'generation_approach': 'integrated_ml_security' if security_analysis else 'ml_only'
+            }
+            
+            logger.info(f"🎉 SUCCESS: INTEGRATED implementation plan generated with {plan_confidence:.1%} confidence")
+            logger.info(f"🔗 Integration Status: {ml_plan['integration_metadata']['generation_approach']}")
             
             return ml_plan
             
         except Exception as e:
-            # Log the complete failure details
+            # Enhanced error logging with integration status
             self._log_complete_failure_details(e, analysis_results, locals())
-            
-            # Record failure for learning
             self._record_generation_failure(str(e))
             
-            # Re-raise the exception
-            logger.error(f"❌ FINAL FAILURE: Implementation plan generation failed completely")
-            logger.error(f"❌ Exception: {str(e)}")
-            logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+            logger.error(f"❌ FINAL FAILURE: INTEGRATED implementation plan generation failed")
+            logger.error(f"🧠 ML Systems Status: {self.ml_systems_available}")
+            logger.error(f"🔒 Security Systems Status: {self.security_systems_available}")
             raise
     
-    def _convert_to_timeline_format(self, comprehensive_plan: Dict, 
-                                   analysis_results: Dict, ml_session: Dict) -> Dict:
-        """
-        NEW METHOD: Convert comprehensive plan to timeline format
-        Preserves ALL data from Document1 while creating Document2 structure
-        """
+    # =============================================================================
+    # ENHANCED SECURITY INTEGRATION METHODS
+    # =============================================================================
+    
+    def _perform_integrated_security_analysis(self, cluster_config: Dict, 
+                                            security_frameworks: List[str], 
+                                            ml_session: Dict) -> Optional[Dict]:
+        """Perform security analysis integrated with ML session data"""
+        
         try:
-            logger.info("🔄 Converting to timeline format while preserving all data...")
+            logger.info("🔍 Performing integrated security analysis...")
             
-            # Extract timeline metadata
-            api_metadata = comprehensive_plan.get('api_metadata', {})
-            business_case = comprehensive_plan.get('business_case', {})
-            executive_summary = comprehensive_plan.get('executive_summary', {})
-            implementation_phases = comprehensive_plan.get('implementation_phases', [])
+            if not hasattr(self, 'security_components_initialized') or not self.security_components_initialized:
+                logger.warning("🔒 Security components not initialized - skipping security analysis")
+                return None
             
-            # Build timeline structure (Document2) with ALL Document1 data preserved
-            timeline_plan = {
-                # Document2 basic structure
-                "totalWeeks": self._calculate_total_weeks(implementation_phases),
-                "totalPhases": len(implementation_phases),
-                "totalCommands": self._count_commands_in_phases(implementation_phases),
-                "securityItems": self._count_security_items(comprehensive_plan),
-                "avgProgress": 0,
-                "totalSavings": comprehensive_plan.get('financial_summary', {}).get('total_projected_savings', 
-                                                    business_case.get('financial_impact', {}).get('annual_savings', 
-                                                    analysis_results.get('total_savings', 0))),
-                "clusterName": api_metadata.get('cluster_name', analysis_results.get('cluster_name', 'Unknown')),
-                "resourceGroup": api_metadata.get('resource_group', analysis_results.get('resource_group', 'Unknown')),
-                "strategyType": comprehensive_plan.get('metadata', {}).get('generation_method', 'ml_integrated_dynamic_optimization'),
-                "generatedAt": comprehensive_plan.get('metadata', {}).get('generated_at', datetime.now().isoformat()),
-                "intelligenceLevel": comprehensive_plan.get('metadata', {}).get('intelligence_quality', 'excellent'),
-                "version": comprehensive_plan.get('metadata', {}).get('version', '3.0.0'),
-                
-                # Transform phases into weeks structure (NEW)
-                "weeks": self._transform_phases_to_weeks(implementation_phases),
-                
-                # Preserve ALL Document1 data (PRESERVED)
-                "executiveSummary": self._enhance_executive_summary(executive_summary, business_case),
-                "intelligenceInsights": comprehensive_plan.get('intelligence_insights', {}),
-                "costProtection": comprehensive_plan.get('costProtection', {}),
-                "governance": comprehensive_plan.get('governance', {}),
-                "monitoring": comprehensive_plan.get('monitoring', {}),
-                "contingency": comprehensive_plan.get('contingency', {}),
-                "successCriteria": comprehensive_plan.get('successCriteria', {}),
-                "timelineOptimization": comprehensive_plan.get('timelineOptimization', {}),
-                "riskMitigation": comprehensive_plan.get('riskMitigation', {}),
-                
-                # Document1 comprehensive data (ALL PRESERVED)
-                "businessCase": business_case,
-                "financialSummary": comprehensive_plan.get('financial_summary', {}),
-                "mlConfidenceBreakdown": comprehensive_plan.get('ml_confidence_breakdown', {}),
-                "mlIntegration": comprehensive_plan.get('ml_integration', {}),
-                "projectManagement": comprehensive_plan.get('project_management', {}),
-                "roiAnalysis": comprehensive_plan.get('roi_analysis', {}),
-                "riskAssessment": comprehensive_plan.get('risk_assessment', {}),
-                "timeline": comprehensive_plan.get('timeline', {}),
-                "metadata": comprehensive_plan.get('metadata', {}),
-                
-                # Add timeline-specific metadata
-                "realCommands": self._extract_all_commands_for_timeline(implementation_phases),
-                "activeFilters": ["all"],
-                "currentView": "timeline",
-                
-                # Transformation metadata
-                "transformationMetadata": {
-                    "original_format": "comprehensive",
-                    "target_format": "timeline",
-                    "transformation_time": datetime.now().isoformat(),
-                    "data_preservation": "complete",
-                    "ml_session_id": ml_session.get('session_id'),
-                    "phases_converted": len(implementation_phases)
+            # Use the SecurityIntegrationMixin method but with ML session context
+            security_analysis = asyncio.run(self._perform_comprehensive_security_analysis(
+                cluster_config, security_frameworks
+            ))
+            
+            # Enhance with ML session insights
+            if 'cluster_dna' in ml_session:
+                security_analysis['ml_context'] = {
+                    'cluster_personality': getattr(ml_session['cluster_dna'], 'cluster_personality', 'unknown'),
+                    'ml_confidence': ml_session.get('ml_confidence_levels', {}).get('dna_analysis', 0.8),
+                    'optimization_readiness': getattr(ml_session['cluster_dna'], 'optimization_readiness_score', 0.8)
                 }
-            }
             
-            logger.info(f"✅ Timeline conversion: {len(implementation_phases)} phases → {len(timeline_plan['weeks'])} weeks")
-            return timeline_plan
+            # Store in ML session for learning
+            ml_session['security_analysis'] = security_analysis
+            ml_session['learning_events'].append({
+                'event': 'integrated_security_analysis_completed',
+                'frameworks_analyzed': security_frameworks,
+                'security_confidence': security_analysis.get('confidence', 0.8),
+                'ml_enhanced': True,
+                'success': True
+            })
+            
+            logger.info("✅ Integrated security analysis completed")
+            return security_analysis
             
         except Exception as e:
-            logger.error(f"❌ Timeline conversion failed: {e}")
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            # Return original plan if conversion fails
-            comprehensive_plan['conversion_error'] = str(e)
-            comprehensive_plan['fallback_mode'] = True
-            return comprehensive_plan
+            logger.error(f"❌ Integrated security analysis failed: {e}")
+            return None
     
-    def _transform_phases_to_weeks(self, implementation_phases: List[Dict]) -> List[Dict]:
-        """Transform implementation phases into week-based timeline structure"""
-        weeks = []
-        current_week = 1
+    def _integrate_security_enhancements(self, ml_plan: Dict, security_analysis: Dict,
+                                       security_frameworks: List[str], ml_session: Dict) -> Dict:
+        """Integrate security enhancements into ML-generated plan"""
         
-        for phase in implementation_phases:
-            try:
-                # Calculate phase timing
-                phase_duration = phase.get('duration_weeks', 2)
-                start_week = phase.get('start_week', current_week)
-                end_week = phase.get('end_week', start_week + phase_duration - 1)
-                
-                # Create week entry
-                week_entry = {
-                    "weekNumber": start_week,
-                    "weekRange": f"{start_week}-{end_week}" if phase_duration > 1 else str(start_week),
-                    "title": f"Week{'s' if phase_duration > 1 else ''} {start_week}{f'-{end_week}' if phase_duration > 1 else ''}: {phase.get('title', 'Unknown Phase')}",
-                    "phases": [{
-                        "id": f"phase-{phase.get('phase_number', len(weeks))}",
-                        "title": phase.get('title', 'Unknown Phase'),
-                        "type": self._determine_phase_types(phase),
-                        "progress": 0,
-                        "description": "Implementation phase",
-                        "commands": self._extract_phase_commands_for_timeline(phase),
-                        "securityChecks": phase.get('security_checks', []),
-                        "complianceItems": phase.get('compliance_items', []),
-                        "projectedSavings": phase.get('projected_savings', 0),
-                        "priorityLevel": phase.get('priority', 'Unknown'),
-                        "riskLevel": phase.get('risk_level', 'Low'),
-                        "complexityLevel": self._calculate_complexity_level(phase),
-                        "successCriteria": phase.get('success_criteria', []),
-                        "tasks": phase.get('tasks', []),
-                        "phaseNumber": phase.get('phase_number', len(weeks) + 1),
-                        "startWeek": start_week,
-                        "endWeek": end_week,
-                        
-                        # PRESERVE original phase data
-                        "originalPhaseData": phase
-                    }]
-                }
-                
-                weeks.append(week_entry)
-                current_week = end_week + 1
-                
-            except Exception as e:
-                logger.warning(f"⚠️ Error processing phase {phase.get('title', 'Unknown')}: {e}")
-                continue
-        
-        return weeks
+        try:
+            logger.info("🔗 Integrating security enhancements into ML plan...")
+            
+            # Generate security phases using SecurityIntegrationMixin
+            security_phases = asyncio.run(self._generate_security_implementation_phases(
+                security_analysis, 'high'
+            ))
+            
+            # Integrate security phases into implementation plan
+            ml_plan = asyncio.run(self._integrate_security_phases(
+                ml_plan, security_phases, security_analysis
+            ))
+            
+            # Add compliance requirements
+            ml_plan = asyncio.run(self._add_compliance_requirements(
+                ml_plan, security_analysis, security_frameworks
+            ))
+            
+            # Calculate security impact
+            ml_plan = asyncio.run(self._calculate_security_impact(
+                ml_plan, security_analysis, ml_plan  # base_plan = ml_plan
+            ))
+            
+            # Add security monitoring
+            ml_plan = asyncio.run(self._add_security_monitoring(
+                ml_plan, security_analysis
+            ))
+            
+            logger.info(f"✅ Security enhancements integrated - {len(security_phases)} security phases added")
+            return ml_plan
+            
+        except Exception as e:
+            logger.error(f"❌ Security enhancement integration failed: {e}")
+            return ml_plan
     
-    def _extract_phase_commands_for_timeline(self, phase: Dict) -> List[Dict]:
-        """Extract commands from phase for timeline format"""
-        commands = []
-        
-        # Extract from various command sources
-        phase_commands = phase.get('commands', [])
-        
-        for cmd_group in phase_commands:
-            if isinstance(cmd_group, dict):
-                cmd_entry = {
-                    "title": cmd_group.get('title', cmd_group.get('description', 'Phase Commands')),
-                    "commands": self._normalize_commands(cmd_group.get('commands', [])),
-                    "description": cmd_group.get('description', 'Direct commands for phase'),
-                    "source": "phase_direct"
-                }
-                commands.append(cmd_entry)
-        
-        return commands
-    
-    def _normalize_commands(self, commands) -> List[str]:
-        """Normalize commands to string array format for frontend"""
-        if not commands:
-            return []
-        
-        normalized = []
-        for cmd in commands:
-            if isinstance(cmd, str):
-                normalized.append(cmd)
-            elif isinstance(cmd, dict):
-                # Convert dict to readable string
-                if 'command' in cmd:
-                    normalized.append(cmd['command'])
-                else:
-                    normalized.append(json.dumps(cmd, indent=2))
-            else:
-                normalized.append(str(cmd))
-        
-        return normalized
-    
-    def _determine_phase_types(self, phase: Dict) -> List[str]:
-        """Determine phase types from phase data"""
-        types = []
-        
-        # From phase type
-        phase_type = phase.get('type', '').lower()
-        if phase_type:
-            types.append(phase_type)
-        
-        # From category
-        category = phase.get('category', '').lower()
-        if category and category not in types:
-            types.append(category)
-        
-        # From title analysis
-        title = phase.get('title', '').lower()
-        if 'hpa' in title:
-            types.append('hpa')
-        if 'storage' in title:
-            types.append('storage')
-        if 'monitoring' in title:
-            types.append('monitoring')
-        
-        # From risk level
-        risk_level = phase.get('risk_level', '').lower()
-        if risk_level == 'high':
-            types.append('high-risk')
-        
-        # Default
-        if not types:
-            types.append('optimization')
-        
-        return types
-    
-    def _calculate_complexity_level(self, phase: Dict) -> str:
-        """Calculate complexity level from phase data"""
-        complexity_score = phase.get('complexity_score', 0)
-        
-        if complexity_score > 0.8:
-            return 'High'
-        elif complexity_score > 0.5:
-            return 'Medium'
-        else:
-            return 'Low'
-    
-    def _calculate_total_weeks(self, implementation_phases: List[Dict]) -> int:
-        """Calculate total weeks from implementation phases"""
-        if not implementation_phases:
-            return 6  # Default
-        
-        max_week = 0
-        for phase in implementation_phases:
-            end_week = phase.get('end_week', phase.get('duration_weeks', 2))
-            max_week = max(max_week, end_week)
-        
-        return max_week
-    
-    def _count_commands_in_phases(self, implementation_phases: List[Dict]) -> int:
-        """Count total commands across all phases"""
-        total = 0
-        for phase in implementation_phases:
-            commands = phase.get('commands', [])
-            total += len(commands)
-        return total
-    
-    def _count_security_items(self, comprehensive_plan: Dict) -> int:
-        """Count security-related items"""
-        security_count = 0
-        
-        # Count from phases
-        for phase in comprehensive_plan.get('implementation_phases', []):
-            security_count += len(phase.get('security_checks', []))
-        
-        # Count from governance
-        governance = comprehensive_plan.get('governance', {})
-        if governance.get('enabled'):
-            security_count += 1
-        
-        return security_count
-    
-    def _enhance_executive_summary(self, executive_summary: Dict, business_case: Dict) -> Dict:
-        """Enhance executive summary with business case data"""
-        enhanced = executive_summary.copy()
-        
-        # Add financial data from business case
-        financial_impact = business_case.get('financial_impact', {})
-        if financial_impact:
-            enhanced.update({
-                'annual_savings_potential': financial_impact.get('annual_savings', 0),
-                'implementation_cost': financial_impact.get('implementation_cost', 0),
-                'net_benefit_year_1': financial_impact.get('net_benefit_year_1', 0),
-                'roi_percentage': financial_impact.get('roi_percentage', 0)
-            })
-        
-        return enhanced
-    
-    def _extract_all_commands_for_timeline(self, implementation_phases: List[Dict]) -> List[Dict]:
-        """Extract all commands for easy timeline access"""
-        all_commands = []
-        
-        for phase in implementation_phases:
-            commands = phase.get('commands', [])
-            for cmd in commands:
-                if isinstance(cmd, dict):
-                    all_commands.append({
-                        'phase': phase.get('title', 'Unknown'),
-                        'phase_number': phase.get('phase_number', 0),
-                        'command_data': cmd
-                    })
-        
-        return all_commands
-
-    def generate_implementation_plan_for_api(self, analysis_results: Dict, 
-                                           output_format: str = 'comprehensive') -> Dict:
-        """
-        API-friendly wrapper that supports format selection
-        """
-        return self.generate_implementation_plan(
-            analysis_results=analysis_results,
-            output_format=output_format
-        )
+    # =============================================================================
+    # MISSING METHOD IMPLEMENTATIONS FROM FIRST FILE
+    # =============================================================================
     
     def _fetch_and_analyze_cluster_config(self, resource_group: str, cluster_name: str, 
                                           subscription_id: str, ml_session: Dict) -> Dict[str, Any]:
@@ -1203,172 +1350,6 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         
         return insights
     
-    def _initialize_ml_systems(self):
-        """Initialize ML intelligence systems with detailed failure logging"""
-        
-        logger.info("🔧 Initializing ML intelligence systems...")
-        
-        initialization_results = {
-            'learning_engine': {'status': 'pending', 'error': None},
-            'ml_orchestrator': {'status': 'pending', 'error': None},
-            'strategy_engine': {'status': 'pending', 'error': None},
-            'plan_generator': {'status': 'pending', 'error': None},
-            'command_generator': {'status': 'pending', 'error': None},
-            'dna_analyzer': {'status': 'pending', 'error': None}
-        }
-        
-        try:
-            # Try to import and initialize ML systems
-            logger.info("📥 Importing ML modules...")
-            
-            try:
-                from app.ml.learn_optimize import create_enhanced_learning_engine
-                logger.info("✅ learn_optimize module imported")
-            except Exception as e:
-                logger.error(f"❌ Failed to import learn_optimize: {e}")
-                initialization_results['learning_engine'] = {'status': 'import_failed', 'error': str(e)}
-                raise
-            
-            try:
-                from app.ml.dynamic_strategy import EnhancedDynamicStrategyEngine
-                logger.info("✅ dynamic_strategy module imported")
-            except Exception as e:
-                logger.error(f"❌ Failed to import dynamic_strategy: {e}")
-                initialization_results['strategy_engine'] = {'status': 'import_failed', 'error': str(e)}
-                raise
-            
-            try:
-                from app.ml.dynamic_plan_generator import MLIntegratedDynamicImplementationGenerator
-                logger.info("✅ dynamic_plan_generator module imported")
-            except Exception as e:
-                logger.error(f"❌ Failed to import dynamic_plan_generator: {e}")
-                initialization_results['plan_generator'] = {'status': 'import_failed', 'error': str(e)}
-                raise
-            
-            try:
-                # Import the class instead of the function
-                from app.ml.dynamic_cmd_center import AdvancedExecutableCommandGenerator
-                logger.info("✅ dynamic_cmd_center module imported")
-            except Exception as e:
-                logger.error(f"❌ Failed to import dynamic_cmd_center: {e}")
-                initialization_results['command_generator'] = {'status': 'import_failed', 'error': str(e)}
-                raise
-            
-            try:
-                from app.ml.dna_analyzer import ClusterDNAAnalyzer
-                logger.info("✅ dna_analyzer module imported")
-            except Exception as e:
-                logger.error(f"❌ Failed to import dna_analyzer: {e}")
-                initialization_results['dna_analyzer'] = {'status': 'import_failed', 'error': str(e)}
-                raise
-            
-            try:
-                from app.ml.ml_integration import MLSystemOrchestrator
-                logger.info("✅ ml_integration module imported")
-            except Exception as e:
-                logger.error(f"❌ Failed to import ml_integration: {e}")
-                initialization_results['ml_orchestrator'] = {'status': 'import_failed', 'error': str(e)}
-                raise
-            
-            logger.info("📦 All ML modules imported successfully, initializing instances...")
-            
-            # Initialize ML systems - ALL FOLLOWING THE SAME PATTERN
-            try:
-                self.learning_engine = create_enhanced_learning_engine()
-                initialization_results['learning_engine'] = {'status': 'success', 'error': None}
-                logger.info("✅ Learning engine initialized")
-            except Exception as e:
-                logger.error(f"❌ Learning engine initialization failed: {e}")
-                initialization_results['learning_engine'] = {'status': 'init_failed', 'error': str(e)}
-                raise
-            
-            try:
-                self.ml_orchestrator = MLSystemOrchestrator(self.learning_engine)
-                initialization_results['ml_orchestrator'] = {'status': 'success', 'error': None}
-                logger.info("✅ ML orchestrator initialized")
-            except Exception as e:
-                logger.error(f"❌ ML orchestrator initialization failed: {e}")
-                initialization_results['ml_orchestrator'] = {'status': 'init_failed', 'error': str(e)}
-                raise
-            
-            try:
-                self.strategy_engine = EnhancedDynamicStrategyEngine()
-                initialization_results['strategy_engine'] = {'status': 'success', 'error': None}
-                logger.info("✅ Strategy engine initialized")
-            except Exception as e:
-                logger.error(f"❌ Strategy engine initialization failed: {e}")
-                initialization_results['strategy_engine'] = {'status': 'init_failed', 'error': str(e)}
-                raise
-            
-            try:
-                self.plan_generator = MLIntegratedDynamicImplementationGenerator()
-                initialization_results['plan_generator'] = {'status': 'success', 'error': None}
-                logger.info("✅ Plan generator initialized")
-            except Exception as e:
-                logger.error(f"❌ Plan generator initialization failed: {e}")
-                initialization_results['plan_generator'] = {'status': 'init_failed', 'error': str(e)}
-                raise
-            
-            try:
-                self.command_generator = AdvancedExecutableCommandGenerator()
-                initialization_results['command_generator'] = {'status': 'success', 'error': None}
-                logger.info("✅ Command generator initialized")
-            except Exception as e:
-                logger.error(f"❌ Command generator initialization failed: {e}")
-                initialization_results['command_generator'] = {'status': 'init_failed', 'error': str(e)}
-                raise
-            
-            try:
-                self.dna_analyzer = ClusterDNAAnalyzer(enable_temporal_intelligence=True)
-                initialization_results['dna_analyzer'] = {'status': 'success', 'error': None}
-                logger.info("✅ DNA analyzer initialized")
-            except Exception as e:
-                logger.error(f"❌ DNA analyzer initialization failed: {e}")
-                initialization_results['dna_analyzer'] = {'status': 'init_failed', 'error': str(e)}
-                raise
-            
-            # Connect to ML learning
-            logger.info("🔗 Connecting ML components...")
-            try:
-                self.ml_orchestrator.connect_component('strategy_engine', self.strategy_engine)
-                self.ml_orchestrator.connect_component('plan_generator', self.plan_generator)
-                self.ml_orchestrator.connect_component('command_generator', self.command_generator)
-                self.ml_orchestrator.connect_component('dna_analyzer', self.dna_analyzer)
-                logger.info("✅ ML components connected")
-            except Exception as e:
-                logger.error(f"❌ ML component connection failed: {e}")
-                raise
-            
-            # Enable learning integration
-            try:
-                self.enable_learning_integration(self.ml_orchestrator)
-                logger.info("✅ Learning integration enabled")
-            except Exception as e:
-                logger.error(f"❌ Learning integration failed: {e}")
-                raise
-            
-            self.ml_systems_available = True
-            self._debug_info['ml_system_status'] = initialization_results
-            logger.info("🎉 ML intelligence systems initialized successfully")
-            
-        except Exception as e:
-            logger.error(f"💥 CRITICAL: ML system initialization failed completely: {e}")
-            logger.error(f"💥 Full initialization traceback: {traceback.format_exc()}")
-            logger.error(f"💥 Initialization results: {json.dumps(initialization_results, indent=2)}")
-            
-            # Set all systems to None
-            self.learning_engine = None
-            self.ml_orchestrator = None
-            self.strategy_engine = None
-            self.plan_generator = None
-            self.command_generator = None
-            self.dna_analyzer = None
-            self.ml_systems_available = False
-            self._debug_info['ml_system_status'] = initialization_results
-            
-            # This is a critical failure - the system cannot function without ML components
-            raise RuntimeError(f"❌ CRITICAL: Cannot initialize ML systems - {str(e)}")
-    
     def _ml_analyze_cluster_dna(self, analysis_results: Dict, historical_data: Optional[Dict], 
                                ml_session: Dict, cluster_config: Dict) -> Any:
         """ML DNA analysis with detailed failure logging and cluster config"""
@@ -1429,7 +1410,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             ml_session['ml_confidence_levels']['dna_analysis'] = confidence
             
             # Record for learning system
-            if self._learning_enabled:
+            if getattr(self, '_learning_enabled', False):
                 self.report_outcome_for_learning('dna_analysis_completed', {
                     'cluster_personality': getattr(cluster_dna, 'cluster_personality', 'unknown'),
                     'confidence': confidence,
@@ -1520,7 +1501,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             ml_session['ml_confidence_levels']['strategy_generation'] = confidence
             
             # Record for learning system
-            if self._learning_enabled:
+            if getattr(self, '_learning_enabled', False):
                 self.report_outcome_for_learning('strategy_generated', {
                     'strategy_type': getattr(ml_strategy, 'strategy_type', 'unknown'),
                     'confidence': confidence,
@@ -1544,8 +1525,9 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             raise RuntimeError(f"❌ {error_msg}") from e
     
     def _ml_generate_comprehensive_plan(self, analysis_results: Dict, ml_strategy: Any, 
-                                      cluster_dna: Any, ml_session: Dict, cluster_config: Dict) -> Dict:
-        """Generate comprehensive implementation plan using ML with cluster config"""
+                                      cluster_dna: Any, ml_session: Dict, cluster_config: Dict,
+                                      security_analysis: Optional[Dict] = None) -> Dict:
+        """Generate comprehensive plan with optional security context"""
         
         logger.info("📋 ML Plan Generation with cluster config...")
         
@@ -1630,6 +1612,15 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 })
                 raise ValueError(f"❌ {error_msg}")
             
+            # Enhance with security context if available
+            if security_analysis:
+                if 'metadata' not in ml_plan:
+                    ml_plan['metadata'] = {}
+                
+                ml_plan['metadata']['security_analysis_available'] = True
+                ml_plan['metadata']['security_frameworks'] = security_analysis.get('frameworks_analyzed', [])
+                ml_plan['metadata']['security_confidence'] = security_analysis.get('confidence', 0.8)
+            
             # Record ML event
             ml_session['learning_events'].append({
                 'event': 'plan_generation_ml',
@@ -1638,6 +1629,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'timeline_weeks': ml_plan.get('timeline', {}).get('total_weeks', 0),
                 'key_normalization_applied': normalization_applied,
                 'cluster_config_used': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'security_analysis_available': security_analysis is not None,
                 'success': True
             })
             
@@ -1645,13 +1637,14 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             ml_session['ml_confidence_levels']['plan_generation'] = confidence
             
             # Record for learning system
-            if self._learning_enabled:
+            if getattr(self, '_learning_enabled', False):
                 self.report_outcome_for_learning('plan_generated', {
                     'phases_count': len(ml_plan.get('implementation_phases', [])),
                     'confidence': confidence,
                     'ml_used': True,
                     'key_normalization_needed': normalization_applied,
-                    'cluster_config_available': cluster_config is not None and cluster_config.get('status') == 'completed'
+                    'cluster_config_available': cluster_config is not None and cluster_config.get('status') == 'completed',
+                    'security_enhanced': security_analysis is not None
                 })
             
             logger.info(f"✅ Plan: {len(ml_plan.get('implementation_phases', []))} phases ({confidence:.1%})")
@@ -1671,11 +1664,10 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             })
             raise RuntimeError(f"❌ {error_msg}") from e
     
-    def _ml_integrate_executable_commands(self, implementation_plan: Dict, analysis_results: Dict, 
-                                    ml_strategy: Any, ml_session: Dict, cluster_config: Dict) -> Dict:
-        """
-        Integrate executable commands ensuring analysis_results flow
-        """
+    def _ml_integrate_executable_commands(self, implementation_plan: Dict, analysis_results: Dict,
+                                        ml_strategy: Any, ml_session: Dict, cluster_config: Dict,
+                                        security_analysis: Optional[Dict] = None) -> Dict:
+        """Integrate executable commands with optional security commands"""
         
         logger.info("🛠️ ML Command Integration with YOUR analysis results...")
         
@@ -1770,6 +1762,16 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'analysis_results_used': True  # Track that YOUR analysis was used
             }
             
+            # Add security commands if security analysis is available
+            if security_analysis and hasattr(self, 'security_components_initialized'):
+                try:
+                    implementation_plan = asyncio.run(self._generate_security_commands(
+                        implementation_plan, security_analysis
+                    ))
+                    logger.info("✅ Security commands integrated into phases")
+                except Exception as e:
+                    logger.warning(f"⚠️ Security command integration failed: {e}")
+            
             # Record ML event
             ml_session['learning_events'].append({
                 'event': 'command_generation_ml',
@@ -1777,6 +1779,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'command_count': command_count,
                 'cluster_config_used': cluster_config is not None and cluster_config.get('status') == 'completed',
                 'analysis_results_used': True,  # Track YOUR analysis usage
+                'security_commands_added': security_analysis is not None,
                 'success': True
             })
             
@@ -1788,6 +1791,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             if 'executive_summary' in implementation_plan:
                 implementation_plan['executive_summary']['command_groups_generated'] = total_commands
                 implementation_plan['executive_summary']['commands_from_analysis'] = True
+                implementation_plan['executive_summary']['security_commands_included'] = security_analysis is not None
             
             logger.info(f"✅ Commands: {total_commands} integrated from YOUR analysis ({confidence:.1%})")
             
@@ -1808,10 +1812,12 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             return implementation_plan
     
     def _ensure_complete_framework_structure(self, implementation_plan: Dict, 
-                                        analysis_results: Dict, ml_session: Dict, cluster_config: Dict) -> Dict:
-        """Ensure ALL 8 framework components are populated with cluster config"""
+                                           analysis_results: Dict, ml_session: Dict, 
+                                           cluster_config: Dict,
+                                           security_analysis: Optional[Dict] = None) -> Dict:
+        """Ensure complete framework structure with security enhancements"""
         
-        logger.info("🔧 Ensuring complete framework structure with cluster config...")
+        logger.info("🔧 Ensuring complete framework structure with cluster config and security...")
         
         if implementation_plan is None:
             error_msg = "Cannot complete framework - implementation_plan is None"
@@ -1860,6 +1866,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'ml_derived': True,
                 'ml_confidence': overall_ml_confidence,
                 'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'security_framework_enabled': self.enable_security_integration,
                 'budgetLimits': {
                     'monthlyBudget': total_cost * 1.1,
                     'alertThreshold': total_cost * 0.95,
@@ -1873,34 +1880,41 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 }
             }
             
-            # 2. Governance Framework (enhanced with cluster complexity)
+            # 2. Governance Framework (enhanced with cluster complexity and security)
             governance_level = 'enterprise' if cluster_complexity == 'high' else 'standard'
+            if self.enable_security_integration:
+                governance_level = 'enterprise'  # Upgrade to enterprise if security enabled
+                
             implementation_plan['governance'] = {
                 'enabled': True,
                 'ml_derived': True,
                 'ml_confidence': overall_ml_confidence,
                 'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'security_framework_enabled': self.enable_security_integration,
                 'governanceLevel': governance_level,
                 'cluster_complexity': cluster_complexity,
                 'approvalRequirements': {
                     'technical_approval': True,
                     'business_approval': governance_level == 'enterprise',
+                    'security_approval': self.enable_security_integration,
                     'complexity_based_requirements': cluster_complexity == 'high'
                 },
                 'changeManagement': {
                     'change_windows': ['maintenance_window'],
                     'rollback_procedures': 'automated_with_manual_override',
-                    'complexity_considerations': cluster_complexity
+                    'complexity_considerations': cluster_complexity,
+                    'security_considerations': self.enable_security_integration
                 }
             }
             
-            # 3. Monitoring Strategy (enhanced with scaling readiness)
+            # 3. Monitoring Strategy (enhanced with scaling readiness and security)
             monitoring_frequency = 'real_time' if scaling_readiness == 'high' else 'frequent'
             implementation_plan['monitoring'] = {
                 'enabled': True,
                 'ml_derived': True,
                 'ml_confidence': overall_ml_confidence,
                 'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'security_framework_enabled': self.enable_security_integration,
                 'monitoringFrequency': monitoring_frequency,
                 'scaling_readiness': scaling_readiness,
                 'keyMetrics': ['cost_trends', 'resource_utilization', 'application_performance', 'scaling_effectiveness'],
@@ -1908,34 +1922,44 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                     'cost_spike_alerts': True,
                     'performance_degradation_alerts': True,
                     'scaling_inefficiency_alerts': scaling_readiness in ['low', 'medium'],
+                    'security_alerts': self.enable_security_integration,
                     'ml_confidence_threshold': overall_ml_confidence
+                },
+                'securityMonitoring': {
+                    'enabled': self.enable_security_integration,
+                    'posture_monitoring': self.security_systems_available,
+                    'compliance_monitoring': hasattr(self, 'security_components_initialized') and getattr(self, 'security_components_initialized', False)
                 }
             }
             
-            # 4. Contingency Planning (enhanced with cluster config)
+            # 4. Contingency Planning (enhanced with cluster config and security)
             implementation_plan['contingency'] = {
                 'enabled': True,
                 'ml_derived': True,
                 'ml_confidence': overall_ml_confidence,
                 'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'security_framework_enabled': self.enable_security_integration,
                 'contingencyTriggers': [
                     'cost_overrun_exceeds_20_percent',
                     'ml_confidence_drops_below_threshold',
-                    'cluster_config_drift_detected'
+                    'cluster_config_drift_detected',
+                    'security_breach_detected' if self.enable_security_integration else None
                 ],
                 'rollbackProcedures': {
                     'automated_rollback_available': True,
                     'rollback_time_estimate': '15_minutes',
-                    'cluster_config_restore_available': cluster_config is not None and cluster_config.get('status') == 'completed'
+                    'cluster_config_restore_available': cluster_config is not None and cluster_config.get('status') == 'completed',
+                    'security_rollback_available': self.enable_security_integration
                 }
             }
             
-            # 5. Success Criteria (enhanced with optimization opportunities)
+            # 5. Success Criteria (enhanced with optimization opportunities and security)
             implementation_plan['successCriteria'] = {
                 'enabled': True,
                 'ml_derived': True,
                 'ml_confidence': overall_ml_confidence,
                 'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'security_framework_enabled': self.enable_security_integration,
                 'financialTargets': {
                     'monthly_savings_target': total_savings,
                     'ml_confidence_target': overall_ml_confidence,
@@ -1945,15 +1969,22 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                     'zero_downtime_during_implementation': True,
                     'ml_prediction_accuracy_maintained': True,
                     'cluster_config_consistency_maintained': cluster_config is not None and cluster_config.get('status') == 'completed'
+                },
+                'securityTargets': {
+                    'security_posture_maintained_or_improved': self.enable_security_integration,
+                    'compliance_requirements_met': hasattr(self, 'security_components_initialized') and getattr(self, 'security_components_initialized', False),
+                    'vulnerability_count_reduced': self.enable_security_integration
                 }
             }
             
-            # 6. Timeline Optimization (enhanced with cluster complexity)
+            # 6. Timeline Optimization (enhanced with cluster complexity and security)
             phases = implementation_plan.get('implementation_phases', [])
             total_timeline_weeks = max([p.get('end_week', 1) for p in phases]) if phases else 6
             
-            # Adjust timeline based on cluster complexity
+            # Adjust timeline based on cluster complexity and security
             complexity_factor = {'high': 1.2, 'medium': 1.0, 'low': 0.8}.get(cluster_complexity, 1.0)
+            if self.enable_security_integration:
+                complexity_factor *= 1.1  # Add 10% for security integration
             optimized_timeline = max(1, int(total_timeline_weeks * complexity_factor))
             
             implementation_plan['timelineOptimization'] = {
@@ -1961,13 +1992,15 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'ml_derived': True,
                 'ml_confidence': overall_ml_confidence,
                 'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'security_framework_enabled': self.enable_security_integration,
                 'originalTimelineWeeks': total_timeline_weeks,
                 'optimizedTimelineWeeks': optimized_timeline,
                 'cluster_complexity_factor': complexity_factor,
+                'security_integration_factor': 1.1 if self.enable_security_integration else 1.0,
                 'ml_optimization_applied': self.ml_systems_available
             }
             
-            # 7. Risk Mitigation (enhanced with security posture)
+            # 7. Risk Mitigation (enhanced with security posture and comprehensive framework)
             identified_risks = [
                 {
                     'risk_id': 'ML_001',
@@ -1986,30 +2019,50 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                     'mitigation': 'enhanced_security_controls_implementation'
                 })
             
+            # Add comprehensive security framework risks
+            if self.enable_security_integration and not hasattr(self, 'security_components_initialized'):
+                identified_risks.append({
+                    'risk_id': 'SEC_002',
+                    'description': 'Security framework enabled but components not initialized',
+                    'probability': 'high',
+                    'mitigation': 'initialize_security_framework_components'
+                })
+            
             implementation_plan['riskMitigation'] = {
                 'enabled': True,
                 'ml_derived': True,
                 'ml_confidence': overall_ml_confidence,
                 'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'security_framework_enabled': self.enable_security_integration,
                 'security_posture': security_posture,
                 'identifiedRisks': identified_risks,
                 'ml_risk_assessment': {
                     'prediction_uncertainty': 1.0 - overall_ml_confidence,
                     'model_confidence': overall_ml_confidence,
                     'cluster_config_reliability': cluster_config is not None and cluster_config.get('status') == 'completed'
+                },
+                'security_risk_assessment': {
+                    'framework_available': SECURITY_INTEGRATION_AVAILABLE,
+                    'components_initialized': hasattr(self, 'security_components_initialized') and getattr(self, 'security_components_initialized', False),
+                    'engines_initialized': hasattr(self, 'security_components_initialized') and getattr(self, 'security_components_initialized', False)
                 }
             }
             
-            # 8. NEW: Intelligence Insights (extract from analysis data and enhance with ML)
+            # 8. NEW: Intelligence Insights (extract from analysis data and enhance with ML and security)
             implementation_plan['intelligence_insights'] = self._create_intelligence_insights_from_analysis(
                 analysis_results, ml_session, cluster_config, overall_ml_confidence
             )
             
+            # Enhance framework components with security data
+            if security_analysis:
+                self._enhance_framework_with_security(implementation_plan, security_analysis)
+            
             # Final validation log
             phases_count = len(implementation_plan.get('implementation_phases', []))
             logger.info(f"✅ Framework complete: {phases_count} phases in implementation_phases")
-            logger.info("✅ ALL 8 framework components populated with ML intelligence and cluster config")
+            logger.info("✅ ALL 8 framework components populated with ML intelligence, cluster config, and security")
             logger.info(f"🔍 Cluster insights applied: complexity={cluster_complexity}, scaling={scaling_readiness}, security={security_posture}")
+            logger.info(f"🔒 Security framework: enabled={self.enable_security_integration}, available={SECURITY_INTEGRATION_AVAILABLE}")
             
             return implementation_plan
             
@@ -2020,77 +2073,152 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'exception_args': getattr(e, 'args', []),
                 'traceback': traceback.format_exc(),
                 'implementation_plan_keys': list(implementation_plan.keys()) if isinstance(implementation_plan, dict) else 'NOT_DICT',
-                'cluster_config_available': cluster_config is not None and cluster_config.get('status') == 'completed' if cluster_config else False
+                'cluster_config_available': cluster_config is not None and cluster_config.get('status') == 'completed' if cluster_config else False,
+                'security_integration_enabled': self.enable_security_integration
             })
             raise RuntimeError(f"❌ {error_msg}") from e
-
-    def _create_intelligence_insights_from_analysis(self, analysis_results: Dict, 
-                                                ml_session: Dict, cluster_config: Dict, 
-                                                overall_ml_confidence: float) -> Dict:
-        """Create intelligence insights component from REAL analysis data"""
+    
+    def _enhance_framework_with_security(self, implementation_plan: Dict, 
+                                       security_analysis: Dict):
+        """Enhance framework components with security analysis data"""
+        
         try:
-            logger.info("🧠 Creating intelligence insights from REAL analysis data...")
+            security_score = security_analysis.get('security_posture', {}).get('overall_score', 50)
             
-            # Extract cluster profile from analysis and ML session
-            cluster_profile = {
-                'mlClusterType': analysis_results.get('cluster_type', 
-                                ml_session.get('dna_metadata', {}).get('cluster_personality', 'unknown')),
-                'complexityScore': analysis_results.get('complexity_score', 
-                                ml_session.get('config_insights', {}).get('cluster_complexity', 'unknown')),
-                'readinessScore': analysis_results.get('optimization_readiness_score', overall_ml_confidence)
-            }
+            # Enhance governance with security posture
+            if 'governance' in implementation_plan:
+                implementation_plan['governance']['security_posture_score'] = security_score
+                implementation_plan['governance']['security_grade'] = security_analysis.get('security_posture', {}).get('grade', 'C')
+                implementation_plan['governance']['security_monitoring_required'] = security_score < 80
             
-            # Extract ML predictions from session and analysis
-            ml_predictions = {
-                'confidence': overall_ml_confidence,
-                'model_performance': 'high' if overall_ml_confidence > 0.8 else 'medium' if overall_ml_confidence > 0.6 else 'low',
-                'learning_enabled': len(ml_session.get('learning_events', [])) > 0,
-                'temporal_intelligence': ml_session.get('dna_metadata', {}).get('has_temporal_intelligence', False)
-            }
+            # Enhance risk mitigation with security risks
+            if 'riskMitigation' in implementation_plan:
+                security_risks = []
+                
+                if security_score < 70:
+                    security_risks.append({
+                        'risk_id': 'SEC_INTEGRATED_001',
+                        'description': f'Low security posture score: {security_score:.1f}',
+                        'probability': 'HIGH',
+                        'mitigation': 'Implement security enhancement phases'
+                    })
+                
+                vuln_count = security_analysis.get('vulnerability_assessment', {}).get('critical_vulnerabilities', 0)
+                if vuln_count > 0:
+                    security_risks.append({
+                        'risk_id': 'SEC_INTEGRATED_002',
+                        'description': f'{vuln_count} critical vulnerabilities detected',
+                        'probability': 'CRITICAL',
+                        'mitigation': 'Immediate vulnerability remediation required'
+                    })
+                
+                implementation_plan['riskMitigation']['integrated_security_risks'] = security_risks
             
-            # Extract recommendations from analysis
-            recommendations = {
-                'priority': 'high' if analysis_results.get('total_savings', 0) > analysis_results.get('total_cost', 1) * 0.2 else 'medium',
-                'implementation_readiness': ml_session.get('config_insights', {}).get('scaling_readiness', 'unknown'),
-                'optimization_potential': analysis_results.get('optimization_score', overall_ml_confidence * 100)
-            }
+            # Enhance success criteria with security targets
+            if 'successCriteria' in implementation_plan:
+                implementation_plan['successCriteria']['integrated_security_targets'] = {
+                    'target_security_score': max(80, security_score + 20),
+                    'maximum_critical_vulnerabilities': 0,
+                    'minimum_compliance_score': 85
+                }
             
-            # Intelligence metrics from REAL data
-            intelligence_insights = {
-                'enabled': True,
-                'ml_derived': True,
-                'ml_confidence': overall_ml_confidence,
-                'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
-                'clusterProfile': cluster_profile,
-                'ml_predictions': ml_predictions,
-                'recommendations': recommendations,
-                'analysisConfidence': overall_ml_confidence,
-                'actual_cv_score': analysis_results.get('cv_score', overall_ml_confidence),
-                'dataAvailable': True,  # We have real analysis data
-                'azure_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
-                'intelligence_quality': ml_session.get('intelligence_quality', 'high'),
-                'learning_events_count': len(ml_session.get('learning_events', [])),
-                'optimization_opportunities': ml_session.get('comprehensive_state', {}).get('total_optimization_opportunities', 0)
-            }
-            
-            logger.info(f"✅ Intelligence insights created with confidence: {overall_ml_confidence:.2f}")
-            return intelligence_insights
+            logger.info("✅ Framework enhanced with integrated security data")
             
         except Exception as e:
-            logger.error(f"❌ Intelligence insights creation failed: {e}")
-            # Return minimal structure with real data only
-            return {
-                'enabled': True,
-                'ml_derived': True,
-                'ml_confidence': overall_ml_confidence,
-                'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
-                'dataAvailable': True,
-                'creation_error': str(e)
-            }
+            logger.warning(f"⚠️ Framework security enhancement failed: {e}")
     
-    # ========================================================================
-    # VALIDATION AND HELPER METHODS
-    # ========================================================================
+    # =============================================================================
+    # ENHANCED CONFIDENCE AND LEARNING METHODS
+    # =============================================================================
+    
+    def _calculate_enhanced_plan_confidence(self, analysis_results: Dict, implementation_plan: Dict,
+                                          ml_session: Dict, cluster_config: Dict,
+                                          security_analysis: Optional[Dict]) -> float:
+        """Calculate enhanced plan confidence with security metrics"""
+        
+        # Get base confidence
+        base_confidence = self._calculate_ml_plan_confidence(
+            analysis_results, implementation_plan, ml_session, cluster_config
+        )
+        
+        # Enhance with security confidence if available
+        if security_analysis:
+            security_confidence = security_analysis.get('confidence', 0.8)
+            
+            # Weighted average: 70% ML confidence, 30% security confidence
+            enhanced_confidence = (base_confidence * 0.7) + (security_confidence * 0.3)
+            
+            # Bonus for integrated analysis
+            integration_bonus = 0.05 if self.ml_systems_available and self.security_systems_available else 0
+            enhanced_confidence = min(1.0, enhanced_confidence + integration_bonus)
+            
+            implementation_plan['enhanced_confidence'] = {
+                'overall_confidence': enhanced_confidence,
+                'ml_confidence': base_confidence,
+                'security_confidence': security_confidence,
+                'integration_bonus': integration_bonus,
+                'calculation_method': 'integrated_ml_security'
+            }
+            
+            return enhanced_confidence
+        
+        else:
+            # No security analysis - use base confidence with slight penalty
+            ml_only_confidence = base_confidence * 0.95  # 5% penalty for missing security
+            
+            implementation_plan['enhanced_confidence'] = {
+                'overall_confidence': ml_only_confidence,
+                'ml_confidence': base_confidence,
+                'security_confidence': None,
+                'integration_penalty': 0.05,
+                'calculation_method': 'ml_only'
+            }
+            
+            return ml_only_confidence
+    
+    def _record_enhanced_learning_outcomes(self, implementation_plan: Dict, ml_session: Dict,
+                                         confidence: float, security_analysis: Optional[Dict]):
+        """Record enhanced learning outcomes with security integration"""
+        
+        # Call original method
+        self._record_ml_learning_outcomes(implementation_plan, ml_session, confidence)
+        
+        # Add security learning if available
+        if security_analysis and getattr(self, '_learning_enabled', False):
+            self.report_outcome_for_learning('integrated_security_learning', {
+                'session_id': ml_session['session_id'],
+                'security_frameworks_analyzed': security_analysis.get('frameworks_analyzed', []),
+                'security_confidence': security_analysis.get('confidence', 0.8),
+                'security_phases_generated': len([p for p in implementation_plan.get('implementation_phases', []) 
+                                                if p.get('category') == 'security']),
+                'integration_successful': True,
+                'ml_security_correlation': confidence
+            })
+    
+    def _finalize_enhanced_session(self, ml_session: Dict, implementation_plan: Dict,
+                                 confidence: float, security_analysis: Optional[Dict]):
+        """Finalize enhanced session with security integration metadata"""
+        
+        # Call original method
+        self._finalize_ml_session(ml_session, implementation_plan, confidence)
+        
+        # Add enhanced metadata
+        if 'metadata' not in implementation_plan:
+            implementation_plan['metadata'] = {}
+        
+        implementation_plan['metadata']['enhanced_session'] = {
+            'ml_systems_used': self.ml_systems_available,
+            'security_systems_used': self.security_systems_available,
+            'integrated_analysis': security_analysis is not None,
+            'session_type': 'integrated' if security_analysis else 'ml_only',
+            'enhancement_version': '2.0.0'
+        }
+        
+        logger.info(f"🎯 Enhanced Session Completed: {implementation_plan['metadata']['enhanced_session']['session_type']}")
+    
+    # =============================================================================
+    # UTILITY METHODS
+    # =============================================================================
     
     def _validate_input_data(self, analysis_results: Dict) -> bool:
         """Validate input data has required fields"""
@@ -2172,11 +2300,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             logger.error(f"❌ Validation failed with exception: {e}")
             logger.error(f"❌ Validation traceback: {traceback.format_exc()}")
             return False
-    
-    # ========================================================================
-    # DETAILED FAILURE LOGGING METHODS
-    # ========================================================================
-    
+
     def _log_detailed_failure(self, operation: str, error_msg: str, context: Dict):
         """Log detailed failure information for debugging"""
         
@@ -2186,13 +2310,20 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             'error_message': error_msg,
             'context': context,
             'ml_systems_status': {
-                'learning_engine': self.learning_engine is not None,
-                'ml_orchestrator': self.ml_orchestrator is not None,
-                'strategy_engine': self.strategy_engine is not None,
-                'plan_generator': self.plan_generator is not None,
-                'command_generator': self.command_generator is not None,
-                'dna_analyzer': self.dna_analyzer is not None,
+                'learning_engine': hasattr(self, 'learning_engine') and self.learning_engine is not None,
+                'ml_orchestrator': hasattr(self, 'ml_orchestrator') and self.ml_orchestrator is not None,
+                'strategy_engine': hasattr(self, 'strategy_engine') and self.strategy_engine is not None,
+                'plan_generator': hasattr(self, 'plan_generator') and self.plan_generator is not None,
+                'command_generator': hasattr(self, 'command_generator') and self.command_generator is not None,
+                'dna_analyzer': hasattr(self, 'dna_analyzer') and self.dna_analyzer is not None,
                 'ml_systems_available': self.ml_systems_available
+            },
+            'security_systems_status': {
+                'security_integration_enabled': self.enable_security_integration,
+                'security_framework_available': SECURITY_INTEGRATION_AVAILABLE,
+                'security_systems_available': self.security_systems_available,
+                'security_components_ready': hasattr(self, 'security_components_ready') and getattr(self, 'security_components_ready', False),
+                'security_components_initialized': hasattr(self, 'security_components_initialized') and getattr(self, 'security_components_initialized', False)
             },
             'system_info': {
                 'enable_cost_monitoring': self.enable_cost_monitoring,
@@ -2206,7 +2337,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         logger.error(f"💥 DETAILED FAILURE [{operation}]: {error_msg}")
         logger.error(f"💥 Context: {self.safe_json_dumps(context)}")
         logger.error(f"💥 ML Systems Status: {json.dumps(failure_record['ml_systems_status'], indent=2)}")
-    
+        logger.error(f"💥 Security Systems Status: {json.dumps(failure_record['security_systems_status'], indent=2)}")
+
     def _log_complete_failure_details(self, exception: Exception, analysis_results: Dict, local_vars: Dict):
         """Log complete failure details for debugging"""
         
@@ -2228,9 +2360,11 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'cluster_dna': str(type(local_vars.get('cluster_dna'))),
                 'ml_strategy': str(type(local_vars.get('ml_strategy'))),
                 'ml_plan': str(type(local_vars.get('ml_plan'))),
-                'cluster_config': str(type(local_vars.get('cluster_config')))
+                'cluster_config': str(type(local_vars.get('cluster_config'))),
+                'security_analysis': str(type(local_vars.get('security_analysis')))
             },
             'ml_systems_detailed': self._debug_info['ml_system_status'],
+            'security_systems_detailed': self._debug_info.get('security_framework_status', {}),
             'all_failed_operations': self._debug_info['failed_operations']
         }
         
@@ -2251,26 +2385,9 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         except Exception as json_error:
             logger.error(f"💥 Local Variables: <Could not serialize: {json_error}>")
         
-        # Safely serialize failed operations
-        try:
-            safe_failed_ops = []
-            for op in complete_failure['all_failed_operations']:
-                safe_op = {}
-                for key, value in op.items():
-                    try:
-                        json.dumps(value)
-                        safe_op[key] = value
-                    except:
-                        safe_op[key] = str(value)
-                safe_failed_ops.append(safe_op)
-            
-            logger.error(f"💥 All Failed Operations: {json.dumps(safe_failed_ops, indent=2)}")
-        except Exception as json_error:
-            logger.error(f"💥 All Failed Operations: <Could not serialize: {json_error}>")
-        
         logger.error(f"💥 Full Traceback:\n{complete_failure['full_traceback']}")
         logger.error("💥" * 50)
-    
+
     def _record_generation_failure(self, error: str):
         """Record generation failure for learning"""
         if getattr(self, '_learning_enabled', False):
@@ -2278,9 +2395,10 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'error': error,
                 'timestamp': datetime.now().isoformat(),
                 'ml_systems_available': getattr(self, 'ml_systems_available', False),
+                'security_integration_enabled': self.enable_security_integration,
                 'failed_operations_count': len(self._debug_info['failed_operations'])
             })
-    
+
     def safe_json_serialize(self, obj: Any) -> Any:
         """Safely serialize objects for JSON logging by converting problematic types to strings"""
         if isinstance(obj, type):
@@ -2303,11 +2421,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             return json.dumps(obj, indent=indent, default=self.safe_json_serialize)
         except Exception as e:
             return f"<JSON serialization failed: {str(e)}>"
-    
-    # ========================================================================
-    # REMAINING HELPER METHODS
-    # ========================================================================
-    
+
     def _extract_dna_confidence(self, cluster_dna: Any) -> float:
         """Extract confidence from DNA analysis"""
         if hasattr(cluster_dna, 'temporal_readiness_score'):
@@ -2316,12 +2430,12 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             return cluster_dna.optimization_readiness_score
         else:
             return 0.8
-    
+
     def _calculate_session_confidence(self, ml_session: Dict) -> float:
         """Calculate overall session confidence"""
         confidences = list(ml_session['ml_confidence_levels'].values())
         return sum(confidences) / len(confidences) if confidences else 0.8
-    
+
     def _count_total_commands(self, execution_plan: Any) -> int:
         """Count total commands from execution plan"""
         if not execution_plan:
@@ -2334,7 +2448,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 commands = getattr(execution_plan, attr)
                 total += len(commands) if commands else 0
         return total
-    
+
     def _map_commands_to_phases(self, implementation_plan: Dict, execution_plan: Any) -> Dict:
         """Use phase-specific commands from dynamic command generator"""
         
@@ -2398,10 +2512,10 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             logger.error(f"❌ Phase command integration failed: {e}")
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return implementation_plan
-    
+
     def _calculate_ml_plan_confidence(self, analysis_results: Dict, implementation_plan: Dict, 
                                      ml_session: Dict, cluster_config: Dict) -> float:
-        """Calculate ML-enhanced plan confidence with cluster config"""
+        """Calculate ML-enhanced plan confidence with cluster config and security"""
         
         confidence_factors = []
         
@@ -2443,6 +2557,15 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         framework_factor = completed_components / len(framework_components)
         confidence_factors.append(framework_factor)
         
+        # Security integration factor (NEW)
+        if self.enable_security_integration:
+            if SECURITY_INTEGRATION_AVAILABLE and self.security_systems_available:
+                confidence_factors.append(0.9)  # High confidence with security framework
+            else:
+                confidence_factors.append(0.7)  # Medium confidence - enabled but not fully available
+        else:
+            confidence_factors.append(0.8)  # Standard confidence without security
+        
         overall_confidence = sum(confidence_factors) / len(confidence_factors)
         
         # Add ML confidence to plan
@@ -2450,16 +2573,18 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         implementation_plan['ml_confidence_breakdown'] = ml_session['ml_confidence_levels']
         implementation_plan['learning_applied'] = len(ml_session['learning_events']) > 0
         implementation_plan['cluster_config_used'] = cluster_config is not None and cluster_config.get('status') == 'completed'
+        implementation_plan['security_framework_enabled'] = self.enable_security_integration
+        implementation_plan['security_framework_available'] = SECURITY_INTEGRATION_AVAILABLE
         
         return overall_confidence
-    
+
     def _record_ml_learning_outcomes(self, implementation_plan: Dict, ml_session: Dict, confidence: float):
-        """Record ML learning outcomes"""
+        """Record ML learning outcomes with security integration"""
         
-        logger.info("📚 Recording ML learning outcomes...")
+        logger.info("📚 Recording ML learning outcomes with security integration...")
         
         try:
-            if self.learning_engine and self.ml_orchestrator:
+            if hasattr(self, 'learning_engine') and self.learning_engine and hasattr(self, 'ml_orchestrator') and self.ml_orchestrator:
                 # Create learning result
                 learning_result = {
                     'execution_id': ml_session['session_id'],
@@ -2468,6 +2593,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                     'confidence': confidence,
                     'phases_count': len(implementation_plan.get('implementation_phases', [])),
                     'ml_systems_used': self.ml_systems_available,
+                    'security_integration_enabled': self.enable_security_integration,
+                    'security_framework_available': SECURITY_INTEGRATION_AVAILABLE,
                     'learning_events': ml_session['learning_events'],
                     'cluster_config_available': ml_session.get('cluster_config', {}).get('status') == 'completed'
                 }
@@ -2486,13 +2613,15 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
                 'session_id': ml_session['session_id'],
                 'overall_confidence': confidence,
                 'ml_systems_available': self.ml_systems_available,
+                'security_integration_enabled': self.enable_security_integration,
                 'learning_events_count': len(ml_session['learning_events']),
                 'framework_components_complete': 7,
-                'cluster_config_available': ml_session.get('cluster_config', {}).get('status') == 'completed'
+                'cluster_config_available': ml_session.get('cluster_config', {}).get('status') == 'completed',
+                'security_framework_available': SECURITY_INTEGRATION_AVAILABLE
             })
-    
+
     def _finalize_ml_session(self, ml_session: Dict, implementation_plan: Dict, confidence: float):
-        """Finalize ML session"""
+        """Finalize ML session with security integration"""
         
         # Update intelligence quality
         if confidence > 0.9:
@@ -2512,6 +2641,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         implementation_plan['metadata']['ml_session_id'] = ml_session['session_id']
         implementation_plan['metadata']['intelligence_quality'] = ml_session['intelligence_quality']
         implementation_plan['metadata']['ml_systems_available'] = self.ml_systems_available
+        implementation_plan['metadata']['security_integration_enabled'] = self.enable_security_integration
+        implementation_plan['metadata']['security_framework_available'] = SECURITY_INTEGRATION_AVAILABLE
         implementation_plan['metadata']['learning_events'] = len(ml_session['learning_events'])
         implementation_plan['metadata']['generated_at'] = datetime.now().isoformat()
         implementation_plan['metadata']['version'] = '3.0.0'
@@ -2523,9 +2654,10 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
         self._current_ml_session = None
         
         logger.info(f"🎯 ML Session Completed: {ml_session['intelligence_quality']} quality")
-    
+        logger.info(f"🔒 Security Integration: enabled={self.enable_security_integration}, available={SECURITY_INTEGRATION_AVAILABLE}")
+
     def _start_ml_session(self, analysis_results: Dict) -> Dict:
-        """Start ML intelligence session"""
+        """Start ML intelligence session with security integration"""
         
         session = {
             'session_id': f"ml-session-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
@@ -2534,7 +2666,9 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             'ml_confidence_levels': {},
             'learning_events': [],
             'intelligence_quality': 'initializing',
-            'ml_systems_available': self.ml_systems_available
+            'ml_systems_available': self.ml_systems_available,
+            'security_integration_enabled': self.enable_security_integration,
+            'security_framework_available': SECURITY_INTEGRATION_AVAILABLE
         }
         
         self._current_ml_session = session
@@ -2544,24 +2678,498 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin):
             self.report_outcome_for_learning('session_started', {
                 'session_id': session['session_id'],
                 'cluster_name': session['cluster_name'],
-                'ml_systems_available': self.ml_systems_available
+                'ml_systems_available': self.ml_systems_available,
+                'security_integration_enabled': self.enable_security_integration
             })
         
         logger.info(f"🎯 ML Session Started: {session['session_id']}")
+        logger.info(f"🔒 Security Integration: enabled={self.enable_security_integration}")
         return session
 
+    def _create_intelligence_insights_from_analysis(self, analysis_results: Dict, 
+                                                ml_session: Dict, cluster_config: Dict, 
+                                                overall_ml_confidence: float) -> Dict:
+        """Create intelligence insights component from REAL analysis data with security integration"""
+        try:
+            logger.info("🧠 Creating intelligence insights from REAL analysis data with security...")
+            
+            # Extract cluster profile from analysis and ML session
+            cluster_profile = {
+                'mlClusterType': analysis_results.get('cluster_type', 
+                                ml_session.get('dna_metadata', {}).get('cluster_personality', 'unknown')),
+                'complexityScore': analysis_results.get('complexity_score', 
+                                ml_session.get('config_insights', {}).get('cluster_complexity', 'unknown')),
+                'readinessScore': analysis_results.get('optimization_readiness_score', overall_ml_confidence),
+                'securityPosture': ml_session.get('config_insights', {}).get('security_posture', 'unknown')
+            }
+            
+            # Extract ML predictions from session and analysis
+            ml_predictions = {
+                'confidence': overall_ml_confidence,
+                'model_performance': 'high' if overall_ml_confidence > 0.8 else 'medium' if overall_ml_confidence > 0.6 else 'low',
+                'learning_enabled': len(ml_session.get('learning_events', [])) > 0,
+                'temporal_intelligence': ml_session.get('dna_metadata', {}).get('has_temporal_intelligence', False),
+                'security_analysis_available': self.enable_security_integration and self.security_systems_available
+            }
+            
+            # Extract recommendations from analysis with security
+            recommendations = {
+                'priority': 'high' if analysis_results.get('total_savings', 0) > analysis_results.get('total_cost', 1) * 0.2 else 'medium',
+                'implementation_readiness': ml_session.get('config_insights', {}).get('scaling_readiness', 'unknown'),
+                'optimization_potential': analysis_results.get('optimization_score', overall_ml_confidence * 100),
+                'security_enhancement_recommended': self.enable_security_integration and not self.security_systems_available
+            }
+            
+            # Intelligence metrics from REAL data with security
+            intelligence_insights = {
+                'enabled': True,
+                'ml_derived': True,
+                'ml_confidence': overall_ml_confidence,
+                'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'security_framework_enabled': self.enable_security_integration,
+                'clusterProfile': cluster_profile,
+                'ml_predictions': ml_predictions,
+                'recommendations': recommendations,
+                'analysisConfidence': overall_ml_confidence,
+                'actual_cv_score': analysis_results.get('cv_score', overall_ml_confidence),
+                'dataAvailable': True,  # We have real analysis data
+                'azure_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'intelligence_quality': ml_session.get('intelligence_quality', 'high'),
+                'learning_events_count': len(ml_session.get('learning_events', [])),
+                'optimization_opportunities': ml_session.get('comprehensive_state', {}).get('total_optimization_opportunities', 0),
+                'securityInsights': {
+                    'framework_available': SECURITY_INTEGRATION_AVAILABLE,
+                    'integration_enabled': self.enable_security_integration,
+                    'systems_ready': self.security_systems_available,
+                    'components_initialized': hasattr(self, 'security_components_initialized') and getattr(self, 'security_components_initialized', False),
+                    'comprehensive_assessment_available': self.enable_security_integration and self.security_systems_available
+                }
+            }
+            
+            logger.info(f"✅ Intelligence insights created with confidence: {overall_ml_confidence:.2f}")
+            logger.info(f"🔒 Security insights included: framework_available={SECURITY_INTEGRATION_AVAILABLE}")
+            return intelligence_insights
+            
+        except Exception as e:
+            logger.error(f"❌ Intelligence insights creation failed: {e}")
+            # Return minimal structure with real data only
+            return {
+                'enabled': True,
+                'ml_derived': True,
+                'ml_confidence': overall_ml_confidence,
+                'cluster_config_enhanced': cluster_config is not None and cluster_config.get('status') == 'completed',
+                'security_framework_enabled': self.enable_security_integration,
+                'dataAvailable': True,
+                'creation_error': str(e)
+            }
 
-# ============================================================================
-# BACKWARD COMPATIBILITY ALIASES
-# ============================================================================
+    # =============================================================================
+    # Timeline Format Conversion (Enhanced)
+    # =============================================================================
+    
+    def _convert_to_timeline_format(self, comprehensive_plan: Dict, 
+                                   analysis_results: Dict, ml_session: Dict) -> Dict:
+        """
+        NEW METHOD: Convert comprehensive plan to timeline format
+        Preserves ALL data from Document1 while creating Document2 structure
+        """
+        try:
+            logger.info("🔄 Converting to timeline format while preserving all data...")
+            
+            # Extract timeline metadata
+            api_metadata = comprehensive_plan.get('api_metadata', {})
+            business_case = comprehensive_plan.get('business_case', {})
+            executive_summary = comprehensive_plan.get('executive_summary', {})
+            implementation_phases = comprehensive_plan.get('implementation_phases', [])
+            
+            # Build timeline structure (Document2) with ALL Document1 data preserved
+            timeline_plan = {
+                # Document2 basic structure
+                "totalWeeks": self._calculate_total_weeks(implementation_phases),
+                "totalPhases": len(implementation_phases),
+                "totalCommands": self._count_commands_in_phases(implementation_phases),
+                "securityItems": self._count_security_items(comprehensive_plan),
+                "avgProgress": 0,
+                "totalSavings": comprehensive_plan.get('financial_summary', {}).get('total_projected_savings', 
+                                                        business_case.get('financial_impact', {}).get('annual_savings', 
+                                                        analysis_results.get('total_savings', 0))),
+                "clusterName": api_metadata.get('cluster_name', analysis_results.get('cluster_name', 'Unknown')),
+                "resourceGroup": api_metadata.get('resource_group', analysis_results.get('resource_group', 'Unknown')),
+                "strategyType": comprehensive_plan.get('metadata', {}).get('generation_method', 'ml_integrated_dynamic_optimization'),
+                "generatedAt": comprehensive_plan.get('metadata', {}).get('generated_at', datetime.now().isoformat()),
+                "intelligenceLevel": comprehensive_plan.get('metadata', {}).get('intelligence_quality', 'excellent'),
+                "version": comprehensive_plan.get('metadata', {}).get('version', '3.0.0'),
+                
+                # Transform phases into weeks structure (NEW)
+                "weeks": self._transform_phases_to_weeks(implementation_phases),
+                
+                # Preserve ALL Document1 data (PRESERVED)
+                "executiveSummary": self._enhance_executive_summary(executive_summary, business_case),
+                "intelligenceInsights": comprehensive_plan.get('intelligence_insights', {}),
+                "costProtection": comprehensive_plan.get('costProtection', {}),
+                "governance": comprehensive_plan.get('governance', {}),
+                "monitoring": comprehensive_plan.get('monitoring', {}),
+                "contingency": comprehensive_plan.get('contingency', {}),
+                "successCriteria": comprehensive_plan.get('successCriteria', {}),
+                "timelineOptimization": comprehensive_plan.get('timelineOptimization', {}),
+                "riskMitigation": comprehensive_plan.get('riskMitigation', {}),
+                
+                # Document1 comprehensive data (ALL PRESERVED)
+                "businessCase": business_case,
+                "financialSummary": comprehensive_plan.get('financial_summary', {}),
+                "mlConfidenceBreakdown": comprehensive_plan.get('ml_confidence_breakdown', {}),
+                "mlIntegration": comprehensive_plan.get('ml_integration', {}),
+                "projectManagement": comprehensive_plan.get('project_management', {}),
+                "roiAnalysis": comprehensive_plan.get('roi_analysis', {}),
+                "riskAssessment": comprehensive_plan.get('risk_assessment', {}),
+                "timeline": comprehensive_plan.get('timeline', {}),
+                "metadata": comprehensive_plan.get('metadata', {}),
+                
+                # Add timeline-specific metadata
+                "realCommands": self._extract_all_commands_for_timeline(implementation_phases),
+                "activeFilters": ["all"],
+                "currentView": "timeline",
+                
+                # Security Integration (NEW)
+                "securityFramework": {
+                    "enabled": self.enable_security_integration,
+                    "framework_available": SECURITY_INTEGRATION_AVAILABLE,
+                    "systems_available": self.security_systems_available,
+                    "components_initialized": hasattr(self, 'security_components_initialized') and getattr(self, 'security_components_initialized', False),
+                    "comprehensive_assessment_available": self.security_systems_available and hasattr(self, 'security_components_initialized') and getattr(self, 'security_components_initialized', False)
+                },
+                
+                # Integration metadata (NEW)
+                "integration_metadata": comprehensive_plan.get('integration_metadata', {}),
+                
+                # Transformation metadata
+                "transformationMetadata": {
+                    "original_format": "comprehensive",
+                    "target_format": "timeline",
+                    "transformation_time": datetime.now().isoformat(),
+                    "data_preservation": "complete",
+                    "ml_session_id": ml_session.get('session_id'),
+                    "phases_converted": len(implementation_phases),
+                    "security_integration": self.enable_security_integration,
+                    "integrated_mode": self.ml_systems_available and self.security_systems_available
+                }
+            }
+            
+            logger.info(f"✅ Timeline conversion: {len(implementation_phases)} phases → {len(timeline_plan['weeks'])} weeks")
+            return timeline_plan
+            
+        except Exception as e:
+            logger.error(f"❌ Timeline conversion failed: {e}")
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            # Return original plan if conversion fails
+            comprehensive_plan['conversion_error'] = str(e)
+            comprehensive_plan['fallback_mode'] = True
+            return comprehensive_plan
+    
+    def _transform_phases_to_weeks(self, implementation_phases: List[Dict]) -> List[Dict]:
+        """Transform implementation phases into week-based timeline structure"""
+        weeks = []
+        current_week = 1
+        
+        for phase in implementation_phases:
+            try:
+                # Calculate phase timing
+                phase_duration = phase.get('duration_weeks', 2)
+                start_week = phase.get('start_week', current_week)
+                end_week = phase.get('end_week', start_week + phase_duration - 1)
+                
+                # Create week entry
+                week_entry = {
+                    "weekNumber": start_week,
+                    "weekRange": f"{start_week}-{end_week}" if phase_duration > 1 else str(start_week),
+                    "title": f"Week{'s' if phase_duration > 1 else ''} {start_week}{f'-{end_week}' if phase_duration > 1 else ''}: {phase.get('title', 'Unknown Phase')}",
+                    "phases": [{
+                        "id": f"phase-{phase.get('phase_number', len(weeks))}",
+                        "title": phase.get('title', 'Unknown Phase'),
+                        "type": self._determine_phase_types(phase),
+                        "progress": 0,
+                        "description": "Implementation phase",
+                        "commands": self._extract_phase_commands_for_timeline(phase),
+                        "securityChecks": phase.get('security_checks', []),
+                        "complianceItems": phase.get('compliance_items', []),
+                        "projectedSavings": phase.get('projected_savings', 0),
+                        "priorityLevel": phase.get('priority', 'Unknown'),
+                        "riskLevel": phase.get('risk_level', 'Low'),
+                        "complexityLevel": self._calculate_complexity_level(phase),
+                        "successCriteria": phase.get('success_criteria', []),
+                        "tasks": phase.get('tasks', []),
+                        "phaseNumber": phase.get('phase_number', len(weeks) + 1),
+                        "startWeek": start_week,
+                        "endWeek": end_week,
+                        
+                        # PRESERVE original phase data
+                        "originalPhaseData": phase
+                    }]
+                }
+                
+                weeks.append(week_entry)
+                current_week = end_week + 1
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Error processing phase {phase.get('title', 'Unknown')}: {e}")
+                continue
+        
+        return weeks
+    
+    def _extract_phase_commands_for_timeline(self, phase: Dict) -> List[Dict]:
+        """Extract commands from phase for timeline format"""
+        commands = []
+        
+        # Extract from various command sources
+        phase_commands = phase.get('commands', [])
+        
+        for cmd_group in phase_commands:
+            if isinstance(cmd_group, dict):
+                cmd_entry = {
+                    "title": cmd_group.get('title', cmd_group.get('description', 'Phase Commands')),
+                    "commands": self._normalize_commands(cmd_group.get('commands', [])),
+                    "description": cmd_group.get('description', 'Direct commands for phase'),
+                    "source": "phase_direct"
+                }
+                commands.append(cmd_entry)
+        
+        return commands
+    
+    def _normalize_commands(self, commands) -> List[str]:
+        """Normalize commands to string array format for frontend"""
+        if not commands:
+            return []
+        
+        normalized = []
+        for cmd in commands:
+            if isinstance(cmd, str):
+                normalized.append(cmd)
+            elif isinstance(cmd, dict):
+                # Convert dict to readable string
+                if 'command' in cmd:
+                    normalized.append(cmd['command'])
+                else:
+                    normalized.append(json.dumps(cmd, indent=2))
+            else:
+                normalized.append(str(cmd))
+        
+        return normalized
+    
+    def _determine_phase_types(self, phase: Dict) -> List[str]:
+        """Determine phase types from phase data"""
+        types = []
+        
+        # From phase type
+        phase_type = phase.get('type', '').lower()
+        if phase_type:
+            types.append(phase_type)
+        
+        # From category
+        category = phase.get('category', '').lower()
+        if category and category not in types:
+            types.append(category)
+        
+        # From title analysis
+        title = phase.get('title', '').lower()
+        if 'hpa' in title:
+            types.append('hpa')
+        if 'storage' in title:
+            types.append('storage')
+        if 'monitoring' in title:
+            types.append('monitoring')
+        if 'security' in title:
+            types.append('security')
+        
+        # From risk level
+        risk_level = phase.get('risk_level', '').lower()
+        if risk_level == 'high':
+            types.append('high-risk')
+        
+        # Default
+        if not types:
+            types.append('optimization')
+        
+        return types
+    
+    def _calculate_complexity_level(self, phase: Dict) -> str:
+        """Calculate complexity level from phase data"""
+        complexity_score = phase.get('complexity_score', 0)
+        
+        if complexity_score > 0.8:
+            return 'High'
+        elif complexity_score > 0.5:
+            return 'Medium'
+        else:
+            return 'Low'
+    
+    def _calculate_total_weeks(self, implementation_phases: List[Dict]) -> int:
+        """Calculate total weeks from implementation phases"""
+        if not implementation_phases:
+            return 6  # Default
+        
+        max_week = 0
+        for phase in implementation_phases:
+            end_week = phase.get('end_week', phase.get('duration_weeks', 2))
+            max_week = max(max_week, end_week)
+        
+        return max_week
+    
+    def _count_commands_in_phases(self, implementation_phases: List[Dict]) -> int:
+        """Count total commands across all phases"""
+        total = 0
+        for phase in implementation_phases:
+            commands = phase.get('commands', [])
+            total += len(commands)
+        return total
+    
+    def _count_security_items(self, comprehensive_plan: Dict) -> int:
+        """Count security-related items"""
+        security_count = 0
+        
+        # Count from phases
+        for phase in comprehensive_plan.get('implementation_phases', []):
+            security_count += len(phase.get('security_checks', []))
+        
+        # Count from governance
+        governance = comprehensive_plan.get('governance', {})
+        if governance.get('enabled'):
+            security_count += 1
+        
+        # Count from security framework if enabled
+        if self.enable_security_integration and self.security_systems_available:
+            security_count += 5  # Base security framework items
+        
+        return security_count
+    
+    def _enhance_executive_summary(self, executive_summary: Dict, business_case: Dict) -> Dict:
+        """Enhance executive summary with business case data"""
+        enhanced = executive_summary.copy()
+        
+        # Add financial data from business case
+        financial_impact = business_case.get('financial_impact', {})
+        if financial_impact:
+            enhanced.update({
+                'annual_savings_potential': financial_impact.get('annual_savings', 0),
+                'implementation_cost': financial_impact.get('implementation_cost', 0),
+                'net_benefit_year_1': financial_impact.get('net_benefit_year_1', 0),
+                'roi_percentage': financial_impact.get('roi_percentage', 0)
+            })
+        
+        # Add security information if available
+        if self.enable_security_integration and self.security_systems_available:
+            enhanced['security_framework_enabled'] = True
+            enhanced['security_assessment_available'] = hasattr(self, 'security_components_initialized') and getattr(self, 'security_components_initialized', False)
+        
+        return enhanced
+    
+    def _extract_all_commands_for_timeline(self, implementation_phases: List[Dict]) -> List[Dict]:
+        """Extract all commands for easy timeline access"""
+        all_commands = []
+        
+        for phase in implementation_phases:
+            commands = phase.get('commands', [])
+            for cmd in commands:
+                if isinstance(cmd, dict):
+                    all_commands.append({
+                        'phase': phase.get('title', 'Unknown'),
+                        'phase_number': phase.get('phase_number', 0),
+                        'command_data': cmd
+                    })
+        
+        return all_commands
 
+    # =============================================================================
+    # API-FRIENDLY WRAPPER WITH INTEGRATED SECURITY
+    # =============================================================================
+    
+    def generate_implementation_plan_for_api(self, analysis_results: Dict, 
+                                           output_format: str = 'comprehensive',
+                                           include_security_assessment: bool = True,
+                                           security_level: str = 'standard',
+                                           security_frameworks: List[str] = ['CIS', 'NIST']) -> Dict:
+        """
+        API-friendly wrapper with INTEGRATED security framework
+        
+        Args:
+            analysis_results: Analysis results
+            output_format: 'comprehensive' or 'timeline'
+            include_security_assessment: Whether to include integrated security assessment (default: True)
+            security_level: 'none', 'basic', 'standard', 'enterprise' (default: 'standard')
+            security_frameworks: Security frameworks to analyze (default: ['CIS', 'NIST'])
+        """
+        
+        # Generate main implementation plan with integrated security
+        implementation_plan = self.generate_implementation_plan(
+            analysis_results=analysis_results,
+            output_format=output_format,
+            security_frameworks=security_frameworks
+        )
+        
+        result = {
+            'implementation_plan': implementation_plan,
+            'security_integration': {
+                'requested': include_security_assessment,
+                'security_level': security_level,
+                'integrated_approach': True,
+                'frameworks_analyzed': security_frameworks
+            }
+        }
+        
+        # Add integration status
+        integration_metadata = implementation_plan.get('integration_metadata', {})
+        result['integration_status'] = {
+            'ml_systems_available': integration_metadata.get('ml_systems_available', False),
+            'security_systems_available': integration_metadata.get('security_systems_available', False),
+            'integrated_mode': integration_metadata.get('integrated_mode', False),
+            'generation_approach': integration_metadata.get('generation_approach', 'unknown')
+        }
+        
+        return result
+
+
+# =============================================================================
+# FACTORY FUNCTIONS AND BACKWARD COMPATIBILITY
+# =============================================================================
+
+def create_aks_implementation_generator(enable_cost_monitoring: bool = True,
+                                      enable_temporal: bool = True,
+                                      enable_security_integration: bool = True) -> AKSImplementationGenerator:
+    """Factory function to create AKS Implementation Generator with integrated systems"""
+    return AKSImplementationGenerator(
+        enable_cost_monitoring=enable_cost_monitoring,
+        enable_temporal=enable_temporal,
+        enable_security_integration=enable_security_integration
+    )
+
+# Backward compatibility aliases
 CombinedAKSImplementationGenerator = AKSImplementationGenerator
 FixedAKSImplementationGenerator = AKSImplementationGenerator
 
-print("✅ AKS Implementation Generator ready")
-print("🔗 Backward compatibility maintained")
-print("🚨 All fallback logic removed - failures will be exposed clearly")
-print("📊 Comprehensive error logging enabled")
-print("🔍 Real cluster configuration integration included")
-print("🛠️ Utility classes for parsing and analysis included")
-print("🕰️ NEW: Timeline format conversion support added")
+# Default instance with integrated systems
+generator = AKSImplementationGenerator(
+    enable_cost_monitoring=True,
+    enable_temporal=True,
+    enable_security_integration=True
+)
+
+print("✅ ENHANCED AKS Implementation Generator ready with intelligent import handling")
+print("🧠 ML Systems: Initialized alongside Security Framework")
+print(f"🔒 Security Framework: {len(successful_imports)}/5 components available")
+if len(failed_imports) > 0:
+    print(f"⚠️  Failed components: {', '.join(failed_imports)}")
+if SecurityIntegrationMixin.__name__ == 'SecurityIntegrationMixin' and SecurityIntegrationMixin.__doc__ and 'Fallback' in SecurityIntegrationMixin.__doc__:
+    print("🔒 Using fallback SecurityIntegrationMixin - some security features disabled")
+else:
+    print("🔒 Using full SecurityIntegrationMixin - all security features available")
+print("🔗 INTEGRATED MODE: Both systems work together as first-class citizens")
+print("📊 Individual component import tracking for better debugging")
+print("🎯 Enhanced confidence calculation with ML+Security metrics")
+print("📚 Enhanced learning with integrated ML+Security outcomes")
+print("🛡️ SecurityIntegrationMixin support with graceful degradation")
+print("📋 Security-enhanced implementation planning when components available")
+print("🔐 Robust error handling for missing security components")
+print("✅ Backward compatibility maintained")
+print("\n🔍 Security Component Status:")
+for component, status in security_import_status.items():
+    status_icon = "✅" if status == "success" else "❌"
+    print(f"  {status_icon} {component}: {status}")

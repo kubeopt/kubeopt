@@ -1,7 +1,7 @@
 {
   "model_version": "3.0.0",
-  "training_date": "2025-07-27T22:01:13.384088",
-  "avg_cv_score": 0.9961290591726932,
+  "training_date": "2025-08-13T21:56:24.033493",
+  "avg_cv_score": 0.9963730406263295,
   "total_models": 21,
   "components": [
     "cost_protection",
@@ -14,5 +14,6 @@
   ],
   "pure_dynamic": true,
   "no_fallbacks": true,
-  "azure_required": true
+  "azure_required": true,
+  "project_controls_enhanced": true
 }
