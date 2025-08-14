@@ -1,0 +1,31 @@
+# API Configuration
+api_host: "0.0.0.0"
+api_port: 8000
+api_debug: false
+
+# Database Configuration
+database_path: "app/security/security_posture.db"
+database_retention_days: 365
+
+# Security Analysis Configuration
+security_scan_interval_minutes: 60
+vulnerability_scan_interval_hours: 24
+policy_check_interval_minutes: 30
+
+# ML Configuration
+ml_models_enabled: true
+ml_confidence_threshold: 0.7
+
+# Compliance Frameworks
+enabled_compliance_frameworks:
+  - "CIS"
+  - "NIST"
+  - "SOC2"
+
+# Alert Configuration
+alert_channels:
+  email:
+    enabled: false
+  slack:
+    enabled: false
+    webhook_url: ""

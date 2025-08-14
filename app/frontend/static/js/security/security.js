@@ -1,857 +1,914 @@
-// components/SecurityDashboard.jsx
 /**
- * Security Dashboard Frontend Component
- * Provides comprehensive security, compliance, and vulnerability visualization
- * Integrates with Python security API backend
+ * Security Posture Frontend Integration
+ * ===================================
+ * JavaScript integration for AKS Security Posture dashboard.
+ * Connects with the FastAPI backend and provides dynamic UI updates.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Grid,
-  Typography,
-  Button,
-  Alert,
-  CircularProgress,
-  LinearProgress,
-  Chip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Box,
-  Tabs,
-  Tab,
-  IconButton,
-  Tooltip
-} from '@mui/material';
-
-import {
-  Security as SecurityIcon,
-  BugReport as VulnIcon,
-  Policy as ComplianceIcon,
-  Assessment as AuditIcon,
-  TrendingUp as TrendIcon,
-  Warning as WarningIcon,
-  CheckCircle as CheckIcon,
-  Refresh as RefreshIcon,
-  Download as DownloadIcon,
-  Visibility as ViewIcon
-} from '@mui/icons-material';
-
-import Plot from 'react-plotly.js';
-
-const SecurityDashboard = ({ clusterName, onRefresh }) => {
-  const [activeTab, setActiveTab] = useState(0);
-  const [securityData, setSecurityData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedAlert, setSelectedAlert] = useState(null);
-  const [exportDialogOpen, setExportDialogOpen] = useState(false);
-
-  // Fetch security dashboard data
-  const fetchSecurityData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(`/api/security/dashboard/${clusterName}`);
-      const result = await response.json();
-
-      if (result.success) {
-        setSecurityData(result.data);
-      } else {
-        setError(result.error || 'Failed to fetch security data');
-      }
-    } catch (err) {
-      setError(`Network error: ${err.message}`);
-    } finally {
-      setLoading(false);
+class SecurityPostureDashboard {
+    constructor(apiBaseUrl = '/api/security') {
+        this.apiBaseUrl = apiBaseUrl;
+        this.refreshInterval = 30000; // 30 seconds
+        this.activeIntervals = new Map();
+        this.charts = new Map();
+        this.lastUpdate = null;
+        
+        this.init();
     }
-  }, [clusterName]);
 
-  // Refresh security data
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchSecurityData();
-    setRefreshing(false);
-    if (onRefresh) onRefresh();
-  }, [fetchSecurityData, onRefresh]);
-
-  // Fetch vulnerability scan
-  const triggerVulnerabilityScan = async () => {
-    try {
-      setRefreshing(true);
-      const response = await fetch(`/api/vulnerabilities/scan/${clusterName}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scan_types: ['container', 'network', 'configuration'] })
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        await fetchSecurityData(); // Refresh data after scan
-      } else {
-        setError(`Scan failed: ${result.error}`);
-      }
-    } catch (err) {
-      setError(`Scan error: ${err.message}`);
-    } finally {
-      setRefreshing(false);
+    async init() {
+        console.log('🔐 Initializing Security Posture Dashboard...');
+        
+        // Check if we're on the security posture page
+        if (document.getElementById('securityposture-content')) {
+            await this.initializeSecurityDashboard();
+            this.startAutoRefresh();
+        }
+        
+        console.log('✅ Security Posture Dashboard initialized');
     }
-  };
 
-  // Export security data
-  const handleExport = async (format) => {
-    try {
-      const response = await fetch(`/api/security/export/${clusterName}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          format: format,
-          frameworks: ['cis_kubernetes', 'nist_csf']
-        })
-      });
-
-      if (format === 'json') {
-        const result = await response.json();
-        const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' });
-        downloadBlob(blob, `security_export_${clusterName}.json`);
-      } else {
-        const blob = await response.blob();
-        downloadBlob(blob, `security_export_${clusterName}.${format}`);
-      }
-
-      setExportDialogOpen(false);
-    } catch (err) {
-      setError(`Export failed: ${err.message}`);
+    async initializeSecurityDashboard() {
+        // Create dashboard layout if it doesn't exist
+        this.createDashboardLayout();
+        
+        // Load initial data
+        await this.loadSecurityOverview();
+        await this.loadPolicyViolations();
+        await this.loadCompliance();
+        await this.loadVulnerabilities();
+        await this.loadSecurityTrends();
+        await this.loadAuditTrail();
     }
-  };
 
-  const downloadBlob = (blob, filename) => {
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-  };
+    createDashboardLayout() {
+        const container = document.getElementById('securityposture-content');
+        if (!container) return;
 
-  // Get security score color
-  const getScoreColor = (score) => {
-    if (score >= 0.8) return '#4caf50'; // Green
-    if (score >= 0.6) return '#ff9800'; // Orange
-    return '#f44336'; // Red
-  };
+        container.innerHTML = `
+            <!-- Security Overview Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-slate-400">Security Score</p>
+                            <p class="text-2xl font-bold text-white" id="security-score">--</p>
+                            <p class="text-xs text-slate-400" id="security-grade">Loading...</p>
+                        </div>
+                        <div class="h-12 w-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-shield-alt text-blue-400 text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <div class="flex items-center text-sm" id="security-trend">
+                            <span class="text-slate-400">Trend: </span>
+                            <span class="ml-1 text-slate-300">--</span>
+                        </div>
+                    </div>
+                </div>
 
-  // Get risk level color
-  const getRiskColor = (risk) => {
-    const colors = {
-      'Low': '#4caf50',
-      'Medium': '#ff9800',
-      'High': '#f44336',
-      'Critical': '#d32f2f'
-    };
-    return colors[risk] || '#9e9e9e';
-  };
+                <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-slate-400">Critical Alerts</p>
+                            <p class="text-2xl font-bold text-white" id="critical-alerts">--</p>
+                            <p class="text-xs text-slate-400">Active alerts requiring attention</p>
+                        </div>
+                        <div class="h-12 w-12 bg-red-500/20 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-exclamation-triangle text-red-400 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
 
-  useEffect(() => {
-    fetchSecurityData();
-  }, [fetchSecurityData]);
+                <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-slate-400">Vulnerabilities</p>
+                            <p class="text-2xl font-bold text-white" id="critical-vulns">--</p>
+                            <p class="text-xs text-slate-400">Critical vulnerabilities found</p>
+                        </div>
+                        <div class="h-12 w-12 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-bug text-orange-400 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
 
-  if (loading) {
-    return (
-      <Card>
-        <CardContent>
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-            <CircularProgress />
-            <Typography variant="h6" sx={{ ml: 2 }}>
-              Loading security analysis...
-            </Typography>
-          </Box>
-        </CardContent>
-      </Card>
-    );
-  }
+                <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-slate-400">Compliance</p>
+                            <p class="text-2xl font-bold text-white" id="compliance-score">--</p>
+                            <p class="text-xs text-slate-400">Overall compliance percentage</p>
+                        </div>
+                        <div class="h-12 w-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-check-circle text-green-400 text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-  if (error) {
-    return (
-      <Alert severity="error" action={
-        <Button color="inherit" size="small" onClick={fetchSecurityData}>
-          Retry
-        </Button>
-      }>
-        {error}
-      </Alert>
-    );
-  }
+            <!-- Main Dashboard Tabs -->
+            <div class="bg-slate-800 rounded-lg border border-slate-700">
+                <!-- Tab Navigation -->
+                <div class="border-b border-slate-700">
+                    <nav class="flex space-x-8 px-6" aria-label="Tabs">
+                        <button class="security-tab-btn border-blue-500 text-blue-400 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm active" 
+                                data-tab="overview">
+                            <i class="fas fa-tachometer-alt mr-2"></i>Overview
+                        </button>
+                        <button class="security-tab-btn border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" 
+                                data-tab="policy">
+                            <i class="fas fa-clipboard-list mr-2"></i>Policy Violations
+                        </button>
+                        <button class="security-tab-btn border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" 
+                                data-tab="compliance">
+                            <i class="fas fa-medal mr-2"></i>Compliance
+                        </button>
+                        <button class="security-tab-btn border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" 
+                                data-tab="vulnerabilities">
+                            <i class="fas fa-bug mr-2"></i>Vulnerabilities
+                        </button>
+                        <button class="security-tab-btn border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm" 
+                                data-tab="audit">
+                            <i class="fas fa-history mr-2"></i>Audit Trail
+                        </button>
+                    </nav>
+                </div>
 
-  if (!securityData) {
-    return (
-      <Alert severity="info">
-        No security data available for cluster: {clusterName}
-      </Alert>
-    );
-  }
+                <!-- Tab Content -->
+                <div class="p-6">
+                    <!-- Overview Tab -->
+                    <div id="overview-tab" class="security-tab-content">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div>
+                                <h3 class="text-lg font-semibold text-white mb-4">Security Score Breakdown</h3>
+                                <div class="space-y-4" id="security-breakdown">
+                                    <!-- Dynamic content -->
+                                </div>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-white mb-4">Security Trends (30 days)</h3>
+                                <div class="h-64 bg-slate-900 rounded-lg p-4">
+                                    <canvas id="security-trends-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-  const { cluster_overview, security_metrics, compliance_status, vulnerability_trends, 
-          policy_alerts, remediation_queue, ml_insights } = securityData;
+                    <!-- Policy Violations Tab -->
+                    <div id="policy-tab" class="security-tab-content hidden">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-lg font-semibold text-white">Policy Violations</h3>
+                            <div class="flex space-x-4">
+                                <select id="severity-filter" class="bg-slate-700 border border-slate-600 text-white rounded-md px-3 py-2 text-sm">
+                                    <option value="">All Severities</option>
+                                    <option value="CRITICAL">Critical</option>
+                                    <option value="HIGH">High</option>
+                                    <option value="MEDIUM">Medium</option>
+                                    <option value="LOW">Low</option>
+                                </select>
+                                <button id="refresh-violations" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm">
+                                    <i class="fas fa-sync-alt mr-2"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <div id="policy-violations-list" class="space-y-4">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
 
-  return (
-    <Box>
-      {/* Header with cluster overview */}
-      <Card sx={{ mb: 3 }}>
-        <CardHeader
-          title={
-            <Box display="flex" alignItems="center" justifyContent="space-between">
-              <Box display="flex" alignItems="center">
-                <SecurityIcon sx={{ mr: 2, color: getRiskColor(security_metrics?.risk_level) }} />
-                <Typography variant="h5">
-                  Security Posture - {cluster_overview?.cluster_name}
-                </Typography>
-              </Box>
-              <Box>
-                <Tooltip title="Refresh Security Data">
-                  <IconButton onClick={handleRefresh} disabled={refreshing}>
-                    <RefreshIcon />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Export Security Report">
-                  <IconButton onClick={() => setExportDialogOpen(true)}>
-                    <DownloadIcon />
-                  </IconButton>
-                </Tooltip>
-                <Button 
-                  variant="outlined" 
-                  onClick={triggerVulnerabilityScan}
-                  disabled={refreshing}
-                  sx={{ ml: 1 }}
-                >
-                  Run Vulnerability Scan
-                </Button>
-              </Box>
-            </Box>
-          }
-        />
-        <CardContent>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={3}>
-              <Box textAlign="center">
-                <Typography variant="h2" color={getScoreColor(security_metrics?.security_score)}>
-                  {cluster_overview?.overall_grade || 'C'}
-                </Typography>
-                <Typography variant="subtitle1">Overall Grade</Typography>
-                <Typography variant="body2" color="textSecondary">
-                  ML Confidence: {((cluster_overview?.ml_confidence || 0.7) * 100).toFixed(1)}%
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <Box textAlign="center">
-                <Typography variant="h3" color={getScoreColor(cluster_overview?.risk_score)}>
-                  {(cluster_overview?.risk_score || 0.5).toFixed(2)}
-                </Typography>
-                <Typography variant="subtitle1">Risk Score</Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Lower is better
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <Box textAlign="center">
-                <Typography variant="h3" color={cluster_overview?.total_issues > 10 ? '#f44336' : '#4caf50'}>
-                  {cluster_overview?.total_issues || 0}
-                </Typography>
-                <Typography variant="subtitle1">Total Issues</Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Requiring attention
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <Box textAlign="center">
-                <Typography variant="h3" color="#2196f3">
-                  {cluster_overview?.next_assessment ? 
-                    new Date(cluster_overview.next_assessment).toLocaleDateString() : 'TBD'}
-                </Typography>
-                <Typography variant="subtitle1">Next Assessment</Typography>
-                <Typography variant="body2" color="textSecondary">
-                  Scheduled date
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+                    <!-- Compliance Tab -->
+                    <div id="compliance-tab" class="security-tab-content hidden">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div class="lg:col-span-2">
+                                <h3 class="text-lg font-semibold text-white mb-4">Compliance Frameworks</h3>
+                                <div id="compliance-frameworks" class="space-y-4">
+                                    <!-- Dynamic content -->
+                                </div>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-white mb-4">Compliance Heatmap</h3>
+                                <div class="bg-slate-900 rounded-lg p-4 h-96">
+                                    <canvas id="compliance-heatmap"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-      {/* Main dashboard tabs */}
-      <Card>
-        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} variant="fullWidth">
-          <Tab label="Security Overview" icon={<SecurityIcon />} />
-          <Tab label="Compliance Status" icon={<ComplianceIcon />} />
-          <Tab label="Vulnerabilities" icon={<VulnIcon />} />
-          <Tab label="Policy Alerts" icon={<WarningIcon />} />
-          <Tab label="ML Insights" icon={<TrendIcon />} />
-        </Tabs>
+                    <!-- Vulnerabilities Tab -->
+                    <div id="vulnerabilities-tab" class="security-tab-content hidden">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-lg font-semibold text-white">Vulnerabilities</h3>
+                            <div class="flex space-x-4">
+                                <select id="vuln-severity-filter" class="bg-slate-700 border border-slate-600 text-white rounded-md px-3 py-2 text-sm">
+                                    <option value="">All Severities</option>
+                                    <option value="CRITICAL">Critical</option>
+                                    <option value="HIGH">High</option>
+                                    <option value="MEDIUM">Medium</option>
+                                    <option value="LOW">Low</option>
+                                </select>
+                                <button id="trigger-scan" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md text-sm">
+                                    <i class="fas fa-search mr-2"></i>New Scan
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-4 p-4 bg-slate-900 rounded-lg">
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center" id="vuln-summary">
+                                <!-- Dynamic content -->
+                            </div>
+                        </div>
+                        <div id="vulnerabilities-list" class="space-y-4">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
 
-        {/* Tab 0: Security Overview */}
-        {activeTab === 0 && (
-          <CardContent>
-            <Grid container spacing={3}>
-              {/* Security Score Breakdown */}
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined">
-                  <CardHeader title="Security Score Breakdown" />
-                  <CardContent>
-                    <Box mb={2}>
-                      <Box display="flex" justifyContent="space-between" mb={1}>
-                        <Typography>Overall Security</Typography>
-                        <Typography>{(security_metrics?.security_score || 0).toFixed(2)}</Typography>
-                      </Box>
-                      <LinearProgress 
-                        variant="determinate" 
-                        value={(security_metrics?.security_score || 0) * 100}
-                        sx={{ height: 8, borderRadius: 4 }}
-                      />
-                    </Box>
-                    
-                    <Box mb={2}>
-                      <Box display="flex" justifyContent="space-between" mb={1}>
-                        <Typography>Attack Vectors</Typography>
-                        <Typography>{security_metrics?.attack_vectors || 0}</Typography>
-                      </Box>
-                      <LinearProgress 
-                        variant="determinate" 
-                        value={Math.max(0, 100 - (security_metrics?.attack_vectors || 0) * 10)}
-                        color="warning"
-                        sx={{ height: 8, borderRadius: 4 }}
-                      />
-                    </Box>
+                    <!-- Audit Trail Tab -->
+                    <div id="audit-tab" class="security-tab-content hidden">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-lg font-semibold text-white">Audit Trail</h3>
+                            <div class="flex space-x-4">
+                                <select id="event-type-filter" class="bg-slate-700 border border-slate-600 text-white rounded-md px-3 py-2 text-sm">
+                                    <option value="">All Events</option>
+                                    <option value="ASSESSMENT">Assessment</option>
+                                    <option value="REMEDIATION">Remediation</option>
+                                    <option value="CONFIG_CHANGE">Configuration Change</option>
+                                    <option value="ACCESS">Access</option>
+                                </select>
+                                <button id="export-audit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm">
+                                    <i class="fas fa-download mr-2"></i>Export
+                                </button>
+                            </div>
+                        </div>
+                        <div id="audit-trail-list" class="space-y-2">
+                            <!-- Dynamic content -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
 
-                    <Box>
-                      <Box display="flex" justifyContent="space-between" mb={1}>
-                        <Typography>ML Confidence</Typography>
-                        <Typography>{((security_metrics?.ml_confidence || 0.7) * 100).toFixed(1)}%</Typography>
-                      </Box>
-                      <LinearProgress 
-                        variant="determinate" 
-                        value={(security_metrics?.ml_confidence || 0.7) * 100}
-                        color="info"
-                        sx={{ height: 8, borderRadius: 4 }}
-                      />
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+        // Setup tab switching
+        this.setupTabSwitching();
+        
+        // Setup event listeners
+        this.setupEventListeners();
+    }
 
-              {/* Risk Level Distribution */}
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined">
-                  <CardHeader title="Risk Level Distribution" />
-                  <CardContent>
-                    <Box display="flex" flexDirection="column" gap={2}>
-                      <Box display="flex" justifyContent="space-between" alignItems="center">
-                        <Chip label="Critical" size="small" sx={{ bgcolor: '#d32f2f', color: 'white' }} />
-                        <Typography>0</Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between" alignItems="center">
-                        <Chip label="High" size="small" sx={{ bgcolor: '#f44336', color: 'white' }} />
-                        <Typography>{security_metrics?.attack_vectors || 0}</Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between" alignItems="center">
-                        <Chip label="Medium" size="small" sx={{ bgcolor: '#ff9800', color: 'white' }} />
-                        <Typography>2</Typography>
-                      </Box>
-                      <Box display="flex" justifyContent="space-between" alignItems="center">
-                        <Chip label="Low" size="small" sx={{ bgcolor: '#4caf50', color: 'white' }} />
-                        <Typography>5</Typography>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+    setupTabSwitching() {
+        const tabButtons = document.querySelectorAll('.security-tab-btn');
+        const tabContents = document.querySelectorAll('.security-tab-content');
 
-              {/* Security Recommendations */}
-              <Grid item xs={12}>
-                <Card variant="outlined">
-                  <CardHeader title="Top Security Recommendations" />
-                  <CardContent>
-                    <Box display="flex" flexDirection="column" gap={2}>
-                      <Alert severity="error" icon={<WarningIcon />}>
-                        <Typography variant="subtitle2">Critical: Implement network policies</Typography>
-                        <Typography variant="body2">
-                          No default-deny network policies detected. This allows unrestricted lateral movement.
-                        </Typography>
-                      </Alert>
-                      <Alert severity="warning" icon={<SecurityIcon />}>
-                        <Typography variant="subtitle2">High: Review RBAC permissions</Typography>
-                        <Typography variant="body2">
-                          ML analysis detected excessive RBAC permissions that violate least privilege principle.
-                        </Typography>
-                      </Alert>
-                      <Alert severity="info" icon={<CheckIcon />}>
-                        <Typography variant="subtitle2">Medium: Enable admission controllers</Typography>
-                        <Typography variant="body2">
-                          Implement Pod Security Standards for better container security posture.
-                        </Typography>
-                      </Alert>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </CardContent>
-        )}
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.getAttribute('data-tab');
 
-        {/* Tab 1: Compliance Status */}
-        {activeTab === 1 && (
-          <CardContent>
-            <Grid container spacing={3}>
-              {/* Compliance Framework Scores */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>Compliance Framework Scores</Typography>
-                <Grid container spacing={2}>
-                  {Object.entries(compliance_status || {}).map(([framework, status]) => (
-                    <Grid item xs={12} md={4} key={framework}>
-                      <Card variant="outlined">
-                        <CardContent>
-                          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                            <Typography variant="subtitle1">
-                              {framework.replace('_', ' ').toUpperCase()}
-                            </Typography>
-                            <Chip 
-                              label={status.grade} 
-                              color={status.grade === 'A' ? 'success' : status.grade === 'B' ? 'warning' : 'error'}
-                            />
-                          </Box>
-                          <Box mb={2}>
-                            <Typography variant="body2" color="textSecondary">
-                              Score: {(status.score * 100).toFixed(1)}%
-                            </Typography>
-                            <LinearProgress 
-                              variant="determinate" 
-                              value={status.score * 100}
-                              sx={{ height: 6, borderRadius: 3, mt: 1 }}
-                            />
-                          </Box>
-                          <Box display="flex" justifyContent="space-between">
-                            <Typography variant="body2">
-                              Passed: {status.controls_passed}
-                            </Typography>
-                            <Typography variant="body2">
-                              Failed: {status.controls_failed}
-                            </Typography>
-                          </Box>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
-              </Grid>
+                // Update button states
+                tabButtons.forEach(btn => {
+                    btn.classList.remove('border-blue-500', 'text-blue-400', 'active');
+                    btn.classList.add('border-transparent', 'text-slate-400');
+                });
+                button.classList.remove('border-transparent', 'text-slate-400');
+                button.classList.add('border-blue-500', 'text-blue-400', 'active');
 
-              {/* Compliance Heatmap Placeholder */}
-              <Grid item xs={12}>
-                <Card variant="outlined">
-                  <CardHeader title="Compliance Heatmap" />
-                  <CardContent>
-                    <Box height="300px" display="flex" alignItems="center" justifyContent="center">
-                      <Typography color="textSecondary">
-                        Compliance heatmap visualization would be rendered here
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </CardContent>
-        )}
+                // Update content visibility
+                tabContents.forEach(content => content.classList.add('hidden'));
+                document.getElementById(`${tabId}-tab`).classList.remove('hidden');
+            });
+        });
+    }
 
-        {/* Tab 2: Vulnerabilities */}
-        {activeTab === 2 && (
-          <CardContent>
-            <Grid container spacing={3}>
-              {/* Vulnerability Summary */}
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined">
-                  <CardHeader title="Vulnerability Summary" />
-                  <CardContent>
-                    <Grid container spacing={2}>
-                      <Grid item xs={6}>
-                        <Box textAlign="center">
-                          <Typography variant="h4" color="error">
-                            {vulnerability_trends?.severity_breakdown?.critical || 0}
-                          </Typography>
-                          <Typography variant="subtitle2">Critical</Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Box textAlign="center">
-                          <Typography variant="h4" color="warning.main">
-                            {vulnerability_trends?.severity_breakdown?.high || 0}
-                          </Typography>
-                          <Typography variant="subtitle2">High</Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Box textAlign="center">
-                          <Typography variant="h4" color="info.main">
-                            {vulnerability_trends?.severity_breakdown?.medium || 0}
-                          </Typography>
-                          <Typography variant="subtitle2">Medium</Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Box textAlign="center">
-                          <Typography variant="h4" color="success.main">
-                            {vulnerability_trends?.severity_breakdown?.low || 0}
-                          </Typography>
-                          <Typography variant="subtitle2">Low</Typography>
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                </Card>
-              </Grid>
+    setupEventListeners() {
+        // Severity filter for policy violations
+        const severityFilter = document.getElementById('severity-filter');
+        if (severityFilter) {
+            severityFilter.addEventListener('change', () => {
+                this.loadPolicyViolations(severityFilter.value);
+            });
+        }
 
-              {/* Patch Management Score */}
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined">
-                  <CardHeader title="Patch Management" />
-                  <CardContent>
-                    <Box textAlign="center" mb={2}>
-                      <Typography variant="h3" color={getScoreColor(vulnerability_trends?.patch_management_score)}>
-                        {((vulnerability_trends?.patch_management_score || 0.5) * 100).toFixed(0)}%
-                      </Typography>
-                      <Typography variant="subtitle1">Patch Coverage</Typography>
-                    </Box>
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={(vulnerability_trends?.patch_management_score || 0.5) * 100}
-                      sx={{ height: 10, borderRadius: 5 }}
-                    />
-                    <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                      {vulnerability_trends?.exploitable_count || 0} exploitable vulnerabilities detected
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
+        // Refresh violations button
+        const refreshBtn = document.getElementById('refresh-violations');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                this.loadPolicyViolations();
+            });
+        }
 
-              {/* Vulnerability Trends Chart Placeholder */}
-              <Grid item xs={12}>
-                <Card variant="outlined">
-                  <CardHeader title="Vulnerability Trends (30 Days)" />
-                  <CardContent>
-                    <Box height="300px" display="flex" alignItems="center" justifyContent="center">
-                      <Typography color="textSecondary">
-                        Vulnerability trends chart would be rendered here
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </CardContent>
-        )}
+        // Vulnerability severity filter
+        const vulnSeverityFilter = document.getElementById('vuln-severity-filter');
+        if (vulnSeverityFilter) {
+            vulnSeverityFilter.addEventListener('change', () => {
+                this.loadVulnerabilities(vulnSeverityFilter.value);
+            });
+        }
 
-        {/* Tab 3: Policy Alerts */}
-        {activeTab === 3 && (
-          <CardContent>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-              <Typography variant="h6">Policy Violation Alerts</Typography>
-              <Typography variant="body2" color="textSecondary">
-                {policy_alerts?.length || 0} active alerts
-              </Typography>
-            </Box>
+        // Trigger vulnerability scan
+        const triggerScanBtn = document.getElementById('trigger-scan');
+        if (triggerScanBtn) {
+            triggerScanBtn.addEventListener('click', () => {
+                this.triggerVulnerabilityScan();
+            });
+        }
 
-            {(!policy_alerts || policy_alerts.length === 0) ? (
-              <Alert severity="success" icon={<CheckIcon />}>
-                No policy violations detected. Your cluster is compliant with configured policies.
-              </Alert>
-            ) : (
-              <TableContainer component={Paper} variant="outlined">
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Severity</TableCell>
-                      <TableCell>Policy</TableCell>
-                      <TableCell>Resource</TableCell>
-                      <TableCell>Detected</TableCell>
-                      <TableCell>Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {policy_alerts.map((alert, index) => (
-                      <TableRow key={index}>
-                        <TableCell>
-                          <Chip 
-                            label={alert.severity} 
-                            size="small" 
-                            color={
-                              alert.severity === 'critical' ? 'error' :
-                              alert.severity === 'high' ? 'warning' : 'default'
+        // Event type filter for audit trail
+        const eventTypeFilter = document.getElementById('event-type-filter');
+        if (eventTypeFilter) {
+            eventTypeFilter.addEventListener('change', () => {
+                this.loadAuditTrail(eventTypeFilter.value);
+            });
+        }
+
+        // Export audit trail
+        const exportAuditBtn = document.getElementById('export-audit');
+        if (exportAuditBtn) {
+            exportAuditBtn.addEventListener('click', () => {
+                this.exportAuditTrail();
+            });
+        }
+    }
+
+    async loadSecurityOverview() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/overview`);
+            const data = await response.json();
+
+            // Update overview cards
+            document.getElementById('security-score').textContent = Math.round(data.overall_score);
+            document.getElementById('security-grade').textContent = `Grade: ${data.grade}`;
+            document.getElementById('critical-alerts').textContent = data.alerts_count;
+            document.getElementById('critical-vulns').textContent = data.critical_vulnerabilities;
+            document.getElementById('compliance-score').textContent = `${Math.round(data.compliance_percentage)}%`;
+
+            // Update trend indicator
+            const trendElement = document.getElementById('security-trend');
+            const trendIcon = data.trend === 'improving' ? '📈' : data.trend === 'declining' ? '📉' : '➡️';
+            trendElement.innerHTML = `<span class="text-slate-400">Trend: </span><span class="ml-1 text-slate-300">${trendIcon} ${data.trend}</span>`;
+
+            // Load detailed breakdown
+            await this.loadSecurityBreakdown();
+
+            this.lastUpdate = new Date();
+            console.log('✅ Security overview loaded');
+
+        } catch (error) {
+            console.error('❌ Failed to load security overview:', error);
+            this.showError('Failed to load security overview');
+        }
+    }
+
+    async loadSecurityBreakdown() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/score/detailed`);
+            const data = await response.json();
+
+            const breakdownContainer = document.getElementById('security-breakdown');
+            const breakdown = data.breakdown;
+
+            breakdownContainer.innerHTML = Object.entries(breakdown).map(([key, value]) => {
+                const label = key.replace('_score', '').replace('_', ' ').toUpperCase();
+                const percentage = Math.round(value);
+                const color = percentage >= 80 ? 'green' : percentage >= 60 ? 'yellow' : 'red';
+
+                return `
+                    <div class="flex items-center justify-between py-2">
+                        <span class="text-sm text-slate-300">${label}</span>
+                        <div class="flex items-center space-x-3">
+                            <div class="w-24 bg-slate-700 rounded-full h-2">
+                                <div class="bg-${color}-500 h-2 rounded-full" style="width: ${percentage}%"></div>
+                            </div>
+                            <span class="text-sm text-white w-12 text-right">${percentage}%</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+        } catch (error) {
+            console.error('❌ Failed to load security breakdown:', error);
+        }
+    }
+
+    async loadPolicyViolations(severity = '') {
+        try {
+            const url = severity ? 
+                `${this.apiBaseUrl}/policy-violations?severity=${severity}` : 
+                `${this.apiBaseUrl}/policy-violations`;
+            
+            const response = await fetch(url);
+            const violations = await response.json();
+
+            const container = document.getElementById('policy-violations-list');
+            
+            if (violations.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-slate-400">
+                        <i class="fas fa-check-circle text-4xl mb-4 text-green-500"></i>
+                        <p>No policy violations found</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = violations.map(violation => {
+                const severityColor = {
+                    'CRITICAL': 'red',
+                    'HIGH': 'orange',
+                    'MEDIUM': 'yellow',
+                    'LOW': 'blue'
+                }[violation.severity] || 'gray';
+
+                return `
+                    <div class="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-3 mb-2">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${severityColor}-100 text-${severityColor}-800">
+                                        ${violation.severity}
+                                    </span>
+                                    ${violation.auto_remediable ? 
+                                        '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Auto-fix Available</span>' : 
+                                        ''
+                                    }
+                                </div>
+                                <h4 class="text-white font-medium">${violation.policy_name}</h4>
+                                <p class="text-slate-400 text-sm mt-1">${violation.description}</p>
+                                <div class="mt-2 text-xs text-slate-500">
+                                    <span>${violation.resource_name}</span> • 
+                                    <span>${violation.namespace}</span> • 
+                                    <span>${new Date(violation.detected_at).toLocaleDateString()}</span>
+                                </div>
+                            </div>
+                            <button class="text-slate-400 hover:text-white" onclick="securityDashboard.showViolationDetails('${violation.violation_id}')">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            console.log(`✅ Loaded ${violations.length} policy violations`);
+
+        } catch (error) {
+            console.error('❌ Failed to load policy violations:', error);
+            this.showError('Failed to load policy violations');
+        }
+    }
+
+    async loadCompliance() {
+        try {
+            // Load compliance frameworks
+            const frameworksResponse = await fetch(`${this.apiBaseUrl}/compliance/frameworks`);
+            const frameworksData = await frameworksResponse.json();
+
+            const container = document.getElementById('compliance-frameworks');
+            
+            // Load compliance status for each framework
+            const compliancePromises = frameworksData.frameworks.map(async (framework) => {
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/compliance/${framework.id}`);
+                    const data = await response.json();
+                    return { ...framework, ...data };
+                } catch (error) {
+                    return { ...framework, error: error.message };
+                }
+            });
+
+            const complianceResults = await Promise.all(compliancePromises);
+
+            container.innerHTML = complianceResults.map(result => {
+                if (result.error) {
+                    return `
+                        <div class="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h4 class="text-white font-medium">${result.name}</h4>
+                                    <p class="text-red-400 text-sm">Error: ${result.error}</p>
+                                </div>
+                                <span class="text-slate-500">--</span>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const percentage = Math.round(result.overall_compliance || 0);
+                const gradeColor = {
+                    'A': 'green', 'B': 'blue', 'C': 'yellow', 'D': 'orange', 'F': 'red'
+                }[result.grade?.[0]] || 'gray';
+
+                return `
+                    <div class="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                        <div class="flex items-center justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-3 mb-2">
+                                    <h4 class="text-white font-medium">${result.name}</h4>
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${gradeColor}-100 text-${gradeColor}-800">
+                                        Grade ${result.grade}
+                                    </span>
+                                </div>
+                                <div class="flex items-center space-x-4">
+                                    <div class="flex-1">
+                                        <div class="flex items-center justify-between text-sm mb-1">
+                                            <span class="text-slate-400">Compliance</span>
+                                            <span class="text-white">${percentage}%</span>
+                                        </div>
+                                        <div class="w-full bg-slate-700 rounded-full h-2">
+                                            <div class="bg-${gradeColor}-500 h-2 rounded-full" style="width: ${percentage}%"></div>
+                                        </div>
+                                    </div>
+                                    <div class="text-right text-sm">
+                                        <div class="text-green-400">${result.passed_controls || 0} passed</div>
+                                        <div class="text-red-400">${result.failed_controls || 0} failed</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="text-slate-400 hover:text-white ml-4" onclick="securityDashboard.showComplianceDetails('${result.framework}')">
+                                <i class="fas fa-external-link-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            console.log('✅ Compliance frameworks loaded');
+
+        } catch (error) {
+            console.error('❌ Failed to load compliance:', error);
+            this.showError('Failed to load compliance data');
+        }
+    }
+
+    async loadVulnerabilities(severity = '') {
+        try {
+            // Load vulnerability summary
+            const summaryResponse = await fetch(`${this.apiBaseUrl}/vulnerabilities/summary`);
+            const summary = await summaryResponse.json();
+
+            // Update summary display
+            const summaryContainer = document.getElementById('vuln-summary');
+            summaryContainer.innerHTML = `
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-red-400">${summary.by_severity?.CRITICAL || 0}</div>
+                    <div class="text-sm text-slate-400">Critical</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-orange-400">${summary.by_severity?.HIGH || 0}</div>
+                    <div class="text-sm text-slate-400">High</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-yellow-400">${summary.by_severity?.MEDIUM || 0}</div>
+                    <div class="text-sm text-slate-400">Medium</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-blue-400">${summary.by_severity?.LOW || 0}</div>
+                    <div class="text-sm text-slate-400">Low</div>
+                </div>
+            `;
+
+            // Load vulnerability list
+            const url = severity ? 
+                `${this.apiBaseUrl}/vulnerabilities?severity=${severity}` : 
+                `${this.apiBaseUrl}/vulnerabilities`;
+            
+            const response = await fetch(url);
+            const vulnerabilities = await response.json();
+
+            const container = document.getElementById('vulnerabilities-list');
+            
+            if (vulnerabilities.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-slate-400">
+                        <i class="fas fa-shield-alt text-4xl mb-4 text-green-500"></i>
+                        <p>No vulnerabilities found</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = vulnerabilities.map(vuln => {
+                const severityColor = {
+                    'CRITICAL': 'red',
+                    'HIGH': 'orange',
+                    'MEDIUM': 'yellow',
+                    'LOW': 'blue'
+                }[vuln.severity] || 'gray';
+
+                return `
+                    <div class="bg-slate-900 rounded-lg p-4 border border-slate-700">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-3 mb-2">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${severityColor}-100 text-${severityColor}-800">
+                                        ${vuln.severity}
+                                    </span>
+                                    <span class="text-slate-400 text-sm">CVSS: ${vuln.cvss_score}</span>
+                                    ${vuln.exploit_available ? 
+                                        '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Exploit Available</span>' : 
+                                        ''
+                                    }
+                                </div>
+                                <h4 class="text-white font-medium">${vuln.title}</h4>
+                                ${vuln.cve_id ? `<p class="text-blue-400 text-sm font-mono">${vuln.cve_id}</p>` : ''}
+                                <p class="text-slate-400 text-sm mt-1">${vuln.affected_component}</p>
+                                <div class="mt-2 text-xs text-slate-500">
+                                    Detected: ${new Date(vuln.detected_at).toLocaleDateString()}
+                                </div>
+                            </div>
+                            <button class="text-slate-400 hover:text-white" onclick="securityDashboard.showVulnerabilityDetails('${vuln.vuln_id}')">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            console.log(`✅ Loaded ${vulnerabilities.length} vulnerabilities`);
+
+        } catch (error) {
+            console.error('❌ Failed to load vulnerabilities:', error);
+            this.showError('Failed to load vulnerabilities');
+        }
+    }
+
+    async loadSecurityTrends() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/trends/security_score?days=30`);
+            const trendsData = await response.json();
+
+            const ctx = document.getElementById('security-trends-chart').getContext('2d');
+            
+            if (this.charts.has('security-trends')) {
+                this.charts.get('security-trends').destroy();
+            }
+
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: trendsData.data_points.map(point => 
+                        new Date(point.date).toLocaleDateString()
+                    ),
+                    datasets: [{
+                        label: 'Security Score',
+                        data: trendsData.data_points.map(point => point.value),
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: {
+                                color: 'rgba(148, 163, 184, 0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(148, 163, 184, 0.8)'
                             }
-                          />
-                        </TableCell>
-                        <TableCell>{alert.policy_name}</TableCell>
-                        <TableCell>
-                          {alert.resource_details?.name || 'Unknown'}
-                          <br />
-                          <Typography variant="caption" color="textSecondary">
-                            {alert.resource_details?.namespace || 'default'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(alert.detection_timestamp).toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          <IconButton 
-                            size="small" 
-                            onClick={() => setSelectedAlert(alert)}
-                            color="primary"
-                          >
-                            <ViewIcon />
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </CardContent>
-        )}
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(148, 163, 184, 0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(148, 163, 184, 0.8)',
+                                maxTicksLimit: 7
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'rgba(148, 163, 184, 0.8)'
+                            }
+                        }
+                    }
+                }
+            });
 
-        {/* Tab 4: ML Insights */}
-        {activeTab === 4 && (
-          <CardContent>
-            <Grid container spacing={3}>
-              {/* ML Model Performance */}
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined">
-                  <CardHeader title="ML Model Performance" />
-                  <CardContent>
-                    <Box display="flex" flexDirection="column" gap={2}>
-                      <Box>
-                        <Typography variant="subtitle2">Security Classifier</Typography>
-                        <Box display="flex" justifyContent="space-between">
-                          <Typography variant="body2">Accuracy</Typography>
-                          <Typography variant="body2">
-                            {((security_metrics?.ml_confidence || 0.7) * 100).toFixed(1)}%
-                          </Typography>
-                        </Box>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={(security_metrics?.ml_confidence || 0.7) * 100}
-                          sx={{ height: 4, borderRadius: 2 }}
-                        />
-                      </Box>
-                      
-                      <Box>
-                        <Typography variant="subtitle2">Vulnerability Predictor</Typography>
-                        <Box display="flex" justifyContent="space-between">
-                          <Typography variant="body2">Accuracy</Typography>
-                          <Typography variant="body2">85.3%</Typography>
-                        </Box>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={85.3}
-                          sx={{ height: 4, borderRadius: 2 }}
-                        />
-                      </Box>
+            this.charts.set('security-trends', chart);
+            console.log('✅ Security trends chart loaded');
 
-                      <Box>
-                        <Typography variant="subtitle2">Compliance Predictor</Typography>
-                        <Box display="flex" justifyContent="space-between">
-                          <Typography variant="body2">Accuracy</Typography>
-                          <Typography variant="body2">78.9%</Typography>
-                        </Box>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={78.9}
-                          sx={{ height: 4, borderRadius: 2 }}
-                        />
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+        } catch (error) {
+            console.error('❌ Failed to load security trends:', error);
+        }
+    }
 
-              {/* ML Predictions */}
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined">
-                  <CardHeader title="ML Predictions" />
-                  <CardContent>
-                    <Box display="flex" flexDirection="column" gap={2}>
-                      <Alert severity="info">
-                        <Typography variant="subtitle2">Security Trend Prediction</Typography>
-                        <Typography variant="body2">
-                          ML models predict security posture will improve by 12% over next 30 days with recommended changes.
-                        </Typography>
-                      </Alert>
-                      
-                      <Alert severity="warning">
-                        <Typography variant="subtitle2">Vulnerability Forecast</Typography>
-                        <Typography variant="body2">
-                          High probability of 3-5 new medium-severity vulnerabilities in next 14 days based on historical patterns.
-                        </Typography>
-                      </Alert>
+    async loadAuditTrail(eventType = '') {
+        try {
+            const url = eventType ? 
+                `${this.apiBaseUrl}/audit-trail?event_type=${eventType}` : 
+                `${this.apiBaseUrl}/audit-trail`;
+            
+            const response = await fetch(url);
+            const auditEntries = await response.json();
 
-                      <Alert severity="success">
-                        <Typography variant="subtitle2">Compliance Trajectory</Typography>
-                        <Typography variant="body2">
-                          Implementation of recommended policies will achieve 95% CIS compliance within 2 weeks.
-                        </Typography>
-                      </Alert>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
+            const container = document.getElementById('audit-trail-list');
+            
+            if (auditEntries.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-slate-400">
+                        <i class="fas fa-history text-4xl mb-4"></i>
+                        <p>No audit trail entries found</p>
+                    </div>
+                `;
+                return;
+            }
 
-              {/* ML Model Confidence Radar Chart Placeholder */}
-              <Grid item xs={12}>
-                <Card variant="outlined">
-                  <CardHeader title="ML Model Confidence Levels" />
-                  <CardContent>
-                    <Box height="400px" display="flex" alignItems="center" justifyContent="center">
-                      <Typography color="textSecondary">
-                        ML confidence radar chart would be rendered here
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </CardContent>
-        )}
-      </Card>
+            container.innerHTML = auditEntries.map(entry => {
+                const eventTypeColor = {
+                    'ASSESSMENT': 'blue',
+                    'REMEDIATION': 'green',
+                    'CONFIG_CHANGE': 'yellow',
+                    'ACCESS': 'purple'
+                }[entry.event_type] || 'gray';
 
-      {/* Alert Detail Dialog */}
-      <Dialog 
-        open={selectedAlert !== null} 
-        onClose={() => setSelectedAlert(null)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          Policy Violation Details
-        </DialogTitle>
-        <DialogContent>
-          {selectedAlert && (
-            <Box>
-              <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2">Policy Name</Typography>
-                  <Typography variant="body1">{selectedAlert.policy_name}</Typography>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Typography variant="subtitle2">Severity</Typography>
-                  <Chip 
-                    label={selectedAlert.severity} 
-                    color={selectedAlert.severity === 'critical' ? 'error' : 'warning'}
-                    size="small"
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2">Recommended Action</Typography>
-                  <Typography variant="body1">{selectedAlert.recommended_action}</Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2">Compliance Impact</Typography>
-                  <Box display="flex" gap={1} flexWrap="wrap">
-                    {selectedAlert.compliance_impact?.map((framework, idx) => (
-                      <Chip key={idx} label={framework} size="small" variant="outlined" />
-                    ))}
-                  </Box>
-                </Grid>
-                {selectedAlert.auto_remediation_available && (
-                  <Grid item xs={12}>
-                    <Alert severity="info">
-                      <Typography variant="body2">
-                        Auto-remediation is available for this violation.
-                      </Typography>
-                    </Alert>
-                  </Grid>
-                )}
-              </Grid>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSelectedAlert(null)}>Close</Button>
-          {selectedAlert?.auto_remediation_available && (
-            <Button variant="contained" color="primary">
-              Apply Auto-Remediation
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
+                return `
+                    <div class="flex items-center space-x-4 py-3 px-4 bg-slate-900 rounded-lg">
+                        <div class="flex-shrink-0">
+                            <div class="w-2 h-2 bg-${eventTypeColor}-500 rounded-full"></div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center space-x-3">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${eventTypeColor}-100 text-${eventTypeColor}-800">
+                                    ${entry.event_type}
+                                </span>
+                                <span class="text-slate-400 text-sm">${entry.user}</span>
+                                <span class="text-slate-500 text-xs">${new Date(entry.timestamp).toLocaleString()}</span>
+                            </div>
+                            <p class="text-white text-sm mt-1">${entry.action}</p>
+                            <p class="text-slate-400 text-xs">${entry.resource_name} • ${entry.compliance_impact}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
-      {/* Export Dialog */}
-      <Dialog open={exportDialogOpen} onClose={() => setExportDialogOpen(false)}>
-        <DialogTitle>Export Security Report</DialogTitle>
-        <DialogContent>
-          <Typography variant="body1" gutterBottom>
-            Choose export format for security assessment report:
-          </Typography>
-          <Box display="flex" flexDirection="column" gap={2} mt={2}>
-            <Button 
-              variant="outlined" 
-              onClick={() => handleExport('json')}
-              fullWidth
-            >
-              JSON Report
-            </Button>
-            <Button 
-              variant="outlined" 
-              onClick={() => handleExport('pdf')}
-              fullWidth
-            >
-              PDF Report
-            </Button>
-            <Button 
-              variant="outlined" 
-              onClick={() => handleExport('xlsx')}
-              fullWidth
-            >
-              Excel Report
-            </Button>
-            <Button 
-              variant="outlined" 
-              onClick={() => handleExport('csv')}
-              fullWidth
-            >
-              CSV Export
-            </Button>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setExportDialogOpen(false)}>Cancel</Button>
-        </DialogActions>
-      </Dialog>
+            console.log(`✅ Loaded ${auditEntries.length} audit trail entries`);
 
-      {/* Refresh indicator */}
-      {refreshing && (
-        <Box position="fixed" top={10} right={10} zIndex={1000}>
-          <Alert severity="info" icon={<CircularProgress size={20} />}>
-            Refreshing security data...
-          </Alert>
-        </Box>
-      )}
-    </Box>
-  );
-};
+        } catch (error) {
+            console.error('❌ Failed to load audit trail:', error);
+            this.showError('Failed to load audit trail');
+        }
+    }
 
-export default SecurityDashboard;
+    async triggerVulnerabilityScan() {
+        try {
+            const button = document.getElementById('trigger-scan');
+            const originalText = button.innerHTML;
+            
+            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Scanning...';
+            button.disabled = true;
+
+            const response = await fetch(`${this.apiBaseUrl}/vulnerabilities/scan`, {
+                method: 'POST'
+            });
+            
+            const result = await response.json();
+            
+            this.showNotification('Vulnerability scan started successfully', 'success');
+            
+            // Refresh vulnerabilities after a delay
+            setTimeout(() => {
+                this.loadVulnerabilities();
+            }, 5000);
+
+            button.innerHTML = originalText;
+            button.disabled = false;
+
+        } catch (error) {
+            console.error('❌ Failed to trigger vulnerability scan:', error);
+            this.showError('Failed to trigger vulnerability scan');
+            
+            const button = document.getElementById('trigger-scan');
+            button.innerHTML = '<i class="fas fa-search mr-2"></i>New Scan';
+            button.disabled = false;
+        }
+    }
+
+    async exportAuditTrail() {
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/export/audit-trail?format=csv`);
+            const blob = await response.blob();
+            
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `audit-trail-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+
+            this.showNotification('Audit trail exported successfully', 'success');
+
+        } catch (error) {
+            console.error('❌ Failed to export audit trail:', error);
+            this.showError('Failed to export audit trail');
+        }
+    }
+
+    showViolationDetails(violationId) {
+        // Implement modal or detailed view for policy violation
+        console.log('Show violation details:', violationId);
+        // You can implement a modal or navigate to a detailed view
+    }
+
+    showComplianceDetails(framework) {
+        // Implement detailed compliance view
+        console.log('Show compliance details:', framework);
+        // You can implement navigation to detailed compliance report
+    }
+
+    showVulnerabilityDetails(vulnId) {
+        // Implement detailed vulnerability view
+        console.log('Show vulnerability details:', vulnId);
+        // You can implement a modal with remediation guidance
+    }
+
+    startAutoRefresh() {
+        // Clear existing intervals
+        this.activeIntervals.forEach(interval => clearInterval(interval));
+        this.activeIntervals.clear();
+
+        // Set up auto-refresh for different components
+        const overviewInterval = setInterval(() => {
+            this.loadSecurityOverview();
+        }, this.refreshInterval);
+        
+        this.activeIntervals.set('overview', overviewInterval);
+
+        console.log(`🔄 Auto-refresh started (${this.refreshInterval/1000}s interval)`);
+    }
+
+    stopAutoRefresh() {
+        this.activeIntervals.forEach(interval => clearInterval(interval));
+        this.activeIntervals.clear();
+        console.log('⏹️ Auto-refresh stopped');
+    }
+
+    showError(message) {
+        this.showNotification(message, 'error');
+    }
+
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 z-50 max-w-sm w-full px-4 py-3 rounded-lg shadow-lg transition-all duration-300 transform translate-x-full`;
+        
+        const colors = {
+            'success': 'bg-green-600 text-white',
+            'error': 'bg-red-600 text-white',
+            'warning': 'bg-yellow-600 text-white',
+            'info': 'bg-blue-600 text-white'
+        };
+        
+        notification.className += ` ${colors[type] || colors['info']}`;
+        
+        notification.innerHTML = `
+            <div class="flex items-center justify-between">
+                <span>${message}</span>
+                <button class="ml-4 text-white hover:text-gray-200" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+            notification.classList.remove('translate-x-full');
+        }, 100);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            notification.classList.add('translate-x-full');
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 300);
+        }, 5000);
+    }
+
+    destroy() {
+        this.stopAutoRefresh();
+        this.charts.forEach(chart => chart.destroy());
+        this.charts.clear();
+        console.log('🔐 Security Posture Dashboard destroyed');
+    }
+}
+
+// Global instance
+let securityDashboard;
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    securityDashboard = new SecurityPostureDashboard();
+});
+
+// Export for module usage
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = SecurityPostureDashboard;
+}
