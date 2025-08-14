@@ -57,23 +57,27 @@ if (!window.chartInstances) {
 
 
 function showContent(contentType, element) {
-    // Hide all tab content panels
-    const allPanels = document.querySelectorAll('.tab-content-panel');
-    allPanels.forEach(panel => panel.classList.add('hidden'));
+    // Hide all content panels (expanded selector to include both classes)
+    document.querySelectorAll('.tab-content-panel, .content-section').forEach(panel => {
+        panel.classList.add('hidden');
+        panel.style.display = 'none';  // Explicitly set display none
+    });
     
     // Remove active class from all nav links
-    const allNavLinks = document.querySelectorAll('.nav-link');
-    allNavLinks.forEach(link => link.classList.remove('active-nav-link'));
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.classList.remove('active-nav-link');
+    });
+    
+    // Show the selected content panel
+    const targetPanel = document.getElementById(`${contentType}-content`);
+    if (targetPanel) {
+        targetPanel.classList.remove('hidden');
+        targetPanel.style.display = 'block';  // Explicitly set display block
+    }
     
     // Add active class to clicked nav link
     if (element) {
         element.classList.add('active-nav-link');
-    }
-    
-    // Show selected content panel
-    const targetPanel = document.getElementById(`${contentType}-content`);
-    if (targetPanel) {
-        targetPanel.classList.remove('hidden');
     }
     
     // Handle specific tab logic
@@ -107,8 +111,14 @@ function showContent(contentType, element) {
             break;
             
         case 'securityposture':
-            // Load security posture data
+            // Load security posture data with reinitialization
             console.log('Security Posture tab selected');
+            // Reinitialize security dashboard when switching to it
+            if (window.securityDashboard) {
+                setTimeout(() => {
+                    window.securityDashboard.loadSecurityOverview();
+                }, 100);
+            }
             break;
             
         case 'compliance':

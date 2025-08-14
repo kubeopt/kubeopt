@@ -8,16 +8,17 @@
 class SecurityPostureDashboard {
     constructor(apiBaseUrl = '/api/security') {
         this.apiBaseUrl = apiBaseUrl;
-        this.refreshInterval = 30000; // 30 seconds
+        this.refreshInterval = 300000; // 5 minutes instead of 30 seconds
         this.activeIntervals = new Map();
         this.charts = new Map();
         this.lastUpdate = null;
+        this.analysisTriggered = false; // Prevent multiple triggers
         
         this.init();
     }
 
     async init() {
-        console.log('🔐 Initializing Security Posture Dashboard...');
+        console.log('🔒 Initializing Security Posture Dashboard...');
         
         // Check if we're on the security posture page
         if (document.getElementById('securityposture-content')) {
@@ -34,11 +35,6 @@ class SecurityPostureDashboard {
         
         // Load initial data
         await this.loadSecurityOverview();
-        await this.loadPolicyViolations();
-        await this.loadCompliance();
-        await this.loadVulnerabilities();
-        await this.loadSecurityTrends();
-        await this.loadAuditTrail();
     }
 
     createDashboardLayout() {
@@ -306,7 +302,10 @@ class SecurityPostureDashboard {
         const triggerScanBtn = document.getElementById('trigger-scan');
         if (triggerScanBtn) {
             triggerScanBtn.addEventListener('click', () => {
-                this.triggerVulnerabilityScan();
+                this.showNotification(
+                    'Security scanning is performed during cluster analysis. Please run a full cluster analysis to update security data.',
+                    'info'
+                );
             });
         }
 
@@ -327,60 +326,225 @@ class SecurityPostureDashboard {
         }
     }
 
+    getCurrentClusterId() {
+        // First, try the global cluster object
+        if (window.currentCluster && window.currentCluster.id && window.currentCluster.id !== 'null') {
+            console.log('Using cluster ID from window.currentCluster:', window.currentCluster.id);
+            return window.currentCluster.id;
+        }
+        
+        // Try from data attribute
+        const dataClusterId = document.documentElement.getAttribute('data-cluster-id');
+        if (dataClusterId && dataClusterId !== '') {
+            console.log('Using cluster ID from data attribute:', dataClusterId);
+            return dataClusterId;
+        }
+        
+        // Try from URL path
+        const urlPath = window.location.pathname;
+        if (urlPath.includes('/cluster/')) {
+            const match = urlPath.match(/\/cluster\/([^\/]+)/);
+            if (match && match[1]) {
+                console.log('Using cluster ID from URL:', match[1]);
+                return match[1];
+            }
+        }
+        
+        // Try from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('cluster_id')) {
+            console.log('Using cluster ID from URL params:', urlParams.get('cluster_id'));
+            return urlParams.get('cluster_id');
+        }
+        
+        console.warn('⚠️ Could not determine cluster ID, returning null');
+        return null;  // Return null, not 'default_cluster'
+    }
+    
     async loadSecurityOverview() {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/overview`);
-            const data = await response.json();
-
-            // Update overview cards
-            document.getElementById('security-score').textContent = Math.round(data.overall_score);
-            document.getElementById('security-grade').textContent = `Grade: ${data.grade}`;
-            document.getElementById('critical-alerts').textContent = data.alerts_count;
-            document.getElementById('critical-vulns').textContent = data.critical_vulnerabilities;
-            document.getElementById('compliance-score').textContent = `${Math.round(data.compliance_percentage)}%`;
-
-            // Update trend indicator
-            const trendElement = document.getElementById('security-trend');
-            const trendIcon = data.trend === 'improving' ? '📈' : data.trend === 'declining' ? '📉' : '➡️';
-            trendElement.innerHTML = `<span class="text-slate-400">Trend: </span><span class="ml-1 text-slate-300">${trendIcon} ${data.trend}</span>`;
-
-            // Load detailed breakdown
+            const clusterId = this.getCurrentClusterId();
+            
+            if (!clusterId) {
+                console.log('ℹ️ No cluster ID available for security overview');
+                this.showNoDataMessage('Please run a cluster analysis first to generate security data.');
+                return;  // Stop here, don't retry
+            }
+            
+            // Only make ONE attempt to get results
+            const resultsResponse = await fetch(`${this.apiBaseUrl}/results/${clusterId}`);
+            
+            if (resultsResponse.status === 404) {
+                console.log('ℹ️ No security results available for cluster:', clusterId);
+                this.showNoDataMessage('Security analysis will be included in the next cluster analysis run.');
+                return;  // Stop here, don't retry
+            }
+            
+            if (!resultsResponse.ok) {
+                console.error('Failed to fetch security results:', resultsResponse.status);
+                this.showError('Failed to load security data');
+                return;  // Stop here, don't retry
+            }
+            
+            // Process the results
+            const results = await resultsResponse.json();
+            
+            // Get overview
+            const overviewResponse = await fetch(`${this.apiBaseUrl}/overview?cluster_id=${clusterId}`);
+            if (overviewResponse.ok) {
+                const data = await overviewResponse.json();
+                this.updateSecurityOverview(data);
+            }
+            
+            // Load other components
             await this.loadSecurityBreakdown();
-
-            this.lastUpdate = new Date();
-            console.log('✅ Security overview loaded');
-
+            await this.loadPolicyViolations();
+            await this.loadCompliance();
+            await this.loadVulnerabilities();
+            await this.loadSecurityTrends();
+            
         } catch (error) {
             console.error('❌ Failed to load security overview:', error);
             this.showError('Failed to load security overview');
+            // Don't retry on error
         }
+    }
+
+    updateSecurityOverview(data) {
+        try {
+            // Update security score
+            const scoreElement = document.getElementById('security-score');
+            const gradeElement = document.getElementById('security-grade');
+            const trendElement = document.getElementById('security-trend');
+            const alertsElement = document.getElementById('critical-alerts');
+            const vulnsElement = document.getElementById('critical-vulns');
+            const complianceElement = document.getElementById('compliance-score');
+
+            if (scoreElement) {
+                const score = Math.round(data.overall_score || 0);
+                scoreElement.textContent = `${score}%`;
+                
+                // Update color based on score
+                scoreElement.className = 'text-2xl font-bold text-white';
+                if (score >= 80) {
+                    scoreElement.classList.add('text-green-400');
+                } else if (score >= 60) {
+                    scoreElement.classList.add('text-yellow-400');
+                } else {
+                    scoreElement.classList.add('text-red-400');
+                }
+            }
+
+            if (gradeElement) {
+                gradeElement.textContent = `Grade: ${data.grade || 'N/A'}`;
+            }
+
+            if (trendElement) {
+                const trend = data.trend || 'stable';
+                const trendIcon = trend === 'improving' ? '↑' : trend === 'declining' ? '↓' : '→';
+                const trendColor = trend === 'improving' ? 'text-green-400' : trend === 'declining' ? 'text-red-400' : 'text-yellow-400';
+                
+                trendElement.innerHTML = `
+                    <span class="text-slate-400">Trend: </span>
+                    <span class="ml-1 ${trendColor}">${trendIcon} ${trend}</span>
+                `;
+            }
+
+            if (alertsElement) {
+                alertsElement.textContent = data.alerts_count || '0';
+            }
+
+            if (vulnsElement) {
+                vulnsElement.textContent = data.critical_vulnerabilities || '0';
+            }
+
+            if (complianceElement) {
+                const compliance = Math.round(data.compliance_percentage || 0);
+                complianceElement.textContent = `${compliance}%`;
+            }
+
+            // Update last updated timestamp
+            this.lastUpdate = new Date(data.last_updated || new Date());
+            
+            console.log('✅ Security overview updated successfully');
+            
+        } catch (error) {
+            console.error('❌ Failed to update security overview UI:', error);
+            this.showError('Failed to update security overview display');
+        }
+    }
+
+    showNoDataMessage(message) {
+        // Update the overview cards with empty state
+        document.getElementById('security-score').textContent = '--';
+        document.getElementById('security-grade').textContent = 'No data available';
+        document.getElementById('critical-alerts').textContent = '0';
+        document.getElementById('critical-vulns').textContent = '0';
+        document.getElementById('compliance-score').textContent = '--';
+        
+        // Show message in the main content area
+        const breakdownContainer = document.getElementById('security-breakdown');
+        if (breakdownContainer) {
+            breakdownContainer.innerHTML = `
+                <div class="text-center py-8">
+                    <i class="fas fa-shield-alt text-4xl mb-4 text-slate-500"></i>
+                    <p class="text-slate-400">${message}</p>
+                    <p class="text-sm text-slate-500 mt-2">Security analysis runs automatically with cluster analysis.</p>
+                </div>
+            `;
+        }
+        
+        // Clear other containers
+        const containers = [
+            'policy-violations-list',
+            'compliance-frameworks',
+            'vulnerabilities-list',
+            'audit-trail-list'
+        ];
+        
+        containers.forEach(containerId => {
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.innerHTML = `
+                    <div class="text-center py-4 text-slate-500">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        No data available
+                    </div>
+                `;
+            }
+        });
     }
 
     async loadSecurityBreakdown() {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/score/detailed`);
+            const clusterId = this.getCurrentClusterId();
+            if (!clusterId) return;
+
+            const response = await fetch(`${this.apiBaseUrl}/score/detailed?cluster_id=${clusterId}`);
             const data = await response.json();
 
             const breakdownContainer = document.getElementById('security-breakdown');
             const breakdown = data.breakdown;
 
-            breakdownContainer.innerHTML = Object.entries(breakdown).map(([key, value]) => {
-                const label = key.replace('_score', '').replace('_', ' ').toUpperCase();
-                const percentage = Math.round(value);
-                const color = percentage >= 80 ? 'green' : percentage >= 60 ? 'yellow' : 'red';
+            if (breakdown && Object.keys(breakdown).length > 0) {
+                breakdownContainer.innerHTML = Object.entries(breakdown).map(([key, value]) => {
+                    const label = key.replace('_score', '').replace('_', ' ').toUpperCase();
+                    const percentage = Math.round(value);
+                    const color = percentage >= 80 ? 'green' : percentage >= 60 ? 'yellow' : 'red';
 
-                return `
-                    <div class="flex items-center justify-between py-2">
-                        <span class="text-sm text-slate-300">${label}</span>
-                        <div class="flex items-center space-x-3">
-                            <div class="w-24 bg-slate-700 rounded-full h-2">
-                                <div class="bg-${color}-500 h-2 rounded-full" style="width: ${percentage}%"></div>
+                    return `
+                        <div class="flex items-center justify-between py-2">
+                            <span class="text-sm text-slate-300">${label}</span>
+                            <div class="flex items-center space-x-3">
+                                <div class="w-24 bg-slate-700 rounded-full h-2">
+                                    <div class="bg-${color}-500 h-2 rounded-full" style="width: ${percentage}%"></div>
+                                </div>
+                                <span class="text-sm text-white w-12 text-right">${percentage}%</span>
                             </div>
-                            <span class="text-sm text-white w-12 text-right">${percentage}%</span>
                         </div>
-                    </div>
-                `;
-            }).join('');
+                    `;
+                }).join('');
+            }
 
         } catch (error) {
             console.error('❌ Failed to load security breakdown:', error);
@@ -389,15 +553,20 @@ class SecurityPostureDashboard {
 
     async loadPolicyViolations(severity = '') {
         try {
+            const clusterId = this.getCurrentClusterId();
+            if (!clusterId) return;
+
             const url = severity ? 
-                `${this.apiBaseUrl}/policy-violations?severity=${severity}` : 
-                `${this.apiBaseUrl}/policy-violations`;
+                `${this.apiBaseUrl}/policy-violations?severity=${severity}&cluster_id=${clusterId}` : 
+                `${this.apiBaseUrl}/policy-violations?cluster_id=${clusterId}`;
             
             const response = await fetch(url);
             const violations = await response.json();
 
             const container = document.getElementById('policy-violations-list');
             
+            if (!container) return;
+
             if (violations.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-8 text-slate-400">
@@ -449,22 +618,25 @@ class SecurityPostureDashboard {
 
         } catch (error) {
             console.error('❌ Failed to load policy violations:', error);
-            this.showError('Failed to load policy violations');
         }
     }
 
     async loadCompliance() {
         try {
+            const clusterId = this.getCurrentClusterId();
+            if (!clusterId) return;
+
             // Load compliance frameworks
             const frameworksResponse = await fetch(`${this.apiBaseUrl}/compliance/frameworks`);
             const frameworksData = await frameworksResponse.json();
 
             const container = document.getElementById('compliance-frameworks');
+            if (!container) return;
             
             // Load compliance status for each framework
             const compliancePromises = frameworksData.frameworks.map(async (framework) => {
                 try {
-                    const response = await fetch(`${this.apiBaseUrl}/compliance/${framework.id}`);
+                    const response = await fetch(`${this.apiBaseUrl}/compliance/${framework.id}?cluster_id=${clusterId}`);
                     const data = await response.json();
                     return { ...framework, ...data };
                 } catch (error) {
@@ -532,46 +704,51 @@ class SecurityPostureDashboard {
 
         } catch (error) {
             console.error('❌ Failed to load compliance:', error);
-            this.showError('Failed to load compliance data');
         }
     }
 
     async loadVulnerabilities(severity = '') {
         try {
+            const clusterId = this.getCurrentClusterId();
+            if (!clusterId) return;
+
             // Load vulnerability summary
-            const summaryResponse = await fetch(`${this.apiBaseUrl}/vulnerabilities/summary`);
+            const summaryResponse = await fetch(`${this.apiBaseUrl}/vulnerabilities/summary?cluster_id=${clusterId}`);
             const summary = await summaryResponse.json();
 
             // Update summary display
             const summaryContainer = document.getElementById('vuln-summary');
-            summaryContainer.innerHTML = `
-                <div class="text-center">
-                    <div class="text-2xl font-bold text-red-400">${summary.by_severity?.CRITICAL || 0}</div>
-                    <div class="text-sm text-slate-400">Critical</div>
-                </div>
-                <div class="text-center">
-                    <div class="text-2xl font-bold text-orange-400">${summary.by_severity?.HIGH || 0}</div>
-                    <div class="text-sm text-slate-400">High</div>
-                </div>
-                <div class="text-center">
-                    <div class="text-2xl font-bold text-yellow-400">${summary.by_severity?.MEDIUM || 0}</div>
-                    <div class="text-sm text-slate-400">Medium</div>
-                </div>
-                <div class="text-center">
-                    <div class="text-2xl font-bold text-blue-400">${summary.by_severity?.LOW || 0}</div>
-                    <div class="text-sm text-slate-400">Low</div>
-                </div>
-            `;
+            if (summaryContainer) {
+                summaryContainer.innerHTML = `
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-red-400">${summary.by_severity?.CRITICAL || 0}</div>
+                        <div class="text-sm text-slate-400">Critical</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-orange-400">${summary.by_severity?.HIGH || 0}</div>
+                        <div class="text-sm text-slate-400">High</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-yellow-400">${summary.by_severity?.MEDIUM || 0}</div>
+                        <div class="text-sm text-slate-400">Medium</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-2xl font-bold text-blue-400">${summary.by_severity?.LOW || 0}</div>
+                        <div class="text-sm text-slate-400">Low</div>
+                    </div>
+                `;
+            }
 
             // Load vulnerability list
             const url = severity ? 
-                `${this.apiBaseUrl}/vulnerabilities?severity=${severity}` : 
-                `${this.apiBaseUrl}/vulnerabilities`;
+                `${this.apiBaseUrl}/vulnerabilities?severity=${severity}&cluster_id=${clusterId}` : 
+                `${this.apiBaseUrl}/vulnerabilities?cluster_id=${clusterId}`;
             
             const response = await fetch(url);
             const vulnerabilities = await response.json();
 
             const container = document.getElementById('vulnerabilities-list');
+            if (!container) return;
             
             if (vulnerabilities.length === 0) {
                 container.innerHTML = `
@@ -624,16 +801,21 @@ class SecurityPostureDashboard {
 
         } catch (error) {
             console.error('❌ Failed to load vulnerabilities:', error);
-            this.showError('Failed to load vulnerabilities');
         }
     }
 
     async loadSecurityTrends() {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/trends/security_score?days=30`);
+            const clusterId = this.getCurrentClusterId();
+            if (!clusterId) return;
+
+            const response = await fetch(`${this.apiBaseUrl}/trends/security_score?days=30&cluster_id=${clusterId}`);
             const trendsData = await response.json();
 
-            const ctx = document.getElementById('security-trends-chart').getContext('2d');
+            const canvas = document.getElementById('security-trends-chart');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
             
             if (this.charts.has('security-trends')) {
                 this.charts.get('security-trends').destroy();
@@ -697,14 +879,18 @@ class SecurityPostureDashboard {
 
     async loadAuditTrail(eventType = '') {
         try {
+            const clusterId = this.getCurrentClusterId();
+            if (!clusterId) return;
+
             const url = eventType ? 
-                `${this.apiBaseUrl}/audit-trail?event_type=${eventType}` : 
-                `${this.apiBaseUrl}/audit-trail`;
+                `${this.apiBaseUrl}/audit-trail?event_type=${eventType}&cluster_id=${clusterId}` : 
+                `${this.apiBaseUrl}/audit-trail?cluster_id=${clusterId}`;
             
             const response = await fetch(url);
             const auditEntries = await response.json();
 
             const container = document.getElementById('audit-trail-list');
+            if (!container) return;
             
             if (auditEntries.length === 0) {
                 container.innerHTML = `
@@ -748,47 +934,18 @@ class SecurityPostureDashboard {
 
         } catch (error) {
             console.error('❌ Failed to load audit trail:', error);
-            this.showError('Failed to load audit trail');
-        }
-    }
-
-    async triggerVulnerabilityScan() {
-        try {
-            const button = document.getElementById('trigger-scan');
-            const originalText = button.innerHTML;
-            
-            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Scanning...';
-            button.disabled = true;
-
-            const response = await fetch(`${this.apiBaseUrl}/vulnerabilities/scan`, {
-                method: 'POST'
-            });
-            
-            const result = await response.json();
-            
-            this.showNotification('Vulnerability scan started successfully', 'success');
-            
-            // Refresh vulnerabilities after a delay
-            setTimeout(() => {
-                this.loadVulnerabilities();
-            }, 5000);
-
-            button.innerHTML = originalText;
-            button.disabled = false;
-
-        } catch (error) {
-            console.error('❌ Failed to trigger vulnerability scan:', error);
-            this.showError('Failed to trigger vulnerability scan');
-            
-            const button = document.getElementById('trigger-scan');
-            button.innerHTML = '<i class="fas fa-search mr-2"></i>New Scan';
-            button.disabled = false;
         }
     }
 
     async exportAuditTrail() {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/export/audit-trail?format=csv`);
+            const clusterId = this.getCurrentClusterId();
+            if (!clusterId) {
+                this.showError('No cluster selected');
+                return;
+            }
+
+            const response = await fetch(`${this.apiBaseUrl}/export/audit-trail?format=csv&cluster_id=${clusterId}`);
             const blob = await response.blob();
             
             const url = window.URL.createObjectURL(blob);
@@ -811,40 +968,50 @@ class SecurityPostureDashboard {
     showViolationDetails(violationId) {
         // Implement modal or detailed view for policy violation
         console.log('Show violation details:', violationId);
-        // You can implement a modal or navigate to a detailed view
+        this.showNotification('Violation details view coming soon', 'info');
     }
 
     showComplianceDetails(framework) {
         // Implement detailed compliance view
         console.log('Show compliance details:', framework);
-        // You can implement navigation to detailed compliance report
+        this.showNotification('Compliance details view coming soon', 'info');
     }
 
     showVulnerabilityDetails(vulnId) {
         // Implement detailed vulnerability view
         console.log('Show vulnerability details:', vulnId);
-        // You can implement a modal with remediation guidance
+        this.showNotification('Vulnerability details view coming soon', 'info');
     }
 
     startAutoRefresh() {
+        // Only refresh if we have a valid cluster ID
+        const clusterId = this.getCurrentClusterId();
+        if (!clusterId) {
+            console.log('ℹ️ Auto-refresh disabled - no cluster ID');
+            return;
+        }
+        
         // Clear existing intervals
         this.activeIntervals.forEach(interval => clearInterval(interval));
         this.activeIntervals.clear();
 
-        // Set up auto-refresh for different components
+        // Set up auto-refresh with longer interval (5 minutes instead of 30 seconds)
         const overviewInterval = setInterval(() => {
-            this.loadSecurityOverview();
+            // Only refresh if we're still on the security tab
+            if (document.getElementById('securityposture-content') && 
+                !document.getElementById('securityposture-content').classList.contains('hidden')) {
+                this.loadSecurityOverview();
+            }
         }, this.refreshInterval);
         
         this.activeIntervals.set('overview', overviewInterval);
-
         console.log(`🔄 Auto-refresh started (${this.refreshInterval/1000}s interval)`);
     }
 
     stopAutoRefresh() {
         this.activeIntervals.forEach(interval => clearInterval(interval));
         this.activeIntervals.clear();
-        console.log('⏹️ Auto-refresh stopped');
+        console.log('ℹ️ Auto-refresh stopped');
     }
 
     showError(message) {
@@ -896,7 +1063,7 @@ class SecurityPostureDashboard {
         this.stopAutoRefresh();
         this.charts.forEach(chart => chart.destroy());
         this.charts.clear();
-        console.log('🔐 Security Posture Dashboard destroyed');
+        console.log('🔒 Security Posture Dashboard destroyed');
     }
 }
 
@@ -905,6 +1072,26 @@ let securityDashboard;
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
+    // Set up global cluster data
+    const clusterNameElement = document.querySelector('h4 span.bg-gradient-to-r');
+    const clusterName = clusterNameElement ? clusterNameElement.textContent.trim() : null;
+    
+    // Try to extract cluster data from the page
+    if (clusterName && clusterName !== 'Demo Cluster') {
+        // Try to get cluster ID from URL or other sources
+        const urlPath = window.location.pathname;
+        if (urlPath.includes('/cluster/')) {
+            const pathParts = urlPath.split('/');
+            const clusterIndex = pathParts.indexOf('cluster');
+            if (clusterIndex !== -1 && pathParts[clusterIndex + 1]) {
+                window.currentCluster = {
+                    id: pathParts[clusterIndex + 1],
+                    name: clusterName
+                };
+            }
+        }
+    }
+    
     securityDashboard = new SecurityPostureDashboard();
 });
 

@@ -30,7 +30,7 @@
     <script src="{{ url_for('static', filename='js/alerts/main.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='js/implementation/main.js') }}"></script>
     <script src="{{ url_for('static', filename='js/controls/controls.js') }}"></script>
-    <!-- <script src="{{ url_for('static', filename='js/security/security.js') }}"></script> -->
+    <script src="{{ url_for('static', filename='js/security/security.js') }}"></script>
 
     
     <!-- <script src="{{ url_for('static', filename='js/magic.js') }}"></script> -->
@@ -85,6 +85,32 @@
             --tw-bg-opacity: 1;
             background-color: rgb(37 100 88);
         }
+
+        /* Fix tab content isolation */
+.tab-content-panel {
+    display: none !important;
+}
+
+.tab-content-panel:not(.hidden) {
+    display: block !important;
+}
+
+#securityposture-content {
+    display: none;
+}
+
+#securityposture-content:not(.hidden) {
+    display: block;
+}
+
+/* Ensure security content is properly contained */
+.security-tab-content {
+    display: none;
+}
+
+.security-tab-content:not(.hidden) {
+    display: block;
+}
     </style>
 </head>
 <body class="bg-gradient-custom">
