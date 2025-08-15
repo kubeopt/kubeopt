@@ -1,11 +1,11 @@
 {
-  "result_id": "sec_rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1_20250814_230204",
+  "result_id": "sec_rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1_20250815_002443",
   "cluster_id": "rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1",
   "resource_group": "rg-dpl-mad-dev-ne2-2",
   "cluster_name": "aks-dpl-mad-dev-ne2-1",
-  "timestamp": "2025-08-14T23:02:04.362958",
+  "timestamp": "2025-08-15T00:24:43.145513",
   "analysis": {
-    "timestamp": "2025-08-14T23:02:04.283723",
+    "timestamp": "2025-08-15T00:24:43.089837",
     "confidence": 0.8875,
     "frameworks_analyzed": [
       "CIS",
@@ -14,7 +14,7 @@
     "based_on_real_data": true,
     "analysis_errors": [],
     "security_posture": {
-      "overall_score": 47.5283534048,
+      "overall_score": 46.000054609088,
       "grade": "F",
       "breakdown": {
         "rbac_score": 0,
@@ -22,14 +22,14 @@
         "encryption_score": 100,
         "vulnerability_score": 0,
         "compliance_score": 100.0,
-        "drift_score": 83.522356032
+        "drift_score": 73.33369739391999
       },
       "trends": {
         "trend": "declining",
-        "change": -8.238821983999998,
-        "recent_average": 53.961178016000005,
-        "historical_average": 62.2,
-        "data_points": 10,
+        "change": -12.566484636373339,
+        "recent_average": 50.26684869696,
+        "historical_average": 62.833333333333336,
+        "data_points": 11,
         "component_trends": {
           "rbac": "declining",
           "network": "improving",
@@ -40,7 +40,7 @@
         },
         "time_range": {
           "oldest": "2025-08-05 00:19:59.573130",
-          "newest": "2025-08-14 22:19:59.425744"
+          "newest": "2025-08-14 23:02:04.330371"
         }
       },
       "based_on_actual_resources": true
@@ -49,14 +49,14 @@
       "overall_compliance": 7.0,
       "violations_count": 59,
       "violations_by_severity": {
-        "CRITICAL": 8,
-        "HIGH": 14,
+        "CRITICAL": 11,
+        "HIGH": 11,
         "MEDIUM": 37,
         "LOW": 0
       },
       "compliance_by_category": {
-        "Security": 0,
         "Network": 100.0,
+        "Security": 0,
         "Governance": 0
       },
       "auto_remediable_violations": 0,
@@ -81,17 +81,17 @@
       }
     },
     "vulnerability_assessment": {
-      "scan_id": "scan_20250814_230204",
+      "scan_id": "scan_20250815_002443",
       "total_vulnerabilities": 0,
       "critical_vulnerabilities": 0,
       "high_vulnerabilities": 0,
       "exploitable_vulnerabilities": 0,
       "coverage_percentage": 0.0,
-      "scan_duration": 2.7e-05,
+      "scan_duration": 1.5e-05,
       "actual_containers_scanned": 0
     },
     "ml_context": {
-      "cluster_personality": "medium-scale-balanced-infrastructure-needs-optimization-hpa-ready-conservative-matureconfig",
+      "cluster_personality": "medium-scale-balanced-infrastructure-needs-optimization-hpa-ready-conservative-developingconfig",
       "ml_confidence": 0.985,
       "optimization_readiness": 0.985
     }
@@ -99,6 +99,6 @@
   "metadata": {
     "version": "1.0.0",
     "complete": true,
-    "cached_until": "2025-08-15T00:02:04.362959"
+    "cached_until": "2025-08-15T01:24:43.145514"
   }
 }
