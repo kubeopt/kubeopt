@@ -5,12 +5,11 @@ FIXED: No fallback logic, pure dynamic analysis from real cluster data
 ADDED: Proper error handling and validation without masking issues
 """
 
-import asyncio
-import json
+import copy
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 # Import security components - fail fast if not available
 from .security_posture_core import create_security_posture_engine
@@ -37,6 +36,9 @@ class SecurityIntegrationMixin:
     ADDED: Proper error handling and validation
     """
     
+    # Supported security frameworks
+    SUPPORTED_FRAMEWORKS = ['CIS', 'NIST', 'PCI-DSS', 'HIPAA', 'SOC2', 'ISO27001']
+    
     def __init__(self):
         """Initialize security integration components"""
         self.security_integration_enabled = True
@@ -45,8 +47,116 @@ class SecurityIntegrationMixin:
         self.policy_analyzer = None
         self.compliance_engine = None
         self.vulnerability_scanner = None
+    
+    async def enhance_with_security(self, 
+                                   implementation_plan: Dict,
+                                   cluster_config: Dict,
+                                   security_frameworks: Optional[List[str]] = None,
+                                   priority: str = 'HIGH') -> SecurityEnhancedPlan:
+        """
+        Main public orchestration method to enhance implementation plan with security.
         
-    def _initialize_security_components(self, cluster_config: Dict):
+        Args:
+            implementation_plan: Base implementation plan to enhance
+            cluster_config: Real cluster configuration for analysis
+            security_frameworks: List of compliance frameworks to analyze
+            priority: Priority level for security phases ('HIGH', 'MEDIUM', 'LOW')
+            
+        Returns:
+            SecurityEnhancedPlan with all security enhancements
+            
+        Raises:
+            ValueError: If inputs are invalid
+            RuntimeError: If security analysis fails
+        """
+        logger.info("🔐 Starting security enhancement workflow...")
+        
+        # Validate inputs
+        if not implementation_plan:
+            raise ValueError("Implementation plan is required")
+        
+        if not cluster_config or cluster_config.get('status') != 'completed':
+            raise ValueError("Valid completed cluster configuration is required")
+        
+        # Validate and set frameworks
+        if security_frameworks:
+            invalid_frameworks = [f for f in security_frameworks if f not in self.SUPPORTED_FRAMEWORKS]
+            if invalid_frameworks:
+                logger.warning(f"Unsupported frameworks will be skipped: {invalid_frameworks}")
+                security_frameworks = [f for f in security_frameworks if f in self.SUPPORTED_FRAMEWORKS]
+        else:
+            security_frameworks = ['CIS', 'NIST']  # Default frameworks
+        
+        if priority not in ['HIGH', 'MEDIUM', 'LOW']:
+            logger.warning(f"Invalid priority '{priority}', using 'HIGH'")
+            priority = 'HIGH'
+        
+        try:
+            # Step 1: Initialize security components
+            await self._initialize_security_components(cluster_config)
+            
+            # Step 2: Perform comprehensive security analysis
+            security_analysis = await self._perform_comprehensive_security_analysis(
+                cluster_config, security_frameworks
+            )
+            
+            # Step 3: Generate security implementation phases
+            security_phases = await self._generate_security_implementation_phases(
+                security_analysis, priority
+            )
+            
+            # Step 4: Deep copy the plan to avoid mutations
+            enhanced_plan = copy.deepcopy(implementation_plan)
+            
+            # Step 5: Integrate security phases
+            enhanced_plan = await self._integrate_security_phases(
+                enhanced_plan, security_phases, security_analysis
+            )
+            
+            # Step 6: Add compliance requirements
+            enhanced_plan = await self._add_compliance_requirements(
+                enhanced_plan, security_analysis, security_frameworks
+            )
+            
+            # Step 7: Generate vulnerability remediation plan
+            vulnerability_remediation = await self._generate_vulnerability_remediation(
+                security_analysis
+            )
+            
+            # Step 8: Calculate security impact
+            enhanced_plan = await self._calculate_security_impact(
+                enhanced_plan, security_analysis, implementation_plan
+            )
+            
+            # Step 9: Add security monitoring
+            enhanced_plan = await self._add_security_monitoring(
+                enhanced_plan, security_analysis
+            )
+            
+            # Step 10: Generate security commands
+            enhanced_plan = await self._generate_security_commands(
+                enhanced_plan, security_analysis
+            )
+            
+            # Step 11: Build and return SecurityEnhancedPlan
+            security_enhanced_plan = SecurityEnhancedPlan(
+                base_plan=implementation_plan,
+                security_analysis=security_analysis,
+                security_phases=security_phases,
+                compliance_requirements=enhanced_plan.get('compliance_requirements', []),
+                vulnerability_remediation=vulnerability_remediation,
+                security_score_impact=enhanced_plan.get('security_impact', {}),
+                estimated_security_improvement=enhanced_plan.get('security_impact', {}).get('estimated_improvement', 0)
+            )
+            
+            logger.info(f"✅ Security enhancement complete - {len(security_phases)} phases added")
+            return security_enhanced_plan
+            
+        except Exception as e:
+            logger.error(f"❌ Security enhancement workflow failed: {str(e)}")
+            raise RuntimeError(f"Failed to enhance plan with security: {str(e)}") from e
+        
+    async def _initialize_security_components(self, cluster_config: Dict) -> None:
         """Initialize all security analysis components with real cluster config"""
         
         if self.security_components_initialized:
@@ -89,6 +199,9 @@ class SecurityIntegrationMixin:
                     failed_components.append("vulnerability_scanner")
                 raise RuntimeError(f"Failed to initialize components: {', '.join(failed_components)}")
             
+            # Validate required methods exist on components
+            self._validate_component_methods()
+            
             self.security_components_initialized = True
             logger.info("✅ Security integration components initialized with real cluster data")
             
@@ -102,11 +215,32 @@ class SecurityIntegrationMixin:
             self.security_components_initialized = False
             raise RuntimeError(f"Security component initialization failed: {str(e)}") from e
     
+    def _validate_component_methods(self) -> None:
+        """Validate that required methods exist on security components"""
+        required_methods = {
+            'security_engine': ['analyze_security_posture'],
+            'policy_analyzer': ['analyze_policy_compliance'],
+            'compliance_engine': ['assess_framework_compliance'],
+            'vulnerability_scanner': ['perform_comprehensive_scan']
+        }
+        
+        for component_name, methods in required_methods.items():
+            component = getattr(self, component_name)
+            if component:
+                for method in methods:
+                    if not hasattr(component, method):
+                        raise RuntimeError(
+                            f"{component_name} is missing required method: {method}"
+                        )
+    
     async def _perform_comprehensive_security_analysis(self, cluster_config: Dict, 
                                                      security_frameworks: List[str]) -> Dict:
         """
         FIXED: Perform real security analysis using actual cluster configuration
         No static data, no fallbacks, proper error handling
+        
+        Returns:
+            Dict containing comprehensive security analysis results
         """
         
         if not cluster_config or cluster_config.get('status') != 'completed':
@@ -414,6 +548,7 @@ class SecurityIntegrationMixin:
         """Generate security phases based on real findings, not templates"""
         
         security_phases = []
+        phase_counter = 1
         
         try:
             # Only create phases for ACTUAL issues found
@@ -422,7 +557,8 @@ class SecurityIntegrationMixin:
             
             if overall_score < 70:
                 foundation_phase = {
-                    'phase_number': 'SEC-1',
+                    'phase_number': phase_counter,
+                    'phase_id': f'SEC-{phase_counter}',
                     'title': 'Security Foundation Setup',
                     'category': 'security',
                     'priority': 'CRITICAL',
@@ -437,6 +573,7 @@ class SecurityIntegrationMixin:
                     'based_on_real_findings': True
                 }
                 security_phases.append(foundation_phase)
+                phase_counter += 1
             
             # Only add vulnerability phase if real vulnerabilities found
             vuln_assessment = security_analysis.get('vulnerability_assessment', {})
@@ -445,7 +582,8 @@ class SecurityIntegrationMixin:
             
             if critical_vulns > 0 or high_vulns > 0:
                 vuln_phase = {
-                    'phase_number': 'SEC-2',
+                    'phase_number': phase_counter,
+                    'phase_id': f'SEC-{phase_counter}',
                     'title': 'Critical Vulnerability Remediation',
                     'category': 'security',
                     'priority': 'HIGH',
@@ -464,6 +602,7 @@ class SecurityIntegrationMixin:
                     'based_on_actual_scan': True
                 }
                 security_phases.append(vuln_phase)
+                phase_counter += 1
             
             # Only add compliance phase for actual compliance failures
             compliance_frameworks = security_analysis.get('compliance_frameworks', {})
@@ -472,7 +611,8 @@ class SecurityIntegrationMixin:
             
             if failing_frameworks:
                 compliance_phase = {
-                    'phase_number': 'SEC-3',
+                    'phase_number': phase_counter,
+                    'phase_id': f'SEC-{phase_counter}',
                     'title': 'Compliance Framework Implementation',
                     'category': 'compliance',
                     'priority': 'MEDIUM',
@@ -490,6 +630,7 @@ class SecurityIntegrationMixin:
                     'based_on_actual_assessment': True
                 }
                 security_phases.append(compliance_phase)
+                phase_counter += 1
             
             logger.info(f"✅ Generated {len(security_phases)} security phases based on real findings")
             
@@ -523,7 +664,9 @@ class SecurityIntegrationMixin:
                 tasks.append(f"Address vulnerability issues (current score: {vulnerability_score:.1f})")
             
         except Exception as e:
-            logger.warning(f"Error generating security tasks: {str(e)}")
+            logger.error(f"Error generating security tasks: {str(e)}")
+            # Re-raise to ensure caller knows about the failure
+            raise RuntimeError(f"Failed to generate security tasks: {str(e)}") from e
             
         return tasks if tasks else ['Review and maintain current security posture']
     
@@ -533,12 +676,14 @@ class SecurityIntegrationMixin:
         """Integrate real security phases into implementation plan"""
         
         try:
-            enhanced_plan = implementation_plan.copy()
+            # Already deep copied in main orchestration method
+            enhanced_plan = implementation_plan
             existing_phases = enhanced_plan.get('implementation_phases', [])
             
-            # Add real security phases
-            for i, security_phase in enumerate(security_phases):
-                security_phase['phase_number'] = len(existing_phases) + i + 1
+            # Add real security phases with consistent numbering
+            for security_phase in security_phases:
+                # Update phase number to be consistent with existing phases
+                security_phase['phase_number'] = len(existing_phases) + 1
                 security_phase['based_on_real_analysis'] = True
                 existing_phases.append(security_phase)
             
@@ -583,6 +728,83 @@ class SecurityIntegrationMixin:
             raise RuntimeError(f"Failed to add compliance requirements: {str(e)}") from e
             
         return enhanced_plan
+    
+    async def _generate_vulnerability_remediation(self, security_analysis: Dict) -> List[Dict]:
+        """Generate vulnerability remediation plan based on actual scan results"""
+        
+        try:
+            remediation_plans = []
+            vuln_assessment = security_analysis.get('vulnerability_assessment', {})
+            vulnerabilities = vuln_assessment.get('vulnerabilities', [])
+            
+            # Group vulnerabilities by severity for prioritization
+            critical_vulns = [v for v in vulnerabilities if v.get('severity') == 'CRITICAL']
+            high_vulns = [v for v in vulnerabilities if v.get('severity') == 'HIGH']
+            medium_vulns = [v for v in vulnerabilities if v.get('severity') == 'MEDIUM']
+            
+            # Create remediation plans for critical vulnerabilities
+            for vuln in critical_vulns[:10]:  # Limit to top 10 for manageability
+                remediation_plans.append({
+                    'vulnerability_id': vuln.get('vuln_id'),
+                    'cve_id': vuln.get('cve_id'),
+                    'severity': 'CRITICAL',
+                    'affected_component': vuln.get('affected_component'),
+                    'current_version': vuln.get('current_version'),
+                    'fixed_version': vuln.get('fixed_version'),
+                    'remediation_steps': [
+                        f"Update {vuln.get('affected_component')} from {vuln.get('current_version')} to {vuln.get('fixed_version')}",
+                        "Test update in staging environment",
+                        "Deploy to production with rollback plan",
+                        "Verify vulnerability is resolved"
+                    ],
+                    'priority': 1,
+                    'estimated_effort_hours': 4,
+                    'business_impact': vuln.get('business_impact', 'HIGH'),
+                    'exploit_available': vuln.get('exploit_available', False)
+                })
+            
+            # Create remediation plans for high vulnerabilities
+            for vuln in high_vulns[:20]:  # Limit to top 20
+                remediation_plans.append({
+                    'vulnerability_id': vuln.get('vuln_id'),
+                    'cve_id': vuln.get('cve_id'),
+                    'severity': 'HIGH',
+                    'affected_component': vuln.get('affected_component'),
+                    'current_version': vuln.get('current_version'),
+                    'fixed_version': vuln.get('fixed_version'),
+                    'remediation_steps': [
+                        f"Schedule update for {vuln.get('affected_component')}",
+                        f"Update to version {vuln.get('fixed_version')}",
+                        "Validate functionality post-update"
+                    ],
+                    'priority': 2,
+                    'estimated_effort_hours': 2,
+                    'business_impact': vuln.get('business_impact', 'MEDIUM'),
+                    'exploit_available': vuln.get('exploit_available', False)
+                })
+            
+            # Add summary plan for medium vulnerabilities
+            if medium_vulns:
+                remediation_plans.append({
+                    'vulnerability_id': 'MEDIUM_BATCH',
+                    'severity': 'MEDIUM',
+                    'affected_components': f"{len(medium_vulns)} components",
+                    'remediation_steps': [
+                        f"Batch update {len(medium_vulns)} medium-severity vulnerabilities",
+                        "Schedule during next maintenance window",
+                        "Update as part of regular patching cycle"
+                    ],
+                    'priority': 3,
+                    'estimated_effort_hours': len(medium_vulns) * 0.5,
+                    'business_impact': 'LOW'
+                })
+            
+            logger.info(f"✅ Generated {len(remediation_plans)} vulnerability remediation plans")
+            return remediation_plans
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating vulnerability remediation: {str(e)}")
+            raise RuntimeError(f"Failed to generate vulnerability remediation: {str(e)}") from e
     
     async def _calculate_security_impact(self, enhanced_plan: Dict, security_analysis: Dict, 
                                        base_plan: Dict) -> Dict:
