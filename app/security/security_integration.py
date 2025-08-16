@@ -133,7 +133,7 @@ class SecurityIntegrationMixin:
         
         # Analyze real security posture from cluster config
         try:
-            logger.info("🔐 Analyzing security posture from real cluster resources...")
+            logger.info("🔍 Analyzing security posture from real cluster resources...")
             
             # Now the security engine should exist and have the method
             if not self.security_engine:
@@ -144,6 +144,31 @@ class SecurityIntegrationMixin:
             # Validate the returned security score structure
             if not security_score:
                 raise ValueError("Security posture analysis returned empty result")
+            
+            # Get security alerts if available
+            security_alerts = []
+            if hasattr(self.security_engine, 'get_security_alerts'):
+                try:
+                    alerts = await self.security_engine.get_security_alerts(limit=100)
+                    security_alerts = [
+                        {
+                            'alert_id': getattr(a, 'alert_id', ''),
+                            'severity': getattr(a, 'severity', ''),
+                            'category': getattr(a, 'category', ''),
+                            'title': getattr(a, 'title', ''),
+                            'description': getattr(a, 'description', ''),
+                            'resource_type': getattr(a, 'resource_type', ''),
+                            'resource_name': getattr(a, 'resource_name', ''),
+                            'namespace': getattr(a, 'namespace', ''),
+                            'remediation': getattr(a, 'remediation', ''),
+                            'risk_score': getattr(a, 'risk_score', 0.0),
+                            'detected_at': getattr(a, 'detected_at', datetime.now()).isoformat(),
+                            'metadata': getattr(a, 'metadata', {})
+                        }
+                        for a in alerts
+                    ]
+                except Exception as e:
+                    logger.warning(f"Failed to get security alerts: {str(e)}")
             
             # Safely extract security score data with validation
             security_analysis['security_posture'] = {
@@ -158,7 +183,10 @@ class SecurityIntegrationMixin:
                     'drift_score': getattr(security_score, 'drift_score', 0)
                 },
                 'trends': getattr(security_score, 'trends', {}),
-                'based_on_actual_resources': True
+                'based_on_actual_resources': True,
+                # ADD THIS: Include actual security alerts
+                'alerts': security_alerts,
+                'alerts_count': len(security_alerts)
             }
             
             logger.info(f"✅ Security posture analysis complete - Score: {security_analysis['security_posture']['overall_score']}")
@@ -190,7 +218,29 @@ class SecurityIntegrationMixin:
                 'violations_by_severity': self._count_real_violations_by_severity(policy_violations),
                 'compliance_by_category': getattr(governance_report, 'compliance_by_category', {}),
                 'auto_remediable_violations': len([v for v in policy_violations if hasattr(v, 'auto_remediable') and v.auto_remediable]),
-                'actual_violations_found': True
+                'actual_violations_found': True,
+                # ADD THIS: Store actual violations as serializable dicts
+                'violations': [
+                    {
+                        'violation_id': getattr(v, 'violation_id', ''),
+                        'policy_name': getattr(v, 'policy_name', ''),
+                        'policy_category': getattr(v, 'policy_category', ''),
+                        'severity': getattr(v, 'severity', ''),
+                        'resource_type': getattr(v, 'resource_type', ''),
+                        'resource_name': getattr(v, 'resource_name', ''),
+                        'namespace': getattr(v, 'namespace', ''),
+                        'violation_description': getattr(v, 'violation_description', ''),
+                        'current_value': str(getattr(v, 'current_value', '')),
+                        'expected_value': str(getattr(v, 'expected_value', '')),
+                        'remediation_steps': getattr(v, 'remediation_steps', []),
+                        'auto_remediable': getattr(v, 'auto_remediable', False),
+                        'compliance_frameworks': getattr(v, 'compliance_frameworks', []),
+                        'detected_at': getattr(v, 'detected_at', datetime.now()).isoformat(),
+                        'risk_score': getattr(v, 'risk_score', 0.0),
+                        'additional_context': getattr(v, 'additional_context', {})
+                    }
+                    for v in policy_violations
+                ]
             }
             
             logger.info(f"✅ Policy compliance analysis complete - {len(policy_violations)} violations found")
@@ -224,7 +274,29 @@ class SecurityIntegrationMixin:
                     'passed_controls': len([c for c in control_assessment if getattr(c, 'compliance_status', None) == "COMPLIANT"]),
                     'failed_controls': len([c for c in control_assessment if getattr(c, 'compliance_status', None) == "NON_COMPLIANT"]),
                     'risk_level': risk_summary.get('overall_risk_level', 'UNKNOWN') if isinstance(risk_summary, dict) else 'UNKNOWN',
-                    'based_on_actual_controls': True
+                    'based_on_actual_controls': True,
+                    # ADD THIS: Store detailed control assessments
+                    'control_details': [
+                        {
+                            'control_id': getattr(c, 'control_id', ''),
+                            'title': getattr(c, 'title', ''),
+                            'description': getattr(c, 'description', ''),
+                            'category': getattr(c, 'category', ''),
+                            'priority': getattr(c, 'priority', ''),
+                            'compliance_status': getattr(c, 'compliance_status', ''),
+                            'assessment_notes': getattr(c, 'assessment_notes', ''),
+                            'remediation_plan': getattr(c, 'remediation_plan', ''),
+                            'last_assessed': getattr(c, 'last_assessed', datetime.now()).isoformat() if getattr(c, 'last_assessed', None) else None
+                        }
+                        for c in control_assessment
+                    ],
+                    # Store risk details
+                    'risk_details': {
+                        'overall_risk_level': risk_summary.get('overall_risk_level', 'UNKNOWN') if isinstance(risk_summary, dict) else 'UNKNOWN',
+                        'risks_by_priority': risk_summary.get('risks_by_priority', {}) if isinstance(risk_summary, dict) else {},
+                        'risks_by_category': risk_summary.get('risks_by_category', {}) if isinstance(risk_summary, dict) else {},
+                        'total_non_compliant': risk_summary.get('total_non_compliant', 0) if isinstance(risk_summary, dict) else 0
+                    }
                 }
                 
                 logger.info(f"✅ {framework} compliance analysis complete - {compliance_results[framework]['overall_compliance']}% compliant")
@@ -253,6 +325,8 @@ class SecurityIntegrationMixin:
             if not isinstance(summary, dict):
                 summary = {}
             
+            vulnerabilities_found = getattr(scan_result, 'vulnerabilities_found', [])
+            
             security_analysis['vulnerability_assessment'] = {
                 'scan_id': getattr(scan_result, 'scan_id', 'unknown'),
                 'total_vulnerabilities': summary.get('total', 0),
@@ -261,7 +335,35 @@ class SecurityIntegrationMixin:
                 'exploitable_vulnerabilities': summary.get('exploitable', 0),
                 'coverage_percentage': getattr(scan_result, 'coverage_percentage', 0),
                 'scan_duration': getattr(scan_result, 'scan_duration', 0),
-                'actual_containers_scanned': len(getattr(scan_result, 'resources_scanned', []))
+                'actual_containers_scanned': len(getattr(scan_result, 'resources_scanned', [])),
+                # ADD THIS: Store actual vulnerabilities as serializable dicts
+                'vulnerabilities': [
+                    {
+                        'vuln_id': getattr(v, 'vuln_id', ''),
+                        'cve_id': getattr(v, 'cve_id', None),
+                        'title': getattr(v, 'title', ''),
+                        'description': getattr(v, 'description', ''),
+                        'severity': getattr(v, 'severity', ''),
+                        'cvss_score': getattr(v, 'cvss_score', 0.0),
+                        'cvss_vector': getattr(v, 'cvss_vector', ''),
+                        'affected_component': getattr(v, 'affected_component', ''),
+                        'component_type': getattr(v, 'component_type', ''),
+                        'current_version': getattr(v, 'current_version', ''),
+                        'fixed_version': getattr(v, 'fixed_version', ''),
+                        'detection_method': getattr(v, 'detection_method', ''),
+                        'confidence_score': getattr(v, 'confidence_score', 0.0),
+                        'exploit_available': getattr(v, 'exploit_available', False),
+                        'exploit_maturity': getattr(v, 'exploit_maturity', ''),
+                        'attack_vector': getattr(v, 'attack_vector', ''),
+                        'attack_complexity': getattr(v, 'attack_complexity', ''),
+                        'remediation_guidance': getattr(v, 'remediation_guidance', ''),
+                        'priority_score': getattr(v, 'priority_score', 0.0),
+                        'business_impact': getattr(v, 'business_impact', ''),
+                        'references': getattr(v, 'references', []),
+                        'detected_at': getattr(v, 'detected_at', datetime.now()).isoformat()
+                    }
+                    for v in vulnerabilities_found
+                ]
             }
             
             logger.info(f"✅ Vulnerability assessment complete - {security_analysis['vulnerability_assessment']['total_vulnerabilities']} vulnerabilities found")

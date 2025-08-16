@@ -78,6 +78,82 @@ class SecurityPostureDashboard {
         return null;
     }
 
+
+    async loadSecurityAlerts(severity = '') {
+        try {
+            const clusterId = this.getCurrentClusterId();
+            if (!clusterId) return;
+
+            const url = severity ? 
+                `${this.apiBaseUrl}/alerts?severity=${severity}&cluster_id=${clusterId}` : 
+                `${this.apiBaseUrl}/alerts?cluster_id=${clusterId}`;
+            
+            const response = await fetch(url);
+            const alerts = await response.json();
+
+            // If there's an alerts container in the Overview tab, populate it
+            const container = document.getElementById('security-alerts-list');
+            if (!container) {
+                // Create container if it doesn't exist
+                const overviewTab = document.getElementById('overview-tab');
+                if (overviewTab) {
+                    const alertsSection = document.createElement('div');
+                    alertsSection.className = 'mt-8';
+                    alertsSection.innerHTML = `
+                        <h3 class="text-lg font-semibold text-white mb-4">Recent Security Alerts (${alerts.length})</h3>
+                        <div id="security-alerts-list" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                    `;
+                    overviewTab.appendChild(alertsSection);
+                }
+            }
+
+            const alertsList = document.getElementById('security-alerts-list');
+            if (alertsList) {
+                if (alerts.length === 0) {
+                    alertsList.innerHTML = `
+                        <div class="text-center py-4 text-slate-400">
+                            <i class="fas fa-check-circle text-2xl mb-2"></i>
+                            <p>No active alerts</p>
+                        </div>
+                    `;
+                } else {
+                    alertsList.innerHTML = alerts.slice(0, 10).map(alert => {
+                        const severityColor = {
+                            'CRITICAL': 'red',
+                            'HIGH': 'orange',
+                            'MEDIUM': 'yellow',
+                            'LOW': 'blue'
+                        }[alert.severity] || 'gray';
+
+                        return `
+                            <div class="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <div class="flex items-center space-x-2 mb-1">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-${severityColor}-100 text-${severityColor}-800">
+                                                ${alert.severity}
+                                            </span>
+                                            <span class="text-xs text-slate-500">${alert.category}</span>
+                                        </div>
+                                        <h5 class="text-white text-sm font-medium">${alert.title}</h5>
+                                        <p class="text-slate-400 text-xs mt-1">${alert.description}</p>
+                                        <div class="mt-1 text-xs text-slate-500">
+                                            ${alert.resource_name} • ${alert.namespace}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+
+            console.log(`✅ Loaded ${alerts.length} security alerts`);
+        } catch (error) {
+            console.error('❌ Failed to load security alerts:', error);
+        }
+    }
+
     async loadSecurityOverview() {
         try {
             const clusterId = this.getCurrentClusterId();
