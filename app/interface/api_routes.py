@@ -94,6 +94,72 @@ except ImportError:
 # Global alerts manager
 alerts_manager = None
 
+def sanitize_for_json(obj):
+    """
+    Recursively convert numpy/pandas types to native Python types for JSON serialization.
+    Handles the specific issue with bool serialization.
+    """
+    import numpy as np
+    
+    # Handle numpy boolean types - check what's actually available
+    numpy_bool_types = [np.bool_]
+    
+    # Try to add other bool types if they exist in this numpy version
+    for bool_type in ['bool8', 'bool_']:
+        if hasattr(np, bool_type):
+            numpy_bool_types.append(getattr(np, bool_type))
+    
+    # Check if it's a numpy boolean
+    if any(isinstance(obj, bool_type) for bool_type in numpy_bool_types):
+        return bool(obj)
+    
+    # Handle numpy integers
+    if hasattr(np, 'integer') and isinstance(obj, np.integer):
+        return int(obj)
+    
+    # Handle numpy floats
+    if hasattr(np, 'floating') and isinstance(obj, np.floating):
+        return float(obj)
+    
+    # Handle numpy arrays
+    if hasattr(np, 'ndarray') and isinstance(obj, np.ndarray):
+        return obj.tolist()
+    
+    # Handle pandas if available
+    try:
+        import pandas as pd
+        if isinstance(obj, pd.Series):
+            return obj.tolist()
+        elif isinstance(obj, pd.DataFrame):
+            return obj.to_dict('records')
+    except ImportError:
+        pass
+    
+    # Handle dictionaries recursively
+    if isinstance(obj, dict):
+        return {key: sanitize_for_json(value) for key, value in obj.items()}
+    
+    # Handle lists and tuples recursively
+    if isinstance(obj, (list, tuple)):
+        return [sanitize_for_json(item) for item in obj]
+    
+    # Handle other objects
+    if hasattr(obj, '__dict__') and not callable(obj):
+        try:
+            # Don't try to serialize module or class objects
+            if not isinstance(obj, type) and not str(type(obj)).startswith("<class 'module"):
+                return sanitize_for_json(obj.__dict__)
+        except:
+            pass
+    
+    # Skip functions and callables
+    if callable(obj):
+        return None
+    
+    # Return as-is for basic types
+    return obj
+
+
 def trigger_alert_checking_after_analysis(cluster_id: str, analysis_results: dict):
     """🆕 ENSURE ALERTS ARE CHECKED AFTER ANALYSIS COMPLETES"""
     try:
@@ -761,7 +827,8 @@ def register_api_routes(app):
             
             logger.info(f"✅ API: Returning {format_type} implementation plan for {cluster_id}")
             
-            return jsonify(implementation_plan)
+            sanitized_plan = sanitize_for_json(implementation_plan)
+            return jsonify(sanitized_plan)
             
         except Exception as e:
             logger.error(f"❌ Error in implementation plan API: {e}")
@@ -1159,19 +1226,27 @@ def run_subscription_aware_background_analysis_with_alerts(cluster_id, resource_
             logger.info(f"✅ Retrieved analysis data for alert checking: {data_source}")
             
             # NEW: Check if security analysis was performed and store results
+            # In run_subscription_aware_background_analysis_with_alerts function
+            # After line where you store security results
             if 'security_analysis' in analysis_data and analysis_data['security_analysis']:
                 try:
                     from app.security.security_results_manager import security_results_manager
                     
+                    # Ensure we use the correct cluster_id format
+                    sanitized_security_analysis = sanitize_for_json(analysis_data['security_analysis'])
+                    
+                    # Log the cluster_id being used
+                    logger.info(f"📝 Storing security results for cluster_id: {cluster_id}")
+                    
                     security_result_id = security_results_manager.store_security_results(
-                        cluster_id=cluster_id,
+                        cluster_id=cluster_id,  # Make sure this matches what the API expects
                         resource_group=resource_group,
                         cluster_name=cluster_name,
-                        security_analysis=analysis_data['security_analysis']
+                        security_analysis=sanitized_security_analysis
                     )
-                    logger.info(f"✅ Security results stored: {security_result_id}")
+                    logger.info(f"✅ Security results stored with ID: {security_result_id}")
                 except Exception as e:
-                    logger.warning(f"⚠️ Failed to store security results: {e}")
+                    logger.error(f"❌ Failed to store security results: {e}")
             
             # Trigger alert checking
             triggered_alerts = trigger_alert_checking_after_analysis(cluster_id, analysis_data)

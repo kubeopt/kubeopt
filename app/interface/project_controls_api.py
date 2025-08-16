@@ -9,6 +9,71 @@ import traceback
 from app.main.config import logger, enhanced_cluster_manager
 from app.main.shared import _get_analysis_data
 
+def sanitize_for_json(obj):
+    """
+    Recursively convert numpy/pandas types to native Python types for JSON serialization.
+    Handles the specific issue with bool serialization.
+    """
+    import numpy as np
+    
+    # Handle numpy boolean types - check what's actually available
+    numpy_bool_types = [np.bool_]
+    
+    # Try to add other bool types if they exist in this numpy version
+    for bool_type in ['bool8', 'bool_']:
+        if hasattr(np, bool_type):
+            numpy_bool_types.append(getattr(np, bool_type))
+    
+    # Check if it's a numpy boolean
+    if any(isinstance(obj, bool_type) for bool_type in numpy_bool_types):
+        return bool(obj)
+    
+    # Handle numpy integers
+    if hasattr(np, 'integer') and isinstance(obj, np.integer):
+        return int(obj)
+    
+    # Handle numpy floats
+    if hasattr(np, 'floating') and isinstance(obj, np.floating):
+        return float(obj)
+    
+    # Handle numpy arrays
+    if hasattr(np, 'ndarray') and isinstance(obj, np.ndarray):
+        return obj.tolist()
+    
+    # Handle pandas if available
+    try:
+        import pandas as pd
+        if isinstance(obj, pd.Series):
+            return obj.tolist()
+        elif isinstance(obj, pd.DataFrame):
+            return obj.to_dict('records')
+    except ImportError:
+        pass
+    
+    # Handle dictionaries recursively
+    if isinstance(obj, dict):
+        return {key: sanitize_for_json(value) for key, value in obj.items()}
+    
+    # Handle lists and tuples recursively
+    if isinstance(obj, (list, tuple)):
+        return [sanitize_for_json(item) for item in obj]
+    
+    # Handle other objects
+    if hasattr(obj, '__dict__') and not callable(obj):
+        try:
+            # Don't try to serialize module or class objects
+            if not isinstance(obj, type) and not str(type(obj)).startswith("<class 'module"):
+                return sanitize_for_json(obj.__dict__)
+        except:
+            pass
+    
+    # Skip functions and callables
+    if callable(obj):
+        return None
+    
+    # Return as-is for basic types
+    return obj
+
 def register_project_controls_api(app):
     """Register project controls API endpoint with commands extraction"""
     
@@ -82,7 +147,9 @@ def register_project_controls_api(app):
             logger.info(f"✅ FIXED: Project controls with commands prepared for cluster: {cluster_id}")
             logger.info(f"📊 Framework components: {list(framework_data.get('framework', {}).keys())}")
             
-            return jsonify(framework_data)
+            # Sanitize the framework data before JSON serialization
+            sanitized_framework = sanitize_for_json(framework_data)
+            return jsonify(sanitized_framework)
             
         except Exception as e:
             logger.error(f"❌ Error in FIXED project controls API: {e}")

@@ -90,36 +90,25 @@ class SecurityPostureDashboard {
             
             console.log(`🔍 Loading security overview for cluster: ${clusterId}`);
             
-            // Try to get stored results with the correct cluster ID
+            // First check if results exist
             const resultsResponse = await fetch(`${this.apiBaseUrl}/results/${clusterId}`);
+            console.log(`📊 Results API response status: ${resultsResponse.status}`);
             
-            if (resultsResponse.status === 404) {
-                console.log(`ℹ️ No security results available for cluster: ${clusterId}`);
-                this.showNoDataMessage('Security analysis will be included in the next cluster analysis run.');
-                return;
-            }
-            
-            if (!resultsResponse.ok) {
-                console.error('Failed to fetch security results:', resultsResponse.status);
-                this.showError('Failed to load security data');
-                return;
+            if (resultsResponse.ok) {
+                const resultsData = await resultsResponse.json();
+                console.log('📊 Security results data:', resultsData);
             }
             
             // Get overview with cluster ID parameter
             const response = await fetch(`${this.apiBaseUrl}/overview?cluster_id=${clusterId}`);
             const data = await response.json();
             
+            console.log('📊 Security overview data received:', data);
+            
             // Update UI with real data
             this.updateSecurityOverview(data);
             
-            // Load additional components
-            await this.loadSecurityBreakdown();
-            await this.loadPolicyViolations();
-            await this.loadCompliance();
-            await this.loadVulnerabilities();
-            await this.loadSecurityTrends();
-            await this.loadAuditTrail();
-            
+            // ... rest of the function
         } catch (error) {
             console.error('❌ Failed to load security overview:', error);
             this.showError('Failed to load security overview');
