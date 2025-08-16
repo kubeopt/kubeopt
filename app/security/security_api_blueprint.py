@@ -234,60 +234,11 @@ def get_policy_violations():
         
         if security_results and security_results.get('analysis'):
             policy_compliance = security_results['analysis'].get('policy_compliance', {})
-            violations_by_severity = policy_compliance.get('violations_by_severity', {})
             
-            # Generate detailed violations from severity counts
-            violations = []
-            violation_templates = {
-                'CRITICAL': [
-                    {'name': 'Privileged Container', 'desc': 'Container running with privileged access'},
-                    {'name': 'No Network Policy', 'desc': 'Namespace lacks network segmentation'},
-                    {'name': 'Default Service Account', 'desc': 'Using default service account with elevated permissions'},
-                    {'name': 'No Pod Security Policy', 'desc': 'Pod security policies not enforced'},
-                    {'name': 'Exposed Dashboard', 'desc': 'Kubernetes dashboard exposed without proper auth'},
-                    {'name': 'Root User Container', 'desc': 'Container running as root user'},
-                    {'name': 'No Resource Limits', 'desc': 'Container without resource limits defined'},
-                    {'name': 'Secrets in Environment', 'desc': 'Sensitive data exposed in environment variables'}
-                ],
-                'HIGH': [
-                    {'name': 'Missing RBAC', 'desc': 'Role-based access control not properly configured'},
-                    {'name': 'Unencrypted Traffic', 'desc': 'Service allowing unencrypted traffic'},
-                    {'name': 'Outdated Image', 'desc': 'Container using outdated base image'},
-                    {'name': 'No Health Checks', 'desc': 'Container missing liveness/readiness probes'}
-                ],
-                'MEDIUM': [
-                    {'name': 'Missing Labels', 'desc': 'Resources missing required labels'},
-                    {'name': 'No HPA', 'desc': 'Deployment without horizontal pod autoscaler'},
-                    {'name': 'Single Replica', 'desc': 'Production workload running single replica'}
-                ],
-                'LOW': [
-                    {'name': 'Missing Annotations', 'desc': 'Resources missing recommended annotations'}
-                ]
-            }
+            # Get the actual violations array
+            violations = policy_compliance.get('violations', [])
             
-            violation_id = 1
-            for sev, count in violations_by_severity.items():
-                if count > 0:
-                    templates = violation_templates.get(sev, [])
-                    for i in range(min(count, len(templates) * 2)):  # Allow duplicates
-                        template = templates[i % len(templates)] if templates else {'name': f'{sev} Violation', 'desc': 'Policy violation detected'}
-                        
-                        violations.append({
-                            'violation_id': f'viol_{violation_id:04d}',
-                            'policy_name': template['name'],
-                            'severity': sev,
-                            'resource_name': f'resource-{violation_id}',
-                            'namespace': ['default', 'kube-system', 'production'][i % 3],
-                            'description': template['desc'],
-                            'remediation_steps': [
-                                'Review resource configuration',
-                                'Apply security best practices',
-                                'Update deployment manifest'
-                            ],
-                            'auto_remediable': sev in ['MEDIUM', 'LOW'],
-                            'detected_at': security_results['timestamp']
-                        })
-                        violation_id += 1
+            logger.info(f"Found {len(violations)} violations for cluster {cluster_id}")
             
             # Filter by severity if specified
             if severity:
@@ -296,7 +247,6 @@ def get_policy_violations():
             # Limit results
             violations = violations[:limit]
             
-            logger.info(f"Returning {len(violations)} policy violations")
             return jsonify(violations)
         
         return jsonify([])
@@ -307,19 +257,118 @@ def get_policy_violations():
 
 @security_api.route('/compliance/frameworks', methods=['GET'])
 def get_compliance_frameworks():
-    """Get available compliance frameworks"""
-    return jsonify({
-        'frameworks': [
-            {'id': 'CIS', 'name': 'CIS Kubernetes Benchmark', 'version': '1.6.0'},
-            {'id': 'NIST', 'name': 'NIST Cybersecurity Framework', 'version': '1.1'},
-            {'id': 'SOC2', 'name': 'SOC 2 Type II', 'version': '2017'},
-            {'id': 'ISO27001', 'name': 'ISO/IEC 27001', 'version': '2013'}
-        ]
-    })
+    """Get available compliance frameworks from actual analysis"""
+    try:
+        cluster_id = get_cluster_id_from_request()
+        
+        if not SECURITY_MANAGER_AVAILABLE:
+            # Return static fallback only if security manager not available
+            return jsonify({
+                'frameworks': [
+                    {'id': 'CIS', 'name': 'CIS Kubernetes Benchmark', 'version': '1.6.0'},
+                    {'id': 'NIST', 'name': 'NIST Cybersecurity Framework', 'version': '1.1'}
+                ]
+            })
+        
+        security_results = security_results_manager.get_latest_results(cluster_id)
+        
+        if security_results and security_results.get('analysis'):
+            compliance_frameworks = security_results['analysis'].get('compliance_frameworks', {})
+            
+            # Build frameworks list from actual analyzed frameworks
+            frameworks_list = []
+            
+            # Framework metadata mapping
+            framework_metadata = {
+                'CIS': {
+                    'name': 'CIS Kubernetes Benchmark',
+                    'version': '1.6.0',
+                    'description': 'Center for Internet Security Kubernetes security benchmark'
+                },
+                'NIST': {
+                    'name': 'NIST Cybersecurity Framework',
+                    'version': '1.1',
+                    'description': 'National Institute of Standards and Technology framework'
+                },
+                'SOC2': {
+                    'name': 'SOC 2 Type II',
+                    'version': '2017',
+                    'description': 'Service Organization Control 2 audit standard'
+                },
+                'ISO27001': {
+                    'name': 'ISO/IEC 27001',
+                    'version': '2013',
+                    'description': 'Information security management systems standard'
+                },
+                'PCI-DSS': {
+                    'name': 'PCI Data Security Standard',
+                    'version': '3.2.1',
+                    'description': 'Payment Card Industry Data Security Standard'
+                },
+                'HIPAA': {
+                    'name': 'HIPAA Security Rule',
+                    'version': '2013',
+                    'description': 'Health Insurance Portability and Accountability Act'
+                }
+            }
+            
+            # Get actual analyzed frameworks and their data
+            for framework_id, framework_data in compliance_frameworks.items():
+                framework_info = framework_metadata.get(framework_id, {
+                    'name': framework_id,
+                    'version': 'Unknown',
+                    'description': f'{framework_id} compliance framework'
+                })
+                
+                frameworks_list.append({
+                    'id': framework_id,
+                    'name': framework_info['name'],
+                    'version': framework_info['version'],
+                    'description': framework_info.get('description', ''),
+                    'analyzed': True,
+                    'compliance': framework_data.get('overall_compliance', 0),
+                    'grade': framework_data.get('grade', 'N/A'),
+                    'passed_controls': framework_data.get('passed_controls', 0),
+                    'failed_controls': framework_data.get('failed_controls', 0),
+                    'risk_level': framework_data.get('risk_level', 'UNKNOWN')
+                })
+            
+            # Add other frameworks as "not analyzed" if you want to show them
+            for framework_id, framework_info in framework_metadata.items():
+                if framework_id not in compliance_frameworks:
+                    frameworks_list.append({
+                        'id': framework_id,
+                        'name': framework_info['name'],
+                        'version': framework_info['version'],
+                        'description': framework_info.get('description', ''),
+                        'analyzed': False,
+                        'compliance': 0,
+                        'grade': 'N/A',
+                        'passed_controls': 0,
+                        'failed_controls': 0,
+                        'risk_level': 'NOT_ASSESSED'
+                    })
+            
+            return jsonify({
+                'frameworks': frameworks_list,
+                'total_analyzed': len(compliance_frameworks),
+                'frameworks_analyzed': list(compliance_frameworks.keys())
+            })
+        
+        # No results found - return empty
+        return jsonify({
+            'frameworks': [],
+            'total_analyzed': 0,
+            'frameworks_analyzed': []
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to get compliance frameworks: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @security_api.route('/compliance/<framework>', methods=['GET'])
 def get_compliance_status(framework):
-    """Get compliance status for a framework"""
+    """Get compliance status for a framework with full control details"""
     try:
         cluster_id = get_cluster_id_from_request()
         
@@ -339,24 +388,118 @@ def get_compliance_status(framework):
             compliance_frameworks = security_results['analysis'].get('compliance_frameworks', {})
             framework_data = compliance_frameworks.get(framework.upper(), {})
             
-            logger.info(f"Compliance data for {framework.upper()}: {framework_data}")
-            
             if framework_data:
+                # Return the full framework data including control details
                 return jsonify({
                     'framework': framework.upper(),
                     'overall_compliance': framework_data.get('overall_compliance', 0),
                     'grade': framework_data.get('grade', 'N/A'),
                     'passed_controls': framework_data.get('passed_controls', 0),
                     'failed_controls': framework_data.get('failed_controls', 0),
+                    'risk_level': framework_data.get('risk_level', 'UNKNOWN'),
+                    'based_on_actual_controls': framework_data.get('based_on_actual_controls', False),
+                    'control_details': framework_data.get('control_details', []),
+                    'risk_details': framework_data.get('risk_details', {}),
                     'last_assessed': security_results['timestamp']
                 })
         
-        logger.warning(f"No compliance data found for framework {framework.upper()}")
-        return None
+        # Framework not found or not analyzed
+        return jsonify({
+            'framework': framework.upper(),
+            'overall_compliance': 0,
+            'grade': 'N/A',
+            'passed_controls': 0,
+            'failed_controls': 0,
+            'analyzed': False,
+            'last_assessed': None,
+            'message': f'Framework {framework.upper()} has not been analyzed'
+        })
         
     except Exception as e:
-        logger.error(f"Failed to get compliance status: {e}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Failed to get compliance status for {framework}: {e}")
+        return jsonify({'error': str(e)}), 500
+    
+@security_api.route('/alerts', methods=['GET'])
+def get_security_alerts():
+    """Get security alerts"""
+    try:
+        cluster_id = get_cluster_id_from_request()
+        severity = request.args.get('severity')
+        limit = int(request.args.get('limit', 100))
+        
+        if not SECURITY_MANAGER_AVAILABLE:
+            return jsonify([])
+        
+        security_results = security_results_manager.get_latest_results(cluster_id)
+        
+        if security_results and security_results.get('analysis'):
+            security_posture = security_results['analysis'].get('security_posture', {})
+            alerts = security_posture.get('alerts', [])
+            
+            logger.info(f"Found {len(alerts)} alerts for cluster {cluster_id}")
+            
+            # Filter by severity if specified
+            if severity:
+                alerts = [a for a in alerts if a.get('severity') == severity.upper()]
+            
+            # Limit results
+            alerts = alerts[:limit]
+            
+            return jsonify(alerts)
+        
+        return jsonify([])
+        
+    except Exception as e:
+        logger.error(f"Failed to get security alerts: {e}")
+        return jsonify([]), 500
+
+@security_api.route('/alerts/summary', methods=['GET'])
+def get_alerts_summary():
+    """Get alerts summary"""
+    try:
+        cluster_id = get_cluster_id_from_request()
+        
+        if not SECURITY_MANAGER_AVAILABLE:
+            return jsonify({
+                'total': 0,
+                'by_severity': {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0},
+                'by_category': {}
+            })
+        
+        security_results = security_results_manager.get_latest_results(cluster_id)
+        
+        if security_results and security_results.get('analysis'):
+            security_posture = security_results['analysis'].get('security_posture', {})
+            alerts = security_posture.get('alerts', [])
+            
+            # Calculate summary
+            summary = {
+                'total': len(alerts),
+                'by_severity': {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0},
+                'by_category': {}
+            }
+            
+            for alert in alerts:
+                sev = alert.get('severity', 'UNKNOWN')
+                cat = alert.get('category', 'UNKNOWN')
+                
+                if sev in summary['by_severity']:
+                    summary['by_severity'][sev] += 1
+                
+                if cat not in summary['by_category']:
+                    summary['by_category'][cat] = 0
+                summary['by_category'][cat] += 1
+            
+            return jsonify(summary)
+        
+        return jsonify({
+            'total': 0,
+            'by_severity': {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0},
+            'by_category': {}
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to get alerts summary: {e}")
         return jsonify({'error': str(e)}), 500
 
 @security_api.route('/vulnerabilities', methods=['GET'])
