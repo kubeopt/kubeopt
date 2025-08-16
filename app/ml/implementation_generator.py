@@ -77,6 +77,7 @@ successful_imports = [k for k, v in security_import_status.items() if v == 'succ
 failed_imports = [k for k, v in security_import_status.items() if v != 'success']
 SECURITY_INTEGRATION_AVAILABLE = len(successful_imports) >= 1  # At least one component available
 
+
 # Print detailed import status
 print("🔒 Security Framework Import Status:")
 for component, status in security_import_status.items():
@@ -722,6 +723,44 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         logger.info(f"🔒 Security Framework Available: {self.security_systems_available}")
         logger.info(f"🔗 INTEGRATED Mode: {self.ml_systems_available and self.security_systems_available}")
     
+
+    def _sanitize_security_data(self, data):
+        """Sanitize security data to ensure JSON serializable types"""
+        if data is None:
+            return None
+        
+        def convert_value(val):
+            # Check type name as string to handle all numpy types
+            type_str = str(type(val))
+            
+            # Handle numpy types
+            if 'numpy' in type_str:
+                if 'bool' in type_str:
+                    return bool(val)
+                elif 'int' in type_str:
+                    return int(val)
+                elif 'float' in type_str:
+                    return float(val)
+                elif hasattr(val, 'tolist'):
+                    return val.tolist()
+                elif hasattr(val, 'item'):
+                    # For numpy scalars
+                    return val.item()
+            
+            # Handle dictionaries recursively
+            if isinstance(val, dict):
+                return {k: convert_value(v) for k, v in val.items()}
+            
+            # Handle lists and tuples recursively
+            if isinstance(val, (list, tuple)):
+                return [convert_value(item) for item in val]
+            
+            # Return as-is for other types
+            return val
+        
+        return convert_value(data)
+
+
     # =============================================================================
     # INTEGRATED SYSTEMS INITIALIZATION (NEW APPROACH)
     # =============================================================================
@@ -1051,6 +1090,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                     # Add reference to ML session
                     ml_session['security_result_id'] = security_result_id
                     
+                    logger.info(f"✅ Security results : {security_analysis}")
                     logger.info(f"✅ Security results stored separately: {security_result_id}")
                     
                 except Exception as e:
@@ -1152,6 +1192,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             security_analysis = asyncio.run(self._perform_comprehensive_security_analysis(
                 cluster_config, security_frameworks
             ))
+
+            security_analysis = self._sanitize_security_data(security_analysis)
             
             # Enhance with ML session insights
             if 'cluster_dna' in ml_session:
@@ -1172,6 +1214,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             })
             
             logger.info("✅ Integrated security analysis completed")
+            
             return security_analysis
             
         except Exception as e:

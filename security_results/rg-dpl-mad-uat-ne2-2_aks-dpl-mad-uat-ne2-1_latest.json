@@ -1,11 +1,11 @@
 {
-  "result_id": "sec_rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1_20250816_000838",
-  "cluster_id": "rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1",
-  "resource_group": "rg-dpl-mad-dev-ne2-2",
-  "cluster_name": "aks-dpl-mad-dev-ne2-1",
-  "timestamp": "2025-08-16T00:08:38.387526",
+  "result_id": "sec_rg-dpl-mad-uat-ne2-2_aks-dpl-mad-uat-ne2-1_20250815_225135",
+  "cluster_id": "rg-dpl-mad-uat-ne2-2_aks-dpl-mad-uat-ne2-1",
+  "resource_group": "rg-dpl-mad-uat-ne2-2",
+  "cluster_name": "aks-dpl-mad-uat-ne2-1",
+  "timestamp": "2025-08-15T22:51:35.086306",
   "analysis": {
-    "timestamp": "2025-08-16T00:08:38.327940",
+    "timestamp": "2025-08-15T22:51:35.046545",
     "confidence": 0.8875,
     "frameworks_analyzed": [
       "CIS",
@@ -14,7 +14,7 @@
     "based_on_real_data": true,
     "analysis_errors": [],
     "security_posture": {
-      "overall_score": 49.77296497269679,
+      "overall_score": 47.28522088029755,
       "grade": "F",
       "breakdown": {
         "rbac_score": 0,
@@ -22,14 +22,14 @@
         "encryption_score": 100,
         "vulnerability_score": 0,
         "compliance_score": 100.0,
-        "drift_score": 98.48643315131196
+        "drift_score": 81.90147253531703
       },
       "trends": {
         "trend": "declining",
-        "change": -9.621014441992024,
-        "recent_average": 46.9941127122937,
-        "historical_average": 56.61512715428572,
-        "data_points": 17,
+        "change": -14.912226094529643,
+        "recent_average": 47.24777390547036,
+        "historical_average": 62.160000000000004,
+        "data_points": 14,
         "component_trends": {
           "rbac": "declining",
           "network": "improving",
@@ -40,18 +40,18 @@
         },
         "time_range": {
           "oldest": "2025-08-05 00:19:59.573130",
-          "newest": "2025-08-15 23:39:53.954032"
+          "newest": "2025-08-15 22:34:43.551305"
         }
       },
       "based_on_actual_resources": true
     },
     "policy_compliance": {
       "overall_compliance": 7.0,
-      "violations_count": 59,
+      "violations_count": 56,
       "violations_by_severity": {
-        "CRITICAL": 8,
-        "HIGH": 14,
-        "MEDIUM": 37,
+        "CRITICAL": 31,
+        "HIGH": 11,
+        "MEDIUM": 14,
         "LOW": 0
       },
       "compliance_by_category": {
@@ -64,9 +64,9 @@
     },
     "compliance_frameworks": {
       "CIS": {
-        "overall_compliance": 99.99999999999999,
-        "grade": "A+",
-        "passed_controls": 3,
+        "overall_compliance": 67.74193548387096,
+        "grade": "C+",
+        "passed_controls": 2,
         "failed_controls": 0,
         "risk_level": "LOW",
         "based_on_actual_controls": true
@@ -81,24 +81,24 @@
       }
     },
     "vulnerability_assessment": {
-      "scan_id": "scan_20250816_000838",
+      "scan_id": "scan_20250815_225135",
       "total_vulnerabilities": 0,
       "critical_vulnerabilities": 0,
       "high_vulnerabilities": 0,
       "exploitable_vulnerabilities": 0,
       "coverage_percentage": 0.0,
-      "scan_duration": 2.5e-05,
+      "scan_duration": 8e-06,
       "actual_containers_scanned": 0
     },
     "ml_context": {
-      "cluster_personality": "medium-scale-balanced-infrastructure-needs-optimization-hpa-ready-conservative-developingconfig",
-      "ml_confidence": 0.985,
-      "optimization_readiness": 0.985
+      "cluster_personality": "medium-scale-balanced-infrastructure-highly-efficient-hpa-ready-conservative-matureconfig",
+      "ml_confidence": 0.95,
+      "optimization_readiness": 0.95
     }
   },
   "metadata": {
     "version": "1.0.0",
     "complete": true,
-    "cached_until": "2025-08-16T01:08:38.387527"
+    "cached_until": "2025-08-15T23:51:35.086306"
   }
 }
