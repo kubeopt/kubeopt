@@ -1,33 +1,63 @@
-# AKS Cost Optimizer Requirements
-# Core Flask dependencies
+# Core Web Framework
 Flask==2.3.3
+Flask-CORS==2.0.0
 Flask-SQLAlchemy==3.0.5
 Werkzeug==2.3.7
 
-# Database
-sqlite3
-
-# Data processing
-pandas==2.0.3
-numpy==1.24.3
-
-# Azure SDK
+# Azure SDKs
 azure-identity==1.13.0
+azure-mgmt-resource==23.0.1
 azure-mgmt-containerservice==20.7.0
 azure-mgmt-monitor==6.0.0
-azure-mgmt-resource==23.0.1
+azure-mgmt-costmanagement==4.0.1
+azure-mgmt-consumption==10.0.0
 
-# Machine Learning
+# Kubernetes Client
+kubernetes==27.2.0
+
+# Data Processing and ML
+pandas==2.0.3
+numpy==1.24.3
 scikit-learn==1.3.0
+scipy==1.11.1
+statsmodels==0.14.0
 
-# API and HTTP
+# Visualization
+matplotlib==3.7.2
+seaborn==0.12.2
+plotly==5.15.0
+
+# AI and NLP (Optional - these are large)
+openai==0.27.8
+transformers==4.31.0
+torch==2.0.1
+
+# Reporting
+jinja2==3.1.2
+reportlab==4.0.4
+xlsxwriter==3.1.2
+
+# Async and HTTP
+aiohttp==3.8.5
 requests==2.31.0
 
 # Utilities
 python-dotenv==1.0.0
+pyyaml==6.0.1
 schedule==1.2.0
+packaging==23.1
 
-# Development (optional)
-pytest==7.4.0
-black==23.7.0
-flake8==6.0.0
+# Security
+cryptography==41.0.3
+pyotp==2.9.0
+falco-python==1.0.0
+
+# Monitoring and Logging
+structlog==23.1.0
+prometheus-client==0.17.1
+
+# Caching (optional)
+redis==4.6.0
+
+# Production server
+gunicorn==21.2.0

@@ -102,7 +102,7 @@ class ComplianceFrameworkEngine:
     Multi-framework compliance engine with ML-enhanced assessment
     """
     
-    def __init__(self, cluster_config: Dict, database_path: str = "compliance.db"):
+    def __init__(self, cluster_config: Dict, database_path: str = "app/security/data/compliance.db"):
         """Initialize compliance framework engine"""
         self.cluster_config = cluster_config
         self.database_path = database_path

@@ -24,7 +24,7 @@ class SecurityConfig:
     api_cors_origins: List[str] = None
     
     # Database Configuration
-    database_path: str = "app/security/security_posture.db"
+    database_path: str = "app/security/data/security_posture.db"
     database_backup_enabled: bool = True
     database_backup_interval_hours: int = 24
     database_retention_days: int = 365

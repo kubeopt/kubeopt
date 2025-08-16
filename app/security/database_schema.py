@@ -20,7 +20,7 @@ class SecurityDatabaseManager:
     Database manager for security posture system
     """
     
-    def __init__(self, database_path: str = "app/security/security_posture.db"):
+    def __init__(self, database_path: str = "app/security/data/security_posture.db"):
         """Initialize database manager"""
         self.database_path = database_path
         self.database_dir = Path(database_path).parent
@@ -823,11 +823,11 @@ class SecurityDatabaseManager:
 
 
 # Factory function and utilities
-def create_security_database_manager(database_path: str = "app/security/security_posture.db") -> SecurityDatabaseManager:
+def create_security_database_manager(database_path: str = "app/security/data/security_posture.db") -> SecurityDatabaseManager:
     """Create security database manager instance"""
     return SecurityDatabaseManager(database_path)
 
-def initialize_security_database(database_path: str = "app/security/security_posture.db") -> bool:
+def initialize_security_database(database_path: str = "app/security/data/security_posture.db") -> bool:
     """Initialize security database with complete schema"""
     db_manager = create_security_database_manager(database_path)
     return db_manager.initialize_database()
@@ -838,7 +838,7 @@ if __name__ == "__main__":
     
     if len(sys.argv) > 1:
         command = sys.argv[1]
-        db_path = sys.argv[2] if len(sys.argv) > 2 else "app/security/security_posture.db"
+        db_path = sys.argv[2] if len(sys.argv) > 2 else "app/security/data/security_posture.db"
         
         db_manager = create_security_database_manager(db_path)
         

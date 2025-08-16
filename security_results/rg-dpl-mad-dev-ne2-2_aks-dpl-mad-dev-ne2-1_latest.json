@@ -1,11 +1,11 @@
 {
-  "result_id": "sec_rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1_20250816_213159",
+  "result_id": "sec_rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1_20250816_223308",
   "cluster_id": "rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1",
   "resource_group": "rg-dpl-mad-dev-ne2-2",
   "cluster_name": "aks-dpl-mad-dev-ne2-1",
-  "timestamp": "2025-08-16T21:31:59.178429",
+  "timestamp": "2025-08-16T22:33:08.163135",
   "analysis": {
-    "timestamp": "2025-08-16T21:31:59.098630",
+    "timestamp": "2025-08-16T22:33:08.096753",
     "confidence": 0.8875,
     "frameworks_analyzed": [
       "CIS",
@@ -14,7 +14,7 @@
     "based_on_real_data": true,
     "analysis_errors": [],
     "security_posture": {
-      "overall_score": 50.0,
+      "overall_score": 49.346687273756906,
       "grade": "F",
       "breakdown": {
         "rbac_score": 0,
@@ -22,18 +22,31 @@
         "encryption_score": 100,
         "vulnerability_score": 0,
         "compliance_score": 100.0,
-        "drift_score": 100
+        "drift_score": 95.64458182504603
       },
       "trends": {
-        "trend": "insufficient_data",
-        "change": 0.0,
-        "data_points": 0,
-        "message": "Minimum 2 assessments needed for trend analysis"
+        "trend": "stable",
+        "change": -4.0530834391151345,
+        "recent_average": 47.85181628858315,
+        "historical_average": 51.904899727698286,
+        "data_points": 19,
+        "component_trends": {
+          "rbac": "declining",
+          "network": "improving",
+          "encryption": "improving",
+          "vulnerability": "declining",
+          "compliance": "stable",
+          "drift": "improving"
+        },
+        "time_range": {
+          "oldest": "2025-08-05 00:19:59.573130",
+          "newest": "2025-08-16 11:58:56.162629"
+        }
       },
       "based_on_actual_resources": true,
       "alerts": [
         {
-          "alert_id": "sec_1755372719_4758",
+          "alert_id": "sec_1755376388_2117",
           "severity": "CRITICAL",
           "category": "VULNERABILITY",
           "title": "Privileged Container",
@@ -43,11 +56,193 @@
           "namespace": "default",
           "remediation": "Remove privileged flag, use specific capabilities",
           "risk_score": 12.0,
-          "detected_at": "2025-08-16T21:31:59.125267",
+          "detected_at": "2025-08-16T22:33:08.129117",
           "metadata": {}
         },
         {
-          "alert_id": "sec_1755372719_3391",
+          "alert_id": "sec_1755338336_3160",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-16T11:58:56.159782",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755295718_3223",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-16T00:08:38.357142",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755293993_7020",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-15T23:39:53.951359",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755292400_9053",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-15T23:13:20.157110",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755291095_6645",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-15T22:51:35.056510",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755290083_1589",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-15T22:34:43.549298",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755287447_1702",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-15T21:50:47.192609",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755210283_6255",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-15T00:24:43.118542",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755205324_1408",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-14T23:02:04.328000",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755202799_9322",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-14T22:19:59.423480",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755182596_237",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-14T16:43:16.927652",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755181026_2351",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-14T16:17:06.178897",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755119376_5185",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-13T23:09:36.196062",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755376388_3865",
           "severity": "HIGH",
           "category": "VULNERABILITY",
           "title": "Host PID Namespace",
@@ -57,11 +252,11 @@
           "namespace": "default",
           "remediation": "Remove hostPID: true",
           "risk_score": 9.0,
-          "detected_at": "2025-08-16T21:31:59.125894",
+          "detected_at": "2025-08-16T22:33:08.129742",
           "metadata": {}
         },
         {
-          "alert_id": "sec_1755372719_565",
+          "alert_id": "sec_1755376388_7024",
           "severity": "HIGH",
           "category": "VULNERABILITY",
           "title": "Host Network Usage",
@@ -71,11 +266,375 @@
           "namespace": "default",
           "remediation": "Remove hostNetwork: true unless absolutely required",
           "risk_score": 9.0,
-          "detected_at": "2025-08-16T21:31:59.125534",
+          "detected_at": "2025-08-16T22:33:08.129433",
           "metadata": {}
         },
         {
-          "alert_id": "sec_1755372719_8308",
+          "alert_id": "sec_1755338336_614",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-16T11:58:56.160505",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755338336_6264",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-16T11:58:56.160169",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755295718_4933",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-16T00:08:38.358253",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755295718_2235",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-16T00:08:38.357535",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755293993_3550",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T23:39:53.951911",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755293993_6009",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T23:39:53.951627",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755292400_3168",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T23:13:20.157907",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755292400_9207",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T23:13:20.157451",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755291095_6052",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T22:51:35.057107",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755291095_6179",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T22:51:35.056796",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755290083_9899",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T22:34:43.549977",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755290083_8412",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T22:34:43.549672",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755287447_1424",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T21:50:47.193368",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755287447_5533",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T21:50:47.193048",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755210283_9223",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T00:24:43.119099",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755210283_9985",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-15T00:24:43.118820",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755205324_9746",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-14T23:02:04.328626",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755205324_2655",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-14T23:02:04.328313",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755202799_7292",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-14T22:19:59.424169",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755202799_4914",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-14T22:19:59.423856",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755182596_7395",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-14T16:43:16.928168",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755182596_8429",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-14T16:43:16.927924",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755181026_472",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-14T16:17:06.179459",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755181026_6144",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-14T16:17:06.179184",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755119376_7614",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-13T23:09:36.196852",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755119376_8820",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-13T23:09:36.196414",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755376388_7102",
           "severity": "MEDIUM",
           "category": "VULNERABILITY",
           "title": "Container Running as Root",
@@ -85,11 +644,193 @@
           "namespace": "default",
           "remediation": "Set runAsUser to non-root UID",
           "risk_score": 6.0,
-          "detected_at": "2025-08-16T21:31:59.119964",
+          "detected_at": "2025-08-16T22:33:08.122969",
           "metadata": {}
         },
         {
-          "alert_id": "sec_1755372719_4717",
+          "alert_id": "sec_1755338336_2318",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-16T11:58:56.154406",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755295718_3030",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-16T00:08:38.351223",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755293993_2578",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-15T23:39:53.945408",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755292400_3085",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-15T23:13:20.151199",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755291095_1286",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-15T22:51:35.051524",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755290083_8947",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-15T22:34:43.544558",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755287447_6076",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-15T21:50:47.186642",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755210283_7188",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-15T00:24:43.112769",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755205324_6286",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-14T23:02:04.318624",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755202799_2257",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-14T22:19:59.417229",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755182596_7022",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-14T16:43:16.921882",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755181026_6154",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-14T16:17:06.173296",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755119376_3425",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-13T23:09:36.189552",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755376388_690",
           "severity": "MEDIUM",
           "category": "POLICY",
           "title": "RBAC Security Issue",
@@ -99,31 +840,255 @@
           "namespace": "default",
           "remediation": "Review and tighten RBAC configuration",
           "risk_score": 5.0,
-          "detected_at": "2025-08-16T21:31:59.118786",
+          "detected_at": "2025-08-16T22:33:08.120841",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755338336_4266",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-16T11:58:56.153221",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755295718_7348",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-16T00:08:38.349830",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755293993_6944",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-15T23:39:53.944260",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755292400_2900",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-15T23:13:20.150128",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755291095_3563",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-15T22:51:35.050224",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755290083_7493",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-15T22:34:43.543435",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755287447_1530",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-15T21:50:47.184673",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755210283_5593",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-15T00:24:43.111632",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755205324_2130",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-14T23:02:04.316840",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755202799_6708",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-14T22:19:59.415876",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755182596_2053",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-14T16:43:16.920752",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755181026_2485",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-14T16:17:06.172127",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1754851445_1805",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Configuration Issue",
+          "description": "Excessive cluster role bindings detected",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review RBAC configuration and apply principle of least privilege",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-10T20:44:05.403373",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1754692115_5269",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Configuration Issue",
+          "description": "Excessive cluster role bindings detected",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review RBAC configuration and apply principle of least privilege",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-09T00:28:35.484688",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1754345999_940",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Configuration Issue",
+          "description": "Excessive cluster role bindings detected",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review RBAC configuration and apply principle of least privilege",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-05T00:19:59.565977",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755119376_2417",
+          "severity": "MEDIUM",
+          "category": "DRIFT",
+          "title": "Significant Security Drift Detected",
+          "description": "Security score changed by 10.5 points",
+          "resource_type": "Configuration",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review recent configuration changes",
+          "risk_score": 4.0,
+          "detected_at": "2025-08-13T23:09:36.198529",
           "metadata": {}
         }
       ],
-      "alerts_count": 5
+      "alerts_count": 73
     },
     "policy_compliance": {
       "overall_compliance": 7.0,
       "violations_count": 59,
       "violations_by_severity": {
-        "CRITICAL": 30,
+        "CRITICAL": 8,
         "HIGH": 14,
-        "MEDIUM": 15,
+        "MEDIUM": 37,
         "LOW": 0
       },
       "compliance_by_category": {
         "Security": 0,
-        "Network": 100.0,
-        "Governance": 0
+        "Governance": 0,
+        "Network": 100.0
       },
       "auto_remediable_violations": 0,
       "actual_violations_found": true,
       "violations": [
         {
-          "violation_id": "SEC001_1755372719_831",
+          "violation_id": "SEC001_1755376388_559",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -145,7 +1110,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127822",
+          "detected_at": "2025-08-16T22:33:08.132633",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "rabbitmq",
@@ -153,7 +1118,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755372719_404",
+          "violation_id": "SEC001_1755376388_925",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -175,7 +1140,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127835",
+          "detected_at": "2025-08-16T22:33:08.132653",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "alloy",
@@ -183,7 +1148,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755372719_855",
+          "violation_id": "SEC001_1755376388_756",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -205,7 +1170,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127842",
+          "detected_at": "2025-08-16T22:33:08.132660",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -213,7 +1178,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755372719_229",
+          "violation_id": "SEC001_1755376388_147",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -235,7 +1200,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127847",
+          "detected_at": "2025-08-16T22:33:08.132667",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -243,7 +1208,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755372719_9",
+          "violation_id": "SEC001_1755376388_403",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -265,7 +1230,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127856",
+          "detected_at": "2025-08-16T22:33:08.132675",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "provider-azure-installer",
@@ -273,7 +1238,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755372719_974",
+          "violation_id": "SEC001_1755376388_746",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -295,7 +1260,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127863",
+          "detected_at": "2025-08-16T22:33:08.132682",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cns-container",
@@ -303,7 +1268,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755372719_584",
+          "violation_id": "SEC001_1755376388_951",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -324,7 +1289,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127875",
+          "detected_at": "2025-08-16T22:33:08.132691",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-ip-masq-agent",
@@ -332,7 +1297,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755372719_477",
+          "violation_id": "SEC001_1755376388_482",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -353,7 +1318,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127882",
+          "detected_at": "2025-08-16T22:33:08.132697",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-npm",
@@ -361,7 +1326,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755372719_436",
+          "violation_id": "SEC001_1755376388_690",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -383,7 +1348,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127889",
+          "detected_at": "2025-08-16T22:33:08.132704",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cloud-node-manager",
@@ -391,7 +1356,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755372719_851",
+          "violation_id": "SEC001_1755376388_844",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -413,7 +1378,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127913",
+          "detected_at": "2025-08-16T22:33:08.132725",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "pause",
@@ -421,7 +1386,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755372719_302",
+          "violation_id": "SEC001_1755376388_772",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -443,7 +1408,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127918",
+          "detected_at": "2025-08-16T22:33:08.132729",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "prometheus-node-exporter",
@@ -451,7 +1416,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755372719_855",
+          "violation_id": "SEC002_1755376388_756",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -472,7 +1437,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T21:31:59.127932",
+          "detected_at": "2025-08-16T22:33:08.132743",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "secrets-store",
@@ -480,7 +1445,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755372719_49",
+          "violation_id": "SEC002_1755376388_226",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -501,7 +1466,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T21:31:59.127944",
+          "detected_at": "2025-08-16T22:33:08.132752",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cns-container",
@@ -509,7 +1474,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755372719_584",
+          "violation_id": "SEC002_1755376388_951",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -530,7 +1495,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T21:31:59.127948",
+          "detected_at": "2025-08-16T22:33:08.132757",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-ip-masq-agent",
@@ -538,7 +1503,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755372719_477",
+          "violation_id": "SEC002_1755376388_482",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -559,7 +1524,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T21:31:59.127953",
+          "detected_at": "2025-08-16T22:33:08.132763",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-npm",
@@ -567,7 +1532,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755372719_915",
+          "violation_id": "SEC002_1755376388_642",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -588,7 +1553,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T21:31:59.127960",
+          "detected_at": "2025-08-16T22:33:08.132770",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azuredisk",
@@ -596,7 +1561,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755372719_392",
+          "violation_id": "SEC002_1755376388_56",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -617,7 +1582,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T21:31:59.127966",
+          "detected_at": "2025-08-16T22:33:08.132776",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azurefile",
@@ -625,7 +1590,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755372719_328",
+          "violation_id": "SEC002_1755376388_426",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -646,7 +1611,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T21:31:59.127973",
+          "detected_at": "2025-08-16T22:33:08.132783",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "blob",
@@ -654,7 +1619,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755372719_112",
+          "violation_id": "SEC002_1755376388_593",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -675,7 +1640,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T21:31:59.127978",
+          "detected_at": "2025-08-16T22:33:08.132787",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "kube-proxy",
@@ -683,7 +1648,7 @@
           }
         },
         {
-          "violation_id": "SEC003_1755372719_376",
+          "violation_id": "SEC003_1755376388_647",
           "policy_name": "Non-Root User Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -704,7 +1669,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.127996",
+          "detected_at": "2025-08-16T22:33:08.132805",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "provider-azure-installer",
@@ -712,7 +1677,7 @@
           }
         },
         {
-          "violation_id": "SEC003_1755372719_584",
+          "violation_id": "SEC003_1755376388_951",
           "policy_name": "Non-Root User Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -733,7 +1698,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.128004",
+          "detected_at": "2025-08-16T22:33:08.132813",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-ip-masq-agent",
@@ -741,7 +1706,7 @@
           }
         },
         {
-          "violation_id": "SEC003_1755372719_477",
+          "violation_id": "SEC003_1755376388_482",
           "policy_name": "Non-Root User Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -762,7 +1727,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.128009",
+          "detected_at": "2025-08-16T22:33:08.132818",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-npm",
@@ -770,10 +1735,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_869",
+          "violation_id": "SEC004_1755376388_225",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "argocd-application-controller",
           "namespace": "argocd",
@@ -789,7 +1754,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128037",
+          "detected_at": "2025-08-16T22:33:08.132845",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "application-controller",
@@ -797,10 +1762,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_855",
+          "violation_id": "SEC004_1755376388_369",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "loki",
           "namespace": "grafana-monitoring",
@@ -816,7 +1781,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128043",
+          "detected_at": "2025-08-16T22:33:08.132851",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "loki",
@@ -824,10 +1789,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_831",
+          "violation_id": "SEC004_1755376388_559",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "rabbitmq-cluster-rabbitmq-server",
           "namespace": "rabbitmq-system",
@@ -843,7 +1808,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128048",
+          "detected_at": "2025-08-16T22:33:08.132856",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "rabbitmq",
@@ -851,10 +1816,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_404",
+          "violation_id": "SEC004_1755376388_925",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "alloy",
           "namespace": "grafana-monitoring",
@@ -870,7 +1835,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128056",
+          "detected_at": "2025-08-16T22:33:08.132864",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "alloy",
@@ -878,10 +1843,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_855",
+          "violation_id": "SEC004_1755376388_756",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "aks-secrets-store-csi-driver",
           "namespace": "kube-system",
@@ -897,7 +1862,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128061",
+          "detected_at": "2025-08-16T22:33:08.132869",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -905,10 +1870,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_229",
+          "violation_id": "SEC004_1755376388_147",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "aks-secrets-store-csi-driver-windows",
           "namespace": "kube-system",
@@ -924,7 +1889,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128065",
+          "detected_at": "2025-08-16T22:33:08.132873",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -932,10 +1897,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_376",
+          "violation_id": "SEC004_1755376388_647",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "aks-secrets-store-provider-azure",
           "namespace": "kube-system",
@@ -951,7 +1916,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128070",
+          "detected_at": "2025-08-16T22:33:08.132878",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "provider-azure-installer",
@@ -959,10 +1924,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_9",
+          "violation_id": "SEC004_1755376388_403",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "aks-secrets-store-provider-azure-windows",
           "namespace": "kube-system",
@@ -978,7 +1943,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128075",
+          "detected_at": "2025-08-16T22:33:08.132883",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "provider-azure-installer",
@@ -986,10 +1951,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_974",
+          "violation_id": "SEC004_1755376388_746",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "azure-cns",
           "namespace": "kube-system",
@@ -1005,7 +1970,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128081",
+          "detected_at": "2025-08-16T22:33:08.132887",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cns-container",
@@ -1013,10 +1978,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_49",
+          "violation_id": "SEC004_1755376388_226",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "azure-cns-win",
           "namespace": "kube-system",
@@ -1032,7 +1997,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128086",
+          "detected_at": "2025-08-16T22:33:08.132892",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cns-container",
@@ -1040,10 +2005,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_584",
+          "violation_id": "SEC004_1755376388_951",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "azure-ip-masq-agent",
           "namespace": "kube-system",
@@ -1059,7 +2024,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128091",
+          "detected_at": "2025-08-16T22:33:08.132898",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-ip-masq-agent",
@@ -1067,10 +2032,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_477",
+          "violation_id": "SEC004_1755376388_482",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "azure-npm",
           "namespace": "kube-system",
@@ -1086,7 +2051,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128096",
+          "detected_at": "2025-08-16T22:33:08.132903",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-npm",
@@ -1094,10 +2059,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_457",
+          "violation_id": "SEC004_1755376388_434",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "cloud-node-manager",
           "namespace": "kube-system",
@@ -1113,7 +2078,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128100",
+          "detected_at": "2025-08-16T22:33:08.132908",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cloud-node-manager",
@@ -1121,10 +2086,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_436",
+          "violation_id": "SEC004_1755376388_690",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "cloud-node-manager-windows",
           "namespace": "kube-system",
@@ -1140,7 +2105,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128105",
+          "detected_at": "2025-08-16T22:33:08.132912",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cloud-node-manager",
@@ -1148,10 +2113,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_915",
+          "violation_id": "SEC004_1755376388_642",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "csi-azuredisk-node",
           "namespace": "kube-system",
@@ -1167,7 +2132,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128110",
+          "detected_at": "2025-08-16T22:33:08.132917",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "liveness-probe",
@@ -1175,10 +2140,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_935",
+          "violation_id": "SEC004_1755376388_182",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "csi-azuredisk-node-win",
           "namespace": "kube-system",
@@ -1194,7 +2159,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128115",
+          "detected_at": "2025-08-16T22:33:08.132924",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -1202,10 +2167,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_392",
+          "violation_id": "SEC004_1755376388_56",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "csi-azurefile-node",
           "namespace": "kube-system",
@@ -1221,7 +2186,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128119",
+          "detected_at": "2025-08-16T22:33:08.132928",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "liveness-probe",
@@ -1229,10 +2194,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_751",
+          "violation_id": "SEC004_1755376388_437",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "csi-azurefile-node-win",
           "namespace": "kube-system",
@@ -1248,7 +2213,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128125",
+          "detected_at": "2025-08-16T22:33:08.132933",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -1256,10 +2221,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_328",
+          "violation_id": "SEC004_1755376388_426",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "csi-blob-node",
           "namespace": "kube-system",
@@ -1275,7 +2240,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128130",
+          "detected_at": "2025-08-16T22:33:08.132938",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "liveness-probe",
@@ -1283,10 +2248,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_112",
+          "violation_id": "SEC004_1755376388_593",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "kube-proxy",
           "namespace": "kube-system",
@@ -1302,7 +2267,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128175",
+          "detected_at": "2025-08-16T22:33:08.132943",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "kube-proxy",
@@ -1310,10 +2275,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_851",
+          "violation_id": "SEC004_1755376388_844",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "windows-kube-proxy-initializer",
           "namespace": "kube-system",
@@ -1329,7 +2294,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128184",
+          "detected_at": "2025-08-16T22:33:08.132947",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "pause",
@@ -1337,10 +2302,10 @@
           }
         },
         {
-          "violation_id": "SEC004_1755372719_302",
+          "violation_id": "SEC004_1755376388_772",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
-          "severity": "CRITICAL",
+          "severity": "MEDIUM",
           "resource_type": "Deployment",
           "resource_name": "kubecost-prometheus-node-exporter",
           "namespace": "kubecost",
@@ -1356,7 +2321,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T21:31:59.128191",
+          "detected_at": "2025-08-16T22:33:08.132951",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "prometheus-node-exporter",
@@ -1364,7 +2329,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_855",
+          "violation_id": "GOV001_1755376388_756",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1385,7 +2350,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133317",
+          "detected_at": "2025-08-16T22:33:08.137690",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -1396,7 +2361,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_229",
+          "violation_id": "GOV001_1755376388_147",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1417,7 +2382,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133328",
+          "detected_at": "2025-08-16T22:33:08.137699",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -1428,7 +2393,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_974",
+          "violation_id": "GOV001_1755376388_746",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1450,7 +2415,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133355",
+          "detected_at": "2025-08-16T22:33:08.137721",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "cni-installer",
@@ -1462,7 +2427,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_49",
+          "violation_id": "GOV001_1755376388_226",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1484,7 +2449,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133367",
+          "detected_at": "2025-08-16T22:33:08.137734",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "cni-installer",
@@ -1496,7 +2461,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_477",
+          "violation_id": "GOV001_1755376388_482",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1518,7 +2483,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133383",
+          "detected_at": "2025-08-16T22:33:08.137750",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "block-wireserver",
@@ -1530,7 +2495,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_457",
+          "violation_id": "GOV001_1755376388_434",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1551,7 +2516,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133391",
+          "detected_at": "2025-08-16T22:33:08.137755",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "cloud-node-manager",
@@ -1562,7 +2527,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_436",
+          "violation_id": "GOV001_1755376388_690",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1583,7 +2548,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133397",
+          "detected_at": "2025-08-16T22:33:08.137761",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "cloud-node-manager",
@@ -1594,7 +2559,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_915",
+          "violation_id": "GOV001_1755376388_642",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1615,7 +2580,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133403",
+          "detected_at": "2025-08-16T22:33:08.137767",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "liveness-probe",
@@ -1626,7 +2591,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_935",
+          "violation_id": "GOV001_1755376388_182",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1647,7 +2612,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133409",
+          "detected_at": "2025-08-16T22:33:08.137773",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -1658,7 +2623,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_392",
+          "violation_id": "GOV001_1755376388_56",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1679,7 +2644,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133422",
+          "detected_at": "2025-08-16T22:33:08.137779",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "liveness-probe",
@@ -1690,7 +2655,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_751",
+          "violation_id": "GOV001_1755376388_437",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1711,7 +2676,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133430",
+          "detected_at": "2025-08-16T22:33:08.137785",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -1722,7 +2687,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_328",
+          "violation_id": "GOV001_1755376388_426",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1743,7 +2708,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133438",
+          "detected_at": "2025-08-16T22:33:08.137790",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "liveness-probe",
@@ -1754,7 +2719,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_112",
+          "violation_id": "GOV001_1755376388_593",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1776,7 +2741,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133445",
+          "detected_at": "2025-08-16T22:33:08.137796",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "kube-proxy",
@@ -1788,7 +2753,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_851",
+          "violation_id": "GOV001_1755376388_844",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1810,7 +2775,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133451",
+          "detected_at": "2025-08-16T22:33:08.137801",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "pause",
@@ -1822,7 +2787,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755372719_302",
+          "violation_id": "GOV001_1755376388_772",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -1844,7 +2809,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T21:31:59.133457",
+          "detected_at": "2025-08-16T22:33:08.137806",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "prometheus-node-exporter",
@@ -1875,7 +2840,7 @@
             "compliance_status": "COMPLIANT",
             "assessment_notes": "Automation: COMPLIANT, ML Confidence: 0.96",
             "remediation_plan": "Configure audit logging in API server",
-            "last_assessed": "2025-08-16T21:31:59.138545"
+            "last_assessed": "2025-08-16T22:33:08.142714"
           },
           {
             "control_id": "CIS-4.2.1",
@@ -1886,7 +2851,7 @@
             "compliance_status": "COMPLIANT",
             "assessment_notes": "Automation: COMPLIANT, ML Confidence: 0.98",
             "remediation_plan": "Implement admission control for privileged containers",
-            "last_assessed": "2025-08-16T21:31:59.141928"
+            "last_assessed": "2025-08-16T22:33:08.145878"
           },
           {
             "control_id": "CIS-5.1.1",
@@ -1897,7 +2862,7 @@
             "compliance_status": "COMPLIANT",
             "assessment_notes": "Automation: COMPLIANT, ML Confidence: 0.96",
             "remediation_plan": "Configure comprehensive RBAC policies",
-            "last_assessed": "2025-08-16T21:31:59.154374"
+            "last_assessed": "2025-08-16T22:33:08.149962"
           }
         ],
         "risk_details": {
@@ -1929,7 +2894,7 @@
             "compliance_status": "COMPLIANT",
             "assessment_notes": "Automation: COMPLIANT, ML Confidence: 0.87",
             "remediation_plan": "Deploy asset management solution",
-            "last_assessed": "2025-08-16T21:31:59.168430"
+            "last_assessed": "2025-08-16T22:33:08.156573"
           },
           {
             "control_id": "NIST-PR.AC-1",
@@ -1940,7 +2905,7 @@
             "compliance_status": "COMPLIANT",
             "assessment_notes": "Automation: COMPLIANT, ML Confidence: 0.84",
             "remediation_plan": "Implement comprehensive IAM solution",
-            "last_assessed": "2025-08-16T21:31:59.172716"
+            "last_assessed": "2025-08-16T22:33:08.160251"
           }
         ],
         "risk_details": {
@@ -1957,18 +2922,18 @@
       }
     },
     "vulnerability_assessment": {
-      "scan_id": "scan_20250816_213159",
+      "scan_id": "scan_20250816_223308",
       "total_vulnerabilities": 0,
       "critical_vulnerabilities": 0,
       "high_vulnerabilities": 0,
       "exploitable_vulnerabilities": 0,
       "coverage_percentage": 0.0,
-      "scan_duration": 3.4e-05,
+      "scan_duration": 1.5e-05,
       "actual_containers_scanned": 0,
       "vulnerabilities": []
     },
     "ml_context": {
-      "cluster_personality": "medium-scale-balanced-infrastructure-moderately-efficient-hpa-ready-conservative-matureconfig",
+      "cluster_personality": "medium-scale-balanced-infrastructure-needs-optimization-hpa-ready-conservative-matureconfig",
       "ml_confidence": 0.985,
       "optimization_readiness": 0.985
     }
@@ -1976,6 +2941,6 @@
   "metadata": {
     "version": "1.0.0",
     "complete": true,
-    "cached_until": "2025-08-16T22:31:59.178431"
+    "cached_until": "2025-08-16T23:33:08.163136"
   }
 }

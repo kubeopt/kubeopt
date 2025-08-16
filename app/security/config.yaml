@@ -4,7 +4,7 @@ api_port: 8000
 api_debug: false
 
 # Database Configuration
-database_path: "app/security/security_posture.db"
+database_path: "app/security/data/security_posture.db"
 database_retention_days: 365
 
 # Security Analysis Configuration
