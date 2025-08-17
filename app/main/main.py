@@ -7,7 +7,6 @@ parallel analysis capabilities, and subscription-aware cost optimization.
 
 import os
 import sys
-import signal
 from flask import Flask
 
 # Add the app directory to Python path for imports
@@ -326,6 +325,7 @@ def clear_global_analysis_cache():
     analysis_results.clear()
     logger.info("🧹 Cleared global analysis cache for multi-subscription isolation")
 
+import signal
 
 def signal_handler(sig, frame):
     """Handle Ctrl+C gracefully for multi-subscription system"""
@@ -349,27 +349,48 @@ def signal_handler(sig, frame):
     logger.info("✅ Multi-subscription system shutdown complete")
     sys.exit(0)
 
-# CRITICAL FIX: Initialize and register routes when module is imported
-# This ensures routes are available when Flask starts with 'flask run'
-try:
-    logger.info("🚀 Initializing application on module import...")
+# Global flag to track if app has been initialized
+_app_initialized = False
+
+def initialize_app_once():
+    """Initialize application only once, regardless of how it's started"""
+    global _app_initialized
     
-    # Initialize application
-    if initialize_multi_subscription_application():
-        logger.info("✅ Application components initialized")
+    if _app_initialized:
+        logger.info("✅ App already initialized, skipping...")
+        return True
+    
+    try:
+        logger.info("🚀 Initializing application...")
         
-        # Register all routes
-        if register_all_routes_with_multi_subscription():
-            logger.info("✅ Routes registered successfully")
+        # Initialize application
+        if initialize_multi_subscription_application():
+            logger.info("✅ Application components initialized")
+            
+            # Register all routes
+            if register_all_routes_with_multi_subscription():
+                logger.info("✅ Routes registered successfully")
+                _app_initialized = True
+                return True
+            else:
+                logger.error("❌ Failed to register routes")
+                return False
         else:
-            logger.error("❌ Failed to register routes")
-    else:
-        logger.error("❌ Failed to initialize application")
-        
-except Exception as e:
-    logger.error(f"❌ Failed to initialize on import: {e}")
-    import traceback
-    logger.error(traceback.format_exc())
+            logger.error("❌ Failed to initialize application")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return False
+
+# Initialize when imported by Flask (flask run) but not when running as main
+if __name__ != "__main__":
+    logger.info("📦 Module imported (likely by Flask), initializing...")
+    initialize_app_once()
+
+# Add this to your main() function to detect environment
 
 def main():
     """Main application entry point with multi-subscription support"""
@@ -378,15 +399,32 @@ def main():
         logger.info("🌐 STARTING MULTI-SUBSCRIPTION AKS COST OPTIMIZATION TOOL")
         logger.info("=" * 80)
         
-        # Application should already be initialized from module import
-        # Just log the status
+        # Initialize application (will skip if already done)
+        if not initialize_app_once():
+            logger.error("❌ Failed to initialize application")
+            return False
+        
+        # Log status
         status = get_multi_subscription_status()
         if status.get('subscriptions', {}).get('total_count', 0) > 0:
             sub_count = status['subscriptions']['total_count']
             enabled_count = status['subscriptions']['enabled_count']
             logger.info(f"🌐 Ready to analyze {enabled_count}/{sub_count} Azure subscriptions")
         
-        logger.info("🌐 Server ready at http://127.0.0.1:5000/")
+        # Detect if running in Docker container
+        is_docker = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER', False)
+        
+        # Use different ports based on environment
+        if is_docker:
+            host = '0.0.0.0'
+            port = 5000  # Internal container port (mapped to 5020 externally)
+            logger.info(f"🐳 Running in Docker container on port {port}")
+        else:
+            host = '127.0.0.1'
+            port = 5001  # Different port for local development to avoid conflicts
+            logger.info(f"💻 Running locally on port {port}")
+        
+        logger.info(f"🌐 Server ready at http://{host}:{port}/")
         logger.info("💡 Press Ctrl+C to exit")
         
         # Setup signal handlers
@@ -394,7 +432,7 @@ def main():
         signal.signal(signal.SIGTERM, signal_handler)
         
         # Start the Flask application
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+        app.run(host=host, port=port, debug=False, use_reloader=False)
         
         return True
         
@@ -412,6 +450,7 @@ if __name__ == "__main__":
     success = main()
     if not success:
         exit(1)
+
 
 # IMPLEMENTATION INSTRUCTIONS
 """
