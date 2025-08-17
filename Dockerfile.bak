@@ -1,0 +1,92 @@
+# Production Dockerfile - Minimal attack surface
+ARG PYTHON_VERSION=3.9.18
+ARG DEBIAN_VERSION=slim-bookworm
+
+# Build stage
+FROM python:${PYTHON_VERSION}-${DEBIAN_VERSION} as builder
+
+# Install only essential build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy and install requirements
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip==24.0 \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Final stage - Using distroless for security
+FROM python:${PYTHON_VERSION}-${DEBIAN_VERSION}
+
+# Install only runtime dependencies, no package managers
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgcc-s1 \
+    curl \
+    ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && rm -rf /root/.cache /usr/share/doc/* /usr/share/man/*
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Create non-root user with specific UID/GID
+RUN groupadd -g 1000 appuser \
+    && useradd -r -u 1000 -g appuser -s /sbin/nologin -c "Docker user" appuser
+
+# Create app directory structure with correct permissions
+WORKDIR /app
+RUN mkdir -p /app/data /app/logs /app/cache /app/models \
+    && chown -R appuser:appuser /app \
+    && chmod 755 /app /app/data /app/logs /app/cache /app/models
+
+# Copy application code
+COPY --chown=appuser:appuser app/ ./app/
+COPY --chown=appuser:appuser deployments/ ./deployments/
+
+# Security: Remove unnecessary files and set read-only where possible
+RUN find /app -name "*.pyc" -delete \
+    && find /app -name "__pycache__" -type d -delete \
+    && find /app -name ".git" -type d -delete \
+    && chmod -R 544 /app/app \
+    && chmod -R 755 /app/data /app/logs /app/cache
+
+# Switch to non-root user
+# Copy entrypoint script
+COPY --chown=appuser:appuser docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+USER appuser
+
+# Environment variables
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app:$PYTHONPATH \
+    FLASK_APP=app.main.main:app \
+    FLASK_ENV=production \
+    MPLBACKEND=Agg
+
+# Security: Disable pip in production
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+# Health check with timeout
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
+
+EXPOSE 5000
+
+# Run with gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "--worker-class", "gthread", "--threads", "2", "--max-requests", "1000", "--max-requests-jitter", "50", "app.main.main:app"]

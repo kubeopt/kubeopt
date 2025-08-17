@@ -1,0 +1,59 @@
+# Development Dockerfile - Full features for development
+ARG PYTHON_VERSION=3.9.18
+
+FROM python:${PYTHON_VERSION}
+
+# Install development dependencies including Azure CLI
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    build-essential \
+    git \
+    vim \
+    curl \
+    wget \
+    netcat-openbsd \
+    sqlite3 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    gnupg \
+    lsb-release \
+    && curl -sL https://aka.ms/InstallAzureCLIDeb | bash \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for development
+RUN groupadd -g 1000 appuser \
+    && useradd -m -u 1000 -g appuser -s /bin/bash appuser
+
+WORKDIR /app
+
+# Install Python packages as root (for development flexibility)
+COPY requirements.txt dev.txt ./
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -r dev.txt
+
+# Create necessary directories
+RUN mkdir -p /app/data /app/logs /app/cache /app/models /app/reports \
+    && chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Development environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app:$PYTHONPATH \
+    FLASK_APP=app.main.main:app \
+    FLASK_ENV=development \
+    FLASK_DEBUG=1 \
+    WERKZEUG_DEBUG_PIN=off
+
+EXPOSE 5000
+
+# Run Flask in debug mode for development
+CMD ["python", "-m", "app.main.main"]

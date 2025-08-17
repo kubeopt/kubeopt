@@ -1,0 +1,59 @@
+# Alpine-based ultra-minimal image
+FROM python:3.9.18-alpine3.19 as builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    openssl-dev \
+    python3-dev \
+    build-base \
+    linux-headers
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Final stage
+FROM python:3.9.18-alpine3.19
+
+# Install only runtime dependencies
+RUN apk add --no-cache \
+    libstdc++ \
+    libgomp \
+    curl \
+    && rm -rf /var/cache/apk/*
+
+# Copy virtual environment
+COPY --from=builder /opt/venv /opt/venv
+
+# Create non-root user
+RUN addgroup -g 1000 -S appuser \
+    && adduser -u 1000 -S appuser -G appuser
+
+WORKDIR /app
+
+# Copy application
+COPY --chown=appuser:appuser app/ ./app/
+COPY --chown=appuser:appuser deployments/ ./deployments/
+
+# Create data directories
+RUN mkdir -p /app/data /app/logs /app/cache /app/models \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app:$PYTHONPATH
+
+EXPOSE 5000
+
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "app.main.main:app"]
