@@ -7,6 +7,7 @@ parallel analysis capabilities, and subscription-aware cost optimization.
 
 import os
 import sys
+import signal
 from flask import Flask
 
 # Add the app directory to Python path for imports
@@ -87,6 +88,23 @@ def register_all_routes_with_multi_subscription():
 
 def register_enhanced_utility_routes():
     """Register enhanced utility routes with multi-subscription support"""
+    
+    @app.route('/')
+    def index():
+        """Default route - redirect to cluster portfolio"""
+        from flask import redirect, url_for
+        try:
+            return redirect(url_for('cluster_portfolio'))
+        except Exception as e:
+            logger.error(f"Failed to redirect to cluster_portfolio: {e}")
+            # Fallback to direct redirect
+            return redirect('/cluster-portfolio')
+    
+    @app.route('/health')
+    def health_check():
+        """Health check endpoint"""
+        from flask import jsonify
+        return jsonify({'status': 'healthy', 'service': 'aks-optimizer'}), 200
     
     @app.route('/multi-subscription-status')
     def multi_subscription_status():
@@ -308,8 +326,6 @@ def clear_global_analysis_cache():
     analysis_results.clear()
     logger.info("🧹 Cleared global analysis cache for multi-subscription isolation")
 
-import signal
-import sys
 
 def signal_handler(sig, frame):
     """Handle Ctrl+C gracefully for multi-subscription system"""
@@ -333,6 +349,28 @@ def signal_handler(sig, frame):
     logger.info("✅ Multi-subscription system shutdown complete")
     sys.exit(0)
 
+# CRITICAL FIX: Initialize and register routes when module is imported
+# This ensures routes are available when Flask starts with 'flask run'
+try:
+    logger.info("🚀 Initializing application on module import...")
+    
+    # Initialize application
+    if initialize_multi_subscription_application():
+        logger.info("✅ Application components initialized")
+        
+        # Register all routes
+        if register_all_routes_with_multi_subscription():
+            logger.info("✅ Routes registered successfully")
+        else:
+            logger.error("❌ Failed to register routes")
+    else:
+        logger.error("❌ Failed to initialize application")
+        
+except Exception as e:
+    logger.error(f"❌ Failed to initialize on import: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
+
 def main():
     """Main application entry point with multi-subscription support"""
     try:
@@ -340,26 +378,8 @@ def main():
         logger.info("🌐 STARTING MULTI-SUBSCRIPTION AKS COST OPTIMIZATION TOOL")
         logger.info("=" * 80)
         
-        # Initialize multi-subscription application components
-        if not initialize_multi_subscription_application():
-            logger.error("❌ Multi-subscription application initialization failed")
-            return False
-        
-        # Register all routes with multi-subscription support
-        if not register_all_routes_with_multi_subscription():
-            logger.error("❌ Multi-subscription route registration failed")
-            return False
-        
-        # Application ready
-        logger.info("✅ Multi-subscription application initialization completed successfully")
-        logger.info("🌐 Multi-subscription cluster portfolio management enabled")
-        logger.info("🤖 ML-enhanced analysis engine with subscription awareness ready")
-        logger.info("🔔 Subscription-aware alerts system initialized")
-        logger.info("💾 Multi-subscription cache management system active")
-        logger.info("⚡ Parallel analysis across subscriptions enabled")
-        logger.info("🔒 Subscription isolation and context switching ready")
-        
-        # Log system status
+        # Application should already be initialized from module import
+        # Just log the status
         status = get_multi_subscription_status()
         if status.get('subscriptions', {}).get('total_count', 0) > 0:
             sub_count = status['subscriptions']['total_count']
@@ -369,15 +389,17 @@ def main():
         logger.info("🌐 Server ready at http://127.0.0.1:5000/")
         logger.info("💡 Press Ctrl+C to exit")
         
+        # Setup signal handlers
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        
         # Start the Flask application
-        app.run(debug=True, use_reloader=False)
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
         
         return True
         
     except KeyboardInterrupt:
         logger.info("👋 Multi-subscription application shutdown requested by user")
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
         return True
         
     except Exception as e:
