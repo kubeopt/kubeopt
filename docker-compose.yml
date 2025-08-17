@@ -1,0 +1,72 @@
+services:
+  aks-optimizer:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: aks-optimizer:latest
+    container_name: aks-cost-optimizer
+    
+    ports:
+      - "5020:5000"
+    
+    volumes:
+      # Mount app for development
+      - ./app:/app/app:cached
+      
+      # Data persistence
+      - sqlite_data:/app/data
+      - ml_models:/app/models
+      - app_logs:/app/logs
+      - app_cache:/app/cache
+      
+      # Mount Azure credentials to temp location for copying
+      - ${HOME}/.azure:/tmp/host-azure:ro
+      
+      # Writable Azure config directory
+      - azure_config:/home/appuser/.azure
+      
+    environment:
+      # Flask settings
+      - FLASK_ENV=${FLASK_ENV:-development}
+      - FLASK_DEBUG=${FLASK_DEBUG:-1}
+      - DATABASE_PATH=/app/data/aks_optimizer.db
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONPATH=/app
+      
+      # Azure settings
+      - AZURE_CONFIG_DIR=/home/appuser/.azure
+      - AZURE_CORE_COLLECT_TELEMETRY=false
+      
+      # Enable multi-subscription support
+      - ENABLE_MULTI_SUBSCRIPTION=true
+      - PARALLEL_PROCESSING=true
+      
+    restart: unless-stopped
+    
+    networks:
+      - aks-network
+    
+    user: "1000:1000"
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  sqlite_data:
+    driver: local
+  ml_models:
+    driver: local
+  app_logs:
+    driver: local
+  app_cache:
+    driver: local
+  azure_config:
+    driver: local
+
+networks:
+  aks-network:
+    driver: bridge

@@ -21,8 +21,8 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - [%(threadName)s] - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('app.log'),
-        logging.FileHandler('multi_subscription_analysis.log')  # Separate log for subscription analysis
+        logging.FileHandler('app.log')
+        #logging.FileHandler('multi_subscription_analysis.log')  # Separate log for subscription analysis
     ]
 )
 logger = logging.getLogger(__name__)
