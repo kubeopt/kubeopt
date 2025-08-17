@@ -11,6 +11,7 @@ azure-mgmt-containerservice==20.7.0
 azure-mgmt-monitor==6.0.0
 azure-mgmt-costmanagement==4.0.1
 azure-mgmt-consumption==10.0.0
+azure-mgmt-loganalytics==13.0.0b6  # ← THIS WAS MISSING!
 azure-monitor-query==1.2.0
 azure-core==1.28.0
 azure-common==1.1.28
