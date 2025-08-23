@@ -1213,7 +1213,7 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
     logger.info(f"💰 ENHANCED: Fetching cost data for {cluster_name} in subscription {subscription_id[:8]}")
     
     max_retries = 3
-    base_delay = 5
+    base_delay = 2  # Reduced from 5 seconds for faster retries
     thread_id = threading.get_ident()
     
     for attempt in range(max_retries):
@@ -1323,7 +1323,7 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
             except Exception as e:
                 if attempt < max_retries - 1:
                     logger.warning(f"⚠️ Thread {thread_id}: Enhanced attempt {attempt + 1} failed: {e}, retrying...")
-                    time.sleep(base_delay)
+                    time.sleep(base_delay)  # Now 2 seconds instead of 5
                     continue
                 else:
                     logger.error(f"❌ Thread {thread_id}: All enhanced attempts failed: {e}")

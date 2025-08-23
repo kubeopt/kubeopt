@@ -166,10 +166,10 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         time.sleep(1)
         
         update_progress(30, f'Fetching cost data from subscription context...')
-        time.sleep(2)
+        time.sleep(0.5)  # Reduced from 2 seconds
         
         update_progress(50, f'Analyzing cluster metrics with subscription awareness...')
-        time.sleep(2)
+        time.sleep(0.5)  # Reduced from 2 seconds
         
         update_progress(70, f'Calculating ML-powered optimization opportunities...')
         
@@ -179,7 +179,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         )
         
         update_progress(85, f'Generating AI insights and implementation plan...')
-        time.sleep(1)
+        time.sleep(0.2)  # Reduced from 1 second
         
         # Record analysis duration
         analysis_duration = time.time() - start_time
@@ -339,7 +339,7 @@ def start_analysis_queue_processor():
     def queue_processor():
         while True:
             try:
-                time.sleep(10)
+                time.sleep(5)  # Reduced from 10 seconds for better responsiveness
                 
                 while not analysis_queue.empty():
                     try:
@@ -359,7 +359,7 @@ def start_analysis_queue_processor():
                         
             except Exception as e:
                 logger.error(f"❌ Analysis queue processor error: {e}")
-                time.sleep(60)
+                time.sleep(30)  # Reduced from 60 seconds for faster recovery
     
     processor_thread = threading.Thread(target=queue_processor, daemon=True, name="AnalysisQueueProcessor")
     processor_thread.start()
