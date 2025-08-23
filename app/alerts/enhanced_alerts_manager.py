@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+Developer: Srinivas Kondepudi
+Organization: Nivaya Technologies & KubeVista
+Project: AKS Cost Optimizer
+"""
+
 # enhanced_alerts_manager.py - Complete Enhanced Alerts Manager with Database Backend
 
 import os

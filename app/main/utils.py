@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+Developer: Srinivas Kondepudi
+Organization: Nivaya Technologies & KubeVista
+Project: AKS Cost Optimizer
+"""
+
 """
 Enhanced Utility Functions for AKS Cost Optimization Tool
 Added subscription-aware kubectl execution to prevent context conflicts

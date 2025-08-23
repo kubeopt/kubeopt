@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 """
+Developer: Srinivas Kondepudi
+Organization: Nivaya Technologies & KubeVista
+Project: AKS Cost Optimizer
+"""
+
+#!/usr/bin/env python3
+"""
 View the complete raw implementation plan object from the database
 """
 

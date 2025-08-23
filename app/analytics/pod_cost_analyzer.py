@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+Developer: Srinivas Kondepudi
+Organization: Nivaya Technologies & KubeVista
+Project: AKS Cost Optimizer
+"""
+
 """
 Enhanced AKS Pod Cost Analyzer - Preserving Existing Logic with Dynamic Improvements
 ===================================================================================

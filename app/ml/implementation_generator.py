@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+Developer: Srinivas Kondepudi
+Organization: Nivaya Technologies & KubeVista
+Project: AKS Cost Optimizer
+"""
+
 """
 AKS Implementation Generator with PROPERLY INTEGRATED Security Framework
 ========================================================================
@@ -1189,9 +1196,33 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                 return None
             
             # Use the SecurityIntegrationMixin method but with ML session context
-            security_analysis = asyncio.run(self._perform_comprehensive_security_analysis(
-                cluster_config, security_frameworks
-            ))
+            # Create new event loop if needed to avoid blocking
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If loop is already running, use run_in_executor to avoid blocking
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(
+                            lambda: asyncio.run(self._perform_comprehensive_security_analysis(
+                                cluster_config, security_frameworks
+                            ))
+                        )
+                        security_analysis = future.result(timeout=30)
+                else:
+                    security_analysis = asyncio.run(self._perform_comprehensive_security_analysis(
+                        cluster_config, security_frameworks
+                    ))
+            except RuntimeError:
+                # Fallback: create new event loop in thread
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(
+                        lambda: asyncio.run(self._perform_comprehensive_security_analysis(
+                            cluster_config, security_frameworks
+                        ))
+                    )
+                    security_analysis = future.result(timeout=30)
 
             security_analysis = self._sanitize_security_data(security_analysis)
             
@@ -1228,15 +1259,49 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         try:
             logger.info("🔗 Integrating security enhancements into ML plan...")
             
-            # Generate security phases using SecurityIntegrationMixin
-            security_phases = asyncio.run(self._generate_security_implementation_phases(
-                security_analysis, 'high'
-            ))
-            
-            # Integrate security phases into implementation plan
-            ml_plan = asyncio.run(self._integrate_security_phases(
-                ml_plan, security_phases, security_analysis
-            ))
+            # Generate security phases using SecurityIntegrationMixin - avoid blocking
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        # Run both operations in parallel for better performance
+                        future1 = executor.submit(
+                            lambda: asyncio.run(self._generate_security_implementation_phases(
+                                security_analysis, 'high'
+                            ))
+                        )
+                        security_phases = future1.result(timeout=30)
+                        
+                        future2 = executor.submit(
+                            lambda: asyncio.run(self._integrate_security_phases(
+                                ml_plan, security_phases, security_analysis
+                            ))
+                        )
+                        ml_plan = future2.result(timeout=30)
+                else:
+                    security_phases = asyncio.run(self._generate_security_implementation_phases(
+                        security_analysis, 'high'
+                    ))
+                    ml_plan = asyncio.run(self._integrate_security_phases(
+                        ml_plan, security_phases, security_analysis
+                    ))
+            except RuntimeError:
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future1 = executor.submit(
+                        lambda: asyncio.run(self._generate_security_implementation_phases(
+                            security_analysis, 'high'
+                        ))
+                    )
+                    security_phases = future1.result(timeout=30)
+                    
+                    future2 = executor.submit(
+                        lambda: asyncio.run(self._integrate_security_phases(
+                            ml_plan, security_phases, security_analysis
+                        ))
+                    )
+                    ml_plan = future2.result(timeout=30)
             
             # Add compliance requirements
             ml_plan = asyncio.run(self._add_compliance_requirements(
@@ -1765,6 +1830,18 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             logger.info(f"💰 HPA savings from analysis: ${analysis_results.get('hpa_savings', 0):.0f}")
             logger.info(f"💰 Rightsizing savings from analysis: ${analysis_results.get('right_sizing_savings', 0):.0f}")
             
+            # ENHANCEMENT: Create optimization context from analysis results
+            from app.ml.analysis_bridge import AnalysisToImplementationBridge
+            bridge = AnalysisToImplementationBridge()
+            optimization_context = bridge.create_optimization_context(analysis_results)
+            
+            logger.info(f"🎯 Optimization context created: {optimization_context.cost_optimization_priority} priority")
+            logger.info(f"📊 Cluster utilization: CPU {optimization_context.avg_node_cpu_utilization:.1f}%, Memory {optimization_context.avg_node_memory_utilization:.1f}%")
+            logger.info(f"🔥 High-cost workloads identified: {len(optimization_context.high_cost_workloads)}")
+            
+            # Store optimization context for command generation
+            ml_session['optimization_context'] = optimization_context
+            
             # Get cluster_dna from session with proper error handling
             cluster_dna = ml_session.get('cluster_dna')
             if cluster_dna is None:
@@ -1792,11 +1869,16 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                     self.command_generator.set_cluster_config(cluster_config)
                     logger.info("✅ Cluster config set on command generator")
             
-            # CRITICAL FIX: Pass YOUR analysis_results as first parameter
+            # CRITICAL FIX: Pass YOUR analysis_results as first parameter with optimization context
+            # Ensure optimization context is included in analysis_results
+            if 'optimization_context' in ml_session:
+                analysis_results['optimization_context'] = ml_session['optimization_context']
+                logger.info("✅ Optimization context added to analysis_results for command generation")
+                
             execution_plan = self.command_generator.generate_comprehensive_execution_plan(
                 ml_strategy, 
                 cluster_dna, 
-                analysis_results,  # YOUR analysis results with real opportunities
+                analysis_results,  # YOUR analysis results with real opportunities AND optimization context
                 cluster_config,
                 implementation_phases=implementation_plan.get('implementation_phases', [])
             )

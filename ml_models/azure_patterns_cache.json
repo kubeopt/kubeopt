@@ -1,5 +1,8 @@
 {
   "monitoring_migration_trends": {
+    "prometheus_adoption_rate": 0.8349999999999653,
+    "container_insights_migration_rate": 0.7097499999999705,
+    "cost_savings_average": 0.42,
     "container_insights_to_prometheus": {
       "adoption_rate": 0.8349999999999653,
       "cost_savings_average": 0.42,
@@ -11,10 +14,7 @@
       "cost_savings_average": 0.6,
       "ideal_log_volume_gb_monthly": 100,
       "query_impact": 0.13625
-    },
-    "prometheus_adoption_rate": 0.8349999999999653,
-    "container_insights_migration_rate": 0.7097499999999705,
-    "cost_savings_average": 0.42
+    }
   },
   "cost_optimization_patterns": {
     "spot_instances": {
@@ -51,11 +51,11 @@
       "advanced": 0.4
     }
   },
-  "last_updated": "2025-08-16T22:33:08.379730",
+  "last_updated": "2025-08-23T20:43:37.962470",
   "data_sources": [
+    "optimization_patterns",
     "migration_trends",
     "implementation_patterns",
-    "optimization_patterns",
     "service_costs"
   ]
 }
