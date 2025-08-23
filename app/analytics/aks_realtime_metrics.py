@@ -1702,6 +1702,16 @@ class AKSRealTimeMetricsFetcher:
                 'workload_namespace_breakdown': pod_metrics.get('namespace_aggregates', {}),
                 'workload_distribution': pod_metrics.get('workload_distribution', {}),
                 
+                # ===== NEW: HIGH CPU DATA AT TOP LEVEL FOR UI =====
+                'high_cpu_summary': {
+                    'high_cpu_hpas': hpa_metrics.get('high_cpu_hpas', []),
+                    'high_cpu_workloads': high_cpu_analysis.get('high_cpu_workloads', []),
+                    'high_cpu_pods': high_cpu_analysis.get('high_cpu_pods', []),
+                    'max_cpu_utilization': high_cpu_analysis.get('max_workload_cpu', 0),
+                    'total_high_cpu_count': len(hpa_metrics.get('high_cpu_hpas', [])) + len(high_cpu_analysis.get('high_cpu_pods', [])),
+                    'severity_category': high_cpu_analysis.get('recommendation_category', 'MONITOR')
+                },
+                
                 # Status and metadata
                 'status': 'success',
                 'ml_features_ready': True,
@@ -1709,7 +1719,8 @@ class AKSRealTimeMetricsFetcher:
                 'enhanced_data_available': node_metrics.get('enhanced_data_available', False),
                 'nodes_with_real_requests': node_metrics.get('nodes_with_real_requests', 0),
                 'completely_fixed': True,
-                'all_workloads_preserved': True  # 🆕 Flag indicating the fix is applied
+                'all_workloads_preserved': True,  # 🆕 Flag indicating the fix is applied
+                'high_cpu_ui_ready': True  # 🆕 Flag indicating high CPU data is UI-ready
             }
             
             # Step 6: Add comprehensive metadata

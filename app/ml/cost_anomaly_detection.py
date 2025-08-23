@@ -247,7 +247,7 @@ class RealTimeCostAnomalyDetector:
             #  Validate budget input
             if not self._is_valid_budget(cost_budget_monthly):
                 logger.warning("⚠️ Invalid budget provided, using default guardrails")
-                cost_budget_monthly = 1000.0  # Default fallback
+                cost_budget_monthly = self._estimate_budget_from_usage()  # Dynamic budget estimation
             
             # Calculate guardrail thresholds
             daily_budget = cost_budget_monthly / 30
@@ -391,9 +391,9 @@ class RealTimeCostAnomalyDetector:
                     if np.isfinite(value) and abs(value) < 1e10:
                         sanitized[key] = float(value)
                     else:
-                        # Use safe default based on key
+                        # Use safe default based on key with dynamic estimation
                         if 'cost' in key.lower():
-                            sanitized[key] = 1000.0  # Default cost
+                            sanitized[key] = self._get_fallback_cost(key)  # Dynamic cost fallback
                         elif 'utilization' in key.lower():
                             sanitized[key] = 50.0   # Default utilization
                         elif 'count' in key.lower():
@@ -409,12 +409,12 @@ class RealTimeCostAnomalyDetector:
                 logger.warning(f"⚠️ Error sanitizing {key}: {e}")
                 sanitized[key] = 0.0
         
-        # Ensure required keys exist
+        # Ensure required keys exist with dynamic defaults
         required_keys = {
-            'total_cost': 1000.0,
-            'compute_cost': 600.0,
-            'storage_cost': 200.0,
-            'network_cost': 200.0,
+            'total_cost': self._get_fallback_cost('total_cost'),
+            'compute_cost': self._get_fallback_cost('compute_cost'),
+            'storage_cost': self._get_fallback_cost('storage_cost'),
+            'network_cost': self._get_fallback_cost('network_cost'),
             'pod_count': 10,
             'cpu_utilization': 50.0,
             'memory_utilization': 60.0
@@ -435,6 +435,64 @@ class RealTimeCostAnomalyDetector:
                     budget < 1e6)  # Reasonable upper limit
         except:
             return False
+    
+    def _estimate_budget_from_usage(self) -> float:
+        """Estimate budget based on historical usage patterns"""
+        try:
+            # Try to get cluster historical costs if available
+            if hasattr(self, 'cluster_info') and self.cluster_info:
+                total_cost = self.cluster_info.get('total_cost', 0)
+                if total_cost and total_cost > 0:
+                    # Estimate monthly budget based on current costs (add 20% buffer)
+                    estimated_budget = total_cost * 1.2
+                    logger.info(f"✅ Estimated budget from cluster costs: ${estimated_budget:.2f}")
+                    return estimated_budget
+            
+            # Fallback to industry-standard estimates based on cluster size
+            # Estimate based on typical AKS costs: $150-500/month per node
+            estimated_nodes = 3  # Default small cluster
+            cost_per_node_monthly = 250  # Mid-range estimate
+            estimated_budget = estimated_nodes * cost_per_node_monthly
+            
+            logger.info(f"✅ Using industry standard budget estimate: ${estimated_budget:.2f}")
+            return estimated_budget
+            
+        except Exception as e:
+            logger.error(f"❌ Budget estimation failed: {e}")
+            return 750.0  # Conservative fallback
+    
+    def _get_fallback_cost(self, cost_type: str) -> float:
+        """Get dynamic fallback cost based on cost type and market standards"""
+        try:
+            # Get estimated total budget
+            total_budget = self._estimate_budget_from_usage()
+            
+            # Distribute costs based on typical Azure AKS patterns
+            cost_distribution = {
+                'total_cost': 1.0,
+                'compute_cost': 0.60,  # ~60% compute
+                'storage_cost': 0.20,  # ~20% storage
+                'network_cost': 0.15,  # ~15% networking
+                'other_cost': 0.05     # ~5% other services
+            }
+            
+            # Get the appropriate fraction
+            fraction = cost_distribution.get(cost_type.lower(), 0.6)
+            fallback_cost = total_budget * fraction
+            
+            logger.debug(f"✅ Dynamic fallback cost for {cost_type}: ${fallback_cost:.2f}")
+            return fallback_cost
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get dynamic fallback cost for {cost_type}: {e}")
+            # Static fallback as last resort
+            static_fallbacks = {
+                'total_cost': 750.0,
+                'compute_cost': 450.0,
+                'storage_cost': 150.0,
+                'network_cost': 100.0
+            }
+            return static_fallbacks.get(cost_type.lower(), 100.0)
     
     def _initialize_anomaly_models_safe(self, cluster_info: Dict):
         """ Initialize anomaly detection models with safe data handling"""

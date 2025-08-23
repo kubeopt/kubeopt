@@ -566,8 +566,33 @@ class MLEnhancedHPARecommendationEngine:
                     
                     logger.info(f"🔍 EXTRACTING: Found {len(all_hpa_details)} total HPAs, {len(high_cpu_hpas)} high CPU")
                     
-                    # Process ALL HPA details
+                    # FIRST: Process the already-detected high CPU HPAs to ensure they're included
+                    for high_cpu_hpa in high_cpu_hpas:
+                        workload = {
+                            'name': high_cpu_hpa.get('name', 'unknown'),
+                            'namespace': high_cpu_hpa.get('namespace', 'unknown'),
+                            'cpu_utilization': float(high_cpu_hpa.get('cpu_utilization', 0)),
+                            'target': float(high_cpu_hpa.get('target_cpu', 80)),
+                            'severity': high_cpu_hpa.get('severity', 'high'),
+                            'type': 'hpa_high_cpu_detected'
+                        }
+                        
+                        high_cpu_workloads.append(workload)
+                        all_workloads.append(workload)
+                        max_cpu_utilization = max(max_cpu_utilization, workload['cpu_utilization'])
+                        
+                        logger.info(f"🔥 PRESERVED HIGH CPU HPA: {workload['namespace']}/{workload['name']} = {workload['cpu_utilization']}%")
+                    
+                    # SECOND: Process ALL HPA details (but skip ones already processed as high CPU)
+                    already_processed = {f"{w['namespace']}/{w['name']}" for w in high_cpu_workloads}
+                    
                     for hpa in all_hpa_details:
+                        workload_key = f"{hpa.get('namespace', 'unknown')}/{hpa.get('name', 'unknown')}"
+                        
+                        # Skip if already processed as high CPU
+                        if workload_key in already_processed:
+                            continue
+                            
                         workload = {
                             'name': hpa.get('name', 'unknown'),
                             'namespace': hpa.get('namespace', 'unknown'),
@@ -577,9 +602,14 @@ class MLEnhancedHPARecommendationEngine:
                             'type': 'hpa_managed'
                         }
                         
-                        # Determine severity
-                        if workload['cpu_utilization'] > 200:
-                            workload['severity'] = 'critical' if workload['cpu_utilization'] > 1000 else 'high'
+                        # Determine severity - FIXED: consistent with aks_realtime_metrics (150% threshold)
+                        if workload['cpu_utilization'] > 150:
+                            if workload['cpu_utilization'] > 1000:
+                                workload['severity'] = 'critical'
+                            elif workload['cpu_utilization'] > 300:
+                                workload['severity'] = 'high'
+                            else:
+                                workload['severity'] = 'medium'
                             high_cpu_workloads.append(workload)
                         
                         all_workloads.append(workload)
@@ -632,8 +662,14 @@ class MLEnhancedHPARecommendationEngine:
                             }
                             
                             # Determine severity based on CPU
-                            if workload['cpu_utilization'] > 200:
-                                workload['severity'] = 'critical' if workload['cpu_utilization'] > 1000 else 'high'
+                            # FIXED: consistent threshold with aks_realtime_metrics (150%)
+                            if workload['cpu_utilization'] > 150:
+                                if workload['cpu_utilization'] > 1000:
+                                    workload['severity'] = 'critical'
+                                elif workload['cpu_utilization'] > 300:
+                                    workload['severity'] = 'high'
+                                else:
+                                    workload['severity'] = 'medium'
                                 if workload not in high_cpu_workloads:
                                     high_cpu_workloads.append(workload)
                             
@@ -670,8 +706,14 @@ class MLEnhancedHPARecommendationEngine:
                             }
                             
                             # Determine severity
-                            if cpu_pct > 200:
-                                workload['severity'] = 'critical' if cpu_pct > 1000 else 'high'
+                            # FIXED: consistent threshold with aks_realtime_metrics (150%)
+                            if cpu_pct > 150:
+                                if cpu_pct > 1000:
+                                    workload['severity'] = 'critical'
+                                elif cpu_pct > 300:
+                                    workload['severity'] = 'high'
+                                else:
+                                    workload['severity'] = 'medium'
                                 if workload not in high_cpu_workloads:
                                     high_cpu_workloads.append(workload)
                             

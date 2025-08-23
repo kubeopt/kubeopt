@@ -515,7 +515,7 @@ def start_cache_maintenance():
                 
             except Exception as e:
                 logger.error(f"❌ Cache maintenance error: {e}")
-                time.sleep(600)  # Wait 10 minutes on error
+                time.sleep(300)  # Wait 5 minutes on error (reduced from 10)
     
     maintenance_thread = threading.Thread(target=maintenance_worker, daemon=True, name="CacheMaintenance")
     maintenance_thread.start()

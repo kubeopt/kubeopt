@@ -422,10 +422,68 @@ class EnhancedDynamicStrategyEngine:
                 logger.info(f"💰 Using {source}: ${value:.2f}")
                 return value
         
-        # Fallback: Calculate 10% of total cost as reasonable savings potential
-        fallback_savings = total_cost * 0.10
-        logger.info(f"🔄 Using fallback savings: ${fallback_savings:.2f} (10% of ${total_cost:.2f})")
+        # Dynamic fallback: Calculate savings based on cluster characteristics and industry standards
+        fallback_savings = self._calculate_dynamic_savings_potential(total_cost, cluster_dna, analysis_results)
+        logger.info(f"🔄 Using dynamic fallback savings: ${fallback_savings:.2f} based on cluster analysis")
         return fallback_savings
+    
+    def _calculate_dynamic_savings_potential(self, total_cost: float, cluster_dna, analysis_results: Dict) -> float:
+        """Calculate savings potential based on cluster characteristics and Azure standards"""
+        try:
+            if total_cost <= 0:
+                return 0.0
+            
+            # Base savings percentage based on cluster size (larger clusters = more optimization potential)
+            base_savings_percentage = 0.08  # Start with 8% (conservative)
+            
+            # Adjust based on cluster characteristics
+            workload_count = analysis_results.get('total_workloads', 0)
+            node_count = len(analysis_results.get('nodes', []))
+            
+            # Size-based adjustments
+            if node_count >= 10:
+                base_savings_percentage += 0.05  # +5% for large clusters
+            elif node_count >= 5:
+                base_savings_percentage += 0.03  # +3% for medium clusters
+            
+            # Workload density adjustments
+            if workload_count > 50:
+                base_savings_percentage += 0.04  # +4% for high workload density
+            elif workload_count > 20:
+                base_savings_percentage += 0.02  # +2% for moderate workload density
+            
+            # Check for obvious inefficiencies
+            max_cpu = analysis_results.get('high_cpu_summary', {}).get('max_cpu_utilization', 0)
+            if max_cpu > 500:  # Very high CPU indicates scaling issues
+                base_savings_percentage += 0.08  # +8% for scaling optimization
+            elif max_cpu > 200:  # High CPU indicates some optimization potential
+                base_savings_percentage += 0.04  # +4% for moderate optimization
+            
+            # Storage optimization potential
+            storage_cost = analysis_results.get('storage_cost', 0)
+            if storage_cost > total_cost * 0.3:  # Storage > 30% of total cost
+                base_savings_percentage += 0.03  # +3% for storage optimization
+            
+            # Networking optimization potential
+            network_cost = analysis_results.get('network_cost', 0)
+            if network_cost > total_cost * 0.2:  # Network > 20% of total cost
+                base_savings_percentage += 0.02  # +2% for network optimization
+            
+            # Cap the savings percentage at reasonable limits
+            base_savings_percentage = min(base_savings_percentage, 0.25)  # Max 25%
+            base_savings_percentage = max(base_savings_percentage, 0.05)  # Min 5%
+            
+            potential_savings = total_cost * base_savings_percentage
+            
+            logger.info(f"✅ Dynamic savings calculation: {base_savings_percentage*100:.1f}% of ${total_cost:.2f} = ${potential_savings:.2f}")
+            logger.info(f"   Factors: {node_count} nodes, {workload_count} workloads, max CPU: {max_cpu:.0f}%")
+            
+            return potential_savings
+            
+        except Exception as e:
+            logger.error(f"❌ Dynamic savings calculation failed: {e}")
+            # Conservative fallback
+            return total_cost * 0.08
     
     def _determine_optimization_objectives(self, cluster_dna, analysis_results: Optional[Dict], 
                                          cluster_config: Optional[Dict] = None) -> Dict[str, float]:

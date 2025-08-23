@@ -24,12 +24,30 @@ import json
 import logging
 import time
 import threading
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from enum import Enum
-import re
+
 import yaml
+
+# Azure VM instance type mappings for dynamic detection
+AZURE_VM_SPECS = {
+    'Standard_B2s': {'cpu': '2', 'memory': '4Gi'},
+    'Standard_B4ms': {'cpu': '4', 'memory': '16Gi'},
+    'Standard_D2s_v3': {'cpu': '2', 'memory': '8Gi'},
+    'Standard_D4s_v3': {'cpu': '4', 'memory': '16Gi'},
+    'Standard_D8s_v3': {'cpu': '8', 'memory': '32Gi'},
+    'Standard_D16s_v3': {'cpu': '16', 'memory': '64Gi'},
+    'Standard_F4s_v2': {'cpu': '4', 'memory': '8Gi'},
+    'Standard_F8s_v2': {'cpu': '8', 'memory': '16Gi'},
+    'Standard_E4s_v3': {'cpu': '4', 'memory': '32Gi'},
+    'Standard_E8s_v3': {'cpu': '8', 'memory': '64Gi'},
+    'Standard_DS2_v2': {'cpu': '2', 'memory': '7Gi'},
+    'Standard_DS3_v2': {'cpu': '4', 'memory': '14Gi'},
+    'Standard_DS4_v2': {'cpu': '8', 'memory': '28Gi'},
+}
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -54,7 +72,7 @@ class EnhancedResourceMetrics:
     cpu_request_millicores: float = 0.0
     memory_request_bytes: int = 0
     storage_allocated_bytes: int = 0
-    storage_class: str = "standard-ssd"
+    storage_class: str = "dynamic-detect"
     network_services_count: int = 0
     qos_class: str = "BestEffort"
 
@@ -290,6 +308,11 @@ class EnhancedDynamicCostDistributionEngine:
         
         #  Add dynamic pricing configuration
         self.pricing_config = DynamicPricingConfig()
+        
+        # Performance optimization: Add caching for expensive operations
+        self._instance_type_cache = {}
+        self._node_info_cache = {}
+        self._storage_class_cache = None
 
     # PRESERVED: All original kubectl command execution patterns
     def _safe_kubectl_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[str]:
@@ -571,7 +594,7 @@ class EnhancedDynamicCostDistributionEngine:
                                         'storage': '10Gi'  # Default assumption
                                     }
                                 },
-                                'storageClassName': 'standard-ssd'
+                                'storageClassName': self._get_dynamic_storage_class()
                             }
                         }
                         items.append(pvc_item)
@@ -894,7 +917,7 @@ class EnhancedDynamicCostDistributionEngine:
                             'metadata': {
                                 'name': name,
                                 'labels': {
-                                    'node.kubernetes.io/instance-type': 'Standard_D4s_v3'  # Default
+                                    'node.kubernetes.io/instance-type': self._get_dynamic_instance_type(name)
                                 }
                             },
                             'status': {
@@ -905,8 +928,8 @@ class EnhancedDynamicCostDistributionEngine:
                                     }
                                 ],
                                 'allocatable': {
-                                    'cpu': '4',        # Default assumption
-                                    'memory': '16Gi'   # Default assumption
+                                    'cpu': self._get_dynamic_node_cpu(name),
+                                    'memory': self._get_dynamic_node_memory(name)
                                 }
                             }
                         }
@@ -921,6 +944,197 @@ class EnhancedDynamicCostDistributionEngine:
         except Exception as e:
             logger.error(f"❌ Text format node parsing failed: {e}")
             return {'items': []}
+
+    def _get_dynamic_instance_type(self, node_name: str) -> str:
+        """Get actual VM instance type from node labels or Azure metadata - cached"""
+        # Check cache first
+        if node_name in self._instance_type_cache:
+            logger.debug(f"✅ Using cached instance type for {node_name}: {self._instance_type_cache[node_name]}")
+            return self._instance_type_cache[node_name]
+        
+        try:
+            # First try to get from node labels via kubectl describe
+            cmd = f"kubectl describe node {node_name}"
+            describe_output = self._safe_kubectl_command(cmd, timeout=30)
+            
+            if describe_output:
+                # Look for instance-type label
+                for line in describe_output.split('\n'):
+                    if 'node.kubernetes.io/instance-type=' in line:
+                        instance_type = line.split('=')[1].strip()
+                        self._instance_type_cache[node_name] = instance_type  # Cache it
+                        logger.info(f"✅ Found dynamic instance type for {node_name}: {instance_type}")
+                        return instance_type
+                
+                # Look for Azure node pool info
+                for line in describe_output.split('\n'):
+                    if 'agentpool' in line.lower() and 'standard_' in line.lower():
+                        # Extract instance type from Azure metadata
+                        match = re.search(r'(Standard_[A-Za-z0-9_]+)', line)
+                        if match:
+                            instance_type = match.group(1)
+                            self._instance_type_cache[node_name] = instance_type  # Cache it
+                            logger.info(f"✅ Found Azure instance type for {node_name}: {instance_type}")
+                            return instance_type
+            
+            logger.warning(f"⚠️ Could not detect instance type for {node_name}, using Standard_D4s_v3")
+            #fallback_type = 'Standard_D4s_v3'  # Fallback to common AKS default
+            #self._instance_type_cache[node_name] = fallback_type  # Cache fallback too
+            return NotImplementedError
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get dynamic instance type for {node_name}: {e}")
+            return 'Standard_D4s_v3'
+    
+    def _get_dynamic_node_cpu(self, node_name: str) -> str:
+        """Get actual node CPU capacity dynamically"""
+        try:
+            # Get instance type first
+            instance_type = self._get_dynamic_instance_type(node_name)
+            
+            # Return CPU from our VM specs mapping
+            if instance_type in AZURE_VM_SPECS:
+                cpu = AZURE_VM_SPECS[instance_type]['cpu']
+                logger.debug(f"✅ Dynamic CPU for {node_name} ({instance_type}): {cpu}")
+                return cpu
+            
+            # Try to get from kubectl describe as backup
+            cmd = f"kubectl describe node {node_name}"
+            describe_output = self._safe_kubectl_command(cmd, timeout=30)
+            
+            if describe_output:
+                # Look for Allocatable CPU
+                for line in describe_output.split('\n'):
+                    if 'cpu:' in line and 'Allocatable:' in describe_output:
+                        # Found allocatable section, extract CPU
+                        match = re.search(r'cpu:\s*(\d+)', line)
+                        if match:
+                            cpu = match.group(1)
+                            logger.info(f"✅ Found dynamic CPU via kubectl for {node_name}: {cpu}")
+                            return cpu
+            
+            logger.warning(f"⚠️ Could not detect CPU for {node_name}, using default 4")
+            return '4'
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get dynamic CPU for {node_name}: {e}")
+            return '4'
+    
+    def _get_dynamic_node_memory(self, node_name: str) -> str:
+        """Get actual node memory capacity dynamically"""
+        try:
+            # Get instance type first
+            instance_type = self._get_dynamic_instance_type(node_name)
+            
+            # Return memory from our VM specs mapping
+            if instance_type in AZURE_VM_SPECS:
+                memory = AZURE_VM_SPECS[instance_type]['memory']
+                logger.debug(f"✅ Dynamic memory for {node_name} ({instance_type}): {memory}")
+                return memory
+            
+            # Try to get from kubectl describe as backup
+            cmd = f"kubectl describe node {node_name}"
+            describe_output = self._safe_kubectl_command(cmd, timeout=30)
+            
+            if describe_output:
+                # Look for Allocatable Memory
+                for line in describe_output.split('\n'):
+                    if 'memory:' in line and 'Allocatable:' in describe_output:
+                        # Found allocatable section, extract memory
+                        match = re.search(r'memory:\s*(\d+(?:\.\d+)?[KMGT]?i?)', line)
+                        if match:
+                            memory = match.group(1)
+                            logger.info(f"✅ Found dynamic memory via kubectl for {node_name}: {memory}")
+                            return memory
+            
+            logger.warning(f"⚠️ Could not detect memory for {node_name}, using default 16Gi")
+            return '16Gi'
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get dynamic memory for {node_name}: {e}")
+            return '16Gi'
+
+    def _get_dynamic_storage_class(self) -> str:
+        """Get the default/preferred storage class dynamically from the cluster - cached"""
+        # Return cached result if available
+        if self._storage_class_cache is not None:
+            logger.debug(f"✅ Using cached storage class: {self._storage_class_cache}")
+            return self._storage_class_cache
+        
+        try:
+            # Get all storage classes
+            cmd = "kubectl get storageclass -o json"
+            sc_output = self._safe_kubectl_command(cmd, timeout=30)
+            
+            if sc_output:
+                try:
+                    sc_data = json.loads(sc_output)
+                    storage_classes = sc_data.get('items', [])
+                    
+                    # Look for default storage class first
+                    for sc in storage_classes:
+                        annotations = sc.get('metadata', {}).get('annotations', {})
+                        if annotations.get('storageclass.kubernetes.io/is-default-class') == 'true':
+                            sc_name = sc.get('metadata', {}).get('name', '')
+                            self._storage_class_cache = sc_name  # Cache it
+                            logger.info(f"✅ Found default storage class: {sc_name}")
+                            return sc_name
+                    
+                    # If no default, prefer Azure premium or managed storage classes
+                    preferred_classes = ['managed-premium', 'managed-csi', 'default', 'azurefile-premium', 'azurefile-csi']
+                    for preferred in preferred_classes:
+                        for sc in storage_classes:
+                            sc_name = sc.get('metadata', {}).get('name', '')
+                            if preferred in sc_name.lower():
+                                self._storage_class_cache = sc_name  # Cache it
+                                logger.info(f"✅ Found preferred storage class: {sc_name}")
+                                return sc_name
+                    
+                    # Return first available storage class
+                    if storage_classes:
+                        first_sc = storage_classes[0].get('metadata', {}).get('name', 'managed-csi')
+                        self._storage_class_cache = first_sc  # Cache it
+                        logger.info(f"✅ Using first available storage class: {first_sc}")
+                        return first_sc
+                        
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ Failed to parse storage class JSON: {e}")
+            
+            # Try text format as fallback
+            cmd_text = "kubectl get storageclass"
+            text_output = self._safe_kubectl_command(cmd_text, timeout=30)
+            
+            if text_output:
+                lines = text_output.strip().split('\n')[1:]  # Skip header
+                for line in lines:
+                    if line.strip():
+                        parts = line.split()
+                        if len(parts) >= 1:
+                            sc_name = parts[0]
+                            if '(default)' in line:
+                                self._storage_class_cache = sc_name  # Cache it
+                                logger.info(f"✅ Found default storage class via text: {sc_name}")
+                                return sc_name
+                
+                # If no default found, use first one
+                if lines:
+                    first_line = lines[0].strip()
+                    if first_line:
+                        sc_name = first_line.split()[0]
+                        self._storage_class_cache = sc_name  # Cache it
+                        logger.info(f"✅ Using first storage class via text: {sc_name}")
+                        return sc_name
+            
+            logger.warning("⚠️ Could not detect storage classes, using managed-csi")
+            fallback_sc = 'managed-csi'
+            self._storage_class_cache = fallback_sc  # Cache fallback too
+            return fallback_sc
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get dynamic storage class: {e}")
+            fallback_sc = 'managed-csi'
+            self._storage_class_cache = fallback_sc  # Cache fallback too
+            return fallback_sc
 
     def _get_pvc_via_text_format(self) -> Dict:
         """Get PVCs using text format"""
@@ -955,7 +1169,7 @@ class EnhancedDynamicCostDistributionEngine:
                                         'storage': capacity
                                     }
                                 },
-                                'storageClassName': 'managed-csi'  # Default for AKS
+                                'storageClassName': self._get_dynamic_storage_class()
                             }
                         }
                         items.append(pvc_item)
@@ -1202,7 +1416,7 @@ class EnhancedDynamicCostDistributionEngine:
                         
                     storage_request = requests.get('storage', '0')
                     storage_bytes = self.parser.parse_memory_safe(storage_request)
-                    storage_class = spec.get('storageClassName', 'standard-ssd')
+                    storage_class = spec.get('storageClassName', self._get_dynamic_storage_class())
                     
                     if namespace not in consumption_analysis['storage_allocations']:
                         consumption_analysis['storage_allocations'][namespace] = {
