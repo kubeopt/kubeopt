@@ -1,11 +1,11 @@
 {
-  "result_id": "sec_rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1_20250816_223308",
+  "result_id": "sec_rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1_20250823_155356",
   "cluster_id": "rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1",
   "resource_group": "rg-dpl-mad-dev-ne2-2",
   "cluster_name": "aks-dpl-mad-dev-ne2-1",
-  "timestamp": "2025-08-16T22:33:08.163135",
+  "timestamp": "2025-08-23T15:53:56.008436",
   "analysis": {
-    "timestamp": "2025-08-16T22:33:08.096753",
+    "timestamp": "2025-08-23T15:53:55.945070",
     "confidence": 0.8875,
     "frameworks_analyzed": [
       "CIS",
@@ -14,7 +14,7 @@
     "based_on_real_data": true,
     "analysis_errors": [],
     "security_posture": {
-      "overall_score": 49.346687273756906,
+      "overall_score": 49.209781218167194,
       "grade": "F",
       "breakdown": {
         "rbac_score": 0,
@@ -22,14 +22,14 @@
         "encryption_score": 100,
         "vulnerability_score": 0,
         "compliance_score": 100.0,
-        "drift_score": 95.64458182504603
+        "drift_score": 94.73187478778131
       },
       "trends": {
         "trend": "stable",
-        "change": -4.0530834391151345,
-        "recent_average": 47.85181628858315,
-        "historical_average": 51.904899727698286,
-        "data_points": 19,
+        "change": -0.5251732244736615,
+        "recent_average": 48.42624905831509,
+        "historical_average": 48.951422282788755,
+        "data_points": 20,
         "component_trends": {
           "rbac": "declining",
           "network": "improving",
@@ -40,11 +40,25 @@
         },
         "time_range": {
           "oldest": "2025-08-05 00:19:59.573130",
-          "newest": "2025-08-16 11:58:56.162629"
+          "newest": "2025-08-16 22:33:08.131690"
         }
       },
       "based_on_actual_resources": true,
       "alerts": [
+        {
+          "alert_id": "sec_1755957235_5954",
+          "severity": "CRITICAL",
+          "category": "VULNERABILITY",
+          "title": "Privileged Container",
+          "description": "Container kube-proxy in kube-proxy runs privileged",
+          "resource_type": "Container",
+          "resource_name": "kube-proxy",
+          "namespace": "default",
+          "remediation": "Remove privileged flag, use specific capabilities",
+          "risk_score": 12.0,
+          "detected_at": "2025-08-23T15:53:55.976905",
+          "metadata": {}
+        },
         {
           "alert_id": "sec_1755376388_2117",
           "severity": "CRITICAL",
@@ -239,6 +253,34 @@
           "remediation": "Remove privileged flag, use specific capabilities",
           "risk_score": 12.0,
           "detected_at": "2025-08-13T23:09:36.196062",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755957235_9734",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host PID Namespace",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host PID namespace",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostPID: true",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-23T15:53:55.977948",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755957235_9555",
+          "severity": "HIGH",
+          "category": "VULNERABILITY",
+          "title": "Host Network Usage",
+          "description": "Daemonset kubecost-prometheus-node-exporter uses host network",
+          "resource_type": "Daemonset",
+          "resource_name": "kubecost-prometheus-node-exporter",
+          "namespace": "default",
+          "remediation": "Remove hostNetwork: true unless absolutely required",
+          "risk_score": 9.0,
+          "detected_at": "2025-08-23T15:53:55.977449",
           "metadata": {}
         },
         {
@@ -634,6 +676,20 @@
           "metadata": {}
         },
         {
+          "alert_id": "sec_1755957235_6640",
+          "severity": "MEDIUM",
+          "category": "VULNERABILITY",
+          "title": "Container Running as Root",
+          "description": "Container provider-azure-installer in aks-secrets-store-provider-azure runs as root",
+          "resource_type": "Container",
+          "resource_name": "provider-azure-installer",
+          "namespace": "default",
+          "remediation": "Set runAsUser to non-root UID",
+          "risk_score": 6.0,
+          "detected_at": "2025-08-23T15:53:55.969143",
+          "metadata": {}
+        },
+        {
           "alert_id": "sec_1755376388_7102",
           "severity": "MEDIUM",
           "category": "VULNERABILITY",
@@ -827,6 +883,20 @@
           "remediation": "Set runAsUser to non-root UID",
           "risk_score": 6.0,
           "detected_at": "2025-08-13T23:09:36.189552",
+          "metadata": {}
+        },
+        {
+          "alert_id": "sec_1755957235_1832",
+          "severity": "MEDIUM",
+          "category": "POLICY",
+          "title": "RBAC Security Issue",
+          "description": "Cluster binding to all authenticated users",
+          "resource_type": "RBAC",
+          "resource_name": "unknown",
+          "namespace": "default",
+          "remediation": "Review and tighten RBAC configuration",
+          "risk_score": 5.0,
+          "detected_at": "2025-08-23T15:53:55.967722",
           "metadata": {}
         },
         {
@@ -1068,7 +1138,7 @@
           "metadata": {}
         }
       ],
-      "alerts_count": 73
+      "alerts_count": 78
     },
     "policy_compliance": {
       "overall_compliance": 7.0,
@@ -1081,14 +1151,14 @@
       },
       "compliance_by_category": {
         "Security": 0,
-        "Governance": 0,
-        "Network": 100.0
+        "Network": 100.0,
+        "Governance": 0
       },
       "auto_remediable_violations": 0,
       "actual_violations_found": true,
       "violations": [
         {
-          "violation_id": "SEC001_1755376388_559",
+          "violation_id": "SEC001_1755957235_635",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1110,7 +1180,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132633",
+          "detected_at": "2025-08-23T15:53:55.981105",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "rabbitmq",
@@ -1118,7 +1188,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755376388_925",
+          "violation_id": "SEC001_1755957235_76",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1140,7 +1210,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132653",
+          "detected_at": "2025-08-23T15:53:55.981117",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "alloy",
@@ -1148,7 +1218,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755376388_756",
+          "violation_id": "SEC001_1755957235_808",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1170,7 +1240,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132660",
+          "detected_at": "2025-08-23T15:53:55.981124",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -1178,7 +1248,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755376388_147",
+          "violation_id": "SEC001_1755957235_458",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1200,7 +1270,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132667",
+          "detected_at": "2025-08-23T15:53:55.981130",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -1208,7 +1278,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755376388_403",
+          "violation_id": "SEC001_1755957235_822",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1230,7 +1300,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132675",
+          "detected_at": "2025-08-23T15:53:55.981138",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "provider-azure-installer",
@@ -1238,7 +1308,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755376388_746",
+          "violation_id": "SEC001_1755957235_134",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1260,7 +1330,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132682",
+          "detected_at": "2025-08-23T15:53:55.981176",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cns-container",
@@ -1268,7 +1338,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755376388_951",
+          "violation_id": "SEC001_1755957235_666",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1289,7 +1359,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132691",
+          "detected_at": "2025-08-23T15:53:55.981186",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-ip-masq-agent",
@@ -1297,7 +1367,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755376388_482",
+          "violation_id": "SEC001_1755957235_588",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1318,7 +1388,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132697",
+          "detected_at": "2025-08-23T15:53:55.981192",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-npm",
@@ -1326,7 +1396,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755376388_690",
+          "violation_id": "SEC001_1755957235_987",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1348,7 +1418,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132704",
+          "detected_at": "2025-08-23T15:53:55.981200",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cloud-node-manager",
@@ -1356,7 +1426,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755376388_844",
+          "violation_id": "SEC001_1755957235_841",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1378,7 +1448,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132725",
+          "detected_at": "2025-08-23T15:53:55.981224",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "pause",
@@ -1386,7 +1456,7 @@
           }
         },
         {
-          "violation_id": "SEC001_1755376388_772",
+          "violation_id": "SEC001_1755957235_466",
           "policy_name": "Security Context Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1408,7 +1478,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132729",
+          "detected_at": "2025-08-23T15:53:55.981229",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "prometheus-node-exporter",
@@ -1416,7 +1486,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755376388_756",
+          "violation_id": "SEC002_1755957235_808",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -1437,7 +1507,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132743",
+          "detected_at": "2025-08-23T15:53:55.981244",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "secrets-store",
@@ -1445,7 +1515,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755376388_226",
+          "violation_id": "SEC002_1755957235_984",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -1466,7 +1536,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132752",
+          "detected_at": "2025-08-23T15:53:55.981254",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cns-container",
@@ -1474,7 +1544,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755376388_951",
+          "violation_id": "SEC002_1755957235_666",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -1495,7 +1565,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132757",
+          "detected_at": "2025-08-23T15:53:55.981259",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-ip-masq-agent",
@@ -1503,7 +1573,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755376388_482",
+          "violation_id": "SEC002_1755957235_588",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -1524,7 +1594,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132763",
+          "detected_at": "2025-08-23T15:53:55.981264",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-npm",
@@ -1532,7 +1602,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755376388_642",
+          "violation_id": "SEC002_1755957235_594",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -1553,7 +1623,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132770",
+          "detected_at": "2025-08-23T15:53:55.981271",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azuredisk",
@@ -1561,7 +1631,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755376388_56",
+          "violation_id": "SEC002_1755957235_297",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -1582,7 +1652,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132776",
+          "detected_at": "2025-08-23T15:53:55.981277",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azurefile",
@@ -1590,7 +1660,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755376388_426",
+          "violation_id": "SEC002_1755957235_0",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -1611,7 +1681,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132783",
+          "detected_at": "2025-08-23T15:53:55.981284",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "blob",
@@ -1619,7 +1689,7 @@
           }
         },
         {
-          "violation_id": "SEC002_1755376388_593",
+          "violation_id": "SEC002_1755957235_945",
           "policy_name": "No Privileged Containers",
           "policy_category": "Security",
           "severity": "CRITICAL",
@@ -1640,7 +1710,7 @@
             "CIS",
             "PCI-DSS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132787",
+          "detected_at": "2025-08-23T15:53:55.981288",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "kube-proxy",
@@ -1648,7 +1718,7 @@
           }
         },
         {
-          "violation_id": "SEC003_1755376388_647",
+          "violation_id": "SEC003_1755957235_58",
           "policy_name": "Non-Root User Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1669,7 +1739,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132805",
+          "detected_at": "2025-08-23T15:53:55.981306",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "provider-azure-installer",
@@ -1677,7 +1747,7 @@
           }
         },
         {
-          "violation_id": "SEC003_1755376388_951",
+          "violation_id": "SEC003_1755957235_666",
           "policy_name": "Non-Root User Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1698,7 +1768,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132813",
+          "detected_at": "2025-08-23T15:53:55.981314",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-ip-masq-agent",
@@ -1706,7 +1776,7 @@
           }
         },
         {
-          "violation_id": "SEC003_1755376388_482",
+          "violation_id": "SEC003_1755957235_588",
           "policy_name": "Non-Root User Required",
           "policy_category": "Security",
           "severity": "HIGH",
@@ -1727,7 +1797,7 @@
             "CIS",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.132818",
+          "detected_at": "2025-08-23T15:53:55.981319",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-npm",
@@ -1735,7 +1805,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_225",
+          "violation_id": "SEC004_1755957235_560",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -1754,7 +1824,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132845",
+          "detected_at": "2025-08-23T15:53:55.981348",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "application-controller",
@@ -1762,7 +1832,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_369",
+          "violation_id": "SEC004_1755957235_344",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -1781,7 +1851,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132851",
+          "detected_at": "2025-08-23T15:53:55.981354",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "loki",
@@ -1789,7 +1859,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_559",
+          "violation_id": "SEC004_1755957235_635",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -1808,7 +1878,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132856",
+          "detected_at": "2025-08-23T15:53:55.981359",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "rabbitmq",
@@ -1816,7 +1886,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_925",
+          "violation_id": "SEC004_1755957235_76",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -1835,7 +1905,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132864",
+          "detected_at": "2025-08-23T15:53:55.981368",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "alloy",
@@ -1843,7 +1913,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_756",
+          "violation_id": "SEC004_1755957235_808",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -1862,7 +1932,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132869",
+          "detected_at": "2025-08-23T15:53:55.981373",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -1870,7 +1940,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_147",
+          "violation_id": "SEC004_1755957235_458",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -1889,7 +1959,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132873",
+          "detected_at": "2025-08-23T15:53:55.981378",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -1897,7 +1967,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_647",
+          "violation_id": "SEC004_1755957235_58",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -1916,7 +1986,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132878",
+          "detected_at": "2025-08-23T15:53:55.981383",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "provider-azure-installer",
@@ -1924,7 +1994,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_403",
+          "violation_id": "SEC004_1755957235_822",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -1943,7 +2013,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132883",
+          "detected_at": "2025-08-23T15:53:55.981388",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "provider-azure-installer",
@@ -1951,7 +2021,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_746",
+          "violation_id": "SEC004_1755957235_134",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -1970,15 +2040,15 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132887",
+          "detected_at": "2025-08-23T15:53:55.981392",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cns-container",
-            "image": "mcr.microsoft.com/containernetworking/azure-cns:v1.6.30"
+            "image": "mcr.microsoft.com/containernetworking/azure-cns:v1.6.32"
           }
         },
         {
-          "violation_id": "SEC004_1755376388_226",
+          "violation_id": "SEC004_1755957235_984",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -1997,15 +2067,15 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132892",
+          "detected_at": "2025-08-23T15:53:55.981397",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cns-container",
-            "image": "mcr.microsoft.com/containernetworking/azure-cns:v1.6.30"
+            "image": "mcr.microsoft.com/containernetworking/azure-cns:v1.6.32"
           }
         },
         {
-          "violation_id": "SEC004_1755376388_951",
+          "violation_id": "SEC004_1755957235_666",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2024,7 +2094,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132898",
+          "detected_at": "2025-08-23T15:53:55.981402",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-ip-masq-agent",
@@ -2032,7 +2102,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_482",
+          "violation_id": "SEC004_1755957235_588",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2051,15 +2121,15 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132903",
+          "detected_at": "2025-08-23T15:53:55.981407",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "azure-npm",
-            "image": "mcr.microsoft.com/containernetworking/azure-npm:v1.6.29"
+            "image": "mcr.microsoft.com/containernetworking/azure-npm:v1.6.33"
           }
         },
         {
-          "violation_id": "SEC004_1755376388_434",
+          "violation_id": "SEC004_1755957235_680",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2078,7 +2148,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132908",
+          "detected_at": "2025-08-23T15:53:55.981412",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cloud-node-manager",
@@ -2086,7 +2156,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_690",
+          "violation_id": "SEC004_1755957235_987",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2105,7 +2175,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132912",
+          "detected_at": "2025-08-23T15:53:55.981417",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "cloud-node-manager",
@@ -2113,7 +2183,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_642",
+          "violation_id": "SEC004_1755957235_594",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2132,7 +2202,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132917",
+          "detected_at": "2025-08-23T15:53:55.981422",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "liveness-probe",
@@ -2140,7 +2210,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_182",
+          "violation_id": "SEC004_1755957235_922",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2159,7 +2229,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132924",
+          "detected_at": "2025-08-23T15:53:55.981427",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -2167,7 +2237,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_56",
+          "violation_id": "SEC004_1755957235_297",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2186,7 +2256,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132928",
+          "detected_at": "2025-08-23T15:53:55.981433",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "liveness-probe",
@@ -2194,7 +2264,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_437",
+          "violation_id": "SEC004_1755957235_428",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2213,7 +2283,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132933",
+          "detected_at": "2025-08-23T15:53:55.981438",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -2221,7 +2291,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_426",
+          "violation_id": "SEC004_1755957235_0",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2240,7 +2310,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132938",
+          "detected_at": "2025-08-23T15:53:55.981444",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "liveness-probe",
@@ -2248,7 +2318,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_593",
+          "violation_id": "SEC004_1755957235_945",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2267,7 +2337,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132943",
+          "detected_at": "2025-08-23T15:53:55.981449",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "kube-proxy",
@@ -2275,7 +2345,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_844",
+          "violation_id": "SEC004_1755957235_841",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2294,7 +2364,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132947",
+          "detected_at": "2025-08-23T15:53:55.981453",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "pause",
@@ -2302,7 +2372,7 @@
           }
         },
         {
-          "violation_id": "SEC004_1755376388_772",
+          "violation_id": "SEC004_1755957235_466",
           "policy_name": "Image Pull Policy Always",
           "policy_category": "Security",
           "severity": "MEDIUM",
@@ -2321,7 +2391,7 @@
           "compliance_frameworks": [
             "CIS"
           ],
-          "detected_at": "2025-08-16T22:33:08.132951",
+          "detected_at": "2025-08-23T15:53:55.981458",
           "risk_score": 6.6000000000000005,
           "additional_context": {
             "container": "prometheus-node-exporter",
@@ -2329,7 +2399,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_756",
+          "violation_id": "GOV001_1755957235_808",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2350,7 +2420,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137690",
+          "detected_at": "2025-08-23T15:53:55.986141",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -2361,7 +2431,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_147",
+          "violation_id": "GOV001_1755957235_458",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2382,7 +2452,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137699",
+          "detected_at": "2025-08-23T15:53:55.986148",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -2393,7 +2463,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_746",
+          "violation_id": "GOV001_1755957235_134",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2415,7 +2485,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137721",
+          "detected_at": "2025-08-23T15:53:55.986167",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "cni-installer",
@@ -2427,7 +2497,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_226",
+          "violation_id": "GOV001_1755957235_984",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2449,7 +2519,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137734",
+          "detected_at": "2025-08-23T15:53:55.986175",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "cni-installer",
@@ -2461,7 +2531,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_482",
+          "violation_id": "GOV001_1755957235_588",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2483,7 +2553,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137750",
+          "detected_at": "2025-08-23T15:53:55.986188",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "block-wireserver",
@@ -2495,7 +2565,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_434",
+          "violation_id": "GOV001_1755957235_680",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2516,7 +2586,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137755",
+          "detected_at": "2025-08-23T15:53:55.986193",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "cloud-node-manager",
@@ -2527,7 +2597,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_690",
+          "violation_id": "GOV001_1755957235_987",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2548,7 +2618,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137761",
+          "detected_at": "2025-08-23T15:53:55.986199",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "cloud-node-manager",
@@ -2559,7 +2629,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_642",
+          "violation_id": "GOV001_1755957235_594",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2580,7 +2650,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137767",
+          "detected_at": "2025-08-23T15:53:55.986205",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "liveness-probe",
@@ -2591,7 +2661,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_182",
+          "violation_id": "GOV001_1755957235_922",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2612,7 +2682,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137773",
+          "detected_at": "2025-08-23T15:53:55.986212",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -2623,7 +2693,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_56",
+          "violation_id": "GOV001_1755957235_297",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2644,7 +2714,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137779",
+          "detected_at": "2025-08-23T15:53:55.986234",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "liveness-probe",
@@ -2655,7 +2725,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_437",
+          "violation_id": "GOV001_1755957235_428",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2676,7 +2746,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137785",
+          "detected_at": "2025-08-23T15:53:55.986240",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "node-driver-registrar",
@@ -2687,7 +2757,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_426",
+          "violation_id": "GOV001_1755957235_0",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2708,7 +2778,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137790",
+          "detected_at": "2025-08-23T15:53:55.986245",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "liveness-probe",
@@ -2719,7 +2789,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_593",
+          "violation_id": "GOV001_1755957235_945",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2741,7 +2811,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137796",
+          "detected_at": "2025-08-23T15:53:55.986251",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "kube-proxy",
@@ -2753,7 +2823,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_844",
+          "violation_id": "GOV001_1755957235_841",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2775,7 +2845,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137801",
+          "detected_at": "2025-08-23T15:53:55.986256",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "pause",
@@ -2787,7 +2857,7 @@
           }
         },
         {
-          "violation_id": "GOV001_1755376388_772",
+          "violation_id": "GOV001_1755957235_466",
           "policy_name": "Resource Limits Required",
           "policy_category": "Governance",
           "severity": "MEDIUM",
@@ -2809,7 +2879,7 @@
             "FinOps",
             "NIST"
           ],
-          "detected_at": "2025-08-16T22:33:08.137806",
+          "detected_at": "2025-08-23T15:53:55.986261",
           "risk_score": 5.3999999999999995,
           "additional_context": {
             "container": "prometheus-node-exporter",
@@ -2840,7 +2910,7 @@
             "compliance_status": "COMPLIANT",
             "assessment_notes": "Automation: COMPLIANT, ML Confidence: 0.96",
             "remediation_plan": "Configure audit logging in API server",
-            "last_assessed": "2025-08-16T22:33:08.142714"
+            "last_assessed": "2025-08-23T15:53:55.991051"
           },
           {
             "control_id": "CIS-4.2.1",
@@ -2851,7 +2921,7 @@
             "compliance_status": "COMPLIANT",
             "assessment_notes": "Automation: COMPLIANT, ML Confidence: 0.98",
             "remediation_plan": "Implement admission control for privileged containers",
-            "last_assessed": "2025-08-16T22:33:08.145878"
+            "last_assessed": "2025-08-23T15:53:55.994273"
           },
           {
             "control_id": "CIS-5.1.1",
@@ -2862,7 +2932,7 @@
             "compliance_status": "COMPLIANT",
             "assessment_notes": "Automation: COMPLIANT, ML Confidence: 0.96",
             "remediation_plan": "Configure comprehensive RBAC policies",
-            "last_assessed": "2025-08-16T22:33:08.149962"
+            "last_assessed": "2025-08-23T15:53:55.997382"
           }
         ],
         "risk_details": {
@@ -2894,7 +2964,7 @@
             "compliance_status": "COMPLIANT",
             "assessment_notes": "Automation: COMPLIANT, ML Confidence: 0.87",
             "remediation_plan": "Deploy asset management solution",
-            "last_assessed": "2025-08-16T22:33:08.156573"
+            "last_assessed": "2025-08-23T15:53:56.002333"
           },
           {
             "control_id": "NIST-PR.AC-1",
@@ -2903,9 +2973,9 @@
             "category": "Access Control",
             "priority": "HIGH",
             "compliance_status": "COMPLIANT",
-            "assessment_notes": "Automation: COMPLIANT, ML Confidence: 0.84",
+            "assessment_notes": "Automation: COMPLIANT, ML Confidence: 0.85",
             "remediation_plan": "Implement comprehensive IAM solution",
-            "last_assessed": "2025-08-16T22:33:08.160251"
+            "last_assessed": "2025-08-23T15:53:56.005818"
           }
         ],
         "risk_details": {
@@ -2922,18 +2992,18 @@
       }
     },
     "vulnerability_assessment": {
-      "scan_id": "scan_20250816_223308",
+      "scan_id": "scan_20250823_155356",
       "total_vulnerabilities": 0,
       "critical_vulnerabilities": 0,
       "high_vulnerabilities": 0,
       "exploitable_vulnerabilities": 0,
       "coverage_percentage": 0.0,
-      "scan_duration": 1.5e-05,
+      "scan_duration": 1.7e-05,
       "actual_containers_scanned": 0,
       "vulnerabilities": []
     },
     "ml_context": {
-      "cluster_personality": "medium-scale-balanced-infrastructure-needs-optimization-hpa-ready-conservative-matureconfig",
+      "cluster_personality": "medium-scale-balanced-infrastructure-needs-optimization-hpa-ready-conservative-developingconfig",
       "ml_confidence": 0.985,
       "optimization_readiness": 0.985
     }
@@ -2941,6 +3011,6 @@
   "metadata": {
     "version": "1.0.0",
     "complete": true,
-    "cached_until": "2025-08-16T23:33:08.163136"
+    "cached_until": "2025-08-23T16:53:56.008437"
   }
 }

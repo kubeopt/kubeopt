@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+Developer: Srinivas Kondepudi
+Organization: Nivaya Technologies & KubeVista
+Project: AKS Cost Optimizer
+"""
+
 """
 INTEGRATED Dynamic Implementation Plan Generator - PURE DRIVEN
 =====================================================================

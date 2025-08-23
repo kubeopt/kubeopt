@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+Developer: Srinivas Kondepudi
+Organization: Nivaya Technologies & KubeVista
+Project: AKS Cost Optimizer
+"""
+
 """
 Cache Management System for AKS Cost Optimization
 Complete implementation with subscription awareness, validation, and performance optimizations

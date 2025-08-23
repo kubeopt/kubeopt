@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+Developer: Srinivas Kondepudi
+Organization: Nivaya Technologies & KubeVista
+Project: AKS Cost Optimizer
+"""
+
 # cluster_database.py - Complete Enhanced Cluster Manager with Multi-Subscription Support
 
 import sqlite3

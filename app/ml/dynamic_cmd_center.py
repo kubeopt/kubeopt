@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+Developer: Srinivas Kondepudi
+Organization: Nivaya Technologies & KubeVista
+Project: AKS Cost Optimizer
+"""
+
 """
 AKS Command Generator
 ==================================================
@@ -733,10 +740,30 @@ class BasicHPAStrategy(HPAGenerationStrategy):
     
     def generate_hpa_yaml(self, deployment_name: str, namespace: str, 
                          config: Dict, variable_context: Dict) -> str:
-        min_replicas = config.get('min_replicas', self.config.default_min_replicas)
-        max_replicas = config.get('max_replicas', min_replicas * self.config.default_max_replicas_multiplier)
-        cpu_target = config.get('cpu_target', self.config.default_hpa_cpu_target)
-        memory_target = config.get('memory_target', self.config.default_hpa_memory_target)
+        # ENHANCEMENT: Use workload-specific optimization data if available
+        workload_key = f"{namespace}/{deployment_name}"
+        
+        # Check if we have workload-specific recommendations from optimization context
+        if 'optimization_context' in variable_context:
+            scaling_candidates = variable_context.get('scaling_candidates', [])
+            if workload_key in scaling_candidates or deployment_name in scaling_candidates:
+                # Use analysis-derived values for this specific workload
+                cpu_target = config.get('recommended_cpu_target', variable_context.get('hpa_cpu_target', self.config.default_hpa_cpu_target))
+                memory_target = config.get('recommended_memory_target', variable_context.get('hpa_memory_target', self.config.default_hpa_memory_target))
+                min_replicas = config.get('recommended_min_replicas', self.config.default_min_replicas)
+                max_replicas = config.get('recommended_max_replicas', min_replicas * self.config.default_max_replicas_multiplier)
+            else:
+                # Use cluster-optimized defaults
+                cpu_target = variable_context.get('hpa_cpu_target', self.config.default_hpa_cpu_target)
+                memory_target = variable_context.get('hpa_memory_target', self.config.default_hpa_memory_target)
+                min_replicas = config.get('min_replicas', self.config.default_min_replicas)
+                max_replicas = config.get('max_replicas', min_replicas * self.config.default_max_replicas_multiplier)
+        else:
+            # Fallback to original logic
+            min_replicas = config.get('min_replicas', self.config.default_min_replicas)
+            max_replicas = config.get('max_replicas', min_replicas * self.config.default_max_replicas_multiplier)
+            cpu_target = config.get('cpu_target', self.config.default_hpa_cpu_target)
+            memory_target = config.get('memory_target', self.config.default_hpa_memory_target)
         
         return f"""apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -747,8 +774,11 @@ metadata:
     optimization: aks-cost-optimizer
     strategy: basic
   annotations:
-    optimization.aks/generated-by: "basic-hpa-strategy"
+    optimization.aks/generated-by: "analysis-driven-hpa-strategy"
     optimization.aks/cluster: "{variable_context.get('cluster_name', 'unknown')}"
+    optimization.aks/cpu-target-source: "{'analysis-derived' if 'optimization_context' in variable_context else 'default'}"
+    optimization.aks/cluster-avg-cpu: "{variable_context.get('cluster_avg_cpu_utilization', 'unknown')}%"
+    optimization.aks/optimization-priority: "{variable_context.get('cost_optimization_priority', 'balanced')}"
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -1139,19 +1169,128 @@ class AdvancedExecutableCommandGenerator:
 
     # FIXES FOR HPA STRUCTURE COMPLETENESS AND DATABASE SAVING
 
+    @staticmethod
+    def extract_ml_workload_characteristics(analysis_results: Dict, cluster_config: Optional[Dict] = None) -> Dict:
+        """
+        Extract ML workload characteristics from analysis results
+        NO FALLBACK LOGIC - Raise error if required data missing
+        """
+        if not analysis_results:
+            raise ValueError("Analysis results are required for ML workload characteristics extraction")
+        
+        # Extract workload costs - required data
+        pod_cost_analysis = analysis_results.get('pod_cost_analysis')
+        if not pod_cost_analysis:
+            raise ValueError("pod_cost_analysis is required in analysis_results")
+        
+        workload_costs = pod_cost_analysis.get('workload_costs')
+        if not workload_costs:
+            raise ValueError("workload_costs is required in pod_cost_analysis")
+        
+        # Extract node metrics - required for resource patterns
+        node_metrics = analysis_results.get('node_metrics')
+        if not node_metrics:
+            raise ValueError("node_metrics is required in analysis_results")
+        
+        # Build ML characteristics from real data only
+        total_workloads = len(workload_costs)
+        if total_workloads == 0:
+            raise ValueError("No workloads found in workload_costs")
+        
+        # Calculate resource patterns from actual data
+        workload_list = list(workload_costs.values())
+        total_cost = sum(w.get('cost', 0) for w in workload_list)
+        if total_cost == 0:
+            raise ValueError("Total workload cost cannot be zero")
+        
+        avg_cost_per_workload = total_cost / total_workloads
+        
+        # Identify HPA candidates based on cost thresholds from data
+        costs = [w.get('cost', 0) for w in workload_list if w.get('cost', 0) > 0]
+        costs.sort()
+        cost_75th_percentile = costs[int(len(costs) * 0.75)] if len(costs) > 0 else avg_cost_per_workload
+        
+        hpa_candidates = []
+        for workload_name, data in workload_costs.items():
+            workload_cost = data.get('cost', 0)
+            if workload_cost >= cost_75th_percentile:
+                hpa_candidates.append({
+                    'name': workload_name,
+                    'namespace': data.get('namespace', 'unknown'),
+                    'cost': workload_cost,
+                    'cost_percentage': (workload_cost / total_cost) * 100
+                })
+        
+        if len(hpa_candidates) == 0:
+            raise ValueError("No HPA candidates identified from workload analysis")
+        
+        # Calculate cluster resource utilization from node metrics
+        cpu_utilizations = [node.get('cpu_usage_percent', 0) for node in node_metrics if node.get('cpu_usage_percent', 0) > 0]
+        memory_utilizations = [node.get('memory_usage_percent', 0) for node in node_metrics if node.get('memory_usage_percent', 0) > 0]
+        
+        if not cpu_utilizations or not memory_utilizations:
+            raise ValueError("Valid CPU and memory utilization data required in node_metrics")
+        
+        avg_cpu_utilization = sum(cpu_utilizations) / len(cpu_utilizations)
+        avg_memory_utilization = sum(memory_utilizations) / len(memory_utilizations)
+        
+        # Determine optimization readiness score based on actual metrics
+        high_util_threshold = 70  # Above this indicates scaling opportunity
+        high_util_nodes = len([u for u in cpu_utilizations if u > high_util_threshold])
+        optimization_score = min((high_util_nodes / len(cpu_utilizations)) + (len(hpa_candidates) / total_workloads), 1.0)
+        
+        if optimization_score < 0.1:
+            raise ValueError("Optimization score too low - insufficient scaling opportunities detected")
+        
+        return {
+            'workload_profile': {
+                'total_workloads': total_workloads,
+                'total_cost': total_cost,
+                'avg_cost_per_workload': avg_cost_per_workload,
+                'cost_distribution_percentile_75': cost_75th_percentile
+            },
+            'resource_patterns': {
+                'avg_cpu_utilization': avg_cpu_utilization,
+                'avg_memory_utilization': avg_memory_utilization,
+                'high_utilization_nodes': high_util_nodes,
+                'total_nodes': len(node_metrics)
+            },
+            'scaling_indicators': {
+                'hpa_candidates': hpa_candidates,
+                'scaling_opportunity_score': optimization_score,
+                'high_cost_workload_count': len(hpa_candidates)
+            },
+            'cost_patterns': {
+                'total_monthly_cost': total_cost,
+                'cost_concentration_in_top_candidates': sum(c['cost'] for c in hpa_candidates) / total_cost
+            },
+            'optimization_readiness': {
+                'overall_score': optimization_score,
+                'data_quality': 'high',
+                'ready_for_hpa_deployment': optimization_score >= 0.3
+            }
+        }
+
+    @staticmethod
     def ensure_complete_hpa_recommendations_structure(analysis_results: Dict, 
                                                     ml_workload_characteristics: Dict) -> Dict:
         """
         FIXED: Ensure HPA recommendations have complete structure for database saving
+        NO FALLBACK LOGIC - Raise error if required data missing
         """
-        try:
-            logger.info("🔧 FIXED: Ensuring complete HPA recommendations structure")
-            
-            # Build complete HPA recommendations structure
-            hpa_recommendations = {
-                'metadata': {
-                    'cluster_name': analysis_results.get('cluster_name', 'unknown'),
-                    'resource_group': analysis_results.get('resource_group', 'unknown'),
+        logger.info("🔧 Ensuring complete HPA recommendations structure - NO FALLBACK LOGIC")
+        
+        # Validate required data exists
+        if 'cluster_name' not in analysis_results:
+            raise ValueError("cluster_name is required in analysis_results")
+        if 'resource_group' not in analysis_results:
+            raise ValueError("resource_group is required in analysis_results")
+        
+        # Build complete HPA recommendations structure from validated data
+        hpa_recommendations = {
+            'metadata': {
+                'cluster_name': analysis_results['cluster_name'],
+                'resource_group': analysis_results['resource_group'],
                     'analysis_timestamp': datetime.now().isoformat(),
                     'recommendations_version': '2.0',
                     'ml_enhanced': True
@@ -1169,94 +1308,97 @@ class AdvancedExecutableCommandGenerator:
                 'implementation_priorities': [],
                 'ml_insights': ml_workload_characteristics
             }
+        
+        # Extract from analysis results - validate exists
+        pod_cost_analysis = analysis_results.get('pod_cost_analysis')
+        if not pod_cost_analysis:
+            raise ValueError("pod_cost_analysis is required in analysis_results")
+        
+        workload_costs = pod_cost_analysis.get('workload_costs', {})
+        if not workload_costs:
+            raise ValueError("workload_costs is required in pod_cost_analysis")
+        
+        # Process workload candidates
+        for workload_name, workload_info in workload_costs.items():
+            cost = workload_info.get('cost', 0)
             
-            # Extract from YOUR analysis results
-            workload_costs = analysis_results.get('pod_cost_analysis', {}).get('workload_costs', {})
-            
-            # Process workload candidates
-            for workload_name, workload_info in workload_costs.items():
-                cost = workload_info.get('cost', 0)
-                
-                if cost > 20:  # HPA candidate threshold
-                    candidate = {
-                        'workload_name': workload_name,
-                        'namespace': workload_info.get('namespace', 'default'),
-                        'current_monthly_cost': cost,
-                        'priority_score': min(1.0, cost / 100),
-                        'expected_monthly_savings': cost * 0.35,  # 35% savings
-                        'implementation_complexity': 'medium',
-                        'resource_profile': {
-                            'estimated_cpu_usage': 'medium',
-                            'estimated_memory_usage': 'medium',
-                            'scaling_pattern': 'variable_load'
-                        },
-                        'hpa_configuration': {
-                            'min_replicas': 2,
-                            'max_replicas': max(6, int(cost / 10)),  # Scale with cost
-                            'cpu_target': 70,
-                            'memory_target': 70
-                        },
-                        'ml_confidence': 0.8,
-                        'recommendation_source': 'cost_analysis_ml_enhanced'
-                    }
-                    
-                    hpa_recommendations['candidates'].append(candidate)
-            
-            # Update summary
-            hpa_recommendations['summary'].update({
-                'total_workloads_analyzed': len(workload_costs),
-                'hpa_candidates_found': len(hpa_recommendations['candidates']),
-                'total_potential_savings': sum(c['expected_monthly_savings'] for c in hpa_recommendations['candidates']),
-                'optimization_opportunities': len(hpa_recommendations['candidates'])
-            })
-            
-            # Add implementation priorities (sorted by savings potential)
-            sorted_candidates = sorted(hpa_recommendations['candidates'], 
-                                    key=lambda x: x['expected_monthly_savings'], reverse=True)
-            
-            for i, candidate in enumerate(sorted_candidates[:5]):  # Top 5 priorities
-                priority = {
-                    'rank': i + 1,
-                    'workload_name': candidate['workload_name'],
-                    'namespace': candidate['namespace'],
-                    'priority_reason': f"High savings potential: ${candidate['expected_monthly_savings']:.0f}/month",
-                    'implementation_order': 'phase_1' if i < 2 else 'phase_2' if i < 4 else 'phase_3'
-                }
-                hpa_recommendations['implementation_priorities'].append(priority)
-            
-            # Add optimization opportunities (generic recommendations)
-            if hpa_recommendations['summary']['hpa_candidates_found'] > 0:
-                hpa_recommendations['optimization_opportunities'] = [
-                    {
-                        'type': 'hpa_deployment',
-                        'description': f"Deploy HPAs for {len(hpa_recommendations['candidates'])} workloads",
-                        'expected_savings': hpa_recommendations['summary']['total_potential_savings'],
-                        'implementation_effort': 'medium',
-                        'risk_level': 'low'
+            if cost > 20:  # HPA candidate threshold
+                candidate = {
+                    'workload_name': workload_name,
+                    'namespace': workload_info.get('namespace', 'default'),
+                    'current_monthly_cost': cost,
+                    'priority_score': min(1.0, cost / 100),
+                    'expected_monthly_savings': cost * 0.35,  # 35% savings
+                    'implementation_complexity': 'medium',
+                    'resource_profile': {
+                        'estimated_cpu_usage': 'medium',
+                        'estimated_memory_usage': 'medium',
+                        'scaling_pattern': 'variable_load'
                     },
-                    {
-                        'type': 'metrics_server_setup',
-                        'description': 'Ensure metrics server is properly configured',
-                        'expected_savings': 0,
-                        'implementation_effort': 'low',
-                        'risk_level': 'low'
-                    }
-                ]
+                    'hpa_configuration': {
+                        'min_replicas': 2,
+                        'max_replicas': max(6, int(cost / 10)),  # Scale with cost
+                        'cpu_target': 70,
+                        'memory_target': 70
+                    },
+                    'ml_confidence': 0.8,
+                    'recommendation_source': 'cost_analysis_ml_enhanced'
+                }
+                
+                hpa_recommendations['candidates'].append(candidate)
+        
+        # Update summary
+        hpa_recommendations['summary'].update({
+            'total_workloads_analyzed': len(workload_costs),
+            'hpa_candidates_found': len(hpa_recommendations['candidates']),
+            'total_potential_savings': sum(c['expected_monthly_savings'] for c in hpa_recommendations['candidates']),
+            'optimization_opportunities': len(hpa_recommendations['candidates'])
+        })
+        
+        # Add implementation priorities (sorted by savings potential)
+        sorted_candidates = sorted(hpa_recommendations['candidates'], 
+                                key=lambda x: x['expected_monthly_savings'], reverse=True)
+        
+        for i, candidate in enumerate(sorted_candidates[:5]):  # Top 5 priorities
+            priority = {
+                'rank': i + 1,
+                'workload_name': candidate['workload_name'],
+                'namespace': candidate['namespace'],
+                'priority_reason': f"High savings potential: ${candidate['expected_monthly_savings']:.0f}/month",
+                'implementation_order': 'phase_1' if i < 2 else 'phase_2' if i < 4 else 'phase_3'
+            }
+            hpa_recommendations['implementation_priorities'].append(priority)
+        
+        # Add optimization opportunities (generic recommendations)
+        if hpa_recommendations['summary']['hpa_candidates_found'] > 0:
+            hpa_recommendations['optimization_opportunities'] = [
+                {
+                    'type': 'hpa_deployment',
+                    'description': f"Deploy HPAs for {len(hpa_recommendations['candidates'])} workloads",
+                    'expected_savings': hpa_recommendations['summary']['total_potential_savings'],
+                    'implementation_effort': 'medium',
+                    'risk_level': 'low'
+                },
+                {
+                    'type': 'metrics_server_setup',
+                    'description': 'Ensure metrics server is properly configured',
+                    'expected_savings': 0,
+                    'implementation_effort': 'low',
+                    'risk_level': 'low'
+                }
+            ]
             
-            logger.info(f"✅ FIXED: Complete HPA structure created")
-            logger.info(f"📊 Candidates: {len(hpa_recommendations['candidates'])}")
-            logger.info(f"💰 Total savings: ${hpa_recommendations['summary']['total_potential_savings']:.0f}")
-            
-            return hpa_recommendations
-            
-        except Exception as e:
-            logger.error(f"❌ FIXED: HPA structure creation failed: {e}")
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            return {}
+        logger.info(f"✅ Complete HPA structure created - NO FALLBACK USED")
+        logger.info(f"📊 Candidates: {len(hpa_recommendations['candidates'])}")
+        logger.info(f"💰 Total savings: ${hpa_recommendations['summary']['total_potential_savings']:.0f}")
+        
+        return hpa_recommendations
 
+    @staticmethod
     def validate_hpa_structure_for_database(hpa_recommendations: Dict) -> Tuple[bool, List[str]]:
         """
         FIXED: Validate HPA recommendations structure before database save
+        NO FALLBACK LOGIC - Return validation results only
         """
         validation_errors = []
         
@@ -1304,106 +1446,103 @@ class AdvancedExecutableCommandGenerator:
             logger.error(f"❌ FIXED: HPA structure validation failed: {e}")
             return False, [f"Validation exception: {str(e)}"]
 
+    @staticmethod
     def generate_complete_hpa_analysis_with_ml(analysis_results: Dict, 
                                             cluster_config: Optional[Dict] = None) -> Dict:
         """
         FIXED: Generate complete HPA analysis with ML workload characteristics
         This is the main method to call from your config/analysis pipeline
         """
-        try:
-            logger.info("🔄 FIXED: Starting complete HPA analysis with ML characteristics")
-            
-            # Step 1: Extract ML workload characteristics
-            ml_characteristics = extract_ml_workload_characteristics(analysis_results, cluster_config)
-            
-            if not ml_characteristics:
-                logger.warning("⚠️ FIXED: No ML characteristics extracted, using basic analysis")
-                ml_characteristics = {
-                    'workload_profile': {'total_workloads': 0},
-                    'resource_patterns': {},
-                    'scaling_indicators': {'hpa_candidates': []},
-                    'cost_patterns': {},
-                    'optimization_readiness': {'overall_score': 0.5}
-                }
-            
-            # Step 2: Build complete HPA recommendations structure
-            hpa_recommendations = ensure_complete_hpa_recommendations_structure(
-                analysis_results, ml_characteristics
-            )
-            
-            # Step 3: Validate structure before returning
-            is_valid, validation_errors = validate_hpa_structure_for_database(hpa_recommendations)
-            
-            if not is_valid:
-                logger.error(f"❌ FIXED: HPA recommendations structure invalid: {validation_errors}")
-                # Return minimal valid structure
-                hpa_recommendations = create_minimal_valid_hpa_structure(analysis_results)
-            
-            # Step 4: Add integration metadata for command generator
-            hpa_recommendations['integration_metadata'] = {
-                'ready_for_command_generation': True,
-                'ml_enhanced': bool(ml_characteristics),
-                'data_quality_score': calculate_data_quality_score(analysis_results),
-                'command_generator_compatible': True
-            }
-            
-            logger.info("✅ FIXED: Complete HPA analysis with ML generated successfully")
-            return hpa_recommendations
-            
-        except Exception as e:
-            logger.error(f"❌ FIXED: Complete HPA analysis generation failed: {e}")
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            return create_minimal_valid_hpa_structure(analysis_results)
-
-    def create_minimal_valid_hpa_structure(analysis_results: Dict) -> Dict:
-        """Create minimal valid HPA structure as fallback"""
-        return {
-            'metadata': {
-                'cluster_name': analysis_results.get('cluster_name', 'unknown'),
-                'resource_group': analysis_results.get('resource_group', 'unknown'),
-                'analysis_timestamp': datetime.now().isoformat(),
-                'recommendations_version': '2.0-minimal',
-                'ml_enhanced': False
-            },
-            'summary': {
-                'total_workloads_analyzed': 0,
-                'hpa_candidates_found': 0,
-                'total_potential_savings': 0,
-                'optimization_opportunities': 0
-            },
-            'candidates': [],
-            'existing_hpa_optimizations': [],
-            'optimization_opportunities': [],
-            'implementation_priorities': [],
-            'ml_insights': {},
-            'integration_metadata': {
-                'ready_for_command_generation': False,
-                'ml_enhanced': False,
-                'data_quality_score': 0.3,
-                'fallback_mode': True
-            }
+        logger.info("🔄 Starting complete HPA analysis with ML characteristics - NO FALLBACK LOGIC")
+        
+        # Step 1: Extract ML workload characteristics (will raise error if data incomplete)
+        ml_characteristics = AdvancedExecutableCommandGenerator.extract_ml_workload_characteristics(analysis_results, cluster_config)
+        
+        # Step 2: Build complete HPA recommendations structure (will raise error if data incomplete)
+        hpa_recommendations = AdvancedExecutableCommandGenerator.ensure_complete_hpa_recommendations_structure(
+            analysis_results, ml_characteristics
+        )
+        
+        # Step 3: Validate structure before returning (will raise error if invalid)
+        is_valid, validation_errors = AdvancedExecutableCommandGenerator.validate_hpa_structure_for_database(hpa_recommendations)
+        
+        if not is_valid:
+            raise ValueError(f"HPA recommendations structure invalid: {validation_errors}")
+        
+        # Step 4: Add integration metadata for command generator
+        hpa_recommendations['integration_metadata'] = {
+            'ready_for_command_generation': True,
+            'ml_enhanced': True,  # Always true since we validated ML characteristics exist
+            'data_quality_score': AdvancedExecutableCommandGenerator.calculate_data_quality_score(analysis_results),
+            'command_generator_compatible': True
         }
+        
+        logger.info("✅ Complete HPA analysis with ML generated successfully - NO FALLBACK USED")
+        return hpa_recommendations
 
+    @staticmethod
+    def create_minimal_valid_hpa_structure(analysis_results: Dict) -> Dict:
+        """
+        NO FALLBACK LOGIC - Raise error instead of creating minimal structure
+        This method should not be used as it creates static fallback data
+        """
+        raise RuntimeError("Cannot create minimal HPA structure - no fallback logic allowed. Analysis data must be complete.")
+
+    @staticmethod
     def calculate_data_quality_score(analysis_results: Dict) -> float:
-        """Calculate data quality score for integration assessment"""
+        """
+        Calculate data quality score for integration assessment
+        NO FALLBACK LOGIC - Raise error if required data missing
+        """
+        if not analysis_results:
+            raise ValueError("Analysis results are required for data quality calculation")
+        
+        # Validate essential data - no fallbacks
+        if 'total_cost' not in analysis_results or analysis_results['total_cost'] <= 0:
+            raise ValueError("total_cost is required and must be > 0 in analysis_results")
+        
+        if 'pod_cost_analysis' not in analysis_results:
+            raise ValueError("pod_cost_analysis is required in analysis_results")
+        
+        workload_costs = analysis_results['pod_cost_analysis'].get('workload_costs', {})
+        if len(workload_costs) == 0:
+            raise ValueError("workload_costs must contain at least one workload")
+        
+        if 'node_metrics' not in analysis_results or len(analysis_results['node_metrics']) == 0:
+            raise ValueError("node_metrics is required and must contain at least one node")
+        
+        if 'namespace_costs' not in analysis_results:
+            raise ValueError("namespace_costs is required in analysis_results")
+        
+        # Calculate quality score based on data completeness
         score = 0.0
         
-        # Check for essential data
-        if 'total_cost' in analysis_results and analysis_results['total_cost'] > 0:
-            score += 0.3
+        # Cost data quality (40% weight)
+        total_cost = analysis_results['total_cost']
+        total_workload_cost = sum(w.get('cost', 0) for w in workload_costs.values())
+        if total_workload_cost > 0:
+            cost_coverage = min(total_workload_cost / total_cost, 1.0)
+            score += 0.4 * cost_coverage
         
-        if 'pod_cost_analysis' in analysis_results:
-            workload_costs = analysis_results['pod_cost_analysis'].get('workload_costs', {})
-            if len(workload_costs) > 0:
-                score += 0.3
+        # Node metrics quality (30% weight) 
+        node_metrics = analysis_results['node_metrics']
+        valid_cpu_nodes = len([n for n in node_metrics if n.get('cpu_usage_percent', 0) > 0])
+        valid_memory_nodes = len([n for n in node_metrics if n.get('memory_usage_percent', 0) > 0])
+        if len(node_metrics) > 0:
+            metrics_quality = min((valid_cpu_nodes + valid_memory_nodes) / (2 * len(node_metrics)), 1.0)
+            score += 0.3 * metrics_quality
         
-        if 'nodes' in analysis_results and len(analysis_results['nodes']) > 0:
-            score += 0.2
+        # Workload distribution quality (30% weight)
+        namespace_costs = analysis_results['namespace_costs']
+        if len(workload_costs) > 0 and len(namespace_costs) > 0:
+            workload_distribution = min(len(workload_costs) / 10, 1.0)  # Good if >=10 workloads
+            namespace_coverage = min(len(namespace_costs) / 5, 1.0)     # Good if >=5 namespaces
+            score += 0.3 * ((workload_distribution + namespace_coverage) / 2)
         
-        if 'namespace_costs' in analysis_results:
-            score += 0.2
+        if score < 0.5:
+            raise ValueError(f"Data quality score {score:.2f} is below minimum threshold 0.5")
         
-        return min(1.0, score)
+        return score
 
     def _create_fallback_generic_command(self, variable_context: Dict, phase_title: str) -> ExecutableCommand:
         """Create fallback generic command"""
@@ -5150,14 +5289,48 @@ echo "✅ Fallback complete"
 
     def _extract_real_hpa_opportunities(self, analysis_results: Dict) -> List[Dict]:
         """
-        Extract HPA opportunities from YOUR working analysis results
+        Extract HPA opportunities from analysis results using optimization context
         """
         opportunities = []
         
         try:
-            logger.info("🔍 FIXED: Extracting HPA opportunities from YOUR analysis results")
+            logger.info("🔍 ENHANCED: Extracting HPA opportunities using optimization context")
             
-            # Method 1: Use YOUR hpa_savings and hpa_recommendations 
+            # Get optimization context for intelligent opportunity extraction
+            optimization_context = analysis_results.get('optimization_context')
+            if optimization_context:
+                logger.info(f"🎯 Using optimization context with {len(optimization_context.scaling_candidates)} scaling candidates")
+                
+                # Create bridge for workload-specific analysis
+                from app.ml.analysis_bridge import AnalysisToImplementationBridge
+                bridge = AnalysisToImplementationBridge()
+                
+                # Generate opportunities for each scaling candidate
+                for workload_name in optimization_context.scaling_candidates:
+                    workload_opt_data = bridge.create_workload_optimization_data(analysis_results, workload_name)
+                    
+                    if workload_opt_data and workload_opt_data.scaling_potential_score >= 5.0:
+                        opportunities.append({
+                            'workload_name': workload_opt_data.workload_name,
+                            'namespace': workload_opt_data.namespace,
+                            'monthly_savings': max(workload_opt_data.monthly_cost_impact * 0.2, 25),  # 20% potential savings
+                            'current_cpu_usage': workload_opt_data.current_cpu_usage_pct,
+                            'current_memory_usage': workload_opt_data.current_memory_usage_pct,
+                            'recommended_cpu_target': workload_opt_data.optimal_cpu_target,
+                            'recommended_memory_target': workload_opt_data.optimal_memory_target,
+                            'recommended_min_replicas': workload_opt_data.recommended_min_replicas,
+                            'recommended_max_replicas': workload_opt_data.recommended_max_replicas,
+                            'scaling_potential_score': workload_opt_data.scaling_potential_score,
+                            'optimization_priority': optimization_context.cost_optimization_priority,
+                            'resource_requests': workload_opt_data.resource_requests,
+                            'resource_limits': workload_opt_data.resource_limits,
+                        })
+                        
+                logger.info(f"🚀 Generated {len(opportunities)} workload-specific HPA opportunities")
+                return opportunities
+            
+            # Fallback to original method if no optimization context
+            logger.info("⚠️ No optimization context available, using fallback method")
             hpa_savings = analysis_results.get('hpa_savings', 0)
             if hpa_savings > 0:
                 logger.info(f"💰 Found HPA savings potential: ${hpa_savings}")
@@ -6559,6 +6732,24 @@ echo "✅ Optimization step {index + 1} complete"
             'current_date': datetime.now().strftime('%Y-%m-%d'),
             'current_time': datetime.now().strftime('%H:%M:%S')
         }
+        
+        # ENHANCEMENT: Use optimization context from analysis if available
+        optimization_context = analysis_results.get('optimization_context')
+        if optimization_context:
+            # Override defaults with analysis-derived values
+            variable_context.update({
+                'hpa_cpu_target': optimization_context.optimal_hpa_cpu_target,
+                'hpa_memory_target': optimization_context.optimal_hpa_memory_target,
+                'cluster_avg_cpu_utilization': optimization_context.avg_node_cpu_utilization,
+                'cluster_avg_memory_utilization': optimization_context.avg_node_memory_utilization,
+                'cost_optimization_priority': optimization_context.cost_optimization_priority,
+                'high_cost_workloads': optimization_context.high_cost_workloads,
+                'underutilized_workloads': optimization_context.underutilized_workloads,
+                'scaling_candidates': optimization_context.scaling_candidates,
+                'recommended_node_count': optimization_context.recommended_node_count,
+                'cluster_cost_per_hour': optimization_context.cluster_cost_per_hour,
+            })
+            logger.info(f"🎯 Enhanced variable context with optimization insights: {optimization_context.cost_optimization_priority} priority")
         
         # FIXED: Add null safety when enhancing with cluster data
         if cluster_config and cluster_config.get('status') == 'completed':

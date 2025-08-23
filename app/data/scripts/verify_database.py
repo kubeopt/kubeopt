@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+Developer: Srinivas Kondepudi
+Organization: Nivaya Technologies & KubeVista
+Project: AKS Cost Optimizer
+"""
+
 # verify_database.py - Script to verify SQLite database setup
 """
 Database verification script for AKS Cost Optimization Tool

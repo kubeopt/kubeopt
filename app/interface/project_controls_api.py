@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+Developer: Srinivas Kondepudi
+Organization: Nivaya Technologies & KubeVista
+Project: AKS Cost Optimizer
+"""
+
 """
 FIXED Project Controls API Endpoint - WITH COMMANDS EXTRACTION
 Extracts framework components AND commands from real analysis results
