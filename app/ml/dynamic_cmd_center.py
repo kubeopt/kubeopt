@@ -5263,6 +5263,93 @@ echo "✅ Fallback complete"
             return []
         
 
+    def _calculate_implementation_complexity(self, workload_opt_data, optimization_context) -> str:
+        """
+        Calculate implementation complexity based on workload characteristics
+        NO STATIC DATA - complexity determined from analysis results
+        """
+        complexity_score = 0.0
+        
+        # Factor 1: Cost impact (higher cost = more complex)
+        monthly_cost = workload_opt_data.monthly_cost_impact
+        if monthly_cost > 300:
+            complexity_score += 2.0  # High cost workloads are complex
+        elif monthly_cost > 150:
+            complexity_score += 1.0
+        
+        # Factor 2: Current resource usage (high usage = more complex)
+        avg_usage = (workload_opt_data.current_cpu_usage_pct + workload_opt_data.current_memory_usage_pct) / 2
+        if avg_usage > 80:
+            complexity_score += 2.0  # High resource usage indicates complex workload
+        elif avg_usage > 60:
+            complexity_score += 1.0
+        
+        # Factor 3: Scaling range (large range = more complex)
+        scaling_range = workload_opt_data.recommended_max_replicas - workload_opt_data.recommended_min_replicas
+        if scaling_range > 8:
+            complexity_score += 1.5  # Wide scaling range indicates complex scaling needs
+        elif scaling_range > 5:
+            complexity_score += 0.5
+        
+        # Factor 4: Namespace complexity (production = more complex)
+        namespace = workload_opt_data.namespace.lower()
+        if namespace in ['production', 'prod', 'live']:
+            complexity_score += 1.5
+        elif namespace in ['staging', 'stage', 'test']:
+            complexity_score += 0.5
+        
+        # Factor 5: Scaling potential score (high score = more optimization complexity)
+        if workload_opt_data.scaling_potential_score > 8.0:
+            complexity_score += 1.0
+        elif workload_opt_data.scaling_potential_score > 6.0:
+            complexity_score += 0.5
+        
+        # Factor 6: Optimization priority (cost-focused = more complex)
+        if optimization_context.cost_optimization_priority == 'cost':
+            complexity_score += 1.0
+        elif optimization_context.cost_optimization_priority == 'performance':
+            complexity_score += 1.5
+        
+        # Convert score to complexity level
+        if complexity_score >= 5.0:
+            return 'high'
+        elif complexity_score >= 2.5:
+            return 'medium'
+        else:
+            return 'low'
+
+    def _calculate_fallback_implementation_complexity(self, workload_cost: float, namespace: str) -> str:
+        """
+        Calculate implementation complexity for fallback path with limited data
+        NO STATIC DATA - complexity determined from available analysis data
+        """
+        complexity_score = 0.0
+        
+        # Factor 1: Cost impact (only data available in fallback)
+        if workload_cost > 200:
+            complexity_score += 2.0  # High cost workloads are complex
+        elif workload_cost > 100:
+            complexity_score += 1.5
+        elif workload_cost > 50:
+            complexity_score += 1.0
+        
+        # Factor 2: Namespace complexity
+        namespace_lower = namespace.lower()
+        if namespace_lower in ['production', 'prod', 'live']:
+            complexity_score += 1.5
+        elif namespace_lower in ['staging', 'stage', 'test']:
+            complexity_score += 0.5
+        elif namespace_lower in ['default', 'kube-system']:
+            complexity_score += 1.0  # System namespaces can be complex
+        
+        # Convert score to complexity level (more conservative thresholds for fallback)
+        if complexity_score >= 3.0:
+            return 'high'
+        elif complexity_score >= 1.5:
+            return 'medium'
+        else:
+            return 'low'
+
     def _extract_deployment_name(self, workload_name: str) -> str:
         """Extract deployment name from workload/pod name"""
         # Remove common pod suffixes
@@ -5310,10 +5397,17 @@ echo "✅ Fallback complete"
                     workload_opt_data = bridge.create_workload_optimization_data(analysis_results, workload_name)
                     
                     if workload_opt_data and workload_opt_data.scaling_potential_score >= 5.0:
+                        # Extract deployment name from workload name
+                        deployment_name = self._extract_deployment_name(workload_opt_data.workload_name)
+                        
                         opportunities.append({
+                            'type': 'hpa_deployment',  # REQUIRED: Add missing type key
+                            'target_deployment': deployment_name,  # REQUIRED: Use deployment name format
+                            'target_namespace': workload_opt_data.namespace,  # REQUIRED: Use target_namespace format
                             'workload_name': workload_opt_data.workload_name,
                             'namespace': workload_opt_data.namespace,
                             'monthly_savings': max(workload_opt_data.monthly_cost_impact * 0.2, 25),  # 20% potential savings
+                            'priority_score': min(0.9, workload_opt_data.monthly_cost_impact / 100),  # REQUIRED: Add priority score
                             'current_cpu_usage': workload_opt_data.current_cpu_usage_pct,
                             'current_memory_usage': workload_opt_data.current_memory_usage_pct,
                             'recommended_cpu_target': workload_opt_data.optimal_cpu_target,
@@ -5324,6 +5418,8 @@ echo "✅ Fallback complete"
                             'optimization_priority': optimization_context.cost_optimization_priority,
                             'resource_requests': workload_opt_data.resource_requests,
                             'resource_limits': workload_opt_data.resource_limits,
+                            'implementation_complexity': self._calculate_implementation_complexity(workload_opt_data, optimization_context),  # DYNAMIC: Calculate based on analysis
+                            'source': 'optimization_context_analysis'  # REQUIRED: Add source
                         })
                         
                 logger.info(f"🚀 Generated {len(opportunities)} workload-specific HPA opportunities")
@@ -5358,7 +5454,7 @@ echo "✅ Fallback complete"
                             'target_namespace': namespace,
                             'monthly_savings': float(hpa_potential_savings),
                             'priority_score': min(0.9, workload_cost / 100),
-                            'implementation_complexity': 'medium',
+                            'implementation_complexity': self._calculate_fallback_implementation_complexity(workload_cost, namespace),  # DYNAMIC: Calculate based on available data
                             'source': 'your_analysis_workload_costs',
                             'original_workload_cost': workload_cost
                         })
