@@ -69,8 +69,7 @@ export function getCompleteHTML(data) {
                 <div id="completeTimelineContent">${renderEnhancedCompleteTimeline(data)}</div>
             </div>
             
-            <!-- Action Buttons -->
-            ${renderEnhancedActionButtons(data)}
+           
         </div>
     `;
 }
@@ -79,7 +78,7 @@ export function renderEnhancedStyles() {
     return `
         <style>
             .complete-implementation-ui {
-                color: #2d3748;
+                color: #e2e8f0;
                 line-height: 1.6;
             }
             
@@ -182,7 +181,7 @@ export function renderEnhancedStyles() {
                 margin: 0;
                 font-size: 24px;
                 font-weight: 700;
-                color: #2d3748;
+                color: #e2e8f0;
             }
             
             .week-section {
@@ -250,7 +249,7 @@ export function renderEnhancedStyles() {
                 margin: 0 0 10px 0;
                 font-size: 20px;
                 font-weight: 600;
-                color: #2d3748;
+                color: #e2e8f0;
             }
             
             .phase-description {
@@ -297,7 +296,7 @@ export function renderEnhancedStyles() {
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                color: #2d3748;
+                color: #e2e8f0;
                 font-weight: 700;
                 font-size: 14px;
                 position: relative;
@@ -466,7 +465,7 @@ export function renderEnhancedStyles() {
                 margin: 0 0 15px 0;
                 font-size: 28px;
                 font-weight: 700;
-                color: #2d3748;
+                color: #e2e8f0;
             }
             
             .action-subtitle {
@@ -856,7 +855,7 @@ export function renderEnhancedExecutiveSummary(executiveSummary) {
             
             ${executiveSummary.key_recommendations && executiveSummary.key_recommendations.length > 0 ? `
                 <div style="margin-bottom: 20px;">
-                    <h4 style="margin: 0 0 15px 0; color: #2d3748;">🎯 Key Recommendations</h4>
+                    <h4 style="margin: 0 0 15px 0; color: #e2e8f0;">🎯 Key Recommendations</h4>
                     <ul style="margin: 0; padding-left: 20px; color: #4a5568;">
                         ${executiveSummary.key_recommendations.map(rec => `<li style="margin-bottom: 8px;">${rec}</li>`).join('')}
                     </ul>
@@ -865,7 +864,7 @@ export function renderEnhancedExecutiveSummary(executiveSummary) {
             
             ${executiveSummary.strategic_priorities && executiveSummary.strategic_priorities.length > 0 ? `
                 <div>
-                    <h4 style="margin: 0 0 15px 0; color: #2d3748;">🚀 Strategic Priorities</h4>
+                    <h4 style="margin: 0 0 15px 0; color: #e2e8f0;">🚀 Strategic Priorities</h4>
                     <ul style="margin: 0; padding-left: 20px; color: #4a5568;">
                         ${executiveSummary.strategic_priorities.map(priority => `<li style="margin-bottom: 8px;">${priority}</li>`).join('')}
                     </ul>
@@ -894,7 +893,7 @@ export function renderEnhancedIntelligenceInsights(intelligenceInsights) {
             
             ${intelligenceInsights.cluster_dna_analysis ? `
                 <div style="background: #f8fafc; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
-                    <h4 style="margin: 0 0 20px 0; color: #2d3748;">🔬 Cluster DNA Analysis</h4>
+                    <h4 style="margin: 0 0 20px 0; color: #e2e8f0;">🔬 Cluster DNA Analysis</h4>
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
                         ${intelligenceInsights.cluster_dna_analysis.cluster_personality ? `
                             <div>
@@ -920,7 +919,7 @@ export function renderEnhancedIntelligenceInsights(intelligenceInsights) {
             
             ${intelligenceInsights.dynamic_strategy_insights ? `
                 <div style="background: #f8fafc; border-radius: 12px; padding: 25px;">
-                    <h4 style="margin: 0 0 20px 0; color: #2d3748;">⚡ Dynamic Strategy Insights</h4>
+                    <h4 style="margin: 0 0 20px 0; color: #e2e8f0;">⚡ Dynamic Strategy Insights</h4>
                     
                     ${intelligenceInsights.dynamic_strategy_insights.strategy_type ? `
                         <div style="margin-bottom: 15px;">
@@ -944,7 +943,7 @@ export function renderEnhancedIntelligenceInsights(intelligenceInsights) {
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px;">
                                 ${intelligenceInsights.dynamic_strategy_insights.priority_areas.map(area => `
                                     <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 8px 25px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-                                        <h5 style="margin: 0 0 10px 0; color: #2d3748;">${formatCommandGroupTitle(area.type)}</h5>
+                                        <h5 style="margin: 0 0 10px 0; color: #e2e8f0;">${formatCommandGroupTitle(area.type)}</h5>
                                         <p style="margin: 0 0 12px 0; color: #718096; font-size: 14px;">${area.description || 'No description'}</p>
                                         ${area.savings_potential_monthly ? `
                                             <div style="color: #48bb78; font-weight: 700; font-size: 16px; margin-bottom: 8px;">
@@ -1100,7 +1099,7 @@ function renderOverviewTab(data) {
     
     return `
         <div style="text-align: center; margin-bottom: 30px;">
-            <h3 style="color: #2d3748; margin-bottom: 10px;">Framework Overview</h3>
+            <h3 style="color: #e2e8f0; margin-bottom: 10px;">Framework Overview</h3>
             <div style="font-size: 48px; margin-bottom: 20px;">${completionPercentage}%</div>
             <div style="color: #718096;">${configuredCount}/${totalCount} components configured</div>
         </div>
@@ -1113,7 +1112,7 @@ function renderOverviewTab(data) {
                 return `
                     <div style="background: #f8fafc; border-radius: 12px; padding: 20px; text-align: center; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
                         <div style="font-size: 32px; margin-bottom: 10px;">${framework.icon}</div>
-                        <h4 style="margin: 0 0 10px 0; color: #2d3748;">${framework.name}</h4>
+                        <h4 style="margin: 0 0 10px 0; color: #e2e8f0;">${framework.name}</h4>
                         <div style="color: ${hasData ? '#48bb78' : '#e53e3e'}; font-weight: 600; margin-bottom: 10px;">
                             ${hasData ? '✓ Configured' : '✗ Not Available'}
                         </div>
@@ -1136,7 +1135,7 @@ function renderCostProtectionTab(data) {
     
     return `
         <div style="text-align: center; margin-bottom: 30px;">
-            <h3 style="color: #2d3748;">Cost Protection</h3>
+            <h3 style="color: #e2e8f0;">Cost Protection</h3>
             <div style="color: #48bb78; font-size: 18px; font-weight: 600;">${confidenceLabel} (${confidence}%)</div>
         </div>
         
@@ -1158,7 +1157,7 @@ function renderGovernanceTab(data) {
     
     return `
         <div style="text-align: center; margin-bottom: 30px;">
-            <h3 style="color: #2d3748;">Governance</h3>
+            <h3 style="color: #e2e8f0;">Governance</h3>
             <div style="color: #48bb78; font-size: 18px; font-weight: 600;">${confidenceLabel} (${confidence}%)</div>
         </div>
         
@@ -1177,7 +1176,7 @@ function renderMonitoringTab(data) {
     
     return `
         <div style="text-align: center; margin-bottom: 30px;">
-            <h3 style="color: #2d3748;">Monitoring</h3>
+            <h3 style="color: #e2e8f0;">Monitoring</h3>
             <div style="color: #48bb78; font-size: 18px; font-weight: 600;">${confidenceLabel} (${confidence}%)</div>
         </div>
         
@@ -1227,7 +1226,7 @@ export function renderEnhancedCompleteTimeline(data) {
             <div class="week-section">
                 <div class="enhanced-week-marker">${weekGroup.weekRange}</div>
                 ${groupIndex < data.weeks.length - 1 ? '<div class="week-line"></div>' : ''}
-                <h3 style="margin: 0 0 25px 0; color: #2d3748; font-weight: 600; font-size: 22px;">${weekGroup.title}</h3>
+                <h3 style="margin: 0 0 25px 0; color: #e2e8f0; font-weight: 600; font-size: 22px;">${weekGroup.title}</h3>
                 
                 ${weekGroup.phases.map(phase => `
                     <div class="enhanced-phase-card">
@@ -1267,7 +1266,7 @@ export function renderEnhancedCompleteTimeline(data) {
                         <div id="complete-content-${phase.id}" style="max-height: 0; overflow: hidden; transition: all 0.4s ease;">
                             <div style="padding: 30px;">
                                 ${phase.commands && phase.commands.length > 0 ? `
-                                    <h4 style="margin: 0 0 25px 0; color: #2d3748; display: flex; align-items: center; gap: 10px;">
+                                    <h4 style="margin: 0 0 25px 0; color: #e2e8f0; display: flex; align-items: center; gap: 10px;">
                                         <span style="font-size: 20px;">💻</span> Implementation Commands
                                         <span style="background:rgb(102, 234, 221); color: white; padding: 6px 12px; border-radius: 16px; font-size: 12px;">${phase.commands.reduce((sum, group) => sum + group.commands.length, 0)} total</span>
                                     </h4>
@@ -1373,48 +1372,48 @@ export function renderEnhancedCompleteTimeline(data) {
     return html;
 }
 
-export function renderEnhancedActionButtons(data) {
-    return `
-        <div class="enhanced-action-section">
-            <h2 class="action-title">🚀 Ready to Transform Your Infrastructure?</h2>
-            <p class="action-subtitle">Deploy your optimization plan and start saving immediately</p>
+// export function renderEnhancedActionButtons(data) {
+//     return `
+//         <div class="enhanced-action-section">
+//             <h2 class="action-title">🚀 Ready to Transform Your Infrastructure?</h2>
+//             <p class="action-subtitle">Deploy your optimization plan and start saving immediately</p>
             
-            <div class="action-buttons">
-                <button onclick="deployOptimizations()" class="action-btn primary">
-                    🚀 Deploy Phase 1
-                </button>
-                <button onclick="copyAllCompleteCommands()" class="action-btn secondary">
-                    📋 Copy All Commands
-                </button>
-                <button onclick="exportCompletePlan()" class="action-btn secondary">
-                    📥 Export Plan
-                </button>
-                <button onclick="scheduleOptimization()" class="action-btn secondary">
-                    📅 Schedule Review
-                </button>
-            </div>
+//             <div class="action-buttons">
+//                 <button onclick="deployOptimizations()" class="action-btn primary">
+//                     🚀 Deploy Phase 1
+//                 </button>
+//                 <button onclick="copyAllCompleteCommands()" class="action-btn secondary">
+//                     📋 Copy All Commands
+//                 </button>
+//                 <button onclick="exportCompletePlan()" class="action-btn secondary">
+//                     📥 Export Plan
+//                 </button>
+//                 <button onclick="scheduleOptimization()" class="action-btn secondary">
+//                     📅 Schedule Review
+//                 </button>
+//             </div>
             
-            <div class="final-stats">
-                <div class="final-stat">
-                    <div class="final-stat-value" style="color: #48bb78;">${data.totalSavings.toLocaleString()}</div>
-                    <div class="final-stat-label">Monthly Savings</div>
-                </div>
-                <div class="final-stat">
-                    <div class="final-stat-value" style="color: #667eea;">${data.intelligenceLevel}</div>
-                    <div class="final-stat-label">Intelligence Level</div>
-                </div>
-                <div class="final-stat">
-                    <div class="final-stat-value" style="color: #ed8936;">${data.totalCommands}</div>
-                    <div class="final-stat-label">Commands Ready</div>
-                </div>
-                <div class="final-stat">
-                    <div class="final-stat-value" style="color: #9f7aea;">${data.totalPhases}</div>
-                    <div class="final-stat-label">Implementation Phases</div>
-                </div>
-            </div>
-        </div>
-    `;
-}
+//             <div class="final-stats">
+//                 <div class="final-stat">
+//                     <div class="final-stat-value" style="color: #48bb78;">${data.totalSavings.toLocaleString()}</div>
+//                     <div class="final-stat-label">Monthly Savings</div>
+//                 </div>
+//                 <div class="final-stat">
+//                     <div class="final-stat-value" style="color: #667eea;">${data.intelligenceLevel}</div>
+//                     <div class="final-stat-label">Intelligence Level</div>
+//                 </div>
+//                 <div class="final-stat">
+//                     <div class="final-stat-value" style="color: #ed8936;">${data.totalCommands}</div>
+//                     <div class="final-stat-label">Commands Ready</div>
+//                 </div>
+//                 <div class="final-stat">
+//                     <div class="final-stat-value" style="color: #9f7aea;">${data.totalPhases}</div>
+//                     <div class="final-stat-label">Implementation Phases</div>
+//                 </div>
+//             </div>
+//         </div>
+//     `;
+// }
 
 /**
  * Initialize complete UI - MAINTAINS EXISTING FUNCTIONALITY

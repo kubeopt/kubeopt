@@ -563,9 +563,11 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
         if metrics_data is None:
             logger.info("📊 No metrics_data provided - extracting from analysis_results...")
             metrics_data = self._extract_metrics_data_from_analysis_results(analysis_results)
-            logger.info(f"✅ Self-extracted metrics_data with {len(metrics_data.get('hpa_implementation', {}).get('total_hpas', []))} HPAs")
+            total_hpas = metrics_data.get('hpa_implementation', {}).get('total_hpas', 0)
+            logger.info(f"✅ Self-extracted metrics_data with {total_hpas} HPAs")
         else:
-            logger.info(f"📊 Using provided metrics_data with {len(metrics_data.get('hpa_implementation', {}).get('total_hpas', []))} HPAs")
+            total_hpas = metrics_data.get('hpa_implementation', {}).get('total_hpas', 0)
+            logger.info(f"📊 Using provided metrics_data with {total_hpas} HPAs")
         
         # Store metrics_data for HPA detection
         if metrics_data:
@@ -1329,7 +1331,8 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
             # FACTOR 5: HPA Coverage Uniqueness (based on actual HPA data)
             if hasattr(self, '_current_metrics_data') and self._current_metrics_data:
                 hpa_impl = self._current_metrics_data.get('hpa_implementation', {})
-                total_hpas = len(hpa_impl.get('total_hpas', []))
+                total_hpas_raw = hpa_impl.get('total_hpas', 0)
+                total_hpas = len(total_hpas_raw) if isinstance(total_hpas_raw, list) else total_hpas_raw if isinstance(total_hpas_raw, int) else 0
                 
                 if total_hpas > 0:
                     # Create uniqueness based on HPA count and pattern

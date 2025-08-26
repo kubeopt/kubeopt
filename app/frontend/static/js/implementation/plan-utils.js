@@ -174,12 +174,12 @@ export function getEmojiForKey(key) {
 export function renderMarkdownData(markdownContent, containerTitle = 'Configuration Details') {
     // Convert markdown to HTML with styling
     const htmlContent = markdownContent
-        .replace(/^# (.*$)/gm, '<h1 style="color: #2d3748; margin: 25px 0 20px 0; font-size: 24px; border-bottom: 3px solid #667eea; padding-bottom: 12px;">$1</h1>')
-        .replace(/^## (.*$)/gm, '<h2 style="color: #2d3748; margin: 20px 0 15px 0; font-size: 18px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">$1</h2>')
+        .replace(/^# (.*$)/gm, '<h1 style="color: #e2e8f0; margin: 25px 0 20px 0; font-size: 24px; border-bottom: 3px solid #667eea; padding-bottom: 12px;">$1</h1>')
+        .replace(/^## (.*$)/gm, '<h2 style="color: #e2e8f0; margin: 20px 0 15px 0; font-size: 18px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">$1</h2>')
         .replace(/^### (.*$)/gm, '<h3 style="color: #4a5568; margin: 15px 0 10px 0; font-size: 16px;">$1</h3>')
-        .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #2d3748; font-weight: 600;">$1</strong>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #e2e8f0; font-weight: 600;">$1</strong>')
         .replace(/\*(.*?)\*/g, '<em style="color: #718096; font-style: italic;">$1</em>')
-        .replace(/`(.*?)`/g, '<code style="background: #edf2f7; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #2d3748; font-size: 13px;">$1</code>')
+        .replace(/`(.*?)`/g, '<code style="background: #edf2f7; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #e2e8f0; font-size: 13px;">$1</code>')
         .replace(/^- (.*$)/gm, '<li style="margin: 5px 0; color: #4a5568; line-height: 1.5;">$1</li>')
         .replace(/(<li.*?>[\s\S]*?<\/li>)/s, '<ul style="margin: 10px 0; padding-left: 20px; list-style-type: disc;">$1</ul>')
         .replace(/\n/g, '<br>');

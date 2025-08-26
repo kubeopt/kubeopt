@@ -35,37 +35,69 @@ logger = logging.getLogger(__name__)
 class KubernetesParsingUtils:
     @staticmethod
     def parse_cpu_safe(cpu_str: str) -> float:
-        """Parse CPU values safely"""
+        """Parse CPU values - Handle comma-separated values for multiple containers"""
         if not cpu_str or not isinstance(cpu_str, str):
-            return 0.0
+            raise ValueError(f"Invalid CPU string: {cpu_str}")
         try:
             cpu_str = cpu_str.strip()
-            if cpu_str.endswith('m'):
-                return float(cpu_str[:-1]) / 1000.0
-            elif cpu_str.endswith('n'):
-                return float(cpu_str[:-1]) / 1000000000.0
+            
+            # Handle comma-separated values (multiple containers)
+            if ',' in cpu_str:
+                total_cpu = 0.0
+                cpu_values = [val.strip() for val in cpu_str.split(',')]
+                for cpu_val in cpu_values:
+                    if cpu_val and cpu_val != '<none>':
+                        total_cpu += KubernetesParsingUtils._parse_single_cpu_value(cpu_val)
+                return total_cpu
             else:
-                return float(cpu_str)
-        except:
-            return 0.0
+                return KubernetesParsingUtils._parse_single_cpu_value(cpu_str)
+        except Exception as e:
+            raise ValueError(f"Failed to parse CPU value '{cpu_str}': {e}")
+    
+    @staticmethod
+    def _parse_single_cpu_value(cpu_str: str) -> float:
+        """Parse a single CPU value"""
+        cpu_str = cpu_str.strip()
+        if cpu_str.endswith('m'):
+            return float(cpu_str[:-1]) / 1000.0
+        elif cpu_str.endswith('n'):
+            return float(cpu_str[:-1]) / 1000000000.0
+        else:
+            return float(cpu_str)
     
     @staticmethod
     def parse_memory_safe(memory_str: str) -> int:
-        """Parse memory values safely"""
+        """Parse memory values - Handle comma-separated values for multiple containers"""
         if not memory_str or not isinstance(memory_str, str):
-            return 0
+            raise ValueError(f"Invalid memory string: {memory_str}")
         try:
             memory_str = memory_str.strip()
-            if memory_str.endswith('Ki'):
-                return int(float(memory_str[:-2]) * 1024)
-            elif memory_str.endswith('Mi'):
-                return int(float(memory_str[:-2]) * 1024 * 1024)
-            elif memory_str.endswith('Gi'):
-                return int(float(memory_str[:-2]) * 1024 * 1024 * 1024)
+            
+            # Handle comma-separated values (multiple containers)
+            if ',' in memory_str:
+                total_memory = 0
+                memory_values = [val.strip() for val in memory_str.split(',')]
+                for mem_val in memory_values:
+                    if mem_val and mem_val != '<none>':
+                        total_memory += KubernetesParsingUtils._parse_single_memory_value(mem_val)
+                return total_memory
             else:
-                return int(float(memory_str))
-        except:
-            return 0
+                return KubernetesParsingUtils._parse_single_memory_value(memory_str)
+        except Exception as e:
+            raise ValueError(f"Failed to parse memory value '{memory_str}': {e}")
+    
+    @staticmethod
+    def _parse_single_memory_value(memory_str: str) -> int:
+        """Parse a single memory value"""
+        memory_str = memory_str.strip()
+        if memory_str.endswith('Ki'):
+            return int(float(memory_str[:-2]) * 1024)
+        elif memory_str.endswith('Mi'):
+            return int(float(memory_str[:-2]) * 1024 * 1024)
+        elif memory_str.endswith('Gi'):
+            return int(float(memory_str[:-2]) * 1024 * 1024 * 1024)
+        else:
+            return int(float(memory_str))
 
 
 class AKSRealTimeMetricsFetcher:
@@ -114,9 +146,9 @@ class AKSRealTimeMetricsFetcher:
         return min(100.0, (memory_bytes / (16 * 1024 * 1024 * 1024)) * 100)  # 16GB = 100%
 
     def _calculate_resource_concentration(self, workload_data: List[Dict]) -> Dict:
-        """Calculate resource concentration metrics"""
+        """Calculate resource concentration metrics: Require real data"""
         if not workload_data:
-            return {}
+            raise ValueError("No workload data provided for resource concentration calculation")
         
         cpu_values = [w.get('cpu_millicores', 0) for w in workload_data]
         memory_values = [w.get('memory_bytes', 0) for w in workload_data]
@@ -289,7 +321,7 @@ class AKSRealTimeMetricsFetcher:
             except Exception as custom_error:
                 logger.warning(f"⚠️ Custom columns approach failed: {custom_error}")
             
-            # Method 2: Fallback to basic pod info without full JSON
+            # Method 2: Try basic pod info approach to fetch real data
             try:
                 basic_cmd = '''kubectl get pods --all-namespaces --no-headers --field-selector=status.phase=Running'''
                 basic_output = self.execute_kubectl_command(basic_cmd, timeout=60)
@@ -300,13 +332,14 @@ class AKSRealTimeMetricsFetcher:
             except Exception as basic_error:
                 logger.warning(f"⚠️ Basic pod listing failed: {basic_error}")
             
-            # Method 3: Final fallback - return empty but valid structure
-            logger.warning("⚠️  All pod resource collection methods failed, using empty structure")
-            return {}
+            # All fetching methods failed - no real data available
+            logger.error("❌ All pod resource collection methods failed to fetch data from cluster")
+            raise ValueError("Failed to collect pod resource data from cluster using any fetching method")
             
         except Exception as e:
-            logger.error(f"❌  Pod resource requests collection failed: {e}")
-            return {}
+            logger.error(f"❌ Pod resource requests collection failed: {e}")
+            # No fallback, fail if real data unavailable
+            raise ValueError(f"Failed to collect pod resource requests: {e}")
 
     def _estimate_resource_requests_from_basic_data(self, output: str) -> Dict[str, Dict]:
         """Estimate resource requests from basic pod data"""
@@ -351,7 +384,8 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Basic estimation failed: {e}")
-            return {}
+            # No fallback, fail if real data unavailable
+            raise ValueError(f"Failed to estimate resource requests from basic data: {e}")
         
     def _parse_custom_columns_resource_requests(self, output: str) -> Dict[str, Dict]:
         """Parse custom columns output for resource requests"""
@@ -400,7 +434,8 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Custom columns parsing failed: {e}")
-            return {}
+            # No fallback, fail if real data unavailable  
+            raise ValueError(f"Failed to parse custom columns resource requests: {e}")
 
     def get_hpa_metrics_with_high_cpu_detection(self) -> Dict:
         """
@@ -829,11 +864,11 @@ class AKSRealTimeMetricsFetcher:
         }
 
     def get_hpa_implementation_status(self) -> Dict[str, Any]:
-        """Get HPA implementation status with better text parsing"""
-        logger.info("🔍 Detecting current HPA implementation...")
+        """Get HPA implementation status with detailed replica information for chart generator"""
+        logger.info("🔍 Detecting current HPA implementation with detailed replica data...")
         
         try:
-            # Use text output to avoid JSON truncation issues
+            # STEP 1: Get basic HPA list with text output to avoid JSON truncation
             hpa_cmd = "kubectl get hpa --all-namespaces --no-headers"
             hpa_output = self.execute_kubectl_command(hpa_cmd, timeout=60)
             
@@ -841,6 +876,7 @@ class AKSRealTimeMetricsFetcher:
             cpu_based = 0
             memory_based = 0
             hpa_list = []
+            hpa_details = []  # NEW: Store detailed replica information
             
             if hpa_output:
                 lines = hpa_output.split('\n')
@@ -851,13 +887,72 @@ class AKSRealTimeMetricsFetcher:
                             continue
                             
                         parts = line.split()
-                        if len(parts) >= 6:  # Basic HPA format
+                        if len(parts) >= 6:  # Basic HPA format: NAMESPACE NAME REFERENCE TARGETS MINPODS MAXPODS REPLICAS
                             namespace = parts[0]
                             name = parts[1]
                             
                             if namespace.upper() != 'NAMESPACE':  # Skip headers
                                 hpa_count += 1
                                 hpa_list.append(f"{namespace}/{name}")
+                                
+                                # Extract replica information from kubectl output - Handle dynamic formats
+                                try:
+                                    # HPA output format can vary: NAMESPACE NAME REFERENCE TARGETS MINPODS MAXPODS REPLICAS
+                                    # Find replica fields by checking which fields are numeric
+                                    numeric_fields = []
+                                    field_indices = {}
+                                    
+                                    for i, field in enumerate(parts[3:], 3):  # Start from field 3 (after name)
+                                        if field.isdigit():
+                                            numeric_fields.append((i, field))
+                                        # Store field positions for debugging
+                                        field_indices[f"field_{i}"] = field
+                                    
+                                    # Need at least 3 numeric fields for min, max, current replicas
+                                    if len(numeric_fields) < 3:
+                                        # Try to extract from the end of the line (more reliable)
+                                        potential_replicas = []
+                                        for field in reversed(parts):
+                                            if field.isdigit():
+                                                potential_replicas.append(field)
+                                            if len(potential_replicas) >= 3:
+                                                break
+                                        
+                                        if len(potential_replicas) >= 3:
+                                            # Reverse to get proper order: min, max, current
+                                            potential_replicas = list(reversed(potential_replicas))
+                                            current_replicas = potential_replicas[-1]  # Last numeric is usually current
+                                            max_replicas = potential_replicas[-2]      # Second to last is max
+                                            min_replicas = potential_replicas[-3]     # Third to last is min
+                                        else:
+                                            raise ValueError(f"Cannot find 3 numeric replica fields for HPA {namespace}/{name}. Fields: {field_indices}")
+                                    else:
+                                        # Use the numeric fields we found
+                                        current_replicas = numeric_fields[-1][1]  # Last numeric field
+                                        max_replicas = numeric_fields[-2][1]      # Second to last
+                                        min_replicas = numeric_fields[-3][1]      # Third to last
+                                    
+                                    # Validate that we have valid replica numbers
+                                    if not (current_replicas.isdigit() and min_replicas.isdigit() and max_replicas.isdigit()):
+                                        raise ValueError(f"Invalid replica data types for HPA {namespace}/{name}: min={min_replicas}, max={max_replicas}, current={current_replicas}")
+                                    
+                                    # NEW: Store detailed replica information for chart generator
+                                    hpa_detail = {
+                                        'namespace': namespace,
+                                        'name': name,
+                                        'current_replicas': current_replicas,
+                                        'min_replicas': min_replicas,
+                                        'max_replicas': max_replicas,
+                                        'hpa_id': f"{namespace}/{name}"
+                                    }
+                                    hpa_details.append(hpa_detail)
+                                    
+                                    logger.info(f"📊 HPA Detail: {namespace}/{name} = current:{current_replicas}, min:{min_replicas}, max:{max_replicas}")
+                                    
+                                except Exception as detail_error:
+                                    # No defaults, fail if data is invalid
+                                    logger.error(f"❌ Failed to parse HPA details for {namespace}/{name}: {detail_error}")
+                                    raise ValueError(f"Cannot parse HPA replica data for {namespace}/{name}: {detail_error}")
                                 
                                 # Simple heuristic for CPU vs memory based
                                 if hpa_count % 2 == 0:
@@ -880,16 +975,18 @@ class AKSRealTimeMetricsFetcher:
                 confidence = 'medium'
             
             logger.info(f"✅ HPA detection: {hpa_count} HPAs found, pattern: {pattern}")
+            logger.info(f"✅ Collected {len(hpa_details)} HPA replica details for chart generator")
             
             return {
                 'current_hpa_pattern': pattern,
                 'confidence': confidence,
                 'total_hpas': hpa_count,
                 'hpa_list': hpa_list[:10],  # Limit to first 10 for display
+                'hpa_details': hpa_details,  # NEW: Detailed replica information for chart generator
                 'cpu_based_count': cpu_based,
                 'memory_based_count': memory_based,
                 'analysis_timestamp': datetime.now().isoformat(),
-                'detection_method': 'text_parsing_enhanced'
+                'detection_method': 'text_parsing_with_replica_details'
             }
             
         except Exception as e:
@@ -953,8 +1050,8 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Enhanced node metrics failed: {e}")
-            # Fallback to base metrics
-            return self.get_node_metrics()
+            # No fallback, fail if real data unavailable
+            raise ValueError(f"Failed to collect enhanced node metrics: {e}")
 
     def _calculate_cpu_efficiency(self, cpu_usage: float) -> float:
         """Calculate CPU efficiency score (optimal around 70%)"""
@@ -984,9 +1081,9 @@ class AKSRealTimeMetricsFetcher:
             return 'balanced_utilization'
 
     def _calculate_cluster_ml_features(self, nodes: List[Dict]) -> Dict:
-        """Calculate cluster-level features for ML"""
+        """Calculate cluster-level features for ML - Require real data"""
         if not nodes:
-            return {}
+            raise ValueError("No node data provided for cluster ML features calculation")
         
         cpu_values = [node.get('cpu_usage_pct', 0) for node in nodes]
         memory_values = [node.get('memory_usage_pct', 0) for node in nodes]
@@ -1279,27 +1376,25 @@ class AKSRealTimeMetricsFetcher:
                     logger.info(f"✅ Simplified JSON parsing successful: {hpa_analysis['total_hpas']} HPAs")
                     return hpa_analysis
             
-            # STRATEGY 3: Fallback to basic text parsing
-            logger.info("🔧 Using fallback text parsing...")
+            # STRATEGY 3: Fallback to basic text parsing to fetch data (not fake data)
+            logger.info("🔧 Using fallback text parsing to fetch real HPA data...")
             basic_cmd = 'kubectl get hpa --all-namespaces'
             basic_output = self.execute_kubectl_command(basic_cmd, timeout=60)
             
             if basic_output:
                 hpa_analysis.update(self._parse_hpa_basic_text(basic_output))
                 logger.info(f"✅ Basic text parsing completed: {hpa_analysis['total_hpas']} HPAs found")
+            else:
+                # No fake data, fail if ALL fetching methods fail
+                logger.error("❌ All HPA fetching methods failed - no data available")
+                raise ValueError("Failed to fetch HPA data from cluster using any method")
             
             return hpa_analysis
             
         except Exception as e:
             logger.error(f"❌ All HPA parsing methods failed: {e}")
-            return {
-                'current_hpa_pattern': 'parsing_failed',
-                'confidence': 'low',
-                'total_hpas': 0,
-                'high_cpu_hpas': [],
-                'error': str(e),
-                'parsing_method': 'failed'
-            }
+            # No fallback, fail if real data unavailable
+            raise ValueError(f"Failed to collect HPA data: {e}")
 
     def _parse_hpa_metrics(self, hpa_output: str) -> Dict:
         """
@@ -1611,22 +1706,23 @@ class AKSRealTimeMetricsFetcher:
                 node_metrics = self._get_enhanced_node_resource_data()
                 logger.info("✅ Got enhanced node metrics")
             except Exception as node_error:
-                logger.warning(f"⚠️ Enhanced node metrics failed: {node_error}")
-                # Fallback to basic node metrics
-                node_metrics = self.get_node_metrics()
-                logger.info("✅ Using basic node metrics as fallback")
+                logger.error(f"❌ Enhanced node metrics failed: {node_error}")
+                # No fallback, fail if real data unavailable
+                raise ValueError(f"Failed to collect enhanced node metrics: {node_error}")
             
-            # Step 2: Get HPA metrics with FIXED method name
+            # Step 2: Get HPA implementation status with detailed replica information
             try:
-                hpa_metrics = self._get_detailed_hpa_metrics()
-                logger.info("✅ Got HPA metrics with corrected method")
+                hpa_metrics = self.get_hpa_implementation_status()
+                logger.info("✅ Got HPA implementation status with detailed replica data")
             except Exception as hpa_error:
-                logger.warning(f"⚠️ HPA metrics failed: {hpa_error}")
+                logger.warning(f"⚠️ HPA implementation status failed: {hpa_error}")
                 hpa_metrics = {
                     'current_hpa_pattern': 'detection_failed',
                     'confidence': 'low',
                     'total_hpas': 0,
-                    'high_cpu_hpas': []
+                    'hpa_details': [],
+                    'cpu_based_count': 0,
+                    'memory_based_count': 0
                 }
             
             # Step 3: CRITICAL FIX - Get ALL workload-level resource consumption
@@ -1642,11 +1738,9 @@ class AKSRealTimeMetricsFetcher:
                 if total_workloads > 0:
                     logger.info(f"✅ WORKLOAD DATA: {total_workloads} total workloads, {high_cpu_count} high CPU")
                     
-                    # Ensure all_workloads field is populated
+                    # Validate all_workloads field exists
                     if 'all_workloads' not in pod_metrics or not pod_metrics['all_workloads']:
-                        # Fallback: use pods data as all_workloads
-                        pod_metrics['all_workloads'] = pod_metrics.get('pods', [])
-                        logger.info(f"🔧 Fallback: Used pods data as all_workloads ({len(pod_metrics['all_workloads'])} workloads)")
+                        raise ValueError("No workload data collected - all_workloads field is missing or empty")
                     
                 else:
                     logger.warning("⚠️ No workload data found in metrics")
@@ -1808,7 +1902,8 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Enhanced metrics collection failed: {e}")
-            return self.get_comprehensive_metrics()  # Fallback to basic metrics
+            # No fallback, fail if real data unavailable
+            raise ValueError(f"Failed to collect ML-ready metrics: {e}")
 
     def _get_workload_level_metrics(self) -> Optional[Dict]:
         """
@@ -2161,9 +2256,9 @@ class AKSRealTimeMetricsFetcher:
         return distribution
 
     def _calculate_resource_concentration(self, workload_data: List[Dict]) -> Dict:
-        """Calculate resource concentration metrics"""
+        """Calculate resource concentration metrics - Require real data"""
         if not workload_data:
-            return {}
+            raise ValueError("No workload data provided for resource concentration calculation")
         
         cpu_values = [w['cpu_millicores'] for w in workload_data]
         memory_values = [w['memory_bytes'] for w in workload_data]
