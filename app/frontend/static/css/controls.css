@@ -149,7 +149,7 @@
 
 .dark .metric-box.yellow {
     background-color: rgba(6, 217, 199, 0.3);
-    color: #fbbf24;
+    color: #48bb78;
 }
 
 .dark .metric-box.red {
@@ -231,7 +231,7 @@
 .dark .risk-indicator.low {
     background-color: #064e3b;
     color: #a7f3d0;
-    border-color: #059669;
+    border-color: #ffffff;
 }
 
 .dark .risk-indicator.medium {
@@ -306,7 +306,7 @@
 }
 
 .confidence-meter .fill.medium {
-    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    background: linear-gradient(90deg, #48bb78, #48bb78);
 }
 
 .confidence-meter .fill.low {
@@ -454,10 +454,10 @@
 .text-xl {
     font-size: 1.25rem;
     line-height: 1.75rem;
-    color: #059669;
+    color: #ffff;
 }
 
  .bg-gray-800{
             --tw-bg-opacity: 1;
-            background-color: rgb(48, 128, 113) !important;
+            background-color: rgb(34 40 61) !important;
         }

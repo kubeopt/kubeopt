@@ -1410,7 +1410,7 @@
 
         /* SOLUTION 4: Debug helpers */
         .debug-copy-area {
-            border: 2px dashed #f59e0b;
+            border: 2px dashed #48bb78;
             background: rgba(245, 158, 11, 0.1);
             position: relative;
             min-height: 50px;

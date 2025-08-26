@@ -336,6 +336,10 @@ class MLEnhancedHPARecommendationEngine:
         hpa_efficiency = self._calculate_comprehensive_hpa_efficiency(ml_results, metrics_data)
         consistent_recommendation['hpa_efficiency_percentage'] = hpa_efficiency
         
+        # CRITICAL FIX: Include metrics_data so chart_generator can access hpa_implementation
+        consistent_recommendation['metrics_data'] = metrics_data
+        logger.info(f"✅ HPA recommendations include metrics_data with {metrics_data.get('hpa_implementation', {}).get('total_hpas', 0)} HPAs")
+        
         logger.info("✅ Comprehensive self-learning HPA recommendations generated successfully")
         return consistent_recommendation
     
@@ -1322,6 +1326,15 @@ class ConsistentCostAnalyzer:
             # Step 10: CRITICAL - Add comprehensive HPA recommendations to results
             results['hpa_recommendations'] = hpa_recommendations
             logger.info("✅ Comprehensive HPA recommendations added to analysis results")
+            
+            # Step 10.1: CRITICAL FIX - Preserve HPA implementation data from metrics_data
+            hpa_implementation = metrics_data.get('hpa_implementation', {})
+            if hpa_implementation:
+                results['hpa_implementation'] = hpa_implementation
+                total_hpas = hpa_implementation.get('total_hpas', 0)
+                logger.info(f"✅ FIXED: Preserved HPA implementation data with {total_hpas} HPAs for chart generator")
+            else:
+                logger.warning("⚠️ No hpa_implementation found in metrics_data")
 
             # Extract HPA efficiency with proper type conversion
             hpa_efficiency_raw = None

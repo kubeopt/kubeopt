@@ -198,18 +198,26 @@ class EnhancedDynamicStrategyEngine:
         
         # NEW Step 1.5: Apply ROI-based filtering for financial viability
         if opportunities:
+            logger.info(f"🔍 DEBUG: Before ROI filtering - {len(opportunities)} opportunities detected")
+            for i, opp in enumerate(opportunities[:3]):  # Log first 3 for debugging
+                logger.info(f"🔍 DEBUG: Opp {i+1}: {opp.type}/{opp.subtype} - "
+                           f"Savings: ${opp.savings_potential_monthly:.2f}/month, "
+                           f"Cost: ${opp.implementation_cost:.2f}, "
+                           f"Payback: {(opp.implementation_cost / opp.savings_potential_monthly) if opp.savings_potential_monthly > 0 else 'infinite':.1f} months")
+            
             opportunities = self.opportunity_detector._filter_opportunities_by_roi(
                 opportunities, self.cluster_config
             )
             logger.info(f"✅ Filtered to {len(opportunities)} financially viable opportunities")
             
-            # Handle case where all opportunities were filtered out
+            # Handle case where all opportunities were filtered out - INVESTIGATE WHY
             if not opportunities:
-                logger.warning(f"⚠️ No financially viable opportunities remain after ROI filtering")
-                # Create a minimal default strategy to avoid system failure
+                logger.error(f"💥 CRITICAL: All opportunities filtered out by ROI - this indicates a calculation error")
+                logger.error(f"💥 DEBUG: actual_savings passed: ${actual_savings:.2f}")
+                logger.error(f"💥 DEBUG: total_cost from analysis: ${analysis_results.get('total_cost', 0) if analysis_results else 0:.2f}")
                 return None
         else:
-            logger.warning(f"⚠️ No initial opportunities detected")
+            logger.error(f"💥 CRITICAL: No initial opportunities detected - opportunity detection logic failed")
             return None
         
         # Step 2: Multi-objective optimization analysis with cluster intelligence
@@ -1175,9 +1183,23 @@ class EnhancedOpportunityDetector:
         filtered_count = 0
         total_filtered_savings = 0.0
         
-        # Set realistic business thresholds based on cluster context
+        # Set dynamic business thresholds based on cluster context and actual costs
+        total_cost = 1000
+        
+        # Try to get total cost from multiple sources
+        if opportunities and hasattr(opportunities[0], 'total_cost'):
+            total_cost = getattr(opportunities[0], 'total_cost', 1000)
+        elif cluster_config and cluster_config.get('status') == 'completed':
+            # Try to get total cost from various sources
+            analysis_data = cluster_config.get('analysis_results', {})
+            if analysis_data:
+                total_cost = analysis_data.get('total_cost', 1000)
+        
+        logger.info(f"💰 Using total cost ${total_cost:.2f} for ROI calculations")
+        
+        # Calculate intelligent thresholds based on cluster size and cost
         PAYBACK_THRESHOLD_MONTHS = 18  # Base threshold
-        MIN_MONTHLY_SAVINGS = 10.0     # Minimum monthly savings to be worth pursuing
+        MIN_MONTHLY_SAVINGS = max(5.0, total_cost * 0.005)  # Dynamic: 0.5% of total cost minimum
         
         # NEW: Adjust thresholds based on cluster configuration intelligence
         if cluster_config and cluster_config.get('status') == 'completed':
@@ -1191,15 +1213,20 @@ class EnhancedOpportunityDetector:
                 # Enterprise clusters can afford longer payback periods
                 if total_workloads > 50:
                     PAYBACK_THRESHOLD_MONTHS = 24  # Enterprise can wait longer
-                    MIN_MONTHLY_SAVINGS = 50.0     # But expect higher savings
+                    MIN_MONTHLY_SAVINGS = max(25.0, total_cost * 0.01)  # 1% for enterprise
                     logger.info(f"🏢 Enterprise cluster detected ({total_workloads} workloads) - Adjusted ROI thresholds")
                 elif total_workloads < 10:
-                    PAYBACK_THRESHOLD_MONTHS = 12  # Small clusters need faster payback
-                    MIN_MONTHLY_SAVINGS = 5.0      # Lower savings threshold
-                    logger.info(f"🏠 Small cluster detected ({total_workloads} workloads) - Tightened ROI thresholds")
+                    PAYBACK_THRESHOLD_MONTHS = 15  # Small clusters need reasonable payback
+                    MIN_MONTHLY_SAVINGS = max(2.0, total_cost * 0.002)  # 0.2% for small clusters
+                    logger.info(f"🏠 Small cluster detected ({total_workloads} workloads) - Relaxed ROI thresholds")
+                else:
+                    # Medium clusters
+                    MIN_MONTHLY_SAVINGS = max(5.0, total_cost * 0.005)  # 0.5% for medium clusters
             
             except Exception as e:
                 logger.warning(f"⚠️ Could not adjust ROI thresholds based on cluster config: {e}")
+                # Use cost-based minimum only
+                MIN_MONTHLY_SAVINGS = max(5.0, total_cost * 0.005)
         
         logger.info(f"📊 ROI Filter: Evaluating {len(opportunities)} opportunities")
         logger.info(f"💰 Thresholds: Max payback {PAYBACK_THRESHOLD_MONTHS} months, Min savings ${MIN_MONTHLY_SAVINGS}/month")
@@ -1219,24 +1246,31 @@ class EnhancedOpportunityDetector:
                         f"(${opp.savings_potential_monthly:.0f}/month < ${MIN_MONTHLY_SAVINGS}/month threshold)")
                 continue
             
-            # Calculate payback period
-            if opp.savings_potential_monthly > 0:
-                payback_months = opp.implementation_cost / opp.savings_potential_monthly
-                
-                if payback_months <= PAYBACK_THRESHOLD_MONTHS:
-                    viable_opportunities.append(opp)
-                    logger.debug(f"✅ Kept viable opportunity: {opp.subtype} "
-                            f"(Payback: {payback_months:.1f} months, "
-                            f"Savings: ${opp.savings_potential_monthly:.0f}/month)")
-                else:
-                    filtered_count += 1
-                    total_filtered_savings += opp.savings_potential_monthly
-                    logger.info(f"🔄 Filtered long-payback opportunity: {opp.subtype} "
-                            f"(Payback: {payback_months:.1f} months > {PAYBACK_THRESHOLD_MONTHS} month threshold)")
+            # Calculate comprehensive ROI metrics
+            roi_metrics = self._calculate_opportunity_roi(
+                opp.savings_potential_monthly, 
+                opp.implementation_cost
+            )
+            
+            # Use NPV and payback period for filtering decisions
+            if roi_metrics['is_viable'] and roi_metrics['payback_months'] <= PAYBACK_THRESHOLD_MONTHS:
+                viable_opportunities.append(opp)
+                logger.debug(f"✅ Kept viable opportunity: {opp.subtype} "
+                           f"(Payback: {roi_metrics['payback_months']:.1f} months, "
+                           f"NPV: ${roi_metrics['npv']:.0f}, "
+                           f"ROI: {roi_metrics['roi_percentage']:.1f}%)")
             else:
-                # Handle edge case of zero savings potential
                 filtered_count += 1
-                logger.warning(f"⚠️ Filtered opportunity with zero savings potential: {opp.subtype}")
+                total_filtered_savings += opp.savings_potential_monthly
+                
+                if roi_metrics['payback_months'] > PAYBACK_THRESHOLD_MONTHS:
+                    logger.info(f"🔄 Filtered long-payback opportunity: {opp.subtype} "
+                               f"(Payback: {roi_metrics['payback_months']:.1f} months > {PAYBACK_THRESHOLD_MONTHS} month threshold)")
+                elif roi_metrics['npv'] <= 0:
+                    logger.info(f"🔄 Filtered negative-NPV opportunity: {opp.subtype} "
+                               f"(NPV: ${roi_metrics['npv']:.0f}, not financially viable)")
+                else:
+                    logger.warning(f"⚠️ Filtered opportunity with zero savings potential: {opp.subtype}")
         
         # Log comprehensive filtering results
         kept_count = len(viable_opportunities)
@@ -1252,7 +1286,6 @@ class EnhancedOpportunityDetector:
             logger.info(f"✅ ROI Filter: All {kept_count} opportunities passed ROI criteria")
         
         return viable_opportunities
-    
 
     
     def detect_comprehensive_opportunities(self, cluster_dna, analysis_results: Optional[Dict], 
@@ -1277,9 +1310,48 @@ class EnhancedOpportunityDetector:
         
         opportunities = []
         
-        # HPA Optimization with cluster config intelligence
-        if 'hpa_optimization' in getattr(cluster_dna, 'optimization_hotspots', []):
-            hpa_savings = actual_savings * 0.8  # 80% of savings from HPA
+        # HPA Optimization - Detect based on actual cluster analysis, not just hotspots
+        total_cost = analysis_results.get('total_cost', 1000) if analysis_results else 1000
+        
+        # Dynamic HPA opportunity detection based on cluster metrics
+        should_recommend_hpa = False
+        
+        # Check multiple criteria for HPA recommendation
+        if analysis_results:
+            # Check if cluster has scaling potential (high cost but low HPA coverage)
+            current_hpa_count = analysis_results.get('hpa_count', 0)
+            total_workloads = analysis_results.get('total_workloads', 0)
+            hpa_coverage = (current_hpa_count / total_workloads * 100) if total_workloads > 0 else 0
+            
+            # Recommend HPA if coverage is low and cluster is significant size
+            if total_cost > 500 and hpa_coverage < 80:  # Less than 80% HPA coverage
+                should_recommend_hpa = True
+            
+            # Also check if cluster has scaling inefficiencies
+            hpa_efficiency = analysis_results.get('hpa_efficiency_percentage', 50)
+            if hpa_efficiency < 70:  # Poor HPA efficiency
+                should_recommend_hpa = True
+        
+        # Fallback: recommend HPA for any cluster over $300/month (basic threshold)
+        if total_cost > 300:
+            should_recommend_hpa = True
+            
+        if should_recommend_hpa:
+            # Calculate HPA savings potential from actual cluster data, not from existing savings
+            total_cost = analysis_results.get('total_cost', 1000) if analysis_results else 1000
+            
+            # Base HPA savings potential: 15-25% of total cost for clusters with optimization potential
+            hpa_savings_potential = total_cost * 0.20  # 20% baseline for clusters with HPA hotspots
+            
+            # Adjust based on cluster DNA insights
+            if hasattr(cluster_dna, 'hpa_efficiency_percentage'):
+                current_hpa_efficiency = getattr(cluster_dna, 'hpa_efficiency_percentage', 50)
+                if current_hpa_efficiency < 70:  # Low efficiency = high potential
+                    hpa_savings_potential = total_cost * 0.25  # 25% potential
+                elif current_hpa_efficiency > 85:  # Already efficient = lower potential  
+                    hpa_savings_potential = total_cost * 0.10  # 10% potential
+            
+            hpa_savings = hpa_savings_potential
             
             # NEW: Adjust based on cluster config
             implementation_cost = 1500  # Base cost
@@ -1356,9 +1428,44 @@ class EnhancedOpportunityDetector:
                 emergency_procedures=['hpa_disable_and_scale_to_safe_levels']
             ))
         
-        # Resource Right-sizing with cluster config intelligence
-        if 'resource_rightsizing' in getattr(cluster_dna, 'optimization_hotspots', []):
-            rightsizing_savings = actual_savings * 0.2  # 20% of savings from rightsizing
+        # Resource Right-sizing - Detect based on actual cluster utilization
+        should_recommend_rightsizing = False
+        
+        # Dynamic right-sizing detection based on cluster metrics
+        if analysis_results:
+            avg_cpu_utilization = analysis_results.get('average_cpu_utilization', 50)
+            avg_memory_utilization = analysis_results.get('average_memory_utilization', 50)
+            
+            # Recommend right-sizing if utilization is low (over-provisioned)
+            if avg_cpu_utilization < 60 or avg_memory_utilization < 60:
+                should_recommend_rightsizing = True
+            
+            # Also recommend for clusters with high resource waste
+            resource_waste = analysis_results.get('resource_waste_percentage', 0)
+            if resource_waste > 20:  # More than 20% resource waste
+                should_recommend_rightsizing = True
+        
+        # Recommend for any significant cluster that might benefit from right-sizing
+        if total_cost > 200:
+            should_recommend_rightsizing = True
+            
+        if should_recommend_rightsizing:
+            # Calculate right-sizing savings potential from actual cluster data
+            total_cost = analysis_results.get('total_cost', 1000) if analysis_results else 1000
+            
+            # Base right-sizing savings: 10-15% of total cost for over-provisioned clusters
+            rightsizing_savings_potential = total_cost * 0.12  # 12% baseline
+            
+            # Adjust based on cluster characteristics
+            if analysis_results:
+                # Higher savings potential if cluster has inefficient resource allocation
+                avg_utilization = analysis_results.get('average_cpu_utilization', 50)
+                if avg_utilization < 40:  # Low utilization = high right-sizing potential
+                    rightsizing_savings_potential = total_cost * 0.18  # 18% potential
+                elif avg_utilization > 75:  # High utilization = lower potential
+                    rightsizing_savings_potential = total_cost * 0.08  # 8% potential
+            
+            rightsizing_savings = rightsizing_savings_potential
             
             # NEW: Adjust based on cluster config
             implementation_cost = 800  # Base cost
@@ -1428,6 +1535,49 @@ class EnhancedOpportunityDetector:
             ))
         
         return opportunities
+    
+    def _calculate_opportunity_roi(self, monthly_savings: float, implementation_cost: float, 
+                                 project_duration_months: int = 24, discount_rate: float = 0.08) -> dict:
+        """
+        Calculate proper financial ROI metrics using NPV and payback period
+        """
+        if monthly_savings <= 0:
+            return {
+                'npv': -implementation_cost,
+                'payback_months': float('inf'),
+                'roi_percentage': -100.0,
+                'is_viable': False
+            }
+        
+        # Simple payback period (months)
+        payback_months = implementation_cost / monthly_savings if monthly_savings > 0 else float('inf')
+        
+        # Calculate NPV of savings over project duration
+        monthly_discount_rate = discount_rate / 12  # Convert annual to monthly
+        total_discounted_savings = 0
+        
+        for month in range(1, project_duration_months + 1):
+            monthly_pv = monthly_savings / ((1 + monthly_discount_rate) ** month)
+            total_discounted_savings += monthly_pv
+        
+        # Net Present Value
+        npv = total_discounted_savings - implementation_cost
+        
+        # ROI percentage (total return / investment)
+        total_undiscounted_savings = monthly_savings * project_duration_months
+        roi_percentage = ((total_undiscounted_savings - implementation_cost) / implementation_cost) * 100 if implementation_cost > 0 else 0
+        
+        # Determine viability (positive NPV and reasonable payback)
+        is_viable = npv > 0 and payback_months <= 36  # 3 years max payback
+        
+        return {
+            'npv': npv,
+            'payback_months': payback_months,
+            'roi_percentage': roi_percentage,
+            'is_viable': is_viable,
+            'total_savings_24m': total_undiscounted_savings,
+            'discounted_savings': total_discounted_savings
+        }
     
     # Simplified implementations for other opportunity types (keeping same pattern)
     def _detect_storage_opportunities(self, cluster_dna, analysis_results, actual_savings, cluster_config=None):

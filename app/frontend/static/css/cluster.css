@@ -25,7 +25,7 @@
     margin: 0;
     font-size: 1.5rem;
     font-weight: 600;
-    color: #2d3748;
+    color: #e2e8f0;
     display: flex;
     align-items: center;
 }
@@ -239,7 +239,7 @@ color: #20c997;
     width: 60px;
     height: 60px;
     border-radius: 16px;
-    background: linear-gradient(135deg, #fef3c7, #fbbf24);
+    background: linear-gradient(135deg, #fef3c7, #48bb78);
     display: flex;
     align-items: center;
     justify-content: center;

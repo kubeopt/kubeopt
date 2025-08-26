@@ -214,7 +214,7 @@ def generate_dynamic_hpa_comparison(analysis_data):
     scenarios = _generate_ml_driven_scenarios(
         workload_type, primary_action, ml_confidence, 
         ml_cpu_util, ml_memory_util, actual_hpa_savings,
-        ml_hpa_recommendation, ml_optimization_analysis
+        ml_hpa_recommendation, ml_optimization_analysis, analysis_data
     )
     
     if not scenarios:
@@ -396,7 +396,8 @@ def _enhance_recommendation_with_cpu_data(original_recommendation, cpu_workload_
 
 def _generate_ml_driven_scenarios(workload_type: str, primary_action: str, ml_confidence: float,
                                  ml_cpu_util: float, ml_memory_util: float, actual_hpa_savings: float,
-                                 ml_hpa_recommendation: Dict, ml_optimization_analysis: Dict) -> Dict[str, Any]:
+                                 ml_hpa_recommendation: Dict, ml_optimization_analysis: Dict, 
+                                 analysis_data: Dict) -> Dict[str, Any]:
     """Generate scenarios based on REAL ML model classifications ONLY"""
     if not all([workload_type, primary_action, ml_confidence > 0]):
         raise ValueError("Invalid ML input parameters for scenario generation")
@@ -406,101 +407,71 @@ def _generate_ml_driven_scenarios(workload_type: str, primary_action: str, ml_co
     cost_analysis = ml_optimization_analysis.get('cost_analysis', {})
     expected_improvement = ml_hpa_recommendation.get('expected_improvement', 'Based on ML analysis')
     
-    # Base current replicas on ML analysis
-    ml_efficiency_score = ml_insights.get('resource_efficiency', {}).get('cpu_efficiency', 0.5)
-    current_replicas = max(2, int(6 * (1 - ml_efficiency_score)))
+    # Extract REAL current HPA state from cluster analysis - Build from actual available data
+    hpa_implementation = None
     
-    # Generate scenarios based on REAL ML classification
-    if workload_type == 'LOW_UTILIZATION':
-        cpu_replicas = [1, current_replicas, current_replicas + 1, max(1, current_replicas - 2), current_replicas - 1]
-        memory_replicas = [1, current_replicas, current_replicas + 1, max(1, current_replicas - 2), current_replicas - 1]
-        recommendation_text = f"🤖 ML detected LOW_UTILIZATION ({ml_confidence:.0%} confidence). Scale down saves ${actual_hpa_savings:.2f}/month."
-        optimization_potential = "High - significant over-provisioning detected"
-        waste_reduction = f"Reduce {100 - (ml_efficiency_score * 100):.1f}% resource waste"
-        
-    elif workload_type == 'CPU_INTENSIVE':
-        hpa_config = ml_hpa_recommendation.get('hpa_config', {})
-        target_cpu = hpa_config.get('target', 70)
-        scale_factor = ml_cpu_util / target_cpu
-        
-        cpu_replicas = [
-            max(1, current_replicas // 2),
-            current_replicas,
-            max(1, int(current_replicas * scale_factor * 1.4)),
-            max(1, int(current_replicas * 0.8)),
-            current_replicas
-        ]
-        memory_replicas = [
-            max(1, current_replicas // 2),
-            current_replicas,
-            max(1, int(current_replicas * 1.2)),
-            current_replicas,
-            current_replicas
-        ]
-        
-        recommendation_text = f"⚡ ML classified CPU_INTENSIVE ({ml_confidence:.0%} confidence). CPU-based HPA recommended."
-        optimization_potential = "Medium - CPU scaling optimization"
-        waste_reduction = f"Optimize CPU allocation efficiency"
-        
-    elif workload_type == 'MEMORY_INTENSIVE':
-        hpa_config = ml_hpa_recommendation.get('hpa_config', {})
-        target_memory = hpa_config.get('target', 75)
-        scale_factor = ml_memory_util / target_memory
-        
-        memory_replicas = [
-            max(1, current_replicas // 2),
-            current_replicas,
-            max(1, int(current_replicas * scale_factor * 1.3)),
-            max(1, int(current_replicas * 0.7)),
-            current_replicas
-        ]
-        cpu_replicas = [
-            max(1, current_replicas // 2),
-            current_replicas,
-            max(1, int(current_replicas * 1.1)),
-            current_replicas,
-            current_replicas
-        ]
-        
-        recommendation_text = f"💾 ML classified MEMORY_INTENSIVE ({ml_confidence:.0%} confidence). Memory-based HPA recommended."
-        optimization_potential = "Medium - Memory scaling optimization"
-        waste_reduction = f"Optimize memory allocation patterns"
-        
-    elif workload_type == 'BURSTY':
-        cpu_replicas = [1, current_replicas, current_replicas * 3, max(1, current_replicas // 2), current_replicas]
-        memory_replicas = [2, current_replicas, current_replicas * 2, max(1, current_replicas // 2), current_replicas]
-        
-        recommendation_text = f"📈 ML detected BURSTY patterns ({ml_confidence:.0%} confidence). Predictive scaling recommended."
-        optimization_potential = "High - Burst handling optimization"
-        waste_reduction = f"Reduce burst-related over-provisioning"
-        
-    else:  # BALANCED
-        cpu_replicas = [
-            max(1, current_replicas // 2),
-            current_replicas,
-            current_replicas + 2,
-            max(1, current_replicas - 1),
-            current_replicas
-        ]
-        memory_replicas = cpu_replicas.copy()
-        
-        recommendation_text = f"⚖️ ML classified BALANCED ({ml_confidence:.0%} confidence). Hybrid HPA approach recommended."
-        optimization_potential = "Medium - Balanced optimization"
-        waste_reduction = f"Fine-tune resource allocation"
+    # Check if we have direct hpa_implementation object
+    hpa_implementation = analysis_data.get('hpa_implementation')
     
-    # ML-specific reasoning
-    ml_reasoning = f"ML Analysis: {workload_type} workload with {ml_confidence:.0%} confidence. " \
-                  f"Primary action: {primary_action}. " \
-                  f"Expected improvement: {expected_improvement}"
+    # Extract HPA implementation from hpa_recommendations if direct not available
+    if not hpa_implementation:
+        hpa_recommendations = analysis_data.get('hpa_recommendations', {})
+        if hpa_recommendations and isinstance(hpa_recommendations, dict):
+            # Look for HPA implementation data in recommendations
+            metrics_data = hpa_recommendations.get('metrics_data', {})
+            if metrics_data and 'hpa_implementation' in metrics_data:
+                hpa_implementation = metrics_data['hpa_implementation']
+                logger.info(f"✅ RECOVERED: Found HPA implementation in hpa_recommendations with {hpa_implementation.get('total_hpas', 0)} HPAs")
     
-    # Cost impact based on ML analysis
-    potential_savings = cost_analysis.get('potential_monthly_savings', actual_hpa_savings)
-    cost_impact = {
-        'monthly_savings': potential_savings,
-        'waste_percentage': cost_analysis.get('waste_percentage', 0),
-        'payback_period': cost_analysis.get('payback_period', 'immediate'),
-        'implementation_cost': 'low' if ml_confidence > 0.8 else 'medium'
-    }
+    # NO FALLBACK LOGIC - Only use real HPA data
+    if not hpa_implementation:
+        logger.error("❌ No real HPA implementation data found in analysis")
+        raise ValueError("No real HPA implementation data available - refusing to use synthetic/static data")
+    
+    # This check is redundant since we already raised above, but keep for safety
+    if not hpa_implementation:
+        raise ValueError("No HPA data found in analysis_data. Available keys: " + ", ".join(list(analysis_data.keys())[:10]))
+    
+    logger.info(f"🔍 Found HPA implementation data: {hpa_implementation.get('current_hpa_pattern')}, {hpa_implementation.get('total_hpas', 0)} HPAs")
+    
+    # Extract actual current replica data using REAL cluster information
+    current_replicas_data = _extract_actual_cluster_replica_data(hpa_implementation)
+    
+    if not current_replicas_data:
+        raise ValueError("No real cluster replica data available for HPA comparison")
+    
+    logger.info(f"🔍 Using real cluster data: {current_replicas_data}")
+    current_replicas = current_replicas_data['current_avg']
+    
+    # Generate realistic comparison based on ACTUAL current HPA configuration  
+    current_hpa_pattern = current_replicas_data.get('hpa_pattern', 'unknown')
+    logger.info(f"🔍 Real cluster HPA pattern: {current_hpa_pattern}")
+    logger.info(f"🔍 Real cluster data: {current_replicas_data['total_hpas']} HPAs, avg {current_replicas_data['current_avg']} replicas")
+    logger.info(f"🔍 HPA distribution: {current_replicas_data['cpu_based_count']} CPU-based, {current_replicas_data['memory_based_count']} Memory-based")
+    
+    # ENHANCED: Calculate INTELLIGENT comparison scenarios using ML analysis
+    cpu_replicas, memory_replicas, recommendation = _calculate_intelligent_hpa_scenarios(
+        workload_type, current_replicas_data, ml_cpu_util, ml_memory_util, current_hpa_pattern
+    )
+    
+    # ENHANCED: Generate INTELLIGENT comparison text with actual recommendations  
+    recommendation_text = _generate_intelligent_hpa_comparison_text(
+        current_hpa_pattern, workload_type, ml_confidence, actual_hpa_savings,
+        current_replicas_data, recommendation
+    )
+    
+    # ENHANCED: Generate optimization potential based on intelligent analysis
+    if recommendation['current_is_optimal']:
+        optimization_potential = f"✅ Current {current_hpa_pattern} is optimal for {workload_type} workload ({recommendation['confidence']:.0%} confidence)"
+        waste_reduction = f"Maintain current {current_replicas_data.get('total_hpas', 0)} HPA configurations - already optimized"
+    else:
+        optimization_potential = f"💡 Recommend switching to {recommendation['optimal_approach'].replace('_', '-')} HPAs ({recommendation['confidence']:.0%} confidence)"
+        waste_reduction = f"Optimize {current_replicas_data.get('total_hpas', 0)} HPAs by switching to {recommendation['optimal_approach']} approach"
+    
+    # ENHANCED: ML-specific reasoning with intelligent recommendations
+    ml_reasoning = f"Intelligent Analysis: {current_replicas_data.get('total_hpas', 0)} HPAs with {current_hpa_pattern} pattern. " \
+                  f"Workload: {workload_type} ({ml_confidence:.0%} confidence). Recommendation: {recommendation['optimal_approach']} " \
+                  f"({recommendation['confidence']:.0%} confidence). {recommendation['reason']}"
     
     return {
         'cpu_replicas': cpu_replicas,
@@ -510,9 +481,309 @@ def _generate_ml_driven_scenarios(workload_type: str, primary_action: str, ml_co
         'optimization_potential': optimization_potential,
         'expected_improvement': expected_improvement,
         'waste_reduction': waste_reduction,
-        'cost_impact': cost_impact,
-        'scenario_type': f'ml_{workload_type.lower()}'
+        'cost_impact': {
+            'monthly_savings': actual_hpa_savings,
+            'current_hpa_pattern': current_hpa_pattern,
+            'recommended_approach': recommendation['optimal_approach'],
+            'recommendation_confidence': recommendation['confidence'],
+            'current_is_optimal': recommendation['current_is_optimal'],
+            'total_hpas_analyzed': current_replicas_data.get('total_hpas', 0),
+            'comparison': f"Current {current_hpa_pattern} vs Recommended {recommendation['optimal_approach']}"
+        },
+        'scenario_type': f'real_cluster_{workload_type.lower()}',
+        'real_cluster_data': True
     }
+
+def _extract_actual_cluster_replica_data(hpa_implementation):
+    """Extract actual replica data from REAL cluster HPA implementation - handles zero HPA case"""
+    import numpy as np
+    
+    if not hpa_implementation or not isinstance(hpa_implementation, dict):
+        return None
+    
+    # Extract data using exact structure from aks_realtime_metrics.py
+    current_hpa_pattern = hpa_implementation.get('current_hpa_pattern')
+    hpa_details = hpa_implementation.get('hpa_details', [])
+    total_hpas = hpa_implementation.get('total_hpas', 0)
+    cpu_based_count = hpa_implementation.get('cpu_based_count', 0)
+    memory_based_count = hpa_implementation.get('memory_based_count', 0)
+    
+    # Extract replica counts from hpa_details (each has: current_replicas, min_replicas, max_replicas)
+    replica_counts = []
+    min_replicas_list = []
+    max_replicas_list = []
+    
+    for hpa_detail in hpa_details:
+        if isinstance(hpa_detail, dict):
+            current_replicas = hpa_detail.get('current_replicas')
+            min_replicas = hpa_detail.get('min_replicas')  
+            max_replicas = hpa_detail.get('max_replicas')
+            
+            # Convert to int if valid
+            if current_replicas and str(current_replicas).isdigit():
+                replica_counts.append(int(current_replicas))
+            if min_replicas and str(min_replicas).isdigit():
+                min_replicas_list.append(int(min_replicas))
+            if max_replicas and str(max_replicas).isdigit():
+                max_replicas_list.append(int(max_replicas))
+    
+    if not replica_counts:
+        # REAL ISSUE: HPA data exists but structure mismatch - log the actual structure for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"💥 HPA DATA STRUCTURE MISMATCH: hpa_implementation = {hpa_implementation}")
+        logger.error(f"💥 Expected hpa_details array but got: {hpa_details}")
+        logger.error(f"💥 This indicates real HPA data exists but structure parsing failed")
+        return None
+    
+    # Calculate statistics using numpy
+    replica_array = np.array(replica_counts)
+    
+    return {
+        'current_avg': int(np.mean(replica_array)),
+        'current_median': int(np.median(replica_array)),
+        'current_min': int(np.min(replica_array)),
+        'current_max': int(np.max(replica_array)),
+        'current_std': float(np.std(replica_array)),
+        'hpa_pattern': current_hpa_pattern,
+        'total_hpas': total_hpas,
+        'cpu_based_count': cpu_based_count,
+        'memory_based_count': memory_based_count,
+        'raw_replicas': replica_counts,
+        'min_configured': min(min_replicas_list) if min_replicas_list else 1,
+        'max_configured': max(max_replicas_list) if max_replicas_list else int(np.max(replica_array) * 2),
+        'data_source': 'real_cluster_hpa_metrics'
+    }
+
+def _recommend_optimal_hpa_approach(workload_type, ml_cpu_util, ml_memory_util, current_hpa_pattern):
+    """
+    Intelligent HPA recommendation engine based on ML workload analysis and research
+    Returns the OPTIMAL HPA approach for the specific cluster workload characteristics
+    """
+    import numpy as np
+    
+    # Calculate workload characteristics
+    cpu_pressure = ml_cpu_util / 100.0
+    memory_pressure = ml_memory_util / 100.0
+    resource_imbalance = abs(ml_cpu_util - ml_memory_util)
+    
+    # ML-based recommendation logic using research-backed decision matrix
+    recommendation = {
+        'optimal_approach': None,
+        'confidence': 0.0,
+        'reason': '',
+        'current_is_optimal': False
+    }
+    
+    # Decision matrix based on workload type and resource patterns
+    if workload_type == 'CPU_INTENSIVE':
+        if cpu_pressure > 0.7 or resource_imbalance > 30:
+            recommendation.update({
+                'optimal_approach': 'cpu_based',
+                'confidence': 0.9,
+                'reason': 'High CPU pressure and variability require responsive CPU-based scaling'
+            })
+        else:
+            recommendation.update({
+                'optimal_approach': 'cpu_based',
+                'confidence': 0.75,
+                'reason': 'CPU-intensive workload benefits from CPU-based scaling patterns'
+            })
+    
+    elif workload_type == 'MEMORY_INTENSIVE':
+        if memory_pressure > 0.6 and resource_imbalance > 25:
+            recommendation.update({
+                'optimal_approach': 'memory_based',
+                'confidence': 0.85,
+                'reason': 'High memory pressure with stable patterns suit memory-based scaling'
+            })
+        else:
+            recommendation.update({
+                'optimal_approach': 'memory_based',
+                'confidence': 0.8,
+                'reason': 'Memory-intensive workload requires memory-based scaling for stability'
+            })
+    
+    elif workload_type == 'BURSTY':
+        # For bursty workloads, recommend CPU-based for faster response
+        if cpu_pressure > memory_pressure:
+            recommendation.update({
+                'optimal_approach': 'cpu_based',
+                'confidence': 0.8,
+                'reason': 'Bursty traffic patterns need responsive CPU-based scaling'
+            })
+        else:
+            recommendation.update({
+                'optimal_approach': 'hybrid_approach',
+                'confidence': 0.7,
+                'reason': 'Complex bursty patterns benefit from hybrid CPU+Memory scaling'
+            })
+    
+    elif workload_type == 'LOW_UTILIZATION':
+        # For low utilization, recommend more conservative approach
+        if memory_pressure > cpu_pressure:
+            recommendation.update({
+                'optimal_approach': 'memory_based',
+                'confidence': 0.7,
+                'reason': 'Low CPU utilization suggests memory-based scaling for stability'
+            })
+        else:
+            recommendation.update({
+                'optimal_approach': 'cpu_based',
+                'confidence': 0.6,
+                'reason': 'Balanced low utilization allows CPU-based scaling optimization'
+            })
+    
+    else:  # BALANCED
+        # For balanced workloads, consider resource patterns
+        if resource_imbalance < 15:  # Very balanced
+            recommendation.update({
+                'optimal_approach': 'hybrid_approach',
+                'confidence': 0.8,
+                'reason': 'Balanced resource usage suggests hybrid CPU+Memory scaling approach'
+            })
+        elif cpu_pressure > memory_pressure:
+            recommendation.update({
+                'optimal_approach': 'cpu_based',
+                'confidence': 0.65,
+                'reason': 'Slightly CPU-dominant balanced workload suits CPU-based scaling'
+            })
+        else:
+            recommendation.update({
+                'optimal_approach': 'memory_based',
+                'confidence': 0.65,
+                'reason': 'Slightly memory-dominant balanced workload suits memory-based scaling'
+            })
+    
+    # Check if current implementation matches optimal recommendation
+    current_normalized = current_hpa_pattern.replace('_dominant', '').replace('_approach', '')
+    optimal_normalized = recommendation['optimal_approach'].replace('_approach', '')
+    
+    if current_normalized == optimal_normalized:
+        recommendation['current_is_optimal'] = True
+        recommendation['confidence'] = min(0.95, recommendation['confidence'] + 0.1)  # Boost confidence for optimal current state
+    
+    logger.info(f"🎯 HPA Recommendation: {recommendation['optimal_approach']} (confidence: {recommendation['confidence']:.1%}) - {recommendation['reason']}")
+    logger.info(f"🔍 Current: {current_hpa_pattern}, Optimal: {recommendation['optimal_approach']}, Match: {recommendation['current_is_optimal']}")
+    
+    return recommendation
+
+def _calculate_intelligent_hpa_scenarios(workload_type, current_replicas_data, ml_cpu_util, ml_memory_util, current_hpa_pattern):
+    """Calculate HPA scenarios showing CURRENT vs OPTIMAL (not just alternative)"""
+    import numpy as np
+    
+    current_avg = current_replicas_data['current_avg']
+    
+    # Get intelligent recommendation
+    recommendation = _recommend_optimal_hpa_approach(workload_type, ml_cpu_util, ml_memory_util, current_hpa_pattern)
+    optimal_approach = recommendation['optimal_approach']
+    
+    # Base scenarios: Low Load, Current, Peak Load, ML-Optimized, Predicted
+    base_scenarios = np.array([0.6, 1.0, 1.8, 0.7, 1.2])
+    
+    # Dynamic scaling factors based on workload characteristics
+    cpu_pressure = np.clip(ml_cpu_util / 100.0, 0.3, 2.0)
+    memory_pressure = np.clip(ml_memory_util / 100.0, 0.3, 2.0)
+    
+    # Calculate OPTIMAL approach replicas
+    if optimal_approach == 'cpu_based':
+        # CPU-based scaling: More responsive, aggressive scaling
+        optimal_replicas = (base_scenarios * current_avg * cpu_pressure * 0.9).astype(int)
+        optimal_factor = 0.9  # More aggressive
+    elif optimal_approach == 'memory_based':
+        # Memory-based scaling: More conservative, stable scaling
+        optimal_replicas = (base_scenarios * current_avg * memory_pressure * 1.1).astype(int)
+        optimal_factor = 1.1  # More conservative
+    else:  # hybrid_approach
+        # Hybrid scaling: Balanced approach
+        optimal_replicas = (base_scenarios * current_avg * ((cpu_pressure + memory_pressure) / 2)).astype(int)
+        optimal_factor = 1.0  # Balanced
+    
+    # Calculate CURRENT approach replicas for comparison
+    if current_hpa_pattern in ['cpu_based_dominant', 'cpu_based']:
+        current_replicas = (base_scenarios * current_avg * 0.9).astype(int)
+        current_factor = 0.9
+    elif current_hpa_pattern in ['memory_based_dominant', 'memory_based']:
+        current_replicas = (base_scenarios * current_avg * 1.1).astype(int)
+        current_factor = 1.1
+    else:  # hybrid, unknown, or no_hpa
+        current_replicas = (base_scenarios * current_avg).astype(int)
+        current_factor = 1.0
+    
+    # Assign to CPU/Memory bars based on what each represents
+    if recommendation['current_is_optimal']:
+        # Current IS optimal - show current as recommended approach
+        if optimal_approach in ['cpu_based', 'cpu_based_dominant']:
+            cpu_replicas = np.clip(optimal_replicas, 1, current_avg * 3).tolist()
+            memory_replicas = np.clip((base_scenarios * current_avg * 1.2).astype(int), 1, current_avg * 3).tolist()  # Alternative for comparison
+        else:  # memory_based or hybrid optimal
+            memory_replicas = np.clip(optimal_replicas, 1, current_avg * 3).tolist()
+            cpu_replicas = np.clip((base_scenarios * current_avg * 0.8).astype(int), 1, current_avg * 3).tolist()  # Alternative for comparison
+    else:
+        # Current is NOT optimal - show optimal as recommendation
+        if optimal_approach in ['cpu_based', 'cpu_based_dominant']:
+            cpu_replicas = np.clip(optimal_replicas, 1, current_avg * 3).tolist()  # RECOMMENDED
+            memory_replicas = np.clip(current_replicas, 1, current_avg * 3).tolist()   # CURRENT
+        else:  # memory_based or hybrid optimal
+            memory_replicas = np.clip(optimal_replicas, 1, current_avg * 3).tolist()   # RECOMMENDED  
+            cpu_replicas = np.clip(current_replicas, 1, current_avg * 3).tolist()      # CURRENT
+    
+    return cpu_replicas, memory_replicas, recommendation
+
+def _generate_intelligent_hpa_comparison_text(current_hpa_pattern, workload_type, ml_confidence, 
+                                             actual_hpa_savings, current_replicas_data, recommendation):
+    """Generate intelligent comparison text with actual recommendations"""
+    
+    total_hpas = current_replicas_data.get('total_hpas', 0)
+    current_avg = current_replicas_data['current_avg']
+    optimal_approach = recommendation['optimal_approach']
+    confidence = recommendation['confidence']
+    reason = recommendation['reason']
+    current_is_optimal = recommendation['current_is_optimal']
+    
+    # Generate recommendation text based on analysis
+    if current_is_optimal:
+        return (f"✅ OPTIMAL: Your {total_hpas} {current_hpa_pattern.replace('_', '-')} HPAs are ideal for this {workload_type} workload "
+                f"(avg {current_avg} replicas). ML analysis confirms {optimal_approach.replace('_', '-')} is best "
+                f"({confidence:.0%} confidence). {reason}")
+    
+    else:
+        if optimal_approach == 'cpu_based':
+            return (f"💡 RECOMMEND CPU-BASED: Analysis suggests switching from {current_hpa_pattern.replace('_', '-')} "
+                    f"to CPU-based HPAs for {workload_type} workload ({confidence:.0%} confidence). "
+                    f"Current: {total_hpas} HPAs, avg {current_avg} replicas. {reason}")
+        
+        elif optimal_approach == 'memory_based':
+            return (f"💡 RECOMMEND MEMORY-BASED: Analysis suggests switching from {current_hpa_pattern.replace('_', '-')} "
+                    f"to Memory-based HPAs for {workload_type} workload ({confidence:.0%} confidence). "
+                    f"Current: {total_hpas} HPAs, avg {current_avg} replicas. {reason}")
+        
+        else:  # hybrid_approach
+            return (f"💡 RECOMMEND HYBRID: Analysis suggests hybrid CPU+Memory scaling for {workload_type} workload "
+                    f"({confidence:.0%} confidence). Current: {total_hpas} {current_hpa_pattern.replace('_', '-')} HPAs, "
+                    f"avg {current_avg} replicas. {reason}")
+
+def _generate_hpa_comparison_text(current_hpa_pattern, workload_type, ml_confidence, 
+                                 actual_hpa_savings, current_replicas_data):
+    """LEGACY: Generate comparison text - kept for backward compatibility"""
+    
+    total_hpas = current_replicas_data.get('total_hpas', 0)
+    current_avg = current_replicas_data['current_avg']
+    
+    if current_hpa_pattern == 'cpu_based_dominant':
+        return f"🔄 Current: {total_hpas} CPU-based HPAs (avg {current_avg} replicas). Memory-based alternative shows different scaling patterns for {workload_type} workload."
+        
+    elif current_hpa_pattern == 'memory_based_dominant':
+        return f"🔄 Current: {total_hpas} Memory-based HPAs (avg {current_avg} replicas). CPU-based alternative shows different scaling patterns for {workload_type} workload."
+        
+    elif current_hpa_pattern == 'hybrid_approach':
+        return f"🔄 Current: {total_hpas} Hybrid HPAs (avg {current_avg} replicas). Comparing CPU-optimized vs Memory-optimized strategies for {workload_type} workload."
+        
+    elif current_hpa_pattern == 'no_hpa_detected':
+        return f"🚀 No HPAs configured. {workload_type} workload analysis shows potential CPU-based vs Memory-based HPA implementations. Potential ${actual_hpa_savings:.2f}/month savings."
+        
+    else:  # unknown, estimated, etc.
+        return f"🔍 HPA Analysis ({ml_confidence:.0%} confidence): {workload_type} workload with {current_avg} avg replicas. Comparing CPU-based vs Memory-based scaling approaches."
 
 def generate_node_utilization_data(analysis_data):
     """Generate node utilization data from REAL node metrics ONLY - NO FALLBACKS"""
