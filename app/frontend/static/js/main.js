@@ -110,6 +110,9 @@ function setupKeyboardShortcuts() {
 /**
  * ✅  Enhanced tab switching with guaranteed module loading
  */
+// Add flag to prevent concurrent operations
+let isChartOperationInProgress = false;
+
 function setupTabHandlers() {
     const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');
     
@@ -121,21 +124,43 @@ function setupTabHandlers() {
             // Handle specific tab activations
             if (tabId === '#dashboard') {
                 setTimeout(() => {
+                    // Check if chart operation is already in progress
+                    if (isChartOperationInProgress) {
+                        console.log('⚠️ Chart operation in progress, skipping...');
+                        return;
+                    }
+                    
+                    // Set flag to prevent concurrent operations
+                    isChartOperationInProgress = true;
                     console.log('🔄 Dashboard tab - initializing charts...');
+                    
+                    // Destroy existing charts first to prevent memory leaks
+                    if (typeof destroyAllCharts === 'function') {
+                        console.log('🧹 Destroying existing charts...');
+                        destroyAllCharts();
+                    }
+                    
+                    // Initialize new charts
                     if (typeof initializeCharts === 'function') {
+                        console.log('📊 Initializing new charts...');
                         initializeCharts();
                     } else {
                         console.error('❌ initializeCharts function not available');
                     }
+                    
+                    // Reset flag after operation completes
+                    setTimeout(() => {
+                        isChartOperationInProgress = false;
+                        console.log('✅ Chart operation completed');
+                    }, 3000);
                 }, 200);
                 
             } else if (tabId === '#implementation') {
                 console.log('🔄 Implementation tab activated - loading plan...');
-                
                 setTimeout(() => {
                     console.log('🔄 Attempting to load implementation plan...');
                     
-                    // ✅  Use the imported function directly first
+                    // Try to load implementation plan with multiple fallbacks
                     try {
                         if (typeof loadImplementationPlan === 'function') {
                             console.log('✅ Using imported loadImplementationPlan');
@@ -153,10 +178,59 @@ function setupTabHandlers() {
                     }
                 }, 200);
             }
+            
+            // Add more tab handlers here as needed
+            // Example:
+            // else if (tabId === '#analytics') {
+            //     setTimeout(() => {
+            //         console.log('📈 Analytics tab activated');
+            //         if (typeof loadAnalytics === 'function') {
+            //             loadAnalytics();
+            //         }
+            //     }, 200);
+            // }
         });
     });
     
     console.log('✅ Tab handlers setup complete');
+}
+
+// Fallback function for implementation tab
+// function showImplementationFallback() {
+//     console.log('📋 Showing implementation fallback content');
+//     const implementationContainer = document.querySelector('#implementation .container');
+    
+//     if (implementationContainer) {
+//         implementationContainer.innerHTML = `
+//             <div class="alert alert-info" role="alert">
+//                 <h4 class="alert-heading">Implementation Plan</h4>
+//                 <p>The implementation plan is currently being loaded. Please refresh if this message persists.</p>
+//                 <hr>
+//                 <p class="mb-0">If you continue to experience issues, please contact support.</p>
+//             </div>
+//         `;
+//     }
+// }
+
+// Helper function to manually reset chart operation flag if needed
+function resetChartOperationFlag() {
+    isChartOperationInProgress = false;
+    console.log('🔄 Chart operation flag manually reset');
+}
+
+// Helper function to check if charts are currently being operated on
+function isChartBusy() {
+    return isChartOperationInProgress;
+}
+
+// Export functions if using modules
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        setupTabHandlers,
+        showImplementationFallback,
+        resetChartOperationFlag,
+        isChartBusy
+    };
 }
 
 /**
@@ -221,10 +295,28 @@ function forceLoadImplementationPlan() {
 function setupErrorHandling() {
     // Global error handler
     window.addEventListener('error', (event) => {
-        console.error('🚨 Global error:', event.error);
+        // Handle cases where event.error might be null
+        const error = event.error || { message: event.message || 'Unknown error', name: 'UnknownError' };
+        console.error('🚨 Global error:', error);
+        
+        // Special handling for Chart.js errors
+        if (event.message && event.message.includes('_resolveAnimations')) {
+            console.warn('⚠️ Chart.js animation error detected - chart instance issue');
+            return; // Don't show notification for this known issue
+        }
+        
+        // Check if it's a Chart.js related error
+        if (error.stack && error.stack.includes('chart.js')) {
+            console.warn('⚠️ Chart.js error detected, attempting recovery...');
+            // Try to clean up chart instances
+            if (window.destroyAllCharts) {
+                window.destroyAllCharts();
+            }
+            return; // Don't show notification
+        }
         
         // Don't show notifications for minor script errors
-        if (event.error && event.error.name !== 'TypeError') {
+        if (error && error.name !== 'TypeError' && error.message !== 'Unknown error') {
             showNotification('An unexpected error occurred. Please refresh the page.', 'error');
         }
     });

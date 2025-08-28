@@ -1589,7 +1589,7 @@ position: relative;
 }
 
 .enhanced-phase-header {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.04)) !important;
+    background: linear-gradient(135deg, rgb(66 78 121), rgba(245, 158, 11, 0.04)) !important;
     padding: 1.5rem !important;
     cursor: pointer !important;
     transition: all 0.3s ease !important;
@@ -1597,7 +1597,7 @@ position: relative;
 }
 
 .enhanced-phase-header:hover {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.08)) !important;
+    background: linear-gradient(135deg, rgba(41, 39, 49, 0.12), rgba(245, 158, 11, 0.08)) !important;
 }
 
 /* Phase Title and Meta */

@@ -10,6 +10,51 @@ import { AppState, AppConfig } from './config.js';
 import { showNotification } from './notifications.js';
 import { getChartColors, formatValue, calculateOptimizationScore, getAccuracyBadgeClass } from './utils.js';
 
+// Enhanced chart instance management with safety checks
+window.chartInstances = window.chartInstances || {};
+
+// Safe chart destruction function
+function safeDestroyChart(chartId) {
+    try {
+        const chart = window.chartInstances[chartId] || AppState.chartInstances[chartId];
+        if (chart && typeof chart.destroy === 'function') {
+            // Stop any animations first
+            if (chart.options && chart.options.animation) {
+                chart.options.animation.duration = 0;
+            }
+            chart.destroy();
+            delete window.chartInstances[chartId];
+            delete AppState.chartInstances[chartId];
+            
+            // Clear the canvas
+            const canvas = document.getElementById(chartId);
+            if (canvas && canvas.getContext) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+    } catch (error) {
+        console.warn(`Failed to destroy chart ${chartId}:`, error);
+    }
+}
+
+// Enhanced destroy all charts function
+export function destroyAllCharts() {
+    const chartIds = [
+        'mainTrendChart', 'costBreakdownChart', 'hpaComparisonChart', 
+        'nodeUtilizationChart', 'savingsBreakdownChart', 'savingsProjectionChart',
+        'namespaceCostChart', 'workloadCostChart'
+    ];
+    
+    chartIds.forEach(id => {
+        safeDestroyChart(id);
+    });
+    
+    // Clear both storage locations
+    window.chartInstances = {};
+    AppState.chartInstances = {};
+}
+
 // Enhanced global cluster state with CPU metrics
 window.currentClusterState = {
     clusterId: null,
@@ -115,13 +160,30 @@ export function makeClusterAwareAPICall(endpoint, options = {}) {
 /**
  * Initialize charts with comprehensive CPU data handling and cluster isolation
  */
+
+let chartInitTimer = null;
+
 export function initializeCharts() {
     console.log('📊 Initializing enhanced charts with CPU workload analysis and cluster isolation...');
     
+    if (chartInitTimer) {
+        clearTimeout(chartInitTimer);
+    }
+    
+    // Debounce to prevent rapid re-initialization
+    chartInitTimer = setTimeout(() => {
+        actualInitializeCharts();
+    }, 100);
+}
+
+function actualInitializeCharts() {
     if (!validateClusterContext('initializeCharts')) {
         console.error('❌ BLOCKED: initializeCharts - invalid cluster context');
         return;
     }
+    
+    // Destroy all existing charts first
+    destroyAllCharts();
     
     makeClusterAwareAPICall('/api/chart-data')
         .then(response => {
@@ -448,7 +510,8 @@ function createCPUMetricsDisplay(cpuMetrics) {
     const maxCPU = cpuMetrics.max_cpu_utilization || 0;
     const highCpuCount = cpuMetrics.high_cpu_count || 0;
     const severityLevel = cpuMetrics.severity_level || 'none';
-    const efficiencyScore = getEfficiencyScore(avgCPU, maxCPU);
+    // Use backend-calculated efficiency instead of frontend calculation
+    const efficiencyScore = Math.round(cpuMetrics.cpu_efficiency || getEfficiencyScore(avgCPU, maxCPU));
     
     // Determine status styling
     const statusConfig = getCPUStatusConfig(hasHighCPU, severityLevel, maxCPU);
@@ -838,7 +901,7 @@ export function createAllChartsWithCPU(data) {
         }
         
         if (data.hpaComparison) {
-            createEnhancedHPAComparisonChart(data.hpaComparison, isRealData);
+            createHPAComparisonChart(data.hpaComparison, isRealData);
         }
         
         if (data.nodeUtilization) {
@@ -885,7 +948,7 @@ export function createAllChartsWithCPU(data) {
 /**
  * Create HPA comparison chart with better CPU integration
  */
-export function createEnhancedHPAComparisonChart(data, isRealData) {
+export function createHPAComparisonChart(data, isRealData) {
     const canvas = document.getElementById('hpaComparisonChart');
     if (!canvas) return;
 
@@ -903,8 +966,8 @@ export function createEnhancedHPAComparisonChart(data, isRealData) {
     }
 
     // Modern color scheme - Purple and Coral/Orange
-    const cpuGradient = createBarGradient('rgba(123, 97, 255, 0.4)', 'rgba(123, 97, 255, 0.9)');
-    const memoryGradient = createBarGradient('rgba(255, 138, 101, 0.4)', 'rgba(255, 138, 101, 0.9)');
+    const cpuGradient = createBarGradient('rgba(97, 255, 200, 0.36)', 'rgba(97, 255, 226, 0.9)');
+    const memoryGradient = createBarGradient('rgba(173, 255, 101, 0.4)', 'rgba(178, 255, 101, 0.9)');
 
     // Enhanced chart configuration with modern look
     const config = {
@@ -972,8 +1035,8 @@ export function createEnhancedHPAComparisonChart(data, isRealData) {
                     
                     // ML badge with modern gradient
                     const mlGradient = ctx.createLinearGradient(mlX, mlY, mlX + 120, mlY);
-                    mlGradient.addColorStop(0, 'rgba(123, 97, 255, 0.8)');
-                    mlGradient.addColorStop(1, 'rgba(100, 80, 220, 0.8)');
+                    mlGradient.addColorStop(0, 'rgba(97, 255, 155, 0.8)');
+                    mlGradient.addColorStop(1, 'rgba(80, 220, 187, 0.8)');
                     
                     ctx.fillStyle = mlGradient;
                     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
@@ -1003,7 +1066,7 @@ export function createEnhancedHPAComparisonChart(data, isRealData) {
                     const savingsX = chartArea.left + (chartArea.right - chartArea.left) / 2;
                     const savingsY = canvas.height - 10; // Position near bottom of canvas
                     
-                    ctx.fillStyle = 'rgba(255, 138, 101, 0.9)';
+                    ctx.fillStyle = 'rgba(101, 255, 119, 0.9)';
                     ctx.font = '600 12px Arial';
                     ctx.textAlign = 'center';
                     ctx.fillText(`💰 Potential Monthly Savings: $${data.actual_hpa_savings.toFixed(2)}`, savingsX, savingsY);
@@ -1019,11 +1082,11 @@ export function createEnhancedHPAComparisonChart(data, isRealData) {
                     label: 'CPU-based HPA',
                     data: data.cpuReplicas || [],
                     backgroundColor: cpuGradient,
-                    borderColor: '#7B61FF',
+                    borderColor: '#61ffc8ff',
                     borderWidth: 2,
                     borderRadius: 8,
                     borderSkipped: false,
-                    hoverBackgroundColor: 'rgba(123, 97, 255, 0.95)',
+                    hoverBackgroundColor: 'rgba(97, 255, 229, 0.95)',
                     hoverBorderWidth: 3,
                     barPercentage: 0.7,
                     categoryPercentage: 0.8
@@ -1032,11 +1095,11 @@ export function createEnhancedHPAComparisonChart(data, isRealData) {
                     label: 'Memory-based HPA',
                     data: data.memoryReplicas || [],
                     backgroundColor: memoryGradient,
-                    borderColor: '#FF8A65',
+                    borderColor: '#65ff74ff',
                     borderWidth: 2,
                     borderRadius: 8,
                     borderSkipped: false,
-                    hoverBackgroundColor: 'rgba(255, 138, 101, 0.95)',
+                    hoverBackgroundColor: 'rgba(106, 255, 101, 0.95)',
                     hoverBorderWidth: 3,
                     barPercentage: 0.7,
                     categoryPercentage: 0.8
@@ -1208,9 +1271,8 @@ export function createEnhancedHPAComparisonChart(data, isRealData) {
     };
 
     // Destroy existing chart if it exists
-    if (AppState.chartInstances['hpaComparisonChart']) {
-        AppState.chartInstances['hpaComparisonChart'].destroy();
-    }
+    // Safely destroy existing chart
+    safeDestroyChart('hpaComparisonChart');
 
     AppState.chartInstances['hpaComparisonChart'] = new Chart(ctx, config);
     
@@ -1631,9 +1693,7 @@ export function createNodeUtilizationChart(data, isRealData) {
     };
 
     // Destroy existing chart if it exists
-    if (AppState.chartInstances['nodeUtilizationChart']) {
-        AppState.chartInstances['nodeUtilizationChart'].destroy();
-    }
+    safeDestroyChart('nodeUtilizationChart');
 
     AppState.chartInstances['nodeUtilizationChart'] = new Chart(ctx, config);
     console.log('✅ Enhanced node utilization chart created successfully');
@@ -1973,21 +2033,21 @@ function updatePodCostMetrics(data) {
 /**
  * Destroys all existing chart instances
  */
-export function destroyAllCharts() {
-    const chartIds = [
-        'mainTrendChart', 'costBreakdownChart', 'hpaComparisonChart', 
-        'nodeUtilizationChart', 'savingsBreakdownChart', 'savingsProjectionChart',
-        'namespaceCostChart', 'workloadCostChart'
-    ];
+// export function destroyAllCharts() {
+//     const chartIds = [
+//         'mainTrendChart', 'costBreakdownChart', 'hpaComparisonChart', 
+//         'nodeUtilizationChart', 'savingsBreakdownChart', 'savingsProjectionChart',
+//         'namespaceCostChart', 'workloadCostChart'
+//     ];
     
-    chartIds.forEach(id => {
-        const canvas = document.getElementById(id);
-        if (canvas && AppState.chartInstances[id]) {
-            AppState.chartInstances[id].destroy();
-            delete AppState.chartInstances[id];
-        }
-    });
-}
+//     chartIds.forEach(id => {
+//         const canvas = document.getElementById(id);
+//         if (canvas && AppState.chartInstances[id]) {
+//             AppState.chartInstances[id].destroy();
+//             delete AppState.chartInstances[id];
+//         }
+//     });
+// }
 
 /**
  * Creates cost breakdown chart
@@ -2210,9 +2270,7 @@ export function createCostBreakdownChart(data, isRealData) {
     };
 
     // Destroy existing chart
-    if (AppState.chartInstances['costBreakdownChart']) {
-        AppState.chartInstances['costBreakdownChart'].destroy();
-    }
+    safeDestroyChart('costBreakdownChart');
 
     AppState.chartInstances['costBreakdownChart'] = new Chart(ctx, config);
     
@@ -2521,9 +2579,7 @@ export function createMainTrendChart(data, isRealData) {
     };
 
     // Destroy existing chart if it exists
-    if (AppState.chartInstances['mainTrendChart']) {
-        AppState.chartInstances['mainTrendChart'].destroy();
-    }
+    safeDestroyChart('mainTrendChart');
 
     AppState.chartInstances['mainTrendChart'] = new Chart(ctx, config);
     
@@ -2780,9 +2836,7 @@ export function createSavingsBreakdownChart(data, isRealData) {
     };
 
     // Destroy existing chart if it exists
-    if (AppState.chartInstances['savingsBreakdownChart']) {
-        AppState.chartInstances['savingsBreakdownChart'].destroy();
-    }
+    safeDestroyChart('savingsBreakdownChart');
 
     AppState.chartInstances['savingsBreakdownChart'] = new Chart(ctx, config);
     console.log('✅ Savings breakdown chart created successfully with animations');
@@ -3014,9 +3068,7 @@ export function createNamespaceCostChart(data) {
     };
 
     // Destroy existing chart
-    if (AppState.chartInstances['namespaceCostChart']) {
-        AppState.chartInstances['namespaceCostChart'].destroy();
-    }
+    safeDestroyChart('namespaceCostChart');
 
     AppState.chartInstances['namespaceCostChart'] = new Chart(ctx, config);
     
@@ -3341,9 +3393,7 @@ export function createWorkloadCostChart(data) {
     };
 
     // Destroy existing chart
-    if (AppState.chartInstances['workloadCostChart']) {
-        AppState.chartInstances['workloadCostChart'].destroy();
-    }
+    safeDestroyChart('workloadCostChart');
 
     AppState.chartInstances['workloadCostChart'] = new Chart(ctx, config);
     

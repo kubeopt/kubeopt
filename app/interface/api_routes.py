@@ -1394,7 +1394,8 @@ def extract_real_cpu_metrics(analysis_data):
             'average_cpu_utilization': 0.0,
             'severity_level': 'none',
             'high_cpu_workloads': [],
-            'cpu_analysis_available': False
+            'cpu_analysis_available': False,
+            'cpu_efficiency': 0.0
         }
         
     except Exception as e:
@@ -1406,7 +1407,8 @@ def extract_real_cpu_metrics(analysis_data):
             'average_cpu_utilization': 0.0,
             'severity_level': 'none',
             'high_cpu_workloads': [],
-            'cpu_analysis_available': False
+            'cpu_analysis_available': False,
+            'cpu_efficiency': 0.0
         }
 
 def generate_real_cost_breakdown_chart_data(analysis_data):
