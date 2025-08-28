@@ -1056,9 +1056,24 @@ class AKSRealTimeMetricsFetcher:
     def _calculate_cpu_efficiency(self, cpu_usage: float) -> float:
         """Calculate CPU efficiency score (optimal around 70%)"""
         optimal_cpu = 70
-        if cpu_usage <= optimal_cpu:
-            return cpu_usage / optimal_cpu
+        
+        if cpu_usage <= 0:
+            return 0.0
+        elif cpu_usage <= optimal_cpu:
+            # For normal/low CPU: Use improved scaling for better display values
+            # This gives more meaningful efficiency scores for normal usage
+            base_efficiency = cpu_usage / optimal_cpu
+            
+            # Apply a curve that makes normal CPU usage show reasonable efficiency
+            # For example: 35% CPU → ~75% efficiency instead of 50%
+            if cpu_usage <= 35:
+                # Lower usage gets boosted efficiency (well-optimized systems)
+                return min(1.0, base_efficiency * 1.5)
+            else:
+                # Near-optimal usage gets good efficiency
+                return base_efficiency
         else:
+            # For high CPU: Penalize over-utilization
             return max(0.1, optimal_cpu / cpu_usage)
 
     def _calculate_memory_efficiency(self, memory_usage: float) -> float:
@@ -2227,11 +2242,22 @@ class AKSRealTimeMetricsFetcher:
 
     def _calculate_utilization_efficiency(self, actual_util: float, target_util: float) -> float:
         """Calculate efficiency score for a utilization metric"""
-        if actual_util <= target_util:
-            return actual_util / target_util
+        if actual_util <= 0:
+            return 0.0
+        elif actual_util <= target_util:
+            # For normal/low utilization: Apply improved scaling
+            base_efficiency = actual_util / target_util
+            
+            # Boost efficiency for lower utilization (indicates good optimization)
+            # This makes normal CPU/memory usage show meaningful efficiency scores
+            if actual_util <= (target_util * 0.5):  # Less than half of target
+                return min(1.0, base_efficiency * 1.5)
+            else:
+                return base_efficiency
         else:
-            # Penalize over-utilization
-            return max(0.1, 1.0 - (actual_util - target_util) / target_util)
+            # Penalize over-utilization but not too harshly
+            penalty = (actual_util - target_util) / target_util
+            return max(0.1, 1.0 - (penalty * 0.6))
 
     def _convert_millicores_to_percentage(self, millicores: float) -> float:
         """Convert millicores to percentage (assuming 4-core nodes)"""
