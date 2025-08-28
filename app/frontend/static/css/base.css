@@ -20,9 +20,9 @@
     --spacing-3xl: 3rem;       /* 48px */
     
     /* GLASSMORPHISM COLORS */
-    --glass-bg-primary: #f8fafc;
-    --glass-bg-secondary: #f1f5f9;
-    --glass-bg-tertiary: #e2e8f0;
+    --glass-bg-primary: #171d33;
+    --glass-bg-secondary: #171d33;
+    --glass-bg-tertiary: #171d33;
     --glass-white: rgba(255, 255, 255, 0.25);
     --glass-white-strong: rgba(255, 255, 255, 0.4);
     --glass-white-light: rgba(255, 255, 255, 0.1);
@@ -172,7 +172,7 @@ html {
 
 body {
     font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: var(--glass-bg-primary);
+    background: #171d33;
     color: var(--text-primary);
     line-height: 1.5;
     min-height: 100vh;
@@ -546,7 +546,7 @@ p {
     border: none !important;
     padding: var(--spacing-xl) !important;
     font-weight: 600 !important;
-    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0 !important;
+    border-radius: 0 0 0 0 !important;
     position: relative;
     font-size: 1.1rem;
     letter-spacing: -0.01em;

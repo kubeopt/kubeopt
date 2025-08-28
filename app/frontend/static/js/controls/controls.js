@@ -146,7 +146,7 @@ class ProjectControlsManager {
                             <i class="fas fa-dollar-sign text-white text-sm"></i>
                         </div>
                         <div>
-                            <h4 class="text-lg font-semibold text-gray-900">Budget Management</h4>
+                            <h4 class="text-lg font-semibold text-gray-500">Budget Management</h4>
                             <p class="text-sm text-gray-500">Monitor and control cluster spending</p>
                         </div>
                     </div>
@@ -178,7 +178,7 @@ class ProjectControlsManager {
                             <i class="fas fa-shield-alt text-white text-sm"></i>
                         </div>
                         <div>
-                            <h4 class="text-lg font-semibold text-gray-900">Savings Protection</h4>
+                            <h4 class="text-lg font-semibold text-gray-500">Savings Protection</h4>
                             <p class="text-sm text-gray-500">Optimize costs and protect savings</p>
                         </div>
                     </div>
@@ -240,7 +240,7 @@ class ProjectControlsManager {
                                 <i class="fas fa-balance-scale text-white text-sm"></i>
                             </div>
                             <div>
-                                <h4 class="text-lg font-semibold text-gray-900">Governance Framework</h4>
+                                <h4 class="text-lg font-semibold text-gray-500">Governance Framework</h4>
                                 <p class="text-sm text-gray-500">Control and approval processes</p>
                             </div>
                         </div>
@@ -278,7 +278,7 @@ class ProjectControlsManager {
 
                 <!-- Change Management -->
                 <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
-                    <h5 class="text-base font-semibold text-gray-900 mb-4">Change Management</h5>
+                    <h5 class="text-base font-semibold text-gray-500 mb-4">Change Management</h5>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="flex items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
                             <div class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">
@@ -325,7 +325,7 @@ class ProjectControlsManager {
                             <i class="fas fa-chart-line text-white text-sm"></i>
                         </div>
                         <div>
-                            <h4 class="text-lg font-semibold text-gray-900">Monitoring Strategy</h4>
+                            <h4 class="text-lg font-semibold text-gray-500">Monitoring Strategy</h4>
                             <p class="text-sm text-gray-500">Real-time cluster monitoring and alerts</p>
                         </div>
                     </div>
@@ -359,7 +359,7 @@ class ProjectControlsManager {
 
                 <!-- Alert Configuration -->
                 <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
-                    <h5 class="text-base font-semibold text-gray-900 mb-4">Alert Configuration</h5>
+                    <h5 class="text-base font-semibold text-gray-500 mb-4">Alert Configuration</h5>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="flex items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
                             <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-4 ${alerting.cost_spike_alerts ? 'bg-green-100' : 'bg-red-100'}">
@@ -416,7 +416,7 @@ class ProjectControlsManager {
                             <i class="fas fa-exclamation-triangle text-white text-sm"></i>
                         </div>
                         <div>
-                            <h4 class="text-lg font-semibold text-gray-900">Risk Assessment</h4>
+                            <h4 class="text-lg font-semibold text-gray-500">Risk Assessment</h4>
                             <p class="text-sm text-gray-500">Identify and mitigate potential risks</p>
                         </div>
                     </div>
@@ -451,7 +451,7 @@ class ProjectControlsManager {
                 <!-- Risk Details -->
                 ${identifiedRisks.length > 0 ? `
                 <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
-                    <h5 class="text-base font-semibold text-gray-900 mb-4">Risk Details</h5>
+                    <h5 class="text-base font-semibold text-gray-500 mb-4">Risk Details</h5>
                     <div class="space-y-3 max-h-64 overflow-y-auto">
                         ${identifiedRisks.map(risk => `
                             <div class="flex items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
@@ -497,7 +497,7 @@ class ProjectControlsManager {
                             <i class="fas fa-life-ring text-white text-sm"></i>
                         </div>
                         <div>
-                            <h4 class="text-lg font-semibold text-gray-900">Contingency Planning</h4>
+                            <h4 class="text-lg font-semibold text-gray-500">Contingency Planning</h4>
                             <p class="text-sm text-gray-500">Emergency procedures and rollback plans</p>
                         </div>
                     </div>
@@ -532,7 +532,7 @@ class ProjectControlsManager {
                 <!-- Triggers -->
                 ${contingencyTriggers.length > 0 ? `
                 <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
-                    <h5 class="text-base font-semibold text-gray-900 mb-4">Contingency Triggers</h5>
+                    <h5 class="text-base font-semibold text-gray-500 mb-4">Contingency Triggers</h5>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         ${contingencyTriggers.map(trigger => `
                             <div class="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
@@ -569,7 +569,7 @@ class ProjectControlsManager {
                             <i class="fas fa-trophy text-white text-sm"></i>
                         </div>
                         <div>
-                            <h4 class="text-lg font-semibold text-gray-900">Success Criteria</h4>
+                            <h4 class="text-lg font-semibold text-gray-500">Success Criteria</h4>
                             <p class="text-sm text-gray-500">Measurable targets and goals</p>
                         </div>
                     </div>
@@ -603,7 +603,7 @@ class ProjectControlsManager {
 
                 <!-- Technical Targets -->
                 <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
-                    <h5 class="text-base font-semibold text-gray-900 mb-4">Technical Targets</h5>
+                    <h5 class="text-base font-semibold text-gray-500 mb-4">Technical Targets</h5>
                     <div class="space-y-3">
                         <div class="flex items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
                             <div class="w-10 h-10 rounded-lg flex items-center justify-center mr-4 ${technicalTargets.zero_downtime_during_implementation ? 'bg-green-100' : 'bg-gray-100'}">
@@ -655,7 +655,7 @@ class ProjectControlsManager {
                         <i class="fas fa-clock text-white text-sm"></i>
                     </div>
                     <div>
-                        <h4 class="text-lg font-semibold text-gray-900">Timeline Optimization</h4>
+                        <h4 class="text-lg font-semibold text-gray-500">Timeline Optimization</h4>
                         <p class="text-sm text-gray-500">Optimized implementation schedule</p>
                     </div>
                 </div>
@@ -710,7 +710,7 @@ class ProjectControlsManager {
                             <i class="fas fa-brain text-white text-sm"></i>
                         </div>
                         <div>
-                            <h4 class="text-lg font-semibold text-gray-900">Intelligence Insights</h4>
+                            <h4 class="text-lg font-semibold text-gray-500">Intelligence Insights</h4>
                             <p class="text-sm text-gray-500">AI-powered analysis and recommendations</p>
                         </div>
                     </div>
@@ -752,7 +752,7 @@ class ProjectControlsManager {
 
                 <!-- Recommendations -->
                 <div class="bg-white border border-gray-100 rounded-lg p-6 shadow-sm">
-                    <h5 class="text-base font-semibold text-gray-900 mb-4">AI Recommendations</h5>
+                    <h5 class="text-base font-semibold text-gray-500 mb-4">AI Recommendations</h5>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="flex items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
                             <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center mr-3 flex-shrink-0">

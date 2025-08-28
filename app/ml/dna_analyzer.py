@@ -329,19 +329,29 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
                         parsed_data = json.loads(cleaned_data)
                         logger.info("✅ RAW_DATA: Successfully parsed after cleaning")
                         return self._count_hpas_in_raw_data(parsed_data)
+                    except json.JSONDecodeError as e2:
+                        logger.warning(f"⚠️ RAW_DATA: Cleaning failed: {e2}")
                         
-                    except json.JSONDecodeError:
-                        # Try to manually count HPA objects in the string
-                        hpa_count = raw_data.count('"kind":"HorizontalPodAutoscaler"')
-                        if hpa_count == 0:
-                            hpa_count = raw_data.count('"kind": "HorizontalPodAutoscaler"')
-                        
-                        if hpa_count > 0:
-                            logger.info(f"🎯 RAW_DATA: Found {hpa_count} HPAs by string matching")
-                            return hpa_count
-                        else:
-                            logger.warning("⚠️ RAW_DATA: No HPAs found in string")
-                            return 0
+                        # Try to repair common JSON syntax issues
+                        try:
+                            repaired_data = self._attempt_json_repair(raw_data)
+                            parsed_data = json.loads(repaired_data)
+                            logger.info("✅ RAW_DATA: Successfully parsed after JSON repair")
+                            return self._count_hpas_in_raw_data(parsed_data)
+                        except json.JSONDecodeError as e3:
+                            logger.warning(f"⚠️ RAW_DATA: JSON repair failed: {e3}")
+                            
+                            # Final fallback: Try to manually count HPA objects in the string
+                            hpa_count = raw_data.count('"kind":"HorizontalPodAutoscaler"')
+                            if hpa_count == 0:
+                                hpa_count = raw_data.count('"kind": "HorizontalPodAutoscaler"')
+                            
+                            if hpa_count > 0:
+                                logger.info(f"🎯 RAW_DATA: Found {hpa_count} HPAs by string matching")
+                                return hpa_count
+                            else:
+                                logger.warning("⚠️ RAW_DATA: No HPAs found in string")
+                                return 0
             
             elif isinstance(raw_data, dict):
                 # Handle dict format
@@ -384,6 +394,43 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
             logger.error(f"❌ RAW_DATA counting failed: {e}")
             return 0
 
+    def _attempt_json_repair(self, json_string: str) -> str:
+        """
+        Attempt to repair common JSON syntax issues
+        """
+        try:
+            # Common fixes for malformed JSON
+            repaired = json_string
+            
+            # Fix 1: Add missing commas between objects/arrays
+            # This is a simplified repair - find common patterns where commas are missing
+            import re
+            
+            # Fix missing comma after } followed by {
+            repaired = re.sub(r'}\s*{', '},{', repaired)
+            
+            # Fix missing comma after ] followed by [
+            repaired = re.sub(r']\s*\[', '],[', repaired)
+            
+            # Fix missing comma after } followed by [
+            repaired = re.sub(r'}\s*\[', '},[', repaired)
+            
+            # Fix missing comma after ] followed by {
+            repaired = re.sub(r']\s*{', '],[', repaired)
+            
+            # Fix trailing commas (remove them)
+            repaired = re.sub(r',\s*}', '}', repaired)
+            repaired = re.sub(r',\s*]', ']', repaired)
+            
+            # Fix double quotes issues
+            repaired = re.sub(r'""', '"', repaired)
+            
+            logger.info("🔧 RAW_DATA: Applied basic JSON repair patterns")
+            return repaired
+            
+        except Exception as e:
+            logger.warning(f"⚠️ JSON repair failed: {e}")
+            return json_string
 
     def _search_for_hpas_in_config(self, config: dict) -> int:
         """

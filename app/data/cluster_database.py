@@ -32,7 +32,7 @@ def migrate_database_schema(db_path: str = '../data/database/clusters.db'):
             
             # Define required columns
             required_columns = {
-                'analysis_data': 'TEXT',
+                'analysis_data': 'BLOB',
                 'last_confidence': 'REAL DEFAULT 0'
             }
             
@@ -60,6 +60,118 @@ def migrate_database_schema(db_path: str = '../data/database/clusters.db'):
         logger.error(f"❌ Database migration failed: {e}")
         return False
 
+def migrate_analysis_data_to_blob(db_path: str = '../data/database/clusters.db'):
+    """Migrate analysis_data column from TEXT to BLOB to handle large JSON data"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Check if analysis_data column exists and get its type
+            cursor.execute("PRAGMA table_info(clusters)")
+            columns = {row[1]: row[2] for row in cursor.fetchall()}
+            
+            if 'analysis_data' in columns:
+                current_type = columns['analysis_data']
+                logger.info(f"Current analysis_data column type: {current_type}")
+                
+                if current_type.upper() == 'TEXT':
+                    logger.info("🔧 Migrating analysis_data from TEXT to BLOB for large JSON support...")
+                    
+                    # SQLite doesn't support ALTER COLUMN TYPE, so we need to recreate
+                    # First, backup the data
+                    cursor.execute("SELECT id, analysis_data FROM clusters WHERE analysis_data IS NOT NULL")
+                    data_backup = cursor.fetchall()
+                    logger.info(f"📦 Backing up {len(data_backup)} analysis records")
+                    
+                    # Create new column as BLOB
+                    cursor.execute("ALTER TABLE clusters ADD COLUMN analysis_data_blob BLOB")
+                    
+                    # Copy data from TEXT to BLOB
+                    for cluster_id, analysis_data in data_backup:
+                        if analysis_data:
+                            try:
+                                # Encode the JSON string as bytes for BLOB storage
+                                blob_data = analysis_data.encode('utf-8')
+                                cursor.execute(
+                                    "UPDATE clusters SET analysis_data_blob = ? WHERE id = ?",
+                                    (blob_data, cluster_id)
+                                )
+                                logger.debug(f"✅ Migrated analysis data for cluster {cluster_id} ({len(blob_data)} bytes)")
+                            except Exception as e:
+                                logger.error(f"❌ Failed to migrate data for cluster {cluster_id}: {e}")
+                    
+                    # Drop old TEXT column and rename BLOB column
+                    cursor.execute("PRAGMA foreign_keys=off")
+                    
+                    # Create new table with BLOB column
+                    cursor.execute("""
+                        CREATE TABLE clusters_new (
+                            id TEXT PRIMARY KEY,
+                            name TEXT NOT NULL,
+                            resource_group TEXT NOT NULL,
+                            environment TEXT DEFAULT 'development',
+                            region TEXT DEFAULT 'Unknown',
+                            description TEXT DEFAULT '',
+                            status TEXT DEFAULT 'active',
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            last_analyzed TIMESTAMP NULL,
+                            last_cost REAL DEFAULT 0,
+                            last_savings REAL DEFAULT 0,
+                            last_confidence REAL DEFAULT 0,
+                            analysis_count INTEGER DEFAULT 0,
+                            metadata TEXT DEFAULT '{}',
+                            analysis_data BLOB,
+                            analysis_status TEXT DEFAULT 'pending',
+                            analysis_progress INTEGER DEFAULT 0,
+                            analysis_message TEXT DEFAULT '',
+                            analysis_started_at TIMESTAMP NULL,
+                            auto_analyze_enabled BOOLEAN DEFAULT 1,
+                            subscription_id TEXT DEFAULT NULL,
+                            subscription_name TEXT DEFAULT NULL,
+                            subscription_context_verified BOOLEAN DEFAULT 0,
+                            subscription_last_validated TIMESTAMP NULL
+                        )
+                    """)
+                    
+                    # Copy all data to new table (using BLOB data where available)
+                    cursor.execute("""
+                        INSERT INTO clusters_new 
+                        SELECT id, name, resource_group, environment, region, description, status,
+                               created_at, last_analyzed, last_cost, last_savings, last_confidence,
+                               analysis_count, metadata, 
+                               COALESCE(analysis_data_blob, analysis_data) as analysis_data,
+                               analysis_status, analysis_progress, analysis_message, analysis_started_at,
+                               auto_analyze_enabled, subscription_id, subscription_name,
+                               subscription_context_verified, subscription_last_validated
+                        FROM clusters
+                    """)
+                    
+                    # Replace old table
+                    cursor.execute("DROP TABLE clusters")
+                    cursor.execute("ALTER TABLE clusters_new RENAME TO clusters")
+                    
+                    # Recreate indexes
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_clusters_subscription_id ON clusters(subscription_id)')
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_clusters_analysis_status ON clusters(analysis_status)')
+                    
+                    cursor.execute("PRAGMA foreign_keys=on")
+                    conn.commit()
+                    
+                    logger.info("✅ Successfully migrated analysis_data to BLOB - can now store large JSON data")
+                else:
+                    logger.info("✅ analysis_data column already using BLOB type")
+            else:
+                logger.warning("⚠️ analysis_data column not found in schema")
+            
+            return True
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to migrate analysis_data to BLOB: {e}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        return False
+
 def migrate_database_for_multi_subscription(db_path: str = '../data/database/clusters.db'):
     """Comprehensive database migration for multi-subscription support"""
     logger = logging.getLogger(__name__)
@@ -76,7 +188,7 @@ def migrate_database_for_multi_subscription(db_path: str = '../data/database/clu
             required_columns = {
                 'subscription_id': 'TEXT DEFAULT NULL',
                 'subscription_name': 'TEXT DEFAULT NULL',
-                'analysis_data': 'TEXT',
+                'analysis_data': 'BLOB',
                 'last_confidence': 'REAL DEFAULT 0',
                 'analysis_status': 'TEXT DEFAULT "pending"',
                 'analysis_progress': 'INTEGER DEFAULT 0',
@@ -256,6 +368,7 @@ class EnhancedMultiSubscriptionClusterManager:
         
         # Run all migrations
         migrate_database_schema(self.db_path)
+        migrate_analysis_data_to_blob(self.db_path)
         migrate_database_for_multi_subscription(self.db_path)
         
         # Clean up any stale analyses on startup
@@ -288,7 +401,7 @@ class EnhancedMultiSubscriptionClusterManager:
                         last_confidence REAL DEFAULT 0,
                         analysis_count INTEGER DEFAULT 0,
                         metadata TEXT DEFAULT '{}',
-                        analysis_data TEXT,
+                        analysis_data BLOB,
                         analysis_status TEXT DEFAULT 'pending',
                         analysis_progress INTEGER DEFAULT 0,
                         analysis_message TEXT DEFAULT '',
@@ -482,7 +595,13 @@ class EnhancedMultiSubscriptionClusterManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT * FROM clusters 
+                    SELECT id, name, resource_group, environment, region, description, 
+                           status, created_at, last_analyzed, last_cost, last_savings, 
+                           last_confidence, analysis_count, metadata, analysis_status, 
+                           analysis_progress, analysis_message, analysis_started_at, 
+                           auto_analyze_enabled, subscription_id, subscription_name, 
+                           subscription_context_verified, subscription_last_validated
+                    FROM clusters 
                     WHERE subscription_id = ? AND status = 'active'
                     ORDER BY created_at DESC
                 ''', (subscription_id,))
@@ -1033,7 +1152,13 @@ class EnhancedMultiSubscriptionClusterManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT * FROM clusters WHERE id = ?
+                    SELECT id, name, resource_group, environment, region, description, 
+                           status, created_at, last_analyzed, last_cost, last_savings, 
+                           last_confidence, analysis_count, metadata, analysis_status, 
+                           analysis_progress, analysis_message, analysis_started_at, 
+                           auto_analyze_enabled, subscription_id, subscription_name, 
+                           subscription_context_verified, subscription_last_validated
+                    FROM clusters WHERE id = ?
                 ''', (cluster_id,))
                 
                 row = cursor.fetchone()
@@ -1053,7 +1178,13 @@ class EnhancedMultiSubscriptionClusterManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT * FROM clusters ORDER BY created_at DESC
+                    SELECT id, name, resource_group, environment, region, description, 
+                           status, created_at, last_analyzed, last_cost, last_savings, 
+                           last_confidence, analysis_count, metadata, analysis_status, 
+                           analysis_progress, analysis_message, analysis_started_at, 
+                           auto_analyze_enabled, subscription_id, subscription_name, 
+                           subscription_context_verified, subscription_last_validated
+                    FROM clusters ORDER BY created_at DESC
                 ''')
                 
                 clusters = []
@@ -1075,7 +1206,13 @@ class EnhancedMultiSubscriptionClusterManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT c.*, s.subscription_name as sub_display_name
+                    SELECT c.id, c.name, c.resource_group, c.environment, c.region, c.description, 
+                           c.status, c.created_at, c.last_analyzed, c.last_cost, c.last_savings, 
+                           c.last_confidence, c.analysis_count, c.metadata, c.analysis_status, 
+                           c.analysis_progress, c.analysis_message, c.analysis_started_at, 
+                           c.auto_analyze_enabled, c.subscription_id, c.subscription_name, 
+                           c.subscription_context_verified, c.subscription_last_validated,
+                           s.subscription_name as sub_display_name
                     FROM clusters c
                     LEFT JOIN subscriptions s ON c.subscription_id = s.subscription_id
                     WHERE c.status = 'active'
@@ -1319,7 +1456,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 ''', (
                     total_cost, total_savings, confidence,
                     datetime.now().isoformat(),
-                    json.dumps(serializable_data),
+                    json.dumps(serializable_data).encode('utf-8'),  # Store as BLOB
                     cluster_id
                 ))
                 conn.execute('''
@@ -1329,7 +1466,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 ''', (
                     cluster_id,
                     datetime.now().isoformat(),
-                    json.dumps(serializable_data),  # Store full analysis
+                    json.dumps(serializable_data).encode('utf-8'),  # Store full analysis as BLOB
                     total_cost,
                     total_savings, 
                     confidence
@@ -1364,7 +1501,14 @@ class EnhancedMultiSubscriptionClusterManager:
                 row = cursor.fetchone()
                 if row and row['analysis_data']:
                     try:
-                        serialized_data = json.loads(row['analysis_data'])
+                        # Handle both BLOB and TEXT data for compatibility
+                        raw_data = row['analysis_data']
+                        if isinstance(raw_data, bytes):
+                            # New BLOB format
+                            serialized_data = json.loads(raw_data.decode('utf-8'))
+                        else:
+                            # Legacy TEXT format
+                            serialized_data = json.loads(raw_data)
                         
                         # Use specialized deserialization
                         analysis_data = deserialize_implementation_plan(serialized_data)
@@ -1526,7 +1670,13 @@ class EnhancedMultiSubscriptionClusterManager:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT * FROM clusters 
+                    SELECT id, name, resource_group, environment, region, description, 
+                           status, created_at, last_analyzed, last_cost, last_savings, 
+                           last_confidence, analysis_count, metadata, analysis_status, 
+                           analysis_progress, analysis_message, analysis_started_at, 
+                           auto_analyze_enabled, subscription_id, subscription_name, 
+                           subscription_context_verified, subscription_last_validated
+                    FROM clusters 
                     WHERE analysis_status = ? AND status = 'active'
                     ORDER BY analysis_started_at DESC
                 ''', (status,))
