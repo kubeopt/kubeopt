@@ -569,7 +569,7 @@ window.updateInsightsDisplay = function(insights) {
         insightsHTML = `
             <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 p-6 rounded-lg">
                 <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                    <div class="w-12 h-12 bg-gradient.to-common-600 rounded-xl flex items-center justify-center">
                         <i class="fas fa-robot text-white text-xl"></i>
                     </div>
                     <div>

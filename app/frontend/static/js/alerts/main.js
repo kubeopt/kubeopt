@@ -412,7 +412,7 @@ function showGlobalNotificationsDropdown(event) {
     
     // Create dropdown content
     const dropdownContent = `
-        <div style="padding: 16px; border-bottom: 1px solid #e5e7eb; background: linear-gradient(135deg, #66d6eaff 0%, #4ba27cff 100%); color: white;">
+        <div style="padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); background: #171d33; color: white;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
                     🔔 Notifications
@@ -731,17 +731,17 @@ function displayAlerts() {
         <!-- Alerts List -->
         <div class="alerts-list space-y-3">
             ${filteredAlerts.map((alert, index) => `
-                <div class="alert-item bg-gray-50 border rounded-lg p-4 hover:shadow-md transition-all duration-300" data-alert-id="${alert.id}" data-status="${alert.status || 'active'}">
+                <div class="alert-item border rounded p-4" style="background: rgba(51, 65, 85, 0.3); border: 1px solid rgba(255,255,255,0.1);" data-alert-id="${alert.id}" data-status="${alert.status || 'active'}">
                     <div class="flex items-center justify-between">
                         <div class="flex-grow">
                             <div class="flex items-center gap-3 mb-2">
-                                <span class="alert-id font-mono text-sm text-gray-500">#${String(alert.id).padStart(3, '0')}</span>
-                                <h4 class="font-semibold text-gray-800">${escapeHtml(alert.name)}</h4>
-                                <span class="status-badge px-2 py-1 rounded-full text-xs font-medium ${(alert.status || 'active') === 'active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">
+                                <span class="alert-id font-mono text-sm" style="color: rgb(156, 163, 175);">#${String(alert.id).padStart(3, '0')}</span>
+                                <h4 class="font-semibold" style="color: white;">${escapeHtml(alert.name)}</h4>
+                                <span class="status-badge px-2 py-1 rounded text-xs font-medium" style="background: ${(alert.status || 'active') === 'active' ? 'rgba(34, 197, 94, 0.2); color: rgb(74, 222, 128)' : 'rgba(251, 191, 36, 0.2); color: rgb(250, 204, 21)'};">
                                     ${(alert.status || 'active').charAt(0).toUpperCase() + (alert.status || 'active').slice(1)}
                                 </span>
                             </div>
-                            <div class="grid grid-cols-3 gap-4 text-sm text-gray-600">
+                            <div class="grid grid-cols-3 gap-4 text-sm" style="color: rgb(203, 213, 225);">
                                 <div>
                                     <span class="font-medium">Email:</span> ${escapeHtml(alert.email || 'Not set')}
                                 </div>
@@ -759,23 +759,25 @@ function displayAlerts() {
                             <div class="alert-toggle-container">
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" class="sr-only peer" ${(alert.status || 'active') === 'active' ? 'checked' : ''} onchange="handleToggleAlert('${alert.id}', this.checked)">
-                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    <div style="width: 2.75rem; height: 1.5rem; background: ${(alert.status || 'active') === 'active' ? 'rgba(59, 130, 246, 0.9)' : 'rgba(107, 114, 128, 0.5)'}; border-radius: 9999px; position: relative;">
+                                        <div style="position: absolute; top: 2px; left: ${(alert.status || 'active') === 'active' ? '22px' : '2px'}; width: 20px; height: 20px; background: white; border-radius: 50%;"></div>
+                                    </div>
                                 </label>
                             </div>
                             <!-- Actions Menu -->
                             <div class="relative">
-                                <button class="action-btn p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100" onclick="toggleSimpleMenu('${alert.id}')" id="dropdown-${alert.id}">
+                                <button class="action-btn p-2 rounded" style="color: rgb(156, 163, 175); background: rgba(75, 85, 99, 0.3);" onclick="toggleSimpleMenu('${alert.id}')" id="dropdown-${alert.id}">
                                     <i class="fas fa-ellipsis-v"></i>
                                 </button>
-                                <div class="dropdown-menu absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10 hidden" id="simple-menu-${alert.id}">
-                                    <button class="dropdown-item w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center" onclick="testAlert('${alert.id}'); closeMenu('${alert.id}');">
-                                        <i class="fas fa-paper-plane mr-2 text-blue-500"></i>Test Alert
+                                <div class="dropdown-menu absolute right-0 mt-1 w-48 rounded border z-10 hidden" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1);" id="simple-menu-${alert.id}">
+                                    <button class="dropdown-item w-full text-left px-4 py-2 text-sm flex items-center" style="color: rgb(203, 213, 225);" onclick="testAlert('${alert.id}'); closeMenu('${alert.id}');">
+                                        <i class="fas fa-paper-plane mr-2 text-blue-400"></i>Test Alert
                                     </button>
-                                    <button class="dropdown-item w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center" onclick="showEditAlertModal('${alert.id}'); closeMenu('${alert.id}');">
-                                        <i class="fas fa-edit mr-2 text-green-500"></i>Edit Alert
+                                    <button class="dropdown-item w-full text-left px-4 py-2 text-sm flex items-center" style="color: rgb(203, 213, 225);" onclick="showEditAlertModal('${alert.id}'); closeMenu('${alert.id}');">
+                                        <i class="fas fa-edit mr-2 text-emerald-400"></i>Edit Alert
                                     </button>
-                                    <div class="border-t border-gray-200"></div>
-                                    <button class="dropdown-item w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center" onclick="showDeleteAlertModal('${alert.id}'); closeMenu('${alert.id}');">
+                                    <div style="border-top: 1px solid rgba(255,255,255,0.1);"></div>
+                                    <button class="dropdown-item w-full text-left px-4 py-2 text-sm flex items-center" style="color: rgb(248, 113, 113);" onclick="showDeleteAlertModal('${alert.id}'); closeMenu('${alert.id}');">
                                         <i class="fas fa-trash mr-2"></i>Delete
                                     </button>
                                 </div>
@@ -961,44 +963,49 @@ function closeMenu(alertId) {
  */
 function showCreateAlertModal() {
     const modalHTML = `
-        <div class="modal" id="createAlertModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3 class="modal-title">Create New Alert</h3>
-                    <button class="modal-close" onclick="closeModal('createAlertModal')">&times;</button>
+        <div class="modal" id="createAlertModal" style="background: rgba(0,0,0,0.8);">
+            <div class="modal-content" style="background: rgb(30, 41, 59); color: white; border: 1px solid rgba(255,255,255,0.1);">
+                <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <h3 class="modal-title" style="color: white;">🔔 Create New Alert</h3>
+                    <button class="modal-close" onclick="closeModal('createAlertModal')" style="background: rgba(255,255,255,0.1); color: white;">&times;</button>
                 </div>
                 <div class="modal-body">
                     <form id="createAlertForm">
-                        <div class="form-row">
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
-                                <label class="form-label">Alert Name *</label>
+                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Alert Name *</label>
                                 <input type="text" class="form-control" name="name" required 
+                                       style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;"
                                        placeholder="Budget Alert - $1,400">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Email Address *</label>
+                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Email Address *</label>
                                 <input type="email" class="form-control" name="email" required 
+                                       style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;"
                                        placeholder="admin@company.com">
                             </div>
                         </div>
                         
-                        <div class="form-row">
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
-                                <label class="form-label">Threshold Amount ($) *</label>
+                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Threshold Amount ($) *</label>
                                 <input type="number" class="form-control" name="threshold_amount" required 
+                                       style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;"
                                        min="0" step="0.01" placeholder="1400">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Threshold Percentage (%)</label>
+                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Threshold Percentage (%)</label>
                                 <input type="number" class="form-control" name="threshold_percentage" 
+                                       style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;"
                                        min="0" max="100" placeholder="80">
                             </div>
                         </div>
                         
-                        <div class="form-row">
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
-                                <label class="form-label">Notification Frequency</label>
-                                <select class="form-control" name="notification_frequency">
+                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Notification Frequency</label>
+                                <select class="form-control" name="notification_frequency" 
+                                        style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;">
                                     <option value="immediate">🚨 Immediate - Send right away</option>
                                     <option value="hourly">⏰ Hourly - Every hour</option>
                                     <option value="daily" selected>📅 Daily - Once per day</option>
@@ -1006,21 +1013,25 @@ function showCreateAlertModal() {
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Alert Type</label>
-                                <select class="form-control" name="alert_type">
+                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Alert Type</label>
+                                <select class="form-control" name="alert_type" 
+                                        style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;">
                                     <option value="cost_threshold">💰 Cost Threshold Alert</option>
                                     <option value="performance">⚡ Performance Alert</option>
                                     <option value="optimization">🎯 Optimization Alert</option>
+                                    <option value="cpu_monitoring">🖥️ CPU Monitoring Alert</option>
                                 </select>
                             </div>
                         </div>
                     </form>
                 </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeModal('createAlertModal')">
+                <div class="modal-footer" style="border-top: 1px solid rgba(255,255,255,0.1); padding: 1rem 1.25rem; display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button class="btn btn-secondary" onclick="closeModal('createAlertModal')" 
+                            style="background: rgba(75, 85, 99, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.5rem 1rem; border-radius: 6px;">
                         <i class="fas fa-times"></i> Cancel
                     </button>
-                    <button class="btn btn-primary" onclick="createAlert()">
+                    <button class="btn btn-primary" onclick="createAlert()" 
+                            style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500;">
                         <i class="fas fa-plus"></i> Create Alert
                     </button>
                 </div>
@@ -1030,6 +1041,42 @@ function showCreateAlertModal() {
     
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     document.getElementById('createAlertModal').classList.add('show');
+    
+    // Add dynamic form field handling
+    const alertTypeSelect = document.querySelector('#createAlertModal select[name="alert_type"]');
+    if (alertTypeSelect) {
+        alertTypeSelect.addEventListener('change', updateCreateFormFields);
+        updateCreateFormFields(); // Initialize with default values
+    }
+}
+
+function updateCreateFormFields() {
+    const modal = document.getElementById('createAlertModal');
+    if (!modal) return;
+    
+    const alertType = modal.querySelector('select[name="alert_type"]').value;
+    const nameInput = modal.querySelector('input[name="name"]');
+    const thresholdAmountGroup = modal.querySelector('input[name="threshold_amount"]').closest('.form-group');
+    const thresholdAmountLabel = thresholdAmountGroup.querySelector('.form-label');
+    const thresholdAmountInput = modal.querySelector('input[name="threshold_amount"]');
+    
+    if (alertType === 'cpu_monitoring') {
+        // Update labels and placeholders for CPU monitoring
+        nameInput.placeholder = 'CPU Monitoring Alert - High Usage';
+        thresholdAmountLabel.textContent = 'CPU Threshold (%) *';
+        thresholdAmountInput.placeholder = '80';
+        thresholdAmountInput.min = '0';
+        thresholdAmountInput.max = '100';
+        thresholdAmountInput.step = '1';
+    } else {
+        // Default to cost/budget alert
+        nameInput.placeholder = 'Budget Alert - $1,400';
+        thresholdAmountLabel.textContent = 'Threshold Amount ($) *';
+        thresholdAmountInput.placeholder = '1400';
+        thresholdAmountInput.min = '0';
+        thresholdAmountInput.max = '';
+        thresholdAmountInput.step = '0.01';
+    }
 }
 
 function showEditAlertModal(alertId) {
@@ -1088,6 +1135,7 @@ function showEditAlertModal(alertId) {
                                     <option value="cost_threshold" ${alert.alert_type === 'cost_threshold' || !alert.alert_type ? 'selected' : ''}>💰 Cost Threshold Alert</option>
                                     <option value="performance" ${alert.alert_type === 'performance' ? 'selected' : ''}>⚡ Performance Alert</option>
                                     <option value="optimization" ${alert.alert_type === 'optimization' ? 'selected' : ''}>🎯 Optimization Alert</option>
+                                    <option value="cpu_monitoring" ${alert.alert_type === 'cpu_monitoring' ? 'selected' : ''}>🖥️ CPU Monitoring Alert</option>
                                 </select>
                             </div>
                         </div>

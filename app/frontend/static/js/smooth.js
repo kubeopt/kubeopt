@@ -243,19 +243,7 @@ class SmoothTabManager {
     
     initializeAlertsTab() {
         console.log('🔔 Initializing alerts tab...');
-        
-        // Animate alert content
-        const alertContent = document.querySelectorAll('#alerts .card');
-        alertContent.forEach((card, index) => {
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(20px)';
-            
-            setTimeout(() => {
-                card.style.transition = 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
-                card.style.opacity = '1';
-                card.style.transform = 'translateY(0)';
-            }, index * 150);
-        });
+        // Enterprise mode: No animations for professional appearance
     }
     
     setupImplementationTabOptimization() {

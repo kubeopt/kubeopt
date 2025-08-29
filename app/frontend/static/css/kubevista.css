@@ -173,14 +173,14 @@ header {
 
 .metric-card:nth-child(2) .metric-value,
 .metric-card:nth-child(2) #potential-savings {
-    background: linear-gradient(135deg, #3b82f6, #60a5fa) !important;
+    background: linear-gradient(135deg, #10b981, #059669) !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
 }
 
 .metric-card:nth-child(3) .metric-value,
 .metric-card:nth-child(3) #hpa-efficiency {
-    background: linear-gradient(135deg, #8b5cf6, #a78bfa) !important;
+    background: linear-gradient(135deg, #10b981, #059669) !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
 }
@@ -193,21 +193,21 @@ header {
 }
 
 .metric-value.text-green-500, .text-green-500 {
-    background: linear-gradient(135deg, #10b981, #059669) !important;
+    background: #fff !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
     background-clip: text !important;
 }
 
 .metric-value.text-blue-500, .text-blue-500 {
-    background: linear-gradient(135deg, #3b82f6, #60a5fa) !important;
+    background: linear-gradient(135deg, #10b981, #059669) !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
     background-clip: text !important;
 }
 
 .metric-value.text-indigo-500, .text-indigo-500 {
-    background: linear-gradient(135deg, #8b5cf6, #a78bfa) !important;
+    background: linear-gradient(135deg, #10b981, #059669) !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
     background-clip: text !important;
@@ -1856,3 +1856,42 @@ position: relative;
     background-color: rgb(34 40 61) !important;
 }
 
+from-gray-100.to-gray-200 {
+    --tw-gradient-to: #161c31 var(--tw-gradient-to-position) !important;
+}
+
+.from-gray-100 {
+    --tw-gradient-from: #171d33 var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgb(243 244 246 / 0) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-pink-600 {
+    --tw-gradient-to: #059669 var(--tw-gradient-to-position) !important;
+}
+
+.from-purple-500 {
+    --tw-gradient-from: #059669 var(--tw-gradient-from-position) !important; 
+    --tw-gradient-to: #059669 var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-blue-600 {
+    --tw-gradient-to: #059669 var(--tw-gradient-to-position) !important;
+}
+
+.from-indigo-500 {
+    --tw-gradient-from: #059669 var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: #059669 var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-common-600 {
+    --tw-gradient-to: #059669 var(--tw-gradient-to-position) !important;
+}
+
+.from-common-500 {
+    --tw-gradient-from: #059669 var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: #059669 var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}

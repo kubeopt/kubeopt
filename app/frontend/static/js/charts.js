@@ -510,7 +510,7 @@ function createCPUMetricsDisplay(cpuMetrics) {
     const maxCPU = cpuMetrics.max_cpu_utilization || 0;
     const highCpuCount = cpuMetrics.high_cpu_count || 0;
     const severityLevel = cpuMetrics.severity_level || 'none';
-    // Use backend-calculated efficiency instead of frontend calculation
+    // Use backend-calculated efficiency
     const efficiencyScore = Math.round(cpuMetrics.cpu_efficiency || getEfficiencyScore(avgCPU, maxCPU));
     
     // Determine status styling
@@ -810,7 +810,22 @@ window.exportCPUReport = function() {
 };
 
 window.enableCPUMonitoring = function() {
-    showNotification('Monitoring Enabled', 'CPU monitoring has been activated for this cluster.', 'success');
+    // Navigate to alerts tab for CPU monitoring setup
+    const clusterId = getCurrentClusterId();
+    
+    if (!clusterId) {
+        showNotification('Error', 'No cluster context available for monitoring setup.', 'error');
+        return;
+    }
+    
+    // Navigate to alerts tab using showContent function
+    if (typeof showContent === 'function') {
+        const alertsNavLink = document.querySelector('[onclick*="showContent(\'alerts\'"]');
+        showContent('alerts', alertsNavLink);
+        showNotification('CPU Monitoring Setup', 'Create a CPU Monitoring Alert to enable monitoring.', 'info');
+    } else {
+        showNotification('Error', 'Unable to navigate to alerts tab.', 'error');
+    }
 };
 
 /**

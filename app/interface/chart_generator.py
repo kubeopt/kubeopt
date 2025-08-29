@@ -377,34 +377,19 @@ def _extract_cpu_workload_data(analysis_data):
             cpu_workload_data['cpu_analysis_available'] = True
             logger.info(f"✅ Found average CPU utilization: {avg_cpu:.1f}%")
     
-    # Extract CPU efficiency from analysis data
-    cpu_efficiency = 0.0
-    
-    # Try to get efficiency from efficiency analysis
-    efficiency_analysis = analysis_data.get('efficiency_analysis', {})
-    if efficiency_analysis:
-        cpu_efficiency = ensure_float(efficiency_analysis.get('cpu_efficiency', 0))
-    
-    # Fallback: Look for efficiency in workload characteristics
-    if cpu_efficiency == 0.0:
-        cpu_efficiency = ensure_float(ml_workload_characteristics.get('cpu_efficiency', 0))
-    
-    # Final fallback: Calculate from average CPU if we have it
-    if cpu_efficiency == 0.0 and cpu_workload_data['average_cpu_utilization'] > 0:
+    # Calculate CPU efficiency directly from available CPU data
+    if cpu_workload_data['average_cpu_utilization'] > 0:
         avg_cpu = cpu_workload_data['average_cpu_utilization']
-        # Use same logic as backend (simplified version)
         optimal_cpu = 70
         if avg_cpu <= optimal_cpu:
             base_efficiency = avg_cpu / optimal_cpu
             if avg_cpu <= 35:
-                cpu_efficiency = min(100.0, base_efficiency * 1.5 * 100)
+                cpu_workload_data['cpu_efficiency'] = min(100.0, base_efficiency * 1.5 * 100)
             else:
-                cpu_efficiency = base_efficiency * 100
+                cpu_workload_data['cpu_efficiency'] = base_efficiency * 100
         else:
-            cpu_efficiency = max(10.0, optimal_cpu / avg_cpu * 100)
-    
-    cpu_workload_data['cpu_efficiency'] = cpu_efficiency
-    
+            cpu_workload_data['cpu_efficiency'] = optimal_cpu / avg_cpu * 100
+    cpu_efficiency = cpu_workload_data['cpu_efficiency']
     logger.info(f"🔍 CPU Workload Analysis: {cpu_workload_data['high_cpu_count']} high CPU workloads, "
                f"max: {cpu_workload_data['max_cpu_utilization']:.1f}%, "
                f"avg: {cpu_workload_data['average_cpu_utilization']:.1f}%, "
