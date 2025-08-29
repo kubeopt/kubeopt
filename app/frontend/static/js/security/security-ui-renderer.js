@@ -1,12 +1,8 @@
 /**
- * Security Posture Frontend Integration - ENHANCED VERSION
- * ===============================================================
- * JavaScript integration for AKS Security Posture dashboard.
- * Enhanced to display all security data from backend analysis.
+ * Security UI Renderer - User Interface and Visualization
+ * ======================================================
+ * Handles all UI rendering, layout generation, and visual presentation for security dashboard
  */
-
-// Import charts module for security chart functionality
-// Security charts will be loaded from charts.js
 
 // Initialize global cluster state if not exists
 window.currentClusterState = window.currentClusterState || {
@@ -15,48 +11,60 @@ window.currentClusterState = window.currentClusterState || {
     validated: false
 };
 
-class SecurityPostureDashboard {
-    constructor(apiBaseUrl = '/api/security') {
-        this.apiBaseUrl = apiBaseUrl;
-        this.refreshInterval = 300000; // 5 minutes
-        this.activeIntervals = new Map();
-        this.charts = new Map();
-        this.lastUpdate = null;
-        this.analysisTriggered = false;
-        this.cachedData = null;
-        
+class SecurityUIRenderer {
+    constructor() {
+        this.dataManager = new window.SecurityDataManager();
         this.init();
     }
 
     async init() {
-        console.log('🔒 Initializing Security Posture Dashboard...');
+        console.log('🔒 Initializing Security UI Renderer...');
         
         // Check if we're on the security posture page
         if (document.getElementById('securityposture-content')) {
             await this.initializeSecurityDashboard();
-            this.startAutoRefresh();
+            this.dataManager.startAutoRefresh((data) => {
+                this.updateDashboardFromData(data);
+            });
         }
         
-        console.log('✅ Security Posture Dashboard initialized');
+        console.log('✅ Security UI Renderer initialized');
     }
 
     async initializeSecurityDashboard() {
         // Create dashboard layout if it doesn't exist
         this.createDashboardLayout();
         
-        // Load initial data with retry mechanism
-        await this.loadSecurityOverview();
+        // Load initial data
+        const data = await this.dataManager.loadSecurityOverview();
+        if (data) {
+            this.updateDashboardFromData(data);
+            
+            // Initialize security charts using global charts module
+            if (window.securityCharts) {
+                window.securityCharts.initializeSecurityCharts(data);
+            }
+        } else {
+            this.showNoDataMessage('Security analysis data not available. Please run a cluster analysis.');
+        }
+    }
+
+    async updateDashboardFromData(data) {
+        // Update UI with the enhanced data display
+        if (data.analysis || data.security_posture) {
+            this.updateEnhancedSecurityOverview(data);
+        } else {
+            this.updateSecurityOverview(data);
+        }
         
-        // Load additional security data
+        // Load all components with the cached data
         await Promise.all([
-            this.loadSecurityBreakdown(),
-            this.loadPolicyViolations(),
-            this.loadCompliance(),
-            this.loadVulnerabilities(),
-            this.loadSecurityAlerts(),
-            this.loadAuditTrail()
+            this.displayAlertsFromData(),
+            this.displayViolationsFromData(),
+            this.displayComplianceFromData(),
+            this.displayVulnerabilitiesFromData()
         ]).catch(error => {
-            console.error('⚠️ Some security data failed to load:', error);
+            console.error('⚠️ Some additional security data failed to load:', error);
         });
     }
 
@@ -179,9 +187,7 @@ class SecurityPostureDashboard {
                                     </div>
                                 </div>
                                 <div class="chart-container">
-                                    <div class="chart-container">
                                     <canvas id="security-trend-chart"></canvas>
-                                </div>
                                 </div>
                             </div>
                             
@@ -189,9 +195,7 @@ class SecurityPostureDashboard {
                             <div class="p-6 border rounded" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1);">
                                 <h3 class="text-lg font-semibold text-white mb-4">Risk Distribution</h3>
                                 <div class="chart-container">
-                                    <div class="chart-container">
                                     <canvas id="risk-donut-chart"></canvas>
-                                </div>
                                 </div>
                                 <div id="risk-distribution" class="mt-4 space-y-2">
                                     <div class="text-center" style="color: rgb(148, 163, 184); font-size: 0.75rem;">Loading risk data...</div>
@@ -231,28 +235,27 @@ class SecurityPostureDashboard {
 
                     <!-- Alerts Tab -->
                     <div id="alerts-tab" class="security-tab-pane hidden">
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                            <!-- Alerts by Severity -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                            <!-- Dynamic Alerts Chart -->
                             <div class="p-6 border rounded" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1);">
-                                <h3 class="text-lg font-semibold text-white mb-4">By Severity</h3>
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-lg font-semibold text-white">Alerts Distribution</h3>
+                                    <select id="alert-chart-view" style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.5rem; border-radius: 4px;">
+                                        <option value="severity">By Severity</option>
+                                        <option value="category">By Category</option>
+                                        <option value="status">By Status</option>
+                                    </select>
+                                </div>
                                 <div class="chart-container">
-                                    <canvas id="alerts-severity-chart" style="width: 100%; height: 200px;"></canvas>
+                                    <canvas id="dynamic-alerts-chart" style="width: 100%; height: 300px;"></canvas>
                                 </div>
                             </div>
                             
-                            <!-- Alerts by Category -->
+                            <!-- Alert Summary Stats -->
                             <div class="p-6 border rounded" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1);">
-                                <h3 class="text-lg font-semibold text-white mb-4">By Category</h3>
-                                <div class="chart-container">
-                                    <canvas id="alerts-category-chart" style="width: 100%; height: 200px;"></canvas>
-                                </div>
-                            </div>
-                            
-                            <!-- Alert Status -->
-                            <div class="p-6 border rounded" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1);">
-                                <h3 class="text-lg font-semibold text-white mb-4">Alert Status</h3>
-                                <div class="chart-container">
-                                    <canvas id="alerts-status-chart" style="width: 100%; height: 200px;"></canvas>
+                                <h3 class="text-lg font-semibold text-white mb-4">Alert Summary</h3>
+                                <div id="alerts-summary-stats" class="space-y-4">
+                                    <!-- Stats will be populated dynamically -->
                                 </div>
                             </div>
                         </div>
@@ -446,33 +449,19 @@ class SecurityPostureDashboard {
     setupFilters() {
         // Alert filters
         const alertSeverityFilter = document.getElementById('alert-severity-filter');
-        const alertCategoryFilter = document.getElementById('alert-category-filter');
         
         if (alertSeverityFilter) {
             alertSeverityFilter.addEventListener('change', () => {
-                this.filterAlerts();
-            });
-        }
-        
-        if (alertCategoryFilter) {
-            alertCategoryFilter.addEventListener('change', () => {
-                this.filterAlerts();
+                this.filterAlertsUI();
             });
         }
 
         // Violation filters
         const violationSeverityFilter = document.getElementById('violation-severity-filter');
-        const violationCategoryFilter = document.getElementById('violation-category-filter');
         
         if (violationSeverityFilter) {
             violationSeverityFilter.addEventListener('change', () => {
-                this.filterViolations();
-            });
-        }
-        
-        if (violationCategoryFilter) {
-            violationCategoryFilter.addEventListener('change', () => {
-                this.filterViolations();
+                this.filterViolationsUI();
             });
         }
     }
@@ -480,148 +469,23 @@ class SecurityPostureDashboard {
     async loadTabData(tab) {
         switch(tab) {
             case 'alerts':
-                await this.loadSecurityAlerts();
+                await this.displayAlertsFromData();
                 break;
             case 'violations':
-                await this.loadPolicyViolations();
+                await this.displayViolationsFromData();
                 break;
             case 'compliance':
-                await this.loadCompliance();
+                await this.displayComplianceFromData();
                 break;
             case 'vulnerabilities':
-                await this.loadVulnerabilities();
+                await this.displayVulnerabilitiesFromData();
                 break;
             case 'trends':
-                await this.loadTrends();
+                await this.displayTrendsFromData();
                 break;
             case 'audit':
-                await this.loadAuditTrail();
+                await this.displayAuditTrailFromData();
                 break;
-        }
-    }
-
-    getCurrentClusterId() {
-        // Extract cluster ID from URL - format: rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1
-        const path = window.location.pathname;
-        const match = path.match(/\/cluster\/([^\/\?]+)/);
-        
-        if (match && match[1]) {
-            const clusterId = decodeURIComponent(match[1]);
-            console.log(`🎯 SECURITY: Extracted Cluster ID from URL: ${clusterId}`);
-            
-            // Validate the format (should contain underscore between RG and AKS name)
-            if (clusterId.includes('_')) {
-                console.log(`✅ SECURITY: Valid cluster ID format: ${clusterId}`);
-                
-                // Update global state
-                window.currentClusterState.clusterId = clusterId;
-                window.currentClusterState.lastUpdated = new Date().toISOString();
-                window.currentClusterState.validated = true;
-                
-                // Also update global cluster object if it exists
-                if (window.currentCluster) {
-                    window.currentCluster.id = clusterId;
-                }
-                
-                return clusterId;
-            } else {
-                console.warn(`⚠️ SECURITY: Unexpected cluster ID format: ${clusterId}`);
-            }
-        }
-        
-        // Fallback: From global cluster object (if available from main page)
-        if (window.currentCluster && window.currentCluster.id) {
-            console.log(`🎯 SECURITY: Cluster ID from global: ${window.currentCluster.id}`);
-            return window.currentCluster.id;
-        }
-        
-        // Last resort: try to get from backend
-        console.warn('⚠️ SECURITY: No cluster ID found in URL, attempting other methods');
-        return null;
-    }
-
-    async loadSecurityOverview() {
-        try {
-            const clusterId = await this.getCurrentClusterId();
-            
-            if (!clusterId) {
-                console.log('ℹ️ No cluster ID available for security overview');
-                this.showNoDataMessage('Please run a cluster analysis first to generate security data.');
-                return;
-            }
-            
-            console.log(`🔍 Loading security overview for cluster: ${clusterId}`);
-            
-            // Try multiple API endpoints to find the data
-            const endpoints = [
-                `${this.apiBaseUrl}/results/${clusterId}`,
-                `${this.apiBaseUrl}/overview?cluster_id=${clusterId}`,
-                `/api/analysis/security/${clusterId}`,
-                `${this.apiBaseUrl}/results/${clusterId.split('_')[1]}`,
-                `${this.apiBaseUrl}/overview?cluster_id=${clusterId.split('_')[1]}`
-            ];
-            
-            let data = null;
-            let successfulEndpoint = null;
-            
-            for (const endpoint of endpoints) {
-                try {
-                    console.log(`📡 Trying endpoint: ${endpoint}`);
-                    const response = await fetch(endpoint);
-                    console.log(`   Response status: ${response.status}`);
-                    
-                    if (response.ok) {
-                        const responseData = await response.json();
-                        if (responseData && Object.keys(responseData).length > 0) {
-                            data = responseData;
-                            successfulEndpoint = endpoint;
-                            console.log(`   ✅ Data found! Keys:`, Object.keys(responseData));
-                            break;
-                        }
-                    }
-                } catch (error) {
-                    console.warn(`   ❌ Failed:`, error.message);
-                }
-            }
-            
-            if (!data) {
-                console.warn('⚠️ No security data found from any endpoint');
-                this.showNoDataMessage('Security analysis data not available. Please run a cluster analysis.');
-                return;
-            }
-            
-            // Cache the data for use in other functions
-            this.cachedData = data;
-            
-            console.log('📊 Security data received from:', successfulEndpoint);
-            console.log('Data structure:', Object.keys(data));
-            
-            // Update UI with the enhanced data display
-            if (data.analysis || data.security_posture) {
-                this.updateEnhancedSecurityOverview(data);
-            } else {
-                this.updateSecurityOverview(data);
-            }
-            
-            // Initialize security charts using imported charts module
-            if (typeof initializeSecurityCharts === 'function') {
-                initializeSecurityCharts(data);
-            }
-            
-            // Load all components with the cached data
-            await Promise.all([
-                this.loadSecurityBreakdown(),
-                this.loadSecurityAlerts(),
-                this.loadPolicyViolations(),
-                this.loadCompliance(),
-                this.loadVulnerabilities()
-            ]).catch(error => {
-                console.error('⚠️ Some additional security data failed to load:', error);
-            });
-            
-        } catch (error) {
-            console.error('❌ Failed to load security overview:', error);
-            this.showError('Failed to load security overview: ' + error.message);
         }
     }
 
@@ -632,7 +496,6 @@ class SecurityPostureDashboard {
             const posture = analysis.security_posture || {};
             const policyCompliance = analysis.policy_compliance || {};
             const complianceFrameworks = analysis.compliance_frameworks || {};
-            const vulnerabilityAssessment = analysis.vulnerability_assessment || {};
             
             // Update security score with color coding
             const scoreElement = document.getElementById('security-score');
@@ -743,9 +606,6 @@ class SecurityPostureDashboard {
             // Update security breakdown with enhanced visualization
             this.updateEnhancedBreakdown(posture.breakdown);
             
-            // Update risk distribution
-            this.updateRiskDistribution(policyCompliance, posture.alerts);
-            
             // Add critical findings summary
             this.updateCriticalFindings(posture.alerts, policyCompliance.violations);
 
@@ -793,59 +653,6 @@ class SecurityPostureDashboard {
         }).join('');
         
         breakdownContainer.innerHTML = breakdownHtml;
-    }
-
-    updateRiskDistribution(policyCompliance, alerts) {
-        const riskContainer = document.getElementById('risk-distribution');
-        if (!riskContainer) return;
-
-        const violations = policyCompliance?.violations || [];
-        const allAlerts = alerts || [];
-        
-        // Calculate risk metrics
-        const riskMetrics = {
-            'Critical Issues': (policyCompliance?.violations_by_severity?.CRITICAL || 0) + 
-                               allAlerts.filter(a => a.severity === 'CRITICAL').length,
-            'High Risk': (policyCompliance?.violations_by_severity?.HIGH || 0) + 
-                         allAlerts.filter(a => a.severity === 'HIGH').length,
-            'Medium Risk': (policyCompliance?.violations_by_severity?.MEDIUM || 0) + 
-                           allAlerts.filter(a => a.severity === 'MEDIUM').length,
-            'Low Risk': (policyCompliance?.violations_by_severity?.LOW || 0) + 
-                        allAlerts.filter(a => a.severity === 'LOW').length
-        };
-
-        const total = Object.values(riskMetrics).reduce((a, b) => a + b, 0);
-        
-        const riskHtml = `
-            <div class="space-y-3">
-                ${Object.entries(riskMetrics).map(([label, count]) => {
-                    const percentage = total > 0 ? (count / total * 100).toFixed(1) : 0;
-                    const color = label.includes('Critical') ? 'red' : 
-                                  label.includes('High') ? 'orange' : 
-                                  label.includes('Medium') ? 'yellow' : 'blue';
-                    
-                    return `
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm text-slate-300">${label}</span>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-24 bg-slate-700 rounded-full h-2">
-                                    <div class="bg-${color}-500 h-2 rounded-full" style="width: ${percentage}%"></div>
-                                </div>
-                                <span class="text-sm text-${color}-400 font-medium w-16 text-right">${count}</span>
-                            </div>
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-            <div class="mt-4 pt-4 border-t border-slate-700">
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-slate-400">Total Issues</span>
-                    <span class="text-lg font-bold text-white">${total}</span>
-                </div>
-            </div>
-        `;
-        
-        riskContainer.innerHTML = riskHtml;
     }
 
     updateCriticalFindings(alerts, violations) {
@@ -922,62 +729,12 @@ class SecurityPostureDashboard {
         container.innerHTML = findingsHtml;
     }
 
-
-    async loadSecurityAlerts() {
-        try {
-            // Use cached data if available
-            if (this.cachedData && this.cachedData.analysis) {
-                const analysis = this.cachedData.analysis || this.cachedData;
-                const alerts = analysis.security_posture?.alerts || [];
-                
-                this.displayEnhancedAlerts(alerts);
-                console.log(`✅ Displayed ${alerts.length} security alerts from cache`);
-                return;
-            }
-
-            // Otherwise fetch fresh data
-            const clusterId = await this.getCurrentClusterId();
-            if (!clusterId) return;
-
-            const response = await fetch(`${this.apiBaseUrl}/results/${clusterId}`);
-            if (response.ok) {
-                const data = await response.json();
-                const alerts = data.analysis?.security_posture?.alerts || [];
-                this.displayEnhancedAlerts(alerts);
-            }
-        } catch (error) {
-            console.error('❌ Failed to load security alerts:', error);
-        }
+    async displayAlertsFromData() {
+        const alerts = await this.dataManager.loadSecurityAlerts();
+        this.displayEnhancedAlerts(alerts);
     }
 
     displayEnhancedAlerts(alerts) {
-        // Update stats
-        const statsContainer = document.getElementById('alerts-stats');
-        if (statsContainer) {
-            const stats = {
-                CRITICAL: alerts.filter(a => a.severity === 'CRITICAL').length,
-                HIGH: alerts.filter(a => a.severity === 'HIGH').length,
-                MEDIUM: alerts.filter(a => a.severity === 'MEDIUM').length,
-                LOW: alerts.filter(a => a.severity === 'LOW').length
-            };
-            
-            statsContainer.innerHTML = Object.entries(stats).map(([severity, count]) => {
-                const color = {
-                    CRITICAL: 'red',
-                    HIGH: 'orange',
-                    MEDIUM: 'yellow',
-                    LOW: 'blue'
-                }[severity];
-                
-                return `
-                    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                        <div class="text-2xl font-bold text-${color}-400">${count}</div>
-                        <div class="text-xs text-slate-400">${severity}</div>
-                    </div>
-                `;
-            }).join('');
-        }
-
         // Display alerts
         const alertsList = document.getElementById('alerts-list');
         const overviewContainer = document.getElementById('security-alerts-container');
@@ -1070,66 +827,12 @@ class SecurityPostureDashboard {
         }).join('');
     }
 
-    async loadPolicyViolations() {
-        try {
-            // Use cached data if available
-            if (this.cachedData && this.cachedData.analysis) {
-                const analysis = this.cachedData.analysis || this.cachedData;
-                const violations = analysis.policy_compliance?.violations || [];
-                
-                this.displayEnhancedViolations(violations);
-                console.log(`✅ Displayed ${violations.length} policy violations from cache`);
-                return;
-            }
-
-            // Otherwise fetch fresh data
-            const clusterId = await this.getCurrentClusterId();
-            if (!clusterId) return;
-
-            const response = await fetch(`${this.apiBaseUrl}/results/${clusterId}`);
-            if (response.ok) {
-                const data = await response.json();
-                const violations = data.analysis?.policy_compliance?.violations || [];
-                this.displayEnhancedViolations(violations);
-            }
-        } catch (error) {
-            console.error('❌ Failed to load policy violations:', error);
-        }
+    async displayViolationsFromData() {
+        const violations = await this.dataManager.loadPolicyViolations();
+        this.displayEnhancedViolations(violations);
     }
 
     displayEnhancedViolations(violations) {
-        // Update stats
-        const statsContainer = document.getElementById('violations-stats');
-        if (statsContainer) {
-            const categoryCounts = {};
-            violations.forEach(v => {
-                categoryCounts[v.policy_category] = (categoryCounts[v.policy_category] || 0) + 1;
-            });
-            
-            const autoRemediable = violations.filter(v => v.auto_remediable).length;
-            
-            statsContainer.innerHTML = `
-                <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                    <div class="text-2xl font-bold text-orange-400">${violations.length}</div>
-                    <div class="text-xs text-slate-400">Total Violations</div>
-                </div>
-                <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                    <div class="text-2xl font-bold text-green-400">${autoRemediable}</div>
-                    <div class="text-xs text-slate-400">Auto-Remediable</div>
-                </div>
-                <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                    <div class="text-sm space-y-1">
-                        ${Object.entries(categoryCounts).map(([cat, count]) => `
-                            <div class="flex justify-between">
-                                <span class="text-slate-400">${cat}:</span>
-                                <span class="text-white font-medium">${count}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        }
-
         // Display violations
         const violationsList = document.getElementById('violations-list');
         const recentContainer = document.getElementById('recent-violations-container');
@@ -1231,62 +934,12 @@ class SecurityPostureDashboard {
         }).join('');
     }
 
-    async loadCompliance() {
-        try {
-            // Use cached data if available
-            if (this.cachedData && this.cachedData.analysis) {
-                const analysis = this.cachedData.analysis || this.cachedData;
-                const complianceFrameworks = analysis.compliance_frameworks || {};
-                
-                this.displayEnhancedCompliance(complianceFrameworks);
-                console.log(`✅ Displayed ${Object.keys(complianceFrameworks).length} compliance frameworks from cache`);
-                return;
-            }
-
-            // Otherwise fetch fresh data
-            const clusterId = await this.getCurrentClusterId();
-            if (!clusterId) return;
-
-            const response = await fetch(`${this.apiBaseUrl}/results/${clusterId}`);
-            if (response.ok) {
-                const data = await response.json();
-                const complianceFrameworks = data.analysis?.compliance_frameworks || {};
-                this.displayEnhancedCompliance(complianceFrameworks);
-            }
-        } catch (error) {
-            console.error('❌ Failed to load compliance:', error);
-        }
+    async displayComplianceFromData() {
+        const complianceFrameworks = await this.dataManager.loadCompliance();
+        this.displayEnhancedCompliance(complianceFrameworks);
     }
 
     displayEnhancedCompliance(complianceFrameworks) {
-        // Update overview
-        const overviewContainer = document.getElementById('compliance-overview');
-        if (overviewContainer) {
-            const frameworks = Object.values(complianceFrameworks);
-            const avgCompliance = frameworks.length > 0 
-                ? frameworks.reduce((sum, f) => sum + (f.overall_compliance || 0), 0) / frameworks.length
-                : 0;
-            
-            overviewContainer.innerHTML = `
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                        <div class="text-2xl font-bold text-green-400">${avgCompliance.toFixed(1)}%</div>
-                        <div class="text-xs text-slate-400">Average Compliance</div>
-                    </div>
-                    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                        <div class="text-2xl font-bold text-blue-400">${frameworks.length}</div>
-                        <div class="text-xs text-slate-400">Frameworks Analyzed</div>
-                    </div>
-                    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                        <div class="text-2xl font-bold text-yellow-400">
-                            ${frameworks.reduce((sum, f) => sum + (f.passed_controls || 0), 0)}
-                        </div>
-                        <div class="text-xs text-slate-400">Total Controls Passed</div>
-                    </div>
-                </div>
-            `;
-        }
-
         // Display frameworks
         const container = document.getElementById('compliance-frameworks');
         if (!container) return;
@@ -1421,15 +1074,33 @@ class SecurityPostureDashboard {
         `;
     }
 
-    async loadTrends() {
-        const trendsContent = document.getElementById('trends-content');
-        if (!trendsContent) return;
+    async displayVulnerabilitiesFromData() {
+        const vulnerabilityData = await this.dataManager.loadVulnerabilities();
+        
+        const summaryContainer = document.getElementById('vulnerability-summary');
+        
+        if (!vulnerabilityData || vulnerabilityData.total_vulnerabilities === 0) {
+            if (summaryContainer) {
+                summaryContainer.innerHTML = `
+                    <div class="text-center py-8 text-slate-400">
+                        <i class="fas fa-shield-alt text-4xl mb-4 text-green-400"></i>
+                        <p class="text-green-400">No vulnerabilities detected</p>
+                        <p class="text-xs mt-2">Your cluster appears to be secure</p>
+                    </div>
+                `;
+            }
+            return;
+        }
+    }
 
-        // Use cached data to show trend information
-        if (this.cachedData && this.cachedData.analysis) {
-            const trends = this.cachedData.analysis.security_posture?.trends;
+    async displayTrendsFromData() {
+        const data = this.dataManager.getCachedData();
+        
+        if (data && data.analysis) {
+            const trends = data.analysis.security_posture?.trends;
+            const trendsContent = document.getElementById('trends-content');
             
-            if (trends && trends.component_trends) {
+            if (trends && trends.component_trends && trendsContent) {
                 trendsContent.innerHTML = `
                     <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
                         <h3 class="text-lg font-semibold text-white mb-4">Security Component Trends</h3>
@@ -1465,92 +1136,7 @@ class SecurityPostureDashboard {
         }
     }
 
-    filterAlerts() {
-        const severity = document.getElementById('alert-severity-filter').value;
-        const category = document.getElementById('alert-category-filter').value;
-        
-        if (this.cachedData && this.cachedData.analysis) {
-            let alerts = this.cachedData.analysis.security_posture?.alerts || [];
-            
-            if (severity) {
-                alerts = alerts.filter(a => a.severity === severity);
-            }
-            if (category) {
-                alerts = alerts.filter(a => a.category === category);
-            }
-            
-            const alertsList = document.getElementById('alerts-list');
-            if (alertsList) {
-                this.renderAlertsList(alertsList, alerts);
-            }
-        }
-    }
-
-    filterViolations() {
-        const severity = document.getElementById('violation-severity-filter').value;
-        const category = document.getElementById('violation-category-filter').value;
-        
-        if (this.cachedData && this.cachedData.analysis) {
-            let violations = this.cachedData.analysis.policy_compliance?.violations || [];
-            
-            if (severity) {
-                violations = violations.filter(v => v.severity === severity);
-            }
-            if (category) {
-                violations = violations.filter(v => v.policy_category === category);
-            }
-            
-            const violationsList = document.getElementById('violations-list');
-            if (violationsList) {
-                this.renderViolationsList(violationsList, violations);
-            }
-        }
-    }
-
-    // Keep all existing methods from original file for backward compatibility
-    async loadSecurityBreakdown() {
-        // This is handled by updateEnhancedBreakdown now
-    }
-
-    async loadVulnerabilities() {
-        // Keep original implementation
-        try {
-            const clusterId = await this.getCurrentClusterId();
-            if (!clusterId) return;
-
-            let vulnerabilityData = null;
-
-            // Use cached data if available
-            if (this.cachedData && this.cachedData.analysis) {
-                vulnerabilityData = this.cachedData.analysis.vulnerability_assessment;
-            }
-
-            const summaryContainer = document.getElementById('vulnerability-summary');
-            const listContainer = document.getElementById('vulnerability-list');
-            
-            if (!vulnerabilityData || vulnerabilityData.total_vulnerabilities === 0) {
-                if (summaryContainer) {
-                    summaryContainer.innerHTML = `
-                        <div class="text-center py-8 text-slate-400">
-                            <i class="fas fa-shield-alt text-4xl mb-4 text-green-400"></i>
-                            <p class="text-green-400">No vulnerabilities detected</p>
-                            <p class="text-xs mt-2">Your cluster appears to be secure</p>
-                        </div>
-                    `;
-                }
-                return;
-            }
-
-            // Display vulnerability data similar to original implementation
-            // ... (keep existing vulnerability display code)
-            
-        } catch (error) {
-            console.error('❌ Failed to load vulnerabilities:', error);
-        }
-    }
-
-    async loadAuditTrail() {
-        // Keep original implementation
+    async displayAuditTrailFromData() {
         const container = document.getElementById('audit-trail-list');
         if (container) {
             container.innerHTML = `
@@ -1562,8 +1148,31 @@ class SecurityPostureDashboard {
         }
     }
 
+    filterAlertsUI() {
+        const severity = document.getElementById('alert-severity-filter').value;
+        const category = document.getElementById('alert-category-filter')?.value;
+        
+        const alerts = this.dataManager.filterAlerts(severity, category);
+        
+        const alertsList = document.getElementById('alerts-list');
+        if (alertsList) {
+            this.renderAlertsList(alertsList, alerts);
+        }
+    }
+
+    filterViolationsUI() {
+        const severity = document.getElementById('violation-severity-filter').value;
+        const category = document.getElementById('violation-category-filter')?.value;
+        
+        const violations = this.dataManager.filterViolations(severity, category);
+        
+        const violationsList = document.getElementById('violations-list');
+        if (violationsList) {
+            this.renderViolationsList(violationsList, violations);
+        }
+    }
+
     showNoDataMessage(message) {
-        // Keep original implementation
         const elements = {
             'security-score': '--',
             'security-grade': 'No data available',
@@ -1595,7 +1204,6 @@ class SecurityPostureDashboard {
     }
 
     showNotification(message, type = 'info') {
-        // Keep original implementation
         const notification = document.createElement('div');
         notification.className = `fixed top-4 right-4 z-50 max-w-sm w-full px-4 py-3 rounded-lg shadow-lg`;
         
@@ -1633,91 +1241,22 @@ class SecurityPostureDashboard {
         }, 5000);
     }
 
-    startAutoRefresh() {
-        // Keep original implementation
-        const clusterId = this.getCurrentClusterId();
-        if (!clusterId) {
-            console.log('ℹ️ Auto-refresh disabled - no cluster ID');
-            return;
-        }
-        
-        this.activeIntervals.forEach(interval => clearInterval(interval));
-        this.activeIntervals.clear();
-
-        const overviewInterval = setInterval(() => {
-            if (document.getElementById('securityposture-content') && 
-                !document.getElementById('securityposture-content').classList.contains('hidden')) {
-                this.loadSecurityOverview();
-            }
-        }, this.refreshInterval);
-        
-        this.activeIntervals.set('overview', overviewInterval);
-        console.log(`🔄 Auto-refresh started (${this.refreshInterval/1000}s interval)`);
-    }
-
-    stopAutoRefresh() {
-        this.activeIntervals.forEach(interval => clearInterval(interval));
-        this.activeIntervals.clear();
-        console.log('ℹ️ Auto-refresh stopped');
-    }
-
-    destroy() {
-        this.stopAutoRefresh();
-        this.charts.forEach(chart => chart.destroy());
-        this.charts.clear();
-        console.log('🔒 Security Posture Dashboard destroyed');
-    }
-
-    // Keep all debug functions
-    async debugClusterAndAPIs() {
-        // Keep original implementation
-        console.log('🔍 === SECURITY DASHBOARD DEBUG ===');
-        
-        const clusterId = this.getCurrentClusterId();
-        console.log('📌 Current Cluster ID:', clusterId);
-        console.log('📌 Global State:', window.currentClusterState);
-        console.log('📌 Cached Data Available:', !!this.cachedData);
-        
-        if (this.cachedData) {
-            console.log('📌 Cached Data Structure:', Object.keys(this.cachedData));
-            
-            if (this.cachedData.analysis) {
-                const analysis = this.cachedData.analysis;
-                console.log('📊 Security Score:', analysis.security_posture?.overall_score);
-                console.log('📊 Total Alerts:', analysis.security_posture?.alerts?.length);
-                console.log('📊 Total Violations:', analysis.policy_compliance?.violations?.length);
-                console.log('📊 Compliance Frameworks:', Object.keys(analysis.compliance_frameworks || {}));
-            }
-        }
-        
-        return clusterId;
+    // For backward compatibility
+    updateSecurityOverview(data) {
+        this.updateEnhancedSecurityOverview(data);
     }
 
     async forceRefresh() {
         console.log('🔄 Force refreshing security dashboard...');
-        const clusterId = this.getCurrentClusterId();
-        if (!clusterId) {
-            console.error('❌ Cannot refresh: No cluster ID found');
-            return;
+        const data = await this.dataManager.loadSecurityOverview();
+        if (data) {
+            this.updateDashboardFromData(data);
         }
-        
-        console.log(`🔄 Refreshing with cluster ID: ${clusterId}`);
-        await this.loadSecurityOverview();
-    }
-
-    updateSecurityOverview(data) {
-        // Keep original implementation for backward compatibility
-        this.updateEnhancedSecurityOverview(data);
-    }
-
-    updateSecurityOverviewFromPosture(data) {
-        // Keep original implementation for backward compatibility
-        this.updateEnhancedSecurityOverview(data);
     }
 }
 
-// Initialize dashboard (keep all original initialization code)
-let securityDashboard;
+// Initialize UI Renderer and set up global access
+let securityUIRenderer;
 
 document.addEventListener('DOMContentLoaded', () => {
     const urlPath = window.location.pathname;
@@ -1740,47 +1279,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    securityDashboard = new SecurityPostureDashboard();
-    window.securityDashboard = securityDashboard;
+    securityUIRenderer = new SecurityUIRenderer();
+    window.securityUIRenderer = securityUIRenderer;
 });
-
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = SecurityPostureDashboard;
-}
 
 // Global debug functions
 window.securityDebug = {
     test: async () => {
-        if (!window.securityDashboard) {
-            console.error('❌ Security Dashboard not initialized!');
+        if (!window.securityUIRenderer) {
+            console.error('❌ Security UI Renderer not initialized!');
             return;
         }
-        return await window.securityDashboard.debugClusterAndAPIs();
+        return await window.securityUIRenderer.dataManager.debugClusterAndAPIs();
     },
     refresh: async () => {
-        if (!window.securityDashboard) {
-            console.error('❌ Security Dashboard not initialized!');
+        if (!window.securityUIRenderer) {
+            console.error('❌ Security UI Renderer not initialized!');
             return;
         }
-        return await window.securityDashboard.forceRefresh();
+        return await window.securityUIRenderer.forceRefresh();
     },
     getClusterId: () => {
-        if (!window.securityDashboard) {
-            console.error('❌ Security Dashboard not initialized!');
+        if (!window.securityUIRenderer) {
+            console.error('❌ Security UI Renderer not initialized!');
             return;
         }
-        return window.securityDashboard.getCurrentClusterId();
+        return window.securityUIRenderer.dataManager.getCurrentClusterId();
     },
     getData: () => {
-        if (!window.securityDashboard) {
-            console.error('❌ Security Dashboard not initialized!');
+        if (!window.securityUIRenderer) {
+            console.error('❌ Security UI Renderer not initialized!');
             return;
         }
-        return window.securityDashboard.cachedData;
+        return window.securityUIRenderer.dataManager.getCachedData();
     }
 };
 
-console.log('💡 Enhanced Security Dashboard Ready');
+console.log('💡 Enhanced Security UI Renderer Ready');
 console.log('   window.securityDebug.test()     - Test cluster ID and APIs');
 console.log('   window.securityDebug.refresh()  - Force refresh dashboard');
 console.log('   window.securityDebug.getData()  - View cached security data');

@@ -70,8 +70,14 @@ class EnhancedAlertsManager:
     def create_alert_route(self, alert_data: Dict) -> Dict:
         """Create new alert (API route handler)"""
         try:
-            # Validate required fields
-            required_fields = ['name', 'cluster_id', 'cluster_name', 'resource_group', 'threshold_amount']
+            # Validate required fields based on alert type
+            alert_type = alert_data.get('alert_type', 'cost_threshold')
+            
+            if alert_type == 'cpu_monitoring':
+                required_fields = ['name', 'cluster_id', 'threshold_amount']
+            else:
+                required_fields = ['name', 'cluster_id', 'cluster_name', 'resource_group', 'threshold_amount']
+            
             missing_fields = [field for field in required_fields if field not in alert_data]
             
             if missing_fields:
@@ -389,6 +395,104 @@ class EnhancedAlertsManager:
             self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return []
 
+    def check_cpu_monitoring_alerts(self, cluster_id: str, cpu_metrics: Dict) -> List[Dict]:
+        """Check and trigger CPU monitoring alerts"""
+        try:
+            self.logger.info(f"🔍 CPU monitoring check for cluster {cluster_id}")
+            
+            # Get active CPU monitoring alerts for this cluster
+            alerts = self.db.get_alerts(cluster_id=cluster_id, status='active')
+            cpu_alerts = [alert for alert in alerts if alert.get('alert_type') == 'cpu_monitoring']
+            
+            if not cpu_alerts:
+                self.logger.info(f"ℹ️ No active CPU monitoring alerts for cluster {cluster_id}")
+                return []
+            
+            self.logger.info(f"🔍 Found {len(cpu_alerts)} CPU monitoring alerts to check")
+            
+            triggered_alerts = []
+            
+            for alert in cpu_alerts:
+                alert_metadata = alert.get('metadata', {})
+                thresholds = alert_metadata.get('thresholds', {})
+                conditions = alert_metadata.get('alert_conditions', {})
+                
+                cpu_triggers = []
+                
+                # Check high CPU usage
+                if conditions.get('high_cpu_usage', False):
+                    avg_cpu = cpu_metrics.get('average_cpu_utilization', 0)
+                    warning_threshold = thresholds.get('cpu_warning', 75)
+                    critical_threshold = thresholds.get('cpu_critical', 90)
+                    
+                    if avg_cpu >= critical_threshold:
+                        cpu_triggers.append({
+                            'type': 'critical',
+                            'reason': f"Average CPU {avg_cpu:.1f}% exceeds critical threshold {critical_threshold}%",
+                            'severity': 'critical'
+                        })
+                    elif avg_cpu >= warning_threshold:
+                        cpu_triggers.append({
+                            'type': 'warning', 
+                            'reason': f"Average CPU {avg_cpu:.1f}% exceeds warning threshold {warning_threshold}%",
+                            'severity': 'warning'
+                        })
+                
+                # Check low efficiency
+                if conditions.get('low_efficiency', False):
+                    efficiency = cpu_metrics.get('cpu_efficiency', 0)
+                    min_efficiency = thresholds.get('efficiency_minimum', 40)
+                    
+                    if efficiency < min_efficiency:
+                        cpu_triggers.append({
+                            'type': 'efficiency',
+                            'reason': f"CPU efficiency {efficiency:.1f}% below minimum {min_efficiency}%",
+                            'severity': 'warning'
+                        })
+                
+                # If any triggers, create notification
+                if cpu_triggers:
+                    for trigger in cpu_triggers:
+                        trigger_data = {
+                            'alert_id': alert['id'],
+                            'cluster_id': cluster_id,
+                            'trigger_reason': trigger['reason'],
+                            'trigger_type': trigger['type'],
+                            'severity': trigger['severity'],
+                            'current_metrics': cpu_metrics,
+                            'thresholds': thresholds
+                        }
+                        
+                        trigger_id = self.db.create_alert_trigger(trigger_data)
+                        
+                        if trigger_id:
+                            # Send notifications
+                            notifications_sent = []
+                            channels = alert.get('notification_channels', ['inapp'])
+                            
+                            for channel in channels:
+                                if channel == 'inapp':
+                                    if self._send_cpu_alert_in_app(alert, trigger_data):
+                                        notifications_sent.append('inapp')
+                                elif channel == 'email':
+                                    if self._send_cpu_alert_email(alert, trigger_data):
+                                        notifications_sent.append('email')
+                            
+                            triggered_alerts.append({
+                                'alert_id': alert['id'],
+                                'trigger_id': trigger_id,
+                                'notifications_sent': notifications_sent,
+                                'trigger_type': trigger['type']
+                            })
+                            
+                            self.logger.info(f"🚨 CPU Alert triggered: {trigger['reason']}")
+            
+            return triggered_alerts
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error checking CPU monitoring alerts: {e}")
+            return []
+
     def _send_alert_in_app(self, alert: Dict, triggered_alert: Dict) -> bool:
         """🆕 ENHANCED: Send in-app notification with proper error handling"""
         try:
@@ -644,6 +748,88 @@ AKS Cost Intelligence Team
             
         except Exception as e:
             self.logger.error(f"❌ Error sending email: {e}")
+            return False
+
+    def _send_cpu_alert_in_app(self, alert: Dict, triggered_alert: Dict) -> bool:
+        """Send CPU monitoring in-app notification"""
+        try:
+            metrics = triggered_alert['current_metrics']
+            severity = triggered_alert['severity']
+            
+            # Determine alert icon and message based on trigger type
+            if triggered_alert['trigger_type'] == 'critical':
+                icon = '🔴'
+                title = 'Critical CPU Alert'
+            elif triggered_alert['trigger_type'] == 'efficiency':
+                icon = '⚠️'
+                title = 'CPU Efficiency Alert'
+            else:
+                icon = '📊'
+                title = 'CPU Monitoring Alert'
+            
+            # Create CPU-specific in-app notification
+            cpu_notification_data = {
+                'title': f"{icon} {title}",
+                'message': triggered_alert['trigger_reason'],
+                'type': severity,
+                'cluster_id': triggered_alert['cluster_id'],
+                'alert_id': alert['id'],
+                'trigger_id': triggered_alert.get('trigger_id'),
+                'metadata': {
+                    'alert_type': 'cpu_monitoring',
+                    'trigger_type': triggered_alert['trigger_type'],
+                    'current_cpu': metrics.get('average_cpu_utilization', 0),
+                    'max_cpu': metrics.get('max_cpu_utilization', 0), 
+                    'cpu_efficiency': metrics.get('cpu_efficiency', 0),
+                    'thresholds': triggered_alert['thresholds']
+                }
+            }
+            
+            notification_id = self.db.create_notification(cpu_notification_data)
+            
+            if notification_id:
+                self.logger.info(f"📱 ✅ CPU in-app notification created: {notification_id}")
+                return True
+            else:
+                self.logger.error(f"📱 ❌ Failed to create CPU in-app notification")
+                return False
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error sending CPU alert in-app: {e}")
+            return False
+
+    def _send_cpu_alert_email(self, alert: Dict, triggered_alert: Dict) -> bool:
+        """Send CPU monitoring email notification"""
+        try:
+            metrics = triggered_alert['current_metrics']
+            cluster_id = triggered_alert['cluster_id']
+            
+            subject = f"🖥️ CPU Alert: {alert['name']}"
+            
+            body = f"""
+CPU Monitoring Alert
+
+Cluster: {cluster_id}
+Alert: {triggered_alert['trigger_reason']}
+
+Current Metrics:
+• Average CPU: {metrics.get('average_cpu_utilization', 0):.1f}%
+• Peak CPU: {metrics.get('max_cpu_utilization', 0):.1f}%
+• CPU Efficiency: {metrics.get('cpu_efficiency', 0):.1f}%
+• High CPU Workloads: {metrics.get('high_cpu_count', 0)}
+
+Thresholds:
+• Warning: {triggered_alert['thresholds'].get('cpu_warning', 75)}%
+• Critical: {triggered_alert['thresholds'].get('cpu_critical', 90)}%
+• Min Efficiency: {triggered_alert['thresholds'].get('efficiency_minimum', 40)}%
+
+Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+            
+            return self._send_email(subject, body, [self.from_email])
+            
+        except Exception as e:
+            self.logger.error(f"❌ Error sending CPU alert email: {e}")
             return False
 
 # Global instance

@@ -204,6 +204,11 @@ def trigger_alert_checking_after_analysis(cluster_id: str, analysis_results: dic
         logger.info(f"🔍 Checking alerts for cluster {cluster_id} with cost ${current_cost:.2f}")
         
         # Check and trigger alerts
+        alerts_manager = get_alerts_manager()
+        if not alerts_manager:
+            logger.warning("⚠️ Alerts manager not available")
+            return []
+        
         triggered_alerts = alerts_manager.check_cluster_alerts(cluster_id, current_cost)
         
         if triggered_alerts:
@@ -455,8 +460,10 @@ def register_api_routes(app):
                 'memory_gap': ensure_float(analysis_data.get('memory_gap', 0))
             }
             
-            # FIXED: Generate REAL CPU workload data with proper error handling
+            # CPU workload data 
             cpu_workload_data = extract_real_cpu_metrics(analysis_data)
+            
+            # CPU monitoring alerts
             
             # Generate chart data with REAL CPU awareness
             chart_data = {
@@ -1380,36 +1387,16 @@ def extract_real_cpu_metrics(analysis_data):
                     logger.info("✅ Successfully extracted REAL CPU workload data")
                     return result
                 else:
-                    logger.warning("⚠️ CPU workload function returned None or invalid data")
+                    raise ValueError("CPU workload function returned invalid data")
             except Exception as cpu_error:
                 logger.error(f"❌ Error in REAL CPU workload extraction: {cpu_error}")
+                raise
         else:
-            logger.warning("⚠️ CPU workload function not available")
-        
-        # Return basic structure if no REAL CPU data available
-        return {
-            'has_high_cpu_workloads': False,
-            'high_cpu_count': 0,
-            'max_cpu_utilization': 0.0,
-            'average_cpu_utilization': 0.0,
-            'severity_level': 'none',
-            'high_cpu_workloads': [],
-            'cpu_analysis_available': False,
-            'cpu_efficiency': 0.0
-        }
+            raise ValueError("CPU workload function not available")
         
     except Exception as e:
         logger.error(f"❌ Error extracting REAL CPU metrics: {e}")
-        return {
-            'has_high_cpu_workloads': False,
-            'high_cpu_count': 0,
-            'max_cpu_utilization': 0.0,
-            'average_cpu_utilization': 0.0,
-            'severity_level': 'none',
-            'high_cpu_workloads': [],
-            'cpu_analysis_available': False,
-            'cpu_efficiency': 0.0
-        }
+        raise
 
 def generate_real_cost_breakdown_chart_data(analysis_data):
     """Generate cost breakdown chart data from REAL analysis ONLY"""
