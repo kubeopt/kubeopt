@@ -208,16 +208,40 @@ class SubscriptionAwareKubectlExecutor:
         
         logger.info(f"🌐 Created subscription-aware kubectl executor for {cluster_name} in subscription {subscription_id[:8]}")
     
-    def execute_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[str]:
+    def execute_command(self, kubectl_cmd: str, timeout: int = None, max_retries: int = 3) -> Optional[str]:
         """
-        PRESERVED: Execute kubectl command with explicit subscription context
-        Prevents subscription context conflicts during parallel analysis
+        ENHANCED: Execute az aks command invoke with retry logic for AKS API throttling
+        Handles Azure API 'Service Unavailable' and throttling issues
         """
         if timeout is None:
             timeout = self.timeout
-            
+        
+        for attempt in range(max_retries):
+            try:
+                return self._execute_with_retry(kubectl_cmd, timeout, attempt)
+            except Exception as e:
+                if attempt == max_retries - 1:  # Last attempt
+                    logger.error(f"❌ All {max_retries} attempts failed for {kubectl_cmd}: {e}")
+                    return None
+                
+                # Check if it's a retryable error
+                error_str = str(e).lower()
+                if any(retryable in error_str for retryable in ['service unavailable', 'throttl', 'timeout', 'busy']):
+                    wait_time = (attempt + 1) * 2  # Exponential backoff: 2s, 4s, 6s
+                    logger.warning(f"⚠️ Azure AKS API issue (attempt {attempt+1}/{max_retries}), retrying in {wait_time}s: {e}")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    # Non-retryable error, fail immediately
+                    logger.error(f"❌ Non-retryable error: {e}")
+                    return None
+        
+        return None
+    
+    def _execute_with_retry(self, kubectl_cmd: str, timeout: int, attempt: int) -> Optional[str]:
+        """Execute az aks command invoke with Azure API error handling"""
         try:
-            # Build command with explicit subscription context (PRESERVED)
+            # Build az aks command invoke with explicit subscription context
             cmd = [
                 'az', 'aks', 'command', 'invoke',
                 '--resource-group', self.resource_group,
@@ -226,6 +250,9 @@ class SubscriptionAwareKubectlExecutor:
                 '--command', kubectl_cmd
             ]
             
+            if attempt > 0:
+                logger.info(f"🔄 Retry attempt {attempt+1} for {kubectl_cmd}")
+            
             logger.debug(f"🔧 Subscription {self.subscription_id[:8]}: Executing kubectl: {kubectl_cmd}")
             start_time = time.time()
             
@@ -233,8 +260,24 @@ class SubscriptionAwareKubectlExecutor:
             execution_time = time.time() - start_time
             
             if result.returncode != 0:
-                # PRESERVED: Check for subscription context errors specifically
-                if "ResourceGroupNotFound" in result.stderr:
+                error_msg = result.stderr.strip()
+                
+                # Check for Azure AKS API and Kubernetes connectivity issues
+                if any(api_error in error_msg for api_error in [
+                    "Service Unavailable", 
+                    "Too Many Requests",
+                    "ThrottlingException",
+                    "API rate limit exceeded",
+                    "OperationNotAllowed",
+                    "TLS handshake timeout",
+                    "KubernetesOperationError",
+                    "connection timeout",
+                    "Failed to run command in managed cluster"
+                ]):
+                    raise Exception(f"Azure AKS connectivity issue: {error_msg}")
+                
+                # Check for subscription context errors specifically
+                if "ResourceGroupNotFound" in error_msg:
                     logger.error(f"❌ Resource group not found in subscription {self.subscription_id[:8]} - context issue detected")
                     logger.error(f"❌ Command: {kubectl_cmd}")
                     logger.error(f"❌ Error: {result.stderr}")
@@ -960,18 +1003,17 @@ class EnhancedDynamicCostDistributionEngine:
             return self._instance_type_cache[node_name]
         
         try:
-            # First try to get from node labels via kubectl describe
-            cmd = f"kubectl describe node {node_name}"
-            describe_output = self._safe_kubectl_command(cmd, timeout=30)
+            # Use lightweight kubectl get instead of heavy describe command
+            cmd = f"kubectl get node {node_name} -o jsonpath='{{.metadata.labels.node\\.kubernetes\\.io/instance-type}}'"
+            instance_output = self._safe_kubectl_command(cmd, timeout=35)
             
-            if describe_output:
-                # Look for instance-type label
-                for line in describe_output.split('\n'):
-                    if 'node.kubernetes.io/instance-type=' in line:
-                        instance_type = line.split('=')[1].strip()
-                        self._instance_type_cache[node_name] = instance_type  # Cache it
-                        logger.info(f"✅ Found dynamic instance type for {node_name}: {instance_type}")
-                        return instance_type
+            if instance_output:
+                # Direct instance type from jsonpath
+                instance_type = instance_output.strip()
+                if instance_type and instance_type != '<no value>':
+                    self._instance_type_cache[node_name] = instance_type  # Cache it
+                    logger.info(f"✅ Found instance type for {node_name}: {instance_type}")
+                    return instance_type
                 
                 # Look for Azure node pool info
                 for line in describe_output.split('\n'):
@@ -1005,20 +1047,16 @@ class EnhancedDynamicCostDistributionEngine:
                 logger.debug(f"✅ Dynamic CPU for {node_name} ({instance_type}): {cpu}")
                 return cpu
             
-            # Try to get from kubectl describe as backup
-            cmd = f"kubectl describe node {node_name}"
-            describe_output = self._safe_kubectl_command(cmd, timeout=30)
+            # Use lightweight kubectl get for CPU allocation  
+            cmd = f"kubectl get node {node_name} -o jsonpath='{{.status.allocatable.cpu}}'"
+            cpu_output = self._safe_kubectl_command(cmd, timeout=35)
             
-            if describe_output:
-                # Look for Allocatable CPU
-                for line in describe_output.split('\n'):
-                    if 'cpu:' in line and 'Allocatable:' in describe_output:
-                        # Found allocatable section, extract CPU
-                        match = re.search(r'cpu:\s*(\d+)', line)
-                        if match:
-                            cpu = match.group(1)
-                            logger.info(f"✅ Found dynamic CPU via kubectl for {node_name}: {cpu}")
-                            return cpu
+            if cpu_output:
+                # Parse allocatable CPU directly
+                cpu_value = cpu_output.strip()
+                if cpu_value and cpu_value != '<no value>':
+                    logger.debug(f"✅ Found CPU allocation for {node_name}: {cpu_value}")
+                    return cpu_value
             
             logger.warning(f"⚠️ Could not detect CPU for {node_name}, using default 4")
             return '4'
@@ -1039,20 +1077,16 @@ class EnhancedDynamicCostDistributionEngine:
                 logger.debug(f"✅ Dynamic memory for {node_name} ({instance_type}): {memory}")
                 return memory
             
-            # Try to get from kubectl describe as backup
-            cmd = f"kubectl describe node {node_name}"
-            describe_output = self._safe_kubectl_command(cmd, timeout=30)
+            # Use lightweight kubectl get for memory allocation
+            cmd = f"kubectl get node {node_name} -o jsonpath='{{.status.allocatable.memory}}'"
+            memory_output = self._safe_kubectl_command(cmd, timeout=35)
             
-            if describe_output:
-                # Look for Allocatable Memory
-                for line in describe_output.split('\n'):
-                    if 'memory:' in line and 'Allocatable:' in describe_output:
-                        # Found allocatable section, extract memory
-                        match = re.search(r'memory:\s*(\d+(?:\.\d+)?[KMGT]?i?)', line)
-                        if match:
-                            memory = match.group(1)
-                            logger.info(f"✅ Found dynamic memory via kubectl for {node_name}: {memory}")
-                            return memory
+            if memory_output:
+                # Parse allocatable memory directly
+                memory_value = memory_output.strip()
+                if memory_value and memory_value != '<no value>':
+                    logger.debug(f"✅ Found memory allocation for {node_name}: {memory_value}")
+                    return memory_value
             
             logger.warning(f"⚠️ Could not detect memory for {node_name}, using default 16Gi")
             return '16Gi'

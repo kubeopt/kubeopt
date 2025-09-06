@@ -825,15 +825,62 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         """Initialize ML systems with detailed error tracking"""
         
         try:
-            # Import ML modules
+            # Import ML modules with individual error tracking
             logger.info("📥 Importing ML modules...")
             
-            from app.ml.learn_optimize import create_enhanced_learning_engine
-            from app.ml.dynamic_strategy import EnhancedDynamicStrategyEngine
-            from app.ml.dynamic_plan_generator import MLIntegratedDynamicImplementationGenerator
-            from app.ml.dynamic_cmd_center import AdvancedExecutableCommandGenerator
-            from app.ml.dna_analyzer import ClusterDNAAnalyzer
-            from app.ml.ml_integration import MLSystemOrchestrator
+            try:
+                from app.ml.learn_optimize import create_enhanced_learning_engine
+                results['learn_optimize_import'] = 'success'
+                logger.info("✅ learn_optimize imported")
+            except Exception as e:
+                results['learn_optimize_import'] = f'failed: {e}'
+                logger.error(f"❌ learn_optimize import failed: {e}")
+                raise
+            
+            try:
+                from app.ml.dynamic_strategy import EnhancedDynamicStrategyEngine
+                results['dynamic_strategy_import'] = 'success'
+                logger.info("✅ dynamic_strategy imported")
+            except Exception as e:
+                results['dynamic_strategy_import'] = f'failed: {e}'
+                logger.error(f"❌ dynamic_strategy import failed: {e}")
+                raise
+            
+            try:
+                from app.ml.dynamic_plan_generator import MLIntegratedDynamicImplementationGenerator
+                results['dynamic_plan_generator_import'] = 'success'
+                logger.info("✅ dynamic_plan_generator imported")
+            except Exception as e:
+                results['dynamic_plan_generator_import'] = f'failed: {e}'
+                logger.error(f"❌ dynamic_plan_generator import failed: {e}")
+                raise
+            
+            try:
+                from app.ml.dynamic_cmd_center import AdvancedExecutableCommandGenerator
+                results['dynamic_cmd_center_import'] = 'success'
+                logger.info("✅ dynamic_cmd_center imported")
+            except Exception as e:
+                results['dynamic_cmd_center_import'] = f'failed: {e}'
+                logger.error(f"❌ dynamic_cmd_center import failed: {e}")
+                raise
+            
+            try:
+                from app.ml.dna_analyzer import ClusterDNAAnalyzer
+                results['dna_analyzer_import'] = 'success'
+                logger.info("✅ dna_analyzer imported")
+            except Exception as e:
+                results['dna_analyzer_import'] = f'failed: {e}'
+                logger.error(f"❌ dna_analyzer import failed: {e}")
+                raise
+            
+            try:
+                from app.ml.ml_integration import MLSystemOrchestrator
+                results['ml_integration_import'] = 'success'
+                logger.info("✅ ml_integration imported")
+            except Exception as e:
+                results['ml_integration_import'] = f'failed: {e}'
+                logger.error(f"❌ ml_integration import failed: {e}")
+                raise
             
             results['imports'] = {'status': 'success', 'modules_imported': 6}
             logger.info("✅ All ML modules imported successfully")
@@ -1110,6 +1157,13 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             )
             if ml_plan is None or not isinstance(ml_plan, dict):
                 raise ValueError("❌ CRITICAL: Plan generation failed")
+                
+            # PHASE 4.5: Enterprise Metrics Integration
+            logger.info("🔄 PHASE 4.5: Enterprise Operational Metrics Calculation")
+            enterprise_metrics = asyncio.run(self._calculate_enterprise_metrics(
+                analysis_results, cluster_dna, ml_session, cluster_config
+            ))
+            ml_plan['enterprise_metrics'] = enterprise_metrics
             
             # PHASE 5: Integrated Security Enhancement (NEW)
             if security_analysis:
@@ -1124,16 +1178,11 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                 ml_plan, analysis_results, ml_strategy, ml_session, cluster_config, security_analysis
             )
             
-            # PHASE 7: Complete Framework Structure (Enhanced)
-            logger.info("🔄 PHASE 7: Enhanced Framework Structure Completion")
-            ml_plan = self._ensure_complete_framework_structure(
-                ml_plan, analysis_results, ml_session, cluster_config, security_analysis
-            )
+            # PHASE 7: Skipped - Old framework completion removed
+            logger.info("🔄 PHASE 7: Framework completion removed - using enterprise metrics approach")
             
-            # PHASE 8: Enhanced Validation (with Security Validation)
-            logger.info("🔄 PHASE 8: Enhanced Output Structure Validation")
-            if not self._validate_output_structure(ml_plan):
-                raise ValueError("❌ CRITICAL: Output validation failed")
+            # PHASE 8: Skipped - Old framework validation removed
+            logger.info("🔄 PHASE 8: Framework validation removed - using enterprise metrics approach")
             
             # PHASE 9: Enhanced Confidence Calculation (with Security Metrics)
             logger.info("🔄 PHASE 9: Enhanced Confidence Calculation")
@@ -2343,6 +2392,59 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                 'ml_security_correlation': confidence
             })
     
+    async def _calculate_enterprise_metrics(self, analysis_results: Dict, cluster_dna: Any, 
+                                           ml_session: Dict, cluster_config: Dict) -> Dict:
+        """Calculate real enterprise operational metrics and integrate with implementation plan"""
+        logger.info("🏢 Calculating enterprise operational metrics...")
+        
+        try:
+            # Extract cluster information - use same pattern as analysis engine
+            resource_group = analysis_results.get('resource_group')
+            cluster_name = analysis_results.get('cluster_name')
+            
+            # Use same subscription detection as analysis engine
+            subscription_id = None
+            if not subscription_id:
+                logger.info(f"🔍 Auto-detecting subscription for cluster {cluster_name}")
+                from app.services.subscription_manager import azure_subscription_manager
+                subscription_id = azure_subscription_manager.find_cluster_subscription(resource_group, cluster_name)
+                
+            if not all([resource_group, cluster_name, subscription_id]):
+                raise ValueError(f"Missing cluster info: rg={resource_group}, cluster={cluster_name}, sub={subscription_id}")
+            
+            # Import enterprise metrics components
+            from app.ml.ml_framework_generator import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
+            
+            # Initialize enterprise metrics engine first
+            metrics_engine = EnterpriseOperationalMetricsEngine(
+                resource_group=resource_group,
+                cluster_name=cluster_name,
+                subscription_id=subscription_id
+            )
+            
+            # Then create integration with the engine
+            integration = EnterpriseMetricsIntegration(metrics_engine)
+            
+            # Calculate real enterprise metrics
+            logger.info("📊 Fetching real enterprise metrics from cluster...")
+            dashboard_data = await integration.get_enterprise_dashboard_data()
+            
+            logger.info(f"✅ Enterprise metrics calculated - Score: {dashboard_data['enterprise_maturity']['score']}")
+            return dashboard_data
+            
+        except Exception as e:
+            logger.error(f"❌ Enterprise metrics calculation failed: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            # Don't fail the entire implementation generation - just skip enterprise metrics
+            return {
+                'status': 'failed',
+                'error': str(e),
+                'enterprise_maturity': {'score': 0, 'level': 'UNKNOWN'},
+                'operational_metrics': {},
+                'action_items': []
+            }
+    
     def _finalize_enhanced_session(self, ml_session: Dict, implementation_plan: Dict,
                                  confidence: float, security_analysis: Optional[Dict]):
         """Finalize enhanced session with security integration metadata"""
@@ -2420,18 +2522,21 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                 logger.error(f"❌ implementation_phases is not a list: type={type(implementation_plan['implementation_phases'])}")
                 return False
             
-            # Check for framework components
-            framework_components = ['costProtection', 'governance', 'monitoring', 'contingency', 
-                                  'successCriteria', 'timelineOptimization', 'riskMitigation']
+            # Check for plan components
+            plan_components = ['costProtection', 'governance', 'monitoring', 'contingency', 
+                             'successCriteria', 'timelineOptimization', 'riskMitigation', 'intelligenceInsights']
             
             missing_components = []
             disabled_components = []
             
-            for component in framework_components:
+            for component in plan_components:
                 if component not in implementation_plan:
                     missing_components.append(component)
-                elif not implementation_plan[component].get('enabled', False):
-                    disabled_components.append(component)
+                else:
+                    confidence = implementation_plan[component].get('ml_confidence', 0)
+                    logger.info(f"🔍 Component '{component}' confidence: {confidence}")
+                    if confidence < 0.5:
+                        disabled_components.append(component)
             
             if missing_components:
                 logger.error(f"❌ Missing framework components: {missing_components}")
@@ -2697,13 +2802,12 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         else:
             confidence_factors.append(0.6)
         
-        # Framework completeness factor
-        framework_components = ['costProtection', 'governance', 'monitoring', 'contingency', 
-                              'successCriteria', 'timelineOptimization', 'riskMitigation']
-        completed_components = sum(1 for comp in framework_components 
-                                 if comp in implementation_plan and implementation_plan[comp].get('enabled', False))
-        framework_factor = completed_components / len(framework_components)
-        confidence_factors.append(framework_factor)
+        # Use enterprise metrics confidence directly from plan generation
+        if 'metadata' in implementation_plan and 'ml_confidence' in implementation_plan['metadata']:
+            plan_confidence = implementation_plan['metadata']['ml_confidence']
+            confidence_factors.append(plan_confidence)
+        else:
+            confidence_factors.append(0.8)  # Default for enterprise metrics
         
         # Security integration factor (NEW)
         if self.enable_security_integration:
@@ -2953,7 +3057,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                 
                 # Preserve ALL Document1 data (PRESERVED)
                 "executiveSummary": self._enhance_executive_summary(executive_summary, business_case),
-                "intelligenceInsights": comprehensive_plan.get('intelligence_insights', {}),
+                "intelligenceInsights": comprehensive_plan.get('intelligenceInsights', {}),
                 "costProtection": comprehensive_plan.get('costProtection', {}),
                 "governance": comprehensive_plan.get('governance', {}),
                 "monitoring": comprehensive_plan.get('monitoring', {}),

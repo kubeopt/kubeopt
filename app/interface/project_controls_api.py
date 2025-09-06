@@ -13,8 +13,10 @@ Extracts framework components AND commands from real analysis results
 from flask import request, jsonify
 from datetime import datetime
 import traceback
+import asyncio
 from app.main.config import logger, enhanced_cluster_manager
 from app.main.shared import _get_analysis_data
+from app.ml.ml_framework_generator import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
 
 def sanitize_for_json(obj):
     """
@@ -84,6 +86,92 @@ def sanitize_for_json(obj):
 def register_project_controls_api(app):
     """Register project controls API endpoint with commands extraction"""
     
+    @app.route('/api/environments', methods=['GET'])
+    def api_get_environments():
+        """Get customer-configurable environments"""
+        try:
+            from pathlib import Path
+            import json
+            
+            config_path = Path(__file__).parent.parent / "config" / "environments.json"
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            
+            return jsonify({
+                "status": "success",
+                "environments": config.get("environments", {}),
+                "default_environment": config.get("default_environment", "development"),
+                "total_environments": len(config.get("environments", {}))
+            })
+        except Exception as e:
+            logger.error(f"❌ Failed to get environments: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+    
+    @app.route('/api/environments', methods=['POST'])
+    def api_update_environments():
+        """Update customer environment configuration"""
+        try:
+            from pathlib import Path
+            import json
+            
+            data = request.get_json()
+            if not data or 'environments' not in data:
+                return jsonify({"status": "error", "message": "Missing environments data"}), 400
+            
+            # Validate environment data
+            environments = data['environments']
+            required_fields = ['deployment_frequency_target', 'change_failure_tolerance', 
+                             'capacity_buffer_target', 'compliance_minimum', 'utilization_target']
+            
+            for env_name, env_config in environments.items():
+                for field in required_fields:
+                    if field not in env_config:
+                        return jsonify({
+                            "status": "error", 
+                            "message": f"Missing required field '{field}' in environment '{env_name}'"
+                        }), 400
+            
+            # Save configuration
+            config = {
+                "environments": environments,
+                "default_environment": data.get("default_environment", "development"),
+                "metadata": {
+                    "version": "1.0",
+                    "last_updated": datetime.now().isoformat(),
+                    "description": "Customer-configured environments"
+                }
+            }
+            
+            config_path = Path(__file__).parent.parent / "config" / "environments.json"
+            config_path.parent.mkdir(exist_ok=True)
+            
+            with open(config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            
+            # Clear cache to reload config
+            global _ENVIRONMENT_CONFIG
+            from app.ml.ml_framework_generator import _CONFIG_LOCK
+            with _CONFIG_LOCK:
+                from app.ml import ml_framework_generator
+                ml_framework_generator._ENVIRONMENT_CONFIG = None
+            
+            logger.info(f"✅ Updated environment configuration with {len(environments)} environments")
+            
+            return jsonify({
+                "status": "success",
+                "message": f"Updated {len(environments)} environments",
+                "environments_count": len(environments)
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to update environments: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+
+    @app.route('/api/enterprise-metrics', methods=['GET'])
+    def api_enterprise_metrics():
+        """Get enterprise operational metrics"""
+        return get_enterprise_metrics_sync()
+    
     @app.route('/api/project-controls', methods=['GET'])
     def api_project_controls():
         """Get project controls framework data with commands - FIXED VERSION"""
@@ -130,11 +218,26 @@ def register_project_controls_api(app):
             # Log what we received for debugging
             logger.info(f"🔍 FIXED: Raw analysis data keys: {list(current_analysis.keys())}")
             
-            # Extract framework components WITH commands
-            framework_data = extract_framework_with_commands(current_analysis, cluster, data_source)
-            
-            if framework_data['status'] == 'error':
-                return jsonify(framework_data), 500
+            # Project Controls has been migrated to Enterprise Metrics
+            framework_data = {
+                'status': 'migrated',
+                'message': 'Project Controls has been upgraded to Enterprise Operational Metrics. Please use the Enterprise Metrics tab for comprehensive operational intelligence.',
+                'migration_info': {
+                    'old_system': 'Project Controls Framework',
+                    'new_system': 'Enterprise Operational Metrics',
+                    'new_tab': 'Enterprise Metrics',
+                    'benefits': [
+                        'Real-time cluster data analysis',
+                        'Industry-standard benchmarks (CIS, DORA, NIST)',
+                        'Kubernetes upgrade readiness assessment',
+                        'Disaster recovery scoring',
+                        'DORA metrics for team velocity',
+                        'Compliance readiness scoring'
+                    ]
+                },
+                'framework': {},
+                'execution_plan': {}
+            }
             
             # Add metadata
             framework_data['metadata'] = {
@@ -166,6 +269,162 @@ def register_project_controls_api(app):
                 'message': f'FIXED project controls API error: {str(e)}',
                 'error_type': type(e).__name__
             }), 500
+
+
+def get_enterprise_metrics_sync():
+    """Get enterprise operational metrics data - sync version"""
+    try:
+        logger.info("🏢 Fetching enterprise operational metrics (sync)...")
+        
+        # Get cluster information from request
+        cluster_id = request.args.get('cluster_id')
+        if not cluster_id:
+            return jsonify({
+                'status': 'error',
+                'message': 'cluster_id parameter required'
+            }), 400
+        
+        # Try to get enterprise metrics from cached implementation plan first
+        analysis_data, data_source = _get_analysis_data(cluster_id)
+        logger.info(f"🔍 Analysis data source: {data_source}")
+        if analysis_data and 'implementation_plan' in analysis_data:
+            logger.info(f"🔍 Analysis data keys: {list(analysis_data.keys())}")
+            # Check if implementation plan has enterprise metrics
+            implementation_plan = analysis_data.get('implementation_plan', {})
+            logger.info(f"🔍 Implementation plan type: {type(implementation_plan)}")
+            if isinstance(implementation_plan, dict):
+                logger.info(f"🔍 Implementation plan keys: {list(implementation_plan.keys())}")
+                if 'enterprise_metrics' in implementation_plan:
+                    logger.info("✅ Using enterprise metrics from implementation plan cache")
+                    enterprise_data = implementation_plan['enterprise_metrics']
+                    
+                    return jsonify({
+                        'status': 'success',
+                        'timestamp': datetime.now().isoformat(),
+                        'data': enterprise_data,
+                        'source': 'implementation_plan_cache'
+                    })
+                else:
+                    logger.info("❌ No enterprise_metrics found in implementation plan")
+            else:
+                logger.info(f"❌ Implementation plan is not dict: {implementation_plan}")
+        else:
+            logger.info(f"❌ Analysis data not completed or missing: status={analysis_data.get('status') if analysis_data else 'None'}")
+        
+        # Fallback: Calculate enterprise metrics synchronously
+        logger.info("🔄 Calculating enterprise metrics synchronously...")
+        
+        # Extract cluster info from analysis data
+        if analysis_data:
+            resource_group = analysis_data.get('resource_group', 'unknown')
+            cluster_name = analysis_data.get('cluster_name', 'unknown')
+            
+            # Find subscription using same method as implementation generator
+            from app.services.subscription_manager import azure_subscription_manager
+            subscription_id = azure_subscription_manager.find_cluster_subscription(resource_group, cluster_name)
+            
+            if subscription_id:
+                # Import and run enterprise metrics synchronously
+                from app.ml.ml_framework_generator import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
+                
+                metrics_engine = EnterpriseOperationalMetricsEngine(
+                    resource_group=resource_group,
+                    cluster_name=cluster_name,
+                    subscription_id=subscription_id
+                )
+                
+                integration = EnterpriseMetricsIntegration(metrics_engine)
+                
+                # Use asyncio.run for sync execution
+                dashboard_data = asyncio.run(integration.get_enterprise_dashboard_data())
+                
+                return jsonify({
+                    'status': 'success',
+                    'timestamp': datetime.now().isoformat(),
+                    'data': dashboard_data,
+                    'source': 'real_time_calculation'
+                })
+        
+        return jsonify({
+            'status': 'error',
+            'message': 'Could not determine cluster information for enterprise metrics'
+        }), 400
+        
+    except Exception as e:
+        logger.error(f"❌ Enterprise metrics sync error: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Enterprise metrics error: {str(e)}'
+        }), 500
+
+async def get_enterprise_metrics():
+    """Get enterprise operational metrics data"""
+    try:
+        logger.info("🏢 Fetching enterprise operational metrics...")
+        
+        # Get cluster information from request or shared data
+        cluster_id = request.args.get('cluster_id')
+        
+        # Try to get cluster info from analysis data if cluster_id provided
+        if cluster_id:
+            analysis_data = _get_analysis_data(cluster_id)
+            if analysis_data and analysis_data.get('status') == 'completed':
+                resource_group = analysis_data.get('resource_group', 'default-rg')
+                cluster_name = analysis_data.get('cluster_name', 'default-cluster')
+                subscription_id = analysis_data.get('subscription_id', 'default-subscription')
+            else:
+                # Fallback to direct parameters
+                resource_group = request.args.get('resource_group', 'default-rg')
+                cluster_name = request.args.get('cluster_name', 'default-cluster')
+                subscription_id = request.args.get('subscription_id', 'default-subscription')
+        else:
+            # Direct parameters
+            resource_group = request.args.get('resource_group', 'default-rg')
+            cluster_name = request.args.get('cluster_name', 'default-cluster') 
+            subscription_id = request.args.get('subscription_id', 'default-subscription')
+        
+        logger.info(f"🎯 Enterprise metrics for: {cluster_name} in {resource_group}")
+        
+        # Initialize enterprise metrics engine
+        metrics_engine = EnterpriseOperationalMetricsEngine(
+            resource_group=resource_group,
+            cluster_name=cluster_name,
+            subscription_id=subscription_id
+        )
+        
+        # Calculate real enterprise metrics using actual cluster data
+        logger.info("📊 Calculating real enterprise metrics from cluster data...")
+        
+        # Use the enterprise metrics integration to get real data
+        integration = EnterpriseMetricsIntegration(
+            resource_group=resource_group,
+            cluster_name=cluster_name, 
+            subscription_id=subscription_id
+        )
+        
+        # Calculate real enterprise metrics
+        dashboard_data = await integration.get_formatted_dashboard_data()
+        
+        # Sanitize for JSON response
+        sanitized_data = sanitize_for_json(dashboard_data)
+        
+        logger.info(f"✅ Real enterprise metrics calculated - Maturity Level: {dashboard_data['enterprise_maturity']['level']}")
+        
+        return jsonify({
+            'status': 'success',
+            'timestamp': datetime.now().isoformat(),
+            'data': sanitized_data
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Enterprise metrics calculation failed: {e}")
+        logger.error(traceback.format_exc())
+        
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to calculate enterprise metrics: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 
 def extract_framework_with_commands(analysis_data, cluster, data_source):

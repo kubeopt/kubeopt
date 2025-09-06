@@ -50,6 +50,12 @@ class ProjectControlsManager {
             if (data.status === 'error') {
                 throw new Error(data.message);
             }
+            
+            if (data.status === 'migrated') {
+                this.showMigrationMessage(data);
+                this.hideLoading();
+                return;
+            }
 
             this.frameworkData = data;
             this.renderFrameworkComponents();
@@ -80,6 +86,40 @@ class ProjectControlsManager {
         this.isLoading = false;
         document.getElementById('controls-loading')?.classList.add('hidden');
         document.getElementById('controls-main-content')?.classList.remove('hidden');
+    }
+
+    showMigrationMessage(data) {
+        const container = document.getElementById('projectcontrols-content');
+        if (!container) return;
+        
+        container.innerHTML = `
+            <div class="bg-blue-900 border border-blue-500 rounded-lg p-8 text-center">
+                <div class="flex flex-col items-center space-y-4">
+                    <i class="fas fa-arrow-up text-blue-500 text-4xl"></i>
+                    <h3 class="text-2xl font-semibold text-white">System Upgraded!</h3>
+                    <p class="text-blue-200 max-w-2xl">${data.message}</p>
+                    
+                    <div class="bg-blue-800 rounded-lg p-6 mt-6 w-full max-w-4xl">
+                        <h4 class="text-lg font-semibold text-white mb-4">New Enterprise Features:</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
+                            ${data.migration_info.benefits.map(benefit => 
+                                `<div class="flex items-center space-x-2">
+                                    <i class="fas fa-check text-green-500"></i>
+                                    <span class="text-blue-100">${benefit}</span>
+                                </div>`
+                            ).join('')}
+                        </div>
+                    </div>
+                    
+                    <button onclick="showContent('enterprise-metrics', document.querySelector('[data-target=\\"#enterprise-metrics-content\\"]'))" 
+                            class="mt-6 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition-colors flex items-center space-x-2">
+                        <i class="fas fa-building"></i>
+                        <span>Go to Enterprise Metrics</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        `;
     }
 
     showError(message) {

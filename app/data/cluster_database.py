@@ -92,8 +92,15 @@ def migrate_analysis_data_to_blob(db_path: str = '../data/database/clusters.db')
                     for cluster_id, analysis_data in data_backup:
                         if analysis_data:
                             try:
-                                # Encode the JSON string as bytes for BLOB storage
-                                blob_data = analysis_data.encode('utf-8')
+                                # Handle both string and bytes data types
+                                if isinstance(analysis_data, str):
+                                    blob_data = analysis_data.encode('utf-8')
+                                elif isinstance(analysis_data, bytes):
+                                    blob_data = analysis_data
+                                else:
+                                    # Convert other types to JSON string then encode
+                                    blob_data = json.dumps(analysis_data).encode('utf-8')
+                                
                                 cursor.execute(
                                     "UPDATE clusters SET analysis_data_blob = ? WHERE id = ?",
                                     (blob_data, cluster_id)
