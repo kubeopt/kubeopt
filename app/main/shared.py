@@ -44,7 +44,7 @@ class RequestDeduplicator:
             # Check if request is already in progress
             if request_key in self.active_requests:
                 request_info = self.active_requests[request_key]
-                logger.info(f"🔄 DEDUP: Request {request_key[:16]}... already in progress on thread {request_info['thread_id']}, waiting...")
+                logger.info(f"🔄  Request {request_key[:16]}... already in progress on thread {request_info['thread_id']}, waiting...")
                 
                 # Wait for the active request to complete
                 event = request_info['completion_event']
@@ -57,11 +57,11 @@ class RequestDeduplicator:
                 # Check if we have cached results
                 if request_key in self.request_results:
                     result = self.request_results[request_key]['result']
-                    logger.info(f"✅ DEDUP: Using cached result for {request_key[:16]}...")
+                    logger.info(f"✅  Using cached result for {request_key[:16]}...")
                     return result
                 
                 # If no cached result, the request might have failed, so we'll execute
-                logger.warning(f"⚠️ DEDUP: No cached result for {request_key[:16]}..., executing anyway")
+                logger.warning(f"⚠️  No cached result for {request_key[:16]}..., executing anyway")
         
         # Execute the operation
         completion_event = threading.Event()
@@ -75,7 +75,7 @@ class RequestDeduplicator:
             }
         
         try:
-            logger.info(f"🚀 DEDUP: Executing operation for {request_key[:16]}... on thread {threading.current_thread().ident}")
+            logger.info(f"🚀  Executing operation for {request_key[:16]}... on thread {threading.current_thread().ident}")
             result = operation_func(*args, **kwargs)
             
             with self.lock:
@@ -92,11 +92,11 @@ class RequestDeduplicator:
             # Signal completion to waiting threads
             completion_event.set()
             
-            logger.info(f"✅ DEDUP: Operation completed for {request_key[:16]}...")
+            logger.info(f"✅  Operation completed for {request_key[:16]}...")
             return result
             
         except Exception as e:
-            logger.error(f"❌ DEDUP: Operation failed for {request_key[:16]}...: {e}")
+            logger.error(f"❌  Operation failed for {request_key[:16]}...: {e}")
             
             with self.lock:
                 # Remove from active requests on failure
@@ -124,11 +124,11 @@ class RequestDeduplicator:
         ]
         
         for key in stale_requests:
-            logger.warning(f"⚠️ DEDUP: Cleaning stale request {key[:16]}...")
+            logger.warning(f"⚠️  Cleaning stale request {key[:16]}...")
             del self.active_requests[key]
         
         if expired_results or stale_requests:
-            logger.info(f"🧹 DEDUP: Cleaned {len(expired_results)} expired results, {len(stale_requests)} stale requests")
+            logger.info(f"🧹  Cleaned {len(expired_results)} expired results, {len(stale_requests)} stale requests")
 
 # Global deduplicator instance
 request_deduplicator = RequestDeduplicator()
@@ -246,14 +246,14 @@ def ensure_float(value: Any) -> float:
     
 #     dedup_key = f"chart_data_{cluster_id}_{int(time.time() // 45)}"  # 45-second dedup window for charts
     
-#     logger.info(f"📊 CHART DEDUP: Requesting chart data for {cluster_id}")
+#     logger.info(f"📊 CHART  Requesting chart data for {cluster_id}")
     
 #     try:
 #         result = request_deduplicator.get_or_execute(dedup_key, operation_func, *args, **kwargs)
-#         logger.info(f"✅ CHART DEDUP: Chart data delivered for {cluster_id}")
+#         logger.info(f"✅ CHART  Chart data delivered for {cluster_id}")
 #         return result
 #     except Exception as e:
-#         logger.error(f"❌ CHART DEDUP: Chart data generation failed for {cluster_id}: {e}")
+#         logger.error(f"❌ CHART  Chart data generation failed for {cluster_id}: {e}")
 #         raise
 
 # ============================================================================
@@ -275,7 +275,7 @@ class MLOperationDeduplicator:
             # Check if operation is already running
             if operation_key in self.active_ml_operations:
                 event = self.active_ml_operations[operation_key]['completion_event']
-                logger.info(f"🤖 ML DEDUP: Operation {operation_key} already running, waiting...")
+                logger.info(f"🤖 ML  Operation {operation_key} already running, waiting...")
                 
         # Wait for completion if operation is active
         if operation_key in self.active_ml_operations:
@@ -283,7 +283,7 @@ class MLOperationDeduplicator:
             
             with self.lock:
                 if operation_key in self.ml_results_cache:
-                    logger.info(f"✅ ML DEDUP: Using cached ML result for {operation_key}")
+                    logger.info(f"✅ ML  Using cached ML result for {operation_key}")
                     return self.ml_results_cache[operation_key]['result']
         
         # Execute the ML operation
@@ -297,7 +297,7 @@ class MLOperationDeduplicator:
             }
         
         try:
-            logger.info(f"🚀 ML DEDUP: Executing ML operation {operation_key}")
+            logger.info(f"🚀 ML  Executing ML operation {operation_key}")
             result = operation_func(*args, **kwargs)
             
             with self.lock:
@@ -312,11 +312,11 @@ class MLOperationDeduplicator:
                 self.active_ml_operations.pop(operation_key, None)
             
             completion_event.set()
-            logger.info(f"✅ ML DEDUP: ML operation {operation_key} completed")
+            logger.info(f"✅ ML  ML operation {operation_key} completed")
             return result
             
         except Exception as e:
-            logger.error(f"❌ ML DEDUP: ML operation {operation_key} failed: {e}")
+            logger.error(f"❌ ML  ML operation {operation_key} failed: {e}")
             
             with self.lock:
                 self.active_ml_operations.pop(operation_key, None)

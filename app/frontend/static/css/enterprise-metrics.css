@@ -1,0 +1,241 @@
+/* Enterprise Metrics Styling */
+
+.enterprise-metrics-container {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    min-height: 100vh;
+}
+
+.metric-card {
+    transition: all 0.3s ease;
+    border: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    border-color: rgba(59, 130, 246, 0.5);
+}
+
+.metric-progress {
+    transition: all 0.6s ease-in-out;
+}
+
+.metric-progress div {
+    transition: width 1s ease-in-out;
+}
+
+/* Maturity Level Styling */
+.maturity-level-basic {
+    color: #ef4444;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.maturity-level-intermediate {
+    color: #f59e0b;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.maturity-level-advanced {
+    color: #3b82f6;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.maturity-level-elite {
+    color: #10b981;
+    background: linear-gradient(135deg, #10b981, #059669);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Risk Level Colors */
+.risk-low {
+    color: #10b981 !important;
+}
+
+.risk-medium {
+    color: #f59e0b !important;
+}
+
+.risk-high {
+    color: #f97316 !important;
+}
+
+.risk-critical {
+    color: #ef4444 !important;
+}
+
+/* Action Items Styling */
+.action-item {
+    animation: slideInUp 0.3s ease-out;
+}
+
+.action-item:nth-child(1) { animation-delay: 0.1s; }
+.action-item:nth-child(2) { animation-delay: 0.2s; }
+.action-item:nth-child(3) { animation-delay: 0.3s; }
+.action-item:nth-child(4) { animation-delay: 0.4s; }
+.action-item:nth-child(5) { animation-delay: 0.5s; }
+
+/* Loading Animation */
+.enterprise-loading-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Score Animation */
+.metric-score {
+    animation: countUp 1s ease-out;
+}
+
+@keyframes countUp {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Progress Bar Colors by Metric */
+.metric-card[data-metric="kubernetes_upgrade_readiness"] .metric-progress div {
+    background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.metric-card[data-metric="disaster_recovery_score"] .metric-progress div {
+    background: linear-gradient(90deg, #f97316, #fb923c);
+}
+
+.metric-card[data-metric="operational_maturity"] .metric-progress div {
+    background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+}
+
+.metric-card[data-metric="capacity_planning"] .metric-progress div {
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+}
+
+.metric-card[data-metric="compliance_readiness"] .metric-progress div {
+    background: linear-gradient(90deg, #ef4444, #f87171);
+}
+
+.metric-card[data-metric="team_velocity"] .metric-progress div {
+    background: linear-gradient(90deg, #eab308, #fbbf24);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .enterprise-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .enterprise-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .metric-card {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Export Button Styling */
+.export-btn {
+    background: linear-gradient(135deg, #374151, #4b5563);
+    border: 1px solid rgba(75, 85, 99, 0.5);
+    transition: all 0.3s ease;
+}
+
+.export-btn:hover {
+    background: linear-gradient(135deg, #4b5563, #6b7280);
+    border-color: rgba(156, 163, 175, 0.8);
+    transform: translateY(-1px);
+}
+
+/* Refresh Button Styling */
+.refresh-btn {
+    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.refresh-btn:hover {
+    background: linear-gradient(135deg, #1d4ed8, #2563eb);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.refresh-btn:active {
+    transform: translateY(0);
+}
+
+/* Overview Cards */
+.overview-card {
+    background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+    border: 1px solid rgba(75, 85, 99, 0.3);
+    transition: all 0.3s ease;
+}
+
+.overview-card:hover {
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Maturity Progress Bar */
+.maturity-progress-bar {
+    background: linear-gradient(90deg, #ef4444 0%, #f59e0b 33%, #3b82f6 66%, #10b981 100%);
+    height: 12px;
+    border-radius: 6px;
+}
+
+/* Error State Styling */
+.enterprise-error {
+    border-left: 4px solid #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+/* Success Animations */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.slide-in-right {
+    animation: slideInRight 0.6s ease-out;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}

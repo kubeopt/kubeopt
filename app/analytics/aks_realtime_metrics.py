@@ -96,6 +96,24 @@ class KubernetesParsingUtils:
             return int(float(memory_str[:-2]) * 1024 * 1024)
         elif memory_str.endswith('Gi'):
             return int(float(memory_str[:-2]) * 1024 * 1024 * 1024)
+        elif memory_str.endswith('M'):
+            # Handle 'M' suffix (megabytes)
+            return int(float(memory_str[:-1]) * 1024 * 1024)
+        elif memory_str.endswith('K'):
+            # Handle 'K' suffix (kilobytes)
+            return int(float(memory_str[:-1]) * 1024)
+        elif memory_str.endswith('G'):
+            # Handle 'G' suffix (gigabytes)
+            return int(float(memory_str[:-1]) * 1024 * 1024 * 1024)
+        elif memory_str.endswith('k'):
+            # Handle lowercase 'k' suffix (kilobytes) - common in kubectl output
+            return int(float(memory_str[:-1]) * 1024)
+        elif memory_str.endswith('m'):
+            # Handle lowercase 'm' suffix (megabytes) - common in kubectl output
+            return int(float(memory_str[:-1]) * 1024 * 1024)
+        elif memory_str.endswith('g'):
+            # Handle lowercase 'g' suffix (gigabytes) - common in kubectl output
+            return int(float(memory_str[:-1]) * 1024 * 1024 * 1024)
         else:
             return int(float(memory_str))
 
