@@ -2402,8 +2402,12 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             resource_group = analysis_results.get('resource_group')
             cluster_name = analysis_results.get('cluster_name')
             
-            # Use same subscription detection as analysis engine
-            subscription_id = None
+            # subscription_id is stored in nested objects after centralization
+            subscription_id = (analysis_results.get('subscription_id') or 
+                             analysis_results.get('cluster_context', {}).get('subscription_id') or
+                             analysis_results.get('cluster_metadata', {}).get('subscription_id'))
+            
+            # Fallback to auto-detection if subscription_id not provided in analysis results
             if not subscription_id:
                 logger.info(f"🔍 Auto-detecting subscription for cluster {cluster_name}")
                 from app.services.subscription_manager import azure_subscription_manager

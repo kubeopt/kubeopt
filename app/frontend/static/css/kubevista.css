@@ -1895,3 +1895,8 @@ from-gray-100.to-gray-200 {
     --tw-gradient-to: #059669 var(--tw-gradient-to-position) !important;
     --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
+
+.text-gray-900{
+    --tw-text-opacity: 1 !important;
+    color: rgb(17 24 39 / var(--tw-text-opacity, 1)) !important;
+}

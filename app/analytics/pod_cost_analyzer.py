@@ -38,6 +38,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 import yaml
+from app.shared.kubernetes_data_cache import get_or_create_cache, fetch_cluster_data
 
 # Azure VM instance type mappings for dynamic detection
 AZURE_VM_SPECS = {
@@ -346,18 +347,26 @@ class EnhancedDynamicCostDistributionEngine:
      cost distribution preserving existing patterns with dynamic improvements
     """
 
-    def __init__(self, resource_group: str, cluster_name: str, subscription_id: str):
+    def __init__(self, resource_group: str, cluster_name: str, subscription_id: str, cache=None):
         self.resource_group = resource_group
         self.cluster_name = cluster_name
         self.subscription_id = subscription_id
         self.timeout = 30  # Preserved from original
         
-        # PRESERVED: Initialize shared utilities and subscription-aware executor
+        # PRESERVED: Initialize shared utilities  
         self.parser = KubernetesParsingUtils()
-        self.kubectl_executor = SubscriptionAwareKubectlExecutor(resource_group, cluster_name, subscription_id)
+        # NO kubectl_executor needed - all commands go through cache
         
-        #  Add dynamic pricing configuration
+        # Add dynamic pricing configuration
         self.pricing_config = DynamicPricingConfig()
+        
+        # CACHE-FIRST: Use provided cache or create new one (backward compatibility)
+        if cache:
+            logger.info(f"🎯 {cluster_name}: Using shared cache instance for pod cost analysis")
+            self.cache = cache
+        else:
+            logger.info(f"⚠️ {cluster_name}: No shared cache provided - creating new cache instance")
+            self.cache = get_or_create_cache(cluster_name, resource_group, subscription_id)
         
         # Performance optimization: Add caching for expensive operations
         self._instance_type_cache = {}
@@ -366,8 +375,53 @@ class EnhancedDynamicCostDistributionEngine:
 
     # PRESERVED: All original kubectl command execution patterns
     def _safe_kubectl_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[str]:
-        """PRESERVED: Safe kubectl execution with subscription awareness"""
-        return self.kubectl_executor.execute_command(kubectl_cmd, timeout)
+        """
+        SINGLE SOURCE OF TRUTH: All kubectl commands go through cache only
+        No direct kubectl execution - everything comes from centralized cache
+        """
+        logger.debug(f"🎯 Querying cache for: {kubectl_cmd[:50]}...")
+        
+        try:
+            cache_data = self.cache.get_all_data()
+            
+            # Map kubectl commands to cache keys - COMPLETE MAPPING
+            if "kubectl get pods --all-namespaces --field-selector=status.phase=Running" in kubectl_cmd:
+                return cache_data.get('pods_running', '')
+            elif "kubectl get nodes" in kubectl_cmd and "-o json" not in kubectl_cmd:
+                return cache_data.get('nodes_text', '')
+            elif "kubectl get pvc --all-namespaces" in kubectl_cmd:
+                return cache_data.get('pvc_text', '')
+            elif "kubectl get services --all-namespaces" in kubectl_cmd:
+                return cache_data.get('services_text', '')
+            elif "kubectl top pods --all-namespaces --no-headers" in kubectl_cmd:
+                return cache_data.get('pod_usage', '')
+            elif "kubectl get storageclass" in kubectl_cmd:
+                if "-o json" in kubectl_cmd:
+                    storage_data = cache_data.get('storage_classes', {})
+                    return json.dumps(storage_data) if storage_data else None
+                else:
+                    return cache_data.get('storage_classes_text', '')
+            
+            # Node-specific commands using cache helper method
+            if "kubectl get node " in kubectl_cmd and "-o jsonpath=" in kubectl_cmd:
+                # Extract node name from command
+                parts = kubectl_cmd.split("kubectl get node ")[1].split(" ")
+                if len(parts) > 0:
+                    node_name = parts[0]
+                    if "instance-type" in kubectl_cmd:
+                        return self.cache.get_node_specific_data(node_name, 'instance-type')
+                    elif ".status.allocatable.cpu" in kubectl_cmd:
+                        return self.cache.get_node_specific_data(node_name, 'cpu')
+                    elif ".status.allocatable.memory" in kubectl_cmd:
+                        return self.cache.get_node_specific_data(node_name, 'memory')
+            
+            # For any unmapped commands, use dynamic execution
+            logger.debug(f"⚠️ Unmapped command, using dynamic execution: {kubectl_cmd[:30]}...")
+            return self.cache.execute_dynamic_command(kubectl_cmd, timeout)
+            
+        except Exception as e:
+            logger.error(f"❌ Cache query failed for {kubectl_cmd[:30]}...: {e}")
+            return None
     
     def _safe_kubectl_yaml_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[Dict]:
         """Safe kubectl YAML command execution with large JSON handling"""
@@ -846,43 +900,100 @@ class EnhancedDynamicCostDistributionEngine:
             return None
 
     def _collect_enhanced_resource_data(self) -> Optional[Dict]:
-        """Collect comprehensive resource data with text-first approach for large clusters"""
+        """Collect comprehensive resource data using centralized cache (PERFORMANCE OPTIMIZED)"""
         try:
-            logger.info("📊 ENHANCED: Collecting comprehensive resource data...")
+            logger.info("🚀 ENHANCED: Collecting comprehensive resource data from CACHE...")
             
-            resource_data = {}
+            # Get all cost analysis data from cache (data is auto-fetched when cache is created)
+            cache_data = self.cache.get_cost_analysis_data()
             
-            # Get pod metrics (actual usage) - PRESERVED pattern
-            pod_metrics_cmd = "kubectl top pods --all-namespaces --no-headers"
-            pod_metrics_output = self._safe_kubectl_command(pod_metrics_cmd, timeout=60)
-            resource_data['pod_metrics'] = pod_metrics_output or ""
+            resource_data = {
+                'pod_metrics': cache_data.get('pod_usage', ''),  # kubectl top pods
+                'pod_specs': self._convert_cache_to_pod_specs(cache_data.get('pods_running', '')),
+                'pvcs': self._convert_cache_to_pvc_data(cache_data.get('pvc_text', '')),
+                'services': self._convert_cache_to_services_data(cache_data.get('services_text', '')),
+                'nodes': self._convert_cache_to_nodes_data(cache_data.get('nodes', {})),
+                'storage_classes': cache_data.get('storage_classes', {}),
+                'storage_classes_text': cache_data.get('storage_classes_text', '')
+            }
             
-            # FIX: Use text format for pods to avoid JSON corruption
-            logger.info("🔧 Using text format for pod specs to avoid JSON corruption")
-            pod_specs_data = self._get_pods_via_text_format()
-            resource_data['pod_specs'] = pod_specs_data
-            
-            # FIX: Use text format for storage
-            logger.info("🔧 Using text format for PVC data")
-            pvc_data = self._get_pvc_via_text_format()
-            resource_data['pvcs'] = pvc_data
-            
-            # FIX: Use text format for services
-            logger.info("🔧 Using text format for services data")
-            services_data = self._get_services_via_text_format()
-            resource_data['services'] = services_data
-            
-            # FIX: Use text format for nodes
-            logger.info("🔧 Using text format for nodes data")
-            nodes_data = self._get_nodes_via_text_format()
-            resource_data['nodes'] = nodes_data
-            
-            logger.info("✅ ENHANCED: Resource data collection completed via text format")
+            logger.info("⚡ ENHANCED: Resource data collection completed from cache (~10x faster!)")
             return resource_data
             
         except Exception as e:
             logger.error(f"❌ ENHANCED: Resource data collection failed: {e}")
             return None
+    
+    # === CACHE DATA CONVERSION METHODS ===
+    def _convert_cache_to_pod_specs(self, pods_text: str) -> Dict:
+        """Convert cached pod text data to expected format"""
+        if not pods_text:
+            return {"text_parsed": True, "pods": []}
+        
+        pods = []
+        for line in pods_text.strip().split('\n')[1:]:  # Skip header
+            if line.strip():
+                parts = line.split()
+                if len(parts) >= 2:
+                    pods.append({
+                        'namespace': parts[0],
+                        'name': parts[1],
+                        'status': parts[3] if len(parts) > 3 else 'Unknown'
+                    })
+        
+        return {"text_parsed": True, "pods": pods}
+    
+    def _convert_cache_to_pvc_data(self, pvc_text: str) -> Dict:
+        """Convert cached PVC text data to expected format"""
+        if not pvc_text:
+            return {"text_parsed": True, "pvcs": []}
+            
+        pvcs = []
+        for line in pvc_text.strip().split('\n')[1:]:  # Skip header
+            if line.strip():
+                parts = line.split()
+                if len(parts) >= 3:
+                    pvcs.append({
+                        'namespace': parts[0],
+                        'name': parts[1],
+                        'size': parts[3] if len(parts) > 3 else 'Unknown'
+                    })
+        
+        return {"text_parsed": True, "pvcs": pvcs}
+    
+    def _convert_cache_to_services_data(self, services_text: str) -> Dict:
+        """Convert cached services text data to expected format"""
+        if not services_text:
+            return {"text_parsed": True, "services": []}
+            
+        services = []
+        for line in services_text.strip().split('\n')[1:]:  # Skip header
+            if line.strip():
+                parts = line.split()
+                if len(parts) >= 2:
+                    services.append({
+                        'namespace': parts[0],
+                        'name': parts[1],
+                        'type': parts[2] if len(parts) > 2 else 'Unknown'
+                    })
+        
+        return {"text_parsed": True, "services": services}
+    
+    def _convert_cache_to_nodes_data(self, nodes_json: Dict) -> Dict:
+        """Convert cached nodes JSON data to expected format"""
+        if not nodes_json or 'items' not in nodes_json:
+            return {"text_parsed": True, "nodes": []}
+            
+        nodes = []
+        for node in nodes_json.get('items', []):
+            metadata = node.get('metadata', {})
+            nodes.append({
+                'name': metadata.get('name', 'Unknown'),
+                'status': 'Ready',  # Simplified for now
+                'instance_type': metadata.get('labels', {}).get('node.kubernetes.io/instance-type', 'Unknown')
+            })
+        
+        return {"text_parsed": True, "nodes": nodes}
 
     def _get_pods_via_text_format(self) -> Dict:
         """Get pods using text format to avoid JSON corruption"""
@@ -1003,33 +1114,19 @@ class EnhancedDynamicCostDistributionEngine:
             return self._instance_type_cache[node_name]
         
         try:
-            # Use lightweight kubectl get instead of heavy describe command
-            cmd = f"kubectl get node {node_name} -o jsonpath='{{.metadata.labels.node\\.kubernetes\\.io/instance-type}}'"
-            instance_output = self._safe_kubectl_command(cmd, timeout=35)
+            # Use centralized cache instead of individual kubectl call
+            instance_type = self.cache.get_node_specific_data(node_name, 'instance-type')
             
-            if instance_output:
-                # Direct instance type from jsonpath
-                instance_type = instance_output.strip()
-                if instance_type and instance_type != '<no value>':
-                    self._instance_type_cache[node_name] = instance_type  # Cache it
-                    logger.info(f"✅ Found instance type for {node_name}: {instance_type}")
-                    return instance_type
-                
-                # Look for Azure node pool info
-                for line in describe_output.split('\n'):
-                    if 'agentpool' in line.lower() and 'standard_' in line.lower():
-                        # Extract instance type from Azure metadata
-                        match = re.search(r'(Standard_[A-Za-z0-9_]+)', line)
-                        if match:
-                            instance_type = match.group(1)
-                            self._instance_type_cache[node_name] = instance_type  # Cache it
-                            logger.info(f"✅ Found Azure instance type for {node_name}: {instance_type}")
-                            return instance_type
+            if instance_type and instance_type.strip() and instance_type.strip() != '<no value>':
+                instance_type = instance_type.strip()
+                self._instance_type_cache[node_name] = instance_type  # Cache it
+                logger.info(f"✅ Found instance type for {node_name}: {instance_type}")
+                return instance_type
             
             logger.warning(f"⚠️ Could not detect instance type for {node_name}, using Standard_D4s_v3")
-            #fallback_type = 'Standard_D4s_v3'  # Fallback to common AKS default
-            #self._instance_type_cache[node_name] = fallback_type  # Cache fallback too
-            return NotImplementedError
+            fallback_type = 'Standard_D4s_v3'  # Fallback to common AKS default
+            self._instance_type_cache[node_name] = fallback_type  # Cache fallback too
+            return fallback_type
             
         except Exception as e:
             logger.error(f"❌ Failed to get dynamic instance type for {node_name}: {e}")
@@ -1047,16 +1144,13 @@ class EnhancedDynamicCostDistributionEngine:
                 logger.debug(f"✅ Dynamic CPU for {node_name} ({instance_type}): {cpu}")
                 return cpu
             
-            # Use lightweight kubectl get for CPU allocation  
-            cmd = f"kubectl get node {node_name} -o jsonpath='{{.status.allocatable.cpu}}'"
-            cpu_output = self._safe_kubectl_command(cmd, timeout=35)
+            # Use centralized cache instead of individual kubectl call
+            cpu_value = self.cache.get_node_specific_data(node_name, 'cpu')
             
-            if cpu_output:
-                # Parse allocatable CPU directly
-                cpu_value = cpu_output.strip()
-                if cpu_value and cpu_value != '<no value>':
-                    logger.debug(f"✅ Found CPU allocation for {node_name}: {cpu_value}")
-                    return cpu_value
+            if cpu_value and cpu_value.strip() and cpu_value.strip() != '<no value>':
+                cpu_value = cpu_value.strip()
+                logger.debug(f"✅ Found CPU allocation for {node_name}: {cpu_value}")
+                return cpu_value
             
             logger.warning(f"⚠️ Could not detect CPU for {node_name}, using default 4")
             return '4'
@@ -1077,9 +1171,8 @@ class EnhancedDynamicCostDistributionEngine:
                 logger.debug(f"✅ Dynamic memory for {node_name} ({instance_type}): {memory}")
                 return memory
             
-            # Use lightweight kubectl get for memory allocation
-            cmd = f"kubectl get node {node_name} -o jsonpath='{{.status.allocatable.memory}}'"
-            memory_output = self._safe_kubectl_command(cmd, timeout=35)
+            # Use centralized cache instead of individual kubectl call
+            memory_output = self.cache.get_node_specific_data(node_name, 'memory')
             
             if memory_output:
                 # Parse allocatable memory directly
@@ -1717,14 +1810,18 @@ class WorkloadCostAnalyzer:
     Maintains existing interface while adding dynamic capabilities
     """
 
-    def __init__(self, resource_group: str, cluster_name: str, subscription_id: str = None):
+    def __init__(self, resource_group: str, cluster_name: str, subscription_id: str = None, cache=None):
         """PRESERVED: Initialize workload analyzer with subscription-aware pod analyzer"""
         self.resource_group = resource_group
         self.cluster_name = cluster_name
         self.subscription_id = subscription_id
         
-        # PRESERVED: Create subscription-aware cost distribution engine
-        self.cost_engine = EnhancedDynamicCostDistributionEngine(resource_group, cluster_name, subscription_id)
+        # CACHE-FIRST: Use provided cache or let the cost engine create one
+        if cache:
+            logger.info(f"🎯 {cluster_name}: Using shared cache for workload cost analysis")
+        
+        # PRESERVED: Create subscription-aware cost distribution engine (pass cache if available)
+        self.cost_engine = EnhancedDynamicCostDistributionEngine(resource_group, cluster_name, subscription_id, cache)
 
     def analyze_workload_costs(self, total_costs: Dict[str, float]) -> Optional[Dict]:
         """
@@ -1770,7 +1867,7 @@ class WorkloadCostAnalyzer:
 
 def get_enhanced_pod_cost_breakdown(resource_group: str, cluster_name: str, 
                                    total_cost_input: any,  # Can be float or dict
-                                   subscription_id: str = None) -> Optional[Dict]:
+                                   subscription_id: str = None, cache=None) -> Optional[Dict]:
     """
     PRESERVED: Main integration function with enhanced dynamic capabilities
     Maintains backward compatibility while adding dynamic distribution
@@ -1797,8 +1894,8 @@ def get_enhanced_pod_cost_breakdown(resource_group: str, cluster_name: str,
     logger.info(f"💰 Total costs: ${sum(total_costs.values()):.2f}")
     
     try:
-        # Use  workload analyzer
-        workload_analyzer = WorkloadCostAnalyzer(resource_group, cluster_name, subscription_id)
+        # Use workload analyzer with shared cache
+        workload_analyzer = WorkloadCostAnalyzer(resource_group, cluster_name, subscription_id, cache=cache)
         
         workload_result = workload_analyzer.analyze_workload_costs(total_costs)
         

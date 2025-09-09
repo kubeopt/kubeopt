@@ -1142,6 +1142,313 @@ def register_api_routes(app):
                 'real_data_only': True
             }), 500
 
+    # CPU Optimization Plan and Report Export API Routes
+    @app.route('/api/clusters/<path:cluster_id>/cpu-optimization-plan', methods=['GET'])
+    def generate_cpu_optimization_plan_api(cluster_id):
+        """Generate CPU optimization plan with executable commands"""
+        try:
+            logger.info(f"🔧 Generating CPU optimization plan for cluster: {cluster_id}")
+            
+            # Import the CPU optimization planner
+            from app.ml.cpu_optimization_planner import create_cpu_optimization_planner
+            
+            # Get current analysis data (returns tuple: data, status)
+            analysis_data, status = _get_analysis_data(cluster_id)
+            if not analysis_data:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'No analysis data found for cluster {cluster_id}. Status: {status}. Please run cluster analysis first to generate optimization plan.'
+                }), 404
+            
+            # Extract CPU metrics from analysis data
+            cpu_metrics = {
+                'average_cpu_usage': analysis_data.get('avg_cpu_utilization', 0),
+                'peak_cpu_usage': analysis_data.get('peak_cpu_utilization', 0),
+                'cpu_efficiency': analysis_data.get('cpu_efficiency', 100),
+                'high_cpu_workloads': analysis_data.get('high_cpu_workloads', 0),
+                'total_pods': analysis_data.get('total_pods', 0),
+                'monthly_cost': analysis_data.get('total_cost', 0),
+                'optimization_potential_pct': analysis_data.get('cpu_optimization_potential_pct', 0),
+                'critical_alerts': analysis_data.get('critical_alerts', 0),
+                'nodes_count': len(analysis_data.get('nodes', []))
+            }
+            
+            # Get cluster configuration if available
+            cluster_config = {}
+            if enhanced_cluster_manager:
+                cluster = enhanced_cluster_manager.get_cluster(cluster_id)
+                if cluster:
+                    cluster_config = {
+                        'resource_group': getattr(cluster, 'resource_group', ''),
+                        'cluster_name': getattr(cluster, 'cluster_name', ''),
+                        'subscription_id': getattr(cluster, 'subscription_id', '')
+                    }
+            
+            # Generate optimization plan with configurable thresholds
+            # Organizations can customize these settings in their deployment
+            optimization_config = {
+                'critical_cpu_threshold': 200,     # Adjustable per organization
+                'high_cpu_threshold': 80,          # Adjustable per organization  
+                'target_cpu_utilization': 70,      # Adjustable per organization
+                'cloud_provider': 'multi',         # Generic templates for all clouds
+                'enable_emergency_actions': True,   # Can be disabled for conservative orgs
+                'organization_name': 'AKS Cost Optimizer User'
+            }
+            
+            planner = create_cpu_optimization_planner(optimization_config)
+            optimization_plan = planner.generate_optimization_plan(
+                cluster_id=cluster_id,
+                cpu_metrics=cpu_metrics,
+                cluster_config=cluster_config
+            )
+            
+            # Convert to JSON-serializable format
+            plan_data = {
+                'cluster_id': optimization_plan.cluster_id,
+                'scenario': optimization_plan.scenario.value,
+                'severity_level': optimization_plan.severity_level,
+                'current_metrics': optimization_plan.current_metrics,
+                'optimization_commands': [
+                    {
+                        'command': cmd.command,
+                        'description': cmd.description,
+                        'execution_order': cmd.execution_order,
+                        'risk_level': cmd.risk_level,
+                        'category': cmd.category,
+                        'estimated_impact': cmd.estimated_impact,
+                        'prerequisite_commands': cmd.prerequisite_commands,
+                        'validation_command': cmd.validation_command,
+                        'rollback_command': cmd.rollback_command
+                    }
+                    for cmd in optimization_plan.optimization_commands
+                ],
+                'monitoring_commands': optimization_plan.monitoring_commands,
+                'validation_steps': optimization_plan.validation_steps,
+                'estimated_savings': optimization_plan.estimated_savings,
+                'timeline': optimization_plan.timeline,
+                'created_at': optimization_plan.created_at.isoformat()
+            }
+            
+            logger.info(f"✅ Generated optimization plan with {len(optimization_plan.optimization_commands)} commands")
+            
+            return jsonify({
+                'status': 'success',
+                'message': f'CPU optimization plan generated for {cluster_id}',
+                'data': plan_data
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to generate optimization plan: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to generate optimization plan: {str(e)}'
+            }), 500
+    
+    @app.route('/api/clusters/<path:cluster_id>/cpu-optimization-script', methods=['GET'])
+    def export_cpu_optimization_script_api(cluster_id):
+        """Export CPU optimization plan as executable bash script"""
+        try:
+            logger.info(f"📜 Exporting CPU optimization script for cluster: {cluster_id}")
+            
+            # Get analysis data and generate optimization plan (similar to above)
+            from app.ml.cpu_optimization_planner import create_cpu_optimization_planner
+            
+            analysis_data, status = _get_analysis_data(cluster_id)
+            if not analysis_data:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'No analysis data found for cluster {cluster_id}. Status: {status}'
+                }), 404
+            
+            cpu_metrics = {
+                'average_cpu_usage': analysis_data.get('avg_cpu_utilization', 0),
+                'peak_cpu_usage': analysis_data.get('peak_cpu_utilization', 0),
+                'cpu_efficiency': analysis_data.get('cpu_efficiency', 100),
+                'high_cpu_workloads': analysis_data.get('high_cpu_workloads', 0),
+                'total_pods': analysis_data.get('total_pods', 0),
+                'monthly_cost': analysis_data.get('total_cost', 0),
+                'optimization_potential_pct': analysis_data.get('cpu_optimization_potential_pct', 0),
+                'critical_alerts': analysis_data.get('critical_alerts', 0),
+                'nodes_count': len(analysis_data.get('nodes', []))
+            }
+            
+            # Use same configurable optimization settings
+            optimization_config = {
+                'critical_cpu_threshold': 200,
+                'high_cpu_threshold': 80,
+                'target_cpu_utilization': 70,
+                'cloud_provider': 'multi',
+                'enable_emergency_actions': True,
+                'organization_name': 'AKS Cost Optimizer User'
+            }
+            
+            planner = create_cpu_optimization_planner(optimization_config)
+            optimization_plan = planner.generate_optimization_plan(
+                cluster_id=cluster_id,
+                cpu_metrics=cpu_metrics
+            )
+            
+            # Export as bash script
+            script_path = planner.export_plan_to_script(optimization_plan)
+            
+            # Read the script content
+            with open(script_path, 'r') as f:
+                script_content = f.read()
+            
+            # Create response with script as downloadable file
+            from flask import make_response
+            
+            response = make_response(script_content)
+            response.headers['Content-Type'] = 'application/x-sh'
+            response.headers['Content-Disposition'] = f'attachment; filename=cpu_optimization_{cluster_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.sh'
+            
+            logger.info(f"✅ Exported optimization script for {cluster_id}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to export optimization script: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to export script: {str(e)}'
+            }), 500
+    
+    @app.route('/api/clusters/<path:cluster_id>/cpu-report', methods=['GET'])
+    def export_cpu_report_api(cluster_id):
+        """Export comprehensive CPU analysis report"""
+        try:
+            format_type = request.args.get('format', 'pdf').lower()
+            logger.info(f"📊 Exporting CPU report for cluster {cluster_id} in {format_type} format")
+            
+            # Import report exporter
+            from app.reporting.cpu_report_exporter import create_cpu_report_exporter, CPUReportData, CPUReportMetrics
+            
+            # Get analysis data
+            analysis_data, status = _get_analysis_data(cluster_id)
+            if not analysis_data:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'No analysis data found for cluster {cluster_id}. Status: {status}'
+                }), 404
+            
+            # Create report metrics
+            report_metrics = CPUReportMetrics(
+                cluster_id=cluster_id,
+                average_cpu_usage=analysis_data.get('avg_cpu_utilization', 0),
+                peak_cpu_usage=analysis_data.get('peak_cpu_utilization', 0),
+                cpu_efficiency=analysis_data.get('cpu_efficiency', 100),
+                high_cpu_workloads=analysis_data.get('high_cpu_workloads', 0),
+                total_pods=analysis_data.get('total_pods', 0),
+                nodes_count=len(analysis_data.get('nodes', [])),
+                monthly_cost=analysis_data.get('total_cost', 0),
+                optimization_potential_pct=analysis_data.get('cpu_optimization_potential_pct', 0),
+                critical_alerts=analysis_data.get('critical_alerts', 0),
+                report_timestamp=datetime.now()
+            )
+            
+            # Generate optimization plan for recommendations
+            from app.ml.cpu_optimization_planner import create_cpu_optimization_planner
+            
+            cpu_metrics = {
+                'average_cpu_usage': report_metrics.average_cpu_usage,
+                'peak_cpu_usage': report_metrics.peak_cpu_usage,
+                'cpu_efficiency': report_metrics.cpu_efficiency,
+                'high_cpu_workloads': report_metrics.high_cpu_workloads,
+                'total_pods': report_metrics.total_pods,
+                'monthly_cost': report_metrics.monthly_cost,
+                'optimization_potential_pct': report_metrics.optimization_potential_pct,
+                'critical_alerts': report_metrics.critical_alerts,
+                'nodes_count': report_metrics.nodes_count
+            }
+            
+            planner = create_cpu_optimization_planner()
+            optimization_plan = planner.generate_optimization_plan(cluster_id, cpu_metrics)
+            
+            # Convert optimization commands to recommendations
+            recommendations = [
+                {
+                    'title': cmd.description,
+                    'priority': 'High' if cmd.risk_level == 'high' else 'Medium' if cmd.risk_level == 'medium' else 'Low',
+                    'impact': cmd.estimated_impact or 'TBD',
+                    'effort': cmd.risk_level.title(),
+                    'command': cmd.command,
+                    'category': cmd.category,
+                    'description': cmd.description
+                }
+                for cmd in optimization_plan.optimization_commands[:15]  # Top 15 recommendations
+            ]
+            
+            # Create report data
+            report_data = CPUReportData(
+                metrics=report_metrics,
+                optimization_plan={
+                    'scenario': optimization_plan.scenario.value,
+                    'severity_level': optimization_plan.severity_level,
+                    'timeline': optimization_plan.timeline,
+                    'estimated_savings': optimization_plan.estimated_savings
+                },
+                detailed_analysis={
+                    'total_nodes': len(analysis_data.get('nodes', [])),
+                    'high_cpu_nodes': sum(1 for node in analysis_data.get('nodes', []) if node.get('cpu_usage_pct', 0) > 80),
+                    'avg_node_utilization': analysis_data.get('avg_cpu_utilization', 0),
+                    'total_pods': analysis_data.get('total_pods', 0),
+                    'pods_no_limits': analysis_data.get('pods_without_limits', 0),
+                    'pods_with_requests': analysis_data.get('pods_with_requests', 0),
+                    'peak_time': 'N/A',  # Could be enhanced with historical data
+                    'volatility_score': 'Medium',  # Could be calculated from metrics
+                    'scaling_events': analysis_data.get('scaling_events', 0)
+                },
+                recommendations=recommendations,
+                cost_breakdown={
+                    'current_cost': report_metrics.monthly_cost,
+                    'wasted_cost': report_metrics.monthly_cost * (report_metrics.optimization_potential_pct / 100),
+                    'waste_percentage': report_metrics.optimization_potential_pct,
+                    'potential_savings': optimization_plan.estimated_savings.get('estimated_monthly_savings_usd', 0)
+                },
+                node_analysis=analysis_data.get('nodes', []),
+                pod_analysis=analysis_data.get('pod_analysis', [])
+            )
+            
+            # Export report
+            exporter = create_cpu_report_exporter()
+            report_path = exporter.export_comprehensive_report(report_data, format_type)
+            
+            # Return the report file
+            from flask import send_file
+            
+            mimetype_map = {
+                'pdf': 'application/pdf',
+                'excel': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'json': 'application/json',
+                'csv': 'text/csv'
+            }
+            
+            extension_map = {
+                'pdf': '.pdf',
+                'excel': '.xlsx',
+                'json': '.json',
+                'csv': '.csv'
+            }
+            
+            filename = f"cpu_analysis_report_{cluster_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{extension_map.get(format_type, '.pdf')}"
+            
+            logger.info(f"✅ Exported CPU report: {report_path}")
+            
+            return send_file(
+                report_path,
+                mimetype=mimetype_map.get(format_type, 'application/pdf'),
+                as_attachment=True,
+                download_name=filename
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to export CPU report: {e}")
+            logger.error(traceback.format_exc())
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to export report: {str(e)}'
+            }), 500
+
     # Cache management API routes with subscription awareness
     @app.route('/api/cache/clear', methods=['GET', 'POST'])
     def clear_analysis_cache_api():

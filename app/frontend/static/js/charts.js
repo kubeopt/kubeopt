@@ -801,13 +801,487 @@ function getEfficiencyScore(avgCPU, maxCPU) {
 }
 
 // Helper functions for new buttons
-window.generateCPUOptimizationPlan = function() {
-    showNotification('Optimization Plan', 'Generating CPU optimization recommendations...', 'info');
+window.generateCPUOptimizationPlan = async function() {
+    let clusterId = getCurrentClusterId();
+    
+    // Fallback: Try to get cluster ID from global state or URL
+    if (!clusterId) {
+        // Try window.currentClusterState
+        if (window.currentClusterState && window.currentClusterState.clusterId) {
+            clusterId = window.currentClusterState.clusterId;
+            console.log('Using clusterId from currentClusterState:', clusterId);
+        }
+        // Try extracting from URL hash or search params
+        else if (window.location.search) {
+            const params = new URLSearchParams(window.location.search);
+            clusterId = params.get('clusterId') || params.get('cluster');
+            console.log('Using clusterId from URL params:', clusterId);
+        }
+        // Try from URL hash
+        else if (window.location.hash) {
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            clusterId = hashParams.get('clusterId') || hashParams.get('cluster');
+            console.log('Using clusterId from URL hash:', clusterId);
+        }
+    }
+    
+    console.log('Final clusterId for optimization plan:', clusterId);
+    
+    if (!clusterId) {
+        console.error('No cluster ID available. Current URL:', window.location.href);
+        console.error('Current cluster state:', window.currentClusterState);
+        showNotification('Error', 'No cluster context available. Please ensure you are viewing a specific cluster.', 'error');
+        return;
+    }
+    
+    showNotification('CPU Optimization Plan', 'Generating optimization recommendations for high CPU workloads...', 'info');
+    
+    try {
+        const apiUrl = `/api/clusters/${encodeURIComponent(clusterId)}/cpu-optimization-plan`;
+        console.log('Calling optimization plan API:', apiUrl);
+        
+        const response = await fetch(apiUrl);
+        console.log('API response status:', response.status, response.statusText);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('API error response:', errorText);
+            showNotification('Error', `API Error (${response.status}): ${response.statusText}`, 'error');
+            return;
+        }
+        
+        const result = await response.json();
+        console.log('API result:', result);
+        
+        if (result.status === 'success') {
+            if (result.data && result.data.optimization_commands) {
+                console.log('Showing optimization plan modal with', result.data.optimization_commands.length, 'commands');
+                showOptimizationPlanModal(result.data);
+                showNotification('Success', `Generated ${result.data.optimization_commands.length} optimization commands`, 'success');
+            } else {
+                console.error('Invalid result data structure:', result.data);
+                showNotification('Error', 'Invalid optimization plan data received', 'error');
+            }
+        } else {
+            console.error('API returned error:', result.message);
+            showNotification('Error', result.message || 'Failed to generate optimization plan', 'error');
+        }
+    } catch (error) {
+        console.error('Error generating optimization plan:', error);
+        console.error('Error details:', error.message, error.stack);
+        showNotification('Error', `Network error: ${error.message}`, 'error');
+    }
 };
 
-window.exportCPUReport = function() {
-    showNotification('Export Report', 'Preparing CPU workload analysis report...', 'info');
+// Debug function to test the optimization plan
+window.testCPUOptimizationPlan = async function() {
+    console.log('🔧 Testing CPU optimization plan...');
+    console.log('Current URL:', window.location.href);
+    console.log('Current cluster state:', window.currentClusterState);
+    
+    // Try with a test cluster ID
+    const testClusterId = 'test-cluster-123';
+    
+    try {
+        const apiUrl = `/api/clusters/${encodeURIComponent(testClusterId)}/cpu-optimization-plan`;
+        console.log('Testing API URL:', apiUrl);
+        
+        const response = await fetch(apiUrl);
+        console.log('Test API response:', response.status, response.statusText);
+        
+        const result = await response.json();
+        console.log('Test API result:', result);
+        
+        if (result.status === 'success') {
+            console.log('✅ API working! Commands:', result.data.optimization_commands.length);
+            showNotification('Success', 'API test successful!', 'success');
+        } else {
+            console.log('❌ API returned error:', result.message);
+            showNotification('Error', result.message, 'error');
+        }
+    } catch (error) {
+        console.error('❌ API test failed:', error);
+        showNotification('Error', `API test failed: ${error.message}`, 'error');
+    }
 };
+
+window.exportCPUReport = async function(format = 'pdf') {
+    const clusterId = getCurrentClusterId();
+    
+    if (!clusterId) {
+        showNotification('Error', 'No cluster context available for report export.', 'error');
+        return;
+    }
+    
+    showNotification('Export Report', `Preparing CPU workload analysis report in ${format.toUpperCase()} format...`, 'info');
+    
+    try {
+        const response = await fetch(`/api/clusters/${encodeURIComponent(clusterId)}/cpu-report?format=${format}`);
+        
+        if (response.ok) {
+            // Create a download link for the file
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            // Extract filename from response headers or create default
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `cpu_analysis_report_${clusterId}_${new Date().toISOString().slice(0, 10)}.${format}`;
+            
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+                if (filenameMatch) {
+                    filename = filenameMatch[1];
+                }
+            }
+            
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showNotification('Success', `CPU analysis report downloaded as ${filename}`, 'success');
+        } else {
+            const errorResult = await response.json();
+            showNotification('Error', errorResult.message || 'Failed to export report', 'error');
+        }
+    } catch (error) {
+        console.error('Error exporting CPU report:', error);
+        showNotification('Error', 'Failed to export CPU report. Please try again.', 'error');
+    }
+};
+
+// Function to display optimization plan in a modal
+function showOptimizationPlanModal(planData) {
+    console.log('🔧 showOptimizationPlanModal called with:', planData);
+    
+    if (!planData) {
+        console.error('❌ No plan data provided to modal');
+        showNotification('Error', 'No optimization plan data to display', 'error');
+        return;
+    }
+    
+    if (!planData.optimization_commands || !Array.isArray(planData.optimization_commands)) {
+        console.error('❌ Invalid optimization commands data:', planData.optimization_commands);
+        showNotification('Error', 'Invalid optimization plan structure', 'error');
+        return;
+    }
+    
+    console.log('✅ Plan data is valid, creating and populating modal...');
+    
+    // Store plan data globally for download function
+    window.currentOptimizationPlan = planData;
+    
+    // Always create the modal fresh to avoid conflicts
+    const existingModal = document.getElementById('optimizationPlanModal');
+    if (existingModal) {
+        console.log('Removing existing modal...');
+        existingModal.remove();
+    }
+    
+    console.log('Creating fresh modal...');
+    createOptimizationPlanModal();
+    
+    // Now populate the modal AFTER it's been created
+    console.log('Populating modal content...');
+    populateOptimizationSummary(planData);
+    populateOptimizationCommands(planData.optimization_commands);
+    populateOptimizationValidationSteps(planData.validation_steps);
+    populateOptimizationMonitoringCommands(planData.monitoring_commands);
+    
+    // Show the modal
+    const modal = document.getElementById('optimizationPlanModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        console.log('✅ Modal created, populated, and shown successfully');
+    } else {
+        console.error('❌ Failed to create optimization plan modal');
+        showNotification('Error', 'Failed to create optimization plan modal', 'error');
+    }
+}
+
+// Function to create the optimization plan modal if it doesn't exist
+function createOptimizationPlanModal() {
+    const modalHTML = `
+    <!-- Optimization Plan Modal -->
+    <div id="optimizationPlanModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 h-full w-full hidden z-50 backdrop-blur-sm" style="overflow-y: auto;">
+        <div class="relative mx-auto w-full max-w-6xl" style="margin: 2rem auto; min-height: calc(100vh - 4rem);">
+            <div class="bg-white shadow-2xl rounded-2xl border" style="max-height: calc(100vh - 4rem); display: flex; flex-direction: column;">
+                <!-- Header -->
+                <div class="flex items-center justify-between border-b border-gray-200 p-5" style="flex-shrink: 0;">
+                    <div class="flex items-center">
+                        <div class="flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mr-4">
+                            <i class="fas fa-cogs text-blue-600 text-xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">CPU Optimization Plan</h3>
+                    </div>
+                    <button onclick="closeOptimizationPlanModal()" class="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Content -->
+                <div class="p-5" style="flex: 1; overflow-y: auto; max-height: calc(100vh - 12rem);">
+                    <!-- Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
+                            <div class="flex items-center">
+                                <i class="fas fa-exclamation-triangle text-orange-600 text-lg mr-3"></i>
+                                <div>
+                                    <p class="text-orange-800 font-semibold text-sm">Scenario</p>
+                                    <p id="optimizationScenario" class="text-orange-900 font-bold">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                            <div class="flex items-center">
+                                <i class="fas fa-clock text-blue-600 text-lg mr-3"></i>
+                                <div>
+                                    <p class="text-blue-800 font-semibold text-sm">Timeline</p>
+                                    <p id="optimizationTimeline" class="text-blue-900 font-bold">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                            <div class="flex items-center">
+                                <i class="fas fa-dollar-sign text-green-600 text-lg mr-3"></i>
+                                <div>
+                                    <p class="text-green-800 font-semibold text-sm">Monthly Savings</p>
+                                    <p id="optimizationMonthlySavings" class="text-green-900 font-bold">-</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
+                            <div class="flex items-center">
+                                <i class="fas fa-chart-line text-purple-600 text-lg mr-3"></i>
+                                <div>
+                                    <p class="text-purple-800 font-semibold text-sm">CPU Improvement</p>
+                                    <p id="optimizationCpuReduction" class="text-purple-900 font-bold">-</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Commands Section -->
+                    <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                        <h4 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                            <i class="fas fa-list-ol mr-2 text-blue-600"></i>
+                            Optimization Commands
+                        </h4>
+                        <div id="optimizationCommands" class="space-y-4">
+                            <!-- Commands will be populated here -->
+                        </div>
+                    </div>
+
+                    <!-- Validation Steps -->
+                    <div class="bg-green-50 rounded-lg p-4 mb-4">
+                        <h5 class="font-bold text-green-800 mb-3 flex items-center">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            Validation Steps
+                        </h5>
+                        <ol id="optimizationValidationSteps" class="list-decimal list-inside space-y-2 text-green-700">
+                            <!-- Validation steps will be populated here -->
+                        </ol>
+                    </div>
+
+                    <!-- Monitoring Commands -->
+                    <div class="bg-blue-50 rounded-lg p-4">
+                        <h5 class="font-bold text-blue-800 mb-3 flex items-center">
+                            <i class="fas fa-eye mr-2"></i>
+                            Monitoring Commands
+                        </h5>
+                        <div id="optimizationMonitoringCommands" class="space-y-2">
+                            <!-- Monitoring commands will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Actions -->
+                <div class="flex items-center justify-between border-t border-gray-200 p-5 bg-white" style="flex-shrink: 0;">
+                    <button onclick="downloadOptimizationScript()" class="px-6 py-3 bg-green-500 text-white text-sm font-medium rounded-lg shadow-lg hover:bg-green-600 focus:outline-none focus:ring-4 focus:ring-green-300 transition-all duration-300">
+                        <i class="fas fa-download mr-2"></i>Download Script
+                    </button>
+                    <button onclick="closeOptimizationPlanModal()" class="px-6 py-3 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg shadow-lg hover:bg-gray-200 focus:outline-none focus:ring-4 focus:ring-gray-300 transition-all duration-300">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+// Function to populate summary cards
+function populateOptimizationSummary(planData) {
+    const scenarioEl = document.getElementById('optimizationScenario');
+    const timelineEl = document.getElementById('optimizationTimeline');
+    const savingsEl = document.getElementById('optimizationMonthlySavings');
+    const cpuEl = document.getElementById('optimizationCpuReduction');
+    
+    if (scenarioEl) scenarioEl.textContent = planData.scenario.replace('_', ' ').toUpperCase() + ` (${planData.severity_level})`;
+    if (timelineEl) timelineEl.textContent = planData.timeline;
+    if (savingsEl) savingsEl.textContent = `$${planData.estimated_savings.estimated_monthly_savings_usd}`;
+    if (cpuEl) cpuEl.textContent = `${planData.estimated_savings.estimated_cpu_reduction_percent}%`;
+}
+
+// Function to populate optimization commands
+function populateOptimizationCommands(commands) {
+    const container = document.getElementById('optimizationCommands');
+    if (!container) return;
+    
+    // Group commands by category
+    const commandsByCategory = {};
+    commands.forEach(cmd => {
+        if (!commandsByCategory[cmd.category]) {
+            commandsByCategory[cmd.category] = [];
+        }
+        commandsByCategory[cmd.category].push(cmd);
+    });
+    
+    let commandsHTML = '';
+    let commandNumber = 1;
+    
+    Object.keys(commandsByCategory).forEach(category => {
+        const categoryCommands = commandsByCategory[category];
+        
+        commandsHTML += `
+            <div class="mb-6">
+                <h5 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                    <i class="fas fa-cogs mr-2 text-blue-600"></i>
+                    ${category.replace('_', ' ').toUpperCase()} (${categoryCommands.length} commands)
+                </h5>
+                <div class="space-y-3">
+        `;
+        
+        categoryCommands.forEach(cmd => {
+            const riskColorClass = cmd.risk_level === 'high' ? 'bg-red-500' : cmd.risk_level === 'medium' ? 'bg-yellow-500' : 'bg-green-500';
+            const riskTextClass = cmd.risk_level === 'medium' ? 'text-black' : 'text-white';
+            const isTemplate = cmd.command.includes('<') && cmd.command.includes('>');
+            
+            commandsHTML += `
+                <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                    <div class="flex justify-between items-start mb-3">
+                        <h6 class="font-semibold text-gray-900">${commandNumber}. ${cmd.description}</h6>
+                        <span class="${riskColorClass} ${riskTextClass} px-2 py-1 rounded text-xs font-bold">${cmd.risk_level.toUpperCase()} RISK</span>
+                    </div>
+                    <div class="mb-3">
+                        <code class="block bg-gray-800 text-white p-3 rounded text-sm font-mono whitespace-pre-wrap ${isTemplate ? 'border-l-4 border-yellow-500' : ''}">${cmd.command}</code>
+                    </div>
+                    ${cmd.estimated_impact ? `<p class="text-sm text-gray-600 mb-2"><strong>Impact:</strong> ${cmd.estimated_impact}</p>` : ''}
+                    ${cmd.validation_command ? `<p class="text-sm text-gray-600 mb-2"><strong>Validation:</strong> <code class="bg-gray-100 px-2 py-1 rounded text-xs">${cmd.validation_command}</code></p>` : ''}
+                    ${cmd.prerequisite_commands.length > 0 ? `<p class="text-sm text-gray-600 mb-2"><strong>Prerequisites:</strong> ${cmd.prerequisite_commands.join(', ')}</p>` : ''}
+                    ${isTemplate ? '<p class="text-yellow-600 text-sm flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i>Template command - requires manual configuration</p>' : ''}
+                </div>
+            `;
+            commandNumber++;
+        });
+        
+        commandsHTML += `
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = commandsHTML;
+}
+
+// Function to populate validation steps
+function populateOptimizationValidationSteps(steps) {
+    const container = document.getElementById('optimizationValidationSteps');
+    if (!container) return;
+    
+    container.innerHTML = steps.map(step => `<li>${step}</li>`).join('');
+}
+
+// Function to populate monitoring commands
+function populateOptimizationMonitoringCommands(commands) {
+    const container = document.getElementById('optimizationMonitoringCommands');
+    if (!container) return;
+    
+    const commandsHTML = commands.slice(0, 5).map(cmd => `
+        <code class="block bg-blue-100 text-blue-800 p-2 rounded text-sm font-mono">${cmd}</code>
+    `).join('');
+    
+    container.innerHTML = commandsHTML;
+}
+
+// Function to close optimization modal (make it global)
+window.closeOptimizationModal = function(event) {
+    if (event && event.target !== event.currentTarget) {
+        return; // Don't close if clicking inside modal content
+    }
+    
+    const modal = document.getElementById('optimizationPlanModal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.remove();
+        }, 300); // Wait for fade animation
+    }
+}
+
+// Function to close the static optimization plan modal
+window.closeOptimizationPlanModal = function() {
+    const modal = document.getElementById('optimizationPlanModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        // Clear stored plan data
+        window.currentOptimizationPlan = null;
+    }
+};
+
+// Update download function to work with static modal
+window.downloadOptimizationScript = function() {
+    if (window.currentOptimizationPlan) {
+        downloadOptimizationScript(window.currentOptimizationPlan.cluster_id);
+    } else {
+        showNotification('Error', 'No optimization plan data available', 'error');
+    }
+};
+
+// Function to download optimization script
+async function downloadOptimizationScript(clusterId) {
+    try {
+        showNotification('Download', 'Preparing executable optimization script...', 'info');
+        
+        const response = await fetch(`/api/clusters/${encodeURIComponent(clusterId)}/cpu-optimization-script`);
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `cpu_optimization_${clusterId}_${new Date().toISOString().slice(0, 10)}.sh`;
+            
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+                if (filenameMatch) {
+                    filename = filenameMatch[1];
+                }
+            }
+            
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showNotification('Success', `Optimization script downloaded: ${filename}`, 'success');
+        } else {
+            const errorResult = await response.json();
+            showNotification('Error', errorResult.message || 'Failed to download script', 'error');
+        }
+    } catch (error) {
+        console.error('Error downloading script:', error);
+        showNotification('Error', 'Failed to download optimization script', 'error');
+    }
+}
 
 window.enableCPUMonitoring = function() {
     // Navigate to alerts tab for CPU monitoring setup
@@ -966,6 +1440,13 @@ export function createAllChartsWithCPU(data) {
 export function createHPAComparisonChart(data, isRealData) {
     const canvas = document.getElementById('hpaComparisonChart');
     if (!canvas) return;
+
+    // Validate HPA data
+    if (!data || (!data.cpuReplicas && !data.memoryReplicas)) {
+        console.warn('⚠️ No HPA data available for chart');
+        canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No HPA data available</div>';
+        return;
+    }
 
     const ctx = canvas.getContext('2d');
     const colors = getChartColors();
@@ -1395,13 +1876,20 @@ export function createNodeUtilizationChart(data, isRealData) {
     const colors = getChartColors();
     
     // Enhanced data validation and processing
+    if (!data || typeof data !== 'object') {
+        console.warn('⚠️ Invalid node utilization data provided');
+        return;
+    }
+    
     const nodes = data.nodes || [];
     const cpuRequest = data.cpuRequest || [];
     const cpuActual = data.cpuActual || [];
     const memoryRequest = data.memoryRequest || [];
     const memoryActual = data.memoryActual || [];
     
+    // If no data available, don't create chart
     if (nodes.length === 0) {
+        console.warn('⚠️ No node data available for chart');
         canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No node utilization data available</div>';
         return;
     }
@@ -1414,12 +1902,19 @@ export function createNodeUtilizationChart(data, isRealData) {
     let finalMemoryActual = memoryActual;
     
     // Extract data from object format if needed
-    if (cpuRequest.length === 0 && typeof nodes[0] === 'object') {
+    if (cpuRequest.length === 0 && nodes.length > 0 && typeof nodes[0] === 'object') {
         finalNodes = nodes.map(node => node.name || node.node_name || 'Unknown');
         finalCpuRequest = nodes.map(node => parseFloat(node.cpu_request_pct || node.cpu_request || 0));
         finalCpuActual = nodes.map(node => parseFloat(node.cpu_usage_pct || node.cpu_actual || 0));
         finalMemoryRequest = nodes.map(node => parseFloat(node.memory_request_pct || node.memory_request || 0));
         finalMemoryActual = nodes.map(node => parseFloat(node.memory_usage_pct || node.memory_actual || 0));
+    }
+    
+    // Ensure arrays are not empty after processing
+    if (finalNodes.length === 0) {
+        console.warn('⚠️ No valid node data after processing');
+        canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No valid node data available</div>';
+        return;
     }
     
     // Create gradient functions
@@ -1688,12 +2183,14 @@ export function createNodeUtilizationChart(data, isRealData) {
                     const chartInstance = AppState.chartInstances['nodeUtilizationChart'];
                     if (chartInstance) {
                         const meta = chartInstance.getDatasetMeta(1); // CPU Actual
-                        meta.data.forEach((bar, index) => {
-                            if (finalCpuActual[index] > 80) {
-                                // Visual indicator for high usage
-                                bar._model.borderWidth = '2';
-                            }
-                        });
+                        if (meta && meta.data) {
+                            meta.data.forEach((bar, index) => {
+                                if (finalCpuActual && finalCpuActual[index] > 80 && bar && bar._model) {
+                                    // Visual indicator for high usage
+                                    bar._model.borderWidth = '2';
+                                }
+                            });
+                        }
                     }
                 }
             },
@@ -2070,6 +2567,13 @@ function updatePodCostMetrics(data) {
 export function createCostBreakdownChart(data, isRealData) {
     const canvas = document.getElementById('costBreakdownChart');
     if (!canvas) return;
+
+    // Validate cost breakdown data
+    if (!data || !data.labels || !data.values || !Array.isArray(data.labels) || !Array.isArray(data.values)) {
+        console.warn('⚠️ Invalid cost breakdown data');
+        canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No cost breakdown data available</div>';
+        return;
+    }
 
     const ctx = canvas.getContext('2d');
     const colors = getChartColors();
@@ -3530,13 +4034,7 @@ window.scrollToCPUSection = function() {
     }
 };
 
-window.generateCPUOptimizationPlan = function() {
-    showNotification('CPU Optimization Plan', 'Generating optimization recommendations for high CPU workloads...', 'info');
-};
-
-window.exportCPUReport = function() {
-    showNotification('Export CPU Report', 'Exporting CPU workload analysis report...', 'info');
-};
+// CPU optimization functions are defined earlier in the file - removed duplicate definitions
 
 // Make all functions available globally for backward compatibility and cluster isolation
 if (typeof window !== 'undefined') {
@@ -3558,6 +4056,11 @@ if (typeof window !== 'undefined') {
     // CPU-specific functions
     window.updateCPUMetrics = updateCPUMetrics;
     window.displayCPUWorkloadStatus = displayCPUWorkloadStatus;
+    
+    // CPU optimization functions (already defined but explicitly ensuring global access)
+    // window.generateCPUOptimizationPlan - already defined above
+    // window.exportCPUReport - already defined above 
+    // window.testCPUOptimizationPlan - already defined above
 }
 
 console.log('✅ Enhanced AKS Cost Intelligence charts.js with comprehensive CPU workload support and cluster isolation loaded');

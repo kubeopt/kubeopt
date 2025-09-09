@@ -3507,3 +3507,98 @@ p {
     font-weight: 400;
     letter-spacing: 0.5px;
 }
+
+
+/* CPU Optimization Plan Modal Styles */
+.optimization-summary .summary-card {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.optimization-summary .summary-card h6 {
+    color: #495057;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.command-item {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef !important;
+    transition: all 0.2s ease;
+}
+
+.command-item:hover {
+    background: #e9ecef;
+    border-color: #adb5bd !important;
+}
+
+.command-code {
+    background: #2d3748;
+    color: #e2e8f0;
+    padding: 10px;
+    border-radius: 4px;
+    display: block;
+    font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.template-command {
+    background: #744210;
+    border-left: 4px solid #f6ad55;
+}
+
+.monitoring-code {
+    background: #1a202c;
+    color: #4ade80;
+    padding: 8px;
+    border-radius: 4px;
+    display: block;
+    font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+    font-size: 12px;
+}
+
+.validation-list {
+    list-style-type: none;
+    counter-reset: validation-counter;
+    padding-left: 0;
+}
+
+.validation-list li {
+    counter-increment: validation-counter;
+    margin: 10px 0;
+    padding: 10px;
+    background: #f0f9ff;
+    border-left: 4px solid #3b82f6;
+    border-radius: 4px;
+}
+
+.validation-list li::before {
+    content: counter(validation-counter) ". ";
+    font-weight: bold;
+    color: #3b82f6;
+}
+
+.accordion .card-header .btn-link {
+    text-decoration: none;
+    color: #495057;
+    font-weight: 500;
+}
+
+.accordion .card-header .btn-link:hover {
+    text-decoration: none;
+    color: #007bff;
+}
+
+.accordion .card-header .btn-link i {
+    transition: transform 0.2s ease;
+}
+
+.accordion .card-header .btn-link[aria-expanded="true"] i {
+    transform: rotate(90deg);
+}

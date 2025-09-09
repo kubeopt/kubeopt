@@ -26,6 +26,9 @@ import concurrent.futures
 from enum import Enum
 from dataclasses import dataclass
 
+# Import the centralized cache
+from app.shared.kubernetes_data_cache import get_or_create_cache, KubernetesDataCache
+
 logger = logging.getLogger(__name__)
 
 class ResourceType(Enum):
@@ -106,6 +109,10 @@ class PureAKSClusterConfigFetcher:
         self.subscription_id = subscription_id
         self.max_workers = max_workers
         self.timeout_seconds = timeout_seconds
+        
+        # Use centralized cache instead of direct kubectl calls
+        self.cache = get_or_create_cache(cluster_name, resource_group, subscription_id)
+        logger.info(f"🔄 {cluster_name}: Initialized config fetcher with centralized cache")
         
         # Simple state tracking
         self.fetched_resources = set()
@@ -249,11 +256,11 @@ class PureAKSClusterConfigFetcher:
         k8s_info = {}
         
         try:
-            # Get cluster version info
-            version_info = self._run_kubectl_command(['version', '--output=json'])
+            # Get cluster version info from cache
+            version_info = self.cache.get('version')
             if version_info:
                 k8s_info['version_info'] = version_info
-                logger.info("✅ Kubernetes version info fetched")
+                logger.info("✅ Kubernetes version info from cache")
             
             # Get cluster-info
             cluster_info = self._run_kubectl_command(['cluster-info', '--output=json'])
@@ -278,10 +285,11 @@ class PureAKSClusterConfigFetcher:
         node_data = {}
         
         try:
-            # Get nodes with detailed information
-            nodes_output = self._run_kubectl_command(['get', 'nodes', '-o', 'json'])
+            # Get nodes with detailed information from cache
+            nodes_output = self.cache.get('nodes')
             if nodes_output:
                 node_data['nodes_raw'] = nodes_output
+                logger.info(f"✅ {self.cluster_name}: Got nodes data from cache")
                 
                 # Extract basic node list for convenience
                 if 'items' in nodes_output:
@@ -304,10 +312,12 @@ class PureAKSClusterConfigFetcher:
             
             # Get node metrics if available (optional)
             try:
-                node_metrics = self._run_kubectl_command(['top', 'nodes'])
+                node_metrics = self.cache.get('node_usage_headers')
                 if node_metrics:
                     node_data['node_metrics_raw'] = node_metrics
-                    logger.info("✅ Node metrics fetched")
+                    logger.info("✅ Node metrics from cache")
+                else:
+                    logger.info("ℹ️ Node metrics not available (metrics-server may not be running)")
             except:
                 logger.info("ℹ️ Node metrics not available (metrics-server may not be installed)")
             
@@ -551,18 +561,18 @@ class PureAKSClusterConfigFetcher:
         api_data = {}
         
         try:
-            # Get API resources
-            api_resources = self._run_kubectl_command(['api-resources', '--output=wide'])
+            # Get API resources from cache
+            api_resources = self.cache.get('api_resources')
             if api_resources:
                 api_data['api_resources_raw'] = api_resources
                 api_data['api_resources_list'] = self._parse_api_resources(api_resources)
-                logger.info(f"✅ API resources fetched: {len(api_data['api_resources_list'])} resources")
+                logger.info(f"✅ API resources from cache: {len(api_data.get('api_resources_list', []))} resources")
             
-            # Get API versions
-            api_versions = self._run_kubectl_command(['api-versions'])
+            # Get API versions from cache
+            api_versions = self.cache.get('api_versions')
             if api_versions:
                 api_data['api_versions_raw'] = api_versions
-                logger.info("✅ API versions fetched")
+                logger.info("✅ API versions from cache")
             
         except Exception as e:
             logger.warning(f"⚠️ API resources fetch failed: {e}")
