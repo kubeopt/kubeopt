@@ -29,6 +29,7 @@ from typing import Dict, List, Optional, Any
 import numpy as np
 
 from app.analytics.algorithmic_cost_analyzer import MLEnhancedHPARecommendationEngine
+from app.shared.kubernetes_data_cache import get_or_create_cache, fetch_cluster_data
 
 logger = logging.getLogger(__name__)
 
@@ -121,12 +122,20 @@ class KubernetesParsingUtils:
 class AKSRealTimeMetricsFetcher:
     """Enhanced AKS Real-time Metrics Collection with ML Capabilities"""
     
-    def __init__(self, resource_group: str, cluster_name: str, subscription_id:str):
+    def __init__(self, resource_group: str, cluster_name: str, subscription_id: str, cache=None):
         self.resource_group = resource_group
         self.cluster_name = cluster_name
         self.subscription_id = subscription_id
         self.connection_verified = False
         self.parser = KubernetesParsingUtils()
+        
+        # CACHE-FIRST: Use provided cache or create new one (backward compatibility)
+        if cache:
+            logger.info(f"🎯 {cluster_name}: Using shared cache instance for realtime metrics")
+            self.cache = cache
+        else:
+            logger.info(f"⚠️ {cluster_name}: No shared cache provided - creating new cache instance")
+            self.cache = get_or_create_cache(cluster_name, resource_group, subscription_id)
 
 
     # Add these methods to the AKSRealTimeMetricsFetcher class in aks_realtime_metrics.py
@@ -182,6 +191,75 @@ class AKSRealTimeMetricsFetcher:
             'top_memory_consumer': max(memory_values) if memory_values else 0
         }    
 
+    def _convert_nodes_text_to_basic_json(self, nodes_text: str) -> Dict[str, Any]:
+        """Convert kubectl get nodes text output to basic JSON structure for fallback"""
+        try:
+            items = []
+            lines = nodes_text.strip().split('\n')
+            
+            # Skip header line if present
+            if lines and 'NAME' in lines[0]:
+                lines = lines[1:]
+            
+            for line in lines:
+                if line.strip():
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        node_name = parts[0]
+                        status = parts[1] if len(parts) > 1 else 'Unknown'
+                        
+                        # Create basic node structure
+                        items.append({
+                            'metadata': {'name': node_name},
+                            'status': {
+                                'conditions': [{'type': 'Ready', 'status': 'True' if status == 'Ready' else 'False'}],
+                                'allocatable': {'cpu': '4', 'memory': '16Gi'}  # Default values
+                            }
+                        })
+            
+            logger.info(f"✅ Converted {len(items)} nodes from text format")
+            return {'items': items}
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to convert nodes text to JSON: {e}")
+            return {'items': []}
+
+    def _convert_hpa_text_to_basic_json(self, hpa_text: str) -> Dict[str, Any]:
+        """Convert kubectl get hpa text output to basic JSON structure for fallback"""
+        try:
+            items = []
+            lines = hpa_text.strip().split('\n')
+            
+            # Skip header line if present
+            if lines and ('NAMESPACE' in lines[0] or 'NAME' in lines[0]):
+                lines = lines[1:]
+            
+            for line in lines:
+                if line.strip():
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        namespace = parts[0] if len(parts) > 2 else 'default'
+                        name = parts[1] if len(parts) > 2 else parts[0]
+                        target = parts[2] if len(parts) > 2 else 'unknown'
+                        
+                        # Create basic HPA structure
+                        items.append({
+                            'metadata': {'namespace': namespace, 'name': name},
+                            'spec': {
+                                'scaleTargetRef': {'name': target},
+                                'minReplicas': 1,
+                                'maxReplicas': 10
+                            },
+                            'status': {'currentReplicas': 1}
+                        })
+            
+            logger.info(f"✅ Converted {len(items)} HPAs from text format")
+            return {'items': items}
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to convert HPA text to JSON: {e}")
+            return {'items': []}
+
     def _process_enhanced_node_data(self, top_nodes_output: str, node_info_json: str, pod_resources: Dict) -> Dict:
         """
          Process enhanced node data with resource requests
@@ -189,8 +267,29 @@ class AKSRealTimeMetricsFetcher:
         try:
             logger.info("🔧 Processing enhanced node data with resource requests...")
             
-            # Parse node information
-            nodes_data = json.loads(node_info_json)
+            # Parse node information with validation
+            if not node_info_json or node_info_json.strip() == '':
+                logger.warning("⚠️ Node info JSON is empty, cannot process enhanced node data")
+                return {
+                    'nodes': [],
+                    'enhanced_data_available': False,
+                    'error': 'Empty node_info_json',
+                    'timestamp': datetime.now().isoformat(),
+                    'data_source': 'empty_data_error'
+                }
+            
+            try:
+                nodes_data = json.loads(node_info_json)
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ Failed to parse node_info_json: {e}")
+                logger.error(f"📝 Node JSON preview: '{node_info_json[:100]}...'")
+                return {
+                    'nodes': [],
+                    'enhanced_data_available': False,
+                    'error': f'JSON decode error: {e}',
+                    'timestamp': datetime.now().isoformat(),
+                    'data_source': 'json_decode_error'
+                }
             node_metrics = []
             
             # Parse top nodes output
@@ -296,7 +395,14 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Error processing enhanced node data: {e}")
-            return None
+            # Return empty structure to maintain compatibility
+            return {
+                'nodes': [],
+                'enhanced_data_available': False,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat(),
+                'data_source': 'processing_error'
+            }
         
     def _get_enhanced_node_resource_data(self) -> Dict[str, Any]:
         """
@@ -305,50 +411,81 @@ class AKSRealTimeMetricsFetcher:
         try:
             logger.info("📊  Fetching enhanced node resource data...")
             
-            # Step 1: Get node usage (existing)
-            top_nodes = self.execute_kubectl_command("kubectl top nodes --no-headers", timeout=60)
+            # Get data from cache (already fetched in get_node_metrics)
+            cache_data = self.cache.get_resource_usage_data()
+            top_nodes = cache_data.get('node_usage', '')
             
-            # Step 2: Get node capacity and allocatable resources
-            node_info = self.execute_kubectl_command("kubectl get nodes -o json")
+            # Check if metrics server data is available
+            if not top_nodes:
+                logger.info("📊 Metrics server data unavailable, using resource request estimates")
+            
+            # Use your original fallback strategy: Try JSON first, then text format
+            node_info = cache_data.get('nodes', {})
+            
+            # If JSON is empty or problematic, fallback to text format
+            if not node_info or (isinstance(node_info, dict) and not node_info.get('items')):
+                logger.warning("🔄 JSON nodes data empty or invalid, attempting text format fallback")
+                logger.info(f"🔍 Debug: node_info type={type(node_info)}, content preview: {str(node_info)[:100]}...")
+                
+                nodes_text = cache_data.get('nodes_text', '')
+                logger.info(f"🔍 Debug: nodes_text length={len(nodes_text)}, preview: '{nodes_text[:100]}...'")
+                
+                if nodes_text and nodes_text.strip():
+                    # Convert text to basic structure for processing
+                    logger.info("🔄 Converting nodes text to JSON structure...")
+                    node_info = self._convert_nodes_text_to_basic_json(nodes_text)
+                    logger.info(f"✅ Converted to {len(node_info.get('items', []))} nodes from text format")
+                else:
+                    logger.error("❌ Both JSON and text node data unavailable from cache")
+                    # Let's check what keys are actually available in cache
+                    available_keys = list(cache_data.keys())
+                    logger.error(f"📋 Available cache keys: {available_keys[:10]}...")  # Show first 10 keys
+                    node_info = {'items': []}
             
             # Step 3: NEW - Get pod resource requests per node
             pod_resources = self._get_pod_resource_requests_by_node()
             
             # Step 4: Process and combine all data
-            return self._process_enhanced_node_data(top_nodes, node_info, pod_resources)
+            # Convert node_info dict to JSON string if needed
+            if isinstance(node_info, dict):
+                node_info_json = json.dumps(node_info)
+            else:
+                node_info_json = node_info
+            return self._process_enhanced_node_data(top_nodes, node_info_json, pod_resources)
             
         except Exception as e:
             logger.error(f"❌ Enhanced node resource data failed: {e}")
-            return None
+            # Return empty structure to maintain compatibility
+            return {
+                'enhanced_data_available': False,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat(),
+                'data_source': 'error_fallback'
+            }
         
     def _get_pod_resource_requests_by_node(self) -> Dict[str, Dict]:
         """
         COMPLETELY  Pod resource requests with better JSON handling
         """
         try:
-            logger.info("🔍  Fetching pod resource requests with enhanced parsing...")
+            logger.info("🚀 Fetching pod resource requests from CACHE...")
             
-            # Method 1: Try getting resource requests directly (more efficient)
-            try:
-                describe_cmd = '''kubectl get pods --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,CPU_REQ:.spec.containers[*].resources.requests.cpu,MEM_REQ:.spec.containers[*].resources.requests.memory,NODE:.spec.nodeName" --field-selector=status.phase=Running'''
-                
-                describe_output = self.execute_kubectl_command(describe_cmd, timeout=60)
-                if describe_output:
-                    logger.info("✅  Using custom columns approach for resource requests")
-                    return self._parse_custom_columns_resource_requests(describe_output)
-            except Exception as custom_error:
-                logger.warning(f"⚠️ Custom columns approach failed: {custom_error}")
+            # Get data from cache instead of individual kubectl calls
+            cache_data = self.cache.get_resource_usage_data()
             
-            # Method 2: Try basic pod info approach to fetch real data
-            try:
-                basic_cmd = '''kubectl get pods --all-namespaces --no-headers --field-selector=status.phase=Running'''
-                basic_output = self.execute_kubectl_command(basic_cmd, timeout=60)
-                
-                if basic_output:
-                    logger.info("✅  Using basic pod listing for resource estimation")
-                    return self._estimate_resource_requests_from_basic_data(basic_output)
-            except Exception as basic_error:
-                logger.warning(f"⚠️ Basic pod listing failed: {basic_error}")
+            # Method 1: Use cached custom columns data (most efficient)
+            describe_output = cache_data.get('pod_resources', '')
+            if describe_output:
+                logger.info("✅ Using cached custom columns data for resource requests")
+                return self._parse_custom_columns_resource_requests(describe_output)
+            
+            # Method 2: Use cached basic pod data as fallback
+            basic_output = cache_data.get('pods_basic', '')
+            if basic_output:
+                logger.info("✅ Using cached basic pod listing for resource estimation")
+                return self._estimate_resource_requests_from_basic_data(basic_output)
+            
+            logger.warning("⚠️ No pod resource data available in cache")
             
             # All fetching methods failed - no real data available
             logger.error("❌ All pod resource collection methods failed to fetch data from cluster")
@@ -643,74 +780,51 @@ class AKSRealTimeMetricsFetcher:
             return False
 
     def execute_kubectl_command(self, kubectl_cmd: str, timeout: int = 60) -> Optional[str]:
-        """Execute kubectl command with subscription context if available"""
+        """
+        SINGLE SOURCE OF TRUTH: All kubectl commands go through cache
+        No direct kubectl execution - everything comes from centralized cache
+        """
+        logger.debug(f"🎯 Querying cache for: {kubectl_cmd[:50]}...")
+        
         try:
-            cmd = [
-                'az', 'aks', 'command', 'invoke',
-                '--resource-group', self.resource_group,
-                '--name', self.cluster_name,
-                '--command', kubectl_cmd
-            ]
+            cache_data = self.cache.get_all_data()
             
-            # ADD EXPLICIT SUBSCRIPTION if available (this uses self.subscription_id)
-            if self.subscription_id:
-                cmd.extend(['--subscription', self.subscription_id])
-                logger.debug(f"🌐 Using subscription context: {self.subscription_id[:8]} for command: {kubectl_cmd}")
-            else:
-                logger.debug(f"⚠️ Using legacy execution (no subscription context) for command: {kubectl_cmd}")
+            # Map kubectl commands to cache keys - COMPLETE MAPPING
+            if "kubectl top nodes" in kubectl_cmd:
+                if "--no-headers" in kubectl_cmd:
+                    return cache_data.get('node_usage', '')
+                else:
+                    return cache_data.get('node_usage_headers', '')
+            elif "kubectl get nodes" in kubectl_cmd:
+                if "-o json" in kubectl_cmd:
+                    nodes_data = cache_data.get('nodes', {})
+                    return json.dumps(nodes_data) if nodes_data else None
+                else:
+                    return cache_data.get('nodes_text', '')
+            elif "kubectl top pods" in kubectl_cmd:
+                if "--no-headers" in kubectl_cmd:
+                    return cache_data.get('pod_usage', '')
+                else:
+                    return cache_data.get('pod_usage_headers', '')
+            elif "kubectl get hpa" in kubectl_cmd:
+                if "custom-columns" in kubectl_cmd:
+                    return cache_data.get('hpa_custom', '')
+                elif "--no-headers" in kubectl_cmd:
+                    return cache_data.get('hpa_no_headers', '')
+                elif "--all-namespaces" in kubectl_cmd and "-o json" in kubectl_cmd:
+                    hpa_data = cache_data.get('hpa', {})
+                    return json.dumps(hpa_data) if hpa_data else None
+                elif "--all-namespaces" in kubectl_cmd:
+                    return cache_data.get('hpa_text', '')
+                else:
+                    return cache_data.get('hpa_basic', '')
             
-            logger.info(f"🔧 DEBUG: Executing: {kubectl_cmd}")
-            start_time = time.time()
+            # For any unmapped commands, use dynamic execution
+            logger.debug(f"⚠️ Unmapped command, using dynamic execution: {kubectl_cmd[:30]}...")
+            return self.cache.execute_dynamic_command(kubectl_cmd, timeout)
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-            
-            execution_time = time.time() - start_time
-            logger.info(f"🔧 DEBUG: Command completed in {execution_time:.2f}s")
-            logger.info(f"🔧 DEBUG: Return code: {result.returncode}")
-            
-            if result.stderr:
-                logger.warning(f"🔧 DEBUG: STDERR: {result.stderr}")
-            
-            if result.returncode != 0:
-                # Enhanced error reporting for subscription context issues
-                if "ResourceGroupNotFound" in result.stderr:
-                    if self.subscription_id:
-                        logger.error(f"❌ Resource group '{self.resource_group}' not found in subscription {self.subscription_id[:8]}")
-                        logger.error(f"❌ This indicates a subscription context issue or incorrect subscription")
-                    else:
-                        logger.error(f"❌ Resource group '{self.resource_group}' not found")
-                        logger.error(f"❌ No subscription context provided - this may cause conflicts")
-                
-                logger.error(f"❌ Command failed with return code {result.returncode}")
-                logger.error(f"❌ STDERR: {result.stderr}")
-                return None
-            
-            # Clean the output properly
-            clean_output = self._clean_command_output(result.stdout)
-            
-            if not clean_output:
-                logger.warning(f"⚠️ No output after cleaning for command: {kubectl_cmd}")
-                return None
-            
-            logger.info(f"🔧 DEBUG: Clean output length: {len(clean_output)}")
-            
-            # Handle very large outputs
-            if len(clean_output) >= 500000:  # ~500KB limit
-                logger.warning(f"⚠️ Large output detected ({len(clean_output)} chars)")
-                
-                # For JSON commands, try to use text format instead
-                if '-o json' in kubectl_cmd and 'top' not in kubectl_cmd:
-                    logger.info("🔄 Switching to text format due to size")
-                    text_cmd = kubectl_cmd.replace(' -o json', ' --no-headers')
-                    return self.execute_kubectl_command(text_cmd, timeout)
-                    
-            return clean_output
-            
-        except subprocess.TimeoutExpired:
-            logger.error(f"⏰ Timeout executing kubectl command: {kubectl_cmd}")
-            return None
         except Exception as e:
-            logger.error(f"❌ Error executing kubectl command '{kubectl_cmd}': {e}")
+            logger.error(f"❌ Cache query failed for {kubectl_cmd[:30]}...: {e}")
             return None
 
     def _safe_kubectl_command(self, kubectl_cmd: str, timeout: int = 60) -> Optional[str]:
@@ -732,32 +846,24 @@ class AKSRealTimeMetricsFetcher:
             return None
 
     def get_node_metrics(self) -> Dict[str, Any]:
-        """Get node metrics with enhanced error handling"""
-        logger.info("📊 Fetching real-time node metrics...")
+        """Get node metrics using centralized cache (PERFORMANCE OPTIMIZED)"""
+        logger.info("🚀 Fetching real-time node metrics from CACHE...")
         
         try:
-            # Check if metrics-server is available
-            metrics_check = self.execute_kubectl_command("kubectl get pods -n kube-system --selector=k8s-app=metrics-server")
-            if not metrics_check:
-                logger.warning("⚠️ Metrics server may not be available")
-            else:
-                if isinstance(metrics_check, str):
-                    logger.info(f"✅ Metrics server status: {len(metrics_check)} chars")
-                else:
-                    logger.info(f"✅ Metrics server status: response received")
-            
-            # Get node usage with shorter timeout first
-            logger.info("🔧 DEBUG: Fetching node usage...")
-            top_nodes = self.execute_kubectl_command("kubectl top nodes --no-headers", timeout=60)
+            # Get data from cache (data is auto-fetched when cache is created)
+            cache_data = self.cache.get_resource_usage_data()
+            top_nodes = cache_data.get('node_usage', '')
+            node_info = cache_data.get('nodes', {})
             
             if not top_nodes:
-                logger.warning("⚠️ Could not fetch 'kubectl top nodes' - trying alternative")
-                # Alternative: try with different format
-                top_nodes = self.execute_kubectl_command("kubectl top nodes", timeout=60)
+                logger.warning("⚠️ No node usage data in cache")
+            else:
+                logger.info(f"✅ Node usage from cache: {len(top_nodes)} chars")
             
-            # Get node information
-            logger.info("🔧 DEBUG: Fetching node information...")
-            node_info = self.execute_kubectl_command("kubectl get nodes -o json")
+            if not node_info:
+                logger.warning("⚠️ No node info data in cache")
+            else:
+                logger.info(f"✅ Node info from cache: {len(node_info.get('items', []))} nodes")
             
             if not node_info:
                 logger.error("❌ Could not fetch node information")
@@ -887,8 +993,47 @@ class AKSRealTimeMetricsFetcher:
         
         try:
             # STEP 1: Get basic HPA list with text output to avoid JSON truncation
-            hpa_cmd = "kubectl get hpa --all-namespaces --no-headers"
-            hpa_output = self.execute_kubectl_command(hpa_cmd, timeout=60)
+            # Use cached HPA data with fallback strategy  
+            cache_data = self.cache.get_resource_usage_data()
+            hpa_data = cache_data.get('hpa', {})
+            
+            # Handle case where hpa_data might be a string (JSON) instead of dict
+            if isinstance(hpa_data, str):
+                try:
+                    hpa_data = json.loads(hpa_data) if hpa_data.strip() else {}
+                except json.JSONDecodeError:
+                    logger.warning("⚠️ Failed to parse HPA JSON data")
+                    hpa_data = {}
+            
+            # If JSON is empty or problematic, fallback to text format 
+            if not hpa_data or (isinstance(hpa_data, dict) and not hpa_data.get('items')):
+                logger.info("🔄 HPA JSON data empty, using text format fallback")
+                hpa_text = cache_data.get('hpa_text', '') or cache_data.get('hpa_custom', '')
+                if hpa_text:
+                    # Convert text to basic structure for processing
+                    hpa_data = self._convert_hpa_text_to_basic_json(hpa_text)
+                else:
+                    logger.warning("⚠️ Both JSON and text HPA data unavailable")
+                    hpa_data = {'items': []}
+            
+            # Convert JSON to text format for existing parsing logic
+            hpa_output = ""
+            if hpa_data and 'items' in hpa_data:
+                for item in hpa_data['items']:
+                    metadata = item.get('metadata', {})
+                    spec = item.get('spec', {})
+                    status = item.get('status', {})
+                    
+                    namespace = metadata.get('namespace', '')
+                    name = metadata.get('name', '')
+                    min_replicas = spec.get('minReplicas', 1)
+                    max_replicas = spec.get('maxReplicas', 10)
+                    target_ref = spec.get('scaleTargetRef', {}).get('name', '')
+                    
+                    # Create format that matches expected parsing: NAMESPACE NAME REFERENCE TARGETS MINPODS MAXPODS REPLICAS
+                    current_replicas = status.get('currentReplicas', 1)
+                    targets = "unknown/80%"  # Default target for parsing
+                    hpa_output += f"{namespace}  {name}  {target_ref}  {targets}  {min_replicas}  {max_replicas}  {current_replicas}\n"
             
             hpa_count = 0
             cpu_based = 0
@@ -1895,7 +2040,22 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ FIXED: ML-ready metrics collection failed: {e}")
-            raise ValueError(f"Failed to collect ML-ready metrics with all workloads: {e}")
+            # Return empty but valid structure to maintain compatibility
+            return {
+                'status': 'error',
+                'error': str(e),
+                'nodes': [],
+                'all_workloads': [],
+                'total_workloads': 0,
+                'hpa_implementation': {'total_hpas': 0, 'confidence': 'low'},
+                'workload_cpu_analysis': {'high_cpu_workloads': [], 'max_workload_cpu': 0},
+                'pod_resource_data': {'all_workloads': [], 'total_workloads': 0},
+                'high_cpu_summary': {'high_cpu_workloads': [], 'max_cpu_utilization': 0},
+                'ml_features_ready': False,
+                'enhanced_data_available': False,
+                'all_workloads_preserved': False,
+                'timestamp': datetime.now().isoformat()
+            }
 
 
     def get_enhanced_metrics_for_ml(self) -> Dict[str, Any]:
@@ -1946,9 +2106,13 @@ class AKSRealTimeMetricsFetcher:
         try:
             logger.info("🔍 Collecting ALL workload-level metrics (not just high CPU)...")
             
-            # Get pod-level resource usage
+            # Get pod-level resource usage from cache
             pod_metrics_cmd = "kubectl top pods --all-namespaces --no-headers"
             pod_output = self.execute_kubectl_command(pod_metrics_cmd)
+            
+            # Handle metrics server unavailability
+            if not pod_output:
+                logger.info("📊 Pod metrics unavailable (metrics server issue), using pod resource requests as estimates")
             
             workload_data = {
                 'pods': [],

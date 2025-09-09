@@ -352,20 +352,26 @@ class MultiSubscriptionAnalysisEngine:
         cluster_id = f"{resource_group}_{cluster_name}"
         
         try:
+            # CACHE-FIRST ARCHITECTURE: Create single cache instance at the very beginning
+            logger.info(f"🚀 Session {session_id}: Creating single cache instance for {cluster_name} - executing all kubectl commands")
+            from app.shared.kubernetes_data_cache import get_or_create_cache
+            shared_cache = get_or_create_cache(cluster_name, resource_group, config.subscription_id)
+            logger.info(f"✅ Session {session_id}: Cache ready - all components will now use cached data")
+            
             # Step 1: Get cost data with subscription context
             cost_components, cost_label, total_period_cost, cost_df = self._get_cost_data(
                 resource_group, cluster_name, days, session_id, log_prefix, cluster_id, config
             )
             
-            # Step 2: Get metrics data with subscription context
+            # Step 2: Get metrics data with subscription context (pass shared cache)
             metrics_data, real_node_metrics = self._get_metrics_data(
-                resource_group, cluster_name, config, session_id, log_prefix
+                resource_group, cluster_name, config, session_id, log_prefix, shared_cache
             )
             
-            # Step 3: Get pod analysis with subscription context
+            # Step 3: Get pod analysis with subscription context (pass shared cache)
             pod_data = self._get_pod_analysis(
                 resource_group, cluster_name, enable_pod_analysis, 
-                cost_df, session_id, log_prefix, config.subscription_id
+                cost_df, session_id, log_prefix, config.subscription_id, shared_cache
             )
             
             # Step 4: Run ML-enhanced algorithmic analysis
@@ -480,14 +486,16 @@ class MultiSubscriptionAnalysisEngine:
                     }
                     logger.info(f"✅ Session {session_id}: Generated workload chart data for {len(sorted_workloads)} workloads")
 
-        elif 'namespace_summary' in pod_data:
-            final_results['namespace_costs'] = pod_data['namespace_summary']
+            # Check for alternative namespace summary if available
+            if 'namespace_summary' in pod_data:
+                final_results['namespace_costs'] = pod_data['namespace_summary']
         else:
             final_results['has_pod_costs'] = False
         
         final_results.update({
             'resource_group': resource_group,
             'cluster_name': cluster_name,
+            'subscription_id': config.subscription_id,  # Add subscription_id at root level for backward compatibility
             'cost_period': f"{datetime.now().strftime('%Y-%m-%d')} ({days} days analysis)",
             'cost_data_source': 'Azure Cost Management API',
             'metrics_data_source': metadata['metrics_source'],
@@ -654,14 +662,20 @@ class MultiSubscriptionAnalysisEngine:
         return cost_components, cost_label, total_period_cost, cost_df
     
     def _get_metrics_data(self, resource_group: str, cluster_name: str, 
-                     config: AnalysisConfig, session_id: str, log_prefix: str) -> tuple:
-        """Get ML-ready metrics with subscription context"""
-        logger.info(f"📈 Session {session_id}: Fetching ML-ready metrics with subscription context...")
+                     config: AnalysisConfig, session_id: str, log_prefix: str, shared_cache=None) -> tuple:
+        """Get ML-ready metrics with subscription context and shared cache"""
+        logger.info(f"📈 Session {session_id}: Fetching ML-ready metrics with shared cache...")
         
         from app.analytics.aks_realtime_metrics import AKSRealTimeMetricsFetcher
         
-        # UPDATED: Pass subscription_id to the metrics fetcher
-        enhanced_fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name, config.subscription_id)
+        # CACHE-FIRST: Pass shared cache to avoid creating new cache instance
+        if shared_cache:
+            enhanced_fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name, config.subscription_id, cache=shared_cache)
+            logger.info(f"🎯 Session {session_id}: Using shared cache for metrics fetching")
+        else:
+            # Fallback to old behavior for backward compatibility
+            enhanced_fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name, config.subscription_id)
+            logger.info(f"⚠️ Session {session_id}: No shared cache provided - creating new cache instance")
         
         metrics_data = None
         
@@ -701,7 +715,7 @@ class MultiSubscriptionAnalysisEngine:
     def _get_pod_analysis(self, resource_group: str, cluster_name: str, 
                  enable_pod_analysis: bool, cost_df,
                  session_id: str, log_prefix: str, 
-                 subscription_id: str = None) -> Optional[Dict]:
+                 subscription_id: str = None, shared_cache=None) -> Optional[Dict]:
         """Run pod-level cost analysis with COMPLETE cost breakdown"""
         if not enable_pod_analysis:
             return None
@@ -754,12 +768,13 @@ class MultiSubscriptionAnalysisEngine:
                 # Import the enhanced pod cost analyzer
                 from app.analytics.pod_cost_analyzer import get_enhanced_pod_cost_breakdown
                 
-                # Pass clean numeric cost breakdown (components only)
+                # Pass clean numeric cost breakdown (components only) and shared cache
                 pod_cost_result = get_enhanced_pod_cost_breakdown(
                     resource_group, 
                     cluster_name, 
                     cost_breakdown,  # Only component costs, no total
-                    subscription_id
+                    subscription_id,
+                    shared_cache  # Pass shared cache to avoid creating new one
                 )
                 
                 if pod_cost_result and pod_cost_result.get('success'):
