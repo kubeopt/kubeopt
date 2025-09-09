@@ -994,7 +994,7 @@ function showOptimizationPlanModal(planData) {
     // Show the modal
     const modal = document.getElementById('optimizationPlanModal');
     if (modal) {
-        modal.classList.remove('hidden');
+        modal.style.display = 'block';
         console.log('✅ Modal created, populated, and shown successfully');
     } else {
         console.error('❌ Failed to create optimization plan modal');
@@ -1006,104 +1006,68 @@ function showOptimizationPlanModal(planData) {
 function createOptimizationPlanModal() {
     const modalHTML = `
     <!-- Optimization Plan Modal -->
-    <div id="optimizationPlanModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 h-full w-full hidden z-50 backdrop-blur-sm" style="overflow-y: auto;">
-        <div class="relative mx-auto w-full max-w-6xl" style="margin: 2rem auto; min-height: calc(100vh - 4rem);">
-            <div class="bg-white shadow-2xl rounded-2xl border" style="max-height: calc(100vh - 4rem); display: flex; flex-direction: column;">
+    <div id="optimizationPlanModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; overflow-y: auto; display: none;">
+        <div style="margin: 2rem auto; width: 95%; max-width: 1200px;">
+            <div style="background: #1e293b; border-radius: 12px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column; max-height: calc(100vh - 4rem); border: 1px solid #334155;">
+                
                 <!-- Header -->
-                <div class="flex items-center justify-between border-b border-gray-200 p-5" style="flex-shrink: 0;">
-                    <div class="flex items-center">
-                        <div class="flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 mr-4">
-                            <i class="fas fa-cogs text-blue-600 text-xl"></i>
+                <div style="padding: 24px; border-bottom: 2px solid #334155; display: flex; align-items: center; justify-content: space-between; background: #1e293b; border-radius: 12px 12px 0 0;">
+                    <div style="display: flex; align-items: center;">
+                        <div style="width: 48px; height: 48px; background: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 16px;">
+                            <i class="fas fa-cogs" style="color: #ffffff; font-size: 20px;"></i>
                         </div>
-                        <h3 class="text-xl font-bold text-gray-900">CPU Optimization Plan</h3>
+                        <h3 style="font-size: 24px; font-weight: bold; color: #f1f5f9; margin: 0; font-family: system-ui, -apple-system, sans-serif;">CPU Optimization Plan</h3>
                     </div>
-                    <button onclick="closeOptimizationPlanModal()" class="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none">
-                        <i class="fas fa-times"></i>
+                    <button onclick="closeOptimizationPlanModal()" style="width: 48px; height: 48px; background: #374151; border: 2px solid #475569; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#475569'" onmouseout="this.style.background='#374151'">
+                        <i class="fas fa-times" style="color: #e2e8f0; font-size: 16px;"></i>
                     </button>
                 </div>
 
                 <!-- Content -->
-                <div class="p-5" style="flex: 1; overflow-y: auto; max-height: calc(100vh - 12rem);">
+                <div style="flex: 1; padding: 24px; overflow-y: auto; max-height: calc(100vh - 160px); background: #0f172a;">
                     <!-- Summary Cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                        <div class="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg border border-orange-200">
-                            <div class="flex items-center">
-                                <i class="fas fa-exclamation-triangle text-orange-600 text-lg mr-3"></i>
-                                <div>
-                                    <p class="text-orange-800 font-semibold text-sm">Scenario</p>
-                                    <p id="optimizationScenario" class="text-orange-900 font-bold">-</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
-                            <div class="flex items-center">
-                                <i class="fas fa-clock text-blue-600 text-lg mr-3"></i>
-                                <div>
-                                    <p class="text-blue-800 font-semibold text-sm">Timeline</p>
-                                    <p id="optimizationTimeline" class="text-blue-900 font-bold">-</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
-                            <div class="flex items-center">
-                                <i class="fas fa-dollar-sign text-green-600 text-lg mr-3"></i>
-                                <div>
-                                    <p class="text-green-800 font-semibold text-sm">Monthly Savings</p>
-                                    <p id="optimizationMonthlySavings" class="text-green-900 font-bold">-</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bg-gradient-to-r from-purple-50 to-purple-100 p-4 rounded-lg border border-purple-200">
-                            <div class="flex items-center">
-                                <i class="fas fa-chart-line text-purple-600 text-lg mr-3"></i>
-                                <div>
-                                    <p class="text-purple-800 font-semibold text-sm">CPU Improvement</p>
-                                    <p id="optimizationCpuReduction" class="text-purple-900 font-bold">-</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    
 
                     <!-- Commands Section -->
-                    <div class="bg-gray-50 rounded-lg p-4 mb-6">
-                        <h4 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                            <i class="fas fa-list-ol mr-2 text-blue-600"></i>
+                    <div style="background: #1e293b; border-radius: 8px; padding: 20px; margin-bottom: 24px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid #334155;">
+                        <h4 style="font-size: 20px; font-weight: bold; color: #f1f5f9; margin: 0 0 16px 0; display: flex; align-items: center; font-family: system-ui, sans-serif;">
+                            <i class="fas fa-list-ol" style="margin-right: 8px; color: #60a5fa;"></i>
                             Optimization Commands
                         </h4>
-                        <div id="optimizationCommands" class="space-y-4">
+                        <div id="optimizationCommands" style="display: flex; flex-direction: column; gap: 16px;">
                             <!-- Commands will be populated here -->
                         </div>
                     </div>
 
                     <!-- Validation Steps -->
-                    <div class="bg-green-50 rounded-lg p-4 mb-4">
-                        <h5 class="font-bold text-green-800 mb-3 flex items-center">
-                            <i class="fas fa-check-circle mr-2"></i>
+                    <div style="background: #1e293b; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 2px solid #10b981;">
+                        <h5 style="font-weight: bold; color: #f1f5f9; margin: 0 0 12px 0; display: flex; align-items: center; font-size: 18px; font-family: system-ui, sans-serif;">
+                            <i class="fas fa-check-circle" style="margin-right: 8px; color: #34d399;"></i>
                             Validation Steps
                         </h5>
-                        <ol id="optimizationValidationSteps" class="list-decimal list-inside space-y-2 text-green-700">
+                        <ol id="optimizationValidationSteps" style="padding-left: 20px; margin: 0; color: #cbd5e1; font-family: system-ui, sans-serif; line-height: 1.6;">
                             <!-- Validation steps will be populated here -->
                         </ol>
                     </div>
 
                     <!-- Monitoring Commands -->
-                    <div class="bg-blue-50 rounded-lg p-4">
-                        <h5 class="font-bold text-blue-800 mb-3 flex items-center">
-                            <i class="fas fa-eye mr-2"></i>
+                    <div style="background: #1e293b; border-radius: 8px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 2px solid #3b82f6;">
+                        <h5 style="font-weight: bold; color: #f1f5f9; margin: 0 0 12px 0; display: flex; align-items: center; font-size: 18px; font-family: system-ui, sans-serif;">
+                            <i class="fas fa-eye" style="margin-right: 8px; color: #60a5fa;"></i>
                             Monitoring Commands
                         </h5>
-                        <div id="optimizationMonitoringCommands" class="space-y-2">
+                        <div id="optimizationMonitoringCommands" style="display: flex; flex-direction: column; gap: 8px;">
                             <!-- Monitoring commands will be populated here -->
                         </div>
                     </div>
                 </div>
 
                 <!-- Footer Actions -->
-                <div class="flex items-center justify-between border-t border-gray-200 p-5 bg-white" style="flex-shrink: 0;">
-                    <button onclick="downloadOptimizationScript()" class="px-6 py-3 bg-green-500 text-white text-sm font-medium rounded-lg shadow-lg hover:bg-green-600 focus:outline-none focus:ring-4 focus:ring-green-300 transition-all duration-300">
-                        <i class="fas fa-download mr-2"></i>Download Script
+                <div style="display: flex; align-items: center; justify-content: space-between; border-top: 2px solid #334155; padding: 24px; background: #1e293b; border-radius: 0 0 12px 12px;">
+                    <button onclick="downloadOptimizationScript()" style="padding: 12px 24px; background: #10b981; color: #ffffff; font-size: 14px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s; font-family: system-ui, sans-serif;" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">
+                        <i class="fas fa-download" style="margin-right: 8px;"></i>Download Script
                     </button>
-                    <button onclick="closeOptimizationPlanModal()" class="px-6 py-3 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg shadow-lg hover:bg-gray-200 focus:outline-none focus:ring-4 focus:ring-gray-300 transition-all duration-300">
+                    <button onclick="closeOptimizationPlanModal()" style="padding: 12px 24px; background: #475569; color: #e2e8f0; font-size: 14px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s; font-family: system-ui, sans-serif;" onmouseover="this.style.background='#64748b'" onmouseout="this.style.background='#475569'">
                         Close
                     </button>
                 </div>
@@ -1165,7 +1129,7 @@ function populateOptimizationCommands(commands) {
             commandsHTML += `
                 <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                     <div class="flex justify-between items-start mb-3">
-                        <h6 class="font-semibold text-gray-900">${commandNumber}. ${cmd.description}</h6>
+                        <h6 class="font-semibold text-white">${commandNumber}. ${cmd.description}</h6>
                         <span class="${riskColorClass} ${riskTextClass} px-2 py-1 rounded text-xs font-bold">${cmd.risk_level.toUpperCase()} RISK</span>
                     </div>
                     <div class="mb-3">
@@ -1203,7 +1167,7 @@ function populateOptimizationMonitoringCommands(commands) {
     if (!container) return;
     
     const commandsHTML = commands.slice(0, 5).map(cmd => `
-        <code class="block bg-blue-100 text-blue-800 p-2 rounded text-sm font-mono">${cmd}</code>
+        <code style="display: block; background: #0f172a; color: #22d3ee; padding: 12px; border-radius: 6px; font-size: 14px; font-family: 'Courier New', monospace; border: 1px solid #334155; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3); margin-bottom: 8px;">${cmd}</code>
     `).join('');
     
     container.innerHTML = commandsHTML;
@@ -1228,7 +1192,7 @@ window.closeOptimizationModal = function(event) {
 window.closeOptimizationPlanModal = function() {
     const modal = document.getElementById('optimizationPlanModal');
     if (modal) {
-        modal.classList.add('hidden');
+        modal.style.display = 'none';
         // Clear stored plan data
         window.currentOptimizationPlan = null;
     }
