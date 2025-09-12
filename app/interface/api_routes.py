@@ -1002,8 +1002,12 @@ def register_api_routes(app):
                 cluster_id, 'analyzing', 0, 'Starting subscription-aware analysis...'
             )
             
-            # Get subscription context
+            # Get subscription context with fallback to current Azure CLI subscription
             subscription_id = cluster.get('subscription_id')
+            if not subscription_id:
+                logger.info(f"🔍 No stored subscription for cluster {cluster_id}, using current Azure CLI subscription")
+                subscription_id = azure_subscription_manager.get_current_subscription()
+                logger.info(f"✅ Using current subscription: {subscription_id}")
             
             # 🆕 ENHANCED: Start analysis with alert checking
             analysis_thread = threading.Thread(

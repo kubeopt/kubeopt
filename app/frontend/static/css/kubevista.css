@@ -82,7 +82,7 @@ header {
     color: #48bb78 !important;
     border-radius: 8px;
     transform: translateX(4px);
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+    box-shadow: 0 2px 8px rgb(35 40 62);
     border-left: 2px solid #48bb78;
 }
 
@@ -269,7 +269,7 @@ header {
 .chart-container:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-    border-color: rgba(245, 158, 11, 0.3);
+    border-color: rgb(35 40 62);
 }
 
 .chart-container:hover::before {
@@ -333,7 +333,7 @@ header {
 
 .bg-yellow-100 {
     background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.1)) !important;
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    border: 1px solid rgb(35 40 62);
 }
 
 .bg-blue-100 {
@@ -443,7 +443,7 @@ input[type="number"], input[type="time"], .form-control {
 .enhanced-cpu-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    border-color: rgba(245, 158, 11, 0.3);
+    border-color: rgb(35 40 62);
 }
 
 .cpu-card-header {
@@ -465,8 +465,8 @@ input[type="number"], input[type="time"], .form-control {
 }
 
 .cpu-card-header.success-header {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
-    border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+    background: linear-gradient(135deg, rgb(34 40 61) 0%, rgb(35 40 62) 100%);
+    border-bottom: 1px solid rgb(35 41 62)
 }
 
 .cpu-header-content {
@@ -581,7 +581,7 @@ input[type="number"], input[type="time"], .form-control {
 .cpu-metric-item:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-    border-color: rgba(245, 158, 11, 0.3);
+    border-color: rgb(35 40 62);
 }
 
 .cpu-metric-item:hover::before {
@@ -596,7 +596,7 @@ input[type="number"], input[type="time"], .form-control {
     align-items: center;
     justify-content: center;
     background: linear-gradient(135deg, #48bb78, #48bb78);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    box-shadow: 0 4px 12px rgb(35 40 62);
     transition: all 0.3s ease;
 }
 
@@ -652,7 +652,7 @@ input[type="number"], input[type="time"], .form-control {
 
 .metric-warning .metric-icon-bg {
     background: linear-gradient(135deg, #48bb78, #d97706);
-    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    box-shadow: 0 4px 12px rgb(35 40 62);
 }
 
 .metric-warning .metric-value {
@@ -716,12 +716,11 @@ input[type="number"], input[type="time"], .form-control {
 }
 
 .cpu-alert-panel, .cpu-success-panel, .optimization-recommendation {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+    background: linear-gradient(rgb(35 40 62) 0%, rgb(35 41 63) 100%);
     border-radius: 12px;
     padding: 1.5rem;
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);
-    border-left: 4px solid #48bb78;
+    border: 1px solid rgb(35 40 62);
+    box-shadow: 0 4px 15px rgb(35 41 63);
     position: relative;
     overflow: hidden;
 }
@@ -745,10 +744,10 @@ input[type="number"], input[type="time"], .form-control {
 }
 
 .cpu-success-panel {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
-    border-color: rgba(16, 185, 129, 0.3);
-    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
-    border-left-color: #10b981;
+    background: linear-gradient(135deg, rgb(34 40 62) 0%, rgb(35 41 63) 100%);
+    border-color: rgb(35 41 62);
+    box-shadow: 0 4px 15px rgb(35 40 62);
+    border-left-color: #23293f;
 }
 
 .alert-content, .success-content, .recommendation-content {
@@ -817,7 +816,7 @@ input[type="number"], input[type="time"], .form-control {
 .btn-optimize {
     background: #606775;
     color: white;
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+    box-shadow: 0 2px 8px rgb(35 40 62);
 }
 
 .btn-export {
@@ -1233,7 +1232,7 @@ button:focus, input:focus, select:focus {
     color: #48bb78 !important;
     border-radius: 16px;
     transform: translateX(8px);
-    box-shadow: 0 8px 25px rgba(245, 158, 11, 0.3);
+    box-shadow: 0 8px 25px rgb(35 40 62);
     border-left: 3px solid #48bb78;
 }
 

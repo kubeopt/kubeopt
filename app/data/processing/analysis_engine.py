@@ -386,6 +386,16 @@ class MultiSubscriptionAnalysisEngine:
                 real_node_metrics, pod_data, resource_group, cluster_name,
                 session_id, config, self.session_metadata[config.analysis_type]
             )
+            
+            # CRITICAL: Add metrics_data to final_results for implementation_generator
+            if metrics_data:
+                final_results['metrics_data'] = metrics_data
+                logger.info(f"✅ Session {session_id}: Added metrics_data to final_results for HPA analysis")
+                if 'hpa_implementation' in metrics_data:
+                    hpa_count = metrics_data['hpa_implementation'].get('total_hpas', 0)
+                    logger.info(f"🎯 Session {session_id}: metrics_data contains {hpa_count} HPAs for implementation_generator")
+            else:
+                logger.warning(f"⚠️ Session {session_id}: No metrics_data available for implementation_generator")
 
             logger.info(f"DEBUG:HPA efficiency: {final_results.get('hpa_efficiency', 0):.1f}%")
             

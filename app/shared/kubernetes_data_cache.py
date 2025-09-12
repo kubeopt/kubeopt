@@ -15,7 +15,7 @@ import json
 import logging
 import subprocess
 import time
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ class KubernetesDataCache:
             "node_usage_headers": "kubectl top nodes", 
             "pod_usage": "kubectl top pods --all-namespaces --no-headers",
             "pod_usage_headers": "kubectl top pods",
+            "cluster_utilization": "kubectl top nodes --no-headers | awk '{gsub(/\\%/, \"\", $3); gsub(/\\%/, \"\", $5); cpu+=$3; mem+=$5; count++} END {if(count>0) printf \"CPU:%.1f%%,Memory:%.1f%%\\n\", cpu/count, mem/count}'",
             
             # === WORKLOAD DETAILS ===
             "pods_running": "kubectl get pods --all-namespaces --field-selector=status.phase=Running",
@@ -114,7 +115,7 @@ class KubernetesDataCache:
             "hpa_text": "kubectl get hpa --all-namespaces",
             "hpa_no_headers": "kubectl get hpa --all-namespaces --no-headers",
             "hpa_basic": "kubectl get hpa",
-            "hpa_custom": '''kubectl get hpa --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,REFERENCE:.spec.scaleTargetRef.name,TARGETS:.status.currentMetrics[*].resource.current.averageUtilization,MIN:.spec.minReplicas,MAX:.spec.maxReplicas"''',
+            "hpa_custom": '''kubectl get hpa --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,REFERENCE:.spec.scaleTargetRef.name,METRICS:.spec.metrics[*].resource.name,MIN:.spec.minReplicas,MAX:.spec.maxReplicas"''',
             
             # === JSON FALLBACKS (for backward compatibility) ===
             "pods": "kubectl get pods --all-namespaces -o json"  # Get ALL pods, not just running
@@ -151,6 +152,12 @@ class KubernetesDataCache:
                 '--command', cmd
             ]
             
+            # DEBUGGING: Log HPA commands specifically
+            if "kubectl get hpa" in cmd:
+                logger.info(f"🔍 DEBUGGING HPA: About to execute with subscription: {self.subscription_id}")
+                logger.info(f"🔍 DEBUGGING HPA: Full command: {' '.join(full_cmd)}")
+                logger.info(f"🔍 DEBUGGING HPA: Resource group: {self.resource_group}, Cluster: {self.cluster_name}")
+            
             result = subprocess.run(
                 full_cmd,
                 capture_output=True,
@@ -183,11 +190,18 @@ class KubernetesDataCache:
                 # Special handling for HPA commands
                 elif "kubectl get hpa" in cmd:
                     error_msg = result.stderr.strip() if result.stderr else "No error message"
+                    stdout_msg = result.stdout.strip() if result.stdout else "No stdout"
+                    
+                    # ENHANCED DEBUGGING for HPA failures
+                    logger.warning(f"⚠️ {self.cluster_name}: HPA command failed: {cmd[:60]}... (exit code: {result.returncode})")
+                    logger.info(f"🔍 DEBUGGING HPA ERROR: Full stderr: {error_msg}")
+                    logger.info(f"🔍 DEBUGGING HPA ERROR: Full stdout: {stdout_msg}")
+                    logger.info(f"🔍 DEBUGGING HPA ERROR: Used subscription: {self.subscription_id}")
+                    
                     if "service unavailable" in error_msg.lower() or "the server doesn't have a resource type" in error_msg.lower():
                         logger.debug(f"📈 {self.cluster_name}: HPA API unavailable (cluster may not have HPA enabled): {cmd[:60]}...")
                     else:
-                        logger.warning(f"⚠️ {self.cluster_name}: HPA command failed: {cmd[:60]}... (exit code: {result.returncode})")
-                        logger.debug(f"🔍 {self.cluster_name}: HPA error details: {error_msg}")
+                        logger.error(f"❌ {self.cluster_name}: Unexpected HPA command failure - this needs investigation")
                 else:
                     # Handle different types of kubectl failures gracefully
                     error_msg = result.stderr.strip() if result.stderr else "No error message"
@@ -350,7 +364,7 @@ class KubernetesDataCache:
             'storageclass_cost_optimized', 'deployment_cluster_autoscaler',
             'deployment_metrics_server', 'configmap_pv_lifecycle', 'api_resources',
             'api_versions', 'cluster_info', 'hpa_text', 'hpa_no_headers', 'hpa_basic',
-            'hpa_custom', 'deployments_text', 'pods_all'
+            'hpa_custom', 'deployments_text', 'pods_all', 'cluster_utilization'
         }
         return key in text_commands
     
@@ -480,9 +494,391 @@ class KubernetesDataCache:
             'nodes_text': self.get('nodes_text') or ""  # Text fallback
         }
     
+    def get_hpa_data(self) -> Dict[str, Any]:
+        """Get HPA and autoscaling data - SINGLE SOURCE OF TRUTH with text parsing fallback"""
+        
+        # Try JSON format first
+        hpa_json_data = self._ensure_json_format('hpa')
+        
+        # If JSON is empty but we have text data, try custom columns first, then basic text
+        if not hpa_json_data.get('items'):
+            if self.get('hpa_custom'):
+                logger.info("🔄 HPA JSON empty, parsing from custom columns format")
+                hpa_json_data = self._parse_hpa_custom_to_json()
+            elif self.get('hpa_text'):
+                logger.info("🔄 HPA JSON empty, parsing from basic text format")
+                hpa_json_data = self._parse_hpa_text_to_json()
+        
+        return {
+            'hpa': hpa_json_data,  # JSON - kubectl get hpa or parsed from text
+            'hpa_text': self.get('hpa_text') or "",  # Text - kubectl get hpa --all-namespaces
+            'hpa_custom': self.get('hpa_custom') or "",  # Text - custom columns format
+            'deployments': self._ensure_json_format('deployments'),  # JSON - kubectl get deployments --all-namespaces -o json
+            'statefulsets': self._ensure_json_format('statefulsets'),  # JSON - kubectl get statefulsets --all-namespaces -o json
+            'replicasets': self._ensure_json_format('replicasets')  # JSON - kubectl get replicasets --all-namespaces -o json
+        }
+    
+    def _parse_hpa_text_to_json(self) -> Dict[str, Any]:
+        """Parse HPA text output into JSON-like structure"""
+        try:
+            hpa_text = self.get('hpa_text') or ""
+            if not hpa_text.strip():
+                return {'items': []}
+            
+            lines = hpa_text.strip().split('\n')
+            if not lines:
+                return {'items': []}
+            
+            # Skip header line if present
+            if lines and ('NAMESPACE' in lines[0] or 'NAME' in lines[0]):
+                lines = lines[1:]
+            
+            hpa_items = []
+            for line in lines:
+                if not line.strip():
+                    continue
+                
+                # Parse HPA text line: NAMESPACE NAME REFERENCE TARGETS MINPODS MAXPODS REPLICAS AGE
+                parts = line.split()
+                if len(parts) >= 6:
+                    namespace = parts[0]
+                    name = parts[1]
+                    reference = parts[2] if len(parts) > 2 else 'unknown'
+                    targets = parts[3] if len(parts) > 3 else 'unknown'
+                    min_replicas = parts[4] if len(parts) > 4 else '1'
+                    max_replicas = parts[5] if len(parts) > 5 else '10'
+                    
+                    # Parse targets to extract detailed metrics information
+                    metrics_list, current_metrics = self._parse_hpa_targets(targets)
+                    
+                    # Create enhanced HPA JSON structure with real metrics
+                    hpa_item = {
+                        'apiVersion': 'autoscaling/v2',
+                        'kind': 'HorizontalPodAutoscaler',
+                        'metadata': {
+                            'name': name,
+                            'namespace': namespace
+                        },
+                        'spec': {
+                            'minReplicas': int(min_replicas) if min_replicas.isdigit() else 1,
+                            'maxReplicas': int(max_replicas) if max_replicas.isdigit() else 10,
+                            'scaleTargetRef': {
+                                'name': reference.split('/')[-1] if '/' in reference else reference,
+                                'kind': reference.split('/')[0] if '/' in reference else 'Deployment'
+                            },
+                            'metrics': metrics_list
+                        },
+                        'status': {
+                            'currentReplicas': int(parts[6]) if len(parts) > 6 and parts[6].isdigit() else 1,
+                            'currentMetrics': current_metrics,
+                            '_parsed_from_text': True,
+                            '_enhanced_parsing': True
+                        }
+                    }
+                    hpa_items.append(hpa_item)
+            
+            # Debug: Log sample target strings to understand the real format
+            if hpa_items:
+                sample_count = min(5, len(hpa_items))
+                logger.info(f"🔍 DEBUG: Sample HPA target formats from first {sample_count} HPAs:")
+                sample_targets = []
+                for line in lines[:sample_count]:
+                    if line.strip():
+                        parts = line.split()
+                        if len(parts) >= 4:
+                            target = parts[3]
+                            sample_targets.append(target)
+                            logger.info(f"   Target: '{target}'")
+                
+                # Log metrics distribution for debugging
+                cpu_count = sum(1 for item in hpa_items if any(m['resource']['name'] == 'cpu' for m in item['spec']['metrics']))
+                memory_count = sum(1 for item in hpa_items if any(m['resource']['name'] == 'memory' for m in item['spec']['metrics']))
+                mixed_count = sum(1 for item in hpa_items if len(item['spec']['metrics']) > 1)
+                logger.info(f"🔍 DEBUG: Parsed metrics - CPU: {cpu_count}, Memory: {memory_count}, Mixed: {mixed_count}")
+            
+            logger.info(f"✅ Parsed {len(hpa_items)} HPAs from text format")
+            return {'items': hpa_items}
+            
+        except Exception as e:
+            logger.error(f"❌ Error parsing HPA text: {e}")
+            return {'items': []}
+    
+    def _parse_hpa_targets(self, targets: str) -> Tuple[List[Dict], List[Dict]]:
+        """
+        Parse HPA targets string to extract detailed metrics information
+        
+        Examples:
+        - '50%/70%' -> CPU metric with current 50%, target 70%
+        - '100Mi/200Mi' -> Memory metric with current 100Mi, target 200Mi  
+        - '60%/70%,100Mi/200Mi' -> Both CPU and Memory metrics
+        """
+        try:
+            if not targets or targets == 'unknown' or '<unknown>' in targets:
+                # Default to basic CPU metric
+                return [
+                    {
+                        'type': 'Resource',
+                        'resource': {
+                            'name': 'cpu',
+                            'target': {
+                                'type': 'Utilization',
+                                'averageUtilization': 70
+                            }
+                        }
+                    }
+                ], []
+            
+            metrics_list = []
+            current_metrics = []
+            
+            # Split by comma for multiple metrics
+            metric_pairs = targets.split(',')
+            
+            for pair in metric_pairs:
+                if '/' in pair:
+                    current_str, target_str = pair.split('/', 1)
+                    current_str = current_str.strip()
+                    target_str = target_str.strip()
+                    
+                    # Determine metric type based on format
+                    if '%' in target_str:
+                        # CPU percentage metric
+                        try:
+                            target_value = int(target_str.replace('%', ''))
+                            current_value = int(current_str.replace('%', '')) if '%' in current_str and 'unknown' not in current_str else None
+                        except:
+                            target_value = 70
+                            current_value = None
+                            
+                        metrics_list.append({
+                            'type': 'Resource',
+                            'resource': {
+                                'name': 'cpu',
+                                'target': {
+                                    'type': 'Utilization',
+                                    'averageUtilization': target_value
+                                }
+                            }
+                        })
+                        
+                        if current_value is not None:
+                            current_metrics.append({
+                                'type': 'Resource',
+                                'resource': {
+                                    'name': 'cpu',
+                                    'current': {
+                                        'averageUtilization': current_value
+                                    }
+                                }
+                            })
+                    
+                    elif any(unit in target_str for unit in ['Mi', 'Gi', 'Ki']):
+                        # Memory quantity metric
+                        metrics_list.append({
+                            'type': 'Resource',
+                            'resource': {
+                                'name': 'memory',
+                                'target': {
+                                    'type': 'AverageValue',
+                                    'averageValue': target_str
+                                }
+                            }
+                        })
+                        
+                        if 'unknown' not in current_str:
+                            current_metrics.append({
+                                'type': 'Resource',
+                                'resource': {
+                                    'name': 'memory',
+                                    'current': {
+                                        'averageValue': current_str
+                                    }
+                                }
+                            })
+            
+            # Default to CPU if no metrics parsed
+            if not metrics_list:
+                metrics_list.append({
+                    'type': 'Resource',
+                    'resource': {
+                        'name': 'cpu',
+                        'target': {
+                            'type': 'Utilization', 
+                            'averageUtilization': 70
+                        }
+                    }
+                })
+            
+            return metrics_list, current_metrics
+            
+        except Exception as e:
+            logger.debug(f"Error parsing HPA targets '{targets}': {e}")
+            # Return default CPU metric
+            return [
+                {
+                    'type': 'Resource',
+                    'resource': {
+                        'name': 'cpu',
+                        'target': {
+                            'type': 'Utilization',
+                            'averageUtilization': 70
+                        }
+                    }
+                }
+            ], []
+    
+    def _parse_hpa_custom_to_json(self) -> Dict[str, Any]:
+        """Parse HPA custom columns output to extract detailed metrics"""
+        try:
+            hpa_custom = self.get('hpa_custom') or ""
+            if not hpa_custom.strip():
+                return {'items': []}
+            
+            lines = hpa_custom.strip().split('\n')
+            if not lines:
+                return {'items': []}
+            
+            # Skip header if present
+            if lines and 'NAMESPACE' in lines[0]:
+                lines = lines[1:]
+            
+            hpa_items = []
+            for line in lines:
+                if not line.strip():
+                    continue
+                
+                # Simplified custom columns format: NAMESPACE NAME REFERENCE METRICS MIN MAX
+                parts = line.split()
+                if len(parts) >= 6:
+                    namespace = parts[0]
+                    name = parts[1]
+                    reference = parts[2] if len(parts) > 2 else 'unknown'
+                    metrics_names = parts[3] if len(parts) > 3 else 'cpu'  # Comma-separated: "cpu" or "memory" or "cpu,memory"
+                    min_replicas = parts[4] if len(parts) > 4 else '1'
+                    max_replicas = parts[5] if len(parts) > 5 else '10'
+                    
+                    # Build metrics from resource names
+                    metrics_list = []
+                    
+                    # Parse comma-separated metric names
+                    if metrics_names and metrics_names != '<none>':
+                        resource_names = [name.strip() for name in metrics_names.split(',')]
+                        
+                        for resource_name in resource_names:
+                            if resource_name == 'cpu':
+                                metrics_list.append({
+                                    'type': 'Resource',
+                                    'resource': {
+                                        'name': 'cpu',
+                                        'target': {
+                                            'type': 'Utilization',
+                                            'averageUtilization': 70  # Default target
+                                        }
+                                    }
+                                })
+                            elif resource_name == 'memory':
+                                metrics_list.append({
+                                    'type': 'Resource',
+                                    'resource': {
+                                        'name': 'memory',
+                                        'target': {
+                                            'type': 'AverageValue',
+                                            'averageValue': '500Mi'  # Default target
+                                        }
+                                    }
+                                })
+                    
+                    # Default to CPU if no metrics found
+                    if not metrics_list:
+                        metrics_list.append({
+                            'type': 'Resource',
+                            'resource': {
+                                'name': 'cpu',
+                                'target': {
+                                    'type': 'Utilization',
+                                    'averageUtilization': 70
+                                }
+                            }
+                        })
+                    
+                    current_metrics = []  # Custom columns don't have current values
+                    
+                    hpa_item = {
+                        'apiVersion': 'autoscaling/v2',
+                        'kind': 'HorizontalPodAutoscaler',
+                        'metadata': {
+                            'name': name,
+                            'namespace': namespace
+                        },
+                        'spec': {
+                            'minReplicas': int(min_replicas) if min_replicas.isdigit() else 1,
+                            'maxReplicas': int(max_replicas) if max_replicas.isdigit() else 10,
+                            'scaleTargetRef': {
+                                'name': reference.split('/')[-1] if '/' in reference else reference,
+                                'kind': reference.split('/')[0] if '/' in reference else 'Deployment'
+                            },
+                            'metrics': metrics_list
+                        },
+                        'status': {
+                            'currentReplicas': 1,  # Default since custom columns may not have this
+                            'currentMetrics': current_metrics,
+                            '_parsed_from_custom': True,
+                            '_enhanced_parsing': True
+                        }
+                    }
+                    hpa_items.append(hpa_item)
+            
+            # Debug logging for custom columns
+            if hpa_items:
+                logger.info(f"🔍 DEBUG: Custom columns sample metrics:")
+                for i, line in enumerate(lines[:3]):
+                    if line.strip():
+                        parts = line.split()
+                        if len(parts) >= 4:
+                            metrics_names = parts[3]
+                            logger.info(f"   HPA {i+1}: Metrics='{metrics_names}'")
+            
+            logger.info(f"✅ Parsed {len(hpa_items)} HPAs from custom columns format")
+            return {'items': hpa_items}
+            
+        except Exception as e:
+            logger.error(f"❌ Error parsing HPA custom columns: {e}")
+            return {'items': []}
+    
     def get_all_data(self) -> Dict[str, Any]:
         """Get all cached data (backward compatibility)"""
         return self.data.copy()
+    
+    def get_cluster_utilization(self) -> Tuple[Optional[float], Optional[float]]:
+        """
+        Parse cluster utilization from cached data
+        Returns: (cpu_percentage, memory_percentage) or (None, None) if not available
+        """
+        cluster_util_data = self.get('cluster_utilization')
+        if not cluster_util_data:
+            logger.warning(f"⚠️ {self.cluster_name}: No cluster utilization data in cache")
+            return None, None
+        
+        try:
+            # Expected format: "CPU:24.0%,Memory:36.5%"
+            if 'CPU:' in cluster_util_data and 'Memory:' in cluster_util_data:
+                parts = cluster_util_data.strip().split(',')
+                cpu_part = [p for p in parts if p.startswith('CPU:')]
+                mem_part = [p for p in parts if p.startswith('Memory:')]
+                
+                if cpu_part and mem_part:
+                    cpu_str = cpu_part[0].replace('CPU:', '').replace('%', '')
+                    mem_str = mem_part[0].replace('Memory:', '').replace('%', '')
+                    
+                    cpu_val = float(cpu_str)
+                    mem_val = float(mem_str)
+                    
+                    logger.info(f"✅ {self.cluster_name}: Parsed cluster utilization - CPU: {cpu_val}%, Memory: {mem_val}%")
+                    return cpu_val, mem_val
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Error parsing cluster utilization '{cluster_util_data}': {e}")
+        
+        return None, None
     
     def execute_dynamic_command(self, cmd: str, timeout: int = 60) -> Optional[str]:
         """
