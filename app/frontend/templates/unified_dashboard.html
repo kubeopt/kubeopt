@@ -246,12 +246,12 @@
                     <div id="dashboard-content" class="tab-content-panel space-y-6">
                         <!-- Enhanced Metrics Row -->
                         <div class="metrics-grid">
-                            {% for metric in [
-                                {'id': 'current-cost', 'icon': 'fa-dollar-sign', 'label': 'Current Monthly Cost', 'color': 'text-green-500', 'trend_id': 'cost-trend', 'trend_label': 'Run analysis to view'},
-                                {'id': 'potential-savings', 'icon': 'fa-piggy-bank', 'label': 'Predicted Savings', 'color': 'text-blue-500', 'trend_id': 'savings-percentage', 'trend_label': 'Run analysis to view'},
-                                {'id': 'hpa-efficiency', 'icon': 'fa-expand-arrows-alt', 'label': 'HPA Efficiency', 'color': 'text-indigo-500', 'trend_id': null, 'trend_label': 'Optimized scaling'},
-                                {'id': 'optimization-score', 'icon': 'fa-star', 'label': 'Optimization Score', 'color': 'text-yellow-500', 'trend_id': null, 'trend_label': 'Overall efficiency'}
-                            ] %}
+                        {% for metric in [
+                            {'id': 'current-cost', 'icon': 'fa-dollar-sign', 'label': 'Current Monthly Cost', 'color': 'text-green-500', 'trend_id': 'cost-trend', 'trend_label': 'Limited optimization',      'trend_icon': 'fa-arrow-up-right-dots'},
+                            {'id': 'potential-savings', 'icon': 'fa-piggy-bank', 'label': 'Predicted Savings', 'color': 'text-blue-500', 'trend_id': 'savings-percentage', 'trend_label': '8.4%',           'trend_icon': 'fa-piggy-bank'},
+                            {'id': 'hpa-efficiency', 'icon': 'fa-tachometer-alt', 'label': 'HPA Efficiency', 'color': 'text-indigo-500', 'trend_id': None, 'trend_label': 'Optimized scaling',            'trend_icon': 'fa-signal'},
+                            {'id': 'optimization-score', 'icon': 'fa-star', 'label': 'Optimization Score', 'color': 'text-yellow-500', 'trend_id': None, 'trend_label': 'Overall efficiency',            'trend_icon': 'fa-bolt'}
+                        ] %}
                             <div class="metric-card bg-white rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl hover:-translate-y-2">
                                 <div class="flex items-start justify-between mb-4">
                                     <div class="flex-grow">
@@ -265,135 +265,141 @@
                                     </div>
                                 </div>
                                 <div class="metric-trend pt-2 border-t border-gray-100">
-                                    <i class="fas fa-chart-line text-gray-400 text-sm"></i>
+                                    <i class="fas {{ metric.trend_icon }} text-gray-400 text-sm"></i>
                                     <span class="text-xs text-gray-500 font-medium" id="{{ metric.trend_id if metric.trend_id else '' }}">{{ metric.trend_label }}</span>
                                 </div>
                             </div>
-                            {% endfor %}
+                        {% endfor %}
                         </div>
+
 
                         <!-- Enhanced CPU Metrics Container -->
                         <div id="cpu-metrics-container" class="space-y-6"></div>
 
                         <!-- Enhanced Charts Grid -->
                         <div class="charts-grid">
-                            <div class="chart-full-width bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
-                                <div class="flex items-center justify-between mb-6">
+                            <div class="chart-full-width bg-transparent rounded-md p-3 transition-all duration-300">
+                                <div class="flex items-center justify-between mb-4">
                                     <h3 class="font-bold text-gray-700 text-xl flex items-center">
-                                        <div class="w-8 h-8 bg-gradient-to-r from-common-500 to-common-600 rounded-lg flex items-center justify-center mr-3">
-                                            <i class="fas fa-chart-line text-white text-sm"></i>
-                                        </div>
-                                        Cost Trend Analysis
+                                    <div class="w-8 h-8 bg-gradient-to-r from-common-500 to-common-600 rounded-lg flex items-center justify-center mr-3">
+                                        <i class="fas fa-chart-line text-white text-sm"></i>
+                                    </div>
+                                    Cost Trend Analysis
                                     </h3>
                                     <div class="flex items-center gap-2">
-                                        <span class="status-badge bg-blue-100 text-blue-700">
-                                            <i class="fas fa-circle mr-1 text-xs"></i>Live Data
-                                        </span>
+                                    <span class="status-badge bg-blue-100 text-blue-700">
+                                        <i class="fas fa-circle mr-1 text-xs"></i>Live Data
+                                    </span>
                                     </div>
                                 </div>
-                                <div class="chart-container">
+                                <div class="chart-container" style="background: transparent; box-shadow: none;">
                                     <canvas id="mainTrendChart"></canvas>
                                     <div id="mainTrendChart-loading" class="chart-loading">
-                                        <i class="fas fa-chart-line text-4xl mb-3 text-blue-500"></i>
-                                        <p class="text-sm font-medium text-gray-600">Preparing trend analysis...</p>
+                                    <i class="fas fa-chart-line text-4xl mb-3 text-blue-500"></i>
+                                    <p class="text-sm font-medium text-gray-600">Preparing trend analysis...</p>
                                     </div>
                                 </div>
                             </div>
+
                             
-                            <div class="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
-                                <h3 class="font-bold text-gray-700 mb-6 text-lg flex items-center">
-                                    <div class="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg flex items-center justify-center mr-3">
-                                        <i class="fas fa-chart-pie text-white text-sm"></i>
-                                    </div>
-                                    Cost Distribution
-                                </h3>
-                                <div class="chart-container">
-                                    <canvas id="costBreakdownChart"></canvas>
-                                    <div id="costBreakdownChart-loading" class="chart-loading">
-                                        <i class="fas fa-chart-pie text-4xl mb-3 text-purple-500"></i>
-                                        <p class="text-sm font-medium text-gray-600">Loading cost breakdown...</p>
-                                    </div>
+                            <div class="bg-transparent rounded-md p-3 transition-all duration-300">
+                            <h3 class="font-bold text-gray-700 mb-4 text-lg flex items-center">
+                                <div class="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg flex items-center justify-center mr-3">
+                                <i class="fas fa-chart-pie text-white text-sm"></i>
+                                </div>
+                                Cost Distribution
+                            </h3>
+                            <div class="chart-container" style="position:relative; background:transparent; box-shadow:none;">
+                                <canvas id="costBreakdownChart"></canvas>
+                                <div id="costBreakdownChart-loading" class="chart-loading">
+                                <i class="fas fa-chart-pie text-4xl mb-3 text-purple-500"></i>
+                                <p class="text-sm font-medium text-gray-600">Loading cost breakdown...</p>
                                 </div>
                             </div>
-                            
-                            <div class="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
-                                <h3 class="font-bold text-gray-700 mb-6 text-lg flex items-center">
-                                    <div class="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg flex items-center justify-center mr-3">
-                                        <i class="fas fa-bullseye text-white text-sm"></i>
-                                    </div>
-                                    Savings Breakdown
-                                </h3>
-                                <div class="chart-container">
-                                    <canvas id="savingsBreakdownChart"></canvas>
-                                    <div id="savingsBreakdownChart-loading" class="chart-loading">
-                                        <i class="fas fa-bullseye text-4xl mb-3 text-green-500"></i>
-                                        <p class="text-sm font-medium text-gray-600">Calculating savings potential...</p>
-                                    </div>
+                            </div>
+
+                                                        
+                            <div class="bg-transparent rounded-md p-3 transition-all duration-300">
+                            <h3 class="font-bold text-gray-700 mb-4 text-lg flex items-center">
+                                <div class="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg flex items-center justify-center mr-3">
+                                <i class="fas fa-bullseye text-white text-sm"></i>
+                                </div>
+                                Savings Breakdown
+                            </h3>
+                            <div class="chart-container" style="position:relative; background:transparent; box-shadow:none;">
+                                <canvas id="savingsBreakdownChart" style="display:block; height:366px; width:353px;" width="564" height="586"></canvas>
+                                <div id="savingsBreakdownChart-loading" class="chart-loading">
+                                <i class="fas fa-bullseye text-4xl mb-3 text-green-500"></i>
+                                <p class="text-sm font-medium text-gray-600">Calculating savings potential...</p>
                                 </div>
                             </div>
-                            
-                            <div class="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
-                                <h3 class="font-bold text-gray-700 mb-6 text-lg flex items-center">
-                                    <div class="w-8 h-8 bg-gradient-to-r from-indigo-500 to-common-600 rounded-lg flex items-center justify-center mr-3">
-                                        <i class="fas fa-server text-white text-sm"></i>
-                                    </div>
-                                    Node Resource Utilization
-                                </h3>
-                                <div class="chart-container">
-                                    <canvas id="nodeUtilizationChart"></canvas>
-                                    <div id="nodeUtilizationChart-loading" class="chart-loading">
-                                        <i class="fas fa-server text-4xl mb-3 text-indigo-500"></i>
-                                        <p class="text-sm font-medium text-gray-600">Analyzing node performance...</p>
-                                    </div>
+                            </div>
+
+
+                                                        
+                            <div class="bg-transparent rounded-md p-3 transition-all duration-300">
+                            <h3 class="font-bold text-gray-700 mb-4 text-lg flex items-center">
+                                <div class="w-8 h-8 bg-gradient-to-r from-indigo-500 to-common-600 rounded-lg flex items-center justify-center mr-3">
+                                <i class="fas fa-server text-white text-sm"></i>
+                                </div>
+                                Node Resource Utilization
+                            </h3>
+                            <div class="chart-container" style="position:relative; background:transparent; box-shadow:none;">
+                                <canvas id="nodeUtilizationChart"></canvas>
+                                <div id="nodeUtilizationChart-loading" class="chart-loading">
+                                <i class="fas fa-server text-4xl mb-3 text-indigo-500"></i>
+                                <p class="text-sm font-medium text-gray-600">Analyzing node performance...</p>
                                 </div>
                             </div>
-                            
-                            <div class="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
-                                <h3 class="font-bold text-gray-700 mb-6 text-lg flex items-center">
-                                    <div class="w-8 h-8 bg-gradient-to-r from-teal-500 to-common-600 rounded-lg flex items-center justify-center mr-3">
-                                        <i class="fas fa-chart-bar text-white text-sm"></i>
-                                    </div>
-                                    HPA Optimization Impact
-                                </h3>
-                                <div class="chart-container">
-                                    <canvas id="hpaComparisonChart"></canvas>
-                                    <div id="hpaComparisonChart-loading" class="chart-loading">
-                                        <i class="fas fa-chart-bar text-4xl mb-3 text-teal-500"></i>
-                                        <p class="text-sm font-medium text-gray-600">Measuring HPA efficiency...</p>
-                                    </div>
+                            </div>
+
+                                                        
+                            <div class="bg-transparent rounded-md p-3 transition-all duration-300">
+                            <h3 class="font-bold text-gray-700 mb-4 text-lg flex items-center">
+                                <div class="w-8 h-8 bg-gradient-to-r from-teal-500 to-common-600 rounded-lg flex items-center justify-center mr-3">
+                                <i class="fas fa-chart-bar text-white text-sm"></i>
+                                </div>
+                                HPA Optimization Impact
+                            </h3>
+                            <div class="chart-container" style="position:relative; background:transparent; box-shadow:none;">
+                                <canvas id="hpaComparisonChart"></canvas>
+                                <div id="hpaComparisonChart-loading" class="chart-loading">
+                                <i class="fas fa-chart-bar text-4xl mb-3 text-teal-500"></i>
+                                <p class="text-sm font-medium text-gray-600">Measuring HPA efficiency...</p>
                                 </div>
                             </div>
-                            
-                            <div class="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
-                                <h3 class="font-bold text-gray-700 mb-6 text-lg flex items-center">
-                                    <div class="w-8 h-8 bg-gradient-to-r from-common-500 to-common-600 rounded-lg flex items-center justify-center mr-3">
-                                        <i class="fas fa-layer-group text-white text-sm"></i>
-                                    </div>
-                                    Cost by Namespace
-                                </h3>
-                                <div class="chart-container">
-                                    <canvas id="namespaceCostChart"></canvas>
-                                    <div id="namespaceCostChart-loading" class="chart-loading">
-                                        <i class="fas fa-layer-group text-4xl mb-3 text-orange-500"></i>
-                                        <p class="text-sm font-medium text-gray-600">Categorizing namespace costs...</p>
-                                    </div>
+                            </div>
+
+                            <div class="bg-transparent rounded-md p-3 transition-all duration-300">
+                            <h3 class="font-bold text-gray-700 mb-4 text-lg flex items-center">
+                                <div class="w-8 h-8 bg-gradient-to-r from-common-500 to-common-600 rounded-lg flex items-center justify-center mr-3">
+                                <i class="fas fa-layer-group text-white text-sm"></i>
+                                </div>
+                                Cost by Namespace
+                            </h3>
+                            <div class="chart-container" style="position:relative; background:transparent; box-shadow:none;">
+                                <canvas id="namespaceCostChart"></canvas>
+                                <div id="namespaceCostChart-loading" class="chart-loading">
+                                <i class="fas fa-layer-group text-4xl mb-3 text-orange-500"></i>
+                                <p class="text-sm font-medium text-gray-600">Categorizing namespace costs...</p>
                                 </div>
                             </div>
-                            
-                            <div class="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
-                                <h3 class="font-bold text-gray-700 mb-6 text-lg flex items-center">
-                                    <div class="w-8 h-8 bg-gradient-to-r from-common-500 to-common-600 rounded-lg flex items-center justify-center mr-3">
-                                        <i class="fas fa-chart-bar text-white text-sm"></i>
-                                    </div>
-                                    Top Workloads
-                                </h3>
-                                <div class="chart-container">
-                                    <canvas id="workloadCostChart"></canvas>
-                                    <div id="workloadCostChart-loading" class="chart-loading">
-                                        <i class="fas fa-chart-bar text-4xl mb-3 text-pink-500"></i>
-                                        <p class="text-sm font-medium text-gray-600">Ranking workload costs...</p>
-                                    </div>
+                            </div>
+
+                            <div class="bg-transparent rounded-md p-3 transition-all duration-300">
+                            <h3 class="font-bold text-gray-700 mb-4 text-lg flex items-center">
+                                <div class="w-8 h-8 bg-gradient-to-r from-common-500 to-common-600 rounded-lg flex items-center justify-center mr-3">
+                                <i class="fas fa-chart-bar text-white text-sm"></i>
                                 </div>
+                                Top Workloads
+                            </h3>
+                            <div class="chart-container" style="position:relative; background:transparent; box-shadow:none;">
+                                <canvas id="workloadCostChart"></canvas>
+                                <div id="workloadCostChart-loading" class="chart-loading">
+                                <i class="fas fa-chart-bar text-4xl mb-3 text-pink-500"></i>
+                                <p class="text-sm font-medium text-gray-600">Ranking workload costs...</p>
+                                </div>
+                            </div>
                             </div>
                         </div>
                         
@@ -451,36 +457,37 @@
 
                     <!-- Enhanced Implementation Content -->
                     <div id="implementation-content" class="tab-content-panel hidden">
-                        <div class="bg-white rounded-xl shadow-lg p-6">
-                            <div class="flex items-center justify-between mb-6">
-                                <h2 class="text-xl font-bold flex items-center">
-                                    <div class="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center mr-3">
-                                        <i class="fas fa-rocket text-white text-lg"></i>
-                                    </div>
-                                    Implementation Guide
-                                </h2>
-                                <div class="flex items-center gap-2">
-                                    <span class="status-badge bg-purple-100 text-purple-700">
-                                        <i class="fas fa-cog mr-1 text-xs"></i>Automated
-                                    </span>
+                        <div class="bg-transparent rounded-md p-3">
+                            <div class="flex items-center justify-between mb-4">
+                            <h2 class="text-xl font-bold flex items-center">
+                                <div class="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center mr-3">
+                                <i class="fas fa-rocket text-white text-lg"></i>
                                 </div>
+                                Implementation Guide
+                            </h2>
+                            <div class="flex items-center gap-2">
+                                <span class="status-badge bg-purple-100 text-purple-700">
+                                <i class="fas fa-cog mr-1 text-xs"></i>Automated
+                                </span>
+                            </div>
                             </div>
                             <div id="implementation-plan-container">
-                                <div class="bg-gradient-to-r from-purple-50 to-pink-50 border-l-4 border-purple-500 p-6 rounded-lg">
-                                    <div class="flex items-center gap-4">
-                                        <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
-                                            <i class="fas fa-tasks text-white text-xl"></i>
-                                        </div>
-                                        <div>
-                                            <h4 class="text-gray-800 font-semibold mb-2">Implementation Plan Loading</h4>
-                                            <p class="text-gray-600">Run an analysis to generate your personalized implementation plan.</p>
-                                            <p class="text-sm text-gray-500 mt-1">Step-by-step optimization instructions will appear here</p>
-                                        </div>
-                                    </div>
+                            <div class="bg-transparent border-l-4 border-purple-500 p-4 rounded-md">
+                                <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-tasks text-white text-xl"></i>
                                 </div>
+                                <div>
+                                    <h4 class="text-gray-800 font-semibold mb-2">Implementation Plan Loading</h4>
+                                    <p class="text-gray-600">Run an analysis to generate your personalized implementation plan.</p>
+                                    <p class="text-sm text-gray-500 mt-1">Step-by-step optimization instructions will appear here</p>
+                                </div>
+                                </div>
+                            </div>
                             </div>
                         </div>
                     </div>
+
 
                    
 

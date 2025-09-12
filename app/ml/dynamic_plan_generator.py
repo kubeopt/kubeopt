@@ -1268,10 +1268,14 @@ class MLIntegratedDynamicImplementationGenerator:
         
         # Analyze existing automation indicators
         existing_hpas = cluster_intelligence.get('existing_hpas', 0)
-        total_workloads = cluster_intelligence.get('total_workloads', 1)
+        total_workloads = cluster_intelligence.get('total_workloads', 0)
         
-        # Higher HPA coverage indicates more automation
-        automation_level = existing_hpas / total_workloads
+        # Skip division if no workloads found, default to no automation
+        if total_workloads == 0:
+            automation_level = 0.0
+        else:
+            # Higher HPA coverage indicates more automation
+            automation_level = existing_hpas / total_workloads
         
         # Check for other automation indicators
         if cluster_intelligence.get('has_prometheus_operators', False):

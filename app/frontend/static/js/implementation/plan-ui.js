@@ -44,6 +44,8 @@ export function injectCompleteUI(planData) {
 
 /**
  * ENHANCED HTML WITH IMPROVED STYLING
+ * <!-- Intelligence Insights Section -->
+            ${renderEnhancedIntelligenceInsights(data.intelligenceInsights)}
  */
 export function getCompleteHTML(data) {
     return `
@@ -58,12 +60,7 @@ export function getCompleteHTML(data) {
             <!-- Executive Summary Section -->
             ${renderEnhancedExecutiveSummary(data.executiveSummary)}
             
-            <!-- Intelligence Insights Section -->
-            ${renderEnhancedIntelligenceInsights(data.intelligenceInsights)}
             
-        
-           
-
             <!-- Main Content - Timeline Only -->
             <div class="main-timeline-container">
                 <div id="completeTimelineContent">${renderEnhancedCompleteTimeline(data)}</div>
@@ -97,7 +94,6 @@ export function renderEnhancedStyles() {
                 border-radius: 20px;
                 padding: 40px;
                 margin-bottom: 30px;
-                box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
                 position: relative;
                 overflow: hidden;
             }
@@ -772,12 +768,6 @@ export function renderEnhancedMainHeader(data) {
                         <button onclick="collapseAllCompleteSections()" class="command-btn">
                             📕 Collapse All
                         </button>
-                        <button onclick="refreshCompletePlan()" class="command-btn">
-                            🔄 Refresh
-                        </button>
-                        <button onclick="showProgressTracker()" class="command-btn" style="background: rgba(72, 187, 120, 0.3); border: 1px solid rgba(72, 187, 120, 0.5);" title="Track Implementation Progress">
-                            ✅ Progress
-                        </button>
                     </div>
                 </div>
                 
@@ -796,10 +786,7 @@ export function renderEnhancedMainHeader(data) {
                         <div class="stat-value">${data.totalCommands}</div>
                         <div class="stat-label">Commands</div>
                     </div>
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${data.securityItems}</div>
-                        <div class="stat-label">Security Items</div>
-                    </div>
+                    
                     
                 </div>
         </div>

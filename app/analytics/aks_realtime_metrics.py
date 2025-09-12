@@ -224,6 +224,30 @@ class AKSRealTimeMetricsFetcher:
             logger.error(f"❌ Failed to convert nodes text to JSON: {e}")
             return {'items': []}
 
+    def _classify_hpa_scaling_strategy(self, cpu_metrics: List, memory_metrics: List, other_metrics: List) -> str:
+        """Classify HPA scaling strategy based on actual metrics"""
+        has_cpu = len(cpu_metrics) > 0
+        has_memory = len(memory_metrics) > 0
+        has_custom = len(other_metrics) > 0
+        
+        if has_custom and not has_cpu and not has_memory:
+            return 'custom'
+        elif has_cpu and has_memory:
+            if len(cpu_metrics) > len(memory_metrics):
+                return 'cpu_dominant'
+            elif len(memory_metrics) > len(cpu_metrics):
+                return 'memory_dominant'
+            else:
+                return 'mixed'
+        elif has_cpu and not has_memory:
+            return 'cpu_only'
+        elif has_memory and not has_cpu:
+            return 'memory_only'
+        elif has_custom:
+            return 'custom'
+        else:
+            return 'unknown'
+
     def _convert_hpa_text_to_basic_json(self, hpa_text: str) -> Dict[str, Any]:
         """Convert kubectl get hpa text output to basic JSON structure for fallback"""
         try:
@@ -987,9 +1011,10 @@ class AKSRealTimeMetricsFetcher:
             'data_source': 'unavailable'
         }
 
+
     def get_hpa_implementation_status(self) -> Dict[str, Any]:
-        """Get HPA implementation status with detailed replica information for chart generator"""
-        logger.info("🔍 Detecting current HPA implementation with detailed replica data...")
+        """Get HPA implementation status with ENHANCED metrics extraction from cache"""
+        logger.info("🔍 Detecting current HPA implementation with ENHANCED metrics extraction from cache...")
         
         try:
             # STEP 1: Get basic HPA list with text output to avoid JSON truncation
@@ -1016,9 +1041,11 @@ class AKSRealTimeMetricsFetcher:
                     logger.warning("⚠️ Both JSON and text HPA data unavailable")
                     hpa_data = {'items': []}
             
-            # Convert JSON to text format for existing parsing logic
-            hpa_output = ""
+            # FIXED: Extract REAL CPU/Memory metrics from spec.metrics instead of using defaults
+            hpa_details = []  # Store complete HPA details with metrics for chart generator
             if hpa_data and 'items' in hpa_data:
+                logger.info(f"🔍 Processing {len(hpa_data['items'])} HPAs from cache with complete metrics extraction")
+                
                 for item in hpa_data['items']:
                     metadata = item.get('metadata', {})
                     spec = item.get('spec', {})
@@ -1028,128 +1055,113 @@ class AKSRealTimeMetricsFetcher:
                     name = metadata.get('name', '')
                     min_replicas = spec.get('minReplicas', 1)
                     max_replicas = spec.get('maxReplicas', 10)
+                    current_replicas = status.get('currentReplicas', 1)
                     target_ref = spec.get('scaleTargetRef', {}).get('name', '')
                     
-                    # Create format that matches expected parsing: NAMESPACE NAME REFERENCE TARGETS MINPODS MAXPODS REPLICAS
-                    current_replicas = status.get('currentReplicas', 1)
-                    targets = "unknown/80%"  # Default target for parsing
-                    hpa_output += f"{namespace}  {name}  {target_ref}  {targets}  {min_replicas}  {max_replicas}  {current_replicas}\n"
-            
-            hpa_count = 0
-            cpu_based = 0
-            memory_based = 0
-            hpa_list = []
-            hpa_details = []  # NEW: Store detailed replica information
-            
-            if hpa_output:
-                lines = hpa_output.split('\n')
-                for line in lines:
-                    if line.strip():
-                        # Skip command metadata that might remain
-                        if any(skip in line.lower() for skip in ['command started', 'namespace', 'exitcode']):
-                            continue
+                    # CRITICAL FIX: Extract actual CPU/Memory metrics from spec.metrics
+                    metrics = spec.get('metrics', [])
+                    cpu_metrics = []
+                    memory_metrics = []
+                    other_metrics = []
+                    
+                    for metric in metrics:
+                        if metric.get('type') == 'Resource':
+                            resource_name = metric.get('resource', {}).get('name', '')
+                            target = metric.get('resource', {}).get('target', {})
                             
-                        parts = line.split()
-                        if len(parts) >= 6:  # Basic HPA format: NAMESPACE NAME REFERENCE TARGETS MINPODS MAXPODS REPLICAS
-                            namespace = parts[0]
-                            name = parts[1]
-                            
-                            if namespace.upper() != 'NAMESPACE':  # Skip headers
-                                hpa_count += 1
-                                hpa_list.append(f"{namespace}/{name}")
-                                
-                                # Extract replica information from kubectl output - Handle dynamic formats
-                                try:
-                                    # HPA output format can vary: NAMESPACE NAME REFERENCE TARGETS MINPODS MAXPODS REPLICAS
-                                    # Find replica fields by checking which fields are numeric
-                                    numeric_fields = []
-                                    field_indices = {}
-                                    
-                                    for i, field in enumerate(parts[3:], 3):  # Start from field 3 (after name)
-                                        if field.isdigit():
-                                            numeric_fields.append((i, field))
-                                        # Store field positions for debugging
-                                        field_indices[f"field_{i}"] = field
-                                    
-                                    # Need at least 3 numeric fields for min, max, current replicas
-                                    if len(numeric_fields) < 3:
-                                        # Try to extract from the end of the line (more reliable)
-                                        potential_replicas = []
-                                        for field in reversed(parts):
-                                            if field.isdigit():
-                                                potential_replicas.append(field)
-                                            if len(potential_replicas) >= 3:
-                                                break
-                                        
-                                        if len(potential_replicas) >= 3:
-                                            # Reverse to get proper order: min, max, current
-                                            potential_replicas = list(reversed(potential_replicas))
-                                            current_replicas = potential_replicas[-1]  # Last numeric is usually current
-                                            max_replicas = potential_replicas[-2]      # Second to last is max
-                                            min_replicas = potential_replicas[-3]     # Third to last is min
-                                        else:
-                                            raise ValueError(f"Cannot find 3 numeric replica fields for HPA {namespace}/{name}. Fields: {field_indices}")
-                                    else:
-                                        # Use the numeric fields we found
-                                        current_replicas = numeric_fields[-1][1]  # Last numeric field
-                                        max_replicas = numeric_fields[-2][1]      # Second to last
-                                        min_replicas = numeric_fields[-3][1]      # Third to last
-                                    
-                                    # Validate that we have valid replica numbers
-                                    if not (current_replicas.isdigit() and min_replicas.isdigit() and max_replicas.isdigit()):
-                                        raise ValueError(f"Invalid replica data types for HPA {namespace}/{name}: min={min_replicas}, max={max_replicas}, current={current_replicas}")
-                                    
-                                    # NEW: Store detailed replica information for chart generator
-                                    hpa_detail = {
-                                        'namespace': namespace,
-                                        'name': name,
-                                        'current_replicas': current_replicas,
-                                        'min_replicas': min_replicas,
-                                        'max_replicas': max_replicas,
-                                        'hpa_id': f"{namespace}/{name}"
-                                    }
-                                    hpa_details.append(hpa_detail)
-                                    
-                                    logger.info(f"📊 HPA Detail: {namespace}/{name} = current:{current_replicas}, min:{min_replicas}, max:{max_replicas}")
-                                    
-                                except Exception as detail_error:
-                                    # No defaults, fail if data is invalid
-                                    logger.error(f"❌ Failed to parse HPA details for {namespace}/{name}: {detail_error}")
-                                    raise ValueError(f"Cannot parse HPA replica data for {namespace}/{name}: {detail_error}")
-                                
-                                # Simple heuristic for CPU vs memory based
-                                if hpa_count % 2 == 0:
-                                    cpu_based += 1
-                                else:
-                                    memory_based += 1
+                            if resource_name == 'cpu':
+                                target_value = target.get('averageUtilization', target.get('averageValue', 'unknown'))
+                                cpu_metrics.append({
+                                    'type': 'cpu',
+                                    'target_value': target_value,
+                                    'target_type': 'averageUtilization' if 'averageUtilization' in target else 'averageValue'
+                                })
+                            elif resource_name == 'memory':
+                                target_value = target.get('averageUtilization', target.get('averageValue', 'unknown'))
+                                memory_metrics.append({
+                                    'type': 'memory', 
+                                    'target_value': target_value,
+                                    'target_type': 'averageUtilization' if 'averageUtilization' in target else 'averageValue'
+                                })
+                        else:
+                            # Custom metrics (Pods, Object, External)
+                            other_metrics.append({
+                                'type': metric.get('type', 'unknown'),
+                                'details': metric
+                            })
+                    
+                    # Create complete HPA detail with REAL metrics classification
+                    hpa_detail = {
+                        'namespace': namespace,
+                        'name': name,
+                        'current_replicas': str(current_replicas),
+                        'min_replicas': str(min_replicas),
+                        'max_replicas': str(max_replicas),
+                        'hpa_id': f"{namespace}/{name}",
+                        'target_ref': target_ref,
+                        'cpu_metrics': cpu_metrics,
+                        'memory_metrics': memory_metrics,
+                        'other_metrics': other_metrics,
+                        'scaling_strategy': self._classify_hpa_scaling_strategy(cpu_metrics, memory_metrics, other_metrics)
+                    }
+                    hpa_details.append(hpa_detail)
+                    
+                    logger.debug(f"📊 HPA Detail: {namespace}/{name} = Strategy: {hpa_detail['scaling_strategy']}, "
+                               f"CPU metrics: {len(cpu_metrics)}, Memory metrics: {len(memory_metrics)}, "
+                               f"Current:{current_replicas}, Min:{min_replicas}, Max:{max_replicas}")
+                
+                logger.info(f"✅ Extracted complete metrics from {len(hpa_details)} HPAs")
             
-            # Determine pattern
+            # Process the extracted HPA details to generate summary statistics
+            hpa_count = len(hpa_details)
+            cpu_based = sum(1 for hpa in hpa_details if hpa['scaling_strategy'] in ['cpu_only', 'cpu_dominant'])
+            memory_based = sum(1 for hpa in hpa_details if hpa['scaling_strategy'] in ['memory_only', 'memory_dominant']) 
+            mixed_based = sum(1 for hpa in hpa_details if hpa['scaling_strategy'] == 'mixed')
+            custom_based = sum(1 for hpa in hpa_details if hpa['scaling_strategy'] == 'custom')
+            hpa_list = [hpa['hpa_id'] for hpa in hpa_details[:10]]  # Limit to first 10 for display
+            
+            # Determine pattern based on REAL metrics classification
             if hpa_count == 0:
                 pattern = 'no_hpa_detected'
                 confidence = 'high'
+            elif cpu_based > 0 and memory_based == 0 and custom_based == 0:
+                pattern = 'cpu_based_dominant'
+                confidence = 'high'  # High confidence because based on actual metrics
+            elif memory_based > 0 and cpu_based == 0 and custom_based == 0:
+                pattern = 'memory_based_dominant'
+                confidence = 'high'  # High confidence because based on actual metrics
+            elif mixed_based > 0:
+                pattern = 'mixed_implementation'
+                confidence = 'high'  # High confidence because based on actual metrics
+            elif custom_based > 0:
+                pattern = 'custom_metrics_based'
+                confidence = 'high'  # High confidence because based on actual metrics  
             elif cpu_based > memory_based:
                 pattern = 'cpu_based_dominant'
-                confidence = 'medium'
+                confidence = 'high'  # High confidence because based on actual metrics
             elif memory_based > cpu_based:
                 pattern = 'memory_based_dominant'
-                confidence = 'medium'
+                confidence = 'high'  # High confidence because based on actual metrics
             else:
                 pattern = 'mixed_implementation'
-                confidence = 'medium'
+                confidence = 'high'  # High confidence because based on actual metrics
             
             logger.info(f"✅ HPA detection: {hpa_count} HPAs found, pattern: {pattern}")
-            logger.info(f"✅ Collected {len(hpa_details)} HPA replica details for chart generator")
+            logger.info(f"✅ Metrics breakdown: CPU-based:{cpu_based}, Memory-based:{memory_based}, Mixed:{mixed_based}, Custom:{custom_based}")
+            logger.info(f"✅ Collected {len(hpa_details)} HPA replica details with COMPLETE metrics for chart generator")
             
             return {
                 'current_hpa_pattern': pattern,
                 'confidence': confidence,
                 'total_hpas': hpa_count,
                 'hpa_list': hpa_list[:10],  # Limit to first 10 for display
-                'hpa_details': hpa_details,  # NEW: Detailed replica information for chart generator
+                'hpa_details': hpa_details,  # ENHANCED: Complete HPA details with real metrics classification
                 'cpu_based_count': cpu_based,
                 'memory_based_count': memory_based,
+                'mixed_based_count': mixed_based,
+                'custom_based_count': custom_based,
                 'analysis_timestamp': datetime.now().isoformat(),
-                'detection_method': 'text_parsing_with_replica_details'
+                'detection_method': 'real_metrics_extraction_from_cache'
             }
             
         except Exception as e:

@@ -31,6 +31,9 @@ import logging
 from app.ml.ml_integration import MLLearningIntegrationMixin
 from app.services.subscription_manager import azure_subscription_manager
 
+# Import the new dedicated HPA analyzer
+from app.analytics.hpa_analyzer import HPAAnalyzer
+
 # SECURITY FRAMEWORK IMPORTS - Proper Import Handling
 # =====================================================
 
@@ -230,136 +233,6 @@ class ResourceParser:
             return 0
 
 
-class HPAAnalyzer:
-    """Unified HPA analysis utility - SINGLE SOURCE OF TRUTH"""
-    
-    @staticmethod
-    def calculate_optimization_score(hpa: Dict, analysis_type: str = 'enhanced') -> float:
-        """Calculate HPA optimization score (consolidated implementation)"""
-        score_factors = []
-        
-        # Analyze metrics configuration
-        metrics = hpa.get('spec', {}).get('metrics', [])
-        if len(metrics) >= 2:  # CPU and memory
-            score_factors.append(0.8)
-        elif len(metrics) == 1:
-            score_factors.append(0.6)
-        else:
-            score_factors.append(0.3)
-        
-        # Analyze replica configuration
-        min_replicas = hpa.get('spec', {}).get('minReplicas', 1)
-        max_replicas = hpa.get('spec', {}).get('maxReplicas', 10)
-        
-        if min_replicas >= 2 and max_replicas >= min_replicas * 3:
-            score_factors.append(0.9)
-        elif min_replicas >= 1 and max_replicas >= min_replicas * 2:
-            score_factors.append(0.7)
-        else:
-            score_factors.append(0.4)
-        
-        # Enhanced analysis includes behavior configuration
-        if analysis_type == 'enhanced':
-            behavior = hpa.get('spec', {}).get('behavior')
-            score_factors.append(0.9 if behavior else 0.5)
-        
-        # CPU target analysis
-        cpu_target = HPAAnalyzer.extract_cpu_target(hpa)
-        if 60 <= cpu_target <= 80:
-            score_factors.append(1.0)
-        elif 50 <= cpu_target <= 90:
-            score_factors.append(0.8)
-        else:
-            score_factors.append(0.4)
-        
-        return sum(score_factors) / len(score_factors)
-    
-    @staticmethod
-    def extract_cpu_target(hpa: Dict) -> int:
-        """Extract CPU target from HPA metrics"""
-        metrics = hpa.get('spec', {}).get('metrics', [])
-        for metric in metrics:
-            if (metric.get('type') == 'Resource' and 
-                metric.get('resource', {}).get('name') == 'cpu'):
-                return metric.get('resource', {}).get('target', {}).get('averageUtilization', 70)
-        return 70
-
-    @staticmethod
-    def extract_memory_target(hpa: Dict) -> int:
-        """Extract memory target from HPA metrics"""
-        metrics = hpa.get('spec', {}).get('metrics', [])
-        for metric in metrics:
-            if (metric.get('type') == 'Resource' and 
-                metric.get('resource', {}).get('name') == 'memory'):
-                return metric.get('resource', {}).get('target', {}).get('averageUtilization', 70)
-        return 70
-
-    @staticmethod
-    def calculate_candidate_score(deployment: Dict) -> float:
-        """Calculate HPA candidate score for deployment (consolidated implementation)"""
-        score = 0.5  # Base score
-        
-        # Replica analysis
-        replicas = deployment.get('spec', {}).get('replicas', 1)
-        if replicas > 1:
-            score += 0.2
-        
-        # Resource requests analysis
-        containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
-        has_requests = any(c.get('resources', {}).get('requests') for c in containers)
-        if has_requests:
-            score += 0.3
-        
-        # Application type analysis
-        name = deployment.get('metadata', {}).get('name', '').lower()
-        if any(keyword in name for keyword in ['web', 'api', 'frontend', 'app', 'service']):
-            score += 0.2
-        
-        # Label analysis
-        labels = deployment.get('metadata', {}).get('labels', {})
-        if labels.get('app.kubernetes.io/component') in ['frontend', 'backend', 'api']:
-            score += 0.1
-        
-        return min(1.0, score)
-
-    @staticmethod
-    def generate_optimization_recommendations(hpa: Dict) -> Dict:
-        """Generate HPA optimization recommendations (consolidated)"""
-        optimizations = {}
-        
-        # CPU target improvements
-        current_cpu = HPAAnalyzer.extract_cpu_target(hpa)
-        if current_cpu < 60:
-            optimizations['cpu_target'] = 70
-            optimizations['cpu_rationale'] = 'Increase target for better resource utilization'
-        elif current_cpu > 80:
-            optimizations['cpu_target'] = 75
-            optimizations['cpu_rationale'] = 'Decrease target to prevent over-scaling'
-        
-        # Memory target improvements
-        current_memory = HPAAnalyzer.extract_memory_target(hpa)
-        if current_memory < 60:
-            optimizations['memory_target'] = 70
-            optimizations['memory_rationale'] = 'Increase target for better memory utilization'
-        elif current_memory > 80:
-            optimizations['memory_target'] = 75
-            optimizations['memory_rationale'] = 'Decrease target to prevent memory pressure'
-        
-        # Replica improvements
-        current_max = hpa.get('spec', {}).get('maxReplicas', 10)
-        current_min = hpa.get('spec', {}).get('minReplicas', 1)
-        
-        if current_max < current_min * 3:
-            optimizations['max_replicas'] = current_min * 3
-            optimizations['replica_rationale'] = 'Increase max replicas for better scaling headroom'
-        
-        if current_min < 2:
-            optimizations['min_replicas'] = 2
-            optimizations['min_replica_rationale'] = 'Increase min replicas for better availability'
-        
-        return optimizations
-
-
 class CostCalculator:
     """Unified cost calculation utilities - SINGLE SOURCE OF TRUTH"""
     
@@ -395,71 +268,37 @@ class ClusterAnalyzer:
     
     @staticmethod
     def _analyze_hpa_state(cluster_config: Dict, **kwargs) -> Dict:
-        """Analyze HPA state (consolidated from multiple implementations)"""
-        hpa_state = {
-            'existing_hpas': [],
-            'suboptimal_hpas': [],
-            'missing_hpa_candidates': [],
-            'summary': {}
-        }
-        
+        """Analyze HPA state using UNIFIED kubernetes cache - NO FALLBACKS"""
         try:
-            scaling_resources = cluster_config.get('scaling_resources', {})
-            workload_resources = cluster_config.get('workload_resources', {})
+            # Get k8s_cache - this is the ONLY data source we use
+            k8s_cache = kwargs.get('k8s_cache')
             
-            existing_hpas = scaling_resources.get('horizontalpodautoscalers', {}).get('items', [])
-            deployments = workload_resources.get('deployments', {}).get('items', [])
+            if not k8s_cache:
+                logger.error("❌ NO CACHE: k8s_cache is required - no fallbacks allowed")
+                return {'analysis_error': 'k8s_cache is required for unified analysis'}
             
-            # Analyze existing HPAs
-            for hpa in existing_hpas:
-                optimization_score = HPAAnalyzer.calculate_optimization_score(hpa)
-                
-                hpa_analysis = {
-                    'name': hpa.get('metadata', {}).get('name'),
-                    'namespace': hpa.get('metadata', {}).get('namespace'),
-                    'target': hpa.get('spec', {}).get('scaleTargetRef', {}).get('name'),
-                    'optimization_score': optimization_score
-                }
-                
-                if optimization_score < 0.7:
-                    hpa_analysis['recommended_changes'] = HPAAnalyzer.generate_optimization_recommendations(hpa)
-                    hpa_state['suboptimal_hpas'].append(hpa_analysis)
-                else:
-                    hpa_state['existing_hpas'].append(hpa_analysis)
+            logger.info("🎯 UNIFIED: Using kubernetes_data_cache as ONLY source of truth")
+            hpa_state = HPAAnalyzer.analyze_hpa_state(k8s_cache)
             
-            # Find missing HPA candidates
-            existing_targets = {hpa.get('target') for hpa in hpa_state['existing_hpas'] + hpa_state['suboptimal_hpas']}
+            # Log results
+            if 'summary' in hpa_state:
+                summary = hpa_state['summary']
+                logger.info(f"📊 HPA Analysis Results: {summary.get('existing_hpas', 0)} HPAs active, "
+                           f"{summary.get('missing_candidates', 0)} candidates identified, "
+                           f"{summary.get('hpa_coverage_percent', 0):.1f}% coverage")
             
-            for deployment in deployments:
-                deployment_name = deployment.get('metadata', {}).get('name')
-                if deployment_name and deployment_name not in existing_targets:
-                    candidate_score = HPAAnalyzer.calculate_candidate_score(deployment)
-                    if candidate_score > 0.6:
-                        hpa_state['missing_hpa_candidates'].append({
-                            'deployment_name': deployment_name,
-                            'namespace': deployment.get('metadata', {}).get('namespace'),
-                            'priority_score': candidate_score,
-                            'should_have_hpa': True
-                        })
-            
-            # Summary
-            total_workloads = len(deployments)
-            total_hpas = len(hpa_state['existing_hpas']) + len(hpa_state['suboptimal_hpas'])
-            
-            hpa_state['summary'] = {
-                'total_workloads': total_workloads,
-                'existing_hpas': len(hpa_state['existing_hpas']),
-                'suboptimal_hpas': len(hpa_state['suboptimal_hpas']),
-                'missing_candidates': len(hpa_state['missing_hpa_candidates']),
-                'hpa_coverage_percent': (total_hpas / max(total_workloads, 1)) * 100,
-                'optimization_potential': len(hpa_state['suboptimal_hpas']) + len(hpa_state['missing_hpa_candidates'])
-            }
+            return hpa_state
             
         except Exception as e:
-            logger.error(f"❌ HPA analysis failed: {e}")
-            hpa_state['analysis_error'] = str(e)
-        
-        return hpa_state
+            logger.error(f"❌ Enhanced HPA analysis failed: {e}")
+            # Fallback to basic analysis structure
+            return {
+                'existing_hpas': [],
+                'suboptimal_hpas': [],
+                'missing_hpa_candidates': [],
+                'summary': {'analysis_error': str(e)},
+                'analysis_error': str(e)
+            }
     
     @staticmethod
     def _analyze_rightsizing(cluster_config: Dict, **kwargs) -> Dict:
@@ -1069,7 +908,9 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                                    output_format: str = 'comprehensive',
                                    # Enhanced security parameters
                                    security_frameworks: List[str] = ['CIS', 'NIST'],
-                                   security_priority: str = 'high') -> Dict:
+                                   security_priority: str = 'high',
+                                   # Single source of truth for data
+                                   k8s_cache = None) -> Dict:
         """
         Generate implementation plan with INTEGRATED ML and Security analysis
         
@@ -1078,6 +919,18 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         
         cluster_name = analysis_results.get('cluster_name', 'unknown')
         resource_group = analysis_results.get('resource_group', 'unknown')
+        
+        # CRITICAL: Extract and preserve metrics_data for HPA analysis
+        metrics_data = analysis_results.get('metrics_data')
+        if metrics_data:
+            logger.info(f"🎯 Found metrics_data with keys: {list(metrics_data.keys())}")
+            if 'hpa_implementation' in metrics_data:
+                hpa_impl = metrics_data['hpa_implementation']
+                logger.info(f"🎯 Found metrics_data with {hpa_impl.get('total_hpas', 0)} HPAs for enhanced analysis")
+            else:
+                logger.warning(f"⚠️ metrics_data found but no hpa_implementation key (keys: {list(metrics_data.keys())})")
+        else:
+            logger.warning(f"⚠️ No metrics_data found in analysis_results (keys: {list(analysis_results.keys())}) - HPA analysis may be limited")
         
         logger.info(f"🎯 Generating INTEGRATED ML+Security implementation plan for {cluster_name}")
         logger.info(f"🧠 ML Systems: {'✅ Available' if self.ml_systems_available else '❌ Unavailable'}")
@@ -1093,6 +946,11 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             
             # Start ML intelligence session
             ml_session = self._start_ml_session(analysis_results)
+            
+            # CRITICAL: Store metrics_data in ml_session for HPA analysis
+            if metrics_data:
+                ml_session['metrics_data'] = metrics_data
+                logger.info("✅ Stored metrics_data in ml_session for HPA analysis")
             
             # PHASE 0: REAL CLUSTER CONFIGURATION FETCHING (Enhanced for Security)
             logger.info("🔄 PHASE 0: Enhanced Cluster Configuration Analysis")
@@ -1400,8 +1258,14 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                 ml_session['cluster_config'] = cluster_config
                 ml_session['config_insights'] = self._extract_config_insights(cluster_config)
                 
+                # Create kubernetes_data_cache for unified analysis - REQUIRED, NO FALLBACKS
+                from app.shared.kubernetes_data_cache import get_or_create_cache
+                logger.info("🎯 Creating kubernetes_data_cache - THE ONLY DATA SOURCE")
+                k8s_cache = get_or_create_cache(cluster_name, resource_group, subscription_id)
+                logger.info("✅ kubernetes_data_cache created - all kubectl commands executed and cached")
+                
                 # Perform comprehensive state analysis using refactored components
-                comprehensive_state = self._perform_comprehensive_state_analysis(cluster_config, ml_session)
+                comprehensive_state = self._perform_comprehensive_state_analysis(cluster_config, ml_session, k8s_cache)
                 ml_session['comprehensive_state'] = comprehensive_state
                 
                 # Record learning event
@@ -1421,7 +1285,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             logger.error(f"❌ Cluster config fetch failed: {e}")
             return {'fetch_error': str(e), 'status': 'failed'}
 
-    def _perform_comprehensive_state_analysis(self, cluster_config: Dict, ml_session: Dict) -> Dict:
+    def _perform_comprehensive_state_analysis(self, cluster_config: Dict, ml_session: Dict, k8s_cache=None) -> Dict:
         """Perform comprehensive state analysis using refactored components"""
         if not cluster_config or cluster_config.get('status') != 'completed':
             logger.warning("⚠️ Cluster config not available for state analysis")
@@ -1442,9 +1306,53 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             # Use refactored ClusterAnalyzer for all components
             components = ['hpa', 'rightsizing', 'storage', 'network', 'security']
             
+            # Extract metrics_data from ml_session if available
+            metrics_data = ml_session.get('metrics_data')
+            logger.info(f"🔍 DEBUG: Retrieved metrics_data from ml_session: {'✅ Found' if metrics_data else '❌ None'}")
+            
+            if not metrics_data:
+                # Try to get it from analysis_results if stored there
+                analysis_results = ml_session.get('analysis_results', {})
+                metrics_data = analysis_results.get('metrics_data')
+                logger.info(f"🔍 DEBUG: Fallback - Retrieved metrics_data from analysis_results: {'✅ Found' if metrics_data else '❌ None'}")
+                
+                # ULTIMATE FALLBACK: Try to get HPA data directly from aks_realtime_metrics
+                if not metrics_data:
+                    logger.warning("🔄 ULTIMATE FALLBACK: Attempting to fetch HPA data directly from aks_realtime_metrics")
+                    try:
+                        from app.analytics.aks_realtime_metrics import AKSRealTimeMetricsFetcher
+                        cluster_name = ml_session.get('cluster_name', 'unknown')
+                        resource_group = ml_session.get('resource_group', 'unknown')
+                        
+                        if cluster_name != 'unknown' and resource_group != 'unknown':
+                            realtime_fetcher = AKSRealTimeMetricsFetcher(cluster_name, resource_group)
+                            hpa_status = realtime_fetcher.get_hpa_implementation_status()
+                            
+                            if hpa_status and hpa_status.get('total_hpas', 0) > 0:
+                                metrics_data = {
+                                    'hpa_implementation': hpa_status,
+                                    'source': 'direct_aks_realtime_fallback'
+                                }
+                                logger.info(f"🎯 FALLBACK SUCCESS: Got {hpa_status.get('total_hpas', 0)} HPAs directly from aks_realtime_metrics")
+                            else:
+                                logger.warning("🔄 FALLBACK: aks_realtime_metrics returned no HPA data")
+                        else:
+                            logger.warning(f"🔄 FALLBACK: Cannot fetch directly - cluster_name={cluster_name}, resource_group={resource_group}")
+                            
+                    except Exception as fallback_error:
+                        logger.error(f"❌ FALLBACK: Direct aks_realtime_metrics fetch failed: {fallback_error}")
+            
             for component in components:
                 logger.info(f"📊 Analyzing {component} state...")
-                component_state = ClusterAnalyzer.analyze_component(cluster_config, component)
+                
+                # UNIFIED: ONE CACHE FOR ALL - no exceptions, no fallbacks
+                if not k8s_cache:
+                    logger.error(f"❌ {component} analysis FAILED: k8s_cache is required")
+                    component_state = {'analysis_error': f'{component} requires k8s_cache - no fallbacks'}
+                else:
+                    logger.info(f"🎯 UNIFIED: Analyzing {component} with k8s_cache")
+                    component_state = ClusterAnalyzer.analyze_component(cluster_config, component, k8s_cache=k8s_cache)
+                
                 comprehensive_state[f'{component}_state'] = component_state
                 
                 # Sum optimization opportunities

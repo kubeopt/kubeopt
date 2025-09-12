@@ -1780,38 +1780,26 @@ p {
 
 /* ===== CHART CONTAINERS ===== */
 .chart-container {
-    background: var(--glass-white);
-    backdrop-filter: var(--blur-lg);
-    -webkit-backdrop-filter: var(--blur-lg);
-    border: var(--border-glass);
-    border-radius: var(--radius-xl);
-    padding: var(--spacing-xl);
-    margin-bottom: var(--spacing-xl);
+    /* Simplified chart container - no competing card styles */
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    margin-bottom: 0;
     transition: var(--transition);
     position: relative;
     overflow: hidden;
     height: 300px;
+    /* Subtle inner shadow for depth without competing with outer card */
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.chart-container::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, 
-        transparent 0%, 
-        rgba(255, 255, 255, 0.4) 50%, 
-        transparent 100%);
-}
+/* Removed complex pseudo-element decoration */
 
 .chart-container:hover {
-    transform: translateY(-4px);
-    box-shadow: 
-        var(--shadow-xl),
-        0 25px 50px rgba(0, 122, 255, 0.1);
-    border-color: rgba(0, 122, 255, 0.2);
+    /* Subtle hover effect that doesn't compete with outer card */
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.08);
+    transform: none; /* Let the outer card handle the transform */
 }
 
 /* ===== INSIGHT BOXES ===== */
@@ -2780,11 +2768,7 @@ p {
     box-shadow: 0 6px 20px rgba(0, 255, 123, 0.3) !important;
 }
 
-/* Make chart containers less bulky */
-.chart-container:hover {
-    transform: translateY(-3px) scale(1.005) !important;
-    box-shadow: var(--shadow-md) !important;
-}
+/* Simplified chart containers - removed bulky duplicate rule */
 
 /* Refined cluster cards */
 .cluster-card:hover {
