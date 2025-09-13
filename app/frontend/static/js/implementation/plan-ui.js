@@ -748,13 +748,11 @@ export function renderEnhancedMainHeader(data) {
                         </h2>
                         <p style="margin: 0; opacity: 0.9; font-size: 18px;">
                             <strong>Cluster:</strong> ${data.clusterName} • 
-                            <strong>Resource Group:</strong> ${data.resourceGroup} •
-                            <strong>Strategy:</strong> ${data.strategyType}
+                            <strong>Resource Group:</strong> ${data.resourceGroup}
+                            
                         </p>
                         <small style="opacity: 0.75; font-size: 14px;">
-                            Generated: ${new Date(data.generatedAt).toLocaleDateString()} • 
-                            Intelligence: ${data.intelligenceLevel} •
-                            Version: ${data.version}
+                            Generated: ${new Date(data.generatedAt).toLocaleDateString()}
                         </small>
                     </div>
                     <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
