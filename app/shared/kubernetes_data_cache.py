@@ -286,24 +286,44 @@ class KubernetesDataCache:
             logger.error(f"❌ {self.cluster_name}: Failed to extract kubectl output from Azure CLI response: {e}")
             return None
     def fetch_all_data(self) -> Dict[str, Any]:
-        """Fetch ALL kubernetes data in parallel - this is the magic!"""
+        """Fetch ALL kubernetes data in parallel with retry mechanism"""
         all_commands = self.get_all_kubectl_commands()
         
         logger.info(f"🚀 {self.cluster_name}: Fetching {len(all_commands)} kubectl commands in PARALLEL...")
-        logger.debug(f"ℹ️ {self.cluster_name}: Note: Some commands may fail due to missing APIs (HPA, metrics server) or resource unavailability")
+        logger.debug(f"ℹ️ {self.cluster_name}: Note: Failed commands will be retried after initial batch completes")
         start_time = time.time()
         
-        results = {}
+        # First attempt - execute all commands in parallel
+        results, failed_commands = self._execute_commands_batch(all_commands, attempt=1)
         
-        # Execute ALL commands in parallel using ThreadPoolExecutor
-        # Use minimal workers to prevent overwhelming the AKS API server via az aks command invoke
+        # Retry failed commands if any (only after ALL commands complete)
+        if failed_commands:
+            logger.info(f"🔄 {self.cluster_name}: Retrying {len(failed_commands)} failed commands after batch completion...")
+            retry_results, still_failed = self._execute_commands_batch(failed_commands, attempt=2)
+            
+            # Merge retry results
+            results.update(retry_results)
+            
+            # Log final failures
+            if still_failed:
+                logger.warning(f"⚠️ {self.cluster_name}: {len(still_failed)} commands failed after retry: {list(still_failed.keys())}")
+        
+        return self._finalize_results(results, start_time)
+
+    def _execute_commands_batch(self, commands: Dict[str, str], attempt: int) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        """Execute a batch of commands and return results + failed commands"""
+        results = {}
+        failed_commands = {}
+        
+        # Use minimal workers to prevent overwhelming the AKS API server
         max_workers = 3  # Reduced from 6 to 3 - AKS API server can get overwhelmed with too many concurrent requests
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit commands with slight delay to be gentle on AKS API server
             future_to_key = {}
-            for key, cmd in all_commands.items():
+            for key, cmd in commands.items():
                 future_to_key[executor.submit(self._execute_kubectl_command, cmd)] = key
-                time.sleep(0.1)  # 100ms delay between submissions to prevent API server overload
+                if attempt == 1:  # Only delay on first attempt
+                    time.sleep(0.1)  # 100ms delay between submissions to prevent API server overload
             
             # Collect results as they complete
             for future in concurrent.futures.as_completed(future_to_key):
@@ -315,34 +335,47 @@ class KubernetesDataCache:
                         if self._is_text_output(key):
                             results[key] = output.strip()
                             lines = len(output.strip().split('\n')) if output.strip() else 0
-                            logger.debug(f"✅ {self.cluster_name}: {key} = {lines} lines")
+                            logger.debug(f"✅ {self.cluster_name}: {key} = {lines} lines (attempt {attempt})")
                         else:
                             # JSON output
                             try:
                                 parsed = json.loads(output)
                                 results[key] = parsed
                                 item_count = len(parsed.get('items', [])) if isinstance(parsed, dict) and 'items' in parsed else 'N/A'
-                                logger.debug(f"✅ {self.cluster_name}: {key} = {item_count} items")
+                                logger.debug(f"✅ {self.cluster_name}: {key} = {item_count} items (attempt {attempt})")
                             except json.JSONDecodeError:
                                 # For JSON commands that return non-JSON (empty or error), use empty JSON structure
                                 results[key] = {"items": []}
-                                logger.debug(f"⚠️ {self.cluster_name}: {key} = invalid JSON, using empty structure")
+                                logger.debug(f"⚠️ {self.cluster_name}: {key} = invalid JSON, using empty structure (attempt {attempt})")
                     else:
-                        # Empty result
-                        results[key] = {"items": []} if not self._is_text_output(key) else ""
-                        logger.debug(f"⚠️ {self.cluster_name}: {key} = no data")
+                        # Empty result - add to failed for retry
+                        if attempt == 1:
+                            failed_commands[key] = commands[key]
+                            logger.debug(f"🔄 {self.cluster_name}: {key} = no data, will retry")
+                        else:
+                            results[key] = {"items": []} if not self._is_text_output(key) else ""
+                            logger.debug(f"⚠️ {self.cluster_name}: {key} = no data after retry")
                         
                 except Exception as e:
-                    logger.error(f"❌ {self.cluster_name}: {key} failed - {e}")
-                    results[key] = {"items": []} if not self._is_text_output(key) else ""
+                    if attempt == 1:
+                        failed_commands[key] = commands[key]
+                        logger.debug(f"🔄 {self.cluster_name}: {key} failed, will retry - {e}")
+                    else:
+                        results[key] = {"items": []} if not self._is_text_output(key) else ""
+                        logger.error(f"❌ {self.cluster_name}: {key} failed after retry - {e}")
         
+        return results, failed_commands
+
+    def _finalize_results(self, results: Dict[str, Any], start_time: float) -> Dict[str, Any]:
+        """Finalize and store results"""
         # Store results
         self.data = results
         
         duration = time.time() - start_time
         successful_commands = sum(1 for v in results.values() if v)
+        total_commands = len(self.get_all_kubectl_commands())
         logger.info(f"⚡ {self.cluster_name}: Parallel fetch completed in {duration:.1f}s")
-        logger.info(f"📊 {self.cluster_name}: {successful_commands}/{len(all_commands)} commands successful")
+        logger.info(f"📊 {self.cluster_name}: {successful_commands}/{total_commands} commands successful")
         
         return results
     
