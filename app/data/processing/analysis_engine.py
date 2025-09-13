@@ -594,10 +594,14 @@ class MultiSubscriptionAnalysisEngine:
             enhanced_cluster_manager.update_cluster_analysis(cluster_id, results)
             logger.info(f"✅ Session {session_id}: Updated database with subscription context")
             
-            # Update cache with subscription-aware key
+            # Update cache with both key formats for consistency
             subscription_cluster_key = f"{subscription_id}_{cluster_id}"
             save_to_cache(subscription_cluster_key, results)
             logger.info(f"✅ Session {session_id}: Updated cache with subscription context")
+            
+            # ALSO save with simple cluster_id key for UI compatibility
+            save_to_cache(cluster_id, results, subscription_id)
+            logger.info(f"✅ Session {session_id}: Updated cache with simple cluster key for UI compatibility")
             
         except Exception as update_error:
             logger.error(f"❌ Session {session_id}: Global state update failed: {update_error}")
@@ -640,7 +644,7 @@ class MultiSubscriptionAnalysisEngine:
             subscription_id = config.subscription_id
             logger.info(f"📊 Using subscription {subscription_id[:8]} from config")
 
-        logger.info(f" Using {cluster_name} in current subscription({subscription_id}) context")
+        logger.info(f" Using {cluster_name} in current subscription context")
         
         # Calculate date range
         end_date = datetime.now()

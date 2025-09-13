@@ -796,70 +796,71 @@ export function renderEnhancedMainHeader(data) {
 export function renderEnhancedExecutiveSummary(executiveSummary) {
     if (!executiveSummary || Object.keys(executiveSummary).length === 0) {
         return `
-            <div class="enhanced-section" style="background: #fff3cd; border: 1px solid #ffeaa7;">
-                <h4 style="margin: 0 0 10px 0; color: #856404;">📋 Executive Summary</h4>
-                <p style="margin: 0; color: #856404; font-style: italic;">No executive summary data available in the plan object.</p>
+            <div class="enhanced-section bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                <h4 class="mb-2 text-yellow-800 text-lg font-bold flex items-center">📋 Executive Summary</h4>
+                <p class="text-yellow-700 italic m-0">No executive summary data available in the plan object.</p>
             </div>
         `;
     }
 
     return `
-        <div class="enhanced-section">
-            <div class="section-header">
-                <span class="section-icon">📊</span>
-                <h2 class="section-title">Executive Summary</h2>
+        <div class="enhanced-section bg-transparent rounded-md p-3">
+            <div class="section-header flex items-center mb-6">
+                <span class="section-icon text-2xl mr-3">📊</span>
+                <h2 class="section-title text-xl font-bold">Executive Summary</h2>
             </div>
             
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 25px;">
+            <div class="grid gap-5 mb-6" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
                 ${executiveSummary.annual_savings_potential ? `
-                    <div style="text-align: center; padding: 25px; background: linear-gradient(135deg, #d4edda, #c3e6cb); border-radius: 16px; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                        <div style="font-size: 28px; font-weight: bold; color: #155724;">$${executiveSummary.annual_savings_potential.toLocaleString()}</div>
-                        <div style="font-size: 14px; color: #155724; font-weight: 600;">Annual Savings Potential</div>
+                    <div class="flex flex-col items-center justify-center p-6 bg-white rounded-md shadow-sm">
+                        <div class="text-3xl font-bold text-green-700">$${executiveSummary.annual_savings_potential.toLocaleString()}</div>
+                        <div class="text-base font-semibold text-green-700 mt-1">Annual Savings Potential</div>
                     </div>
                 ` : ''}
-                
+
                 ${executiveSummary.projected_monthly_savings ? `
-                    <div style="text-align: center; padding: 25px; background: linear-gradient(135deg, #cce5ff, #b3d9ff); border-radius: 16px; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                        <div style="font-size: 28px; font-weight: bold; color:rgb(0, 133, 106);">$${executiveSummary.projected_monthly_savings.toFixed(2)}</div>
-                        <div style="font-size: 14px; color:rgb(0, 133, 131); font-weight: 600;">Monthly Savings</div>
+                    <div class="flex flex-col items-center justify-center p-6 bg-white rounded-md shadow-sm">
+                        <div class="text-3xl font-bold text-green-700"">$${executiveSummary.projected_monthly_savings.toFixed(2)}</div>
+                        <div class="text-base font-semibold text-green-700">Monthly Savings</div>
                     </div>
                 ` : ''}
-                
+
                 ${executiveSummary.success_probability ? `
-                    <div style="text-align: center; padding: 25px; background: linear-gradient(135deg, #f8d7da, #f1c0c7); border-radius: 16px; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                        <div style="font-size: 28px; font-weight: bold; color: #721c24;">${Math.round(executiveSummary.success_probability * 100)}%</div>
-                        <div style="font-size: 14px; color: #721c24; font-weight: 600;">Success Probability</div>
+                    <div class="flex flex-col items-center justify-center p-6 bg-white rounded-md shadow-sm">
+                        <div class="text-3xl font-bold text-green-700">${Math.round(executiveSummary.success_probability * 100)}%</div>
+                        <div class="text-base font-semibold text-green-700 mt-1">Success Probability</div>
                     </div>
                 ` : ''}
-                
+
                 ${executiveSummary.confidence_level ? `
-                    <div style="text-align: center; padding: 25px; background: linear-gradient(135deg, #e2e3e5, #d1d1d3); border-radius: 16px; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                        <div style="font-size: 28px; font-weight: bold; color: #383d41;">${executiveSummary.confidence_level}</div>
-                        <div style="font-size: 14px; color: #383d41; font-weight: 600;">Confidence Level</div>
+                    <div class="flex flex-col items-center justify-center p-6 bg-white rounded-md shadow-sm">
+                        <div class="text-3xl font-bold text-gray-800">${executiveSummary.confidence_level}</div>
+                        <div class="text-base font-semibold text-gray-800 mt-1">Confidence Level</div>
                     </div>
                 ` : ''}
             </div>
             
             ${executiveSummary.key_recommendations && executiveSummary.key_recommendations.length > 0 ? `
-                <div style="margin-bottom: 20px;">
-                    <h4 style="margin: 0 0 15px 0; color: #e2e8f0;">🎯 Key Recommendations</h4>
-                    <ul style="margin: 0; padding-left: 20px; color: #4a5568;">
-                        ${executiveSummary.key_recommendations.map(rec => `<li style="margin-bottom: 8px;">${rec}</li>`).join('')}
+                <div class="mb-5">
+                    <h4 class="mb-3 text-lg text-gray-800 font-semibold flex items-center">🎯 Key Recommendations</h4>
+                    <ul class="pl-5 text-gray-700">
+                        ${executiveSummary.key_recommendations.map(rec => `<li class="mb-2">${rec}</li>`).join('')}
                     </ul>
                 </div>
             ` : ''}
-            
+
             ${executiveSummary.strategic_priorities && executiveSummary.strategic_priorities.length > 0 ? `
                 <div>
-                    <h4 style="margin: 0 0 15px 0; color: #e2e8f0;">🚀 Strategic Priorities</h4>
-                    <ul style="margin: 0; padding-left: 20px; color: #4a5568;">
-                        ${executiveSummary.strategic_priorities.map(priority => `<li style="margin-bottom: 8px;">${priority}</li>`).join('')}
+                    <h4 class="mb-3 text-lg text-gray-800 font-semibold flex items-center">🚀 Strategic Priorities</h4>
+                    <ul class="pl-5 text-gray-700">
+                        ${executiveSummary.strategic_priorities.map(priority => `<li class="mb-2">${priority}</li>`).join('')}
                     </ul>
                 </div>
             ` : ''}
         </div>
     `;
 }
+
 
 export function renderEnhancedIntelligenceInsights(intelligenceInsights) {
     if (!intelligenceInsights || Object.keys(intelligenceInsights).length === 0) {

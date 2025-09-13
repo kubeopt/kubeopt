@@ -1537,7 +1537,7 @@ position: relative;
 
 /* Week Markers - Match your color scheme */
 .enhanced-week-marker {
-    background: linear-gradient(135deg, #484e64) !important;
+    background: linear-gradient(#1d2239) !important;
     color: white !important;
     width: 60px !important;
     height: 60px !important;
@@ -1546,7 +1546,7 @@ position: relative;
     align-items: center !important;
     justify-content: center !important;
     font-weight: 700 !important;
-    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3) !important;
+    box-shadow: 0 8px 20px rgb(29 34 56) !important;
     position: absolute !important;
     left: 30px !important;
     top: 15px !important;
@@ -1588,7 +1588,7 @@ position: relative;
 }
 
 .enhanced-phase-header {
-    background: linear-gradient(135deg, rgb(66 78 121), rgba(245, 158, 11, 0.04)) !important;
+    background: linear-gradient(rgb(29 34 57), rgb(33 38 59)) !important;
     padding: 1.5rem !important;
     cursor: pointer !important;
     transition: all 0.3s ease !important;

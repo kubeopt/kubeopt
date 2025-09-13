@@ -289,6 +289,12 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
     
     logger.info(f"💾 CACHE SAVE: Validating data for {cache_key}")
     
+    # 🔍 CACHE SAVE: Log gap data before caching
+    cpu_gap = complete_analysis_data.get('cpu_gap', 'NOT_FOUND')
+    memory_gap = complete_analysis_data.get('memory_gap', 'NOT_FOUND')
+    logger.info(f"🔍 CACHE SAVE: About to cache CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
+    logger.info(f"🔍 CACHE SAVE: Analysis data keys: {list(complete_analysis_data.keys())}")
+    
     try:
         # STEP 1: Comprehensive data validation
         validation_errors = _validate_cache_data_structure(complete_analysis_data, cluster_id)
@@ -297,6 +303,11 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
         
         # STEP 2: Clean and prepare data for caching
         cache_data = _prepare_cache_data(complete_analysis_data, cluster_id)
+        
+        # 🔍 CACHE PREP: Verify gap data preservation
+        prep_cpu_gap = cache_data.get('cpu_gap', 'NOT_FOUND')
+        prep_memory_gap = cache_data.get('memory_gap', 'NOT_FOUND')
+        logger.info(f"🔍 CACHE PREP: After preparation - CPU gap: {prep_cpu_gap}, Memory gap: {prep_memory_gap}")
         
         # STEP 3: Store in cache with metadata
         cache_entry = {
@@ -363,6 +374,10 @@ def load_from_cache_with_validation(cluster_id: str, subscription_id: str = None
                 
                 # Minimal validation - just check essential fields
                 if cached_data.get('total_cost', 0) > 0 and cached_data.get('hpa_recommendations'):
+                    # 🔍 CACHE LOAD: Log gap data being returned
+                    cpu_gap = cached_data.get('cpu_gap', 'NOT_FOUND')
+                    memory_gap = cached_data.get('memory_gap', 'NOT_FOUND')
+                    logger.info(f"🔍 CACHE LOAD: Returning CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
                     logger.debug(f"📦 CACHE HIT: {cache_key} - ${cached_data.get('total_cost', 0):.2f}")
                     return cached_data
         
@@ -429,6 +444,10 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'hpa_efficiency': complete_analysis_data.get('hpa_efficiency'),
         'hpa_efficiency_percentage': complete_analysis_data.get('hpa_efficiency_percentage'),
         'hpa_reduction': complete_analysis_data.get('hpa_reduction'),
+        
+        # Preserve gap data for rightsizing insights
+        'cpu_gap': complete_analysis_data.get('cpu_gap'),
+        'memory_gap': complete_analysis_data.get('memory_gap'),
         
         # Cost breakdown
         'node_cost': float(complete_analysis_data.get('node_cost', 0)),

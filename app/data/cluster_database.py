@@ -1450,6 +1450,12 @@ class EnhancedMultiSubscriptionClusterManager:
             # Use specialized serialization for implementation plan
             serializable_data = serialize_implementation_plan(enhanced_analysis_data)
             
+            # 🔍 DATABASE SAVE: Log gap data before storing
+            cpu_gap = serializable_data.get('cpu_gap', 'NOT_FOUND')
+            memory_gap = serializable_data.get('memory_gap', 'NOT_FOUND')
+            self.logger.info(f"🔍 DATABASE SAVE: About to store CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
+            self.logger.info(f"🔍 DATABASE SAVE: Serializable data keys: {list(serializable_data.keys())}")
+            
             total_cost = float(serializable_data.get('total_cost', 0))
             total_savings = float(serializable_data.get('total_savings', 0))
             confidence = float(serializable_data.get('analysis_confidence', 0))
@@ -1519,6 +1525,12 @@ class EnhancedMultiSubscriptionClusterManager:
                         
                         # Use specialized deserialization
                         analysis_data = deserialize_implementation_plan(serialized_data)
+                        
+                        # 🔍 DATABASE LOAD: Log gap data after loading
+                        cpu_gap = analysis_data.get('cpu_gap', 'NOT_FOUND')
+                        memory_gap = analysis_data.get('memory_gap', 'NOT_FOUND')
+                        self.logger.info(f"🔍 DATABASE LOAD: Loaded CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
+                        self.logger.info(f"🔍 DATABASE LOAD: Analysis data keys: {list(analysis_data.keys())}")
                         
                         # Set node data flag
                         has_node_data = False
