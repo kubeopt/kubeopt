@@ -2224,7 +2224,7 @@ class AKSRealTimeMetricsFetcher:
                                 logger.info(f"🔥 High CPU pod: {namespace}/{pod_name} = {cpu_millicores}m ({cpu_percentage:.1f}%)")
                             
                             # Log ALL workloads being saved (not just high CPU ones)
-                            logger.debug(f"💾 SAVED WORKLOAD: {namespace}/{pod_name} = {cpu_millicores}m ({cpu_percentage:.1f}%) [severity: {severity}]")
+                            #logger.debug(f"💾 SAVED WORKLOAD: {namespace}/{pod_name} = {cpu_millicores}m ({cpu_percentage:.1f}%) [severity: {severity}]")
                             
                 except Exception as parse_error:
                     logger.warning(f"⚠️ Error parsing pod metrics line {line_num}: {parse_error}")

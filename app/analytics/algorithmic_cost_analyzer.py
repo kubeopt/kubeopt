@@ -626,7 +626,7 @@ class MLEnhancedHPARecommendationEngine:
                         all_workloads.append(workload)
                         max_cpu_utilization = max(max_cpu_utilization, workload['cpu_utilization'])
                         
-                        logger.info(f"💾 SAVED WORKLOAD: {workload['namespace']}/{workload['name']} = {workload['cpu_utilization']}% (severity: {workload['severity']})")
+                        #logger.info(f"💾 SAVED WORKLOAD: {workload['namespace']}/{workload['name']} = {workload['cpu_utilization']}% (severity: {workload['severity']})")
                     
                     # Also preserve the high CPU ones separately for compatibility
                     for hpa in high_cpu_hpas:
@@ -731,7 +731,7 @@ class MLEnhancedHPARecommendationEngine:
                             all_workloads.append(workload)
                             max_cpu_utilization = max(max_cpu_utilization, cpu_pct)
                             
-                            logger.info(f"💾 SAVED RESOURCE WORKLOAD: {workload['namespace']}/{workload['name']} = {cpu_pct}%")
+                            #logger.info(f"💾 SAVED RESOURCE WORKLOAD: {workload['namespace']}/{workload['name']} = {cpu_pct}%")
             
             # Calculate averages from ALL workloads
             if all_workloads:
@@ -1576,6 +1576,17 @@ class ConsistentCostAnalyzer:
             other_cost += adjustment
             logger.info(f"✅ Balanced costs by adjusting 'other': +${adjustment:.2f}")
         
+        # Add gap calculations logging
+        logger.info(f"🔍 FINAL GAP MAPPING: current_usage keys: {list(current_usage.keys())}")
+        logger.info(f"🔍 FINAL GAP MAPPING: Looking for cpu_optimization_potential_pct: {current_usage.get('cpu_optimization_potential_pct', 'NOT_FOUND')}")
+        logger.info(f"🔍 FINAL GAP MAPPING: Looking for memory_optimization_potential_pct: {current_usage.get('memory_optimization_potential_pct', 'NOT_FOUND')}")
+        
+        cpu_gap_value = current_usage.get('cpu_optimization_potential_pct', 0)
+        memory_gap_value = current_usage.get('memory_optimization_potential_pct', 0)
+        
+        logger.info(f"✅ FINAL GAP MAPPING: Final CPU gap: {cpu_gap_value}%")
+        logger.info(f"✅ FINAL GAP MAPPING: Final Memory gap: {memory_gap_value}%")
+        
         return {
             # === ACTUAL COSTS ===
             'total_cost': total_cost,
@@ -1604,8 +1615,8 @@ class ConsistentCostAnalyzer:
             'current_node_count': current_usage.get('node_count', 1),
             'current_usage_timestamp': datetime.now().isoformat(),
             'hpa_reduction': optimization.get('hpa_replica_reduction_pct', 0),
-            'cpu_gap': current_usage.get('cpu_optimization_potential_pct', 0),
-            'memory_gap': current_usage.get('memory_optimization_potential_pct', 0),
+            'cpu_gap': cpu_gap_value,
+            'memory_gap': memory_gap_value,
             
             # === CONFIDENCE & QUALITY ===
             'analysis_confidence': confidence.get('overall_confidence', 0.7),
@@ -1758,20 +1769,26 @@ class CurrentUsageAnalysisAlgorithm:
     def analyze(self, metrics_data: Dict, pod_data: Dict = None) -> Dict:
         """Analyze current usage patterns with improved accuracy"""
         logger.info("🔍 ALGORITHM: current usage analysis")
+        logger.info(f"🔍 GAP CALCULATION: Received metrics_data keys: {list(metrics_data.keys()) if metrics_data else 'None'}")
         
         try:
             nodes = metrics_data.get('nodes', []) if metrics_data else []
+            logger.info(f"🔍 GAP CALCULATION: Found {len(nodes)} nodes in metrics_data")
             
             if not nodes:
-                return self._minimal_usage_analysis()
+                logger.error("❌ GAP CALCULATION: No nodes found - cannot calculate gaps without real metrics data")
+                raise ValueError("No nodes data available for gap calculation - analysis requires real metrics")
             
             # Extract utilization metrics with validation
             cpu_utils = []
             memory_utils = []
             
-            for node in nodes:
+            for i, node in enumerate(nodes):
                 cpu_val = ensure_numeric(node.get('cpu_usage_pct', 0))
                 memory_val = ensure_numeric(node.get('memory_usage_pct', 0))
+                node_name = node.get('name', f'node-{i}')
+                
+                logger.info(f"🔍 GAP CALCULATION: Node {node_name} - CPU: {cpu_val}%, Memory: {memory_val}%")
                 
                 # Validate reasonable ranges
                 if 0 <= cpu_val <= 100:
@@ -1780,21 +1797,37 @@ class CurrentUsageAnalysisAlgorithm:
                     memory_utils.append(memory_val)
             
             # Calculate statistical metrics
-            avg_cpu = safe_mean(cpu_utils) if cpu_utils else 35.0
-            avg_memory = safe_mean(memory_utils) if memory_utils else 60.0
+            if not cpu_utils:
+                logger.error("❌ GAP CALCULATION CRITICAL: No valid CPU utilization data found!")
+                raise ValueError("No valid CPU utilization data found for gap calculation")
+            
+            if not memory_utils:
+                logger.error("❌ GAP CALCULATION CRITICAL: No valid memory utilization data found!")
+                raise ValueError("No valid memory utilization data found for gap calculation")
+            
+            avg_cpu = safe_mean(cpu_utils)
+            avg_memory = safe_mean(memory_utils)
             cpu_std = safe_stdev(cpu_utils) if len(cpu_utils) > 1 else 10.0
             memory_std = safe_stdev(memory_utils) if len(memory_utils) > 1 else 15.0
             
+            logger.info(f"🔍 GAP CALCULATION: Calculated metrics - Avg CPU: {avg_cpu:.1f}%, Avg Memory: {avg_memory:.1f}%")
+            logger.info(f"🔍 GAP CALCULATION: Variability - CPU std: {cpu_std:.1f}, Memory std: {memory_std:.1f}")
+            
             # Calculate optimization potential with realistic bounds
+            logger.info("🔍 GAP CALCULATION: Starting CPU optimization potential calculation...")
             cpu_optimization_potential = self._calculate_cpu_optimization_potential(avg_cpu, cpu_std)
+            logger.info(f"✅ GAP CALCULATION: CPU optimization potential: {cpu_optimization_potential:.3f} ({cpu_optimization_potential*100:.1f}%)")
+            
+            logger.info("🔍 GAP CALCULATION: Starting memory optimization potential calculation...")
             memory_optimization_potential = self._calculate_memory_optimization_potential(avg_memory, memory_std)
+            logger.info(f"✅ GAP CALCULATION: Memory optimization potential: {memory_optimization_potential:.3f} ({memory_optimization_potential*100:.1f}%)")
             
             # Additional analysis
             hpa_suitability = self._calculate_hpa_suitability(cpu_std, memory_std, len(nodes))
             system_efficiency = self._calculate_system_efficiency(avg_cpu, avg_memory)
             usage_pattern = self._classify_usage_pattern(avg_cpu, avg_memory, cpu_std, memory_std)
             
-            return {
+            result = {
                 'node_count': len(nodes),
                 'avg_cpu_utilization': round(avg_cpu, 1),
                 'avg_memory_utilization': round(avg_memory, 1),
@@ -1810,27 +1843,43 @@ class CurrentUsageAnalysisAlgorithm:
                 'raw_memory_values': memory_utils
             }
             
+            logger.info(f"✅ GAP CALCULATION: Current usage analysis completed successfully")
+            logger.info(f"✅ GAP CALCULATION: Final result keys: {list(result.keys())}")
+            logger.info(f"✅ GAP CALCULATION: CPU optimization potential: {result['cpu_optimization_potential_pct']}%")
+            logger.info(f"✅ GAP CALCULATION: Memory optimization potential: {result['memory_optimization_potential_pct']}%")
+            
+            return result
+            
         except Exception as e:
             logger.error(f"❌ Current usage analysis failed: {e}")
-            return self._minimal_usage_analysis()
+            raise ValueError(f"Current usage analysis failed: {e}")
     
     def _calculate_cpu_optimization_potential(self, avg_cpu: float, cpu_std: float) -> float:
         """Calculate CPU optimization potential with realistic bounds"""
+        logger.info(f"🔍 CPU GAP CALC: Input - avg_cpu: {avg_cpu:.1f}%, cpu_std: {cpu_std:.1f}")
+        
         optimal_range = (60, 80)  # Adjusted for more realistic targets
+        logger.info(f"🔍 CPU GAP CALC: Optimal range: {optimal_range[0]}-{optimal_range[1]}%")
         
         if avg_cpu < optimal_range[0]:
             # Under-utilized - significant potential
             potential = min(0.4, (optimal_range[0] - avg_cpu) / optimal_range[0])
+            logger.info(f"🔍 CPU GAP CALC: Under-utilized - calculation: min(0.4, ({optimal_range[0]} - {avg_cpu}) / {optimal_range[0]}) = {potential}")
         elif avg_cpu > optimal_range[1]:
             # Over-utilized - limited optimization
             potential = 0.05
+            logger.info(f"🔍 CPU GAP CALC: Over-utilized - using minimal potential: {potential}")
         else:
             # In optimal range - minimal optimization
             potential = 0.02
+            logger.info(f"🔍 CPU GAP CALC: In optimal range - using minimal potential: {potential}")
         
         # Adjust for variability (higher variability = more optimization potential)
         variability_factor = min(1.5, 1 + (cpu_std / 50))
+        logger.info(f"🔍 CPU GAP CALC: Variability factor: min(1.5, 1 + ({cpu_std} / 50)) = {variability_factor}")
+        
         result = min(0.5, potential * variability_factor)  # Cap at 50%
+        logger.info(f"✅ CPU GAP CALC: Final result: min(0.5, {potential} * {variability_factor}) = {result} ({result*100:.1f}%)")
         
         return result
     
@@ -1887,22 +1936,6 @@ class CurrentUsageAnalysisAlgorithm:
         else:
             return 'mixed_efficiency'
     
-    def _minimal_usage_analysis(self) -> Dict:
-        """Fallback analysis when no metrics available"""
-        return {
-            'node_count': 1,
-            'avg_cpu_utilization': 35.0,
-            'avg_memory_utilization': 60.0,
-            'cpu_variability': 10.0,
-            'memory_variability': 15.0,
-            'cpu_optimization_potential_pct': 15.0,
-            'memory_optimization_potential_pct': 12.0,
-            'hpa_suitability_score': 0.5,
-            'system_efficiency_score': 0.6,
-            'analysis_quality': 'low',
-            'usage_pattern': 'unknown'
-        }
-
 
 class OptimizationCalculatorAlgorithm:
     """Calculates optimization potential with realistic bounds"""
@@ -2435,62 +2468,3 @@ def integrate_algorithmic_analysis(resource_group: str, cluster_name: str,
     return integrate_consistent_analysis(resource_group, cluster_name, cost_data, metrics_data, pod_data)
 
 
-# ============================================================================
-# INTEGRATION TEST FOR COMPREHENSIVE ML
-# ============================================================================
-
-def test_comprehensive_ml_integration():
-    """
-    Test function to verify comprehensive self-learning ML integration is working
-    """
-    try:
-        logger.info("🧪 Testing comprehensive self-learning ML integration...")
-        
-        # Create test data
-        test_metrics = {
-            'nodes': [
-                {'cpu_usage_pct': 75, 'memory_usage_pct': 65, 'status': 'Ready'},
-                {'cpu_usage_pct': 80, 'memory_usage_pct': 70, 'status': 'Ready'},
-                {'cpu_usage_pct': 72, 'memory_usage_pct': 68, 'status': 'Ready'}
-            ],
-            'hpa_implementation': {
-                'current_hpa_pattern': 'memory_based_hpa',
-                'confidence': 'high',
-                'total_hpas': 5
-            }
-        }
-        
-        test_costs = {
-            'monthly_actual_node': 1000,
-            'monthly_actual_total': 1500
-        }
-        
-        # Test comprehensive ML engine
-        ml_engine = MLEnhancedHPARecommendationEngine()
-        result = ml_engine.generate_hpa_recommendations(test_metrics, test_costs)
-        
-        if result and 'optimization_recommendation' in result:
-            logger.info("✅ Comprehensive self-learning ML integration test PASSED")
-            logger.info(f"🎯 Test result: {result['optimization_recommendation'].get('title', 'Unknown')}")
-            
-            # Test learning capabilities
-            learning_status = ml_engine._get_ml_engine().get_learning_insights()
-            logger.info(f"🧠 Learning Status: Enabled={learning_status.get('learning_enabled', False)}, Samples={learning_status.get('samples', {}).get('total_collected', 0)}")
-            
-            # Test feedback capability
-            current_time = datetime.now().isoformat()
-            ml_engine.provide_ml_feedback(current_time, "CPU_INTENSIVE", 0.9)
-            logger.info("✅ Feedback test completed")
-            
-            return True
-        else:
-            logger.error("❌ Comprehensive ML integration test FAILED - Invalid result structure")
-            return False
-            
-    except Exception as e:
-        logger.error(f"❌ Comprehensive ML integration test FAILED: {e}")
-        return False
-
-# Run integration test if this file is executed directly
-if __name__ == "__main__":
-    test_comprehensive_ml_integration()

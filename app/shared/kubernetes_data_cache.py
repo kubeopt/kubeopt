@@ -152,12 +152,6 @@ class KubernetesDataCache:
                 '--command', cmd
             ]
             
-            # DEBUGGING: Log HPA commands specifically
-            if "kubectl get hpa" in cmd:
-                logger.info(f"🔍 DEBUGGING HPA: About to execute with subscription: {self.subscription_id}")
-                logger.info(f"🔍 DEBUGGING HPA: Full command: {' '.join(full_cmd)}")
-                logger.info(f"🔍 DEBUGGING HPA: Resource group: {self.resource_group}, Cluster: {self.cluster_name}")
-            
             result = subprocess.run(
                 full_cmd,
                 capture_output=True,
