@@ -177,6 +177,9 @@ class EnhancedDynamicStrategyEngine:
         """
         logger.info(f"🎯 Generating comprehensive dynamic strategy for cluster: {getattr(cluster_dna, 'cluster_personality', 'unknown')}")
         
+        # Cache analysis results for HPA extraction from different sources
+        self._current_analysis_results = analysis_results
+        
         # NEW: Set cluster config if provided
         if cluster_config:
             self.set_cluster_config(cluster_config)
@@ -307,7 +310,15 @@ class EnhancedDynamicStrategyEngine:
             total_deployments = workload_resources.get('deployments', {}).get('item_count', 0)
             total_statefulsets = workload_resources.get('statefulsets', {}).get('item_count', 0)
             total_daemonsets = workload_resources.get('daemonsets', {}).get('item_count', 0)
+            # Try to get HPA count from multiple sources (fix for 0 HPA issue)
             total_hpas = scaling_resources.get('horizontalpodautoscalers', {}).get('item_count', 0)
+            
+            # If cluster config shows 0 HPAs, try getting from analysis results
+            if total_hpas == 0 and hasattr(self, '_current_analysis_results'):
+                analysis_hpas = self._extract_hpa_count_from_analysis(self._current_analysis_results)
+                if analysis_hpas > 0:
+                    total_hpas = analysis_hpas
+                    logger.info(f"🔧 Fixed HPA count in strategy: Using {total_hpas} HPAs from analysis results instead of cluster config's 0")
             
             total_workloads = total_deployments + total_statefulsets + total_daemonsets
             
@@ -356,6 +367,61 @@ class EnhancedDynamicStrategyEngine:
             intelligence['error'] = str(e)
         
         return intelligence
+    
+    def _extract_hpa_count_from_analysis(self, analysis_results: Dict) -> int:
+        """Extract HPA count from analysis results when cluster config shows 0"""
+        try:
+            # Try multiple sources where HPA data might be stored
+            hpa_count = 0
+            
+            # Source 1: Check metrics_data.hpa_implementation.total_hpas
+            metrics_data = analysis_results.get('metrics_data', {})
+            if metrics_data:
+                hpa_impl = metrics_data.get('hpa_implementation', {})
+                if isinstance(hpa_impl, dict):
+                    total_hpas = hpa_impl.get('total_hpas')
+                    if isinstance(total_hpas, list):
+                        hpa_count = len(total_hpas)
+                    elif isinstance(total_hpas, int):
+                        hpa_count = total_hpas
+                        
+                    if hpa_count > 0:
+                        logger.info(f"🎯 Strategy: Found {hpa_count} HPAs in analysis_results.metrics_data.hpa_implementation")
+                        return hpa_count
+            
+            # Source 2: Check direct hpa_implementation field
+            hpa_implementation = analysis_results.get('hpa_implementation', {})
+            if isinstance(hpa_implementation, dict):
+                total_hpas = hpa_implementation.get('total_hpas')
+                if isinstance(total_hpas, list):
+                    hpa_count = len(total_hpas)
+                elif isinstance(total_hpas, int):
+                    hpa_count = total_hpas
+                    
+                if hpa_count > 0:
+                    logger.info(f"🎯 Strategy: Found {hpa_count} HPAs in analysis_results.hpa_implementation")
+                    return hpa_count
+            
+            # Source 3: Look for any field containing 'hpa' with count data
+            for key, value in analysis_results.items():
+                if 'hpa' in key.lower() and isinstance(value, dict):
+                    if 'total_hpas' in value:
+                        total_hpas = value['total_hpas']
+                        if isinstance(total_hpas, list):
+                            hpa_count = len(total_hpas)
+                        elif isinstance(total_hpas, int):
+                            hpa_count = total_hpas
+                            
+                        if hpa_count > 0:
+                            logger.info(f"🎯 Strategy: Found {hpa_count} HPAs in analysis_results.{key}")
+                            return hpa_count
+                            
+            logger.warning("⚠️ Strategy: Could not find HPA count in analysis results")
+            return 0
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Strategy: Error extracting HPA count from analysis: {e}")
+            return 0
     
     def _determine_real_cluster_scale(self, total_workloads: int, namespaces: int) -> str:
         """Determine real cluster scale from configuration"""
