@@ -116,6 +116,7 @@ class KubernetesDataCache:
             "hpa_no_headers": "kubectl get hpa --all-namespaces --no-headers",
             "hpa_basic": "kubectl get hpa",
             "hpa_custom": '''kubectl get hpa --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,REFERENCE:.spec.scaleTargetRef.name,METRICS:.spec.metrics[*].resource.name,MIN:.spec.minReplicas,MAX:.spec.maxReplicas"''',
+            "hpa_high_cpu": '''kubectl get hpa --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,CPU_CURRENT:.status.currentMetrics[0].resource.current.averageUtilization,CPU_TARGET:.spec.metrics[0].resource.target.averageUtilization"''',
             
             # === JSON FALLBACKS (for backward compatibility) ===
             "pods": "kubectl get pods --all-namespaces -o json"  # Get ALL pods, not just running
@@ -391,7 +392,7 @@ class KubernetesDataCache:
             'storageclass_cost_optimized', 'deployment_cluster_autoscaler',
             'deployment_metrics_server', 'configmap_pv_lifecycle', 'api_resources',
             'api_versions', 'cluster_info', 'hpa_text', 'hpa_no_headers', 'hpa_basic',
-            'hpa_custom', 'deployments_text', 'pods_all', 'cluster_utilization'
+            'hpa_custom', 'hpa_high_cpu', 'deployments_text', 'pods_all', 'cluster_utilization'
         }
         return key in text_commands
     
@@ -475,7 +476,8 @@ class KubernetesDataCache:
             'pods_basic': self.get('pods_basic') or "",  # Text - basic pod list
             'hpa': self._ensure_json_format('hpa'),  # JSON - HPA data - ensure dict
             'hpa_text': self.get('hpa_text') or "",  # Text fallback for HPA
-            'hpa_custom': self.get('hpa_custom') or ""  # Text - custom HPA format
+            'hpa_custom': self.get('hpa_custom') or "",  # Text - custom HPA format
+            'hpa_high_cpu': self.get('hpa_high_cpu') or ""  # Text - high CPU detection format
         }
     
     def get_cost_analysis_data(self) -> Dict[str, Any]:

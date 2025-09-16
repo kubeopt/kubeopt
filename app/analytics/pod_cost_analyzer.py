@@ -306,16 +306,16 @@ class SubscriptionAwareKubectlExecutor:
             return None
     
     def execute_with_fallback(self, primary_cmd: str, fallback_cmd: str = None, timeout: int = None) -> Optional[str]:
-        """PRESERVED: Execute kubectl command with fallback option"""
-        # Try primary command
-        result = self.execute_command(primary_cmd, timeout)
+        """REPLACED: Execute kubectl command with fallback using cache"""
+        # Try primary command using cache
+        result = self.query_cache_kubectl(primary_cmd, timeout)
         if result:
             return result
         
         # Try fallback if provided
         if fallback_cmd:
             logger.info(f"🔄 Subscription {self.subscription_id[:8]}: Primary command failed, trying fallback...")
-            return self.execute_command(fallback_cmd, timeout)
+            return self.query_cache_kubectl(fallback_cmd, timeout)
         
         return None
     

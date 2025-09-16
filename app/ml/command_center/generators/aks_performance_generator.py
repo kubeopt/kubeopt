@@ -43,8 +43,10 @@ class AKSPerformanceCommandGenerator:
             savings_estimate=0
         ))
         
-        # High CPU workload optimization
-        if performance_data['high_cpu_workloads']:
+        # High CPU workload optimization - only if there are actual savings
+        performance_savings = performance_data.get('potential_performance_savings', 0)
+        if performance_data['high_cpu_workloads'] and performance_savings > 0:
+            per_workload_savings = performance_savings / len(performance_data['high_cpu_workloads'])
             for workload in performance_data['high_cpu_workloads'][:3]:
                 patch_json = '{"spec":{"template":{"spec":{"containers":[{"name":"' + workload + '","resources":{"limits":{"cpu":"2000m"},"requests":{"cpu":"1000m"}}}]}}}}'
                 commands.append(ExecutableCommand(
@@ -52,7 +54,9 @@ class AKSPerformanceCommandGenerator:
                     description=f"Optimize CPU resources for high-utilization workload {workload}",
                     category="aks_performance",
                     priority_score=75,
-                    savings_estimate=150
+                    savings_estimate=per_workload_savings,
+                    estimated_duration_minutes=10,
+                    risk_level="medium"
                 ))
         
         # Enable accelerated networking

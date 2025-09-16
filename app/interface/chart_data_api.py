@@ -188,7 +188,15 @@ def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) ->
     
     monthly_cost = ensure_float(current_analysis.get('total_cost', 0))
     monthly_savings = ensure_float(current_analysis.get('total_savings', 0))
-    hpa_savings = ensure_float(current_analysis.get('hpa_savings', 0))
+    # INTERNATIONAL STANDARDS-BASED: Use comprehensive 5-category framework
+    core_savings = ensure_float(current_analysis.get('core_optimization_savings', 0))
+    compute_savings = ensure_float(current_analysis.get('compute_optimization_savings', 0))
+    infrastructure_savings = ensure_float(current_analysis.get('infrastructure_savings', 0))
+    container_data_savings = ensure_float(current_analysis.get('container_data_savings', 0))
+    security_monitoring_savings = ensure_float(current_analysis.get('security_monitoring_savings', 0))
+    
+    # Core optimization includes HPA, rightsizing, storage per CNCF standards
+    optimization_efficiency = core_savings
     
     if monthly_cost <= 0:
         raise ValueError(f"Invalid monthly cost: {monthly_cost}")
@@ -208,34 +216,39 @@ def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) ->
             hpa_efficiency = ensure_float(eff_val)
             break
     
-    if hpa_efficiency == 0.0 and hpa_savings > 0 and monthly_cost > 0:
-        hpa_efficiency = min(50.0, (hpa_savings / monthly_cost) * 100)
+    if hpa_efficiency == 0.0 and optimization_efficiency > 0 and monthly_cost > 0:
+        hpa_efficiency = min(50.0, (optimization_efficiency / monthly_cost) * 100)
     
-    # Extract REAL high CPU workload data
-    high_cpu_workloads = []
-    workload_cpu_data = {}
+    # Extract high CPU workload data from consolidated structure ONLY
+    high_cpu_summary = current_analysis.get('high_cpu_summary', {})
+    if not high_cpu_summary:
+        raise ValueError("Missing high_cpu_summary in consolidated analysis - system must provide this data")
     
-    if hpa_recommendations:
-        ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
-        
-        # Extract high CPU workloads from ML analysis
-        if 'high_cpu_workloads' in ml_workload_characteristics:
-            high_cpu_workloads = ml_workload_characteristics['high_cpu_workloads']
-        
-        # Extract REAL average CPU utilization
-        avg_cpu_util = ml_workload_characteristics.get('cpu_utilization', 0)
-        max_cpu_util = ml_workload_characteristics.get('max_cpu_utilization', avg_cpu_util)
-        
-        workload_cpu_data = {
-            'average_cpu_utilization': avg_cpu_util,
-            'max_cpu_utilization': max_cpu_util,
-            'high_cpu_workloads': high_cpu_workloads,
-            'total_workloads_analyzed': len(high_cpu_workloads) if high_cpu_workloads else 0
-        }
+    # DEBUG: Log the actual high_cpu_summary content
+    logger.info(f"🔍 DEBUG HIGH_CPU_SUMMARY: type={type(high_cpu_summary)}, keys={list(high_cpu_summary.keys()) if isinstance(high_cpu_summary, dict) else 'Not dict'}")
+    
+    high_cpu_workloads = high_cpu_summary.get('high_cpu_workloads', [])
+    high_cpu_hpas = high_cpu_summary.get('high_cpu_hpas', [])
+    max_cpu_util = high_cpu_summary.get('max_cpu_utilization', 0)
+    
+    # DEBUG: Log what we extracted
+    logger.info(f"🔍 DEBUG EXTRACTED: workloads={len(high_cpu_workloads)}, hpas={len(high_cpu_hpas)}, max_cpu={max_cpu_util}")
+    if high_cpu_workloads:
+        logger.info(f"🔍 DEBUG FIRST WORKLOAD: {high_cpu_workloads[0]}")
+    
+    # Combine HPA and workload high CPU data
+    all_high_cpu = high_cpu_workloads + high_cpu_hpas
+    
+    workload_cpu_data = {
+        'average_cpu_utilization': high_cpu_summary.get('average_cpu_utilization', 0),
+        'max_cpu_utilization': max_cpu_util,
+        'high_cpu_workloads': all_high_cpu,
+        'total_workloads_analyzed': high_cpu_summary.get('total_high_cpu_count', len(all_high_cpu))
+    }
     
     logger.info(f"📊 REAL CPU Analysis: avg={workload_cpu_data.get('average_cpu_utilization', 0):.1f}%, "
                f"max={workload_cpu_data.get('max_cpu_utilization', 0):.1f}%, "
-               f"high_cpu_workloads={len(high_cpu_workloads)}")
+               f"high_cpu_workloads={len(all_high_cpu)}")
     
     # Get REAL cost components
     cost_components = {
@@ -250,7 +263,11 @@ def _extract_cost_metrics(current_analysis: Dict[str, Any], data_source: str) ->
     return {
         'monthly_cost': monthly_cost,
         'monthly_savings': monthly_savings,
-        'hpa_savings': hpa_savings,
+        'core_optimization_savings': core_savings,
+        'compute_optimization_savings': compute_savings,
+        'infrastructure_savings': infrastructure_savings,
+        'container_data_savings': container_data_savings,
+        'security_monitoring_savings': security_monitoring_savings,
         'hpa_efficiency': hpa_efficiency,
         'workload_cpu_data': workload_cpu_data,
         **cost_components
@@ -277,7 +294,7 @@ def _build_enhanced_response_data(current_analysis: Dict[str, Any],
         'metrics': {
             'total_cost': cost_metrics['monthly_cost'],
             'total_savings': cost_metrics['monthly_savings'],
-            'hpa_savings': cost_metrics.get('hpa_savings', 0),
+            'core_optimization_savings': cost_metrics.get('core_optimization_savings', 0),
             'hpa_efficiency': cost_metrics.get('hpa_efficiency', 0),
             'cpu_gap': ensure_float(current_analysis.get('cpu_gap', 0)),
             'memory_gap': ensure_float(current_analysis.get('memory_gap', 0)),
@@ -464,8 +481,11 @@ def _generate_cpu_workload_chart(high_cpu_workloads: list) -> Dict:
     for workload in high_cpu_workloads[:10]:  # Top 10 high CPU workloads
         if isinstance(workload, dict):
             workload_names.append(workload.get('name', 'Unknown'))
-            cpu_utilizations.append(workload.get('cpu_utilization', 0))
-            target_utilizations.append(workload.get('target', 80))
+            # Use the correct field names from the actual data structure
+            cpu_util = workload.get('hpa_cpu_utilization', workload.get('cpu_utilization', 0))
+            target_util = workload.get('hpa_cpu_target', workload.get('target', 80))
+            cpu_utilizations.append(cpu_util)
+            target_utilizations.append(target_util)
             namespaces.append(workload.get('namespace', 'Unknown'))
     
     return {

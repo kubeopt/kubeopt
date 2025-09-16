@@ -670,53 +670,16 @@ class PureAKSClusterConfigFetcher:
     
     def execute_kubectl_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[str]:
         """
-        from working aks_realtime_metrics.py - Execute kubectl command that WORKS
+        REPLACED: Use centralized cache instead of direct kubectl execution
+        Maps kubectl commands to cached data
         """
-        if timeout is None:
-            timeout = self.timeout_seconds
-            
-        try:
-            cmd = [
-                'az', 'aks', 'command', 'invoke',
-                '--resource-group', self.resource_group,
-                '--name', self.cluster_name,
-                '--command', kubectl_cmd
-            ]
-            
-            # Add subscription context (from working code)
-            if self.subscription_id:
-                cmd.extend(['--subscription', self.subscription_id])
-                logger.debug(f"🌐 Using subscription context: {self.subscription_id[:8]} for command: {kubectl_cmd}")
-            
-            logger.debug(f"🔧 Executing: {kubectl_cmd}")
-            start_time = time.time()
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-            
-            execution_time = time.time() - start_time
-            logger.debug(f"🔧 Command completed in {execution_time:.2f}s")
-            logger.debug(f"🔧 Return code: {result.returncode}")
-            
-            if result.returncode != 0:
-                logger.warning(f"❌ Command failed with return code {result.returncode}")
-                logger.warning(f"❌ STDERR: {result.stderr}")
-                return None
-            
-            # Use the WORKING output cleaning method
-            clean_output = self._clean_command_output(result.stdout)
-            
-            if not clean_output:
-                logger.debug(f"⚠️ No output after cleaning for command: {kubectl_cmd}")
-                return None
-            
-            logger.debug(f"🔧 Clean output length: {len(clean_output)}")
-            return clean_output
-            
-        except subprocess.TimeoutExpired:
-            logger.error(f"⏰ Timeout executing kubectl command: {kubectl_cmd}")
-            return None
-        except Exception as e:
-            logger.error(f"❌ Error executing kubectl command '{kubectl_cmd}': {e}")
+        logger.info(f"🔄 ConfigFetcher: Using cached data instead of executing: {kubectl_cmd}")
+        
+        # Map kubectl commands to cached data keys
+        if "kubectl get" in kubectl_cmd:
+            return self.cache.execute_dynamic_command(kubectl_cmd, timeout or self.timeout_seconds)
+        else:
+            logger.warning(f"⚠️ ConfigFetcher: Unsupported kubectl command pattern: {kubectl_cmd}")
             return None
 
     def _clean_command_output(self, raw_output: str) -> str:

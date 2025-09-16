@@ -440,6 +440,12 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'savings_percentage': float(complete_analysis_data.get('savings_percentage', 0)),
         'analysis_confidence': float(complete_analysis_data.get('analysis_confidence', 0)),
         
+        # NEW CONSOLIDATED FIELDS - Standards-based categories and health scoring
+        'savings_by_category': complete_analysis_data.get('savings_by_category', {}),
+        'current_health_score': float(complete_analysis_data.get('current_health_score', 0)),
+        'target_health_score': float(complete_analysis_data.get('target_health_score', 0)),
+        'standards_compliance': complete_analysis_data.get('standards_compliance', {}),
+        
         # Preserve ALL HPA efficiency fields
         'hpa_efficiency': complete_analysis_data.get('hpa_efficiency'),
         'hpa_efficiency_percentage': complete_analysis_data.get('hpa_efficiency_percentage'),

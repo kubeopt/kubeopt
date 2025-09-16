@@ -448,9 +448,14 @@ def register_api_routes(app):
             metrics = {
                 'total_cost': ensure_float(analysis_data.get('total_cost', 0)),
                 'total_savings': ensure_float(analysis_data.get('total_savings', 0)),
-                'hpa_savings': ensure_float(analysis_data.get('hpa_savings', 0)),
-                'right_sizing_savings': ensure_float(analysis_data.get('right_sizing_savings', 0)),
-                'storage_savings': ensure_float(analysis_data.get('storage_savings', 0)),
+                # NEW STANDARDS-BASED: Use 5-category comprehensive savings
+                'core_optimization_savings': ensure_float(analysis_data.get('core_optimization_savings', 0)),
+                'compute_optimization_savings': ensure_float(analysis_data.get('compute_optimization_savings', 0)),
+                'infrastructure_savings': ensure_float(analysis_data.get('infrastructure_savings', 0)),
+                'container_data_savings': ensure_float(analysis_data.get('container_data_savings', 0)),
+                'security_monitoring_savings': ensure_float(analysis_data.get('security_monitoring_savings', 0)),
+                'current_health_score': ensure_float(analysis_data.get('current_health_score', 0)),
+                'target_health_score': ensure_float(analysis_data.get('target_health_score', 0)),
                 'savings_percentage': ensure_float(analysis_data.get('savings_percentage', 0)),
                 'annual_savings': ensure_float(analysis_data.get('total_savings', 0)) * 12,
                 'analysis_confidence': ensure_float(analysis_data.get('analysis_confidence', 0.8)),
@@ -1768,13 +1773,22 @@ def generate_real_savings_breakdown_data(analysis_data):
         categories = []
         values = []
         
-        # Extract REAL savings components
-        savings_components = [
-            ('HPA Optimization', analysis_data.get('hpa_savings', 0)),
-            ('Right-sizing', analysis_data.get('right_sizing_savings', 0)),
-            ('Storage Optimization', analysis_data.get('storage_savings', 0)),
-            ('CPU Optimization', analysis_data.get('cpu_optimization_savings', 0))
-        ]
+        # Use enhanced savings categories (5-category system preferred, with fallback)
+        enhanced_savings_by_category = analysis_data.get('savings_by_category')
+        
+        # DEBUG: Log what keys are actually available in analysis_data
+        logger.info(f"🔍 DEBUG analysis_data keys: {list(analysis_data.keys()) if isinstance(analysis_data, dict) else 'Not a dict'}")
+        logger.info(f"🔍 DEBUG savings_by_category value: {enhanced_savings_by_category}")
+        
+        if not enhanced_savings_by_category:
+            logger.error("❌ CRITICAL: savings_by_category missing from analysis results")
+            logger.error("❌ This indicates the consolidated analysis system failed to set required fields")
+            logger.error("❌ FAILING FORWARD: Analysis system must always produce savings_by_category")
+            raise ValueError("Consolidated analysis system failed to produce required savings_by_category field")
+        
+        # Use enhanced system (either 5-category comprehensive or 3-category fallback)
+        savings_components = list(enhanced_savings_by_category.items())
+        logger.info(f"✅ Using savings categories: {list(enhanced_savings_by_category.keys())} ({len(enhanced_savings_by_category)} categories)")
         
         # Filter out zero values
         for category, value in savings_components:

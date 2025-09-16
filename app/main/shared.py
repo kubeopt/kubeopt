@@ -17,6 +17,17 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
+# Import global components
+try:
+    from app.main.config import enhanced_cluster_manager, analysis_cache, _analysis_sessions, _analysis_lock
+    logger.info("✅ Successfully imported shared globals")
+except ImportError as e:
+    logger.error(f"❌ Failed to import shared globals: {e}")
+    enhanced_cluster_manager = None
+    analysis_cache = {}
+    _analysis_sessions = {}
+    _analysis_lock = threading.Lock()
+
 # ============================================================================
 # REQUEST SYSTEM
 # ============================================================================
@@ -157,9 +168,7 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
     
     def _fetch_analysis_data_internal():
         """Internal function to fetch analysis data"""
-        # Get shared globals
-        _analysis_sessions, _analysis_lock, analysis_cache, enhanced_cluster_manager = get_shared_globals()
-        
+        # Check if enhanced_cluster_manager is available
         if not enhanced_cluster_manager:
             logger.error("❌ Enhanced cluster manager not available")
             return None, "no_cluster_manager"
@@ -193,11 +202,16 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
             from app.services.cache_manager import load_from_cache, clear_analysis_cache
             cached_data = load_from_cache(cluster_id, subscription_id)
             if cached_data and cached_data.get('total_cost', 0) > 0:
-                if 'hpa_recommendations' in cached_data:
-                    logger.info(f"✅ ENTERPRISE CACHE: Complete data with HPA for {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
+                if 'hpa_recommendations' in cached_data and 'high_cpu_summary' in cached_data:
+                    logger.info(f"✅ ENTERPRISE CACHE: Complete data with HPA and high CPU for {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
                     return cached_data, "enterprise_cache"
                 else:
-                    logger.warning(f"⚠️ ENTERPRISE CACHE: Data exists but missing HPA for {cluster_id}")
+                    missing_fields = []
+                    if 'hpa_recommendations' not in cached_data:
+                        missing_fields.append('hpa_recommendations')
+                    if 'high_cpu_summary' not in cached_data:
+                        missing_fields.append('high_cpu_summary')
+                    logger.warning(f"⚠️ ENTERPRISE CACHE: Data exists but missing {', '.join(missing_fields)} for {cluster_id}")
                     clear_analysis_cache(cluster_id, subscription_id)
         except Exception as e:
             logger.warning(f"⚠️ Enterprise cache fetch failed for {cluster_id}: {e}")
@@ -207,18 +221,23 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
             logger.info(f"🔄 Loading from database for cluster: {cluster_id}")
             db_data = enhanced_cluster_manager.get_latest_analysis(cluster_id)
             if db_data and db_data.get('total_cost', 0) > 0:
-                if 'hpa_recommendations' in db_data:
-                    logger.info(f"✅ DATABASE: Complete data with HPA for {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
+                if 'hpa_recommendations' in db_data and 'high_cpu_summary' in db_data:
+                    logger.info(f"✅ DATABASE: Complete data with HPA and high CPU for {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
                     # Cache with subscription context
                     from app.services.cache_manager import save_to_cache
                     save_to_cache(cluster_id, db_data, subscription_id)
                     return db_data, "cluster_database"
                 else:
-                    logger.warning(f"⚠️ DATABASE: Data exists but missing HPA for {cluster_id}")
+                    missing_fields = []
+                    if 'hpa_recommendations' not in db_data:
+                        missing_fields.append('hpa_recommendations')
+                    if 'high_cpu_summary' not in db_data:
+                        missing_fields.append('high_cpu_summary')
+                    logger.warning(f"⚠️ DATABASE: Data exists but missing {', '.join(missing_fields)} for {cluster_id}")
         except Exception as e:
             logger.error(f"❌ Database error for cluster {cluster_id}: {e}")
 
-        logger.warning(f"⚠️ No complete analysis data (with HPA) found for cluster: {cluster_id}")
+        logger.warning(f"⚠️ No complete analysis data (with HPA and high CPU summary) found for cluster: {cluster_id}")
         return None, "no_complete_data"
     
     # Use deduplicator to prevent duplicate calls
