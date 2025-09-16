@@ -3113,7 +3113,16 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                 if 'command' in cmd:
                     normalized.append(cmd['command'])
                 else:
-                    normalized.append(json.dumps(cmd, indent=2))
+                    # Instead of JSON dump, create a readable command format
+                    normalized.append(f"# {cmd.get('description', 'Command')}\n{str(cmd.get('command', str(cmd)))}")
+            elif hasattr(cmd, 'command'):
+                # Handle ExecutableCommand objects properly
+                command_str = getattr(cmd, 'command', '')
+                description = getattr(cmd, 'description', '')
+                if description:
+                    normalized.append(f"# {description}\n{command_str}")
+                else:
+                    normalized.append(command_str)
             else:
                 normalized.append(str(cmd))
         

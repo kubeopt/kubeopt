@@ -44,14 +44,18 @@ class AKSAddonsCommandGenerator:
                 savings_estimate=0
             ))
         
-        # Enable KEDA for event-driven autoscaling
-        if not addons_data['keda_enabled']:
+        # Enable KEDA for event-driven autoscaling - only if there are event-driven workloads that could benefit
+        if not addons_data['keda_enabled'] and addons_data.get('event_driven_workloads', 0) > 0:
+            # Calculate savings based on potential for event-driven scaling
+            keda_savings = min(300, addons_data.get('event_driven_workloads', 0) * 50)  # Max $50/workload
             commands.append(ExecutableCommand(
                 command=f"az aks addon enable --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --addon keda",
-                description="Enable KEDA addon for event-driven horizontal pod autoscaling",
+                description=f"Enable KEDA addon for {addons_data.get('event_driven_workloads', 0)} event-driven workloads (${keda_savings}/month savings)",
                 category="aks_addons",
                 priority_score=80,
-                savings_estimate=300
+                savings_estimate=keda_savings,
+                estimated_duration_minutes=12,
+                risk_level="low"
             ))
         
         # Enable Dapr for microservices

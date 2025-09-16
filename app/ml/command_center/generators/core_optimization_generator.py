@@ -5,81 +5,185 @@ class CoreOptimizationCommandGenerator:
     """Generator for core AKS optimization commands (HPA, rightsizing, node optimization, etc.)"""
     
     def generate_hpa_commands(self, analysis_results: Dict, variable_context: Dict) -> List[ExecutableCommand]:
-        """Generate HPA optimization commands"""
+        """Generate HPA optimization commands based on actual analysis data"""
         commands = []
         
-        # Extract HPA data
-        hpa_count = analysis_results.get('hpa_count', 0)
-        hpa_savings = analysis_results.get('hpa_savings', 0)
+        # Extract HPA data from multiple potential sources
+        hpa_data = analysis_results.get('hpa_optimization', {})
+        hpa_count = hpa_data.get('count', analysis_results.get('hpa_count', 0))
+        hpa_savings = hpa_data.get('savings', analysis_results.get('hpa_savings', 0))
         
-        if hpa_savings > 0:
+        # Look for actual HPA opportunities in analysis results
+        hpa_opportunities = analysis_results.get('optimization_opportunities', {}).get('hpa_scaling', [])
+        cpu_optimization = analysis_results.get('cpu_optimization', {})
+        
+        # Calculate realistic savings based on analysis
+        if not hpa_savings and cpu_optimization:
+            hpa_savings = cpu_optimization.get('potential_savings', 0) * 0.3  # HPA typically saves 30% of CPU optimization
+        
+        if hpa_savings > 0 or hpa_opportunities:
+            # Calculate realistic duration based on number of deployments
+            estimated_minutes = max(15, len(hpa_opportunities) * 10) if hpa_opportunities else 20
+            
             commands.append(ExecutableCommand(
                 command=f"kubectl get deployments -A -o json | jq '.items[] | select(.spec.replicas > 1) | {{name: .metadata.name, namespace: .metadata.namespace}}'",
-                description="Identify deployments suitable for HPA",
+                description=f"Identify {len(hpa_opportunities) if hpa_opportunities else 'potential'} deployments suitable for HPA",
                 category="hpa_optimization",
                 priority_score=80,
-                savings_estimate=hpa_savings
+                savings_estimate=hpa_savings,
+                estimated_duration_minutes=estimated_minutes,
+                risk_level="medium" if hpa_savings > 1000 else "low"
             ))
+            
+            # Add actual HPA creation commands if specific opportunities exist
+            for opportunity in hpa_opportunities[:3]:  # Limit to top 3 for practicality
+                commands.append(ExecutableCommand(
+                    command=f"kubectl autoscale deployment {opportunity.get('name', 'deployment')} --cpu-percent={opportunity.get('cpu_target', 70)} --min={opportunity.get('min_replicas', 2)} --max={opportunity.get('max_replicas', 10)} -n {opportunity.get('namespace', 'default')}",
+                    description=f"Create HPA for {opportunity.get('name', 'deployment')} (estimated ${opportunity.get('monthly_savings', 100)}/month savings)",
+                    category="hpa_optimization",
+                    priority_score=85,
+                    savings_estimate=opportunity.get('monthly_savings', 100),
+                    estimated_duration_minutes=5,
+                    risk_level="low"
+                ))
         
         return commands
     
     def generate_rightsizing_commands(self, analysis_results: Dict, variable_context: Dict) -> List[ExecutableCommand]:
-        """Generate resource rightsizing commands"""
+        """Generate resource rightsizing commands based on actual analysis data"""
         commands = []
         
+        # Extract rightsizing data from multiple sources
         rightsizing_savings = analysis_results.get('right_sizing_savings', 0)
+        cpu_optimization = analysis_results.get('cpu_optimization', {})
+        memory_optimization = analysis_results.get('memory_optimization', {})
         
-        if rightsizing_savings > 0:
+        # Look for specific rightsizing opportunities
+        rightsizing_opportunities = analysis_results.get('optimization_opportunities', {}).get('resource_rightsizing', [])
+        
+        # Calculate total potential savings
+        total_savings = rightsizing_savings
+        if not total_savings:
+            cpu_savings = cpu_optimization.get('potential_savings', 0)
+            memory_savings = memory_optimization.get('potential_savings', 0)
+            total_savings = cpu_savings + memory_savings
+        
+        if total_savings > 0 or rightsizing_opportunities:
+            # Base analysis command
+            analysis_duration = max(10, len(rightsizing_opportunities) * 5) if rightsizing_opportunities else 15
+            
             commands.append(ExecutableCommand(
                 command=f"kubectl top pods -A --sort-by=cpu",
-                description="Analyze pod CPU usage for rightsizing opportunities",
+                description=f"Analyze pod CPU usage for {len(rightsizing_opportunities) if rightsizing_opportunities else 'potential'} rightsizing opportunities",
                 category="resource_rightsizing",
                 priority_score=85,
-                savings_estimate=rightsizing_savings
+                savings_estimate=total_savings * 0.2,  # Analysis step saves 20% of potential
+                estimated_duration_minutes=analysis_duration,
+                risk_level="low"
             ))
+            
+            # Memory analysis command
+            commands.append(ExecutableCommand(
+                command=f"kubectl top pods -A --sort-by=memory",
+                description="Analyze pod memory usage patterns",
+                category="resource_rightsizing", 
+                priority_score=80,
+                savings_estimate=memory_optimization.get('potential_savings', total_savings * 0.3),
+                estimated_duration_minutes=10,
+                risk_level="low"
+            ))
+            
+            # Generate specific rightsizing commands
+            for opportunity in rightsizing_opportunities[:5]:  # Top 5 opportunities
+                resource_type = opportunity.get('resource_type', 'cpu')
+                workload_name = opportunity.get('workload_name', 'workload')
+                namespace = opportunity.get('namespace', 'default')
+                recommended_value = opportunity.get('recommended_value', '100m' if resource_type == 'cpu' else '128Mi')
+                monthly_savings = opportunity.get('monthly_savings', 50)
+                
+                patch_json = f'{{"spec":{{"template":{{"spec":{{"containers":[{{"name":"{workload_name}","resources":{{"requests":{{"{resource_type}":"{recommended_value}"}}}}}}]}}}}}}}}'
+                commands.append(ExecutableCommand(
+                    command=f"kubectl patch deployment {workload_name} -n {namespace} -p '{patch_json}'",
+                    description=f"Optimize {resource_type} for {workload_name} (save ${monthly_savings}/month)",
+                    category="resource_rightsizing",
+                    priority_score=90,
+                    savings_estimate=monthly_savings,
+                    estimated_duration_minutes=8,
+                    risk_level="medium"
+                ))
         
         return commands
     
     def generate_node_optimization_commands(self, analysis_results: Dict, variable_context: Dict) -> List[ExecutableCommand]:
-        """Generate node optimization commands"""
+        """Generate node optimization commands based on actual analysis data"""
         commands = []
         
-        # Node pool optimization
-        commands.append(ExecutableCommand(
-            command=f"az aks nodepool update --resource-group {variable_context['resource_group']} --cluster-name {variable_context['cluster_name']} --name agentpool --enable-cluster-autoscaler --min-count 1 --max-count 10",
-            description="Enable cluster autoscaler for dynamic node scaling",
-            category="node_optimization",
-            priority_score=75,
-            savings_estimate=500
-        ))
+        # Extract node optimization data
+        node_analysis = analysis_results.get('node_analysis', {})
+        node_savings = node_analysis.get('potential_savings', 0)
+        current_nodes = variable_context.get('node_count', 3)
+        
+        # Only add node optimization if there's actual potential
+        if current_nodes > 2:  # Only optimize if more than 2 nodes
+            # Calculate realistic savings based on cluster size
+            estimated_savings = min(node_savings, current_nodes * 50)  # Max $50/node/month from autoscaling
+            
+            if estimated_savings > 0:
+                commands.append(ExecutableCommand(
+                    command=f"az aks nodepool update --resource-group {variable_context['resource_group']} --cluster-name {variable_context['cluster_name']} --name agentpool --enable-cluster-autoscaler --min-count 1 --max-count {min(10, current_nodes * 2)}",
+                    description=f"Enable cluster autoscaler for {current_nodes} nodes (save ${estimated_savings}/month)",
+                    category="node_optimization",
+                    priority_score=75,
+                    savings_estimate=estimated_savings,
+                    estimated_duration_minutes=12,
+                    risk_level="medium"
+                ))
         
         return commands
     
     def generate_storage_optimization_commands(self, analysis_results: Dict, variable_context: Dict) -> List[ExecutableCommand]:
-        """Generate storage optimization commands"""
+        """Generate storage optimization commands based on actual analysis data"""
         commands = []
         
-        # Storage class optimization
-        commands.append(ExecutableCommand(
-            command=f"kubectl get pvc -A -o json | jq '.items[] | select(.spec.storageClassName == \"premium-lrs\") | {{name: .metadata.name, namespace: .metadata.namespace}}'",
-            description="Identify PVCs using premium storage for potential optimization",
-            category="storage_optimization",
-            priority_score=70,
-            savings_estimate=300
-        ))
+        # Extract storage optimization data
+        storage_optimization = analysis_results.get('storage_optimization', {})
+        storage_savings = storage_optimization.get('potential_savings', 0)
+        
+        # Only add storage optimization if there are actual savings
+        if storage_savings > 0:
+            commands.append(ExecutableCommand(
+                command=f"kubectl get pvc -A -o json | jq '.items[] | select(.spec.storageClassName == \"premium-lrs\") | {{name: .metadata.name, namespace: .metadata.namespace}}'",
+                description=f"Identify PVCs using premium storage (save ${storage_savings}/month potential)",
+                category="storage_optimization",
+                priority_score=70,
+                savings_estimate=storage_savings,
+                estimated_duration_minutes=8,
+                risk_level="low"
+            ))
         
         return commands
     
     def generate_monitoring_commands(self, analysis_results: Dict, variable_context: Dict) -> List[ExecutableCommand]:
-        """Generate monitoring optimization commands"""
+        """Generate monitoring optimization commands based on actual analysis data"""
         commands = []
         
-        commands.append(ExecutableCommand(
-            command=f"kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/master/examples/standard/cluster-role-binding.yaml",
-            description="Deploy kube-state-metrics for enhanced monitoring",
-            category="monitoring_optimization",
-            priority_score=60,
-            savings_estimate=0
-        ))
+        # Only add monitoring if there are significant optimizations to track
+        total_savings = (
+            analysis_results.get('cpu_optimization', {}).get('potential_savings', 0) +
+            analysis_results.get('memory_optimization', {}).get('potential_savings', 0) +
+            analysis_results.get('storage_optimization', {}).get('potential_savings', 0)
+        )
+        
+        # Only add monitoring infrastructure if savings justify the overhead
+        if total_savings > 50:  # Only if >$50/month savings to monitor
+            commands.append(ExecutableCommand(
+                command=f"kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/master/examples/standard/cluster-role-binding.yaml",
+                description=f"Deploy monitoring to track ${total_savings}/month optimization progress",
+                category="monitoring_optimization",
+                priority_score=60,
+                savings_estimate=0,  # Monitoring doesn't save money directly
+                estimated_duration_minutes=10,
+                risk_level="low"
+            ))
         
         return commands

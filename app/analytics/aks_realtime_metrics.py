@@ -1348,8 +1348,8 @@ class AKSRealTimeMetricsFetcher:
                                 hpa_details.append(hpa_detail)
                                 cpu_based_count += 1
                                 
-                                # DETECT HIGH CPU (this is where your 3723% would be caught)
-                                if current_cpu > 200:  # > 200% CPU
+                                # DETECT HIGH CPU
+                                if current_cpu > 100:  # > 100% CPU (anything above target is high)
                                     severity = 'critical' if current_cpu > 1000 else 'high'
                                     high_cpu_hpas.append({
                                         'namespace': namespace,
@@ -1527,14 +1527,11 @@ class AKSRealTimeMetricsFetcher:
             # STRATEGY 1: Try custom columns first (most reliable for large clusters)
             logger.info("🔧 Trying custom columns approach for HPA data...")
             # Your exact working command (simplified)
-            custom_cmd = ('kubectl get hpa --all-namespaces -o custom-columns='
-                        '"NAMESPACE:.metadata.namespace,'
-                        'NAME:.metadata.name,'
-                        'CPU_CURRENT:.status.currentMetrics[0].resource.current.averageUtilization,'
-                        'CPU_TARGET:.spec.metrics[0].resource.target.averageUtilization"')
-            
-            
-            hpa_output = self.execute_kubectl_command(custom_cmd, timeout=120)
+            # Get HPA high CPU data from cache (exact same format for CPU detection)
+            cache_data = self.cache.get_resource_usage_data()
+            hpa_output = cache_data.get('hpa_high_cpu', '')
+            logger.info(f"🔧 Using cached HPA high CPU data for analysis ({len(hpa_output)} chars)")
+            logger.info(f"🔍 MAIN METHOD DEBUG: First 500 chars of HPA data: {hpa_output[:500]}")
             
             hpa_analysis = {
                 'current_hpa_pattern': 'no_hpa_detected',
@@ -1546,7 +1543,50 @@ class AKSRealTimeMetricsFetcher:
             }
             
             if hpa_output and len(hpa_output.strip()) > 0:
-                hpa_analysis.update(self._parse_hpa_metrics(hpa_output))
+                # Use the same parsing logic as debug method since it works correctly
+                lines = hpa_output.split('\n')
+                hpa_details = []
+                high_cpu_hpas = []
+                
+                for line in lines[1:] if len(lines) > 1 else []:
+                    if not line.strip():
+                        continue
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        namespace = parts[0]
+                        name = parts[1]
+                        current_cpu = parts[2]
+                        target_cpu = parts[3]
+                        
+                        try:
+                            cpu_val = float(current_cpu)
+                            if cpu_val > 100:  # Use same threshold as debug method
+                                high_cpu_hpas.append({
+                                    'namespace': namespace,
+                                    'name': name,
+                                    'cpu_utilization': cpu_val,
+                                    'target_cpu': target_cpu,
+                                    'severity': 'critical' if cpu_val > 1000 else 'high'
+                                })
+                                logger.info(f"🔥 MAIN METHOD HIGH CPU HPA DETECTED: {namespace}/{name} = {cpu_val}%")
+                            
+                            hpa_details.append({
+                                'namespace': namespace,
+                                'name': name,
+                                'current_cpu': cpu_val,
+                                'target_cpu': target_cpu
+                            })
+                        except ValueError:
+                            pass
+                
+                hpa_analysis.update({
+                    'current_hpa_pattern': 'mixed_implementation' if hpa_details else 'no_hpa_detected',
+                    'confidence': 'high' if hpa_details else 'low',
+                    'total_hpas': len(hpa_details),
+                    'high_cpu_hpas': high_cpu_hpas,
+                    'hpa_details': hpa_details,
+                    'parsing_method': 'debug_method_logic'
+                })
                 #hpa_analysis.update(self._parse_hpa_custom_columns(hpa_output))
                 
                 # If custom columns worked, we're done
@@ -1566,10 +1606,10 @@ class AKSRealTimeMetricsFetcher:
                     logger.info(f"✅ Simplified JSON parsing successful: {hpa_analysis['total_hpas']} HPAs")
                     return hpa_analysis
             
-            # STRATEGY 3: Fallback to basic text parsing to fetch data (not fake data)
-            logger.info("🔧 Using fallback text parsing to fetch real HPA data...")
-            basic_cmd = 'kubectl get hpa --all-namespaces'
-            basic_output = self.execute_kubectl_command(basic_cmd, timeout=60)
+            # STRATEGY 3: Fallback to basic text parsing using cached data
+            logger.info("🔧 Using fallback text parsing with cached HPA data...")
+            cache_data = self.cache.get_resource_usage_data()
+            basic_output = cache_data.get('hpa_text', '')
             
             if basic_output:
                 hpa_analysis.update(self._parse_hpa_basic_text(basic_output))
@@ -1630,8 +1670,8 @@ class AKSRealTimeMetricsFetcher:
                         total_cpu_utilization += current_cpu
                         workload_count += 1
                         
-                        # DETECT HIGH CPU (your 3723% case)
-                        if current_cpu > 150:  # >150% = optimization candidate
+                        # DETECT HIGH CPU
+                        if current_cpu > 100:  # >100% = optimization candidate (aligned with debug method)
                             severity = 'critical' if current_cpu > 1000 else 'high'
                             high_cpu_hpas.append({
                                 'namespace': namespace,
@@ -1642,7 +1682,7 @@ class AKSRealTimeMetricsFetcher:
                                 'recommendation': 'OPTIMIZE_APPLICATION' if current_cpu > 300 else 'INVESTIGATE'
                             })
                             
-                            logger.info(f"🔥 HIGH CPU WORKLOAD: {namespace}/{name} = {current_cpu}% (target: {target_cpu}%)")
+                            logger.info(f"🔥 MAIN METHOD HIGH CPU WORKLOAD: {namespace}/{name} = {current_cpu}% (target: {target_cpu}%)")
                     
                     except (ValueError, TypeError):
                         logger.debug(f"Could not parse CPU values: {current_cpu_str}, {target_cpu_str}")
@@ -1745,130 +1785,6 @@ class AKSRealTimeMetricsFetcher:
             logger.error(f"❌ Pod metrics collection failed: {e}")
             return {'pods': [], 'namespace_aggregates': {}, 'total_pods': 0}
 
-    def _analyze_high_cpu_workloads(self, hpa_metrics: Dict, pod_metrics: Dict) -> Dict:
-        """
-        Analyze high CPU scenarios while preserving ALL workload data
-        """
-        try:
-            high_cpu_hpas = hpa_metrics.get('high_cpu_hpas', [])
-            all_workloads = pod_metrics.get('all_workloads', [])  # 🆕 Use all workloads, not just pods
-            high_cpu_pods = pod_metrics.get('high_cpu_pods', [])
-            
-            analysis = {
-                'high_cpu_workloads': high_cpu_hpas,
-                'high_cpu_pods': high_cpu_pods,
-                'all_workloads_analyzed': all_workloads,  # 🆕 Preserve ALL workloads
-                'total_workloads_analyzed': len(all_workloads),  # 🆕 Total count
-                'max_workload_cpu': 0,
-                'workload_cpu_distribution': {},
-                'recommendation_category': 'MONITOR',
-                'namespace_workload_breakdown': {}  # 🆕 Preserve namespace breakdown
-            }
-            
-            # Find maximum CPU utilization from ALL workloads, not just high CPU ones
-            all_cpu_values = []
-            
-            # Check HPA workloads
-            if high_cpu_hpas:
-                hpa_cpu_values = [hpa['cpu_utilization'] for hpa in high_cpu_hpas]
-                all_cpu_values.extend(hpa_cpu_values)
-                max_hpa_cpu = max(hpa_cpu_values)
-                analysis['max_workload_cpu'] = max_hpa_cpu
-                
-                # Categorize the CPU scenario
-                if max_hpa_cpu > 1000:
-                    analysis['recommendation_category'] = 'OPTIMIZE_APPLICATION_CRITICAL'
-                elif max_hpa_cpu > 500:
-                    analysis['recommendation_category'] = 'OPTIMIZE_APPLICATION'
-                elif max_hpa_cpu > 200:
-                    analysis['recommendation_category'] = 'MONITOR_AND_OPTIMIZE'
-                else:
-                    analysis['recommendation_category'] = 'SCALE_CONSIDERATION'
-                
-                logger.info(f"🔥 Max workload CPU: {max_hpa_cpu:.0f}% → {analysis['recommendation_category']}")
-            
-            # ===== CRITICAL: ANALYZE ALL WORKLOADS, NOT JUST HIGH CPU =====
-            if all_workloads:
-                # Create comprehensive workload analysis
-                namespace_breakdown = {}
-                cpu_ranges = {'0-25%': 0, '25-50%': 0, '50-100%': 0, '100%+': 0}
-                
-                for workload in all_workloads:
-                    namespace = workload.get('namespace', 'unknown')
-                    cpu_pct = workload.get('cpu_percentage', workload.get('cpu_utilization', 0))
-                    
-                    # Add to CPU values for overall analysis
-                    all_cpu_values.append(cpu_pct)
-                    
-                    # Update namespace breakdown
-                    if namespace not in namespace_breakdown:
-                        namespace_breakdown[namespace] = {
-                            'total_workloads': 0,
-                            'high_cpu_workloads': 0,
-                            'normal_workloads': 0,
-                            'avg_cpu': 0,
-                            'workloads': []
-                        }
-                    
-                    namespace_breakdown[namespace]['total_workloads'] += 1
-                    namespace_breakdown[namespace]['workloads'].append(workload)
-                    
-                    if cpu_pct > 50:  # High CPU threshold
-                        namespace_breakdown[namespace]['high_cpu_workloads'] += 1
-                    else:
-                        namespace_breakdown[namespace]['normal_workloads'] += 1
-                    
-                    # Update CPU distribution
-                    if cpu_pct <= 25:
-                        cpu_ranges['0-25%'] += 1
-                    elif cpu_pct <= 50:
-                        cpu_ranges['25-50%'] += 1
-                    elif cpu_pct <= 100:
-                        cpu_ranges['50-100%'] += 1
-                    else:
-                        cpu_ranges['100%+'] += 1
-                
-                # Calculate average CPU per namespace
-                for ns_data in namespace_breakdown.values():
-                    if ns_data['workloads']:
-                        ns_cpu_values = [w.get('cpu_percentage', w.get('cpu_utilization', 0)) for w in ns_data['workloads']]
-                        ns_data['avg_cpu'] = sum(ns_cpu_values) / len(ns_cpu_values)
-                
-                analysis['namespace_workload_breakdown'] = namespace_breakdown
-                analysis['workload_cpu_distribution'] = cpu_ranges
-                
-                # Update max CPU from all workloads
-                if all_cpu_values:
-                    analysis['max_workload_cpu'] = max(analysis['max_workload_cpu'], max(all_cpu_values))
-                    analysis['avg_workload_cpu'] = sum(all_cpu_values) / len(all_cpu_values)
-                
-                logger.info(f"✅ ANALYZED ALL WORKLOADS: {len(all_workloads)} total, max CPU: {analysis['max_workload_cpu']:.1f}%")
-            
-            # Find high CPU pods from all workloads
-            if not analysis['high_cpu_pods'] and all_workloads:
-                # Extract high CPU workloads from all workloads
-                for workload in all_workloads:
-                    cpu_pct = workload.get('cpu_percentage', workload.get('cpu_utilization', 0))
-                    if cpu_pct > 50:  # High CPU threshold
-                        analysis['high_cpu_pods'].append({
-                            'namespace': workload.get('namespace', 'unknown'),
-                            'name': workload.get('name', workload.get('pod', 'unknown')),
-                            'cpu_percentage': cpu_pct,
-                            'cpu_millicores': workload.get('cpu_millicores', 0)
-                        })
-            
-            return analysis
-            
-        except Exception as e:
-            logger.error(f"❌ High CPU analysis failed: {e}")
-            return {
-                'high_cpu_workloads': [],
-                'all_workloads_analyzed': pod_metrics.get('all_workloads', []),  # Preserve even on error
-                'total_workloads_analyzed': len(pod_metrics.get('all_workloads', [])),
-                'max_workload_cpu': 0,
-                'recommendation_category': 'MONITOR',
-                'analysis_error': str(e)
-            }
 
     def _add_ml_metadata(self, ml_data: Dict) -> Dict:
         """Add metadata needed for ML feature extraction"""
@@ -1950,37 +1866,23 @@ class AKSRealTimeMetricsFetcher:
                     }
                 }
             
-            # Step 4: FIXED - Analyze high CPU workloads while preserving ALL workload data
-            try:
-                high_cpu_analysis = self._analyze_high_cpu_workloads(hpa_metrics, pod_metrics)
-                
-                # ===== CRITICAL FIX: ENSURE ALL WORKLOADS ARE PRESERVED =====
-                # The high CPU analysis should not filter out normal workloads
-                if 'all_workloads' in pod_metrics and pod_metrics['all_workloads']:
-                    # Preserve ALL workloads in the analysis
-                    high_cpu_analysis['all_workloads_analyzed'] = pod_metrics['all_workloads']
-                    high_cpu_analysis['total_workloads_analyzed'] = len(pod_metrics['all_workloads'])
-                    
-                    # Also preserve namespace breakdown
-                    if 'namespace_aggregates' in pod_metrics:
-                        high_cpu_analysis['namespace_breakdown'] = pod_metrics['namespace_aggregates']
-                    
-                    logger.info(f"✅ HIGH CPU ANALYSIS: Preserved {len(pod_metrics['all_workloads'])} total workloads")
-                
-                logger.info("✅ Completed high CPU analysis with ALL workloads preserved")
-                
-            except Exception as cpu_error:
-                logger.warning(f"⚠️ High CPU analysis failed: {cpu_error}")
-                high_cpu_analysis = {
-                    'high_cpu_workloads': [],
-                    'all_workloads_analyzed': pod_metrics.get('all_workloads', []),  # Preserve even on error
-                    'total_workloads_analyzed': len(pod_metrics.get('all_workloads', [])),
-                    'max_workload_cpu': 0,
-                    'recommendation_category': 'MONITOR',
-                    'analysis_error': str(cpu_error)
-                }
+            # Step 4: High CPU analysis is now integrated directly in workload metrics
+            high_cpu_analysis = {
+                'high_cpu_workloads': pod_metrics.get('high_cpu_pods', []),
+                'high_cpu_pods': pod_metrics.get('high_cpu_pods', []),
+                'all_workloads_analyzed': pod_metrics.get('all_workloads', []),
+                'total_workloads_analyzed': pod_metrics.get('total_workloads', 0),
+                'max_workload_cpu': max([w.get('hpa_cpu_utilization', w.get('cpu_percentage', 0)) for w in pod_metrics.get('high_cpu_pods', [])], default=0),
+                'recommendation_category': 'CRITICAL' if pod_metrics.get('high_cpu_count', 0) > 0 else 'MONITOR',
+                'namespace_breakdown': pod_metrics.get('namespace_aggregates', {})
+            }
             
-            # Step 5: Combine into ML-ready format with ALL workload data preserved
+            # Step 5: Debug log high CPU data before creating summary
+            logger.info(f"🔍 DEBUG before high_cpu_summary: HPAs={len(hpa_metrics.get('high_cpu_hpas', []))}, "
+                       f"workloads={len(high_cpu_analysis.get('high_cpu_workloads', []))}, "
+                       f"pods={len(high_cpu_analysis.get('high_cpu_pods', []))}")
+            
+            # Step 6: Combine into ML-ready format with ALL workload data preserved
             ml_ready_data = {
                 'nodes': node_metrics.get('nodes', []),
                 'hpa_implementation': hpa_metrics,
@@ -1993,20 +1895,20 @@ class AKSRealTimeMetricsFetcher:
                 'workload_namespace_breakdown': pod_metrics.get('namespace_aggregates', {}),
                 'workload_distribution': pod_metrics.get('workload_distribution', {}),
                 
-                # ===== NEW: HIGH CPU DATA AT TOP LEVEL FOR UI =====
+                # ===== FIXED: HIGH CPU DATA FROM INTEGRATED POD METRICS (includes HPA) =====
                 'high_cpu_summary': {
                     'high_cpu_hpas': hpa_metrics.get('high_cpu_hpas', []),
-                    'high_cpu_workloads': high_cpu_analysis.get('high_cpu_workloads', []),
-                    'high_cpu_pods': high_cpu_analysis.get('high_cpu_pods', []),
-                    'max_cpu_utilization': high_cpu_analysis.get('max_workload_cpu', 0),
-                    'total_high_cpu_count': len(hpa_metrics.get('high_cpu_hpas', [])) + len(high_cpu_analysis.get('high_cpu_pods', [])),
-                    'severity_category': high_cpu_analysis.get('recommendation_category', 'MONITOR')
+                    'high_cpu_workloads': pod_metrics.get('high_cpu_pods', []),  # Use integrated data
+                    'high_cpu_pods': pod_metrics.get('high_cpu_pods', []),      # Use integrated data
+                    'max_cpu_utilization': self._calculate_max_cpu_utilization(hpa_metrics, pod_metrics),
+                    'total_high_cpu_count': pod_metrics.get('high_cpu_count', 0),  # Use recalculated count
+                    'severity_category': 'CRITICAL' if pod_metrics.get('high_cpu_count', 0) > 0 else 'MONITOR'
                 },
                 
                 # Status and metadata
                 'status': 'success',
                 'ml_features_ready': True,
-                'high_cpu_detected': high_cpu_analysis.get('max_workload_cpu', 0) > 200,
+                'high_cpu_detected': pod_metrics.get('high_cpu_count', 0) > 0,
                 'enhanced_data_available': node_metrics.get('enhanced_data_available', False),
                 'nodes_with_real_requests': node_metrics.get('nodes_with_real_requests', 0),
                 'completely_fixed': True,
@@ -2119,8 +2021,13 @@ class AKSRealTimeMetricsFetcher:
             logger.info("🔍 Collecting ALL workload-level metrics (not just high CPU)...")
             
             # Get pod-level resource usage from cache
-            pod_metrics_cmd = "kubectl top pods --all-namespaces --no-headers"
-            pod_output = self.execute_kubectl_command(pod_metrics_cmd)
+            cache_data = self.cache.get_resource_usage_data()
+            pod_output = cache_data.get('pod_usage', '')
+            
+            # CRITICAL FIX: Also get HPA high CPU data for accurate high CPU detection
+            hpa_high_cpu_output = cache_data.get('hpa_high_cpu', '')
+            logger.info(f"📊 Got HPA high CPU data: {len(hpa_high_cpu_output)} chars")
+            logger.info(f"🔍 DEBUG: HPA high CPU data first 200 chars: {hpa_high_cpu_output[:200]}")
             
             # Handle metrics server unavailability
             if not pod_output:
@@ -2235,6 +2142,62 @@ class AKSRealTimeMetricsFetcher:
             workload_data['resource_totals']['cpu_millicores'] = total_cpu_millicores
             workload_data['resource_totals']['memory_bytes'] = total_memory_bytes
             
+            # CRITICAL FIX: Process HPA high CPU data to identify high CPU workloads
+            if hpa_high_cpu_output:
+                logger.info(f"🔍 DEBUG: Processing HPA high CPU data for cluster {self.cluster_name}")
+                high_cpu_workloads_from_hpa = self._process_hpa_high_cpu_data(hpa_high_cpu_output)
+                logger.info(f"🔍 DEBUG: Found {len(high_cpu_workloads_from_hpa)} high CPU workloads from HPA data for {self.cluster_name}")
+                
+                # Merge HPA high CPU findings with pod metrics
+                for hpa_workload in high_cpu_workloads_from_hpa:
+                    # Check if this workload is already in our all_workloads
+                    existing_workload = None
+                    for workload in workload_data['all_workloads']:
+                        if (workload['name'] == hpa_workload['name'] and 
+                            workload['namespace'] == hpa_workload['namespace']):
+                            existing_workload = workload
+                            break
+                    
+                    if existing_workload:
+                        # Update existing workload with HPA high CPU data
+                        existing_workload['hpa_cpu_utilization'] = hpa_workload.get('cpu_utilization', 0)
+                        existing_workload['hpa_detected'] = True
+                        existing_workload['hpa_cpu_target'] = hpa_workload.get('cpu_target', 0)
+                        
+                        # Ensure it's marked as high CPU if HPA detected it
+                        if hpa_workload.get('cpu_utilization', 0) > 100:
+                            if existing_workload not in workload_data['high_cpu_pods']:
+                                existing_workload['high_cpu_reason'] = f"HPA detected: {hpa_workload.get('cpu_utilization', 0)}%"
+                                workload_data['high_cpu_pods'].append(existing_workload)
+                                logger.info(f"🔥 HPA HIGH CPU: {existing_workload['namespace']}/{existing_workload['name']} = {hpa_workload.get('cpu_utilization', 0)}%")
+                    else:
+                        # Add new workload from HPA data (in case pod metrics missed it)
+                        new_workload = {
+                            'name': hpa_workload['name'],
+                            'namespace': hpa_workload['namespace'],
+                            'cpu_millicores': 0,  # Will be updated if we get metrics
+                            'memory_bytes': 0,
+                            'cpu_percentage': 0,
+                            'memory_percentage': 0,
+                            'hpa_cpu_utilization': hpa_workload.get('cpu_utilization', 0),
+                            'hpa_detected': True,
+                            'hpa_cpu_target': hpa_workload.get('cpu_target', 0),
+                            'severity': 'critical' if hpa_workload.get('cpu_utilization', 0) > 200 else 'high',
+                            'source': 'hpa_high_cpu'
+                        }
+                        
+                        workload_data['all_workloads'].append(new_workload)
+                        if hpa_workload.get('cpu_utilization', 0) > 100:
+                            new_workload['high_cpu_reason'] = f"HPA detected: {hpa_workload.get('cpu_utilization', 0)}%"
+                            workload_data['high_cpu_pods'].append(new_workload)
+                            logger.info(f"🔥 NEW HPA HIGH CPU: {new_workload['namespace']}/{new_workload['name']} = {hpa_workload.get('cpu_utilization', 0)}%")
+                
+                logger.info(f"✅ Processed {len(high_cpu_workloads_from_hpa)} HPA high CPU workloads")
+            
+            # Recalculate totals after HPA integration
+            total_workloads = len(workload_data['all_workloads'])
+            high_cpu_count = len(workload_data['high_cpu_pods'])
+            
             if not workload_data['all_workloads']:
                 logger.warning("⚠️ No valid workload data parsed from pod metrics")
                 return workload_data  # Still return the structure
@@ -2336,8 +2299,10 @@ class AKSRealTimeMetricsFetcher:
             logger.info("📈 Collecting HPA performance metrics...")
             
             # Use text output instead of JSON to avoid truncation issues
-            hpa_cmd = "kubectl get hpa --all-namespaces --no-headers"
-            hpa_output = self.execute_kubectl_command(hpa_cmd)
+            # Get HPA no-headers data from cache
+            cache_data = self.cache.get_resource_usage_data()
+            hpa_output = cache_data.get('hpa_no_headers', '') or cache_data.get('hpa_text', '')
+            logger.info(f"📈 Using cached HPA text data for performance analysis")
             
             if not hpa_output:
                 logger.warning("⚠️ No HPA output received")
@@ -2494,19 +2459,129 @@ class AKSRealTimeMetricsFetcher:
             'top_memory_consumer': max(memory_values) if memory_values else 0
         }
 
+    def _process_hpa_high_cpu_data(self, hpa_high_cpu_output: str) -> List[Dict]:
+        """Process HPA high CPU data to extract high CPU workloads"""
+        high_cpu_workloads = []
+        
+        try:
+            if not hpa_high_cpu_output:
+                logger.info(f"🔍 DEBUG: No HPA high CPU output for cluster {self.cluster_name}")
+                return high_cpu_workloads
+            
+            # Filter out <none> values as the original command did with grep
+            hpa_lines = hpa_high_cpu_output.split('\n')
+            
+            # Debug: Check if customer-survey-genesis is in raw data
+            survey_lines = [line for line in hpa_lines if 'customer-survey-genesis' in line]
+            if survey_lines:
+                logger.info(f"🔍 DEBUG: Found {len(survey_lines)} customer-survey-genesis lines in raw HPA data")
+                for i, line in enumerate(survey_lines):
+                    logger.info(f"🔍 DEBUG: Raw line {i}: '{line}'")
+            else:
+                logger.info(f"🔍 DEBUG: No customer-survey-genesis lines found in raw HPA data")
+            
+            filtered_lines = [line for line in hpa_lines if '<none>' not in line and line.strip()]
+            logger.info(f"🔍 DEBUG: Cluster {self.cluster_name} - Processing {len(filtered_lines)} HPA lines (after filtering <none>)")
+            
+            # Debug: Check if customer-survey-genesis survives filtering
+            survey_filtered = [line for line in filtered_lines if 'customer-survey-genesis' in line]
+            if survey_filtered:
+                logger.info(f"🔍 DEBUG: Found {len(survey_filtered)} customer-survey-genesis lines after filtering")
+            else:
+                logger.info(f"🔍 DEBUG: No customer-survey-genesis lines found after filtering")
+            
+            for line in filtered_lines:
+                if line.strip() and not line.startswith('NAMESPACE'):
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        namespace = parts[0]
+                        name = parts[1]
+                        current_cpu = parts[2]
+                        target_cpu = parts[3]
+                        
+                        # Debug specific workload
+                        if 'customer-survey-genesis' in name:
+                            logger.info(f"🔍 DEBUG: Found customer-survey-genesis line: {line}")
+                            logger.info(f"🔍 DEBUG: Parts: {parts}")
+                            logger.info(f"🔍 DEBUG: current_cpu='{current_cpu}', target_cpu='{target_cpu}'")
+                        
+                        try:
+                            cpu_val = float(current_cpu)
+                            target_val = float(target_cpu) if target_cpu.replace('.', '').isdigit() else 0
+                            
+                            # Debug specific workload processing
+                            if 'customer-survey-genesis' in name:
+                                logger.info(f"🔍 DEBUG: Parsed cpu_val={cpu_val}, target_val={target_val}")
+                            
+                            # Consider any CPU > 100% as high CPU
+                            if cpu_val > 100:
+                                high_cpu_workloads.append({
+                                    'namespace': namespace,
+                                    'name': name,
+                                    'cpu_utilization': cpu_val,
+                                    'cpu_target': target_val
+                                })
+                                logger.info(f"🔥 HPA HIGH CPU DETECTED in {self.cluster_name}: {namespace}/{name} = {cpu_val}% (target: {target_val}%)")
+                            else:
+                                logger.debug(f"🔍 HPA Normal CPU in {self.cluster_name}: {namespace}/{name} = {cpu_val}% (target: {target_val}%)")
+                        except (ValueError, IndexError) as e:
+                            if 'customer-survey-genesis' in line:
+                                logger.error(f"❌ FAILED to parse customer-survey-genesis line: {line}, error: {e}")
+                            logger.debug(f"⚠️ Could not parse HPA line: {line}")
+                            continue
+            
+            logger.info(f"✅ Extracted {len(high_cpu_workloads)} high CPU workloads from HPA data for cluster {self.cluster_name}")
+            return high_cpu_workloads
+            
+        except Exception as e:
+            logger.error(f"❌ Error processing HPA high CPU data: {e}")
+            return high_cpu_workloads
+
+    def _calculate_max_cpu_utilization(self, hpa_metrics: Dict, pod_metrics: Dict) -> float:
+        """Calculate the maximum CPU utilization from all high CPU sources"""
+        max_cpu = 0.0
+        
+        # Check HPA high CPU workloads (these have cpu_utilization field)
+        hpa_high_cpu = hpa_metrics.get('high_cpu_hpas', [])
+        for workload in hpa_high_cpu:
+            cpu_val = workload.get('cpu_utilization', 0)
+            if cpu_val > max_cpu:
+                max_cpu = cpu_val
+        
+        # Check pod high CPU workloads (these might have different field names)
+        pod_high_cpu = pod_metrics.get('high_cpu_pods', [])
+        for workload in pod_high_cpu:
+            # Try multiple possible field names for CPU percentage
+            cpu_val = max(
+                workload.get('cpu_utilization', 0),
+                workload.get('hpa_cpu_utilization', 0),
+                workload.get('cpu_percentage', 0),
+                workload.get('current_cpu', 0)
+            )
+            if cpu_val > max_cpu:
+                max_cpu = cpu_val
+        
+        logger.info(f"🔍 CALCULATED MAX CPU: {max_cpu}% from {len(hpa_high_cpu)} HPA workloads and {len(pod_high_cpu)} pod workloads")
+        return max_cpu
+
     def debug_high_cpu_detection(self) -> Dict:
         """Debug method to specifically look for high CPU usage patterns"""
         try:
             logger.info("🔍 DEBUG: Specifically looking for high CPU usage patterns...")
             
-            # Get HPA metrics to find the specific pods
-            hpa_cmd = ('kubectl get hpa --all-namespaces -o custom-columns='
-                    '"NAMESPACE:.metadata.namespace,'
-                    'NAME:.metadata.name,'
-                    'CPU_CURRENT:.status.currentMetrics[0].resource.current.averageUtilization,'
-                    'CPU_TARGET:.spec.metrics[0].resource.target.averageUtilization" | grep -v "<none>"')
+            # Get HPA high CPU metrics from cache (with CPU_CURRENT and CPU_TARGET columns)
+            cache_data = self.cache.get_resource_usage_data()
+            hpa_high_cpu_output = cache_data.get('hpa_high_cpu', '')
             
-            hpa_output = self.execute_kubectl_command(hpa_cmd)
+            # Filter out <none> values as the original command did with grep
+            if hpa_high_cpu_output:
+                hpa_lines = hpa_high_cpu_output.split('\n')
+                filtered_lines = [line for line in hpa_lines if '<none>' not in line and line.strip()]
+                hpa_output = '\n'.join(filtered_lines)
+            else:
+                hpa_output = ''
+                
+            logger.info(f"🔍 Using cached HPA high CPU detection data ({len(hpa_output)} chars)")
             
             debug_info = {
                 'high_cpu_hpas': [],

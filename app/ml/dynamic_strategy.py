@@ -472,41 +472,36 @@ class EnhancedDynamicStrategyEngine:
     # ========================================================================
     
     def _extract_actual_savings(self, analysis_results: Optional[Dict]) -> float:
-        """Extract actual savings from analysis results for consistency"""
+        """Extract actual savings from analysis results for consistency - FIXED to prioritize detailed algorithmic calculations"""
         if not analysis_results:
             return 100.0  # Default fallback
         
         # Extract all available savings sources
         savings_sources = {
-            'hpa_efficiency': analysis_results.get('hpa_efficiency', 0),
-            'hpa_savings': analysis_results.get('hpa_savings', 0),
-            'hpa_reduction': analysis_results.get('hpa_reduction', 0),
             'total_savings': analysis_results.get('total_savings', 0),
-            'savings_potential': analysis_results.get('savings_potential', 0),
+            'hpa_savings': analysis_results.get('hpa_savings', 0),
             'right_sizing_savings': analysis_results.get('right_sizing_savings', 0),
+            'storage_savings': analysis_results.get('storage_savings', 0),
             'compute_savings': analysis_results.get('compute_savings', 0),
-            'storage_savings': analysis_results.get('storage_savings', 0)
+            'savings_potential': analysis_results.get('savings_potential', 0),
+            'hpa_reduction': analysis_results.get('hpa_reduction', 0),
+            'hpa_efficiency': analysis_results.get('hpa_efficiency', 0)
         }
         
-        # Calculate total actual savings
-        total_cost = analysis_results.get('total_cost', 1000)
+        # ONLY use detailed algorithmic analysis results (our fixes)
+        if savings_sources['total_savings'] > 0:
+            logger.info(f"✅ Using DETAILED algorithmic total_savings: ${savings_sources['total_savings']:.2f}")
+            return savings_sources['total_savings']
         
-        # If we have HPA efficiency percentage, convert to dollar savings
-        if savings_sources['hpa_efficiency'] > 0:
-            hpa_savings = (savings_sources['hpa_efficiency'] / 100) * total_cost
-            logger.info(f"🔄 Calculated HPA savings: ${hpa_savings:.2f} from {savings_sources['hpa_efficiency']:.1f}% efficiency")
-            return hpa_savings
+        # Use direct detailed savings values only
+        for source in ['hpa_savings', 'right_sizing_savings', 'storage_savings', 'compute_savings']:
+            if savings_sources[source] > 0:
+                logger.info(f"✅ Using DETAILED {source}: ${savings_sources[source]:.2f}")
+                return savings_sources[source]
         
-        # Otherwise use direct savings values
-        for source, value in savings_sources.items():
-            if value > 0:
-                logger.info(f"💰 Using {source}: ${value:.2f}")
-                return value
-        
-        # Dynamic fallback: Calculate savings based on cluster characteristics and industry standards
-        fallback_savings = self._calculate_dynamic_savings_potential(total_cost, cluster_dna, analysis_results)
-        logger.info(f"🔄 Using dynamic fallback savings: ${fallback_savings:.2f} based on cluster analysis")
-        return fallback_savings
+        # NO FALLBACKS: Return 0 if no detailed analysis available
+        logger.info("❌ No detailed algorithmic analysis found - returning 0 savings")
+        return 0.0
     
     def _calculate_dynamic_savings_potential(self, total_cost: float, cluster_dna, analysis_results: Dict) -> float:
         """Calculate savings potential based on cluster characteristics and Azure standards"""
@@ -1403,21 +1398,17 @@ class EnhancedOpportunityDetector:
             should_recommend_hpa = True
             
         if should_recommend_hpa:
-            # Calculate HPA savings potential from actual cluster data, not from existing savings
+            # FIXED: Use detailed algorithmic analysis results when available
             total_cost = analysis_results.get('total_cost', 1000) if analysis_results else 1000
             
-            # Base HPA savings potential: 15-25% of total cost for clusters with optimization potential
-            hpa_savings_potential = total_cost * 0.20  # 20% baseline for clusters with HPA hotspots
-            
-            # Adjust based on cluster DNA insights
-            if hasattr(cluster_dna, 'hpa_efficiency_percentage'):
-                current_hpa_efficiency = getattr(cluster_dna, 'hpa_efficiency_percentage', 50)
-                if current_hpa_efficiency < 70:  # Low efficiency = high potential
-                    hpa_savings_potential = total_cost * 0.25  # 25% potential
-                elif current_hpa_efficiency > 85:  # Already efficient = lower potential  
-                    hpa_savings_potential = total_cost * 0.10  # 10% potential
-            
-            hpa_savings = hpa_savings_potential
+            # ONLY use detailed HPA savings from algorithmic analysis (our fixes)
+            if analysis_results and analysis_results.get('hpa_savings', 0) > 0:
+                hpa_savings = analysis_results.get('hpa_savings')
+                logger.info(f"✅ Using DETAILED HPA savings from algorithmic analysis: ${hpa_savings:.2f}")
+            else:
+                # NO FALLBACK: Skip HPA opportunity if no detailed analysis available
+                logger.info("❌ No detailed HPA analysis found - skipping HPA opportunity")
+                continue
             
             # NEW: Adjust based on cluster config
             implementation_cost = 1500  # Base cost
@@ -1516,22 +1507,17 @@ class EnhancedOpportunityDetector:
             should_recommend_rightsizing = True
             
         if should_recommend_rightsizing:
-            # Calculate right-sizing savings potential from actual cluster data
+            # FIXED: Use detailed algorithmic analysis results when available
             total_cost = analysis_results.get('total_cost', 1000) if analysis_results else 1000
             
-            # Base right-sizing savings: 10-15% of total cost for over-provisioned clusters
-            rightsizing_savings_potential = total_cost * 0.12  # 12% baseline
-            
-            # Adjust based on cluster characteristics
-            if analysis_results:
-                # Higher savings potential if cluster has inefficient resource allocation
-                avg_utilization = analysis_results.get('average_cpu_utilization', 50)
-                if avg_utilization < 40:  # Low utilization = high right-sizing potential
-                    rightsizing_savings_potential = total_cost * 0.18  # 18% potential
-                elif avg_utilization > 75:  # High utilization = lower potential
-                    rightsizing_savings_potential = total_cost * 0.08  # 8% potential
-            
-            rightsizing_savings = rightsizing_savings_potential
+            # ONLY use detailed right-sizing savings from algorithmic analysis (our fixes)
+            if analysis_results and analysis_results.get('right_sizing_savings', 0) > 0:
+                rightsizing_savings = analysis_results.get('right_sizing_savings')
+                logger.info(f"✅ Using DETAILED right-sizing savings from algorithmic analysis: ${rightsizing_savings:.2f}")
+            else:
+                # NO FALLBACK: Skip right-sizing opportunity if no detailed analysis available
+                logger.info("❌ No detailed right-sizing analysis found - skipping right-sizing opportunity")
+                continue
             
             # NEW: Adjust based on cluster config
             implementation_cost = 800  # Base cost
