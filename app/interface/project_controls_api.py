@@ -314,41 +314,92 @@ def get_enterprise_metrics_sync():
         # Fallback: Calculate enterprise metrics synchronously
         logger.info("🔄 Calculating enterprise metrics synchronously...")
         
-        # Extract cluster info from analysis data
+        # First try to get cluster info from analysis data
+        resource_group = None
+        cluster_name = None
+        subscription_id = None
+        
         if analysis_data:
-            resource_group = analysis_data.get('resource_group', 'unknown')
-            cluster_name = analysis_data.get('cluster_name', 'unknown')
-            
-            # Find subscription using same method as implementation generator
+            resource_group = analysis_data.get('resource_group')
+            cluster_name = analysis_data.get('cluster_name')
+            logger.info(f"📊 Got cluster info from analysis data: {cluster_name} in {resource_group}")
+        
+        # If no analysis data, try to get cluster info directly from cluster manager
+        if not resource_group or not cluster_name:
+            logger.info("🔍 No analysis data available, getting cluster info directly from cluster manager...")
+            cluster_info = enhanced_cluster_manager.get_cluster(cluster_id)
+            if cluster_info:
+                resource_group = cluster_info.get('resource_group')
+                cluster_name = cluster_info.get('name')
+                subscription_id = cluster_info.get('subscription_id')
+                logger.info(f"📊 Got cluster info from cluster manager: {cluster_name} in {resource_group}")
+        
+        if not resource_group or not cluster_name:
+            return jsonify({
+                'status': 'error',
+                'message': f'Could not find cluster information for cluster_id: {cluster_id}. Please ensure cluster exists in the system.'
+            }), 404
+        
+        # Find subscription if not already available
+        if not subscription_id:
             from app.services.subscription_manager import azure_subscription_manager
             subscription_id = azure_subscription_manager.find_cluster_subscription(resource_group, cluster_name)
             
-            if subscription_id:
-                # Import and run enterprise metrics synchronously
-                from app.ml.ml_framework_generator import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
-                
-                metrics_engine = EnterpriseOperationalMetricsEngine(
-                    resource_group=resource_group,
-                    cluster_name=cluster_name,
-                    subscription_id=subscription_id
-                )
-                
-                integration = EnterpriseMetricsIntegration(metrics_engine)
-                
-                # Use asyncio.run for sync execution
-                dashboard_data = asyncio.run(integration.get_enterprise_dashboard_data())
-                
-                return jsonify({
-                    'status': 'success',
-                    'timestamp': datetime.now().isoformat(),
-                    'data': dashboard_data,
-                    'source': 'real_time_calculation'
-                })
-        
-        return jsonify({
-            'status': 'error',
-            'message': 'Could not determine cluster information for enterprise metrics'
-        }), 400
+        if not subscription_id:
+            return jsonify({
+                'status': 'error', 
+                'message': f'Could not find subscription for cluster {cluster_name} in resource group {resource_group}'
+            }), 404
+            
+        try:
+            # Import and run enterprise metrics synchronously
+            from app.ml.ml_framework_generator import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
+            
+            logger.info(f"🏢 Initializing enterprise metrics engine for {cluster_name} (RG: {resource_group}, Sub: {subscription_id[:8]})")
+            
+            metrics_engine = EnterpriseOperationalMetricsEngine(
+                resource_group=resource_group,
+                cluster_name=cluster_name,
+                subscription_id=subscription_id
+            )
+            
+            integration = EnterpriseMetricsIntegration(metrics_engine)
+            
+            # Use asyncio.run for sync execution
+            dashboard_data = asyncio.run(integration.get_enterprise_dashboard_data())
+            
+            logger.info(f"✅ Enterprise metrics calculated successfully for {cluster_name}")
+            
+            # Sanitize data for JSON serialization
+            sanitized_data = sanitize_for_json(dashboard_data)
+            
+            response_data = {
+                'status': 'success',
+                'timestamp': datetime.now().isoformat(),
+                'data': sanitized_data,
+                'source': 'real_time_calculation',
+                'cluster_info': {
+                    'cluster_name': cluster_name,
+                    'resource_group': resource_group,
+                    'subscription_id': subscription_id[:8]
+                }
+            }
+            
+            # Log successful response structure for debugging
+            logger.info(f"📊 Enterprise metrics response structure: data keys={list(sanitized_data.keys()) if isinstance(sanitized_data, dict) else type(sanitized_data)}")
+            
+            return jsonify(response_data)
+            
+        except Exception as calculation_error:
+            logger.error(f"❌ Enterprise metrics calculation failed for {cluster_name}: {calculation_error}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Enterprise metrics calculation failed: {str(calculation_error)}',
+                'cluster_info': {
+                    'cluster_name': cluster_name,
+                    'resource_group': resource_group
+                }
+            }), 500
         
     except Exception as e:
         logger.error(f"❌ Enterprise metrics sync error: {e}")

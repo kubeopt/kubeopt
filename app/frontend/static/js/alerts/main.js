@@ -759,7 +759,7 @@ function displayAlerts() {
                             <div class="alert-toggle-container">
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" class="sr-only peer" ${(alert.status || 'active') === 'active' ? 'checked' : ''} onchange="handleToggleAlert('${alert.id}', this.checked)">
-                                    <div style="width: 2.75rem; height: 1.5rem; background: ${(alert.status || 'active') === 'active' ? 'rgba(59, 130, 246, 0.9)' : 'rgba(107, 114, 128, 0.5)'}; border-radius: 9999px; position: relative;">
+                                    <div style="width: 2.75rem; height: 1.5rem; background: ${(alert.status || 'active') === 'active' ? 'rgb(22 28 50)' : 'rgba(107, 114, 128, 0.5)'}; border-radius: 9999px; position: relative;">
                                         <div style="position: absolute; top: 2px; left: ${(alert.status || 'active') === 'active' ? '22px' : '2px'}; width: 20px; height: 20px; background: white; border-radius: 50%;"></div>
                                     </div>
                                 </label>

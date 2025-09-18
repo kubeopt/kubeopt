@@ -55,6 +55,89 @@ if (!window.chartInstances) {
 
 // --- Content Panel Management ---
 
+function initializeSecurityDashboard() {
+    console.log('🔐 Initializing security dashboard...');
+    
+    // Check if security dashboard is already initialized
+    const securityContainer = document.getElementById('securityposture-content');
+    if (!securityContainer) {
+        console.error('Security posture container not found');
+        return;
+    }
+    
+    // If already has content, don't reinitialize
+    if (securityContainer.children.length > 0 && !securityContainer.innerHTML.includes('Security dashboard will be dynamically loaded here')) {
+        console.log('Security dashboard already initialized');
+        return;
+    }
+    
+    console.log('Creating new security dashboard instance...');
+    
+    // Initialize the enhanced security dashboard
+    if (window.SecurityPostureDashboard) {
+        try {
+            // Create new security dashboard instance
+            window.securityDashboard = new window.SecurityPostureDashboard();
+            console.log('✅ Security dashboard initialized successfully');
+        } catch (error) {
+            console.error('❌ Failed to initialize security dashboard:', error);
+            
+            // Fallback: create basic security content
+            securityContainer.innerHTML = `
+                <div class="flex items-center justify-center min-h-screen">
+                    <div class="text-center">
+                        <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                        <h3 class="text-xl font-semibold text-white mb-2">Loading Security Dashboard...</h3>
+                        <p class="text-slate-400">Initializing security posture analysis...</p>
+                    </div>
+                </div>
+            `;
+            
+            // Try to load security dashboard after a short delay
+            setTimeout(() => {
+                if (window.SecurityPostureDashboard) {
+                    try {
+                        window.securityDashboard = new window.SecurityPostureDashboard();
+                        console.log('✅ Security dashboard initialized on retry');
+                    } catch (retryError) {
+                        console.error('❌ Security dashboard initialization failed on retry:', retryError);
+                    }
+                }
+            }, 1000);
+        }
+    } else {
+        console.warn('⚠️ SecurityPostureDashboard class not available, showing loading state...');
+        
+        // Show loading state while waiting for security scripts to load
+        securityContainer.innerHTML = `
+            <div class="flex items-center justify-center min-h-screen">
+                <div class="text-center">
+                    <div class="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                    <h3 class="text-xl font-semibold text-white mb-2">Loading Security Components...</h3>
+                    <p class="text-slate-400">Please wait while security modules are loading...</p>
+                </div>
+            </div>
+        `;
+        
+        // Try to initialize when SecurityPostureDashboard becomes available
+        const checkForSecurityDashboard = setInterval(() => {
+            if (window.SecurityPostureDashboard) {
+                clearInterval(checkForSecurityDashboard);
+                try {
+                    window.securityDashboard = new window.SecurityPostureDashboard();
+                    console.log('✅ Security dashboard initialized after waiting for scripts');
+                } catch (error) {
+                    console.error('❌ Security dashboard initialization failed after waiting:', error);
+                }
+            }
+        }, 500);
+        
+        // Stop trying after 10 seconds
+        setTimeout(() => {
+            clearInterval(checkForSecurityDashboard);
+        }, 10000);
+    }
+}
 
 function showContent(contentType, element) {
     // Hide all content panels (expanded selector to include both classes)
@@ -73,6 +156,11 @@ function showContent(contentType, element) {
     if (targetPanel) {
         targetPanel.classList.remove('hidden');
         targetPanel.style.display = 'block';  // Explicitly set display block
+    }
+    
+    // Initialize security dashboard if security posture tab is selected
+    if (contentType === 'securityposture') {
+        initializeSecurityDashboard();
     }
     
     // Add active class to clicked nav link

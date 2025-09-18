@@ -187,3 +187,38 @@ class CoreOptimizationCommandGenerator:
             ))
         
         return commands
+    
+    def generate_networking_commands(self, analysis_results: Dict, variable_context: Dict) -> List[ExecutableCommand]:
+        """Generate networking optimization commands based on actual analysis data"""
+        commands = []
+        
+        # Extract networking savings from analysis results
+        networking_savings = analysis_results.get('networking_monthly_savings', 0)
+        networking_cost = analysis_results.get('networking_cost', 0)
+        
+        # Only generate networking commands if actual savings found
+        if networking_savings > 0:
+            # Network policy optimization
+            commands.append(ExecutableCommand(
+                command=f"kubectl get services -A -o wide",
+                description=f"Analyze networking configuration for ${networking_savings:.2f}/month optimization",
+                category="networking_optimization", 
+                priority_score=75,
+                savings_estimate=networking_savings * 0.3,  # Analysis provides 30% of savings
+                estimated_duration_minutes=10,
+                risk_level="low"
+            ))
+            
+            # Load balancer optimization if significant networking costs
+            if networking_cost > 100:  # If >$100/month in networking costs
+                commands.append(ExecutableCommand(
+                    command=f"az network lb list --resource-group {variable_context['resource_group']} --query '[].{{name:name,sku:sku.name,frontend:frontendIpConfigurations[].publicIpAddress.id}}'",
+                    description=f"Optimize load balancer configuration (${networking_savings * 0.7:.2f}/month potential)",
+                    category="networking_optimization",
+                    priority_score=80,
+                    savings_estimate=networking_savings * 0.7,
+                    estimated_duration_minutes=15,
+                    risk_level="medium"
+                ))
+        
+        return commands

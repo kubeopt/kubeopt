@@ -92,7 +92,12 @@ class SecurityIntegrationMixin:
                 logger.warning(f"Unsupported frameworks will be skipped: {invalid_frameworks}")
                 security_frameworks = [f for f in security_frameworks if f in self.SUPPORTED_FRAMEWORKS]
         else:
-            security_frameworks = ['CIS', 'NIST']  # Default frameworks
+            security_frameworks = ['CIS', 'NIST', 'SOC2']  # Default frameworks including SOC2
+        
+        # Ensure SOC2 is always included if supported
+        if 'SOC2' not in security_frameworks and 'SOC2' in self.SUPPORTED_FRAMEWORKS:
+            security_frameworks.append('SOC2')
+            logger.info("🔒 SOC2 compliance framework automatically added to analysis")
         
         if priority not in ['HIGH', 'MEDIUM', 'LOW']:
             logger.warning(f"Invalid priority '{priority}', using 'HIGH'")
@@ -264,10 +269,13 @@ class SecurityIntegrationMixin:
         
         logger.info("🔍 Performing comprehensive security analysis on real cluster data...")
         
+        # Initialize frameworks processed list
+        frameworks_processed = []
+        
         security_analysis = {
             'timestamp': datetime.now().isoformat(),
             'confidence': 0.0,
-            'frameworks_analyzed': security_frameworks,
+            'frameworks_analyzed': frameworks_processed,  # Will be updated after processing
             'based_on_real_data': True,
             'analysis_errors': []
         }
@@ -394,16 +402,26 @@ class SecurityIntegrationMixin:
         # Real compliance framework analysis
         try:
             compliance_results = {}
+            
             for framework in security_frameworks:
                 logger.info(f"📊 Analyzing {framework} compliance against real cluster state...")
                 
                 if not self.compliance_engine:
                     raise RuntimeError("Compliance engine not initialized")
                 
-                compliance_report = await self.compliance_engine.assess_framework_compliance(framework)
-                
-                if not compliance_report:
-                    logger.warning(f"Compliance assessment for {framework} returned empty result")
+                try:
+                    compliance_report = await self.compliance_engine.assess_framework_compliance(framework)
+                    
+                    if not compliance_report:
+                        logger.warning(f"Compliance assessment for {framework} returned empty result")
+                        continue
+                    
+                    frameworks_processed.append(framework)
+                    logger.info(f"✅ {framework} compliance assessment completed: {compliance_report.overall_compliance:.1f}%")
+                    
+                except Exception as framework_error:
+                    logger.error(f"❌ Failed to assess {framework} compliance: {framework_error}")
+                    logger.exception(f"Full {framework} assessment error details:")
                     continue
                 
                 control_assessment = getattr(compliance_report, 'control_assessment', [])

@@ -341,6 +341,18 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
                         except json.JSONDecodeError as e3:
                             logger.warning(f"⚠️ RAW_DATA: JSON repair failed: {e3}")
                             
+                            # Check if data appears to be truncated (common issue)
+                            if len(raw_data) > 500000:  # Large data that might be truncated
+                                logger.warning(f"⚠️ RAW_DATA: Large JSON ({len(raw_data)} chars) - trying truncation recovery")
+                                try:
+                                    # Try to find the last complete object and truncate there
+                                    truncated_data = self._attempt_truncation_recovery(raw_data)
+                                    parsed_data = json.loads(truncated_data)
+                                    logger.info("✅ RAW_DATA: Successfully parsed after truncation recovery")
+                                    return self._count_hpas_in_raw_data(parsed_data)
+                                except json.JSONDecodeError as e4:
+                                    logger.warning(f"⚠️ RAW_DATA: Truncation recovery failed: {e4}")
+                            
                             # Final fallback: Try to manually count HPA objects in the string
                             hpa_count = raw_data.count('"kind":"HorizontalPodAutoscaler"')
                             if hpa_count == 0:
@@ -430,6 +442,55 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
             
         except Exception as e:
             logger.warning(f"⚠️ JSON repair failed: {e}")
+            return json_string
+
+    def _attempt_truncation_recovery(self, json_string: str) -> str:
+        """
+        Attempt to recover from JSON truncation by finding last complete object
+        """
+        try:
+            # For Kubernetes List objects, try to find the last complete item
+            if '"kind":"List"' in json_string or '"kind": "List"' in json_string:
+                # Find the items array
+                items_start = json_string.find('"items":[') 
+                if items_start == -1:
+                    items_start = json_string.find('"items": [')
+                
+                if items_start > -1:
+                    # Find the last complete item by looking for complete HPA objects
+                    # Work backwards from the end to find the last complete '}' for an HPA
+                    last_hpa_end = -1
+                    search_pos = len(json_string) - 1
+                    
+                    # Look for HPA objects in reverse
+                    while search_pos > items_start:
+                        if json_string[search_pos] == '}':
+                            # Check if this could be the end of an HPA object
+                            # Look backwards for HorizontalPodAutoscaler
+                            test_start = max(0, search_pos - 2000)  # Check last 2000 chars
+                            test_section = json_string[test_start:search_pos+1]
+                            
+                            if '"kind":"HorizontalPodAutoscaler"' in test_section or '"kind": "HorizontalPodAutoscaler"' in test_section:
+                                last_hpa_end = search_pos
+                                break
+                        search_pos -= 1
+                    
+                    if last_hpa_end > items_start:
+                        # Reconstruct JSON ending with the last complete HPA
+                        truncated = json_string[:last_hpa_end+1] + ']}'
+                        logger.info(f"🔧 TRUNCATION: Recovered JSON ending at position {last_hpa_end}")
+                        return truncated
+            
+            # Fallback: just try to close the JSON properly
+            if json_string.endswith(','):
+                return json_string[:-1] + ']}'
+            elif not json_string.endswith('}'):
+                return json_string + ']}'
+            
+            return json_string
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Truncation recovery failed: {e}")
             return json_string
 
     def _search_for_hpas_in_config(self, config: dict) -> int:

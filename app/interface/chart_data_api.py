@@ -501,8 +501,8 @@ def _generate_cpu_workload_chart(high_cpu_workloads: list) -> Dict:
             {
                 'label': 'Target CPU %',
                 'data': target_utilizations,
-                'backgroundColor': 'rgba(46, 204, 113, 0.7)',
-                'borderColor': '#2ecc71',
+                'backgroundColor': 'rgba(30, 64, 175, 0.7)',
+                'borderColor': '#1E40AF',
                 'borderWidth': 2
             }
         ],

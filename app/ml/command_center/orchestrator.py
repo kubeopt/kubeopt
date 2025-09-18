@@ -44,50 +44,66 @@ class AKSOptimizationOrchestrator:
             core_commands.extend(self.core_generator.generate_rightsizing_commands(analysis_results, variable_context))
             core_commands.extend(self.core_generator.generate_node_optimization_commands(analysis_results, variable_context))
             core_commands.extend(self.core_generator.generate_storage_optimization_commands(analysis_results, variable_context))
+            core_commands.extend(self.core_generator.generate_networking_commands(analysis_results, variable_context))
             core_commands.extend(self.core_generator.generate_monitoring_commands(analysis_results, variable_context))
             all_commands.extend(core_commands)
         except Exception as e:
             logger.warning(f"Failed to generate core optimization commands: {e}")
         
-        # Cost management commands
-        try:
-            cost_data = self.cost_generator.extract_cost_data(analysis_results, cluster_dna, optimization_strategy)
-            cost_commands = self.cost_generator.generate_commands(cost_data, variable_context)
-            all_commands.extend(cost_commands)
-        except Exception as e:
-            logger.warning(f"Failed to generate cost commands: {e}")
+        # Only generate additional commands if there are significant savings or specific needs
+        total_core_savings = (
+            analysis_results.get('hpa_savings', 0) +
+            analysis_results.get('right_sizing_savings', 0) +
+            analysis_results.get('networking_monthly_savings', 0) +
+            analysis_results.get('storage_savings', 0)
+        )
         
-        # Maintenance commands
-        try:
-            maintenance_data = self.maintenance_generator.extract_maintenance_data(analysis_results, cluster_dna, optimization_strategy)
-            maintenance_commands = self.maintenance_generator.generate_commands(maintenance_data, variable_context)
-            all_commands.extend(maintenance_commands)
-        except Exception as e:
-            logger.warning(f"Failed to generate maintenance commands: {e}")
+        # Cost management commands (only if cost optimizations are significant)
+        if total_core_savings > 50:  # Only if meaningful savings
+            try:
+                cost_data = self.cost_generator.extract_cost_data(analysis_results, cluster_dna, optimization_strategy)
+                cost_commands = self.cost_generator.generate_commands(cost_data, variable_context)
+                all_commands.extend(cost_commands)
+                logger.info(f"🔄 Generated cost management commands (${total_core_savings:.2f} core savings)")
+            except Exception as e:
+                logger.warning(f"Failed to generate cost commands: {e}")
         
-        # Security commands
-        try:
-            security_data = self.security_generator.extract_security_data(analysis_results, cluster_dna, optimization_strategy)
-            security_commands = self.security_generator.generate_commands(security_data, variable_context)
-            all_commands.extend(security_commands)
-        except Exception as e:
-            logger.warning(f"Failed to generate security commands: {e}")
+        # Maintenance commands (only if cluster needs maintenance)
+        health_score = analysis_results.get('current_health_score', 100)
+        if health_score < 50:  # Only if cluster health is poor
+            try:
+                maintenance_data = self.maintenance_generator.extract_maintenance_data(analysis_results, cluster_dna, optimization_strategy)
+                maintenance_commands = self.maintenance_generator.generate_commands(maintenance_data, variable_context)
+                all_commands.extend(maintenance_commands)
+                logger.info(f"🔄 Generated maintenance commands (health score: {health_score})")
+            except Exception as e:
+                logger.warning(f"Failed to generate maintenance commands: {e}")
         
-        # Performance commands
-        try:
-            performance_data = self.performance_generator.extract_performance_data(analysis_results, cluster_dna, optimization_strategy)
-            performance_commands = self.performance_generator.generate_commands(performance_data, variable_context)
-            all_commands.extend(performance_commands)
-        except Exception as e:
-            logger.warning(f"Failed to generate performance commands: {e}")
+        # Security commands (only if security analysis shows issues)
+        security_score = analysis_results.get('security_analysis', {}).get('security_posture', {}).get('overall_score', 100)
+        if security_score < 70:  # Only if security needs improvement
+            try:
+                security_data = self.security_generator.extract_security_data(analysis_results, cluster_dna, optimization_strategy)
+                security_commands = self.security_generator.generate_commands(security_data, variable_context)
+                all_commands.extend(security_commands)
+                logger.info(f"🔄 Generated security commands (security score: {security_score})")
+            except Exception as e:
+                logger.warning(f"Failed to generate security commands: {e}")
         
-        # Addons commands
-        try:
-            addons_data = self.addons_generator.extract_addons_data(analysis_results, cluster_dna, optimization_strategy)
-            addons_commands = self.addons_generator.generate_commands(addons_data, variable_context)
-            all_commands.extend(addons_commands)
-        except Exception as e:
-            logger.warning(f"Failed to generate addons commands: {e}")
+        # Performance commands (only if performance issues detected)
+        avg_cpu = analysis_results.get('current_cpu_utilization', 0)
+        if avg_cpu > 80 or avg_cpu < 10:  # High utilization or severely underutilized
+            try:
+                performance_data = self.performance_generator.extract_performance_data(analysis_results, cluster_dna, optimization_strategy)
+                performance_commands = self.performance_generator.generate_commands(performance_data, variable_context)
+                all_commands.extend(performance_commands)
+                logger.info(f"🔄 Generated performance commands (CPU utilization: {avg_cpu}%)")
+            except Exception as e:
+                logger.warning(f"Failed to generate performance commands: {e}")
+        
+        # Skip addons commands unless explicitly needed (they often add unnecessary complexity)
+        # Addons should only be suggested if there are specific integration requirements
+        logger.info(f"ℹ️ Skipping addons commands (focus on core optimization findings only)")
         
         # Sort commands by priority score (highest first)
         all_commands.sort(key=lambda cmd: cmd.priority_score, reverse=True)

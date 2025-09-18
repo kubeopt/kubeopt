@@ -55,6 +55,24 @@ class ExecutableCommand:
             self.monitoring_metrics = []
         if self.variable_substitutions is None:
             self.variable_substitutions = {}
+    
+    def to_ui_format(self) -> Dict[str, Any]:
+        """Convert command to UI-friendly format showing only relevant fields"""
+        return {
+            'id': self.id or f"cmd-{hash(self.command) % 10000}",
+            'command': self.command,
+            'description': self.description,
+            'category': self.category,
+            'subcategory': self.subcategory or self.category,
+            'priority_score': self.priority_score,
+            'savings_estimate': round(self.savings_estimate, 2),
+            'estimated_duration_minutes': self.estimated_duration_minutes,
+            'risk_level': self.risk_level,
+            'expected_outcome': self.expected_outcome or f"Execute {self.category} optimization",
+            'prerequisites': self.prerequisites or [],
+            'validation_commands': self.validation_commands or [],
+            'rollback_commands': self.rollback_commands or []
+        }
 
 @dataclass
 class ComprehensiveExecutionPlan:
@@ -100,3 +118,37 @@ class ComprehensiveExecutionPlan:
     def total_effort_hours(self) -> float:
         """Alias for total_timeline_hours for compatibility"""
         return self.total_timeline_hours
+    
+    def to_ui_format(self) -> Dict[str, Any]:
+        """Convert execution plan to UI-friendly format with properly formatted commands"""
+        
+        def convert_commands_list(commands: List[ExecutableCommand]) -> List[Dict[str, Any]]:
+            """Convert list of ExecutableCommand objects to UI format"""
+            return [cmd.to_ui_format() for cmd in commands] if commands else []
+        
+        return {
+            'plan_id': self.plan_id,
+            'cluster_name': self.cluster_name,
+            'resource_group': self.resource_group,
+            'strategy_name': self.strategy_name,
+            'total_estimated_minutes': self.total_estimated_minutes,
+            'total_timeline_hours': self.total_timeline_hours,
+            'total_timeline_weeks': self.total_timeline_weeks,
+            'success_probability': self.success_probability,
+            'estimated_savings': round(self.estimated_savings, 2),
+            'commands_by_category': {
+                'preparation': convert_commands_list(self.preparation_commands),
+                'optimization': convert_commands_list(self.optimization_commands),
+                'networking': convert_commands_list(self.networking_commands),
+                'security': convert_commands_list(self.security_commands),
+                'monitoring': convert_commands_list(self.monitoring_commands),
+                'validation': convert_commands_list(self.validation_commands),
+                'rollback': convert_commands_list(self.rollback_commands)
+            },
+            'phase_commands': {
+                phase_name: convert_commands_list(commands) 
+                for phase_name, commands in (self.phase_commands or {}).items()
+            } if self.phase_commands else {},
+            'cluster_intelligence': self.cluster_intelligence or {},
+            'subscription_id': self.subscription_id
+        }

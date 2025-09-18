@@ -1401,14 +1401,28 @@ class EnhancedOpportunityDetector:
             # FIXED: Use detailed algorithmic analysis results when available
             total_cost = analysis_results.get('total_cost', 1000) if analysis_results else 1000
             
+            # DEBUG: Log what's actually received to diagnose the root cause
+            if analysis_results:
+                hpa_value = analysis_results.get('hpa_savings', 'MISSING')
+                total_value = analysis_results.get('total_savings', 'MISSING')
+                available_keys = [k for k in analysis_results.keys() if 'savings' in k.lower()]
+                logger.info(f"🔍 DEBUG: hpa_savings={hpa_value}, total_savings={total_value}")
+                logger.info(f"🔍 DEBUG: Available savings keys: {available_keys}")
+            
             # ONLY use detailed HPA savings from algorithmic analysis (our fixes)
             if analysis_results and analysis_results.get('hpa_savings', 0) > 0:
                 hpa_savings = analysis_results.get('hpa_savings')
                 logger.info(f"✅ Using DETAILED HPA savings from algorithmic analysis: ${hpa_savings:.2f}")
             else:
-                # NO FALLBACK: Skip HPA opportunity if no detailed analysis available
-                logger.info("❌ No detailed HPA analysis found - skipping HPA opportunity")
-                continue
+                # DEBUG: Show exactly why we're skipping
+                if not analysis_results:
+                    logger.error("❌ No analysis_results provided to dynamic strategy")
+                else:
+                    hpa_val = analysis_results.get('hpa_savings', 'MISSING')
+                    logger.error(f"❌ HPA savings not valid: hpa_savings={hpa_val}")
+                
+                logger.error("❌ No detailed HPA analysis found - skipping HPA opportunity")
+                return opportunities
             
             # NEW: Adjust based on cluster config
             implementation_cost = 1500  # Base cost
@@ -1510,14 +1524,25 @@ class EnhancedOpportunityDetector:
             # FIXED: Use detailed algorithmic analysis results when available
             total_cost = analysis_results.get('total_cost', 1000) if analysis_results else 1000
             
+            # DEBUG: Log what's actually received for right-sizing
+            if analysis_results:
+                rs_value = analysis_results.get('right_sizing_savings', 'MISSING')
+                logger.info(f"🔍 DEBUG RIGHT-SIZING: right_sizing_savings={rs_value}")
+            
             # ONLY use detailed right-sizing savings from algorithmic analysis (our fixes)
             if analysis_results and analysis_results.get('right_sizing_savings', 0) > 0:
                 rightsizing_savings = analysis_results.get('right_sizing_savings')
                 logger.info(f"✅ Using DETAILED right-sizing savings from algorithmic analysis: ${rightsizing_savings:.2f}")
             else:
-                # NO FALLBACK: Skip right-sizing opportunity if no detailed analysis available
-                logger.info("❌ No detailed right-sizing analysis found - skipping right-sizing opportunity")
-                continue
+                # DEBUG: Show exactly why we're skipping right-sizing
+                if not analysis_results:
+                    logger.error("❌ No analysis_results provided for right-sizing")
+                else:
+                    rs_val = analysis_results.get('right_sizing_savings', 'MISSING')
+                    logger.error(f"❌ Right-sizing savings not valid: right_sizing_savings={rs_val}")
+                
+                logger.error("❌ No detailed right-sizing analysis found - skipping right-sizing opportunity")
+                return opportunities
             
             # NEW: Adjust based on cluster config
             implementation_cost = 800  # Base cost
