@@ -313,59 +313,17 @@ class EnterpriseOperationalMetricsEngine:
             logger.warning(f"⚠️ Cluster health check error for {self.cluster_name}: {e}")
             return False
     
-    def _create_degraded_assessment(self, reason: str) -> EnterpriseMaturityAssessment:
-        """Create assessment with degraded metrics when cluster data unavailable"""
-        config = _load_environment_config()
-        environments = config.get("environments", {})
-        env_baseline = environments.get(self.cluster_environment, environments.get(config.get("default_environment", "development"), {}))
-        
-        # Provide conservative estimates based on environment type
-        base_score = 60 if self.cluster_environment == "production" else 50
-        
-        degraded_metrics = []
-        metric_names = ["Kubernetes Upgrade Readiness", "Disaster Recovery Score", "Operational Maturity", 
-                       "Capacity Planning Score", "Compliance Readiness", "Team Velocity"]
-        
-        for metric_name in metric_names:
-            degraded_metrics.append(OperationalMetric(
-                metric_name=metric_name,
-                score=base_score,
-                risk_level="UNKNOWN",
-                details={"degraded_reason": reason, "cluster_environment": self.cluster_environment},
-                recommendations=[f"Retry analysis when cluster connectivity improves", 
-                               f"Check Azure AKS cluster {self.cluster_name} status"],
-                benchmark_source=f"Degraded Assessment - {reason}",
-                calculated_at=datetime.now()
-            ))
-        
-        return EnterpriseMaturityAssessment(
-            cluster_id=f"{self.resource_group}_{self.cluster_name}",
-            cluster_name=self.cluster_name,
-            resource_group=self.resource_group,
-            environment=self.cluster_environment,
-            overall_score=base_score,
-            maturity_level="UNKNOWN",
-            metrics=degraded_metrics,
-            recommendations=[
-                f"Cluster connectivity issues prevented full analysis",
-                f"Retry when Azure AKS API is stable",
-                f"Check cluster {self.cluster_name} status in Azure portal"
-            ],
-            assessment_timestamp=datetime.now(),
-            benchmark_compliance={
-                "cis_controls": base_score,
-                "environment_standards": base_score
-            }
-        )
+    # REMOVED: _create_degraded_assessment - NO FAKE DATA ALLOWED
+    # Enterprise metrics must use real data or fail properly
 
     async def calculate_comprehensive_enterprise_metrics(self) -> EnterpriseMaturityAssessment:
         """Calculate all enterprise operational metrics using real data"""
         logger.info(f"🔍 Starting comprehensive enterprise metrics calculation for {self.cluster_name} (RG: {self.resource_group}, Sub: {self.subscription_id[:8]})")
         
-        # Check cluster connectivity before analysis
+        # Check cluster connectivity before analysis - FAIL if not accessible
         if not await self._check_cluster_health():
-            logger.warning(f"⚠️ Cluster {self.cluster_name} connectivity issues - providing degraded metrics")
-            return self._create_degraded_assessment("Cluster connectivity issues")
+            logger.error(f"❌ CRITICAL: Cluster {self.cluster_name} is not accessible")
+            raise ConnectionError(f"Cluster {self.cluster_name} is not accessible. Check cluster status and kubectl configuration.")
         
         # Gather all required cluster data with enhanced reliability
         cluster_data = await self._gather_cluster_data()
@@ -589,7 +547,7 @@ class EnterpriseOperationalMetricsEngine:
             
         except Exception as e:
             logger.error(f"❌ Upgrade readiness calculation failed: {e}")
-            return self._create_error_metric("Kubernetes Upgrade Readiness", str(e))
+            raise RuntimeError(f"Kubernetes upgrade readiness calculation failed: {e}")
 
     async def _calculate_disaster_recovery_score(self, cluster_data: Dict) -> OperationalMetric:
         """Calculate disaster recovery score based on backup coverage and snapshot capabilities"""
@@ -698,7 +656,7 @@ class EnterpriseOperationalMetricsEngine:
             
         except Exception as e:
             logger.error(f"❌ DR score calculation failed: {e}")
-            return self._create_error_metric("Disaster Recovery Score", str(e))
+            raise RuntimeError(f"Disaster recovery score calculation failed: {e}")
 
     async def _calculate_operational_maturity(self, cluster_data: Dict) -> OperationalMetric:
         """Calculate operational maturity using DORA metrics and GitOps assessment"""
@@ -745,12 +703,18 @@ class EnterpriseOperationalMetricsEngine:
             # Determine maturity level using DORA benchmarks
             maturity_level = self._determine_dora_maturity_level(deployment_frequency, change_failure_rate)
             
+            # DEBUG: Log intermediate values
+            logger.info(f"🔍 Operational Maturity DEBUG: gitops_tools={gitops_tools}, ci_cd_tools={ci_cd_tools}, deployment_frequency={deployment_frequency}, change_failure_rate={change_failure_rate}")
+            
             # Calculate operational maturity score
             gitops_score = 100 if gitops_tools else 50 if ci_cd_tools else 0
             dora_score = self._calculate_dora_score(deployment_frequency, change_failure_rate)
             automation_score = 80 if gitops_tools and ci_cd_tools else 40 if gitops_tools or ci_cd_tools else 0
             
             overall_score = (gitops_score * 0.4) + (dora_score * 0.4) + (automation_score * 0.2)
+            
+            # DEBUG: Log score calculation
+            logger.info(f"🔍 Operational Maturity SCORES: gitops={gitops_score}, dora={dora_score}, automation={automation_score}, final={overall_score}")
             
             risk_level = "OPTIMAL" if overall_score >= 81 else "ACCEPTABLE" if overall_score >= 61 else "NEEDS_ATTENTION" if overall_score >= 41 else "CRITICAL"
             
@@ -781,7 +745,7 @@ class EnterpriseOperationalMetricsEngine:
             
         except Exception as e:
             logger.error(f"❌ Operational maturity calculation failed: {e}")
-            return self._create_error_metric("Operational Maturity", str(e))
+            raise RuntimeError(f"Operational maturity calculation failed: {e}")
 
     async def _calculate_capacity_planning_score(self, cluster_data: Dict) -> OperationalMetric:
         """Calculate capacity planning score using growth rate analysis"""
@@ -801,18 +765,10 @@ class EnterpriseOperationalMetricsEngine:
             # Debug logging to understand data availability
             logger.info(f"📊 Capacity analysis: {len(nodes)} nodes, {len(pods)} running pods")
             
-            # Graceful degradation for missing data
+            # FAIL PROPERLY for missing critical data - NO FAKE SCORES
             if len(nodes) == 0:
-                logger.warning("⚠️ No nodes data - Azure AKS API may be throttling. Using fallback scoring.")
-                return OperationalMetric(
-                    metric_name="Capacity Planning",
-                    score=50,  # Neutral score when data unavailable
-                    risk_level="UNKNOWN",
-                    details={"error": "Node data unavailable due to Azure AKS API issues"},
-                    recommendations=["Retry analysis when Azure AKS API is available"],
-                    benchmark_source="Fallback scoring - Azure AKS API unavailable",
-                    calculated_at=datetime.now()
-                )
+                logger.error("❌ CRITICAL: No nodes data available - cannot calculate capacity planning")
+                raise ValueError("No nodes data available for capacity planning. Ensure cluster is accessible and kubectl commands work properly.")
             
             if len(pods) == 0:
                 logger.warning("⚠️ No running pods found - checking raw cluster data...")
@@ -966,12 +922,9 @@ class EnterpriseOperationalMetricsEngine:
                                             logger.warning(f"⚠️ Failed to parse node usage line '{line}': {e}")
                         
                         elif 'items' in node_usage_data:
-                            # Structured dict format (with or without text_parsed flag)
-                            logger.info("📊 kubectl top returned structured format, using node capacity for estimation")
-                            # Estimate 15% CPU usage, 25% memory usage as reasonable defaults for active clusters
-                            total_actual_cpu = total_allocatable_cpu * 0.15
-                            total_actual_memory = total_allocatable_memory * 0.25
-                            logger.info(f"📊 Estimated usage based on capacity: CPU: {total_actual_cpu:.2f}, Memory: {total_actual_memory/1024**3:.2f}GB")
+                            # Structured dict format but no actual metrics data available
+                            logger.error("❌ CRITICAL: kubectl top returned structured format but no actual usage metrics available")
+                            raise ValueError("Metrics server data unavailable - cannot calculate real resource utilization")
                         
                         else:
                             logger.warning(f"⚠️ kubectl top dict format not recognized: {list(node_usage_data.keys())}")
@@ -1006,6 +959,9 @@ class EnterpriseOperationalMetricsEngine:
             # Calculate score using industry-standard capacity planning models
             import numpy as np
             from scipy import stats
+            
+            # DEBUG: Log resource calculation values
+            logger.info(f"🔍 Capacity Planning DEBUG: nodes={len(nodes)}, pods={len(pods)}, total_requested_cpu={total_requested_cpu}, total_requested_memory={total_requested_memory}, total_allocatable_cpu={total_allocatable_cpu}, total_allocatable_memory={total_allocatable_memory}")
             
             if total_requested_cpu == 0 and total_requested_memory == 0:
                 # No resource governance = critical compliance failure
@@ -1093,7 +1049,7 @@ class EnterpriseOperationalMetricsEngine:
             
         except Exception as e:
             logger.error(f"❌ Capacity planning calculation failed: {e}")
-            return self._create_error_metric("Capacity Planning", str(e))
+            raise RuntimeError(f"Capacity planning calculation failed: {e}")
 
     async def _calculate_compliance_readiness(self, cluster_data: Dict) -> OperationalMetric:
         """Calculate compliance readiness using CIS Kubernetes benchmark controls"""
@@ -1172,6 +1128,9 @@ class EnterpriseOperationalMetricsEngine:
                     elif control == "secrets_management":
                         recommendations.append("Move secrets from environment variables to mounted volumes")
             
+            # DEBUG: Log compliance calculation results
+            logger.info(f"🔍 Compliance Readiness DEBUG: total_score={total_score}, scores={scores}, critical_issues={critical_issues}")
+            
             return OperationalMetric(
                 metric_name="Compliance Readiness",
                 score=total_score,
@@ -1199,7 +1158,7 @@ class EnterpriseOperationalMetricsEngine:
             
         except Exception as e:
             logger.error(f"❌ Compliance readiness calculation failed: {e}")
-            return self._create_error_metric("Compliance Readiness", str(e))
+            raise RuntimeError(f"Compliance readiness calculation failed: {e}")
 
     async def _calculate_team_velocity(self, cluster_data: Dict) -> OperationalMetric:
         """Calculate team velocity using workload delivery and release metrics"""
@@ -1226,6 +1185,9 @@ class EnterpriseOperationalMetricsEngine:
             
             # Calculate velocity score based on release patterns
             velocity_score = self._calculate_velocity_score(release_frequency, deployment_churn_rate, pod_restart_rate, len(deployments))
+            
+            # DEBUG: Log the intermediate values to understand why score is zero
+            logger.info(f"🔍 Team Velocity DEBUG: release_freq={release_frequency}, churn_rate={deployment_churn_rate}, restart_rate={pod_restart_rate}, deployments_count={len(deployments)}, final_score={velocity_score}")
             
             risk_level = "OPTIMAL" if velocity_score >= 81 else "ACCEPTABLE" if velocity_score >= 61 else "NEEDS_ATTENTION" if velocity_score >= 41 else "CRITICAL"
             
@@ -1262,7 +1224,7 @@ class EnterpriseOperationalMetricsEngine:
             
         except Exception as e:
             logger.error(f"❌ Team velocity calculation failed: {e}")
-            return self._create_error_metric("Team Velocity", str(e))
+            raise RuntimeError(f"Team velocity calculation failed: {e}")
 
     # Helper methods for calculations
     
@@ -1873,7 +1835,9 @@ class EnterpriseOperationalMetricsEngine:
     
     def _calculate_release_frequency(self, deployments: List[Dict]) -> float:
         """Calculate release frequency from deployment updates and rollouts (environment-aware window)"""
+        logger.info(f"🔍 DEBUG: Release frequency calculation - received {len(deployments) if deployments else 0} deployments")
         if not deployments:
+            logger.warning(f"⚠️ No deployments found for release frequency calculation in {self.cluster_name}")
             return 0
             
         # Use environment-aware analysis window
@@ -2186,7 +2150,7 @@ class EnterpriseOperationalMetricsEngine:
                     runway_estimates.append(days_to_90)
         
         if not runway_estimates:
-            return 30  # Conservative fallback
+            raise ValueError("Cannot calculate capacity runway - no valid growth data available")
         
         # Use median estimate for robustness
         median_runway = int(np.median(runway_estimates))
@@ -2246,17 +2210,7 @@ class EnterpriseOperationalMetricsEngine:
         else:
             return "AD-HOC"
     
-    def _create_error_metric(self, metric_name: str, error_msg: str) -> OperationalMetric:
-        """Create error metric for failed calculations"""
-        return OperationalMetric(
-            metric_name=metric_name,
-            score=0,
-            risk_level="CRITICAL",
-            details={"error": error_msg},
-            recommendations=[f"Fix data collection for {metric_name}"],
-            benchmark_source="N/A - Error",
-            calculated_at=datetime.now()
-        )
+    # REMOVED: _create_error_metric - NO FAKE ZERO SCORES ALLOWED
 
     # Export and reporting methods
     
@@ -2280,16 +2234,43 @@ class EnterpriseOperationalMetricsEngine:
         }
     
     def _get_top_recommendations(self, metrics: List[OperationalMetric]) -> List[str]:
-        """Get top 5 recommendations across all metrics"""
-        all_recommendations = []
-        for metric in metrics:
-            for rec in metric.recommendations:
-                all_recommendations.append(f"[{metric.metric_name}] {rec}")
+        """Get prioritized action items based on actual findings and business impact"""
+        priority_actions = []
         
-        # Sort by metric risk level and return top 5
-        sorted_recs = sorted(all_recommendations, 
-                           key=lambda x: metrics[[m.metric_name for m in metrics].index(x.split(']')[0][1:])].score)
-        return sorted_recs[:5]
+        # Priority 1: CRITICAL security and compliance issues
+        compliance_metric = next((m for m in metrics if "compliance" in m.metric_name.lower()), None)
+        if compliance_metric and compliance_metric.score < 60:
+            critical_issues = compliance_metric.details.get('critical_issues', [])
+            if critical_issues:
+                priority_actions.append(f"🚨 CRITICAL: Fix {len(critical_issues)} security violations: {', '.join(critical_issues[:2])}")
+        
+        # Priority 2: Resource governance (affects cost and stability)
+        capacity_metric = next((m for m in metrics if "capacity" in m.metric_name.lower()), None)
+        if capacity_metric and capacity_metric.details.get('requested_cpu_cores', 0) == 0:
+            priority_actions.append("🚨 CRITICAL: Add resource requests to all workloads - no resource governance detected")
+        
+        # Priority 3: Disaster recovery (data protection)
+        disaster_metric = next((m for m in metrics if "disaster" in m.metric_name.lower()), None)
+        if disaster_metric and disaster_metric.details.get('backup_solution_count', 0) == 0:
+            priority_actions.append("🔴 HIGH: Deploy backup solution (Velero) - no data protection found")
+        
+        # Priority 4: Kubernetes upgrade blockers
+        upgrade_metric = next((m for m in metrics if "upgrade" in m.metric_name.lower()), None)
+        if upgrade_metric:
+            deprecated_apis = upgrade_metric.details.get('deprecated_api_count', 0)
+            if deprecated_apis > 0:
+                priority_actions.append(f"🟡 MEDIUM: Update {deprecated_apis} deprecated APIs before Kubernetes upgrade")
+        
+        # Priority 5: Operational maturity issues
+        ops_metric = next((m for m in metrics if "operational" in m.metric_name.lower()), None)
+        if ops_metric and ops_metric.details.get('deployment_frequency_per_day', 0) < 0.1:
+            priority_actions.append("🟡 MEDIUM: Implement GitOps/CI-CD pipeline - manual deployments detected")
+        
+        # If no specific issues found, indicate good state
+        if not priority_actions:
+            priority_actions.append("✅ No critical issues detected - cluster appears well-configured")
+        
+        return priority_actions[:5]  # Max 5 items
     
     def _generate_compliance_status(self, metrics: List[OperationalMetric]) -> Dict[str, str]:
         """Generate compliance status summary"""

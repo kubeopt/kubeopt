@@ -34,6 +34,7 @@
     <script src="{{ url_for('static', filename='js/security/charts.js') }}"></script>
     <script src="{{ url_for('static', filename='js/security/security-data-manager.js') }}"></script>
     <script src="{{ url_for('static', filename='js/security/security-ui-renderer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/security/security.js') }}"></script>
 
     
     <!-- <script src="{{ url_for('static', filename='js/magic.js') }}"></script> -->
@@ -532,7 +533,7 @@
                         </div>
 
                         <!-- Main Content -->
-                        <div id="enterprise-main-content" class="hidden">
+                        <div id="enterprise-main-content" class="block">
                             
 
                             <!-- Metrics Grid -->
@@ -671,7 +672,7 @@
                                             </div>
                                             Alerts Management
                                         </h2>
-                            <button onclick="showCreateAlertModal()" style="background: rgba(59, 130, 246, 0.9); color: white; padding: 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); font-weight: 500;">
+                            <button onclick="showCreateAlertModal()" style="background: rgb(23 29 52); color: white; padding: 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); font-weight: 500;">
                                 <i class="fas fa-plus text-lg"></i>
                             </button>
                                     </div>
@@ -679,7 +680,7 @@
                                     <!-- Tab Navigation -->
                                     <div style="border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 1.5rem;">
                                         <nav class="flex space-x-8" style="margin-bottom: -1px;">
-                                            <button onclick="switchAlertsTab('alerts')" id="alerts-tab-btn" class="alerts-tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-400 hover:text-white active" style="border-bottom: 2px solid rgba(59, 130, 246, 0.9); color: white;">
+                                            <button onclick="switchAlertsTab('alerts')" id="alerts-tab-btn" class="alerts-tab-button py-2 px-1 border-b-2 border-transparent font-medium text-sm text-gray-400 hover:text-white active" style="border-bottom: 2px solid rgb(22 28 50); color: white;">
                                                 All Alerts
                                                 <span class="ml-2 text-xs px-2 py-1 rounded" style="background: rgba(59, 130, 246, 0.2); color: rgb(147, 197, 253);" id="total-alerts-count">0</span>
                                             </button>

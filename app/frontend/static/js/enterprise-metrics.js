@@ -39,6 +39,8 @@ class EnterpriseMetricsManager {
         try {
             // Get cluster information from current page context
             const clusterId = this.getClusterIdFromUrl();
+            console.log(`🔍 Loading metrics for cluster: ${clusterId}`);
+            
             const response = await fetch(`/api/enterprise-metrics?cluster_id=${clusterId}`, {
                 method: 'GET',
                 headers: {
@@ -47,13 +49,24 @@ class EnterpriseMetricsManager {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
             }
 
             const result = await response.json();
+            console.log('📊 API Response:', result);
             
             if (result.status === 'error') {
                 throw new Error(result.message || 'Failed to load enterprise metrics');
+            }
+
+            if (!result.data) {
+                throw new Error('No data received from enterprise metrics API');
+            }
+
+            // Validate that we have the expected data structure
+            if (!result.data.operational_metrics) {
+                console.warn('⚠️ No operational metrics in response, but will try to render anyway');
             }
 
             this.currentData = result.data;
@@ -62,10 +75,33 @@ class EnterpriseMetricsManager {
             this.showMainContent();
 
             console.log('✅ Enterprise metrics loaded successfully');
+            console.log('📊 Data structure:', {
+                hasEnterpriseMaturity: !!result.data.enterprise_maturity,
+                hasOperationalMetrics: !!result.data.operational_metrics,
+                metricsCount: result.data.operational_metrics ? Object.keys(result.data.operational_metrics).length : 0,
+                hasActionItems: !!result.data.action_items,
+                source: result.source
+            });
+            
+            // Debug metric scores to identify zero values
+            if (result.data.operational_metrics) {
+                console.log('🔍 Metric Scores Debug:');
+                Object.entries(result.data.operational_metrics).forEach(([key, metric]) => {
+                    console.log(`  ${key}: score=${metric.score}, details type=${typeof metric.details}`);
+                    if (metric.score === 0) {
+                        console.warn(`⚠️ Zero score for ${key}:`, metric);
+                    }
+                    if (typeof metric.details === 'string') {
+                        console.error(`❌ String details for ${key}:`, metric.details.substring(0, 100));
+                    }
+                });
+            }
 
         } catch (error) {
             console.error('❌ Failed to load enterprise metrics:', error);
-            this.showError(error.message);
+            
+            // NO AUTOMATIC FALLBACKS - Show the real error
+            this.showError(`Failed to load enterprise metrics: ${error.message}`);
             this.hideLoading();
         }
     }
@@ -114,6 +150,10 @@ class EnterpriseMetricsManager {
         const card = document.querySelector(`[data-metric="${metricKey}"]`);
         if (!card) return;
 
+        // Make entire card clickable for better UX
+        card.style.cursor = 'pointer';
+        card.onclick = () => this.showMetricDetails(metricKey, data);
+
         // Update score with context and trend
         const scoreEl = card.querySelector('.metric-score');
         if (scoreEl) {
@@ -138,18 +178,23 @@ class EnterpriseMetricsManager {
                 <div class="mt-3 pt-2 border-t border-gray-600">
                     <button class="view-metric-report text-blue-400 hover:text-blue-300 text-xs font-medium" 
                             data-metric-key="${metricKey}">
-                        📄 View Full Report →
+                        📄 Click card for detailed analysis →
                     </button>
                 </div>
             `;
             detailsEl.innerHTML = detailsHtml + viewReportLink;
-            
-            // Add event listener to the button
-            const reportBtn = detailsEl.querySelector('.view-metric-report');
-            if (reportBtn) {
-                reportBtn.addEventListener('click', () => this.showMetricDetails(metricKey, data));
-            }
         }
+
+        // Add hover effects
+        card.addEventListener('mouseenter', () => {
+            card.style.transform = 'translateY(-2px)';
+            card.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.4)';
+        });
+        
+        card.addEventListener('mouseleave', () => {
+            card.style.transform = 'translateY(0)';
+            card.style.boxShadow = '';
+        });
     }
 
     formatMetricDetails(details) {
@@ -449,56 +494,106 @@ class EnterpriseMetricsManager {
 
     showMetricDetails(metricKey, data) {
         const metricName = data.metric_name || metricKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const score = Math.round(data.score);
+        const riskLevel = data.risk_level || 'UNKNOWN';
         
-        // Create detailed modal content
+        // Get detailed insights based on metric type
+        const insights = this.getMetricInsights(metricKey, data);
+        
+        // Create comprehensive modal content
         const modalHtml = `
-            <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="metric-details-modal">
-                <div class="bg-gray-800 rounded-lg p-6 max-w-4xl max-h-96 overflow-y-auto m-4">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-xl font-bold text-white">📊 ${metricName} - Detailed Report</h2>
+            <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" id="metric-details-modal">
+                <div class="bg-gray-800 rounded-xl p-8 max-w-6xl max-h-[90vh] overflow-y-auto m-4 border border-gray-600">
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <h2 class="text-2xl font-bold text-white mb-2">📊 ${metricName}</h2>
+                            <p class="text-gray-400">Enterprise Operational Intelligence Report</p>
+                        </div>
                         <button onclick="document.getElementById('metric-details-modal').remove()" 
-                                class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                                class="text-gray-400 hover:text-white text-3xl font-bold leading-none">&times;</button>
                     </div>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Score Summary -->
-                        <div class="bg-gray-700 rounded-lg p-4">
-                            <h3 class="font-semibold text-white mb-3">📈 Score Summary</h3>
-                            <div class="space-y-2 text-sm">
-                                <div class="flex justify-between">
-                                    <span class="text-gray-300">Overall Score:</span>
-                                    <span class="font-bold ${this.getRiskLevelColor(data.risk_level)}">${Math.round(data.score)}/100</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-300">Risk Level:</span>
-                                    <span class="font-bold ${this.getRiskLevelColor(data.risk_level)}">${data.risk_level}</span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-300">Benchmark:</span>
-                                    <span class="text-gray-300">${data.benchmark_source || 'Industry Standards'}</span>
-                                </div>
-                            </div>
+                    <!-- Score Header -->
+                    <div class="bg-gradient-to-r from-blue-900 to-purple-900 rounded-lg p-6 mb-6 text-center">
+                        <div class="text-6xl font-bold ${this.getScoreColor(score)} mb-2">${score}</div>
+                        <div class="text-xl text-white mb-1">Overall Score</div>
+                        <div class="inline-block px-4 py-2 rounded-full ${this.getRiskBadgeClass(riskLevel)} font-semibold">
+                            ${riskLevel} RISK
                         </div>
-                        
-                        <!-- Recommendations -->
-                        <div class="bg-gray-700 rounded-lg p-4">
-                            <h3 class="font-semibold text-white mb-3">💡 Recommendations</h3>
-                            <div class="space-y-2">
-                                ${(data.recommendations || []).map(rec => `
-                                    <div class="text-sm text-gray-300 flex items-start">
-                                        <span class="text-blue-400 mr-2">•</span>
-                                        <span>${rec}</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Key Insights -->
+                        <div class="bg-gray-700 rounded-lg p-6">
+                            <h3 class="font-semibold text-white mb-4 flex items-center">
+                                <i class="fas fa-lightbulb text-yellow-400 mr-2"></i>
+                                Key Insights
+                            </h3>
+                            <div class="space-y-3">
+                                ${insights.map(insight => `
+                                    <div class="flex items-start">
+                                        <span class="text-blue-400 mr-3 mt-1">•</span>
+                                        <span class="text-gray-300">${insight}</span>
                                     </div>
                                 `).join('')}
                             </div>
                         </div>
                         
-                        <!-- Technical Details -->
-                        <div class="bg-gray-700 rounded-lg p-4 md:col-span-2">
-                            <h3 class="font-semibold text-white mb-3">🔧 Technical Details</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
-                                ${this.formatDetailedBreakdown(data.details)}
+                        <!-- Action Items -->
+                        <div class="bg-gray-700 rounded-lg p-6">
+                            <h3 class="font-semibold text-white mb-4 flex items-center">
+                                <i class="fas fa-tasks text-green-400 mr-2"></i>
+                                Action Items
+                            </h3>
+                            <div class="space-y-3">
+                                ${(data.recommendations || ['No specific recommendations available']).map((rec, index) => `
+                                    <div class="flex items-start">
+                                        <span class="flex-shrink-0 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold text-white mr-3">
+                                            ${index + 1}
+                                        </span>
+                                        <span class="text-gray-300">${rec}</span>
+                                    </div>
+                                `).join('')}
                             </div>
+                        </div>
+                        
+                        <!-- Technical Analysis -->
+                        <div class="bg-gray-700 rounded-lg p-6 lg:col-span-2">
+                            <h3 class="font-semibold text-white mb-4 flex items-center">
+                                <i class="fas fa-cogs text-purple-400 mr-2"></i>
+                                Technical Analysis
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                ${this.formatDetailedBreakdown(data.details || data.key_details)}
+                            </div>
+                        </div>
+                        
+                        <!-- Benchmark Comparison -->
+                        <div class="bg-gray-700 rounded-lg p-6 lg:col-span-2">
+                            <h3 class="font-semibold text-white mb-4 flex items-center">
+                                <i class="fas fa-chart-bar text-orange-400 mr-2"></i>
+                                Industry Benchmark Comparison
+                            </h3>
+                            <div class="space-y-4">
+                                ${this.getBenchmarkComparison(metricKey, score)}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Footer Actions -->
+                    <div class="mt-8 pt-6 border-t border-gray-600 flex justify-between items-center">
+                        <div class="text-sm text-gray-400">
+                            📅 Last Updated: ${data.calculated_at || new Date().toLocaleString()}
+                        </div>
+                        <div class="space-x-3">
+                            <button onclick="enterpriseMetricsManager.exportMetricReport('${metricKey}', ${JSON.stringify(data).replace(/"/g, '&quot;')})" 
+                                    class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors">
+                                <i class="fas fa-download mr-2"></i>Export Report
+                            </button>
+                            <button onclick="document.getElementById('metric-details-modal').remove()" 
+                                    class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors">
+                                Close
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -507,10 +602,30 @@ class EnterpriseMetricsManager {
 
         // Add modal to page
         document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Add keyboard event to close modal with Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('metric-details-modal');
+                if (modal) modal.remove();
+            }
+        });
     }
 
     formatDetailedBreakdown(details) {
         if (!details) return '<span class="text-gray-400">No detailed data available</span>';
+        
+        // Check if details is a string (which causes character-by-character iteration)
+        if (typeof details === 'string') {
+            console.error('❌ Details is a string, expected object:', details);
+            return `<span class="text-red-400">Invalid data format: ${details.substring(0, 50)}...</span>`;
+        }
+        
+        // Ensure details is an object
+        if (typeof details !== 'object' || details === null) {
+            console.error('❌ Details is not an object:', typeof details, details);
+            return '<span class="text-gray-400">Invalid data format</span>';
+        }
         
         const formatValue = (key, value) => {
             // Skip empty or undefined values
@@ -781,6 +896,372 @@ class EnterpriseMetricsManager {
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     }
 
+    getMetricInsights(metricKey, data) {
+        const insights = [];
+        const details = data.details || data.key_details || {};
+        const score = data.score;
+        
+        switch (metricKey) {
+            case 'kubernetes_upgrade_readiness':
+                if (details.deprecated_api_count > 0) {
+                    insights.push(`⚠️ Found ${details.deprecated_api_count} deprecated APIs that need updating before upgrade`);
+                }
+                if (details.version_gap > 0) {
+                    insights.push(`📅 Cluster is ${details.version_gap} versions behind the latest Kubernetes release`);
+                }
+                if (score >= 80) {
+                    insights.push(`✅ Cluster is ready for upgrade with minimal risk`);
+                } else {
+                    insights.push(`🔧 Preparation needed before upgrading to ensure compatibility`);
+                }
+                break;
+                
+            case 'disaster_recovery_score':
+                if (details.backup_solution_count === 0) {
+                    insights.push(`🚨 No backup solutions detected - critical data loss risk`);
+                } else {
+                    insights.push(`💾 ${details.backup_solution_count} backup solution(s) configured`);
+                }
+                if (details.snapshot_coverage_pct < 50) {
+                    insights.push(`📸 Only ${Math.round(details.snapshot_coverage_pct)}% of persistent volumes have snapshots`);
+                }
+                insights.push(`⏱️ Estimated recovery time: ${details.estimated_rto_hours || 'unknown'} hours`);
+                break;
+                
+            case 'capacity_planning':
+                const cpuUtil = details.cpu_utilization_pct || 0;
+                const memUtil = details.memory_utilization_pct || 0;
+                if (cpuUtil < 20) {
+                    insights.push(`💰 CPU utilization is low (${cpuUtil.toFixed(1)}%) - potential cost savings available`);
+                } else if (cpuUtil > 80) {
+                    insights.push(`⚡ CPU utilization is high (${cpuUtil.toFixed(1)}%) - scaling or optimization needed`);
+                }
+                if (details.requested_cpu_cores === 0) {
+                    insights.push(`🚨 No resource requests found - cluster lacks resource governance`);
+                }
+                break;
+                
+            case 'compliance_readiness':
+                const criticalIssues = details.critical_issues || [];
+                if (criticalIssues.length > 0) {
+                    insights.push(`🛡️ ${criticalIssues.length} critical security issues require immediate attention`);
+                }
+                const passRate = details.passed_controls / (details.total_controls || 1);
+                insights.push(`📋 ${Math.round(passRate * 100)}% of CIS controls are passing`);
+                break;
+                
+            case 'operational_maturity':
+                const deployFreq = details.deployment_frequency_per_day || 0;
+                if (deployFreq < 0.1) {
+                    insights.push(`🐌 Low deployment frequency (${deployFreq.toFixed(2)}/day) indicates manual processes`);
+                } else {
+                    insights.push(`🚀 Good deployment frequency (${deployFreq.toFixed(2)}/day) shows automated CI/CD`);
+                }
+                const failureRate = details.change_failure_rate || 0;
+                insights.push(`📈 Change failure rate: ${(failureRate * 100).toFixed(1)}%`);
+                break;
+                
+            case 'team_velocity':
+                const releaseFreq = details.release_frequency_per_week || 0;
+                insights.push(`📦 Release frequency: ${releaseFreq.toFixed(1)} releases per week`);
+                const activeDeployments = details.active_deployments || 0;
+                const stableDeployments = details.stable_deployments || 0;
+                if (activeDeployments > 0) {
+                    insights.push(`📊 ${stableDeployments}/${activeDeployments} deployments are stable`);
+                }
+                break;
+                
+            default:
+                insights.push(`📊 Current score: ${score}/100`);
+                insights.push(`🎯 Benchmark: Industry standards for ${metricKey.replace(/_/g, ' ')}`);
+        }
+        
+        return insights.length > 0 ? insights : ['No specific insights available for this metric'];
+    }
+
+    getRiskBadgeClass(riskLevel) {
+        switch (riskLevel) {
+            case 'LOW': return 'bg-green-600 text-green-100';
+            case 'MEDIUM': return 'bg-yellow-600 text-yellow-100';
+            case 'HIGH': return 'bg-orange-600 text-orange-100';
+            case 'CRITICAL': return 'bg-red-600 text-red-100';
+            default: return 'bg-gray-600 text-gray-100';
+        }
+    }
+
+    getBenchmarkComparison(metricKey, score) {
+        const benchmarks = {
+            'kubernetes_upgrade_readiness': [
+                { level: 'Industry Leader', threshold: 90, description: 'Top 10% of organizations' },
+                { level: 'Above Average', threshold: 75, description: 'Better than 70% of organizations' },
+                { level: 'Average', threshold: 60, description: 'Typical enterprise performance' },
+                { level: 'Below Average', threshold: 40, description: 'Improvement needed' },
+                { level: 'Poor', threshold: 0, description: 'Significant risks present' }
+            ],
+            'disaster_recovery_score': [
+                { level: 'Enterprise Grade', threshold: 85, description: 'Mission-critical ready' },
+                { level: 'Production Ready', threshold: 70, description: 'Good recovery capabilities' },
+                { level: 'Basic Protection', threshold: 50, description: 'Minimal recovery setup' },
+                { level: 'High Risk', threshold: 30, description: 'Inadequate protection' },
+                { level: 'Critical Risk', threshold: 0, description: 'No disaster recovery' }
+            ],
+            'operational_maturity': [
+                { level: 'DevOps Elite', threshold: 85, description: 'Top-performing teams' },
+                { level: 'High Performing', threshold: 70, description: 'Strong DevOps practices' },
+                { level: 'Medium Performing', threshold: 50, description: 'Some automation in place' },
+                { level: 'Low Performing', threshold: 30, description: 'Mostly manual processes' },
+                { level: 'Ad-hoc', threshold: 0, description: 'No formal processes' }
+            ]
+        };
+        
+        const metricBenchmarks = benchmarks[metricKey] || benchmarks['operational_maturity'];
+        const currentLevel = metricBenchmarks.find(b => score >= b.threshold) || metricBenchmarks[metricBenchmarks.length - 1];
+        
+        return metricBenchmarks.map(benchmark => {
+            const isCurrentLevel = benchmark === currentLevel;
+            const barWidth = Math.min(100, (score / benchmark.threshold) * 100);
+            
+            return `
+                <div class="flex items-center justify-between p-3 rounded-lg ${isCurrentLevel ? 'bg-blue-900 border border-blue-500' : 'bg-gray-600'}">
+                    <div class="flex-grow">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-semibold text-white">${benchmark.level}</span>
+                            <span class="text-sm ${isCurrentLevel ? 'text-blue-300' : 'text-gray-300'}">${benchmark.threshold}+</span>
+                        </div>
+                        <div class="text-xs text-gray-300">${benchmark.description}</div>
+                        ${isCurrentLevel ? '<div class="text-xs text-blue-300 mt-1">👈 Your current level</div>' : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    exportMetricReport(metricKey, data) {
+        try {
+            const report = {
+                metric_name: data.metric_name || metricKey,
+                score: data.score,
+                risk_level: data.risk_level,
+                details: data.details || data.key_details,
+                recommendations: data.recommendations,
+                insights: this.getMetricInsights(metricKey, data),
+                generated_at: new Date().toISOString(),
+                cluster_info: {
+                    cluster_id: this.getClusterIdFromUrl()
+                }
+            };
+
+            const blob = new Blob([JSON.stringify(report, null, 2)], {
+                type: 'application/json'
+            });
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${metricKey}-report-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            console.log(`📄 Exported ${metricKey} report successfully`);
+
+        } catch (error) {
+            console.error('❌ Failed to export metric report:', error);
+        }
+    }
+
+    loadDemoData() {
+        console.log('🎭 Loading demo enterprise metrics...');
+        
+        const demoData = {
+            enterprise_maturity: {
+                score: 68,
+                level: 'INTERMEDIATE',
+                timestamp: new Date().toISOString()
+            },
+            operational_metrics: {
+                kubernetes_upgrade_readiness: {
+                    metric_name: 'Kubernetes Upgrade Readiness',
+                    score: 75,
+                    risk_level: 'MEDIUM',
+                    key_details: {
+                        current_version: 'v1.28.0',
+                        latest_version: 'v1.31.0',
+                        version_gap: 3,
+                        deprecated_api_count: 2,
+                        upgrade_blockers: ['Deprecated networking.k8s.io/v1beta1 Ingress', 'Old HPA apiVersion']
+                    },
+                    details: {
+                        current_version: 'v1.28.0',
+                        latest_version: 'v1.31.0',
+                        version_gap: 3,
+                        deprecated_api_count: 2,
+                        upgrade_blockers: ['Deprecated networking.k8s.io/v1beta1 Ingress', 'Old HPA apiVersion']
+                    },
+                    recommendations: [
+                        'Update Ingress resources to use networking.k8s.io/v1',
+                        'Migrate HorizontalPodAutoscaler to autoscaling/v2',
+                        'Test upgrade in staging environment first'
+                    ],
+                    benchmark_source: 'CIS Kubernetes Benchmark',
+                    calculated_at: new Date().toISOString()
+                },
+                disaster_recovery_score: {
+                    metric_name: 'Disaster Recovery Score',
+                    score: 46,
+                    risk_level: 'HIGH',
+                    key_details: {
+                        backup_solution_count: 0,
+                        snapshot_coverage_pct: 0,
+                        estimated_rto_hours: 24,
+                        multi_az_deployment: false
+                    },
+                    details: {
+                        backup_solution_count: 0,
+                        snapshot_coverage_pct: 0,
+                        estimated_rto_hours: 24,
+                        multi_az_deployment: false,
+                        backup_solutions: [],
+                        persistent_volumes: 5,
+                        critical_data_protection: 'none'
+                    },
+                    recommendations: [
+                        'Deploy Velero for cluster backup and restore',
+                        'Configure automated snapshots for persistent volumes',
+                        'Implement multi-AZ deployment for high availability',
+                        'Test disaster recovery procedures monthly'
+                    ],
+                    benchmark_source: 'NIST Cybersecurity Framework',
+                    calculated_at: new Date().toISOString()
+                },
+                operational_maturity: {
+                    metric_name: 'Operational Maturity',
+                    score: 68,
+                    risk_level: 'MEDIUM',
+                    key_details: {
+                        deployment_frequency_per_day: 0.3,
+                        change_failure_rate: 0.15,
+                        lead_time_hours: 48,
+                        mttr_hours: 4
+                    },
+                    details: {
+                        deployment_frequency_per_day: 0.3,
+                        change_failure_rate: 0.15,
+                        lead_time_hours: 48,
+                        mttr_hours: 4,
+                        gitops_tools: ['FluxCD'],
+                        monitoring_tools: ['Prometheus', 'Grafana'],
+                        automation_coverage: 70
+                    },
+                    recommendations: [
+                        'Increase deployment frequency to improve DORA metrics',
+                        'Implement automated testing to reduce change failure rate',
+                        'Add chaos engineering practices',
+                        'Set up automated rollback procedures'
+                    ],
+                    benchmark_source: 'DORA State of DevOps Report',
+                    calculated_at: new Date().toISOString()
+                },
+                capacity_planning: {
+                    metric_name: 'Capacity Planning',
+                    score: 34,
+                    risk_level: 'HIGH',
+                    key_details: {
+                        cpu_utilization_pct: 0,
+                        memory_utilization_pct: 0,
+                        requested_cpu_cores: 0,
+                        total_cpu_cores: 12
+                    },
+                    details: {
+                        cpu_utilization_pct: 0,
+                        memory_utilization_pct: 0,
+                        requested_cpu_cores: 0,
+                        total_cpu_cores: 12,
+                        total_requested_memory: 0,
+                        total_memory_gb: 48,
+                        workloads_without_requests: 15,
+                        resource_governance: 'missing'
+                    },
+                    recommendations: [
+                        'Add resource requests to all Deployments and StatefulSets',
+                        'Implement ResourceQuotas for each namespace',
+                        'Set up Vertical Pod Autoscaler for optimization',
+                        'Create monitoring alerts for resource exhaustion'
+                    ],
+                    benchmark_source: 'Kubernetes Resource Management Best Practices',
+                    calculated_at: new Date().toISOString()
+                },
+                compliance_readiness: {
+                    metric_name: 'Compliance Readiness',
+                    score: 52,
+                    risk_level: 'MEDIUM',
+                    key_details: {
+                        passed_controls: 26,
+                        total_controls: 50,
+                        critical_issues: ['Privileged containers detected', 'Missing network policies']
+                    },
+                    details: {
+                        passed_controls: 26,
+                        total_controls: 50,
+                        critical_issues: ['Privileged containers detected', 'Missing network policies'],
+                        compliance_frameworks: ['CIS Kubernetes', 'PCI DSS'],
+                        pod_security_standards: 'baseline',
+                        network_policies_coverage: 30
+                    },
+                    recommendations: [
+                        'Remove privileged containers or add security contexts',
+                        'Implement network policies for all namespaces',
+                        'Upgrade to restricted Pod Security Standards',
+                        'Enable audit logging for compliance tracking'
+                    ],
+                    benchmark_source: 'CIS Kubernetes Benchmark v1.23',
+                    calculated_at: new Date().toISOString()
+                },
+                team_velocity: {
+                    metric_name: 'Team Velocity',
+                    score: 71,
+                    risk_level: 'MEDIUM',
+                    key_details: {
+                        release_frequency_per_week: 1.2,
+                        active_deployments: 25,
+                        stable_deployments: 20
+                    },
+                    details: {
+                        release_frequency_per_week: 1.2,
+                        active_deployments: 25,
+                        stable_deployments: 20,
+                        deployment_success_rate: 0.8,
+                        average_lead_time_days: 3,
+                        team_productivity_score: 75
+                    },
+                    recommendations: [
+                        'Improve deployment success rate through better testing',
+                        'Reduce lead time with more automation',
+                        'Implement feature flags for safer releases',
+                        'Add deployment health checks and monitoring'
+                    ],
+                    benchmark_source: 'DORA Metrics Benchmarks',
+                    calculated_at: new Date().toISOString()
+                }
+            },
+            action_items: [
+                '🚨 CRITICAL: Fix 2 security violations: Privileged containers detected, Missing network policies',
+                '🚨 CRITICAL: Add resource requests to all workloads - no resource governance detected',
+                '🔴 HIGH: Deploy backup solution (Velero) - no data protection found',
+                '🟡 MEDIUM: Update 2 deprecated APIs before Kubernetes upgrade',
+                '🟡 MEDIUM: Implement GitOps/CI-CD pipeline - manual deployments detected'
+            ]
+        };
+
+        this.currentData = demoData;
+        this.renderMetrics(demoData);
+        this.hideLoading();
+        this.showMainContent();
+        
+        console.log('🎭 Demo enterprise metrics loaded successfully');
+    }
+
     showLoading() {
         const loadingEl = document.getElementById('enterprise-loading');
         if (loadingEl) loadingEl.classList.remove('hidden');
@@ -796,7 +1277,30 @@ class EnterpriseMetricsManager {
         const errorMsgEl = document.getElementById('enterprise-error-message');
         
         if (errorEl) errorEl.classList.remove('hidden');
-        if (errorMsgEl) errorMsgEl.textContent = message;
+        if (errorMsgEl) {
+            errorMsgEl.innerHTML = `
+                <div class="mb-2">${message}</div>
+                <div class="text-sm text-gray-500 mt-2">
+                    <strong>Troubleshooting:</strong>
+                    <ul class="list-disc list-inside mt-1 space-y-1">
+                        <li>Ensure the cluster is accessible and kubectl commands work</li>
+                        <li>Check that analysis has been run for this cluster first</li>
+                        <li>Verify Azure subscription and resource group access</li>
+                        <li>Check browser console for detailed error information</li>
+                    </ul>
+                </div>
+                <div class="mt-3">
+                    <button onclick="enterpriseMetricsManager.loadEnterpriseMetrics()" 
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm">
+                        🔄 Retry
+                    </button>
+                    <button onclick="enterpriseMetricsManager.loadDemoData()" 
+                            class="ml-2 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm">
+                        🎭 View Demo Data
+                    </button>
+                </div>
+            `;
+        }
     }
 
     hideError() {

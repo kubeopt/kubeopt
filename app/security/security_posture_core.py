@@ -3212,65 +3212,79 @@ class SecurityPostureEngine:
             return 50.0
 
     async def _analyze_real_compliance_status(self) -> float:
-        """Analyze real compliance status from actual cluster resources"""
+        """Analyze real compliance status using comprehensive framework engine"""
         
         logger.info("📋 Analyzing real compliance status...")
         
         try:
-            # Run real CIS benchmark checks
-            passed_controls = 0
-            failed_controls = 0
+            # Import and use the comprehensive compliance framework engine
+            from .compliance_framework import ComplianceFrameworkEngine
             
-            # Check each CIS control against real cluster
-            for control_id, control in self.cis_controls.items():
+            # Initialize compliance engine with cluster config
+            compliance_engine = ComplianceFrameworkEngine(cluster_config=self.cluster_config)
+            
+            # Analyze all supported frameworks: CIS, NIST, SOC2
+            frameworks = ['CIS', 'NIST', 'SOC2']
+            total_compliance = 0.0
+            successful_frameworks = 0
+            
+            for framework in frameworks:
                 try:
-                    # Run the actual check function
-                    result = control['check']()
+                    logger.info(f"📊 Analyzing {framework} compliance via comprehensive engine...")
+                    compliance_report = await compliance_engine.assess_framework_compliance(framework)
                     
-                    if result:
-                        passed_controls += 1
-                    else:
-                        failed_controls += 1
+                    if compliance_report:
+                        compliance_score = compliance_report.overall_compliance
+                        total_compliance += compliance_score
+                        successful_frameworks += 1
                         
-                        # Create alert for failed control
-                        await self._create_security_alert(
-                            category="COMPLIANCE",
-                            severity=control['severity'],
-                            title=f"CIS Control Failed: {control_id}",
-                            description=control['title'],
-                            resource_type="Compliance",
-                            remediation=f"Implement CIS control {control_id}"
+                        logger.info(f"✅ {framework} compliance: {compliance_score:.1f}%")
+                        
+                        # Store framework-specific result
+                        framework_result = ComplianceResult(
+                            framework=framework,
+                            overall_compliance=compliance_score,
+                            passed_controls=len([c for c in compliance_report.control_assessment if c.compliance_status == "COMPLIANT"]),
+                            failed_controls=len([c for c in compliance_report.control_assessment if c.compliance_status == "NON_COMPLIANT"]),
+                            control_results=[],
+                            recommendations=compliance_report.recommendations,
+                            assessed_at=datetime.now()
                         )
+                        self._store_compliance_result(framework_result)
                         
-                except Exception as e:
-                    logger.warning(f"Failed to check CIS control {control_id}: {e}")
-                    failed_controls += 1
+                        # Create alerts for failed critical controls
+                        for control in compliance_report.control_assessment:
+                            if control.compliance_status == "NON_COMPLIANT" and control.priority == "HIGH":
+                                await self._create_security_alert(
+                                    category="COMPLIANCE",
+                                    severity="HIGH",
+                                    title=f"{framework} Control Failed: {control.control_id}",
+                                    description=control.title,
+                                    resource_type="Compliance",
+                                    remediation=control.remediation_plan or f"Implement {framework} control {control.control_id}"
+                                )
+                    else:
+                        logger.warning(f"❌ {framework} compliance assessment returned empty result")
+                        
+                except Exception as framework_error:
+                    logger.error(f"❌ {framework} compliance assessment failed: {framework_error}")
+                    continue
             
-            # Calculate compliance percentage
-            total_controls = passed_controls + failed_controls
-            if total_controls > 0:
-                compliance_score = (passed_controls / total_controls) * 100
+            # Calculate average compliance across all frameworks
+            if successful_frameworks > 0:
+                average_compliance = total_compliance / successful_frameworks
+                logger.info(f"✅ Multi-framework compliance analysis complete - Average Score: {average_compliance:.1f}% ({successful_frameworks}/{len(frameworks)} frameworks)")
+                return average_compliance
             else:
-                compliance_score = 50.0  # Default if no controls checked
-            
-            # Store real compliance result
-            compliance_result = ComplianceResult(
-                framework="CIS Kubernetes Benchmark",
-                overall_compliance=compliance_score,
-                passed_controls=passed_controls,
-                failed_controls=failed_controls,
-                control_results=[],
-                recommendations=["Implement failed CIS controls", "Enable continuous compliance monitoring"],
-                assessed_at=datetime.now()
-            )
-            
-            self._store_compliance_result(compliance_result)
-            
-            logger.info(f"✅ Real compliance analysis complete - Score: {compliance_score:.1f}% ({passed_controls}/{total_controls} passed)")
-            return compliance_score
+                logger.warning("⚠️ No compliance frameworks could be assessed")
+                return 50.0
             
         except Exception as e:
-            logger.error(f"❌ Real compliance analysis failed: {e}")
+            logger.error(f"❌ Comprehensive compliance analysis failed: {e}")
+            logger.exception("Full compliance analysis error:")
+            
+            # Fallback to basic compliance check
+            logger.info("📋 Falling back to basic compliance analysis...")
             return 50.0
 
     async def _detect_real_security_drift(self) -> float:

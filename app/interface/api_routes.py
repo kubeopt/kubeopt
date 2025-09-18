@@ -17,7 +17,7 @@ import sys
 import os
 import threading
 import concurrent.futures
-from typing import List
+from typing import List, Dict
 
 # Add the current directory to the path for imports
 current_dir = os.path.dirname(__file__)
@@ -101,6 +101,65 @@ except ImportError:
 # Global alerts manager
 alerts_manager = None
 
+def convert_implementation_plan_for_ui(implementation_plan: Dict) -> Dict:
+    """Convert implementation plan commands to UI-friendly format"""
+    
+    def convert_command_to_ui(cmd):
+        """Convert a single command to UI format"""
+        if hasattr(cmd, 'to_ui_format') and callable(getattr(cmd, 'to_ui_format')):
+            return cmd.to_ui_format()
+        elif isinstance(cmd, dict):
+            # Already a dict, but might have nested ExecutableCommand objects
+            return {k: convert_command_to_ui(v) if hasattr(v, 'to_ui_format') else v for k, v in cmd.items()}
+        else:
+            return cmd
+    
+    def convert_commands_list(commands):
+        """Convert list of commands to UI format"""
+        if not commands:
+            return []
+        return [convert_command_to_ui(cmd) for cmd in commands]
+    
+    # Create a copy to avoid modifying the original
+    ui_plan = implementation_plan.copy()
+    
+    # Convert implementation_phases commands
+    if 'implementation_phases' in ui_plan:
+        for phase in ui_plan['implementation_phases']:
+            if isinstance(phase, dict) and 'commands' in phase:
+                # Handle both ExecutableCommand objects and string commands
+                converted_commands = []
+                for cmd in phase['commands']:
+                    if isinstance(cmd, str):
+                        # Convert string command to UI format
+                        converted_commands.append({
+                            'id': f"cmd-{hash(cmd) % 10000}",
+                            'command': cmd,
+                            'description': f"Execute: {cmd[:60]}{'...' if len(cmd) > 60 else ''}",
+                            'category': phase.get('category', 'optimization'),
+                            'subcategory': phase.get('subcategory', phase.get('title', 'general')),
+                            'priority_score': 70,
+                            'savings_estimate': 0,
+                            'estimated_duration_minutes': 5,
+                            'risk_level': 'low',
+                            'expected_outcome': phase.get('description', 'Execute optimization command'),
+                            'prerequisites': [],
+                            'validation_commands': [],
+                            'rollback_commands': []
+                        })
+                    else:
+                        converted_commands.append(convert_command_to_ui(cmd))
+                phase['commands'] = converted_commands
+    
+    # Convert any ExecutableCommand objects in the plan itself
+    for key, value in ui_plan.items():
+        if hasattr(value, 'to_ui_format'):
+            ui_plan[key] = value.to_ui_format()
+        elif isinstance(value, list):
+            ui_plan[key] = convert_commands_list(value)
+    
+    return ui_plan
+
 def sanitize_for_json(obj):
     """
     Recursively convert numpy/pandas types to native Python types for JSON serialization.
@@ -149,6 +208,14 @@ def sanitize_for_json(obj):
     # Handle lists and tuples recursively
     if isinstance(obj, (list, tuple)):
         return [sanitize_for_json(item) for item in obj]
+    
+    # Handle ExecutableCommand and ComprehensiveExecutionPlan objects with UI formatting
+    if hasattr(obj, 'to_ui_format') and callable(getattr(obj, 'to_ui_format')):
+        try:
+            return sanitize_for_json(obj.to_ui_format())
+        except Exception as e:
+            # Fallback to __dict__ if to_ui_format fails
+            pass
     
     # Handle other objects
     if hasattr(obj, '__dict__') and not callable(obj):
@@ -846,7 +913,9 @@ def register_api_routes(app):
             
             logger.info(f"✅ API: Returning {format_type} implementation plan for {cluster_id}")
             
-            sanitized_plan = sanitize_for_json(implementation_plan)
+            # Convert implementation plan commands to UI format before sanitization
+            ui_formatted_plan = convert_implementation_plan_for_ui(implementation_plan)
+            sanitized_plan = sanitize_for_json(ui_formatted_plan)
             return jsonify(sanitized_plan)
             
         except Exception as e:

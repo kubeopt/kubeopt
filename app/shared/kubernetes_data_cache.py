@@ -212,10 +212,15 @@ class KubernetesDataCache:
                     if is_not_found:
                         logger.debug(f"📭 {self.cluster_name}: Resource not found for {cmd[:60]}... (normal for optional resources)")
                     elif is_permission_error:
-                        logger.info(f"🔐 {self.cluster_name}: Permission denied for {cmd[:60]}... - {error_msg}")
+                        logger.error(f"🔐 CRITICAL: Permission denied for {cmd[:60]}... - {error_msg}")
+                        raise PermissionError(f"RBAC permission denied for kubectl command: {cmd[:60]}... - {error_msg}")
                     else:
-                        logger.warning(f"⚠️ {self.cluster_name}: kubectl failed in {cmd_duration:.1f}s: {cmd[:60]}... (exit code: {result.returncode})")
-                        logger.warning(f"🔍 {self.cluster_name}: Error details: {error_msg}")
+                        logger.error(f"❌ CRITICAL: kubectl failed in {cmd_duration:.1f}s: {cmd[:60]}... (exit code: {result.returncode})")
+                        logger.error(f"🔍 Error details: {error_msg}")
+                        # For critical commands, raise an error instead of returning None
+                        if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
+                            raise RuntimeError(f"Critical kubectl command failed: {cmd[:60]}... - {error_msg}")
+                        
                 return None
                 
         except subprocess.TimeoutExpired:
@@ -243,7 +248,10 @@ class KubernetesDataCache:
                 except Exception as retry_error:
                     logger.error(f"❌ {self.cluster_name}: Retry error: {retry_error}")
                     
-            logger.warning(f"⚠️ {self.cluster_name}: kubectl timeout after {timeout}s: {cmd[:60]}...")
+            logger.error(f"❌ CRITICAL: kubectl timeout after {timeout}s: {cmd[:60]}...")
+            # For critical commands, raise timeout error instead of returning None
+            if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
+                raise TimeoutError(f"Critical kubectl command timed out after {timeout}s: {cmd[:60]}...")
             return None
         except Exception as e:
             logger.error(f"❌ {self.cluster_name}: kubectl error: {cmd[:60]}... - {e}")
@@ -406,26 +414,46 @@ class KubernetesDataCache:
         """Ensure data is in JSON dictionary format with items array"""
         raw_data = self.get(key)
         
+        # DEBUG: Log detailed info for deployment data specifically
+        if key == 'deployments':
+            logger.info(f"🔍 DEBUG {self.cluster_name}: Deployment data type: {type(raw_data)}, "
+                       f"length: {len(str(raw_data)) if raw_data else 0}, "
+                       f"empty check: {not raw_data}")
+        
         if not raw_data:
+            if key == 'deployments':
+                logger.warning(f"❌ {self.cluster_name}: Deployment raw data is empty/None")
             return {"items": []}
         
         # If already a dictionary, return as-is
         if isinstance(raw_data, dict):
+            items_count = len(raw_data.get('items', []))
+            if key == 'deployments':
+                logger.info(f"✅ {self.cluster_name}: Deployment data already dict with {items_count} items")
             return raw_data
             
         # If it's a string, try to parse as JSON
         if isinstance(raw_data, str):
             # Skip empty strings - they're valid empty results
             if not raw_data.strip():
+                if key == 'deployments':
+                    logger.warning(f"❌ {self.cluster_name}: Deployment string is empty")
                 return {"items": []}
                 
             try:
                 parsed = json.loads(raw_data)
                 if isinstance(parsed, dict):
+                    items_count = len(parsed.get('items', []))
+                    if key == 'deployments':
+                        logger.info(f"✅ {self.cluster_name}: Parsed deployment JSON with {items_count} items")
                     return parsed
-            except json.JSONDecodeError:
-                # Only warn for non-empty strings that fail to parse
-                logger.warning(f"⚠️ {self.cluster_name}: Failed to parse {key} as JSON, returning empty structure")
+            except json.JSONDecodeError as e:
+                # Enhanced logging for deployment parsing failures
+                if key == 'deployments':
+                    logger.error(f"❌ {self.cluster_name}: Deployment JSON parse failed: {e}")
+                    logger.error(f"🔍 {self.cluster_name}: First 200 chars: {raw_data[:200]}")
+                else:
+                    logger.warning(f"⚠️ {self.cluster_name}: Failed to parse {key} as JSON, returning empty structure")
         
         # Fallback to empty structure
         return {"items": []}
@@ -447,13 +475,35 @@ class KubernetesDataCache:
                 pods_count = len(pods_formatted.get('items', []))
                 logger.info(f"✅ {self.cluster_name}: Constructed {pods_count} pods from custom columns fallback")
         
+        # DEPLOYMENT DATA CONVERSION: If JSON deployments data is empty, convert from other sources
+        deployments_formatted = self._ensure_json_format('deployments')
+        deployments_count = len(deployments_formatted.get('items', []))
+        
+        if deployments_count == 0:
+            # Try converting from custom columns format
+            deployment_info_text = self.get('deployment_info')
+            if deployment_info_text and isinstance(deployment_info_text, str) and len(deployment_info_text.strip()) > 50:
+                logger.info(f"🔄 {self.cluster_name}: JSON deployments empty, converting from custom columns format")
+                deployments_formatted = self._construct_deployments_json_from_custom_columns(deployment_info_text)
+                deployments_count = len(deployments_formatted.get('items', []))
+                logger.info(f"✅ {self.cluster_name}: Converted {deployments_count} deployments from custom columns format")
+            
+            # If still empty, try converting from text format
+            if deployments_count == 0:
+                deployments_text = self.get('deployments_text')
+                if deployments_text and isinstance(deployments_text, str) and len(deployments_text.strip()) > 50:
+                    logger.info(f"🔄 {self.cluster_name}: Custom columns empty, converting from text format")
+                    deployments_formatted = self._construct_deployments_json_from_text(deployments_text)
+                    deployments_count = len(deployments_formatted.get('items', []))
+                    logger.info(f"✅ {self.cluster_name}: Converted {deployments_count} deployments from text format")
+
         return {
             'pod_resources': self.get('pod_resources') or "",  # Text format - ensure string
             'pod_timestamps': self.get('pod_timestamps') or "",  # Text format - ensure string  
             'replicaset_timestamps': self.get('replicaset_timestamps') or "",  # Text format - ensure string
             'deployment_info': self.get('deployment_info') or "",  # Text format - ensure string
             'pods': pods_formatted,  # Use the (potentially fallback-constructed) pods data
-            'deployments': self._ensure_json_format('deployments'),  # JSON - ensure dict with items
+            'deployments': deployments_formatted,  # Use deployments data (converted from available sources)
             'replicasets': self._ensure_json_format('replicasets'),  # JSON - ensure dict with items  
             'statefulsets': self._ensure_json_format('statefulsets'),  # JSON - ensure dict with items
             'services': self._ensure_json_format('services'),  # JSON - ensure dict with items
@@ -538,11 +588,33 @@ class KubernetesDataCache:
                 logger.info("🔄 HPA JSON empty, parsing from basic text format")
                 hpa_json_data = self._parse_hpa_text_to_json()
         
+        # DEPLOYMENT DATA CONVERSION for HPA analyzer: Convert from available data sources
+        deployments_formatted = self._ensure_json_format('deployments')
+        deployments_count = len(deployments_formatted.get('items', []))
+        
+        if deployments_count == 0:
+            # Try converting from custom columns format
+            deployment_info_text = self.get('deployment_info')
+            if deployment_info_text and isinstance(deployment_info_text, str) and len(deployment_info_text.strip()) > 50:
+                logger.info(f"🔄 {self.cluster_name}: HPA analyzer - Converting from custom columns format")
+                deployments_formatted = self._construct_deployments_json_from_custom_columns(deployment_info_text)
+                deployments_count = len(deployments_formatted.get('items', []))
+                logger.info(f"✅ {self.cluster_name}: HPA analyzer - Converted {deployments_count} deployments from custom columns")
+            
+            # If still empty, try converting from text format
+            if deployments_count == 0:
+                deployments_text = self.get('deployments_text')
+                if deployments_text and isinstance(deployments_text, str) and len(deployments_text.strip()) > 50:
+                    logger.info(f"🔄 {self.cluster_name}: HPA analyzer - Converting from text format")
+                    deployments_formatted = self._construct_deployments_json_from_text(deployments_text)
+                    deployments_count = len(deployments_formatted.get('items', []))
+                    logger.info(f"✅ {self.cluster_name}: HPA analyzer - Converted {deployments_count} deployments from text")
+
         return {
             'hpa': hpa_json_data,  # JSON - kubectl get hpa or parsed from text
             'hpa_text': self.get('hpa_text') or "",  # Text - kubectl get hpa --all-namespaces
             'hpa_custom': self.get('hpa_custom') or "",  # Text - custom columns format
-            'deployments': self._ensure_json_format('deployments'),  # JSON - kubectl get deployments --all-namespaces -o json
+            'deployments': deployments_formatted,  # Use deployments data (converted from available sources)
             'statefulsets': self._ensure_json_format('statefulsets'),  # JSON - kubectl get statefulsets --all-namespaces -o json
             'replicasets': self._ensure_json_format('replicasets')  # JSON - kubectl get replicasets --all-namespaces -o json
         }
@@ -973,6 +1045,163 @@ class KubernetesDataCache:
             
         except Exception as e:
             logger.error(f"❌ {self.cluster_name}: Failed to construct pods JSON from custom columns: {e}")
+            return {"items": []}
+    
+    def _construct_deployments_json_from_custom_columns(self, deployment_info_text: str) -> Dict[str, Any]:
+        """Convert custom columns deployment data to JSON format for analysis"""
+        try:
+            lines = deployment_info_text.strip().split('\n')
+            if not lines:
+                return {"items": []}
+            
+            # Skip header line
+            if lines and ('NAMESPACE' in lines[0] or 'NAME' in lines[0]):
+                lines = lines[1:]
+            
+            deployments = []
+            for line in lines:
+                if not line.strip():
+                    continue
+                    
+                # Parse custom columns format: NAMESPACE, NAME, READY, AVAILABLE, GENERATION
+                parts = line.split(None, 4)  # Split into max 5 parts
+                if len(parts) >= 2:  # At least namespace and name
+                    namespace, name = parts[0], parts[1]
+                    ready = parts[2] if len(parts) > 2 and parts[2] != '<none>' else "1"
+                    available = parts[3] if len(parts) > 3 and parts[3] != '<none>' else "1"
+                    generation = parts[4] if len(parts) > 4 and parts[4] != '<none>' else "1"
+                    
+                    # Construct minimal deployment JSON structure for right-sizing analysis
+                    deployment = {
+                        "apiVersion": "apps/v1",
+                        "kind": "Deployment",
+                        "metadata": {
+                            "name": name,
+                            "namespace": namespace,
+                            "generation": int(generation) if generation.isdigit() else 1
+                        },
+                        "spec": {
+                            "replicas": int(ready) if ready.isdigit() else 1,
+                            "selector": {
+                                "matchLabels": {
+                                    "app": name
+                                }
+                            },
+                            "template": {
+                                "metadata": {
+                                    "labels": {
+                                        "app": name
+                                    }
+                                },
+                                "spec": {
+                                    "containers": [
+                                        {
+                                            "name": name,
+                                            "image": "unknown",  # Not available in custom columns
+                                            "resources": {
+                                                "requests": {
+                                                    "cpu": "100m",  # Default values for right-sizing
+                                                    "memory": "128Mi"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "status": {
+                            "readyReplicas": int(ready) if ready.isdigit() else 1,
+                            "availableReplicas": int(available) if available.isdigit() else 1,
+                            "replicas": int(ready) if ready.isdigit() else 1
+                        },
+                        "_constructed_from_custom_columns": True  # Mark for debugging
+                    }
+                    
+                    deployments.append(deployment)
+            
+            logger.info(f"🔄 {self.cluster_name}: Constructed {len(deployments)} deployments from custom columns")
+            return {"items": deployments}
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to construct deployments JSON from custom columns: {e}")
+            return {"items": []}
+    
+    def _construct_deployments_json_from_text(self, deployments_text: str) -> Dict[str, Any]:
+        """Convert text format deployment data to JSON format for analysis"""
+        try:
+            lines = deployments_text.strip().split('\n')
+            if not lines:
+                return {"items": []}
+            
+            # Skip header line
+            if lines and ('NAMESPACE' in lines[0] or 'NAME' in lines[0]):
+                lines = lines[1:]
+            
+            deployments = []
+            for line in lines:
+                if not line.strip():
+                    continue
+                    
+                # Parse standard kubectl get deployments text format: NAMESPACE NAME READY UP-TO-DATE AVAILABLE AGE
+                parts = line.split()
+                if len(parts) >= 2:  # At least namespace and name
+                    namespace, name = parts[0], parts[1]
+                    ready = parts[2] if len(parts) > 2 else "1/1"
+                    available = parts[4] if len(parts) > 4 else "1"
+                    
+                    # Extract replica count from READY column (format: "2/2")
+                    replicas = 1
+                    if '/' in ready:
+                        try:
+                            replicas = int(ready.split('/')[1])
+                        except (ValueError, IndexError):
+                            replicas = 1
+                    
+                    # Construct minimal deployment JSON structure
+                    deployment = {
+                        "apiVersion": "apps/v1",
+                        "kind": "Deployment",
+                        "metadata": {
+                            "name": name,
+                            "namespace": namespace
+                        },
+                        "spec": {
+                            "replicas": replicas,
+                            "selector": {
+                                "matchLabels": {
+                                    "app": name
+                                }
+                            },
+                            "template": {
+                                "spec": {
+                                    "containers": [
+                                        {
+                                            "name": name,
+                                            "resources": {
+                                                "requests": {
+                                                    "cpu": "100m",
+                                                    "memory": "128Mi"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "status": {
+                            "replicas": replicas,
+                            "readyReplicas": int(available) if available.isdigit() else replicas
+                        },
+                        "_constructed_from_text": True  # Mark for debugging
+                    }
+                    
+                    deployments.append(deployment)
+            
+            logger.info(f"🔄 {self.cluster_name}: Constructed {len(deployments)} deployments from text format")
+            return {"items": deployments}
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to construct deployments JSON from text: {e}")
             return {"items": []}
     
     def get_node_specific_data(self, node_name: str, query_type: str) -> Optional[str]:

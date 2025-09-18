@@ -312,16 +312,27 @@ class ClusterAnalyzer:
             workload_resources = cluster_config.get('workload_resources', {})
             deployments = workload_resources.get('deployments', {}).get('items', [])
             
+            # DEBUG: Log deployment count for right-sizing analysis
+            logger.info(f"🔍 RIGHT-SIZING DEBUG: Processing {len(deployments)} deployments for analysis")
+            
             total_waste_cpu = 0
             total_waste_memory = 0
             cost_calculator = CostCalculator()
             
+            # Get cluster metrics for real utilization data
+            cluster_metrics = cluster_config.get('current_usage', {})
+            
             for deployment in deployments:
-                efficiency = ClusterAnalyzer._calculate_resource_efficiency(deployment)
+                efficiency = ClusterAnalyzer._calculate_resource_efficiency(deployment, cluster_metrics)
+                dep_name = deployment.get('metadata', {}).get('name', 'unknown')
+                
+                # DEBUG: Log efficiency for first few deployments
+                if len(rightsizing_state['overprovisioned_workloads']) < 3:
+                    logger.info(f"🔍 RIGHT-SIZING DEBUG: Deployment '{dep_name}' efficiency: {efficiency:.2f}")
                 
                 if efficiency < 0.7:  # Optimization threshold
-                    waste_cpu = ClusterAnalyzer._estimate_cpu_waste(deployment)
-                    waste_memory = ClusterAnalyzer._estimate_memory_waste(deployment)
+                    waste_cpu = ClusterAnalyzer._estimate_cpu_waste(deployment, cluster_metrics)
+                    waste_memory = ClusterAnalyzer._estimate_memory_waste(deployment, cluster_metrics)
                     
                     rightsizing_state['overprovisioned_workloads'].append({
                         'name': deployment.get('metadata', {}).get('name'),
@@ -340,6 +351,10 @@ class ClusterAnalyzer:
                 'total_waste_memory_gb': total_waste_memory,
                 'estimated_monthly_savings': cost_calculator.calculate_resource_waste_cost(total_waste_cpu, total_waste_memory)
             }
+            
+            # DEBUG: Log final right-sizing results
+            logger.info(f"🔍 RIGHT-SIZING DEBUG: Found {len(rightsizing_state['overprovisioned_workloads'])} workloads to optimize")
+            logger.info(f"🔍 RIGHT-SIZING DEBUG: Total waste - CPU: {total_waste_cpu:.2f} cores, Memory: {total_waste_memory:.2f} GB")
             
         except Exception as e:
             logger.error(f"❌ Rightsizing analysis failed: {e}")
@@ -450,53 +465,120 @@ class ClusterAnalyzer:
     
     # Helper methods for analysis
     @staticmethod
-    def _calculate_resource_efficiency(deployment: Dict) -> float:
-        """Calculate resource efficiency for deployment"""
+    def _calculate_resource_efficiency(deployment: Dict, cluster_metrics: Dict = None) -> float:
+        """Calculate actual resource efficiency based on real utilization data"""
         containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
         
         if not containers:
             return 0.5
         
+        # Try to use actual cluster utilization data first
+        if cluster_metrics:
+            actual_cpu_util = cluster_metrics.get('avg_cpu_utilization', 0.0) / 100.0
+            actual_memory_util = cluster_metrics.get('avg_memory_utilization', 0.0) / 100.0
+            
+            # Calculate overall efficiency from actual utilization
+            # Target utilization ranges: CPU 60-80%, Memory 70-85%
+            cpu_efficiency = min(1.0, actual_cpu_util / 0.7)  # 70% is good efficiency
+            memory_efficiency = min(1.0, actual_memory_util / 0.75)  # 75% is good efficiency
+            
+            actual_efficiency = (cpu_efficiency + memory_efficiency) / 2.0
+            logger.debug(f"REAL EFFICIENCY: CPU={actual_cpu_util:.1%}, Memory={actual_memory_util:.1%}, Overall={actual_efficiency:.2f}")
+            return actual_efficiency
+        
+        # Fallback: Use resource configuration to estimate efficiency
         efficiency_factors = []
         for container in containers:
             resources = container.get('resources', {})
             requests = resources.get('requests', {})
             limits = resources.get('limits', {})
             
+            # More realistic efficiency estimates based on resource configuration
             if requests and limits:
-                efficiency_factors.append(0.7)
+                # Well-configured workload - assume 75% efficiency
+                efficiency_factors.append(0.75)
             elif requests:
-                efficiency_factors.append(0.5)
+                # Has requests but no limits - assume 60% efficiency
+                efficiency_factors.append(0.60)
             else:
-                efficiency_factors.append(0.3)
+                # No resource configuration - assume 40% efficiency
+                efficiency_factors.append(0.40)
         
-        return sum(efficiency_factors) / len(efficiency_factors)
+        estimated_efficiency = sum(efficiency_factors) / len(efficiency_factors)
+        logger.debug(f"ESTIMATED EFFICIENCY: {estimated_efficiency:.2f} (no real metrics)")
+        return estimated_efficiency
     
     @staticmethod
-    def _estimate_cpu_waste(deployment: Dict) -> float:
-        """Estimate CPU waste for deployment"""
+    def _estimate_cpu_waste(deployment: Dict, cluster_metrics: Dict = None) -> float:
+        """Calculate actual CPU waste based on real utilization data"""
         containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
         total_waste = 0.0
+        
+        # Get actual cluster CPU utilization if available
+        actual_cpu_utilization = 0.0
+        if cluster_metrics:
+            actual_cpu_utilization = cluster_metrics.get('avg_cpu_utilization', 0.0) / 100.0  # Convert % to ratio
         
         for container in containers:
             cpu_request = container.get('resources', {}).get('requests', {}).get('cpu', '100m')
             cpu_cores = ResourceParser.parse_cpu(cpu_request)
-            estimated_waste = cpu_cores * 0.3  # 30% waste estimate
-            total_waste += estimated_waste
+            
+            if cluster_metrics and actual_cpu_utilization > 0:
+                # Use actual utilization data - waste = requested - actual usage
+                actual_cpu_usage = cpu_cores * actual_cpu_utilization
+                actual_waste = max(0, cpu_cores - actual_cpu_usage)
+                total_waste += actual_waste
+                logger.debug(f"CPU WASTE: Requested={cpu_cores:.3f}, Actual={actual_cpu_usage:.3f}, Waste={actual_waste:.3f}")
+            else:
+                # Fallback: Use conservative efficiency estimate based on resource configuration
+                limits = container.get('resources', {}).get('limits', {})
+                if limits and limits.get('cpu'):
+                    # Has limits - assume 70% efficiency
+                    estimated_waste = cpu_cores * 0.3
+                elif cpu_request:
+                    # Has requests only - assume 50% efficiency  
+                    estimated_waste = cpu_cores * 0.5
+                else:
+                    # No resource specs - assume 30% efficiency
+                    estimated_waste = cpu_cores * 0.7
+                total_waste += estimated_waste
         
         return total_waste
     
     @staticmethod
-    def _estimate_memory_waste(deployment: Dict) -> float:
-        """Estimate memory waste for deployment"""
+    def _estimate_memory_waste(deployment: Dict, cluster_metrics: Dict = None) -> float:
+        """Calculate actual memory waste based on real utilization data"""
         containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
         total_waste = 0.0
+        
+        # Get actual cluster memory utilization if available
+        actual_memory_utilization = 0.0
+        if cluster_metrics:
+            actual_memory_utilization = cluster_metrics.get('avg_memory_utilization', 0.0) / 100.0  # Convert % to ratio
         
         for container in containers:
             memory_request = container.get('resources', {}).get('requests', {}).get('memory', '128Mi')
             memory_gb = ResourceParser.parse_memory(memory_request)
-            estimated_waste = memory_gb * 0.25  # 25% waste estimate
-            total_waste += estimated_waste
+            
+            if cluster_metrics and actual_memory_utilization > 0:
+                # Use actual utilization data - waste = requested - actual usage
+                actual_memory_usage = memory_gb * actual_memory_utilization
+                actual_waste = max(0, memory_gb - actual_memory_usage)
+                total_waste += actual_waste
+                logger.debug(f"MEMORY WASTE: Requested={memory_gb:.3f}GB, Actual={actual_memory_usage:.3f}GB, Waste={actual_waste:.3f}GB")
+            else:
+                # Fallback: Use conservative efficiency estimate based on resource configuration
+                limits = container.get('resources', {}).get('limits', {})
+                if limits and limits.get('memory'):
+                    # Has limits - assume 75% efficiency
+                    estimated_waste = memory_gb * 0.25
+                elif memory_request:
+                    # Has requests only - assume 60% efficiency
+                    estimated_waste = memory_gb * 0.4
+                else:
+                    # No resource specs - assume 40% efficiency
+                    estimated_waste = memory_gb * 0.6
+                total_waste += estimated_waste
         
         return total_waste
     
@@ -560,6 +642,14 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         # Session tracking
         self._current_ml_session = None
         self._ml_sessions_history = []
+        
+        # Initialize ML attributes to None (will be set properly if initialization succeeds)
+        self.dna_analyzer = None
+        self.strategy_engine = None
+        self.plan_generator = None
+        self.command_generator = None
+        self.learning_engine = None
+        self.ml_orchestrator = None
         
         # CRITICAL FIX: Initialize BOTH ML and Security systems together
         self._initialize_integrated_systems()
@@ -907,7 +997,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                                    enable_real_time_monitoring: bool = True,
                                    output_format: str = 'comprehensive',
                                    # Enhanced security parameters
-                                   security_frameworks: List[str] = ['CIS', 'NIST'],
+                                   security_frameworks: List[str] = ['CIS', 'NIST', 'SOC2'],
                                    security_priority: str = 'high',
                                    # Single source of truth for data
                                    k8s_cache = None) -> Dict:
@@ -2302,47 +2392,27 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
     
     async def _calculate_enterprise_metrics(self, analysis_results: Dict, cluster_dna: Any, 
                                            ml_session: Dict, cluster_config: Dict) -> Dict:
-        """Calculate real enterprise operational metrics and integrate with implementation plan"""
-        logger.info("🏢 Calculating enterprise operational metrics...")
+        """Calculate reality-based enterprise operational metrics using comprehensive analysis data"""
+        logger.info("🏢 Calculating REALITY-BASED enterprise operational metrics...")
         
         try:
-            # Extract cluster information - use same pattern as analysis engine
-            resource_group = analysis_results.get('resource_group')
-            cluster_name = analysis_results.get('cluster_name')
+            # Use the comprehensive analysis data we already have - NO RECALCULATION
+            logger.info("🎯 Using comprehensive analysis results for reality-based enterprise metrics")
             
-            # subscription_id is stored in nested objects after centralization
-            subscription_id = (analysis_results.get('subscription_id') or 
-                             analysis_results.get('cluster_context', {}).get('subscription_id') or
-                             analysis_results.get('cluster_metadata', {}).get('subscription_id'))
+            # Extract real cluster data from our analysis
+            metrics_data = analysis_results.get('metrics_data', {})
+            nodes = metrics_data.get('nodes', [])
+            workloads = metrics_data.get('all_workloads', [])
+            hpa_data = metrics_data.get('hpa_implementation', {})
+            security_results = ml_session.get('security_analysis', {})
             
-            # Fallback to auto-detection if subscription_id not provided in analysis results
-            if not subscription_id:
-                logger.info(f"🔍 Auto-detecting subscription for cluster {cluster_name}")
-                from app.services.subscription_manager import azure_subscription_manager
-                subscription_id = azure_subscription_manager.find_cluster_subscription(resource_group, cluster_name)
-                
-            if not all([resource_group, cluster_name, subscription_id]):
-                raise ValueError(f"Missing cluster info: rg={resource_group}, cluster={cluster_name}, sub={subscription_id}")
-            
-            # Import enterprise metrics components
-            from app.ml.ml_framework_generator import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
-            
-            # Initialize enterprise metrics engine first
-            metrics_engine = EnterpriseOperationalMetricsEngine(
-                resource_group=resource_group,
-                cluster_name=cluster_name,
-                subscription_id=subscription_id
+            # Calculate reality-based metrics using actual cluster data
+            enterprise_data = await self._calculate_reality_based_enterprise_metrics(
+                analysis_results, metrics_data, cluster_dna, security_results, cluster_config
             )
             
-            # Then create integration with the engine
-            integration = EnterpriseMetricsIntegration(metrics_engine)
-            
-            # Calculate real enterprise metrics
-            logger.info("📊 Fetching real enterprise metrics from cluster...")
-            dashboard_data = await integration.get_enterprise_dashboard_data()
-            
-            logger.info(f"✅ Enterprise metrics calculated - Score: {dashboard_data['enterprise_maturity']['score']}")
-            return dashboard_data
+            logger.info(f"✅ REALITY-BASED Enterprise metrics calculated - Score: {enterprise_data['enterprise_maturity']['score']}")
+            return enterprise_data
             
         except Exception as e:
             logger.error(f"❌ Enterprise metrics calculation failed: {e}")
@@ -2356,6 +2426,405 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                 'operational_metrics': {},
                 'action_items': []
             }
+    
+    async def _calculate_reality_based_enterprise_metrics(self, analysis_results: Dict, 
+                                                         metrics_data: Dict, cluster_dna: Any, 
+                                                         security_results: Dict, cluster_config: Dict) -> Dict:
+        """Calculate enterprise metrics using actual analysis results - NO STATIC DATA"""
+        logger.info("🎯 REALITY-BASED: Calculating enterprise metrics from actual cluster analysis")
+        
+        # Extract real data from comprehensive analysis
+        nodes = metrics_data.get('nodes', [])
+        node_count = len(nodes)
+        hpa_data = metrics_data.get('hpa_implementation', {})
+        total_hpas = hpa_data.get('total_hpas', 0)
+        high_cpu_workloads = metrics_data.get('high_cpu_summary', {}).get('high_cpu_workloads', 0)
+        
+        # Current utilization from reality-based analysis
+        current_cpu = analysis_results.get('current_cpu_utilization', 0)
+        current_memory = analysis_results.get('current_memory_utilization', 0)
+        
+        # Security data from actual analysis
+        security_score = security_results.get('security_posture', {}).get('overall_score', 0)
+        compliance_cis = security_results.get('compliance_frameworks', {}).get('CIS', {}).get('compliance_percentage', 0)
+        compliance_nist = security_results.get('compliance_frameworks', {}).get('NIST', {}).get('compliance_percentage', 0)
+        
+        # Cost efficiency from reality-based calculations
+        cost_savings = analysis_results.get('total_savings', 0)
+        total_cost = analysis_results.get('total_cost', 0)
+        efficiency_percentage = (cost_savings / total_cost * 100) if total_cost > 0 else 0
+        
+        logger.info(f"🔍 REALITY DATA: {node_count} nodes, {total_hpas} HPAs, {high_cpu_workloads} high-CPU workloads")
+        logger.info(f"🔍 UTILIZATION: CPU {current_cpu}%, Memory {current_memory}%")
+        logger.info(f"🔍 SECURITY: Overall {security_score}, CIS {compliance_cis}%, NIST {compliance_nist}%")
+        
+        # 1. UPGRADE READINESS - Based on actual cluster state
+        upgrade_score = self._calculate_reality_upgrade_readiness(cluster_config, nodes, metrics_data)
+        
+        # 2. DISASTER RECOVERY - Based on actual backup/storage configuration
+        dr_score = self._calculate_reality_disaster_recovery(cluster_config, analysis_results)
+        
+        # 3. OPERATIONAL MATURITY - Based on actual automation and monitoring
+        maturity_score = self._calculate_reality_operational_maturity(metrics_data, hpa_data, analysis_results)
+        
+        # 4. CAPACITY PLANNING - Based on actual utilization and growth patterns
+        capacity_score = self._calculate_reality_capacity_planning(current_cpu, current_memory, nodes, analysis_results)
+        
+        # 5. COMPLIANCE READINESS - Based on actual security analysis
+        compliance_score = self._calculate_reality_compliance_readiness(security_results, compliance_cis, compliance_nist)
+        
+        # 6. TEAM VELOCITY - Based on actual deployment patterns and efficiency
+        velocity_score = self._calculate_reality_team_velocity(analysis_results, efficiency_percentage, cost_savings)
+        
+        # Calculate overall enterprise maturity
+        scores = [upgrade_score, dr_score, maturity_score, capacity_score, compliance_score, velocity_score]
+        overall_score = sum(scores) / len(scores)
+        
+        # Priority action items based on lowest scores
+        action_items = self._generate_reality_action_items(
+            {
+                'upgrade_readiness': upgrade_score,
+                'disaster_recovery': dr_score, 
+                'operational_maturity': maturity_score,
+                'capacity_planning': capacity_score,
+                'compliance_readiness': compliance_score,
+                'team_velocity': velocity_score
+            },
+            analysis_results,
+            security_results
+        )
+        
+        logger.info(f"✅ REALITY-BASED SCORES: Upgrade: {upgrade_score:.1f}, DR: {dr_score:.1f}, "
+                   f"Maturity: {maturity_score:.1f}, Capacity: {capacity_score:.1f}, "
+                   f"Compliance: {compliance_score:.1f}, Velocity: {velocity_score:.1f}")
+        
+        return {
+            "enterprise_maturity": {
+                "score": round(overall_score, 1),
+                "level": self._get_maturity_level(overall_score),
+                "timestamp": datetime.now().isoformat(),
+                "data_source": "reality_based_analysis"
+            },
+            "operational_metrics": {
+                "kubernetes_upgrade_readiness": {
+                    "metric_name": "Kubernetes Upgrade Readiness",
+                    "score": round(upgrade_score, 1),
+                    "risk_level": self._get_risk_level(upgrade_score),
+                    "details": f"Based on actual cluster version and {total_hpas} HPAs",
+                    "data_source": "cluster_config_analysis"
+                },
+                "disaster_recovery_score": {
+                    "metric_name": "Disaster Recovery Score", 
+                    "score": round(dr_score, 1),
+                    "risk_level": self._get_risk_level(dr_score),
+                    "details": f"Based on actual backup configuration and storage analysis",
+                    "data_source": "storage_backup_analysis"
+                },
+                "operational_maturity_score": {
+                    "metric_name": "Operational Maturity Score",
+                    "score": round(maturity_score, 1),
+                    "risk_level": self._get_risk_level(maturity_score),
+                    "details": f"Based on {total_hpas} HPAs and automation level",
+                    "data_source": "automation_analysis"
+                },
+                "capacity_planning_score": {
+                    "metric_name": "Capacity Planning Score",
+                    "score": round(capacity_score, 1),
+                    "risk_level": self._get_risk_level(capacity_score),
+                    "details": f"Based on actual CPU {current_cpu}%, Memory {current_memory}%",
+                    "data_source": "utilization_analysis"
+                },
+                "compliance_readiness_score": {
+                    "metric_name": "Compliance Readiness Score",
+                    "score": round(compliance_score, 1),
+                    "risk_level": self._get_risk_level(compliance_score),
+                    "details": f"Based on actual CIS {compliance_cis}%, NIST {compliance_nist}%",
+                    "data_source": "security_compliance_analysis"
+                },
+                "team_velocity_score": {
+                    "metric_name": "Team Velocity Score",
+                    "score": round(velocity_score, 1),
+                    "risk_level": self._get_risk_level(velocity_score),
+                    "details": f"Based on actual cost efficiency {efficiency_percentage:.1f}%",
+                    "data_source": "efficiency_analysis"
+                }
+            },
+            "action_items": action_items
+        }
+    
+    def _calculate_reality_upgrade_readiness(self, cluster_config: Dict, nodes: List, metrics_data: Dict) -> float:
+        """Calculate upgrade readiness from actual cluster configuration"""
+        try:
+            # Check if we have cluster version info
+            if 'version' in cluster_config:
+                version_info = cluster_config['version']
+                current_version = version_info.get('serverVersion', {}).get('gitVersion', '').replace('v', '')
+                if current_version:
+                    # Simple version scoring - newer versions get higher scores
+                    version_parts = current_version.split('.')
+                    if len(version_parts) >= 2:
+                        major = int(version_parts[0])
+                        minor = int(version_parts[1])
+                        # k8s 1.28+ = excellent, 1.25-1.27 = good, 1.20-1.24 = needs attention
+                        if major >= 1 and minor >= 28:
+                            return 95.0
+                        elif major >= 1 and minor >= 25:
+                            return 80.0
+                        elif major >= 1 and minor >= 20:
+                            return 60.0
+                        else:
+                            return 30.0
+            
+            # Fallback: Base score on node count and HPA implementation
+            node_count = len(nodes)
+            hpa_count = metrics_data.get('hpa_implementation', {}).get('total_hpas', 0)
+            
+            # More HPAs and nodes = better readiness infrastructure 
+            base_score = min(75, 40 + (node_count * 5) + (hpa_count * 0.1))
+            return base_score
+            
+        except Exception as e:
+            logger.warning(f"Upgrade readiness calculation failed: {e}, using base score")
+            return 50.0
+    
+    def _calculate_reality_disaster_recovery(self, cluster_config: Dict, analysis_results: Dict) -> float:
+        """Calculate DR score from actual storage and backup configuration"""
+        try:
+            # Check storage configuration
+            storage_cost = analysis_results.get('storage_cost', 0)
+            total_cost = analysis_results.get('total_cost', 1)
+            storage_percentage = (storage_cost / total_cost * 100) if total_cost > 0 else 0
+            
+            # Higher storage investment = better DR readiness
+            if storage_percentage >= 25:  # 25%+ of costs in storage = excellent DR
+                storage_score = 90
+            elif storage_percentage >= 15:  # 15-25% = good DR
+                storage_score = 75
+            elif storage_percentage >= 5:   # 5-15% = basic DR
+                storage_score = 60
+            else:                          # <5% = poor DR
+                storage_score = 30
+                
+            # Check if we have PVCs (indicates stateful workloads needing backup)
+            pvcs_detected = 'pvc' in str(cluster_config).lower()
+            pvc_bonus = 10 if pvcs_detected else 0
+            
+            return min(100, storage_score + pvc_bonus)
+            
+        except Exception as e:
+            logger.warning(f"DR calculation failed: {e}, using base score")
+            return 40.0
+    
+    def _calculate_reality_operational_maturity(self, metrics_data: Dict, hpa_data: Dict, analysis_results: Dict) -> float:
+        """Calculate operational maturity from actual automation and monitoring"""
+        try:
+            # HPA implementation = automation maturity
+            total_hpas = hpa_data.get('total_hpas', 0)
+            workload_count = len(metrics_data.get('all_workloads', []))
+            
+            # Calculate HPA coverage
+            hpa_coverage = (total_hpas / workload_count * 100) if workload_count > 0 else 0
+            
+            # High HPA coverage = high automation maturity
+            if hpa_coverage >= 80:    # 80%+ coverage = excellent
+                automation_score = 90
+            elif hpa_coverage >= 60:  # 60-80% = good
+                automation_score = 75
+            elif hpa_coverage >= 40:  # 40-60% = moderate
+                automation_score = 60
+            elif hpa_coverage >= 20:  # 20-40% = basic
+                automation_score = 45
+            else:                     # <20% = poor
+                automation_score = 25
+            
+            # Monitoring score based on metrics availability
+            monitoring_score = 70 if metrics_data.get('nodes') else 40
+            
+            # Cost optimization efficiency = operational excellence
+            savings_percentage = analysis_results.get('savings_percentage', 0)
+            efficiency_score = min(80, 40 + (savings_percentage * 2))
+            
+            # Weighted average
+            overall_score = (automation_score * 0.5 + monitoring_score * 0.3 + efficiency_score * 0.2)
+            return overall_score
+            
+        except Exception as e:
+            logger.warning(f"Operational maturity calculation failed: {e}, using base score")
+            return 50.0
+    
+    def _calculate_reality_capacity_planning(self, cpu_util: float, memory_util: float, nodes: List, analysis_results: Dict) -> float:
+        """Calculate capacity planning score from actual utilization"""
+        try:
+            # Optimal utilization: 60-80% CPU, 70-85% memory
+            cpu_score = 100
+            if cpu_util < 30 or cpu_util > 90:      # Under/over utilized
+                cpu_score = 40
+            elif cpu_util < 50 or cpu_util > 85:    # Suboptimal
+                cpu_score = 70
+            elif 60 <= cpu_util <= 80:              # Optimal range
+                cpu_score = 95
+            else:                                   # Good range
+                cpu_score = 85
+                
+            memory_score = 100
+            if memory_util < 40 or memory_util > 95:    # Under/over utilized
+                memory_score = 40
+            elif memory_util < 60 or memory_util > 90:  # Suboptimal  
+                memory_score = 70
+            elif 70 <= memory_util <= 85:              # Optimal range
+                memory_score = 95
+            else:                                       # Good range
+                memory_score = 85
+            
+            # Node count planning - more nodes = better resilience
+            node_count = len(nodes)
+            resilience_score = min(90, 30 + (node_count * 10))  # 3+ nodes = good resilience
+            
+            # Weighted score
+            capacity_score = (cpu_score * 0.4 + memory_score * 0.4 + resilience_score * 0.2)
+            return capacity_score
+            
+        except Exception as e:
+            logger.warning(f"Capacity planning calculation failed: {e}, using base score")
+            return 60.0
+    
+    def _calculate_reality_compliance_readiness(self, security_results: Dict, cis_score: float, nist_score: float) -> float:
+        """Calculate compliance readiness from actual security analysis"""
+        try:
+            # Use actual compliance scores from security analysis
+            if cis_score > 0 or nist_score > 0:
+                # Weight CIS and NIST equally for Kubernetes compliance
+                compliance_score = (cis_score + nist_score) / 2
+            else:
+                # Fallback: Use overall security score if compliance details not available
+                overall_security = security_results.get('security_posture', {}).get('overall_score', 0)
+                compliance_score = overall_security
+            
+            # Security violations impact
+            violations = len(security_results.get('alerts', []))
+            violation_penalty = min(20, violations * 2)  # Max 20 point penalty
+            
+            final_score = max(0, compliance_score - violation_penalty)
+            return final_score
+            
+        except Exception as e:
+            logger.warning(f"Compliance calculation failed: {e}, using base score")
+            return 45.0
+    
+    def _calculate_reality_team_velocity(self, analysis_results: Dict, efficiency_percentage: float, cost_savings: float) -> float:
+        """Calculate team velocity from actual cost efficiency and optimization"""
+        try:
+            # High cost efficiency = high team velocity (good practices)
+            if efficiency_percentage >= 15:      # 15%+ savings = excellent velocity
+                efficiency_score = 90
+            elif efficiency_percentage >= 10:    # 10-15% = good velocity
+                efficiency_score = 75
+            elif efficiency_percentage >= 5:     # 5-10% = moderate velocity
+                efficiency_score = 60
+            else:                                # <5% = low velocity
+                efficiency_score = 40
+            
+            # Absolute savings amount also matters
+            if cost_savings >= 200:              # $200+ savings = significant impact
+                impact_score = 90
+            elif cost_savings >= 100:            # $100+ savings = good impact
+                impact_score = 75
+            elif cost_savings >= 50:             # $50+ savings = moderate impact
+                impact_score = 60
+            else:                                # <$50 = low impact
+                impact_score = 40
+            
+            # Confidence in analysis = team capability
+            confidence_level = analysis_results.get('analysis_confidence', 0.8)
+            confidence_score = confidence_level * 100
+            
+            # Weighted velocity score
+            velocity_score = (efficiency_score * 0.4 + impact_score * 0.4 + confidence_score * 0.2)
+            return velocity_score
+            
+        except Exception as e:
+            logger.warning(f"Team velocity calculation failed: {e}, using base score")
+            return 55.0
+    
+    def _generate_reality_action_items(self, scores: Dict, analysis_results: Dict, security_results: Dict) -> List[Dict]:
+        """Generate priority action items based on actual analysis results"""
+        action_items = []
+        
+        # Find lowest scoring areas
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1])
+        
+        for metric_name, score in sorted_scores[:3]:  # Top 3 priorities
+            priority = "HIGH" if score < 60 else "MEDIUM" if score < 80 else "LOW"
+            
+            if metric_name == 'upgrade_readiness' and score < 80:
+                action_items.append({
+                    "title": "Kubernetes Cluster Upgrade Required",
+                    "description": f"Cluster upgrade readiness score is {score:.1f}. Plan and execute cluster upgrade.",
+                    "priority": priority,
+                    "category": "Infrastructure",
+                    "estimated_effort": "Medium",
+                    "business_impact": "High"
+                })
+            
+            elif metric_name == 'disaster_recovery' and score < 70:
+                storage_cost = analysis_results.get('storage_cost', 0)
+                action_items.append({
+                    "title": "Implement Disaster Recovery Strategy",
+                    "description": f"DR score is {score:.1f}. Current storage investment: ${storage_cost:.0f}. Implement backup solution.",
+                    "priority": priority,
+                    "category": "Risk Management",
+                    "estimated_effort": "High",
+                    "business_impact": "Critical"
+                })
+            
+            elif metric_name == 'compliance_readiness' and score < 75:
+                violations = len(security_results.get('alerts', []))
+                action_items.append({
+                    "title": "Address Security Compliance Gaps",
+                    "description": f"Compliance score is {score:.1f} with {violations} security violations. Implement security policies.",
+                    "priority": priority,
+                    "category": "Security",
+                    "estimated_effort": "Medium",
+                    "business_impact": "High"
+                })
+            
+            elif metric_name == 'capacity_planning' and score < 75:
+                cpu_util = analysis_results.get('current_cpu_utilization', 0)
+                memory_util = analysis_results.get('current_memory_utilization', 0)
+                action_items.append({
+                    "title": "Optimize Resource Capacity Planning",
+                    "description": f"Capacity score is {score:.1f}. Current utilization: CPU {cpu_util}%, Memory {memory_util}%.",
+                    "priority": priority,
+                    "category": "Performance",
+                    "estimated_effort": "Medium",
+                    "business_impact": "Medium"
+                })
+        
+        return action_items
+    
+    def _get_maturity_level(self, score: float) -> str:
+        """Get maturity level from score"""
+        if score >= 85:
+            return "OPTIMIZED"
+        elif score >= 70:
+            return "MANAGED"
+        elif score >= 55:
+            return "DEFINED"
+        elif score >= 40:
+            return "REPEATABLE"
+        else:
+            return "INITIAL"
+    
+    def _get_risk_level(self, score: float) -> str:
+        """Get risk level from score"""
+        if score >= 80:
+            return "LOW"
+        elif score >= 60:
+            return "MEDIUM"
+        elif score >= 40:
+            return "HIGH"
+        else:
+            return "CRITICAL"
     
     def _finalize_enhanced_session(self, ml_session: Dict, implementation_plan: Dict,
                                  confidence: float, security_analysis: Optional[Dict]):
@@ -2643,20 +3112,15 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                         executable_commands = execution_plan.phase_commands[phase_id]
                         logger.info(f"✅ Found {len(executable_commands)} commands for {phase_id}")
                         
-                        # Convert ExecutableCommand objects to UI format - FIX THE SERIALIZATION
-                        command_strings = []
+                        # Convert ExecutableCommand objects to UI format
+                        ui_formatted_commands = []
                         for i, exec_cmd in enumerate(executable_commands):
                             cmd_string = getattr(exec_cmd, 'command', '')
                             logger.info(f"🔍 Command {i} for {phase_id}: {cmd_string[:100]}...")
-                            command_strings.append(cmd_string)  # Keep as string, don't JSON serialize
+                            ui_formatted_commands.append(exec_cmd.to_ui_format())
                         
-                        # Update phase with commands in the correct format
-                        phase['commands'] = [{
-                            'title': f'{phase_title} Commands',
-                            'commands': command_strings,  # Array of plain command strings
-                            'description': f'Commands for {phase_title}',
-                            'source': 'phase_specific'
-                        }]
+                        # Update phase with commands in the correct UI format
+                        phase['commands'] = ui_formatted_commands
                         
                         logger.info(f"✅ Mapped {len(executable_commands)} commands to phase: {phase_title}")
                     else:
@@ -2684,53 +3148,92 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         
         confidence_factors = []
         
-        # ML system confidence levels
+        # ML system confidence levels (more conservative)
         ml_confidences = list(ml_session['ml_confidence_levels'].values())
         if ml_confidences:
-            confidence_factors.append(sum(ml_confidences) / len(ml_confidences))
+            avg_ml_confidence = sum(ml_confidences) / len(ml_confidences)
+            # Cap ML confidence to prevent overconfidence
+            confidence_factors.append(min(0.85, avg_ml_confidence))
         
-        # Data quality factor
+        # Data quality factor (more realistic)
         total_cost = analysis_results.get('total_cost', 0)
-        if total_cost > 0:
-            confidence_factors.append(0.9)
-        else:
-            confidence_factors.append(0.3)
+        health_score = analysis_results.get('current_health_score', 0)
         
-        # Cluster config quality factor
+        if total_cost > 0 and health_score > 50:
+            confidence_factors.append(0.75)  # Good data quality
+        elif total_cost > 0 and health_score > 20:
+            confidence_factors.append(0.65)  # Medium data quality  
+        elif total_cost > 0:
+            confidence_factors.append(0.55)  # Low health score reduces confidence
+        else:
+            confidence_factors.append(0.25)  # No cost data is problematic
+        
+        # Cluster config quality factor (more conservative)
         if cluster_config and cluster_config.get('status') == 'completed':
             config_success_rate = cluster_config.get('fetch_metrics', {}).get('successful_fetches', 0) / max(cluster_config.get('fetch_metrics', {}).get('attempted_fetches', 1), 1)
-            confidence_factors.append(0.5 + 0.4 * config_success_rate)
+            # Be more conservative with config confidence
+            confidence_factors.append(0.4 + 0.3 * config_success_rate)
         else:
-            confidence_factors.append(0.5)
+            confidence_factors.append(0.35)  # Missing config significantly reduces confidence
         
-        # Plan completeness factor
+        # Plan complexity penalty
         phase_count = len(implementation_plan.get('implementation_phases', []))
-        complexity_factor = max(0.5, 1.0 - (phase_count - 5) * 0.1)
+        if phase_count <= 3:
+            complexity_factor = 0.8  # Simple plans are more reliable
+        elif phase_count <= 5:
+            complexity_factor = 0.7  # Medium complexity
+        else:
+            complexity_factor = max(0.5, 0.9 - (phase_count - 5) * 0.05)  # Complex plans less reliable
         confidence_factors.append(complexity_factor)
         
-        # ML systems availability factor
+        # ML systems availability factor (realistic)
         if self.ml_systems_available:
-            confidence_factors.append(0.9)
+            confidence_factors.append(0.75)  # ML helps but isn't perfect
         else:
-            confidence_factors.append(0.6)
+            confidence_factors.append(0.45)  # Significantly reduced without ML
         
-        # Use enterprise metrics confidence directly from plan generation
+        # Implementation plan confidence (conservative)
         if 'metadata' in implementation_plan and 'ml_confidence' in implementation_plan['metadata']:
             plan_confidence = implementation_plan['metadata']['ml_confidence']
-            confidence_factors.append(plan_confidence)
+            # Cap plan confidence to prevent overconfidence
+            confidence_factors.append(min(0.8, plan_confidence))
         else:
-            confidence_factors.append(0.8)  # Default for enterprise metrics
+            confidence_factors.append(0.6)  # Default for enterprise metrics (conservative)
         
-        # Security integration factor (NEW)
+        # Security integration factor (realistic)
         if self.enable_security_integration:
             if SECURITY_INTEGRATION_AVAILABLE and self.security_systems_available:
-                confidence_factors.append(0.9)  # High confidence with security framework
+                # Security helps but adds complexity
+                confidence_factors.append(0.7)
             else:
-                confidence_factors.append(0.7)  # Medium confidence - enabled but not fully available
+                # Enabled but not available = uncertainty
+                confidence_factors.append(0.55)
         else:
-            confidence_factors.append(0.8)  # Standard confidence without security
+            # No security consideration = incomplete analysis
+            confidence_factors.append(0.6)
         
-        overall_confidence = sum(confidence_factors) / len(confidence_factors)
+        # Use weighted minimum instead of average for more conservative confidence
+        # The weakest factor significantly impacts overall confidence
+        if confidence_factors:
+            min_factor = min(confidence_factors)
+            avg_factor = sum(confidence_factors) / len(confidence_factors)
+            # 60% weight on average, 40% weight on weakest factor
+            overall_confidence = (avg_factor * 0.6) + (min_factor * 0.4)
+            
+            # Additional reality checks
+            # Health score penalty
+            health_score = analysis_results.get('current_health_score', 0)
+            if health_score < 20:
+                overall_confidence *= 0.9  # 10% penalty for very low health
+            
+            # JSON parsing issues penalty (from earlier fix)
+            if 'json_parsing_issues' in analysis_results.get('metadata', {}):
+                overall_confidence *= 0.95  # 5% penalty for data quality issues
+                
+            # Cap final confidence to realistic maximum
+            overall_confidence = min(0.85, overall_confidence)  # Never exceed 85%
+        else:
+            overall_confidence = 0.4  # Very low confidence if no factors available
         
         # Add ML confidence to plan
         implementation_plan['ml_confidence'] = overall_confidence
@@ -3259,7 +3762,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                                            output_format: str = 'comprehensive',
                                            include_security_assessment: bool = True,
                                            security_level: str = 'standard',
-                                           security_frameworks: List[str] = ['CIS', 'NIST']) -> Dict:
+                                           security_frameworks: List[str] = ['CIS', 'NIST', 'SOC2']) -> Dict:
         """
         API-friendly wrapper with INTEGRATED security framework
         

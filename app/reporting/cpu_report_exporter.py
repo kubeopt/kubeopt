@@ -158,12 +158,12 @@ class CPUReportExporter:
         <b>Analysis Period:</b> Last 24 hours<br/><br/>
         
         <b>Key Findings:</b><br/>
-        • Average CPU Utilization: <font color="{'red' if metrics.average_cpu_usage > 80 else 'green'}">{metrics.average_cpu_usage:.1f}%</font><br/>
-        • Peak CPU Usage: <font color="{'red' if metrics.peak_cpu_usage > 150 else 'orange' if metrics.peak_cpu_usage > 100 else 'green'}">{metrics.peak_cpu_usage:.1f}%</font><br/>
-        • CPU Efficiency Score: <font color="{'red' if metrics.cpu_efficiency < 30 else 'orange' if metrics.cpu_efficiency < 70 else 'green'}">{metrics.cpu_efficiency:.1f}%</font><br/>
+        • Average CPU Utilization: <font color="{'red' if metrics.average_cpu_usage > 80 else '#1E40AF'}">{metrics.average_cpu_usage:.1f}%</font><br/>
+        • Peak CPU Usage: <font color="{'red' if metrics.peak_cpu_usage > 150 else 'orange' if metrics.peak_cpu_usage > 100 else '#1E40AF'}">{metrics.peak_cpu_usage:.1f}%</font><br/>
+        • CPU Efficiency Score: <font color="{'red' if metrics.cpu_efficiency < 30 else 'orange' if metrics.cpu_efficiency < 70 else '#1E40AF'}">{metrics.cpu_efficiency:.1f}%</font><br/>
         • High CPU Workloads: {metrics.high_cpu_workloads} out of {metrics.total_pods} pods<br/>
         • Monthly Cost Impact: <b>${metrics.monthly_cost:,.2f}</b><br/>
-        • Optimization Potential: <font color="green">{metrics.optimization_potential_pct:.1f}%</font><br/>
+        • Optimization Potential: <font color="#1E40AF">{metrics.optimization_potential_pct:.1f}%</font><br/>
         """
         
         if metrics.average_cpu_usage > 200:
@@ -458,7 +458,7 @@ class CPUReportExporter:
             status_color = "#f39c12"
             status_text = "⚠️ WARNING"
         else:
-            status_color = "#27ae60"
+            status_color = "#1E40AF"
             status_text = "✅ NORMAL"
         
         html_summary = f"""
@@ -500,14 +500,14 @@ class CPUReportExporter:
                     </tr>
                     <tr style="background-color: #f8f9fa;">
                         <td style="padding: 8px;">Optimization Potential</td>
-                        <td style="padding: 8px; text-align: right; color: #27ae60; font-weight: bold;">
+                        <td style="padding: 8px; text-align: right; color: #1E40AF; font-weight: bold;">
                             {metrics.optimization_potential_pct:.1f}%
                         </td>
                     </tr>
                 </table>
                 
-                <div style="background-color: #e8f5e8; border-left: 4px solid #27ae60; padding: 15px; margin: 20px 0;">
-                    <h4 style="margin-top: 0; color: #27ae60;">💰 Cost Savings Opportunity</h4>
+                <div style="background-color: #e8f5e8; border-left: 4px solid #1E40AF; padding: 15px; margin: 20px 0;">
+                    <h4 style="margin-top: 0; color: #1E40AF;">💰 Cost Savings Opportunity</h4>
                     <p>Potential monthly savings: <strong>${report_data.cost_breakdown.get('potential_savings', 0):,.2f}</strong></p>
                     <p>Annual savings opportunity: <strong>${report_data.cost_breakdown.get('potential_savings', 0) * 12:,.2f}</strong></p>
                 </div>
