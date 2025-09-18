@@ -49,7 +49,7 @@ export function injectCompleteUI(planData) {
  */
 export function getCompleteHTML(data) {
     return `
-        <div class="complete-implementation-ui" style="position: relative; z-index: 1000; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 20px;">
+        <div class="complete-implementation-ui" style="position: relative; z-index: 1000; background: #1a202c; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; padding: 20px;">
             
             <!-- Enhanced Styles -->
             ${renderEnhancedStyles()}
@@ -57,8 +57,7 @@ export function getCompleteHTML(data) {
             <!-- Main Header with Real Data -->
             ${renderEnhancedMainHeader(data)}
             
-            <!-- Executive Summary Section -->
-            ${renderEnhancedExecutiveSummary(data.executiveSummary)}
+            <!-- Executive Summary integrated into header tiles above -->
             
             
             <!-- Main Content - Timeline Only -->
@@ -80,12 +79,12 @@ export function renderEnhancedStyles() {
             }
             
             .main-timeline-container {
-                background: white;
+                background: #2d3748;
                 border-radius: 16px;
                 padding: 30px;
                 margin-bottom: 30px;
-                box-shadow: 0 8px 32px rgba(0,0,0,0.08);
-                border: 1px solid #e2e8f0;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                border: 1px solid #4a5568;
             }
             
             .enhanced-header {
@@ -736,128 +735,85 @@ export function renderEnhancedStyles() {
 }
 
 export function renderEnhancedMainHeader(data) {
+    // Calculate phases with actual commands for alignment
+    let phasesWithCommands = 0;
+    if (data.weeks) {
+        data.weeks.forEach(weekGroup => {
+            weekGroup.phases.forEach(phase => {
+                if (phase.commands && phase.commands.length > 0) {
+                    phasesWithCommands++;
+                }
+            });
+        });
+    }
+    
     return `
         <div class="enhanced-header">
             <!-- Enhanced Header with Theme Toggle and Search -->
-            <div class="header-content">
+            <div class="header-content" style="background: #2d3748; border-radius: 12px; padding: 25px; margin-bottom: 20px; border: 1px solid #4a5568;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                     <div>
-                        <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700; display: flex; align-items: center; gap: 15px;">
+                        <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 15px;">
                             <span style="font-size: 40px;">🚀</span>
                             Implementation Plan Ready!
                         </h2>
-                        <p style="margin: 0; opacity: 0.9; font-size: 18px;">
+                        <p style="margin: 0; opacity: 0.9; font-size: 18px; color: #e2e8f0;">
                             <strong>Cluster:</strong> ${data.clusterName} • 
                             <strong>Resource Group:</strong> ${data.resourceGroup}
-                            
+                            ${data.intelligenceLevel && data.intelligenceLevel !== 'Unknown' ? ` • <strong>Intelligence:</strong> ${data.intelligenceLevel}` : ''}
                         </p>
-                        <small style="opacity: 0.75; font-size: 14px;">
+                        <small style="opacity: 0.75; font-size: 14px; color: #e2e8f0;">
                             Generated: ${new Date(data.generatedAt).toLocaleDateString()}
+                            ${data.strategyType && data.strategyType !== 'Unknown' ? ` • Strategy: ${data.strategyType}` : ''}
                         </small>
                     </div>
                     <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
                         <!-- Command Search -->
                         <div style="position: relative;">
-                            <input type="text" id="commandSearch" placeholder="🔍 Search commands..." onkeyup="searchCommands(this.value)" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 6px; font-size: 14px; width: 200px;" />
+                            <input type="text" id="commandSearch" placeholder="🔍 Search commands..." onkeyup="searchCommands(this.value)" style="background: #1a202c; border: 1px solid #4a5568; color: #e2e8f0; padding: 8px 16px; border-radius: 6px; font-size: 14px; width: 200px;" />
                         </div>
-                        <button onclick="expandAllCompleteSections()" class="command-btn primary">
+                        <button onclick="expandAllCompleteSections()" style="background: #48bb78; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">
                             📖 Expand All
                         </button>
-                        <button onclick="collapseAllCompleteSections()" class="command-btn">
+                        <button onclick="collapseAllCompleteSections()" style="background: #4a5568; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">
                             📕 Collapse All
                         </button>
                     </div>
                 </div>
                 
             </div>
-            <div class="enhanced-stats-grid">
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${data.totalPhases}</div>
-                        <div class="stat-label">Phases</div>
+            <div class="enhanced-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 30px;">
+                    <div class="enhanced-stat-card" style="background: #2d3748; border: 1px solid #4a5568; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                        <div class="stat-value" style="font-size: 32px; font-weight: 700; color: #48bb78; margin-bottom: 8px;">${phasesWithCommands > 0 ? phasesWithCommands : data.totalPhases}</div>
+                        <div class="stat-label" style="color: #e2e8f0; font-size: 14px; opacity: 0.9;">Implementation Phases</div>
                     </div>
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${data.totalWeeks}</div>
-                        <div class="stat-label">Weeks</div>
+                    <div class="enhanced-stat-card" style="background: #2d3748; border: 1px solid #4a5568; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                        <div class="stat-value" style="font-size: 32px; font-weight: 700; color: #48bb78; margin-bottom: 8px;">${data.totalWeeks}</div>
+                        <div class="stat-label" style="color: #e2e8f0; font-size: 14px; opacity: 0.9;">Timeline (Weeks)</div>
                     </div>
-                    
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${data.totalCommands}</div>
-                        <div class="stat-label">Commands</div>
+                    <div class="enhanced-stat-card" style="background: #2d3748; border: 1px solid #4a5568; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                        <div class="stat-value" style="font-size: 32px; font-weight: 700; color: #48bb78; margin-bottom: 8px;">${data.totalCommands}</div>
+                        <div class="stat-label" style="color: #e2e8f0; font-size: 14px; opacity: 0.9;">Ready Commands</div>
                     </div>
-                    
-                    
+                    ${data.totalSavings > 0 ? `
+                        <div class="enhanced-stat-card" style="background: #2d3748; border: 1px solid #4a5568; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                            <div class="stat-value" style="font-size: 32px; font-weight: 700; color: #48bb78; margin-bottom: 8px;">$${Math.round(data.totalSavings).toLocaleString()}</div>
+                            <div class="stat-label" style="color: #e2e8f0; font-size: 14px; opacity: 0.9;">Monthly Savings</div>
+                        </div>
+                    ` : ''}
+                    ${data.avgProgress > 0 ? `
+                        <div class="enhanced-stat-card" style="background: #2d3748; border: 1px solid #4a5568; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                            <div class="stat-value" style="font-size: 32px; font-weight: 700; color: #48bb78; margin-bottom: 8px;">${data.avgProgress}%</div>
+                            <div class="stat-label" style="color: #e2e8f0; font-size: 14px; opacity: 0.9;">Confidence Level</div>
+                        </div>
+                    ` : ''}
                 </div>
         </div>
     `;
 }
 
-export function renderEnhancedExecutiveSummary(executiveSummary) {
-    if (!executiveSummary || Object.keys(executiveSummary).length === 0) {
-        return `
-            <div class="enhanced-section bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                <h4 class="mb-2 text-yellow-800 text-lg font-bold flex items-center">📋 Executive Summary</h4>
-                <p class="text-yellow-700 italic m-0">No executive summary data available in the plan object.</p>
-            </div>
-        `;
-    }
-
-    return `
-        <div class="enhanced-section bg-transparent rounded-md p-3">
-            <div class="section-header flex items-center mb-6">
-                <span class="section-icon text-2xl mr-3">📊</span>
-                <h2 class="section-title text-xl font-bold">Executive Summary</h2>
-            </div>
-            
-            <div class="grid gap-5 mb-6" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
-                ${executiveSummary.annual_savings_potential ? `
-                    <div class="flex flex-col items-center justify-center p-6 bg-white rounded-md shadow-sm">
-                        <div class="text-3xl font-bold text-green-700">$${executiveSummary.annual_savings_potential.toLocaleString()}</div>
-                        <div class="text-base font-semibold text-green-700 mt-1">Annual Savings Potential</div>
-                    </div>
-                ` : ''}
-
-                ${executiveSummary.projected_monthly_savings ? `
-                    <div class="flex flex-col items-center justify-center p-6 bg-white rounded-md shadow-sm">
-                        <div class="text-3xl font-bold text-green-700"">$${executiveSummary.projected_monthly_savings.toFixed(2)}</div>
-                        <div class="text-base font-semibold text-green-700">Monthly Savings</div>
-                    </div>
-                ` : ''}
-
-                ${executiveSummary.success_probability ? `
-                    <div class="flex flex-col items-center justify-center p-6 bg-white rounded-md shadow-sm">
-                        <div class="text-3xl font-bold text-green-700">${Math.round(executiveSummary.success_probability * 100)}%</div>
-                        <div class="text-base font-semibold text-green-700 mt-1">Success Probability</div>
-                    </div>
-                ` : ''}
-
-                ${executiveSummary.confidence_level ? `
-                    <div class="flex flex-col items-center justify-center p-6 bg-white rounded-md shadow-sm">
-                        <div class="text-3xl font-bold text-gray-800">${executiveSummary.confidence_level}</div>
-                        <div class="text-base font-semibold text-gray-800 mt-1">Confidence Level</div>
-                    </div>
-                ` : ''}
-            </div>
-            
-            ${executiveSummary.key_recommendations && executiveSummary.key_recommendations.length > 0 ? `
-                <div class="mb-5">
-                    <h4 class="mb-3 text-lg text-gray-800 font-semibold flex items-center">🎯 Key Recommendations</h4>
-                    <ul class="pl-5 text-gray-700">
-                        ${executiveSummary.key_recommendations.map(rec => `<li class="mb-2">${rec}</li>`).join('')}
-                    </ul>
-                </div>
-            ` : ''}
-
-            ${executiveSummary.strategic_priorities && executiveSummary.strategic_priorities.length > 0 ? `
-                <div>
-                    <h4 class="mb-3 text-lg text-gray-800 font-semibold flex items-center">🚀 Strategic Priorities</h4>
-                    <ul class="pl-5 text-gray-700">
-                        ${executiveSummary.strategic_priorities.map(priority => `<li class="mb-2">${priority}</li>`).join('')}
-                    </ul>
-                </div>
-            ` : ''}
-        </div>
-    `;
-}
+// Executive Summary functionality has been integrated into the header tiles above
+// This reduces duplication and provides a cleaner overview
 
 
 export function renderEnhancedIntelligenceInsights(intelligenceInsights) {
@@ -1197,163 +1153,135 @@ function renderMonitoringTab(data) {
 export function renderEnhancedCompleteTimeline(data) {
     if (!data.weeks || data.weeks.length === 0) {
         return `
-            <div style="text-align: center; padding: 60px 20px; color: #718096; background: #f8fafc; border-radius: 16px; border: 2px dashed #e2e8f0;">
+            <div style="text-align: center; padding: 60px 20px; color: #718096; background: #2d3748; border-radius: 16px; border: 2px dashed #4a5568;">
                 <div style="font-size: 64px; margin-bottom: 20px;">📭</div>
-                <h3 style="margin: 0 0 10px 0; color: #e53e3e; font-size: 24px;">No Implementation Phases Available</h3>
-                <p style="margin: 0; font-style: italic; font-size: 16px;">The plan object contains no implementation phases to display.</p>
+                <h3 style="margin: 0 0 10px 0; color: #ffffff; font-size: 24px;">No Implementation Commands Available</h3>
+                <p style="margin: 0; font-style: italic; font-size: 16px; color: #e2e8f0;">The analysis found no optimization commands to display.</p>
+            </div>
+        `;
+    }
+
+    // Collect all commands by category for single-window display
+    const commandsByCategory = {};
+    let totalCommands = 0;
+    let totalSavings = 0;
+    let actualPhaseCount = 0;
+
+    data.weeks.forEach(weekGroup => {
+        weekGroup.phases.forEach(phase => {
+            actualPhaseCount++; // Count actual phases with commands
+            totalSavings += phase.projectedSavings || 0;
+            phase.commands.forEach(commandGroup => {
+                const category = commandGroup.title || commandGroup.category || 'General Commands';
+                if (!commandsByCategory[category]) {
+                    commandsByCategory[category] = {
+                        commands: [],
+                        description: commandGroup.description || '',
+                        totalCount: 0,
+                        phaseCount: 0
+                    };
+                }
+                commandsByCategory[category].commands.push(...commandGroup.commands);
+                commandsByCategory[category].totalCount += commandGroup.commands.length;
+                commandsByCategory[category].phaseCount++;
+                totalCommands += commandGroup.commands.length;
+            });
+        });
+    });
+    
+    console.log('🔍 Phase alignment check:');
+    console.log(`   📊 Tile shows: ${data.totalPhases} phases`);
+    console.log(`   💻 Commands show: ${actualPhaseCount} phases with commands`);
+    console.log(`   📂 Categories: ${Object.keys(commandsByCategory).length} command categories`);
+    Object.entries(commandsByCategory).forEach(([cat, catData]) => {
+        console.log(`     - ${cat}: ${catData.totalCount} commands from ${catData.phaseCount} phases`);
+    });
+    
+    // Warn if there's a mismatch
+    if (data.totalPhases !== actualPhaseCount) {
+        console.warn(`⚠️ PHASE MISMATCH: Tiles show ${data.totalPhases} but only ${actualPhaseCount} phases have commands!`);
+    }
+
+    if (totalCommands === 0) {
+        return `
+            <div style="text-align: center; padding: 60px 20px; color: #718096; background: #2d3748; border-radius: 16px; border: 2px dashed #4a5568;">
+                <div style="font-size: 64px; margin-bottom: 20px;">🔧</div>
+                <h3 style="margin: 0 0 10px 0; color: #ffffff; font-size: 24px;">No Commands Found</h3>
+                <p style="margin: 0; font-style: italic; font-size: 16px; color: #e2e8f0;">Implementation plan contains no executable commands.</p>
             </div>
         `;
     }
     
-    let html = '';
-    
-    data.weeks.forEach((weekGroup, groupIndex) => {
-        html += `
-            <div class="week-section">
-                <div class="enhanced-week-marker">${weekGroup.weekRange}</div>
-                ${groupIndex < data.weeks.length - 1 ? '<div class="week-line"></div>' : ''}
-                <h3 style="margin: 0 0 25px 0; color: #e2e8f0; font-weight: 600; font-size: 22px;">${weekGroup.title}</h3>
-                
-                ${weekGroup.phases.map(phase => `
-                    <div class="enhanced-phase-card">
-                        <div class="enhanced-phase-header" onclick="toggleCompletePhase('${phase.id}')">
-                            <div style="flex: 1;">
-                                <h4 class="phase-title">${phase.title}</h4>
-                                <p class="phase-description">${phase.description}</p>
-                                <div class="type-badges">
-                                    ${phase.type.map(type => `
-                                        <span class="type-badge" style="background: ${getBadgeColor(type)};">${type}</span>
-                                    `).join('')}
-                                </div>
-                                <div class="phase-meta">
-                                    ${phase.projectedSavings > 0 ? `
-                                        <div class="meta-item" style="color: #48bb78;">
-                                            <span>💰</span> ${phase.projectedSavings.toLocaleString()}/month
-                                        </div>
-                                    ` : ''}
-                                    <div class="meta-item" style="color:rgb(102, 212, 234);">
-                                        <span>💻</span> ${phase.commands.reduce((sum, group) => sum + group.commands.length, 0)} commands
-                                    </div>
-                                    <div class="meta-item" style="color: #718096;">
-                                        <span>📅</span> Phase ${phase.phaseNumber}
-                                    </div>
-                                    ${phase.commands.length > 0 ? `
-                                        <div class="meta-item" style="color:rgb(102, 230, 234); margin-left: auto;">
-                                            <span>👆</span> Click to view commands
-                                        </div>
-                                    ` : ''}
-                                </div>
-                            </div>
-                            <!--<div class="progress-circle" style="--progress: ${phase.progress * 3.6}deg;">
-                                <div class="progress-text">${phase.progress}%</div>
-                            </div>-->
+    // Generate single window with dynamic sections
+    let html = `
+        <!-- Implementation Overview -->
+        <div class="single-window-container" style="background: #1a202c; border-radius: 16px; padding: 30px; margin-bottom: 30px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid #4a5568;">
+            <!-- Header without duplicate stats -->
+            <div style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #4a5568;">
+                <h2 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 15px;">
+                    <span style="background: #48bb78; color: white; padding: 12px; border-radius: 12px; font-size: 24px;">💻</span>
+                    Implementation Commands
+                </h2>
+                <p style="margin: 8px 0 0 0; color: #e2e8f0; font-size: 16px;">
+                    ${Object.keys(commandsByCategory).length} command categories from ${actualPhaseCount} implementation phases
+                </p>
+            </div>
+            
+            <!-- Dynamic command sections -->
+            ${Object.entries(commandsByCategory).map(([category, categoryData]) => `
+                <div class="command-category-section" style="margin-bottom: 40px;">
+                    <div class="category-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 15px 20px; background: #2d3748; color: white; border-radius: 12px; border: 1px solid #4a5568;">
+                        <div>
+                            <h3 style="margin: 0; font-size: 20px; font-weight: 600;">${category}</h3>
+                            ${categoryData.description ? `<p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">${categoryData.description}</p>` : ''}
                         </div>
-                        
-                        <div id="complete-content-${phase.id}" style="max-height: 0; overflow: hidden; transition: all 0.4s ease;">
-                            <div style="padding: 30px;">
-                                ${phase.commands && phase.commands.length > 0 ? `
-                                    <h4 style="margin: 0 0 25px 0; color: #e2e8f0; display: flex; align-items: center; gap: 10px;">
-                                        <span style="font-size: 20px;">💻</span> Implementation Commands
-                                        <span style="background:rgb(102, 234, 221); color: white; padding: 6px 12px; border-radius: 16px; font-size: 12px;">${phase.commands.reduce((sum, group) => sum + group.commands.length, 0)} total</span>
-                                    </h4>
-                                    ${phase.commands.map((commandGroup, groupIndex) => `
-                                        <div style="margin-bottom: 30px;">
-                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                                                <h5 style="margin: 0; color:rgb(102, 221, 234); font-size: 18px; font-weight: 600;">
-                                                    ${commandGroup.title || 'Commands'}
-                                                </h5>
-                                                <div style="display: flex; gap: 10px; align-items: center;">
-                                                    <span style="background: #f8fafc; color: #4a5568; padding: 6px 12px; border-radius: 16px; font-size: 12px;">
-                                                        ${commandGroup.commands.length} commands
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            ${commandGroup.description ? `
-                                                <p style="margin: 0 0 20px 0; color: #718096; font-size: 14px; font-style: italic;">
-                                                    ${commandGroup.description}
-                                                </p>
-                                            ` : ''}
-                                            <div class="enhanced-command-section">
-                                                <div class="command-header">
-                                                    <div style="display: flex; align-items: center; gap: 10px;">
-                                                        <span style="color: #68d391; font-size: 18px;">⚡</span>
-                                                        <span class="command-title">Commands Ready</span>
-                                                        <span style="background: rgba(104, 211, 145, 0.2); color: #68d391; padding: 4px 8px; border-radius: 12px; font-size: 12px;">${commandGroup.commands.length} scripts</span>
-                                                    </div>
-                                                    <div class="command-actions">
-                                                        <button onclick="event.stopPropagation(); copyCommandGroup('${phase.id}', ${groupIndex}, this); event.preventDefault();" class="command-btn primary">
-                                                            📋 Copy All
-                                                        </button>
-                                                        <button onclick="event.stopPropagation(); toggleCommandSection('cmd-${phase.id}-${groupIndex}'); event.preventDefault();" class="command-btn" id="toggle-cmd-${phase.id}-${groupIndex}">
-                                                            ⬇️ Show Commands
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                                
-                                                <div class="command-content" id="cmd-${phase.id}-${groupIndex}">
-                                                    <div class="command-list" style="padding: 20px;">
-                                                        ${commandGroup.commands.map((cmd, idx) => {
-                                                            // Store the command in a global variable to avoid quote escaping issues
-                                                            const commandId = `cmd_${phase.id}_${groupIndex}_${idx}`;
-                                                            if (!window.commandStore) window.commandStore = {};
-                                                            window.commandStore[commandId] = cmd;
-                                                            
-                                                            // Format command for display with basic syntax highlighting
-                                                            const formattedCmd = cmd
-                                                                .replace(/</g, '&lt;')
-                                                                .replace(/>/g, '&gt;')
-                                                                .replace(/(^|\n)(#.*$)/gm, '$1<span style="color: #68d391; opacity: 0.8;">$2</span>')
-                                                                .replace(/\b(echo|kubectl|az|mkdir|cd|tar|curl|grep|awk|sed|cat|head|tail)\b/g, '<span style="color: #ffd700;">$1</span>')
-                                                                .replace(/(--[a-zA-Z-]+)/g, '<span style="color: #87ceeb;">$1</span>');
-                                                            
-                                                            const isLongCommand = cmd.length > 200;
-                                                            
-                                                            return `
-                                                            <div class="command-item" data-command-id="${commandId}" data-search-text="${cmd.toLowerCase()}">
-                                                                <div class="command-item-header">
-                                                                    <div style="display: flex; align-items: center; gap: 10px;">
-                                                                        <span class="command-number">📝 Command ${idx + 1} ${isLongCommand ? '(Multi-line)' : ''}</span>
-                                                                        <button onclick="validateCommand('${commandId}')" class="copy-btn" style="background: rgba(135, 206, 235, 0.2); color: #87ceeb;" title="Validate Command Syntax">
-                                                                            🔍 Check
-                                                                        </button>
-                                                                    </div>
-                                                                    <div style="display: flex; gap: 6px;">
-                                                                        <button onclick="event.stopPropagation(); previewCommand('${commandId}'); event.preventDefault();" class="copy-btn" style="background: rgba(255, 215, 0, 0.2); color: #ffd700;" title="Preview in Terminal">
-                                                                            🖥️ Preview
-                                                                        </button>
-                                                                        <button onclick="event.stopPropagation(); copyStoredCommand('${commandId}', ${idx + 1}, this); event.preventDefault();" class="copy-btn">
-                                                                            📋 Copy
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                                <pre class="command-text" onclick="event.stopPropagation(); copyStoredCommand('${commandId}', ${idx + 1}, null); event.preventDefault();" title="Click to copy this command">${formattedCmd}</pre>
-                                                                <div id="validation-${commandId}" class="command-validation" style="display: none;"></div>
-                                                            </div>
-                                                        `;
-                                                        }).join('')}
-                                                    </div>
-                                                    
-                                                    <div style="background: #2d3748; padding: 15px 20px; border-top: 1px solid #4a5568; display: flex; justify-content: space-between; align-items: center; font-size: 12px;">
-                                                        <span style="color: #a0aec0;">💡 Click individual commands to copy them separately</span>
-                                                        <span style="color: #68d391; font-weight: 600;">${commandGroup.commands.length} commands total</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `).join('')}
-                                ` : `
-                                    <div style="padding: 40px; background: #fed7d7; border-radius: 16px; text-align: center; color: #c53030; border: 2px dashed #feb2b2;">
-                                        <h4 style="margin: 0 0 10px 0;">⚠️ No Commands Available</h4>
-                                        <p style="margin: 0; font-style: italic;">This phase has no commands in the plan object.</p>
-                                    </div>
-                                `}
-                            </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;">
+                                ${categoryData.totalCount} commands
+                            </span>
+                            <button onclick="toggleCategoryCommands('${category.replace(/[^a-zA-Z0-9]/g, '_')}')" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 12px;">
+                                <span id="toggle-${category.replace(/[^a-zA-Z0-9]/g, '_')}-icon">▼</span> Show Commands
+                            </button>
                         </div>
                     </div>
-                `).join('')}
-            </div>
-        `;
-    });
+                    
+                    <div id="category-commands-${category.replace(/[^a-zA-Z0-9]/g, '_')}" style="max-height: 0; overflow: hidden; transition: all 0.4s ease;">
+                        <div style="padding: 20px; background: #2d3748; border-radius: 12px; border: 1px solid #4a5568;">
+                            ${categoryData.commands.map((cmd, idx) => {
+                                const commandId = `cmd_${category.replace(/[^a-zA-Z0-9]/g, '_')}_${idx}`;
+                                if (!window.commandStore) window.commandStore = {};
+                                window.commandStore[commandId] = cmd;
+                                
+                                const formattedCmd = cmd
+                                    .replace(/</g, '&lt;')
+                                    .replace(/>/g, '&gt;')
+                                    .replace(/(^|\n)(#.*$)/gm, '$1<span style="color: #48bb78; opacity: 0.8;">$2</span>')
+                                    .replace(/\b(echo|kubectl|az|mkdir|cd|tar|curl|grep|awk|sed|cat|head|tail)\b/g, '<span style="color: #48bb78;">$1</span>')
+                                    .replace(/(--[a-zA-Z-]+)/g, '<span style="color: #e2e8f0;">$1</span>');
+                                
+                                return `
+                                    <div class="command-item" style="margin-bottom: 15px; padding: 15px; background: #1a202c; border-radius: 8px; border: 1px solid #4a5568;">
+                                        <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 10px;">
+                                            <span style="font-size: 14px; color: #e2e8f0; font-weight: 600;">Command ${idx + 1}</span>
+                                            <div style="display: flex; gap: 8px; margin-left: auto;">
+                                                <button onclick="copyStoredCommand('${commandId}', ${idx + 1}, this)" style="background: #48bb78; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;">
+                                                    📋 Copy
+                                                </button>
+                                                <button onclick="previewCommand('${commandId}')" style="background: #4a5568; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;">
+                                                    👁️ Preview
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <pre style="background: #1a202c; color: #e2e8f0; padding: 15px; border-radius: 6px; overflow-x: auto; margin: 0; font-family: 'Fira Code', 'Courier New', monospace; font-size: 13px; line-height: 1.4;">${formattedCmd}</pre>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
     
     return html;
 }
@@ -1425,3 +1353,94 @@ export function initializeCompleteUI(data) {
         console.error('❌ Error initializing complete UI:', error);
     }
 }
+
+// Global search functionality
+window.searchCommands = function(searchTerm) {
+    const commandItems = document.querySelectorAll('.command-item');
+    commandItems.forEach(item => {
+        const commandText = item.textContent.toLowerCase();
+        if (commandText.includes(searchTerm.toLowerCase())) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = searchTerm ? 'none' : 'block';
+        }
+    });
+};
+
+// Global expand/collapse functionality
+window.expandAllCompleteSections = function() {
+    const allContents = document.querySelectorAll('[id^="category-commands-"]');
+    allContents.forEach(content => {
+        content.style.maxHeight = content.scrollHeight + 'px';
+    });
+    const allIcons = document.querySelectorAll('[id^="toggle-"][id$="-icon"]');
+    allIcons.forEach(icon => {
+        icon.textContent = '▲';
+        const button = icon.parentElement;
+        if (button) {
+            button.innerHTML = button.innerHTML.replace('Show Commands', 'Hide Commands');
+        }
+    });
+};
+
+window.collapseAllCompleteSections = function() {
+    const allContents = document.querySelectorAll('[id^="category-commands-"]');
+    allContents.forEach(content => {
+        content.style.maxHeight = '0px';
+    });
+    const allIcons = document.querySelectorAll('[id^="toggle-"][id$="-icon"]');
+    allIcons.forEach(icon => {
+        icon.textContent = '▼';
+        const button = icon.parentElement;
+        if (button) {
+            button.innerHTML = button.innerHTML.replace('Hide Commands', 'Show Commands');
+        }
+    });
+};
+
+// Global copy functionality
+window.copyStoredCommand = function(commandId, commandNumber, button) {
+    const command = window.commandStore ? window.commandStore[commandId] : null;
+    if (command) {
+        navigator.clipboard.writeText(command).then(() => {
+            if (button) {
+                const originalText = button.innerHTML;
+                button.innerHTML = '✅ Copied';
+                button.style.background = '#48bb78';
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.style.background = '#48bb78';
+                }, 2000);
+            }
+            console.log(`✅ Command ${commandNumber} copied to clipboard`);
+        }).catch(err => {
+            console.error('❌ Failed to copy command:', err);
+        });
+    }
+};
+
+window.previewCommand = function(commandId) {
+    const command = window.commandStore ? window.commandStore[commandId] : null;
+    if (command) {
+        alert(`Command Preview:\n\n${command}`);
+    }
+};
+
+// Add the toggle function for category commands
+window.toggleCategoryCommands = function(categoryId) {
+    const content = document.getElementById(`category-commands-${categoryId}`);
+    const icon = document.getElementById(`toggle-${categoryId}-icon`);
+    const button = icon ? icon.parentElement : null;
+    
+    if (content && icon && button) {
+        if (content.style.maxHeight === '0px' || content.style.maxHeight === '') {
+            content.style.maxHeight = content.scrollHeight + 'px';
+            icon.textContent = '▲';
+            button.innerHTML = button.innerHTML.replace('Show Commands', 'Hide Commands');
+        } else {
+            content.style.maxHeight = '0px';
+            icon.textContent = '▼';
+            button.innerHTML = button.innerHTML.replace('Hide Commands', 'Show Commands');
+        }
+    }
+};

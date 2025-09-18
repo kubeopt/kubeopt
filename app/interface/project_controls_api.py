@@ -272,12 +272,13 @@ def register_project_controls_api(app):
 
 
 def get_enterprise_metrics_sync():
-    """Get enterprise operational metrics data - sync version"""
+    """Get enterprise operational metrics data - sync version with improved fallbacks"""
     try:
         logger.info("🏢 Fetching enterprise operational metrics (sync)...")
         
         # Get cluster information from request
         cluster_id = request.args.get('cluster_id')
+        force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
         if not cluster_id:
             return jsonify({
                 'status': 'error',
@@ -287,7 +288,7 @@ def get_enterprise_metrics_sync():
         # Try to get enterprise metrics from cached implementation plan first
         analysis_data, data_source = _get_analysis_data(cluster_id)
         logger.info(f"🔍 Analysis data source: {data_source}")
-        if analysis_data and 'implementation_plan' in analysis_data:
+        if analysis_data and 'implementation_plan' in analysis_data and not force_refresh:
             logger.info(f"🔍 Analysis data keys: {list(analysis_data.keys())}")
             # Check if implementation plan has enterprise metrics
             implementation_plan = analysis_data.get('implementation_plan', {})
@@ -311,51 +312,42 @@ def get_enterprise_metrics_sync():
         else:
             logger.info(f"❌ Analysis data not completed or missing: status={analysis_data.get('status') if analysis_data else 'None'}")
         
-        # Fallback: Calculate enterprise metrics synchronously
-        logger.info("🔄 Calculating enterprise metrics synchronously...")
-        
-        # First try to get cluster info from analysis data
-        resource_group = None
-        cluster_name = None
-        subscription_id = None
-        
-        if analysis_data:
-            resource_group = analysis_data.get('resource_group')
-            cluster_name = analysis_data.get('cluster_name')
-            logger.info(f"📊 Got cluster info from analysis data: {cluster_name} in {resource_group}")
-        
-        # If no analysis data, try to get cluster info directly from cluster manager
-        if not resource_group or not cluster_name:
-            logger.info("🔍 No analysis data available, getting cluster info directly from cluster manager...")
-            cluster_info = enhanced_cluster_manager.get_cluster(cluster_id)
-            if cluster_info:
-                resource_group = cluster_info.get('resource_group')
-                cluster_name = cluster_info.get('name')
-                subscription_id = cluster_info.get('subscription_id')
-                logger.info(f"📊 Got cluster info from cluster manager: {cluster_name} in {resource_group}")
-        
-        if not resource_group or not cluster_name:
+        # Get cluster info from cluster manager
+        cluster_info = enhanced_cluster_manager.get_cluster(cluster_id)
+        if not cluster_info:
             return jsonify({
                 'status': 'error',
-                'message': f'Could not find cluster information for cluster_id: {cluster_id}. Please ensure cluster exists in the system.'
+                'message': f'Cluster {cluster_id} not found in system'
             }), 404
+        
+        resource_group = cluster_info.get('resource_group')
+        cluster_name = cluster_info.get('name')
+        subscription_id = cluster_info.get('subscription_id')
+        
+        logger.info(f"📊 Got cluster info: {cluster_name} in {resource_group} (Sub: {subscription_id[:8] if subscription_id else 'None'})")
         
         # Find subscription if not already available
         if not subscription_id:
-            from app.services.subscription_manager import azure_subscription_manager
-            subscription_id = azure_subscription_manager.find_cluster_subscription(resource_group, cluster_name)
+            try:
+                from app.services.subscription_manager import azure_subscription_manager
+                subscription_id = azure_subscription_manager.find_cluster_subscription(resource_group, cluster_name)
+            except Exception as sub_error:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Could not find subscription for cluster {cluster_name}: {str(sub_error)}'
+                }), 404
             
         if not subscription_id:
             return jsonify({
-                'status': 'error', 
-                'message': f'Could not find subscription for cluster {cluster_name} in resource group {resource_group}'
+                'status': 'error',
+                'message': f'No subscription found for cluster {cluster_name} in resource group {resource_group}'
             }), 404
             
         try:
-            # Import and run enterprise metrics synchronously
+            # Try to calculate real enterprise metrics
             from app.ml.ml_framework_generator import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
             
-            logger.info(f"🏢 Initializing enterprise metrics engine for {cluster_name} (RG: {resource_group}, Sub: {subscription_id[:8]})")
+            logger.info(f"🏢 Attempting real metrics calculation for {cluster_name} (RG: {resource_group}, Sub: {subscription_id[:8]})")
             
             metrics_engine = EnterpriseOperationalMetricsEngine(
                 resource_group=resource_group,
@@ -365,8 +357,14 @@ def get_enterprise_metrics_sync():
             
             integration = EnterpriseMetricsIntegration(metrics_engine)
             
-            # Use asyncio.run for sync execution
-            dashboard_data = asyncio.run(integration.get_enterprise_dashboard_data())
+            # Use asyncio.run for sync execution with extended timeout for comprehensive analysis
+            async def get_metrics_with_timeout():
+                return await asyncio.wait_for(
+                    integration.get_enterprise_dashboard_data(),
+                    timeout=180.0  # 3 minute timeout for comprehensive cluster analysis
+                )
+            
+            dashboard_data = asyncio.run(get_metrics_with_timeout())
             
             logger.info(f"✅ Enterprise metrics calculated successfully for {cluster_name}")
             
@@ -447,11 +445,12 @@ async def get_enterprise_metrics():
         logger.info("📊 Calculating real enterprise metrics from cluster data...")
         
         # Use the enterprise metrics integration to get real data
-        integration = EnterpriseMetricsIntegration(
+        metrics_engine = EnterpriseOperationalMetricsEngine(
             resource_group=resource_group,
             cluster_name=cluster_name, 
             subscription_id=subscription_id
         )
+        integration = EnterpriseMetricsIntegration(metrics_engine)
         
         # Calculate real enterprise metrics
         dashboard_data = await integration.get_formatted_dashboard_data()
