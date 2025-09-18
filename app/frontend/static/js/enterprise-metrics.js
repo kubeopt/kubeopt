@@ -41,7 +41,12 @@ class EnterpriseMetricsManager {
             const clusterId = this.getClusterIdFromUrl();
             console.log(`🔍 Loading metrics for cluster: ${clusterId}`);
             
-            const response = await fetch(`/api/enterprise-metrics?cluster_id=${clusterId}`, {
+            // Check if we have a valid cluster ID
+            if (clusterId === 'default') {
+                throw new Error('No specific cluster selected. Please navigate to a cluster page first.');
+            }
+            
+            const response = await fetch(`/api/enterprise-metrics?cluster_id=${clusterId}&force_refresh=true`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
@@ -100,8 +105,28 @@ class EnterpriseMetricsManager {
         } catch (error) {
             console.error('❌ Failed to load enterprise metrics:', error);
             
-            // NO AUTOMATIC FALLBACKS - Show the real error
-            this.showError(`Failed to load enterprise metrics: ${error.message}`);
+            // Show the real error with detailed troubleshooting
+            let errorMessage = `Failed to load enterprise metrics: ${error.message}`;
+            
+            // Add specific troubleshooting based on error type
+            if (error.message.includes('No specific cluster selected')) {
+                errorMessage = '🏠 Enterprise Metrics requires a specific cluster to be selected.\n\n' +
+                             '📋 Steps to view metrics:\n' +
+                             '1. Go to the home page\n' +
+                             '2. Select a specific cluster from the list\n' +
+                             '3. Navigate to the Enterprise Metrics tab\n\n' +
+                             '💡 Enterprise Metrics analyzes real cluster data and requires a specific cluster context.';
+            } else if (error.message.includes('cluster_id parameter required')) {
+                errorMessage += '\n\nPlease ensure you are viewing this from a specific cluster page.';
+            } else if (error.message.includes('not found')) {
+                errorMessage += '\n\nThe cluster may need to be re-registered or may not be accessible.';
+            } else if (error.message.includes('subscription')) {
+                errorMessage += '\n\nCheck that the Azure subscription is properly configured and accessible.';
+            } else if (error.message.includes('timeout') || error.message.includes('calculation failed')) {
+                errorMessage += '\n\nThe cluster analysis is taking longer than expected. This may indicate connectivity issues.';
+            }
+            
+            this.showError(errorMessage);
             this.hideLoading();
         }
     }
@@ -176,7 +201,7 @@ class EnterpriseMetricsManager {
             const detailsHtml = this.formatMetricDetails(data.key_details);
             const viewReportLink = `
                 <div class="mt-3 pt-2 border-t border-gray-600">
-                    <button class="view-metric-report text-blue-400 hover:text-blue-300 text-xs font-medium" 
+                    <button class="view-metric-report text-green-400 hover:text-green-300 text-xs font-medium" 
                             data-metric-key="${metricKey}">
                         📄 Click card for detailed analysis →
                     </button>
@@ -237,7 +262,7 @@ class EnterpriseMetricsManager {
 
         container.innerHTML = actionItems.slice(0, 5).map((item, index) => `
             <div class="flex items-start space-x-3 p-3 bg-gray-700 rounded-lg">
-                <div class="flex-shrink-0 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold text-white">
+                <div class="flex-shrink-0 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-xs font-bold text-white">
                     ${index + 1}
                 </div>
                 <div class="flex-grow text-gray-300">
@@ -258,7 +283,7 @@ class EnterpriseMetricsManager {
     getMaturityLevelColor(level) {
         switch (level) {
             case 'OPTIMIZED': return 'text-green-500';
-            case 'ADVANCED': return 'text-blue-500';
+            case 'ADVANCED': return 'text-green-500';
             case 'INTERMEDIATE': return 'text-yellow-500';
             case 'BASIC': return 'text-orange-500';
             case 'AD-HOC': return 'text-red-500';
@@ -396,8 +421,20 @@ class EnterpriseMetricsManager {
 
     getClusterIdFromUrl() {
         const path = window.location.pathname;
+        console.log(`🔍 Current URL path: ${path}`);
+        
         const match = path.match(/\/cluster\/([^\/]+)/);
-        return match ? match[1] : 'default';
+        const clusterId = match ? match[1] : 'default';
+        
+        console.log(`🔍 Extracted cluster ID: ${clusterId}`);
+        
+        // If we're on the home page, try to get cluster from registered clusters
+        if (clusterId === 'default' && path === '/') {
+            console.log('⚠️ On home page - no specific cluster selected');
+            console.log('💡 Please navigate to a specific cluster page to view Enterprise Metrics');
+        }
+        
+        return clusterId;
     }
 
     async exportMetrics() {
@@ -514,7 +551,7 @@ class EnterpriseMetricsManager {
                     </div>
                     
                     <!-- Score Header -->
-                    <div class="bg-gradient-to-r from-blue-900 to-purple-900 rounded-lg p-6 mb-6 text-center">
+                    <div class="bg-gradient-to-r from-gray-800 to-gray-900 rounded-lg p-6 mb-6 text-center border border-green-500">
                         <div class="text-6xl font-bold ${this.getScoreColor(score)} mb-2">${score}</div>
                         <div class="text-xl text-white mb-1">Overall Score</div>
                         <div class="inline-block px-4 py-2 rounded-full ${this.getRiskBadgeClass(riskLevel)} font-semibold">
@@ -532,7 +569,7 @@ class EnterpriseMetricsManager {
                             <div class="space-y-3">
                                 ${insights.map(insight => `
                                     <div class="flex items-start">
-                                        <span class="text-blue-400 mr-3 mt-1">•</span>
+                                        <span class="text-green-400 mr-3 mt-1">•</span>
                                         <span class="text-gray-300">${insight}</span>
                                     </div>
                                 `).join('')}
@@ -548,7 +585,7 @@ class EnterpriseMetricsManager {
                             <div class="space-y-3">
                                 ${(data.recommendations || ['No specific recommendations available']).map((rec, index) => `
                                     <div class="flex items-start">
-                                        <span class="flex-shrink-0 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold text-white mr-3">
+                                        <span class="flex-shrink-0 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-xs font-bold text-white mr-3">
                                             ${index + 1}
                                         </span>
                                         <span class="text-gray-300">${rec}</span>
@@ -560,7 +597,7 @@ class EnterpriseMetricsManager {
                         <!-- Technical Analysis -->
                         <div class="bg-gray-700 rounded-lg p-6 lg:col-span-2">
                             <h3 class="font-semibold text-white mb-4 flex items-center">
-                                <i class="fas fa-cogs text-purple-400 mr-2"></i>
+                                <i class="fas fa-cogs text-green-400 mr-2"></i>
                                 Technical Analysis
                             </h3>
                             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -587,7 +624,7 @@ class EnterpriseMetricsManager {
                         </div>
                         <div class="space-x-3">
                             <button onclick="enterpriseMetricsManager.exportMetricReport('${metricKey}', ${JSON.stringify(data).replace(/"/g, '&quot;')})" 
-                                    class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors">
+                                    class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors">
                                 <i class="fas fa-download mr-2"></i>Export Report
                             </button>
                             <button onclick="document.getElementById('metric-details-modal').remove()" 
@@ -759,7 +796,7 @@ class EnterpriseMetricsManager {
         // Add default actions if no critical issues found
         const defaultActionsHtml = actions.length === 0 ? `
             <button onclick="enterpriseMetricsManager.showRecommendationsModal()" 
-                    class="w-full text-left px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded transition-colors">
+                    class="w-full text-left px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-sm rounded transition-colors">
                 📋 View All Recommendations
             </button>
             <button onclick="enterpriseMetricsManager.exportMetrics()" 
@@ -773,7 +810,7 @@ class EnterpriseMetricsManager {
             <button class="quick-action-btn px-3 py-2 rounded transition-colors text-xs font-medium
                            ${action.urgency === 'critical' ? 'bg-red-600 hover:bg-red-500' :
                              action.urgency === 'high' ? 'bg-orange-600 hover:bg-orange-500' :
-                             'bg-blue-600 hover:bg-blue-500'} text-white"
+                             'bg-green-600 hover:bg-green-500'} text-white"
                     data-action-index="${index}">
                 ${action.text}
             </button>
@@ -839,7 +876,7 @@ class EnterpriseMetricsManager {
     showGitOpsGuide() {
         this.showGuideModal('⚡ Setup GitOps Pipeline', `
             <div class="space-y-4 text-sm">
-                <div class="bg-blue-900 border border-blue-600 rounded p-3">
+                <div class="bg-gray-800 border border-green-600 rounded p-3">
                     <strong>IMPROVEMENT:</strong> Manual deployments detected (0.00/day frequency)
                 </div>
                 <div>
@@ -1022,14 +1059,14 @@ class EnterpriseMetricsManager {
             const barWidth = Math.min(100, (score / benchmark.threshold) * 100);
             
             return `
-                <div class="flex items-center justify-between p-3 rounded-lg ${isCurrentLevel ? 'bg-blue-900 border border-blue-500' : 'bg-gray-600'}">
+                <div class="flex items-center justify-between p-3 rounded-lg ${isCurrentLevel ? 'bg-gray-800 border border-green-500' : 'bg-gray-600'}">
                     <div class="flex-grow">
                         <div class="flex justify-between items-center mb-1">
                             <span class="font-semibold text-white">${benchmark.level}</span>
-                            <span class="text-sm ${isCurrentLevel ? 'text-blue-300' : 'text-gray-300'}">${benchmark.threshold}+</span>
+                            <span class="text-sm ${isCurrentLevel ? 'text-green-300' : 'text-gray-300'}">${benchmark.threshold}+</span>
                         </div>
                         <div class="text-xs text-gray-300">${benchmark.description}</div>
-                        ${isCurrentLevel ? '<div class="text-xs text-blue-300 mt-1">👈 Your current level</div>' : ''}
+                        ${isCurrentLevel ? '<div class="text-xs text-green-300 mt-1">👈 Your current level</div>' : ''}
                     </div>
                 </div>
             `;
@@ -1291,7 +1328,7 @@ class EnterpriseMetricsManager {
                 </div>
                 <div class="mt-3">
                     <button onclick="enterpriseMetricsManager.loadEnterpriseMetrics()" 
-                            class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm">
+                            class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm">
                         🔄 Retry
                     </button>
                     <button onclick="enterpriseMetricsManager.loadDemoData()" 

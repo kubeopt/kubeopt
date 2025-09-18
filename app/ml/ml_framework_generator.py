@@ -1174,6 +1174,16 @@ class EnterpriseOperationalMetricsEngine:
             deployments = cluster_data.get("deployments", {}).get("items", [])
             pods = cluster_data.get("pods", {}).get("items", [])
             
+            # DIAGNOSTIC: Log what data we actually have
+            logger.info(f"🔍 Team Velocity DATA CHECK: deployments={len(deployments)}, pods={len(pods)}")
+            if deployments:
+                sample_deployment = deployments[0]
+                logger.info(f"🔍 Sample deployment keys: {list(sample_deployment.keys())}")
+                metadata = sample_deployment.get("metadata", {})
+                logger.info(f"🔍 Sample deployment metadata: name={metadata.get('name')}, namespace={metadata.get('namespace')}, creationTimestamp={metadata.get('creationTimestamp')}")
+            else:
+                logger.warning(f"⚠️ NO DEPLOYMENTS FOUND - this will cause zero velocity score")
+            
             # Calculate release velocity from deployment patterns
             release_frequency = self._calculate_release_frequency(deployments)
             
@@ -2327,6 +2337,10 @@ class EnterpriseMetricsIntegration:
             },
             "action_items": self.metrics_engine._get_top_recommendations(assessment.metrics)
         }
+    
+    async def get_formatted_dashboard_data(self) -> Dict[str, Any]:
+        """Get formatted data for dashboard - alias for get_enterprise_dashboard_data"""
+        return await self.get_enterprise_dashboard_data()
 
 
 # Backward compatibility wrapper

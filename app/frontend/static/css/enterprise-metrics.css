@@ -1,4 +1,23 @@
-/* Enterprise Metrics Styling */
+/* Enterprise Metrics Styling - Dark Theme with Green/White Accents */
+
+/* Main content text colors */
+.enterprise-metrics-container {
+    color: #ffffff;
+}
+
+.metric-card {
+    background: rgba(31, 41, 55, 0.8);
+    color: #ffffff;
+}
+
+.metric-card h3,
+.metric-card .metric-score {
+    color: #ffffff !important;
+}
+
+.metric-card p {
+    color: #d1d5db;
+}
 
 .enterprise-metrics-container {
     background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
@@ -13,7 +32,7 @@
 .metric-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-    border-color: rgba(59, 130, 246, 0.5);
+    border-color: rgba(34, 197, 94, 0.5);
 }
 
 .metric-progress {
@@ -40,8 +59,8 @@
 }
 
 .maturity-level-advanced {
-    color: #3b82f6;
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #22c55e;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
@@ -70,9 +89,26 @@
     color: #ef4444 !important;
 }
 
-/* Action Items Styling */
+/* Action Items Styling - Dark Theme */
 .action-item {
     animation: slideInUp 0.3s ease-out;
+    background: rgba(31, 41, 55, 0.6);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    color: #ffffff;
+}
+
+.action-item:hover {
+    border-color: rgba(34, 197, 94, 0.4);
+    background: rgba(34, 197, 94, 0.1);
+}
+
+/* Enterprise metrics titles and labels */
+.enterprise-metrics-title {
+    color: #22c55e !important;
+}
+
+.metric-label {
+    color: #d1d5db !important;
 }
 
 .action-item:nth-child(1) { animation-delay: 0.1s; }
@@ -81,9 +117,23 @@
 .action-item:nth-child(4) { animation-delay: 0.4s; }
 .action-item:nth-child(5) { animation-delay: 0.5s; }
 
-/* Loading Animation */
+/* Loading Animation - Dark Theme */
 .enterprise-loading-spinner {
     animation: spin 1s linear infinite;
+    color: #22c55e !important;
+}
+
+.enterprise-loading-text {
+    color: #ffffff !important;
+}
+
+/* Progress bars default green theme */
+.metric-progress {
+    background: rgba(75, 85, 99, 0.3);
+}
+
+.metric-progress div {
+    background: linear-gradient(90deg, #22c55e, #4ade80);
 }
 
 @keyframes spin {
@@ -120,7 +170,7 @@
 
 /* Progress Bar Colors by Metric */
 .metric-card[data-metric="kubernetes_upgrade_readiness"] .metric-progress div {
-    background: linear-gradient(90deg, #10b981, #34d399);
+    background: linear-gradient(90deg, #16a34a, #22c55e);
 }
 
 .metric-card[data-metric="disaster_recovery_score"] .metric-progress div {
@@ -128,11 +178,11 @@
 }
 
 .metric-card[data-metric="operational_maturity"] .metric-progress div {
-    background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+    background: linear-gradient(90deg, #22c55e, #4ade80);
 }
 
 .metric-card[data-metric="capacity_planning"] .metric-progress div {
-    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    background: linear-gradient(90deg, #ffffff, #d1d5db);
 }
 
 .metric-card[data-metric="compliance_readiness"] .metric-progress div {
@@ -140,7 +190,7 @@
 }
 
 .metric-card[data-metric="team_velocity"] .metric-progress div {
-    background: linear-gradient(90deg, #eab308, #fbbf24);
+    background: linear-gradient(90deg, #22c55e, #4ade80);
 }
 
 /* Responsive Design */
