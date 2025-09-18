@@ -22,16 +22,18 @@ logger = logging.getLogger(__name__)
 class KubernetesDataCache:
     """Centralized cache for all Kubernetes cluster data - always fresh, no static caching"""
     
-    def __init__(self, cluster_name: str, resource_group: str, subscription_id: str, auto_fetch: bool = True):
+    def __init__(self, cluster_name: str, resource_group: str, subscription_id: str, auto_fetch: bool = False):
         self.cluster_name = cluster_name
         self.resource_group = resource_group  
         self.subscription_id = subscription_id
         self.data = {}  # Fresh data storage (no TTL, no persistence)
         
-        # PROACTIVE: Fetch data immediately when cache is created
+        # CONDITIONAL: Only fetch data if explicitly requested (e.g., during analysis)
         if auto_fetch:
             logger.info(f"🚀 {self.cluster_name}: Auto-fetching data on cache creation...")
             self.fetch_all_data()
+        else:
+            logger.info(f"💤 {self.cluster_name}: Cache created - kubectl commands will run on demand")
         
     def get_all_kubectl_commands(self) -> Dict[str, str]:
         """
@@ -1247,14 +1249,20 @@ def get_or_create_cache(cluster_name: str, resource_group: str, subscription_id:
         return _active_caches[cache_key]
     
     # Create fresh cache only if none exists
-    logger.info(f"🆕 Creating initial cache for {cluster_name} (first time - executing all kubectl commands)")
-    _active_caches[cache_key] = KubernetesDataCache(cluster_name, resource_group, subscription_id, auto_fetch=True)
+    logger.info(f"🆕 Creating initial cache for {cluster_name} (ready for data - kubectl commands will run on analysis)")
+    _active_caches[cache_key] = KubernetesDataCache(cluster_name, resource_group, subscription_id, auto_fetch=False)
     
     return _active_caches[cache_key]
 
 def fetch_cluster_data(cluster_name: str, resource_group: str, subscription_id: str) -> KubernetesDataCache:
-    """Convenience function to get cache with fresh data (data is auto-fetched on creation)"""
-    return get_or_create_cache(cluster_name, resource_group, subscription_id)
+    """Convenience function to get cache with fresh data (triggers kubectl commands for analysis)"""
+    cache = get_or_create_cache(cluster_name, resource_group, subscription_id)
+    
+    # Explicitly fetch data for analysis - this is when kubectl commands should run
+    logger.info(f"🔄 {cluster_name}: Starting kubectl data collection for analysis...")
+    cache.fetch_all_data()
+    
+    return cache
 
 def clear_all_caches():
     """Clear all active caches"""
