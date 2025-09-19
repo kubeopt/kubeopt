@@ -120,8 +120,14 @@ class EnhancedLearningOptimizationEngine:
     Revolutionary ML-powered learning engine with advanced capabilities
     """
     
-    def __init__(self, db_path: str = 'app/ml/data_feed/enhanced_learning.db'):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        # Use unified database structure
+        if db_path is None:
+            from app.data.database_config import DatabaseConfig
+            DatabaseConfig.ensure_directories()  # Ensure database directories exist
+            self.db_path = str(DatabaseConfig.DATABASES['ml_analytics'])
+        else:
+            self.db_path = db_path
         
         # Enhanced analyzers
         self.advanced_feature_engineer = AdvancedFeatureEngineer()

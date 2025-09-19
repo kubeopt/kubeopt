@@ -354,8 +354,8 @@ class MultiSubscriptionAnalysisEngine:
         try:
             # CACHE-FIRST ARCHITECTURE: Create single cache instance at the very beginning
             logger.info(f"🚀 Session {session_id}: Creating single cache instance for {cluster_name} - executing all kubectl commands")
-            from app.shared.kubernetes_data_cache import get_or_create_cache
-            shared_cache = get_or_create_cache(cluster_name, resource_group, config.subscription_id)
+            from app.shared.kubernetes_data_cache import fetch_cluster_data
+            shared_cache = fetch_cluster_data(cluster_name, resource_group, config.subscription_id)
             logger.info(f"✅ Session {session_id}: Cache ready - all components will now use cached data")
             
             # Step 1: Get cost data with subscription context

@@ -27,10 +27,15 @@ class SecurityDatabaseManager:
     Database manager for security posture system
     """
     
-    def __init__(self, database_path: str = "app/security/data/security_posture.db"):
+    def __init__(self, database_path: str = None):
         """Initialize database manager"""
-        self.database_path = database_path
-        self.database_dir = Path(database_path).parent
+        # Use unified database structure
+        if database_path is None:
+            from app.data.database_config import DatabaseConfig
+            self.database_path = str(DatabaseConfig.DATABASES['security_analytics'])
+        else:
+            self.database_path = database_path
+        self.database_dir = Path(self.database_path).parent
         
         # Ensure directory exists
         self.database_dir.mkdir(parents=True, exist_ok=True)
@@ -830,11 +835,11 @@ class SecurityDatabaseManager:
 
 
 # Factory function and utilities
-def create_security_database_manager(database_path: str = "app/security/data/security_posture.db") -> SecurityDatabaseManager:
+def create_security_database_manager(database_path: str = None) -> SecurityDatabaseManager:
     """Create security database manager instance"""
     return SecurityDatabaseManager(database_path)
 
-def initialize_security_database(database_path: str = "app/security/data/security_posture.db") -> bool:
+def initialize_security_database(database_path: str = None) -> bool:
     """Initialize security database with complete schema"""
     db_manager = create_security_database_manager(database_path)
     return db_manager.initialize_database()

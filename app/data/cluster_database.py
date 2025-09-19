@@ -1503,19 +1503,20 @@ class EnhancedMultiSubscriptionClusterManager:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
+                # FIXED: Query analysis_results table which contains implementation_plan with enterprise_metrics
                 cursor = conn.execute('''
-                    SELECT analysis_data, last_analyzed, last_cost, last_savings
-                    FROM clusters 
-                    WHERE id = ? AND analysis_data IS NOT NULL
-                    ORDER BY last_analyzed DESC
+                    SELECT results, analysis_date, total_cost, total_savings
+                    FROM analysis_results 
+                    WHERE cluster_id = ? AND results IS NOT NULL
+                    ORDER BY analysis_date DESC
                     LIMIT 1
                 ''', (cluster_id,))
                 
                 row = cursor.fetchone()
-                if row and row['analysis_data']:
+                if row and row['results']:
                     try:
                         # Handle both BLOB and TEXT data for compatibility
-                        raw_data = row['analysis_data']
+                        raw_data = row['results']
                         if isinstance(raw_data, bytes):
                             # New BLOB format
                             serialized_data = json.loads(raw_data.decode('utf-8'))
@@ -1562,14 +1563,28 @@ class EnhancedMultiSubscriptionClusterManager:
                         # CRITICAL: Validate implementation plan structure
                         if 'implementation_plan' in analysis_data:
                             impl_plan = analysis_data['implementation_plan']
-                            if isinstance(impl_plan, dict) and 'implementation_phases' in impl_plan:
-                                phases = impl_plan['implementation_phases']
-                                if isinstance(phases, list) and len(phases) > 0:
-                                    self.logger.info(f"✅ DB LOAD: Implementation plan has {len(phases)} phases")
+                            if isinstance(impl_plan, dict):
+                                if 'implementation_phases' in impl_plan:
+                                    phases = impl_plan['implementation_phases']
+                                    if isinstance(phases, list) and len(phases) > 0:
+                                        self.logger.info(f"✅ DB LOAD: Implementation plan has {len(phases)} phases")
+                                    else:
+                                        self.logger.warning("⚠️ DB LOAD: Implementation plan phases are empty")
+                                
+                                # ENTERPRISE METRICS: Check if enterprise metrics are present
+                                if 'enterprise_metrics' in impl_plan:
+                                    ent_metrics = impl_plan['enterprise_metrics']
+                                    if isinstance(ent_metrics, dict):
+                                        maturity_score = ent_metrics.get('enterprise_maturity', {}).get('score', 'N/A')
+                                        self.logger.info(f"✅ DB LOAD: Enterprise metrics found with maturity score: {maturity_score}")
+                                    else:
+                                        self.logger.warning("⚠️ DB LOAD: Enterprise metrics not a dict")
                                 else:
-                                    self.logger.warning("⚠️ DB LOAD: Implementation plan phases are empty")
+                                    self.logger.warning("⚠️ DB LOAD: No enterprise_metrics in implementation plan")
                             else:
                                 self.logger.warning("⚠️ DB LOAD: Implementation plan missing phases structure")
+                        else:
+                            self.logger.warning("⚠️ DB LOAD: No implementation_plan found in analysis data")
                         
                         self.logger.info(f"📦 Loaded COMPLETE analysis from database: {cluster_id}")
                         return analysis_data

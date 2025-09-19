@@ -43,25 +43,34 @@ class SecurityResultsManager:
             return
             
         self._initialized = True
-        self._results_store = {}  # cluster_id -> security_results
-        self._results_history = {}  # cluster_id -> list of historical results
+        self._results_store = {}  # cluster_id -> security_results (memory cache)
         self._cache_duration = timedelta(hours=1)
         
-        # Optional: Create persistence directory
-        self._persistence_dir = Path("security_results")
-        self._persistence_dir.mkdir(exist_ok=True)
-        
-        logger.info("🔒 Security Results Manager initialized")
+        # Import unified database managers
+        try:
+            from app.data.operational_data_db import operational_data_db
+            from app.data.security_analytics_db import security_analytics_db
+            self.operational_db = operational_data_db
+            self.security_db = security_analytics_db
+            logger.info("🔒 Security Results Manager initialized with unified database")
+        except ImportError as e:
+            logger.warning(f"⚠️ Failed to import unified databases, falling back to file storage: {e}")
+            self.operational_db = None
+            self.security_db = None
+            # Fallback: Create persistence directory
+            self._persistence_dir = Path("security_results")
+            self._persistence_dir.mkdir(exist_ok=True)
     
     def store_security_results(self, cluster_id: str, resource_group: str, 
                               cluster_name: str, security_analysis: Dict) -> str:
         """
-        Store security analysis results for a cluster
+        Store security analysis results for a cluster in unified database
         
         Returns: Result ID for reference
         """
         try:
             result_id = f"sec_{cluster_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            timestamp = datetime.now().isoformat()
             
             # Structure the results
             security_results = {
@@ -69,7 +78,7 @@ class SecurityResultsManager:
                 'cluster_id': cluster_id,
                 'resource_group': resource_group,
                 'cluster_name': cluster_name,
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': timestamp,
                 'analysis': security_analysis,
                 'metadata': {
                     'version': '1.0.0',
@@ -78,22 +87,49 @@ class SecurityResultsManager:
                 }
             }
             
-            # Store in memory
+            # Store in memory cache
             self._results_store[cluster_id] = security_results
             
-            # Add to history
-            if cluster_id not in self._results_history:
-                self._results_history[cluster_id] = []
-            self._results_history[cluster_id].append({
-                'result_id': result_id,
-                'timestamp': security_results['timestamp'],
-                'summary': self._create_summary(security_analysis)
-            })
+            # Store in unified database if available
+            if self.operational_db and self.security_db:
+                try:
+                    # Store in operational database (main storage)
+                    self.operational_db.store_security_scan_result(
+                        result_id=result_id,
+                        cluster_id=cluster_id,
+                        resource_group=resource_group,
+                        cluster_name=cluster_name,
+                        scan_timestamp=timestamp,
+                        analysis_data=security_analysis,
+                        confidence=security_analysis.get('confidence', 0.0),
+                        frameworks_analyzed=security_analysis.get('frameworks_analyzed', []),
+                        based_on_real_data=security_analysis.get('based_on_real_data', False)
+                    )
+                    
+                    # Also store security assessment if available
+                    if 'security_posture' in security_analysis:
+                        posture = security_analysis['security_posture']
+                        self.security_db.store_security_assessment(
+                            cluster_id=cluster_id,
+                            assessment_id=result_id,
+                            overall_score=posture.get('overall_score', 0),
+                            grade=posture.get('grade', 'N/A'),
+                            framework=security_analysis.get('frameworks_analyzed', ['CIS'])[0] if security_analysis.get('frameworks_analyzed') else 'CIS',
+                            score_breakdown=posture.get('breakdown', {}),
+                            confidence=security_analysis.get('confidence', 0.0),
+                            based_on_real_data=security_analysis.get('based_on_real_data', False),
+                            trends_data=posture.get('trends', {})
+                        )
+                    
+                    logger.info(f"✅ Stored security results in unified database for {cluster_name} (ID: {result_id})")
+                    
+                except Exception as db_error:
+                    logger.warning(f"⚠️ Failed to store in unified database: {db_error}, falling back to file storage")
+                    self._persist_results(cluster_id, security_results)
+            else:
+                # Fallback to file storage
+                self._persist_results(cluster_id, security_results)
             
-            # Optional: Persist to disk
-            self._persist_results(cluster_id, security_results)
-            
-            logger.info(f"✅ Stored security results for {cluster_name} (ID: {result_id})")
             return result_id
             
         except Exception as e:
@@ -101,9 +137,9 @@ class SecurityResultsManager:
             raise
     
     def get_latest_results(self, cluster_id: str) -> Optional[Dict]:
-        """Get the latest security results for a cluster"""
+        """Get the latest security results for a cluster from unified database"""
         
-        # Check memory cache
+        # Check memory cache first
         if cluster_id in self._results_store:
             results = self._results_store[cluster_id]
             
@@ -115,12 +151,50 @@ class SecurityResultsManager:
             else:
                 logger.info(f"⚠️ Cache expired for cluster {cluster_id}")
         
-        # Try to load from disk if not in memory
-        persisted = self._load_persisted_results(cluster_id)
-        if persisted:
-            self._results_store[cluster_id] = persisted
-            return persisted
+        # Try to load from unified database
+        if self.operational_db:
+            try:
+                scan_results = self.operational_db.get_security_scan_results(cluster_id, limit=1)
+                
+                if scan_results:
+                    latest_result = scan_results[0]
+                    
+                    # Convert database format to expected format
+                    security_results = {
+                        'result_id': latest_result.get('result_id'),
+                        'cluster_id': cluster_id,
+                        'resource_group': latest_result.get('resource_group'),
+                        'cluster_name': latest_result.get('cluster_name'),
+                        'timestamp': latest_result.get('scan_timestamp'),
+                        'analysis': latest_result.get('analysis_data'),
+                        'metadata': {
+                            'version': '1.0.0',
+                            'complete': True,
+                            'cached_until': (datetime.now() + self._cache_duration).isoformat(),
+                            'confidence': latest_result.get('confidence'),
+                            'frameworks_analyzed': latest_result.get('frameworks_analyzed'),
+                            'based_on_real_data': latest_result.get('based_on_real_data'),
+                            'data_source': 'unified_database'
+                        }
+                    }
+                    
+                    # Cache the results
+                    self._results_store[cluster_id] = security_results
+                    
+                    logger.info(f"✅ Retrieved security results from unified database for cluster {cluster_id}")
+                    return security_results
+                    
+            except Exception as db_error:
+                logger.warning(f"⚠️ Failed to load from unified database: {db_error}, trying fallback")
         
+        # Fallback: Try to load from disk if unified database fails
+        if hasattr(self, '_persistence_dir'):
+            persisted = self._load_persisted_results(cluster_id)
+            if persisted:
+                self._results_store[cluster_id] = persisted
+                return persisted
+        
+        logger.info(f"ℹ️ No security results found for cluster {cluster_id}")
         return None
     
     def get_results_by_id(self, result_id: str) -> Optional[Dict]:
@@ -144,9 +218,30 @@ class SecurityResultsManager:
         return None
     
     def get_history(self, cluster_id: str, limit: int = 10) -> List[Dict]:
-        """Get historical security results summary for a cluster"""
+        """Get historical security results summary for a cluster from unified database"""
         
-        if cluster_id in self._results_history:
+        # Try to get from unified database
+        if self.operational_db:
+            try:
+                scan_results = self.operational_db.get_security_scan_results(cluster_id, limit=limit)
+                
+                history = []
+                for result in scan_results:
+                    summary = {
+                        'result_id': result.get('result_id'),
+                        'timestamp': result.get('scan_timestamp'),
+                        'summary': self._create_summary(result.get('analysis_data', {}))
+                    }
+                    history.append(summary)
+                
+                logger.info(f"✅ Retrieved {len(history)} historical security results from unified database")
+                return history
+                
+            except Exception as db_error:
+                logger.warning(f"⚠️ Failed to get history from unified database: {db_error}")
+        
+        # Fallback: check memory cache
+        if hasattr(self, '_results_history') and cluster_id in self._results_history:
             history = self._results_history[cluster_id]
             return sorted(history, key=lambda x: x['timestamp'], reverse=True)[:limit]
         

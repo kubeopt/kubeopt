@@ -198,6 +198,13 @@ function showContent(contentType, element) {
             }
             break;
             
+        case 'enterprise-metrics':
+            // Load enterprise metrics data
+            if (typeof window.EnterpriseMetrics !== 'undefined' && window.EnterpriseMetrics.loadData) {
+                window.EnterpriseMetrics.loadData();
+            }
+            break;
+            
         case 'securityposture':
             // Load security posture data with reinitialization
             console.log('Security Posture tab selected');
