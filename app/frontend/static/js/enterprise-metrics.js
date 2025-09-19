@@ -97,7 +97,7 @@ class EnterpriseMetricsManager {
                         console.warn(`⚠️ Zero score for ${key}:`, metric);
                     }
                     if (typeof metric.details === 'string') {
-                        console.error(`❌ String details for ${key}:`, metric.details.substring(0, 100));
+                        console.log(`✅ String details for ${key}:`, metric.details.substring(0, 100));
                     }
                 });
             }
@@ -132,28 +132,47 @@ class EnterpriseMetricsManager {
     }
 
     renderMetrics(data) {
-        if (!data) return;
+        if (!data) {
+            console.error('❌ No data provided to renderMetrics');
+            return;
+        }
+
+        console.log('🎨 Starting to render enterprise metrics...');
 
         // Update overall maturity
+        console.log('🎯 Updating maturity overview...');
         this.updateMaturityOverview(data.enterprise_maturity);
 
         // Update individual metrics
+        console.log('📊 Updating individual metrics...');
         this.updateIndividualMetrics(data.operational_metrics);
 
         // Update action items
+        console.log('📋 Updating action items...');
         this.updateActionItems(data.action_items || []);
 
         // Update timestamp
+        console.log('⏰ Updating timestamp...');
         this.updateTimestamp(data.enterprise_maturity.timestamp);
         
         // Update Quick Actions with specific issues
+        console.log('⚡ Updating quick actions...');
         this.updateQuickActions(data);
+        
+        console.log('✅ Finished rendering enterprise metrics');
     }
 
     updateMaturityOverview(maturity) {
+        console.log('🔍 DEBUG: updateMaturityOverview called with:', maturity);
         const levelEl = document.getElementById('maturity-level');
         const scoreEl = document.getElementById('maturity-score');
         const progressEl = document.getElementById('maturity-progress');
+        
+        console.log('🔍 DEBUG: DOM elements found:', {
+            levelEl: !!levelEl,
+            scoreEl: !!scoreEl,
+            progressEl: !!progressEl
+        });
 
         if (levelEl) levelEl.textContent = maturity.level;
         if (scoreEl) scoreEl.textContent = Math.round(maturity.score);
@@ -166,14 +185,21 @@ class EnterpriseMetricsManager {
     }
 
     updateIndividualMetrics(metrics) {
+        console.log('🔍 DEBUG: updateIndividualMetrics called with:', metrics);
         for (const [metricKey, metricData] of Object.entries(metrics)) {
+            console.log(`🔍 DEBUG: Processing metric ${metricKey}:`, metricData);
             this.updateMetricCard(metricKey, metricData);
         }
     }
 
     updateMetricCard(metricKey, data) {
+        console.log(`🔍 DEBUG: updateMetricCard called for ${metricKey}:`, data);
         const card = document.querySelector(`[data-metric="${metricKey}"]`);
-        if (!card) return;
+        console.log(`🔍 DEBUG: Found card for ${metricKey}:`, !!card);
+        if (!card) {
+            console.error(`❌ DEBUG: No card found for metric ${metricKey}`);
+            return;
+        }
 
         // Make entire card clickable for better UX
         card.style.cursor = 'pointer';
@@ -197,8 +223,8 @@ class EnterpriseMetricsManager {
 
         // Update details
         const detailsEl = card.querySelector('.metric-details');
-        if (detailsEl && data.key_details) {
-            const detailsHtml = this.formatMetricDetails(data.key_details);
+        if (detailsEl && data.details) {
+            const detailsHtml = this.formatMetricDetails(data.details);
             const viewReportLink = `
                 <div class="mt-3 pt-2 border-t border-gray-600">
                     <button class="view-metric-report text-green-400 hover:text-green-300 text-xs font-medium" 
@@ -223,7 +249,18 @@ class EnterpriseMetricsManager {
     }
 
     formatMetricDetails(details) {
+        // Handle string details (simple format)
+        if (typeof details === 'string') {
+            return `<div class="text-gray-300">${details}</div>`;
+        }
+        
+        // Handle object details (structured format)
         const items = [];
+        
+        // Show summary first if available
+        if (details.summary) {
+            items.push(`<div class="text-gray-300 mb-2">${details.summary}</div>`);
+        }
         
         // Common details to show for all metrics
         if (details.current_version) {
@@ -238,6 +275,9 @@ class EnterpriseMetricsManager {
         if (details.deployment_frequency_per_day !== undefined) {
             items.push(`Deploy Freq: ${details.deployment_frequency_per_day.toFixed(2)}/day`);
         }
+        if (details.release_frequency_per_week !== undefined) {
+            items.push(`Release Freq: ${details.release_frequency_per_week.toFixed(1)}/week`);
+        }
         if (details.change_failure_rate !== undefined) {
             items.push(`Failure Rate: ${(details.change_failure_rate * 100).toFixed(1)}%`);
         }
@@ -247,8 +287,14 @@ class EnterpriseMetricsManager {
         if (details.memory_utilization_pct !== undefined) {
             items.push(`Memory Usage: ${details.memory_utilization_pct.toFixed(1)}%`);
         }
+        if (details.requested_cpu_cores !== undefined) {
+            items.push(`CPU Requests: ${details.requested_cpu_cores} cores`);
+        }
+        if (details.requested_memory_gb !== undefined) {
+            items.push(`Memory Requests: ${details.requested_memory_gb} GB`);
+        }
 
-        return items.map(item => `<div>${item}</div>`).join('');
+        return items.map(item => `<div class="text-xs text-gray-400">${item}</div>`).join('');
     }
 
     updateActionItems(actionItems) {

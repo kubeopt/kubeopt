@@ -109,10 +109,15 @@ class ComplianceFrameworkEngine:
     Multi-framework compliance engine with ML-enhanced assessment
     """
     
-    def __init__(self, cluster_config: Dict, database_path: str = "app/security/data/compliance.db"):
+    def __init__(self, cluster_config: Dict, database_path: str = None):
         """Initialize compliance framework engine"""
         self.cluster_config = cluster_config
-        self.database_path = database_path
+        # Use unified database structure
+        if database_path is None:
+            from app.data.database_config import DatabaseConfig
+            self.database_path = str(DatabaseConfig.DATABASES['security_analytics'])
+        else:
+            self.database_path = database_path
         
         # Initialize ML models for compliance prediction
         self._initialize_ml_models()

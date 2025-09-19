@@ -85,10 +85,15 @@ class SecurityPostureEngine:
     Core security posture analysis engine using ML models and dynamic analysis
     """
     
-    def __init__(self, cluster_config: Dict, database_path: str = "app/security/data/security_posture.db"):
+    def __init__(self, cluster_config: Dict, database_path: str = None):
         """Initialize security engine with ML models"""
         self.cluster_config = cluster_config
-        self.database_path = database_path
+        # Use unified database structure
+        if database_path is None:
+            from app.data.database_config import DatabaseConfig
+            self.database_path = str(DatabaseConfig.DATABASES['security_analytics'])
+        else:
+            self.database_path = database_path
         self.executor = ThreadPoolExecutor(max_workers=4)
         
         # Initialize ML models
