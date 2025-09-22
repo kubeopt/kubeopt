@@ -3,14 +3,14 @@ version: '3.8'
 services:
   aks-optimizer:
     build:
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile
     image: aks-optimizer:prod
     volumes:
       # No source code mounting in production
-      - sqlite_data:/app/data
-      - ml_models:/app/models
+      - sqlite_data:/app/infrastructure/persistence/database
+      - ml_models:/app/machine_learning/data
       - app_logs:/app/logs
-      - app_cache:/app/cache
+      - app_cache:/app/shared/cache
     environment:
       - FLASK_ENV=production
       - FLASK_DEBUG=0

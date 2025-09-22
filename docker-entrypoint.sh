@@ -25,6 +25,6 @@ fi
 echo "🚀 Starting Flask application..."
 cd /app
 
-# Use the simplest approach - direct python execution
+# Use clean architecture entry point
 # This ensures main.py's initialization runs properly
-exec python app/main/main.py
+exec python main.py
