@@ -16,7 +16,7 @@
   - No data sharing between components
 
 ### **kubectl Command Distribution:**
-1. **ml_framework_generator.py**: 22+ commands (enterprise metrics)
+1. **enterprise_metrics.py**: 22+ commands (enterprise metrics)
 2. **aks_realtime_metrics.py**: 4 commands (resource utilization)  
 3. **pod_cost_analyzer.py**: 10+ commands (cost analysis)
 
@@ -31,7 +31,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                   Before (Sequential)                      │
 ├─────────────────────────────────────────────────────────────┤
-│ ml_framework_generator → kubectl (22 commands × 1s delay)  │
+│ enterprise_metrics → kubectl (22 commands × 1s delay)  │
 │ aks_realtime_metrics  → kubectl (4 commands × 1s delay)    │
 │ pod_cost_analyzer     → kubectl (10 commands × 1s delay)   │
 │                                                             │
@@ -68,7 +68,7 @@
 - **Query interface** for all components
 - **No static caching** - always fresh data as requested
 
-### **2. UPDATED: `/app/ml/ml_framework_generator.py`**
+### **2. UPDATED: `/app/ml/enterprise_metrics.py`**
 - **Before**: 22+ sequential kubectl commands with delays
 - **After**: Single cache query for all workload/security/infrastructure data
 - **Change**: Replaced `_gather_cluster_data()` method entirely
@@ -116,7 +116,7 @@ class KubernetesDataCache:
         # Executes ALL commands in parallel using ThreadPoolExecutor
         
     def get_workload_data(self) -> Dict[str, Any]:
-        # Query interface for ml_framework_generator
+        # Query interface for enterprise_metrics
         
     def get_resource_usage_data(self) -> Dict[str, Any]: 
         # Query interface for aks_realtime_metrics
