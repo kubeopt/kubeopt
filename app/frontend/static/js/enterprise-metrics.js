@@ -1372,16 +1372,6 @@ class EnterpriseMetricsManager {
                         <li>Check browser console for detailed error information</li>
                     </ul>
                 </div>
-                <div class="mt-3">
-                    <button onclick="enterpriseMetricsManager.loadEnterpriseMetrics()" 
-                            class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm">
-                        🔄 Retry
-                    </button>
-                    <button onclick="enterpriseMetricsManager.loadDemoData()" 
-                            class="ml-2 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm">
-                        🎭 View Demo Data
-                    </button>
-                </div>
             `;
         }
     }

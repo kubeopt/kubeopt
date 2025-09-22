@@ -327,10 +327,13 @@ def register_enhanced_utility_routes():
             }), 500
 
 def clear_global_analysis_cache():
-    """Clear global analysis cache to prevent cross-cluster contamination"""
+    """Clear global analysis cache to prevent cross-cluster contamination (thread-safe)"""
     global analysis_results
-    analysis_results.clear()
-    logger.info("🧹 Cleared global analysis cache for multi-subscription isolation")
+    # Enterprise-grade thread safety - no fallbacks allowed
+    from app.main.config import _analysis_lock
+    with _analysis_lock:
+        analysis_results.clear()
+        logger.info("🧹 Cleared global analysis cache for multi-subscription isolation")
 
 import signal
 
