@@ -265,7 +265,7 @@ class TaskGenerator:
 class MLIntegratedDynamicImplementationGenerator:
     """Integrated generator with pure driven planning - no static fallbacks"""
     
-    def __init__(self, ml_framework_generator=None):
+    def __init__(self, enterprise_metrics=None):
         self.logger = logging.getLogger(__name__)
         
         # Learning tracking
@@ -280,7 +280,7 @@ class MLIntegratedDynamicImplementationGenerator:
         # Load learning state
         self._load_learning_state()
 
-        self._initialize_ml_framework_generator(ml_framework_generator)
+        self._initialize_enterprise_metrics(enterprise_metrics)
         
         logger.info("🤖 Integrated Dynamic Plan Generator initialized")
         logger.info("✅ Pure driven planning enabled")
@@ -327,7 +327,7 @@ class MLIntegratedDynamicImplementationGenerator:
             logger.error(f"❌ Could not create learning engine: {e}")
             raise ValueError(f"❌ Failed to create learning engine: {e}")
     
-    def _initialize_ml_framework_generator(self, provided_generator=None):
+    def _initialize_enterprise_metrics(self, provided_generator=None):
         """Initialize Framework Generator - create internally if not provided"""
         
         if provided_generator is not None:

@@ -7,7 +7,7 @@ Your system has been successfully transformed to use PURE ML with no static data
 ## Key Changes Applied
 
 ### 1. ML Framework Generator
-- **File**: `app/ml/ml_framework_generator.py`
+- **File**: `app/ml/enterprise_metrics.py`
 - **Purpose**: Generates framework structures using ML predictions
 - **Features**: 
   - Pure ML-driven decisions
@@ -42,11 +42,11 @@ result = analyzer.generate_implementation_plan(analysis_results)
 ### 2. Verify ML System
 ```python
 # Test that ML system is working
-from app.ml.ml_framework_generator import create_ml_framework_generator
+from app.ml.enterprise_metrics import create_enterprise_metrics
 from app.ml.learn_optimize import create_enhanced_learning_engine
 
 learning_engine = create_enhanced_learning_engine()
-framework_generator = create_ml_framework_generator(learning_engine)
+framework_generator = create_enterprise_metrics(learning_engine)
 
 print(f"ML Framework Generator Trained: {framework_generator.trained}")
 print(f"Learning Engine Models Trained: {learning_engine.models_trained}")

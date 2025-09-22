@@ -4,7 +4,7 @@
 
 ---
 
-## 📝 **Example 1: ml_framework_generator.py**
+## 📝 **Example 1: enterprise_metrics.py**
 
 ### **Before (Current Hybrid):**
 ```python
@@ -211,7 +211,7 @@ app/
 │   ├── kubernetes_data_service.py       ← ONLY file with kubectl
 │   └── kubernetes_data_cache.py         ← Cache implementation (internal)
 ├── ml/
-│   └── ml_framework_generator.py        ← NO kubectl, clean queries
+│   └── enterprise_metrics.py        ← NO kubectl, clean queries
 ├── analytics/
 │   ├── aks_realtime_metrics.py          ← NO kubectl, clean queries
 │   └── pod_cost_analyzer.py             ← NO kubectl, clean queries

@@ -18,7 +18,7 @@
    - No fallbacks, no hybrid logic
 
 ### **Phase 2: Remove All kubectl from Components**
-1. **Update `ml/ml_framework_generator.py`**
+1. **Update `ml/enterprise_metrics.py`**
    - Remove `kubectl_executor` completely
    - Only use `KubernetesDataService`
    
@@ -45,7 +45,7 @@ app/
 │   ├── kubernetes_data_service.py       # ONLY file with kubectl
 │   └── kubernetes_data_cache.py         # Cache implementation
 ├── ml/
-│   └── ml_framework_generator.py        # NO kubectl, only data queries
+│   └── enterprise_metrics.py        # NO kubectl, only data queries
 ├── analytics/
 │   ├── aks_realtime_metrics.py          # NO kubectl, only data queries  
 │   └── pod_cost_analyzer.py             # NO kubectl, only data queries
@@ -96,14 +96,14 @@ class KubernetesDataService:
 
 ### **Before (Current Hybrid):**
 ```python
-# ml_framework_generator.py
+# enterprise_metrics.py
 cache = fetch_cluster_data(...)
 workload_data = cache.get_workload_data()
 ```
 
 ### **After (Clean):**  
 ```python
-# ml_framework_generator.py
+# enterprise_metrics.py
 data_service = KubernetesDataService(cluster, rg, sub)
 nodes = data_service.get_nodes()
 pods = data_service.get_pods()

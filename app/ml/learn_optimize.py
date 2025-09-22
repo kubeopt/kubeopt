@@ -302,12 +302,12 @@ class EnhancedLearningOptimizationEngine:
         
         try:
             # Verify ML framework generator is available
-            from app.ml.enterprise_metrics import create_ml_framework_generator
+            from app.ml.enterprise_metrics import create_enterprise_metrics
             from app.ml.learn_optimize import create_enhanced_learning_engine
             
             # Test ML framework generator
             test_learning_engine = create_enhanced_learning_engine()
-            test_framework_generator = create_ml_framework_generator(test_learning_engine)
+            test_framework_generator = create_enterprise_metrics(test_learning_engine)
             
             if test_framework_generator.trained:
                 logger.info("✅ ML Framework Generator is trained and ready")

@@ -2445,7 +2445,7 @@ class MLFrameworkGeneratorCompat:
 
 
 # Factory function for backward compatibility
-def create_ml_framework_generator(learning_engine):
+def create_enterprise_metrics(learning_engine):
     """
     Factory function for backward compatibility
     Returns compatibility wrapper that provides old interface
