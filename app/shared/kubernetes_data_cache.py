@@ -461,7 +461,7 @@ class KubernetesDataCache:
         return {"items": []}
     
     def get_workload_data(self) -> Dict[str, Any]:
-        """Get workload data for ml_framework_generator"""
+        """Get workload data for enterprise_metrics"""
         # Debug pods data specifically since it's critical
         pods_raw = self.get('pods')
         pods_formatted = self._ensure_json_format('pods')

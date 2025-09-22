@@ -16,7 +16,7 @@ import traceback
 import asyncio
 from app.main.config import logger, enhanced_cluster_manager
 from app.main.shared import _get_analysis_data
-from app.ml.ml_framework_generator import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
+from app.ml.enterprise_metrics import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
 from app.ml.implementation_generator import AKSImplementationGenerator
 
 def sanitize_for_json(obj):
@@ -151,10 +151,10 @@ def register_project_controls_api(app):
             
             # Clear cache to reload config
             global _ENVIRONMENT_CONFIG
-            from app.ml.ml_framework_generator import _CONFIG_LOCK
+            from app.ml.enterprise_metrics import _CONFIG_LOCK
             with _CONFIG_LOCK:
-                from app.ml import ml_framework_generator
-                ml_framework_generator._ENVIRONMENT_CONFIG = None
+                from app.ml import enterprise_metrics
+                enterprise_metrics._ENVIRONMENT_CONFIG = None
             
             logger.info(f"✅ Updated environment configuration with {len(environments)} environments")
             

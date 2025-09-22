@@ -302,7 +302,7 @@ class EnhancedLearningOptimizationEngine:
         
         try:
             # Verify ML framework generator is available
-            from app.ml.ml_framework_generator import create_ml_framework_generator
+            from app.ml.enterprise_metrics import create_ml_framework_generator
             from app.ml.learn_optimize import create_enhanced_learning_engine
             
             # Test ML framework generator
