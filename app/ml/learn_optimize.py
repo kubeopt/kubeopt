@@ -1751,8 +1751,12 @@ class MLModelEnsemble:
         if not self.trained:
             return np.full(X.shape[0], 0.5)
         
-        # Main prediction
-        success_proba = self.success_classifier.predict_proba(X)[:, 1]
+        # Main prediction with safe indexing
+        proba_matrix = self.success_classifier.predict_proba(X)
+        if proba_matrix.shape[1] > 1:
+            success_proba = proba_matrix[:, 1]  # Positive class probability
+        else:
+            success_proba = proba_matrix[:, 0]  # Only one class available
         
         return success_proba
     
@@ -1771,13 +1775,21 @@ class MLModelEnsemble:
         
         x_reshaped = x.reshape(1, -1)
         
-        # Main prediction
-        success_proba = self.success_classifier.predict_proba(x_reshaped)[0, 1]
+        # Main prediction with safe indexing
+        main_proba_matrix = self.success_classifier.predict_proba(x_reshaped)
+        if main_proba_matrix.shape[1] > 1:
+            success_proba = main_proba_matrix[0, 1]  # Positive class probability
+        else:
+            success_proba = main_proba_matrix[0, 0]  # Only one class available
         
         # Uncertainty from ensemble disagreement
         uncertainty_predictions = []
         for model in self.uncertainty_models:
-            pred = model.predict_proba(x_reshaped)[0, 1]
+            proba_matrix = model.predict_proba(x_reshaped)
+            if proba_matrix.shape[1] > 1:
+                pred = proba_matrix[0, 1]  # Positive class probability
+            else:
+                pred = proba_matrix[0, 0]  # Only one class available
             uncertainty_predictions.append(pred)
         
         uncertainty = np.std(uncertainty_predictions)

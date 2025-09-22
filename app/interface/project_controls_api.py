@@ -204,37 +204,82 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
             'violations': max(0, 5 - len(optimization_history))
         }
         
-        # Use the existing method to generate action items
-        action_items = generator._generate_reality_action_items(scores, analysis_results, security_results)
+        # Generate action items based on actual cluster analysis data
+        action_items = []
         
-        # If no action items generated, add a default completion item
-        if not action_items:
-            action_items = [
-                {
-                    "title": "Optimization Analysis Complete",
-                    "description": f"Cluster shows good performance with {len(optimization_history)} optimizations and ${cost_savings:.2f} potential savings",
-                    "priority": "LOW",
-                    "category": "Maintenance",
-                    "estimated_effort": "Low",
-                    "business_impact": "Informational"
-                }
-            ]
+        # 1. Analyze actual resource utilization issues
+        if analysis_data and cpu_avg < 30 and memory_avg < 30:
+            action_items.append(f"🚨 HIGH: Over-provisioned Resources Detected - CPU: {cpu_avg:.1f}%, Memory: {memory_avg:.1f}%. Right-size {len(performance_metrics)} workloads to save ${cost_savings:.0f}/month.")
+        elif cpu_avg > 80 or memory_avg > 80:
+            action_items.append(f"🚨 HIGH: Resource Constraints Detected - CPU: {cpu_avg:.1f}%, Memory: {memory_avg:.1f}%. Scale up resources or implement auto-scaling.")
         
-        return action_items
+        # 2. HPA and scaling recommendations based on actual data
+        if analysis_data and analysis_data.get('hpa_recommendations'):
+            hpa_count = len(analysis_data.get('hpa_recommendations', []))
+            total_workloads = len(performance_metrics)
+            if hpa_count < total_workloads / 2:
+                action_items.append(f"🔴 MEDIUM: Implement Auto-Scaling - Only {hpa_count}/{total_workloads} workloads have HPA. Configure HPA for better resource efficiency.")
+        
+        # 3. Cost optimization based on real savings potential
+        if cost_savings > 200:
+            action_items.append(f"🚨 HIGH: Significant Cost Savings Available - ${cost_savings:.0f}/month potential. Review resource requests and eliminate waste.")
+        elif cost_savings > 50:
+            action_items.append(f"🔴 MEDIUM: Cost Optimization Opportunity - ${cost_savings:.0f}/month savings. Optimize resource allocation.")
+        
+        # 4. Kubernetes version and upgrade needs based on actual cluster data
+        if analysis_data and analysis_data.get('cluster_version'):
+            cluster_version = analysis_data.get('cluster_version', 'Unknown')
+            # Check if version seems outdated (basic heuristic)
+            if '1.26' in cluster_version or '1.27' in cluster_version:
+                action_items.append(f"🚨 HIGH: Kubernetes Upgrade Required - Current version: {cluster_version}. Plan upgrade to latest stable version for security and feature improvements.")
+        
+        # 5. Performance bottlenecks from actual workload data
+        if performance_metrics:
+            high_cpu_workloads = [w for w in performance_metrics if w.get('cpu_utilization_pct', 0) > 80]
+            high_memory_workloads = [w for w in performance_metrics if w.get('memory_utilization_pct', 0) > 80]
+            
+            if high_cpu_workloads:
+                action_items.append(f"🔴 MEDIUM: CPU Bottlenecks Detected - {len(high_cpu_workloads)} workloads above 80% CPU. Consider scaling or optimization.")
+            
+            if high_memory_workloads:
+                action_items.append(f"🔴 MEDIUM: Memory Pressure Found - {len(high_memory_workloads)} workloads above 80% memory. Review memory limits and requests.")
+        
+        # 6. Storage and backup analysis from actual cluster data
+        if analysis_data and analysis_data.get('storage_cost', 0) > 100:
+            storage_cost = analysis_data.get('storage_cost', 0)
+            action_items.append(f"🔴 MEDIUM: High Storage Costs - ${storage_cost:.0f}/month. Implement lifecycle policies and backup optimization.")
+        
+        # 7. Optimization history insights
+        if len(optimization_history) == 0:
+            action_items.append(f"🚨 HIGH: No Optimization History - Start performance analysis and implement resource optimization recommendations.")
+        elif len(optimization_history) < 3:
+            action_items.append(f"🔴 MEDIUM: Limited Optimization Coverage - {len(optimization_history)} optimizations completed. Continue systematic optimization review.")
+        
+        # 8. Workload-specific recommendations from performance metrics
+        if performance_metrics:
+            workloads_without_requests = [w for w in performance_metrics if not w.get('has_resource_requests', True)]
+            if workloads_without_requests:
+                action_items.append(f"🚨 HIGH: Missing Resource Requests - {len(workloads_without_requests)} workloads lack resource requests. This prevents proper scheduling and autoscaling.")
+        
+        # 9. Analysis data insights
+        if analysis_data:
+            # Check for high_cpu_summary data
+            high_cpu_summary = analysis_data.get('high_cpu_summary', {})
+            if high_cpu_summary and high_cpu_summary.get('total_workloads', 0) > 0:
+                high_cpu_count = high_cpu_summary.get('total_workloads', 0)
+                action_items.append(f"🔴 MEDIUM: High CPU Utilization - {high_cpu_count} workloads showing high CPU usage. Review resource allocation and consider optimization.")
+        
+        # 10. Based on actual optimization opportunities found
+        monthly_savings = analysis_data.get('monthly_savings', 0) if analysis_data else cost_savings
+        if monthly_savings > 0:
+            action_items.append(f"🟡 LOW: Implement Identified Optimizations - ${monthly_savings:.0f}/month in verified savings available. Execute optimization recommendations.")
+        
+        # Return top 8 most relevant action items based on actual data
+        return action_items[:8]
         
     except Exception as e:
         logger.error(f"❌ Failed to generate dynamic action items: {e}")
-        # Fallback to basic action items
-        return [
-            {
-                "title": "Review Cluster Optimization",
-                "description": f"Cluster analysis complete. Found {len(performance_metrics)} workloads with ${cost_savings:.2f} optimization potential",
-                "priority": "MEDIUM",
-                "category": "Performance",
-                "estimated_effort": "Medium",
-                "business_impact": "Medium"
-            }
-        ]
+        return []
 
     @app.route('/api/project-controls', methods=['GET'])
     def api_project_controls():
@@ -502,79 +547,79 @@ def get_enterprise_metrics_sync():
                     optimization_history = []
                     performance_metrics = []
                     cost_history = []
+            
+            # Generate enterprise metrics from available data (fresh analysis or database)
+            if analysis_data or optimization_history or performance_metrics or cost_history:
+                # Calculate maturity score based on available data
+                if analysis_data and data_source in ['fresh_session', 'enterprise_cache']:
+                    # Use fresh analysis data for metrics calculation
+                    logger.info("📊 Calculating enterprise metrics from fresh analysis data")
+                    
+                    # Extract optimization metrics from fresh analysis data
+                    cpu_optimization_potential = analysis_data.get('cpu_optimization_potential', 0)
+                    memory_optimization_potential = analysis_data.get('memory_optimization_potential', 0)
+                    total_cost = analysis_data.get('total_cost', 0)
+                    monthly_savings = analysis_data.get('monthly_savings', 0)
+                    hpa_count = len(analysis_data.get('hpa_recommendations', []))
+                    
+                    cpu_avg = cpu_optimization_potential
+                    memory_avg = memory_optimization_potential  
+                    cost_savings = monthly_savings
+                    
+                    logger.info(f"📈 Fresh metrics: CPU={cpu_avg}%, Memory={memory_avg}%, Savings=${cost_savings}, HPAs={hpa_count}")
+                else:
+                    # Use database data for metrics calculation
+                    cpu_optimizations = [r for r in optimization_history if r.get('optimization_type') == 'cpu']
+                    memory_optimizations = [r for r in optimization_history if r.get('optimization_type') == 'memory']
+                    
+                    cpu_avg = sum(r.get('improvement_percentage', 0) for r in cpu_optimizations) / max(len(cpu_optimizations), 1)
+                    memory_avg = sum(r.get('improvement_percentage', 0) for r in memory_optimizations) / max(len(memory_optimizations), 1)
+                    cost_savings = sum(r.get('estimated_savings', 0) for r in optimization_history)
                 
-                # Generate enterprise metrics from available data (fresh analysis or database)
-                if analysis_data or optimization_history or performance_metrics or cost_history:
-                    # Calculate maturity score based on available data
-                    if analysis_data and data_source in ['fresh_session', 'enterprise_cache']:
-                        # Use fresh analysis data for metrics calculation
-                        logger.info("📊 Calculating enterprise metrics from fresh analysis data")
-                        
-                        # Extract optimization metrics from fresh analysis data
-                        cpu_optimization_potential = analysis_data.get('cpu_optimization_potential', 0)
-                        memory_optimization_potential = analysis_data.get('memory_optimization_potential', 0)
-                        total_cost = analysis_data.get('total_cost', 0)
-                        monthly_savings = analysis_data.get('monthly_savings', 0)
-                        hpa_count = len(analysis_data.get('hpa_recommendations', []))
-                        
-                        cpu_avg = cpu_optimization_potential
-                        memory_avg = memory_optimization_potential  
-                        cost_savings = monthly_savings
-                        
-                        logger.info(f"📈 Fresh metrics: CPU={cpu_avg}%, Memory={memory_avg}%, Savings=${cost_savings}, HPAs={hpa_count}")
-                    else:
-                        # Use database data for metrics calculation
-                        cpu_optimizations = [r for r in optimization_history if r.get('optimization_type') == 'cpu']
-                        memory_optimizations = [r for r in optimization_history if r.get('optimization_type') == 'memory']
-                        
-                        cpu_avg = sum(r.get('improvement_percentage', 0) for r in cpu_optimizations) / max(len(cpu_optimizations), 1)
-                        memory_avg = sum(r.get('improvement_percentage', 0) for r in memory_optimizations) / max(len(memory_optimizations), 1)
-                        cost_savings = sum(r.get('estimated_savings', 0) for r in optimization_history)
-                    
-                    # Calculate overall maturity score (0-100)
-                    base_score = 50  # Base score for having data
-                    
-                    if analysis_data and data_source in ['fresh_session', 'enterprise_cache']:
-                        # Score based on fresh analysis data
-                        optimization_score = min(25, hpa_count * 5)  # Up to 25 points for HPA implementations
-                    else:
-                        # Score based on database data
-                        optimization_score = min(25, len(optimization_history) * 3)  # Up to 25 points for optimizations
-                    performance_score = min(15, cpu_avg + memory_avg) / 2  # Up to 15 points for performance
-                    cost_score = min(10, cost_savings / 100)  # Up to 10 points for cost savings
-                    
-                    overall_score = base_score + optimization_score + performance_score + cost_score
-                    
-                    # Determine maturity level
-                    if overall_score >= 80:
-                        maturity_level = "Optimized"
-                    elif overall_score >= 65:
-                        maturity_level = "Advanced"
-                    elif overall_score >= 50:
-                        maturity_level = "Intermediate"
-                    else:
-                        maturity_level = "Basic"
-                    
-                    # Generate enterprise metrics in the expected frontend format
-                    dashboard_data = {
-                        'enterprise_maturity': {
-                            'level': maturity_level,
-                            'score': overall_score,
-                            'timestamp': datetime.now().isoformat()
+                # Calculate overall maturity score (0-100)
+                base_score = 50  # Base score for having data
+                
+                if analysis_data and data_source in ['fresh_session', 'enterprise_cache']:
+                    # Score based on fresh analysis data
+                    optimization_score = min(25, hpa_count * 5)  # Up to 25 points for HPA implementations
+                else:
+                    # Score based on database data
+                    optimization_score = min(25, len(optimization_history) * 3)  # Up to 25 points for optimizations
+                performance_score = min(15, cpu_avg + memory_avg) / 2  # Up to 15 points for performance
+                cost_score = min(10, cost_savings / 100)  # Up to 10 points for cost savings
+                
+                overall_score = base_score + optimization_score + performance_score + cost_score
+                
+                # Determine maturity level
+                if overall_score >= 80:
+                    maturity_level = "Optimized"
+                elif overall_score >= 65:
+                    maturity_level = "Advanced"
+                elif overall_score >= 50:
+                    maturity_level = "Intermediate"
+                else:
+                    maturity_level = "Basic"
+                
+                # Generate enterprise metrics in the expected frontend format
+                dashboard_data = {
+                    'enterprise_maturity': {
+                        'level': maturity_level,
+                        'score': overall_score,
+                        'timestamp': datetime.now().isoformat()
+                    },
+                    'operational_metrics': {
+                        'kubernetes_upgrade_readiness': {
+                            'score': min(85, 60 + (cost_savings / 10)),  # Score based on cost optimization insights
+                            'trend': 'positive' if cost_savings > 0 else 'neutral',
+                            'unit': 'percent',
+                            'details': {
+                                'current_version': analysis_data.get('cluster_version', 'Unknown') if analysis_data else 'Unknown',
+                                'total_workloads': len(performance_metrics),
+                                'blocking_issues': max(0, len(optimization_history) - 5),  # Issues decrease as optimizations increase
+                                'compatibility_check': 'passed' if len(optimization_history) > 3 else 'needs_review',
+                                'summary': f'Cluster shows upgrade readiness with {len(optimization_history)} optimizations completed'
+                            }
                         },
-                        'operational_metrics': {
-                            'kubernetes_upgrade_readiness': {
-                                'score': min(85, 60 + (cost_savings / 10)),  # Score based on cost optimization insights
-                                'trend': 'positive' if cost_savings > 0 else 'neutral',
-                                'unit': 'percent',
-                                'details': {
-                                    'current_version': analysis_data.get('cluster_version', 'Unknown') if analysis_data else 'Unknown',
-                                    'total_workloads': len(performance_metrics),
-                                    'blocking_issues': max(0, len(optimization_history) - 5),  # Issues decrease as optimizations increase
-                                    'compatibility_check': 'passed' if len(optimization_history) > 3 else 'needs_review',
-                                    'summary': f'Cluster shows upgrade readiness with {len(optimization_history)} optimizations completed'
-                                }
-                            },
                             'disaster_recovery_score': {
                                 'score': min(90, 70 + len(performance_metrics) * 2),  # Score based on metrics availability
                                 'trend': 'positive' if performance_metrics else 'neutral',
@@ -646,41 +691,41 @@ def get_enterprise_metrics_sync():
                             cpu_avg, memory_avg, cost_savings
                         )
                     }
-                    
-                    logger.info(f"✅ Enterprise metrics generated from database for {cluster_name}")
-                    
-                    # FIXED: Save generated enterprise metrics back to implementation plan
-                    try:
-                        if analysis_data and 'implementation_plan' in analysis_data:
-                            analysis_data['implementation_plan']['enterprise_metrics'] = dashboard_data
-                            enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_data)
-                            logger.info(f"✅ FIXED: Saved generated enterprise metrics to implementation plan for {cluster_name}")
-                        else:
-                            logger.warning(f"⚠️ Could not save enterprise metrics - no analysis data or implementation plan for {cluster_name}")
-                    except Exception as save_error:
-                        logger.error(f"❌ Failed to save enterprise metrics to implementation plan: {save_error}")
-                        # Continue anyway - save failure shouldn't prevent response
-                    
-                    return jsonify({
-                        'status': 'success',
-                        'timestamp': datetime.now().isoformat(),
-                        'data': dashboard_data,
-                        'source': 'database_analytics_fresh',
-                        'cluster_info': {
-                            'cluster_name': cluster_name,
-                            'resource_group': resource_group
-                        }
-                    })
-                else:
-                    logger.error("❌ No database data available for enterprise metrics generation")
-                    return jsonify({
-                        'status': 'error',
-                        'message': 'No analysis data available for enterprise metrics. Please run cluster analysis first.',
-                        'cluster_info': {
-                            'cluster_name': cluster_name,
-                            'resource_group': resource_group
-                        }
-                    }), 404
+                
+                logger.info(f"✅ Enterprise metrics generated from database for {cluster_name}")
+                
+                # FIXED: Save generated enterprise metrics back to implementation plan
+                try:
+                    if analysis_data and 'implementation_plan' in analysis_data:
+                        analysis_data['implementation_plan']['enterprise_metrics'] = dashboard_data
+                        enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_data)
+                        logger.info(f"✅ FIXED: Saved generated enterprise metrics to implementation plan for {cluster_name}")
+                    else:
+                        logger.warning(f"⚠️ Could not save enterprise metrics - no analysis data or implementation plan for {cluster_name}")
+                except Exception as save_error:
+                    logger.error(f"❌ Failed to save enterprise metrics to implementation plan: {save_error}")
+                    # Continue anyway - save failure shouldn't prevent response
+                
+                return jsonify({
+                    'status': 'success',
+                    'timestamp': datetime.now().isoformat(),
+                    'data': dashboard_data,
+                    'source': 'database_analytics_fresh',
+                    'cluster_info': {
+                        'cluster_name': cluster_name,
+                        'resource_group': resource_group
+                    }
+                })
+            else:
+                logger.error("❌ No database data available for enterprise metrics generation")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No analysis data available for enterprise metrics. Please run cluster analysis first.',
+                    'cluster_info': {
+                        'cluster_name': cluster_name,
+                        'resource_group': resource_group
+                    }
+                }), 404
             
             # If we reach here, it means no data was found
             logger.error(f"❌ Unable to generate enterprise metrics for {cluster_name} - no valid data source")

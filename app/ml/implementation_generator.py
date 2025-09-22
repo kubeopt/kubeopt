@@ -1917,15 +1917,16 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                     logger.info("✅ Cluster config set on command generator")
             
             # CRITICAL FIX: Pass YOUR analysis_results as first parameter with optimization context
-            # Ensure optimization context is included in analysis_results
+            # Create a copy for command generation to avoid race conditions during parallel analysis
+            command_analysis_results = analysis_results.copy()
             if 'optimization_context' in ml_session:
-                analysis_results['optimization_context'] = ml_session['optimization_context']
-                logger.info("✅ Optimization context added to analysis_results for command generation")
+                command_analysis_results['optimization_context'] = ml_session['optimization_context']
+                logger.info("✅ Optimization context added to analysis_results copy for command generation")
                 
             execution_plan = self.command_generator.generate_comprehensive_execution_plan(
                 ml_strategy, 
                 cluster_dna, 
-                analysis_results,  # YOUR analysis results with real opportunities AND optimization context
+                command_analysis_results,  # Copy of analysis results with optimization context (thread-safe)
                 cluster_config,
                 implementation_phases=implementation_plan.get('implementation_phases', [])
             )

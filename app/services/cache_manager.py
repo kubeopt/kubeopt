@@ -254,19 +254,36 @@ def force_fresh_analysis_with_complete_cache_clear(cluster_id: str):
             del _analysis_sessions[session_id]
             logger.info(f"🧹 COMPLETE FRESH: Cleared session {session_id[:8]} for {cluster_id}")
     
-    # Step 3: Clear global analysis results if they match this cluster
+    # Step 3: Clear global analysis results if they match this cluster (thread-safe)
     try:
-        if analysis_results:
-            # Check if global results belong to this cluster
-            global_rg = analysis_results.get('resource_group', '')
-            global_name = analysis_results.get('cluster_name', '')
-            if global_rg and global_name:
-                global_cluster_id = f"{global_rg}_{global_name}"
-                if global_cluster_id == cluster_id:
-                    analysis_results.clear()
-                    logger.info(f"🧹 COMPLETE FRESH: Cleared global analysis_results for {cluster_id}")
+        with _analysis_lock:  # Thread-safe access to global analysis_results
+            if analysis_results:
+                # Check if global results belong to this cluster
+                global_rg = analysis_results.get('resource_group', '')
+                global_name = analysis_results.get('cluster_name', '')
+                if global_rg and global_name:
+                    global_cluster_id = f"{global_rg}_{global_name}"
+                    if global_cluster_id == cluster_id:
+                        # Only clear specific cluster keys instead of the entire dictionary
+                        cluster_keys_to_clear = [k for k, v in analysis_results.items() 
+                                               if isinstance(v, dict) and 
+                                               (v.get('cluster_name') == global_name and v.get('resource_group') == global_rg)]
+                        
+                        if not cluster_keys_to_clear:
+                            # If no cluster-specific keys found, clear the root level data
+                            analysis_results.clear()
+                            logger.info(f"🧹 COMPLETE FRESH: Cleared global analysis_results for {cluster_id}")
+                        else:
+                            # Remove only cluster-specific keys
+                            for key in cluster_keys_to_clear:
+                                del analysis_results[key]
+                            logger.info(f"🧹 COMPLETE FRESH: Cleared {len(cluster_keys_to_clear)} cluster-specific keys for {cluster_id}")
+                else:
+                    logger.debug(f"ℹ️ Global analysis_results don't match cluster {cluster_id}, skipping clear")
+            else:
+                logger.debug(f"ℹ️ No global analysis_results to clear for {cluster_id}")
     except Exception as e:
-        logger.warning(f"⚠️ Could not clear global analysis results: {e}")
+        logger.warning(f"⚠️ Could not clear global analysis results for {cluster_id}: {e}")
     
     # Step 4: Clear any database cache if exists
     try:
@@ -454,6 +471,10 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         # Preserve gap data for rightsizing insights
         'cpu_gap': complete_analysis_data.get('cpu_gap'),
         'memory_gap': complete_analysis_data.get('memory_gap'),
+        
+        # Preserve current utilization data for enterprise metrics API
+        'current_cpu_utilization': complete_analysis_data.get('current_cpu_utilization'),
+        'current_memory_utilization': complete_analysis_data.get('current_memory_utilization'),
         
         # Cost breakdown
         'node_cost': float(complete_analysis_data.get('node_cost', 0)),

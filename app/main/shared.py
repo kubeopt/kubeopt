@@ -187,10 +187,19 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
                 if (session_info.get('cluster_id') == cluster_id and 
                     session_info.get('status') == 'completed' and 
                     'results' in session_info):
-                    fresh_session_data = session_info['results']
-                    data_source = "fresh_session"
-                    logger.info(f"🎯 ENTERPRISE CHART API: Found fresh session data for {cluster_id}")
-                    break
+                    # Enterprise validation: Ensure data integrity for parallel operations
+                    results_data = session_info['results']
+                    if isinstance(results_data, dict) and results_data.get('cluster_name') and results_data.get('resource_group'):
+                        expected_cluster_id = f"{results_data.get('resource_group')}_{results_data.get('cluster_name')}"
+                        if expected_cluster_id == cluster_id:
+                            fresh_session_data = results_data
+                            data_source = "fresh_session"
+                            logger.info(f"🎯 ENTERPRISE CHART API: Found validated fresh session data for {cluster_id}")
+                            break
+                        else:
+                            logger.warning(f"⚠️ Session data cluster mismatch: expected {cluster_id}, got {expected_cluster_id}")
+                    else:
+                        logger.warning(f"⚠️ Session data missing cluster identification fields for {cluster_id}")
 
         if fresh_session_data:
             if 'hpa_recommendations' in fresh_session_data:
@@ -202,17 +211,12 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
             from app.services.cache_manager import load_from_cache, clear_analysis_cache
             cached_data = load_from_cache(cluster_id, subscription_id)
             if cached_data and cached_data.get('total_cost', 0) > 0:
-                if 'hpa_recommendations' in cached_data and 'high_cpu_summary' in cached_data:
-                    logger.info(f"✅ ENTERPRISE CACHE: Complete data with HPA and high CPU for {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
+                # Use same validation as other features - only require basic fields
+                if 'total_cost' in cached_data and cached_data.get('total_cost', 0) > 0:
+                    logger.info(f"✅ ENTERPRISE CACHE: Valid analysis data for {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
                     return cached_data, "enterprise_cache"
                 else:
-                    missing_fields = []
-                    if 'hpa_recommendations' not in cached_data:
-                        missing_fields.append('hpa_recommendations')
-                    if 'high_cpu_summary' not in cached_data:
-                        missing_fields.append('high_cpu_summary')
-                    logger.warning(f"⚠️ ENTERPRISE CACHE: Data exists but missing {', '.join(missing_fields)} for {cluster_id}")
-                    clear_analysis_cache(cluster_id, subscription_id)
+                    logger.warning(f"⚠️ ENTERPRISE CACHE: Data exists but missing total_cost for {cluster_id}")
         except Exception as e:
             logger.warning(f"⚠️ Enterprise cache fetch failed for {cluster_id}: {e}")
 
@@ -223,6 +227,7 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
             if db_data and db_data.get('total_cost', 0) > 0:
                 if 'hpa_recommendations' in db_data and 'high_cpu_summary' in db_data:
                     logger.info(f"✅ DATABASE: Complete data with HPA and high CPU for {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
+                    logger.info(f"🔍 DEBUG: cluster_version in db_data: {db_data.get('cluster_version', 'NOT_FOUND')}")
                     # Cache with subscription context
                     from app.services.cache_manager import save_to_cache
                     save_to_cache(cluster_id, db_data, subscription_id)
