@@ -10,14 +10,19 @@ services:
       - "5020:5000"
     
     volumes:
-      # Mount app for development
-      - ./app:/app/app:cached
+      # Mount clean architecture directories for development
+      - ./analytics:/app/analytics:cached
+      - ./application:/app/application:cached
+      - ./infrastructure:/app/infrastructure:cached
+      - ./machine_learning:/app/machine_learning:cached
+      - ./presentation:/app/presentation:cached
+      - ./shared:/app/shared:cached
       
-      # Data persistence
-      - sqlite_data:/app/data
-      - ml_models:/app/models
+      # Data persistence for clean architecture
+      - sqlite_data:/app/infrastructure/persistence/database
+      - ml_models:/app/machine_learning/data
       - app_logs:/app/logs
-      - app_cache:/app/cache
+      - app_cache:/app/shared/cache
       
       # Mount Azure credentials to temp location for copying
       - ${HOME}/.azure:/tmp/host-azure:ro
