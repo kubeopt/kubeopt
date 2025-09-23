@@ -367,7 +367,7 @@ button:active {
 }
 
 .bg-green-500 {
-    background: linear-gradient(135deg, #10b981, #059669) !important;
+    background: rgb(23 29 52) !important;
     border: none;
     color: white;
 }
@@ -651,12 +651,12 @@ input[type="number"], input[type="time"], .form-control {
 }
 
 .metric-warning .metric-icon-bg {
-    background: linear-gradient(135deg, #48bb78, #d97706);
+    background: #d97706;
     box-shadow: 0 4px 12px rgb(35 40 62);
 }
 
 .metric-warning .metric-value {
-    background: linear-gradient(135deg, #48bb78, #d97706) !important;
+    background:  #d97706 !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
 }

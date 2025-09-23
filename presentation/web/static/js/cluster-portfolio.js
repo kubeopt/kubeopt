@@ -478,8 +478,7 @@ const DeleteFormManager = {
 
 // ===== ENHANCED DELETE FORM HANDLERS =====
 function setupDeleteFormHandlers() {
-    console.log('🔧 Setting up enhanced delete form handlers...');
-    
+        
     const form = Utils.safeGetElement('deleteClusterForm', 'setupDeleteFormHandlers');
     const checkbox = Utils.safeGetElement('confirmDelete', 'setupDeleteFormHandlers');
     const submitBtn = Utils.safeGetElement('confirmDeleteBtn', 'setupDeleteFormHandlers');
@@ -663,8 +662,7 @@ function setupDeleteFormHandlers() {
         }
     });
     
-    console.log('✅ Enhanced delete form handlers initialized successfully');
-}
+    }
 
 function hideDeleteForm() {
     DeleteFormManager.hide();
@@ -744,12 +742,7 @@ const NotificationManager = {
         }
     },
 
-    // ✅ NEW: Clear all notifications
-    clearAll() {
-        AppState.notifications.forEach((notification, id) => {
-            this.remove(id);
-        });
-    }
+
 };
 
 // ===== ENHANCED MODAL MANAGEMENT =====
@@ -1285,17 +1278,33 @@ function addCluster() {
     ClusterManager.add();
 }
 
+// Global functions for HTML onclick handlers
+function selectCluster(clusterId) {
+    ClusterManager.select(clusterId);
+}
+
 function analyzeCluster(clusterId) {
     ClusterManager.analyze(clusterId);
 }
 
 function deleteCluster(clusterId) {
-    ClusterManager.delete(clusterId);
+    DeleteFormManager.show(clusterId);
 }
 
-function selectCluster(clusterId) {
-    ClusterManager.select(clusterId);
+function closeModal(event) {
+    ModalManager.close(event);
 }
+
+function addCluster() {
+    ClusterManager.add();
+}
+
+// Ensure functions are available globally
+window.selectCluster = selectCluster;
+window.analyzeCluster = analyzeCluster;
+window.deleteCluster = deleteCluster;
+window.closeModal = closeModal;
+window.addCluster = addCluster;
 
 // ===== ENHANCED EVENT LISTENERS =====
 document.addEventListener('keydown', (e) => {
@@ -1390,8 +1399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         try {
             CounterManager.animate();
-            console.log('✅ Counter animations started');
-        } catch (error) {
+                    } catch (error) {
             console.error('❌ Counter animation failed:', error);
         }
     }, 500);
@@ -1498,7 +1506,6 @@ window.AKSDebug = {
     }
 };
 
-console.log('🔧 Enhanced debug utilities available:');
 console.log('  - window.AKSDebug.checkElements() - Check all form elements');
 console.log('  - window.AKSDebug.testNotification(type) - Test notifications');
 console.log('  - window.AKSDebug.simulateAnalysis(id) - Test analysis states');
