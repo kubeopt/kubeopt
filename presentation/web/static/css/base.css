@@ -2728,14 +2728,14 @@ p {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--gradient-primary);
+    background: #222140;
     border-radius: var(--radius-md);
     border: 2px solid transparent;
     background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--gradient-purple);
+    background: #222140;
     background-clip: content-box;
 }
 
@@ -3150,12 +3150,12 @@ p {
 }
 
 .code-content::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.3);
+    background: #222140;
     border-radius: 4px;
 }
 
 .code-content::-webkit-scrollbar-thumb:hover {
-    background: rgba(255,255,255,0.5);
+    background: #222140;
 }
 
 .phase-badges .badge {

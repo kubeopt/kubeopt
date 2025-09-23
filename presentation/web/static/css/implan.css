@@ -293,26 +293,20 @@
 }
 
 #implementation-plan-container .command-code::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 0.6) 0%, 
-        rgba(16, 185, 129, 0.8) 100%) !important;
+    background: #222140 !important;
     border-radius: 3px !important;
     transition: all 0.3s ease !important;
     border: 1px solid rgba(16, 185, 129, 0.2) !important;
 }
 
 #implementation-plan-container .command-code::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 0.9) 0%, 
-        rgba(16, 185, 129, 1) 100%) !important;
-    box-shadow: 0 0 8px rgba(52, 211, 153, 0.4) !important;
+    background: #222140 !important;
+    box-shadow: 0 0 8px rgba(116, 125, 155, 0.4) !important;
 }
 
 #implementation-plan-container .command-code::-webkit-scrollbar-thumb:active {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 1) 0%, 
-        rgba(16, 185, 129, 1) 100%) !important;
-    box-shadow: 0 0 12px rgba(52, 211, 153, 0.6) !important;
+    background: #222140 !important;
+    box-shadow: 0 0 12px rgba(116, 125, 155, 0.4) !important;
 }
 
 #implementation-plan-container .command-code::-webkit-scrollbar-corner {
@@ -582,15 +576,11 @@
 }
 
 [data-theme="dark"] #implementation-plan-container .command-code::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 0.5) 0%, 
-        rgba(16, 185, 129, 0.7) 100%) !important;
+    background: #222140 !important;
 }
 
 [data-theme="dark"] #implementation-plan-container .command-code::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 0.8) 0%, 
-        rgba(16, 185, 129, 0.9) 100%) !important;
+    background: #222140 !important;
 }
 
 [data-theme="dark"] #implementation-plan-container .task-header {
@@ -858,25 +848,19 @@
 }
 
 #implementation-plan-container .command-code::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 0.6) 0%, 
-        rgba(16, 185, 129, 0.8) 100%) !important;
+    background: #222140 !important;
     border-radius: 3px !important;
     transition: all 0.3s ease !important;
     border: 1px solid rgba(16, 185, 129, 0.2) !important;
 }
 
 #implementation-plan-container .command-code::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 0.9) 0%, 
-        rgba(16, 185, 129, 1) 100%) !important;
+    background: #222140 !important;
     box-shadow: 0 0 8px rgba(52, 211, 153, 0.4) !important;
 }
 
 #implementation-plan-container .command-code::-webkit-scrollbar-thumb:active {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 1) 0%, 
-        rgba(16, 185, 129, 1) 100%) !important;
+    background: #222140 !important;
     box-shadow: 0 0 12px rgba(52, 211, 153, 0.6) !important;
 }
 
@@ -1151,15 +1135,11 @@
 }
 
 [data-theme="dark"] #implementation-plan-container .command-code::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 0.5) 0%, 
-        rgba(16, 185, 129, 0.7) 100%) !important;
+    background: #222140 !important;
 }
 
 [data-theme="dark"] #implementation-plan-container .command-code::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 0.8) 0%, 
-        rgba(16, 185, 129, 0.9) 100%) !important;
+    background: #222140 !important;
 }
 
 [data-theme="dark"] #implementation-plan-container .task-header {
@@ -1732,17 +1712,13 @@
 }
 
 .command-code-enhanced::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 0.6) 0%, 
-        rgba(16, 185, 129, 0.8) 100%) !important;
+    background: #222140 !important;
     border-radius: 3px !important;
     transition: all 0.3s ease !important;
 }
 
 .command-code-enhanced::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, 
-        rgba(52, 211, 153, 0.9) 0%, 
-        rgba(16, 185, 129, 1) 100%) !important;
+    background: #222140 !important;
 }
 
 /* ============================================================================
