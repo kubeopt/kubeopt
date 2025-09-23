@@ -394,6 +394,18 @@ class MultiSubscriptionAnalysisEngine:
                 if 'hpa_implementation' in metrics_data:
                     hpa_count = metrics_data['hpa_implementation'].get('total_hpas', 0)
                     logger.info(f"🎯 Session {session_id}: metrics_data contains {hpa_count} HPAs for implementation_generator")
+                
+                # CRITICAL FIX: Ensure high_cpu_summary is preserved at top level even if algorithmic analysis fails
+                if 'high_cpu_summary' in metrics_data and 'high_cpu_summary' not in final_results:
+                    final_results['high_cpu_summary'] = metrics_data['high_cpu_summary']
+                    logger.info(f"✅ CRITICAL FIX: Added high_cpu_summary to final_results from metrics_data")
+                    summary = final_results['high_cpu_summary']
+                    logger.info(f"   - high_cpu_workloads: {len(summary.get('high_cpu_workloads', []))}")
+                    logger.info(f"   - high_cpu_hpas: {len(summary.get('high_cpu_hpas', []))}")
+                elif 'high_cpu_summary' in final_results:
+                    logger.info(f"✅ high_cpu_summary already in final_results (from algorithmic analysis)")
+                else:
+                    logger.warning(f"⚠️ high_cpu_summary not found in metrics_data")
             else:
                 logger.warning(f"⚠️ Session {session_id}: No metrics_data available for implementation_generator")
 

@@ -249,7 +249,7 @@
                         <div class="metrics-grid">
                         {% for metric in [
                             {'id': 'current-cost', 'icon': 'fa-dollar-sign', 'label': 'Current Monthly Cost', 'color': 'text-green-500', 'trend_id': 'cost-trend', 'trend_label': 'Limited optimization',      'trend_icon': 'fa-arrow-up-right-dots'},
-                            {'id': 'potential-savings', 'icon': 'fa-piggy-bank', 'label': 'Predicted Savings', 'color': 'text-blue-500', 'trend_id': 'savings-percentage', 'trend_label': '8.4%',           'trend_icon': 'fa-piggy-bank'},
+                            {'id': 'potential-savings', 'icon': 'fa-piggy-bank', 'label': 'Predicted Savings', 'color': 'text-blue-500', 'trend_id': 'savings-percentage', 'trend_label': '0.0%',           'trend_icon': 'fa-piggy-bank'},
                             {'id': 'hpa-efficiency', 'icon': 'fa-tachometer-alt', 'label': 'HPA Efficiency', 'color': 'text-indigo-500', 'trend_id': None, 'trend_label': 'Optimized scaling',            'trend_icon': 'fa-signal'},
                             {'id': 'optimization-score', 'icon': 'fa-star', 'label': 'Optimization Score', 'color': 'text-yellow-500', 'trend_id': None, 'trend_label': 'Overall efficiency',            'trend_icon': 'fa-bolt'}
                         ] %}
@@ -419,8 +419,8 @@
                                 <div class="text-sm text-gray-600 font-medium mt-2">Workloads Found</div>
                             </div>
                             <div class="metric-card bg-white rounded-xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl">
-                                <div class="metric-value text-green-600" id="analysis-accuracy" data-metric="accuracy">High</div>
-                                <div class="text-sm text-gray-600 font-medium mt-2">AI Analysis Accuracy</div>
+                                <div class="metric-value text-gray-600" id="analysis-accuracy" data-metric="accuracy">Loading...</div>
+                                <div class="text-sm text-gray-600 font-medium mt-2">Analysis Accuracy</div>
                             </div>
                         </div>
                         
@@ -531,7 +531,7 @@
                             <div class="flex items-center">
                                 <i class="fas fa-exclamation-triangle text-red-500 text-xl mr-3"></i>
                                 <div>
-                                    <h3 class="text-lg font-semibold text-white">Error Loading Enterprise Metrics</h3>
+                                    <h3 class="text-lg font-semibold text-white">Enterprise Metrics</h3>
                                     <p id="enterprise-error-message" class="text-gray-400 mt-1"></p>
                                 </div>
                             </div>

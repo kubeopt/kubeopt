@@ -374,7 +374,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/subscriptions/<subscription_id>/validate', methods=['POST'])
-    def api_validate_subscription_cluster():
+    def api_validate_subscription_cluster(subscription_id):
         """Validate cluster access in specific subscription"""
         try:
             data = request.get_json()
@@ -386,7 +386,6 @@ def register_api_routes(app):
             
             resource_group = data.get('resource_group')
             cluster_name = data.get('cluster_name')
-            subscription_id = request.view_args['subscription_id']
             
             if not resource_group or not cluster_name:
                 return jsonify({
@@ -1525,6 +1524,61 @@ def register_api_routes(app):
             return jsonify({
                 'status': 'error',
                 'message': f'Failed to export report: {str(e)}'
+            }), 500
+
+    @app.route('/cluster/<path:cluster_id>/remove', methods=['DELETE'])
+    def delete_cluster_api(cluster_id):
+        """Delete a cluster and all its data"""
+        try:
+            logger.info(f"🗑️ Deleting cluster: {cluster_id}")
+            
+            # Clean cluster ID
+            cluster_id = cluster_id.strip()
+            
+            if not cluster_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid cluster ID'
+                }), 400
+            
+            # Check if cluster exists
+            cluster = enhanced_cluster_manager.get_cluster(cluster_id)
+            if not cluster:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Cluster {cluster_id} not found'
+                }), 404
+            
+            # Delete the cluster using the enhanced cluster manager
+            success = enhanced_cluster_manager.remove_cluster(cluster_id)
+            
+            if success:
+                # Also clear from cache
+                try:
+                    from infrastructure.services.cache_manager import clear_analysis_cache
+                    clear_analysis_cache(cluster_id)
+                    logger.info(f"🧹 Cleared cache for deleted cluster: {cluster_id}")
+                except Exception as cache_error:
+                    logger.warning(f"⚠️ Could not clear cache for {cluster_id}: {cache_error}")
+                
+                logger.info(f"✅ Successfully deleted cluster: {cluster_id}")
+                return jsonify({
+                    'status': 'success',
+                    'message': f'Cluster {cluster_id} deleted successfully'
+                })
+            else:
+                logger.error(f"❌ Failed to delete cluster: {cluster_id}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Failed to delete cluster {cluster_id}'
+                }), 500
+                
+        except Exception as e:
+            logger.error(f"❌ Error deleting cluster {cluster_id}: {e}")
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            return jsonify({
+                'status': 'error',
+                'message': f'Failed to delete cluster: {str(e)}'
             }), 500
 
     # Cache management API routes with subscription awareness

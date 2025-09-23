@@ -37,9 +37,9 @@
     
     /* MINIMAL COLOR PALETTE - Flat colors only */
     /* 1. Primary - Green */
-    --primary: #10B981;
-    --primary-light: #34D399;
-    --primary-dark: #059669;
+    --primary: #edf1f0;
+    --primary-light: #bcd4cb;
+    --primary-dark: #cedcd7;
     
     /* 2. Alert/Danger - Red */
     --danger: #EF4444;
@@ -236,10 +236,10 @@ body::after {
 
 @keyframes savings-glow {
     0%, 100% { 
-        box-shadow: var(--shadow-md), 0 0 20px rgba(52, 199, 89, 0.3);
+        box-shadow: var(--shadow-md), 0 0 20px #464565;
     }
     50% { 
-        box-shadow: var(--shadow-lg), 0 0 30px rgba(52, 199, 89, 0.5);
+        box-shadow: var(--shadow-lg), 0 0 30px #464565;
     }
 }
 
@@ -538,7 +538,7 @@ p {
 }
 
 .card-header {
-    background: var(--gradient-primary) !important;
+    background: #373b48 !important;
     color: var(--text-white) !important;
     border: none !important;
     padding: var(--spacing-xl) !important;
@@ -559,10 +559,7 @@ p {
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(135deg, 
-        rgba(255, 255, 255, 0.2) 0%, 
-        transparent 50%, 
-        rgba(255, 255, 255, 0.1) 100%);
+    background: #373b48;
     pointer-events: none;
 }
 
@@ -674,7 +671,7 @@ p {
         var(--shadow-lg),
         0 15px 30px rgba(0, 122, 255, 0.12);
     border-color: rgba(0, 122, 255, 0.2);
-    background: rgba(255, 255, 255, 0.5);
+    background: rgb(61, 73, 86) !important;
 }
 
 .metric-card:hover::before {
@@ -687,7 +684,7 @@ p {
 
 .metric-icon {
     font-size: 1.8rem;
-    background: var(--gradient-primary);
+    background: beige;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -710,7 +707,6 @@ p {
 .metric-card.cost-card .metric-icon,
 .metric-card.environments-card .metric-icon,
 .metric-card.optimization-card .metric-icon {
-    background: var(--gradient-savings);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -719,35 +715,32 @@ p {
 }
 
 .cost-icon { 
-    background: linear-gradient(135deg, var(--primary), #15c786); 
+    background: linear-gradient(135deg, #bcc0d0); 
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
 .savings-icon { 
-    background: linear-gradient(135deg, var(--success), #059669); 
+    background: linear-gradient(135deg, #bcc0d0); 
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
 .optimization-icon { 
-    background: linear-gradient(135deg, var(--warning), #d97706); 
+    background: linear-gradient(135deg, #bcc0d0); 
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
 .environments-icon { 
-    background: linear-gradient(135deg, #5cf6c5, #3aedea); 
+    background: linear-gradient(135deg, #bcc0d0); 
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
 }
 
 .metric-card:hover .metric-icon {
-    background: var(--gradient-purple);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: rgb(0, 122, 255) !important;
     transform: scale(1.05) rotate(3deg);
 }
 
@@ -768,7 +761,6 @@ p {
 }
 
 .metric-card.savings-card .metric-value {
-    background: var(--gradient-savings);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -786,10 +778,7 @@ p {
 }
 
 .metric-card:hover .metric-value {
-    background: var(--gradient-purple);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: rgb(0, 122, 255) !important;
     transform: scale(1.02) !important;
     text-shadow: none !important;
 }
@@ -954,7 +943,7 @@ p {
         var(--shadow-xl),
         0 25px 50px rgba(0, 122, 255, 0.15);
     border-color: rgba(0, 122, 255, 0.2);
-    background: var(--glass-white-strong);
+    background: rgb(61, 73, 86) !important;
 }
 
 .cluster-card:hover .cluster-actions {
@@ -970,7 +959,7 @@ p {
 .cluster-name {
     font-size: 16px;
     font-weight: 600;
-    color:  #689477;
+    color:  #ffffff;
     margin: 0 0 6px 0;
 }
 
@@ -1092,19 +1081,43 @@ p {
 
 /* ===== ENVIRONMENT TAGS ===== */
 .env-tag {
-    padding: 3px 8px;
-    border-radius: 12px;
-    font-size: 10px;
+    padding: 3px 8px !important;
+    border-radius: 8px;
+    font-size: 10px !important;
     font-weight: 600;
-    color: white;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
+    display: inline-block !important;
+    line-height: 1.1;
+    text-align: center;
+    min-width: 28px;
+    position: relative !important;
+    z-index: 10 !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+    backdrop-filter: blur(4px);
 }
 
-.env-production { background: var(--danger); }
-.env-staging { background: var(--warning); }
-.env-development { background: var(--primary); }
-.env-unknown { background: var(--gray-400); }
+.env-production { 
+    background: linear-gradient(135deg, #ffeaea, #ffcccc) !important; 
+    color: #b91c1c !important; 
+    border-color: rgba(185, 28, 28, 0.2) !important;
+}
+.env-staging { 
+    background: linear-gradient(135deg, #fff4e6, #ffe0b3) !important; 
+    color: #ea580c !important; 
+    border-color: rgba(234, 88, 12, 0.2) !important;
+}
+.env-development { 
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7) !important; 
+    color: #16a34a !important; 
+    border-color: rgba(22, 163, 74, 0.2) !important;
+}
+.env-unknown { 
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0) !important; 
+    color: #64748b !important; 
+    border-color: rgba(100, 116, 139, 0.2) !important;
+}
 
 /* ===== CLUSTER CONTEXT HEADER ===== */
 .cluster-context-header {
@@ -1195,7 +1208,7 @@ p {
 
 .btn-primary,
 .enhanced-btn {
-    background: var(--gradient-primary) !important;
+    background: #1f213d !important;
     color: var(--text-white) !important;
     border: none !important;
     box-shadow: var(--shadow-colored) !important;
@@ -1224,15 +1237,15 @@ p {
 }
 
 .btn-outline-secondary {
-    background: var(--glass-white) !important;
+    background: rgb(83 82 100) !important;
     border-color: var(--border-light) !important;
-    color: var(--text-secondary) !important;
+    color: white !important;
 }
 
 .btn-outline-secondary:hover {
-    background: var(--glass-white-strong) !important;
+    background: rgb(83 82 100) !important;
     border-color: rgba(0, 122, 255, 0.2) !important;
-    color: var(--accent-blue) !important;
+    color: white !important;
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
 }
@@ -1317,7 +1330,6 @@ p {
 /* Special buttons */
 .add-btn {
     background: linear-gradient(135deg, var(--primary), var(--primary-light));
-    color: white;
     border: none;
     padding: 8px 16px;
     border-radius: var(--radius-md);
@@ -1899,7 +1911,7 @@ p {
 .view-toggle {
     display: flex;
     gap: var(--spacing-sm);
-    background: var(--glass-white);
+    background: #ccd1d6;
     backdrop-filter: var(--blur-md);
     border: var(--border-glass);
     border-radius: var(--radius-lg);
@@ -1933,7 +1945,7 @@ p {
 
 .view-controls .btn.active,
 .view-btn.active {
-    background: var(--gradient-primary);
+    background: #6a7089;
     color: var(--text-white);
     box-shadow: var(--shadow-sm);
 }
@@ -2027,7 +2039,7 @@ p {
 }
 
 .page-header {
-    background: rgb(80, 177, 137);
+    background: #373b48;
     border-radius: var(--radius-lg);
     padding: 16px 20px;
     box-shadow: var(--shadow-sm);
@@ -2044,7 +2056,7 @@ p {
 .header-title h1 {
     font-size: 20px;
     font-weight: 700;
-    color: #13654c;
+    color: #ffffff;
     margin: 0 0 2px 0;
     display: flex;
     align-items: center;
@@ -2066,7 +2078,7 @@ p {
 }
 
 .header-title p {
-    color: var(--gray-500);
+    color: white;
     margin: 0;
     font-size: 13px;
 }
@@ -2079,7 +2091,7 @@ p {
 
 /* ===== SPECIAL CARDS ===== */
 .add-card {
-    background: linear-gradient(135deg, var(--gray-50), white);
+    background: #373b48;
     border: 2px dashed var(--gray-300);
     border-radius: var(--radius-lg);
     padding: 20px;
@@ -2109,7 +2121,7 @@ p {
 
 .add-card:hover {
     border-color: var(--primary);
-    background: linear-gradient(135deg, rgba(37, 99, 235, 0.03), white);
+    background: #373b48;
     transform: translateY(-2px);
 }
 
@@ -2176,7 +2188,6 @@ p {
     width: 24px;
     height: 24px;
     border-radius: var(--radius-sm);
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2185,13 +2196,13 @@ p {
     flex-shrink: 0;
 }
 
-.metric:nth-child(3) .metric-icon {
+/* .metric:nth-child(3) .metric-icon {
     background: linear-gradient(135deg, var(--success), #059669);
 }
 
 .metric:nth-child(5) .metric-icon {
     background: linear-gradient(135deg, var(--warning), #d97706);
-}
+} */
 
 .metric-info {
     display: flex;
@@ -2325,7 +2336,7 @@ p {
 .modal-header h3 {
     font-size: 16px;
     font-weight: 600;
-    color: var(--gray-900);
+    color: #151427;
     margin: 0;
     display: flex;
     align-items: center;
@@ -2744,16 +2755,18 @@ p {
         var(--shadow-lg),
         0 15px 30px rgba(0, 122, 255, 0.12) !important;
     border-color: rgba(0, 122, 255, 0.2) !important;
-    background: rgba(255, 255, 255, 0.5) !important;
+    
 }
 
 .metric-card:hover .metric-icon {
     transform: scale(1.05) rotate(3deg) !important;
+    color: rgb(0, 122, 255) !important;
 }
 
 .metric-card:hover .metric-value {
     transform: scale(1.02) !important;
     text-shadow: none !important;
+    color: rgb(0, 122, 255) !important;
 }
 
 .btn:hover {

@@ -252,15 +252,16 @@
     <div class="modal-container enhanced-form" onclick="event.stopPropagation()">
         
         <!-- ===== MODAL HEADER ===== -->
-        <div class="modal-header">
-            <h3 id="modalTitle" class="modal-title">
-                <i class="fas fa-plus-circle text-primary"></i>
+        <!-- <div class="modal-header" style="padding: 24px 32px; border-bottom: 1px solid #e5e7eb; margin-bottom: 0;">
+            <h3 id="modalTitle" class="modal-title" style="margin: 0; font-size: 20px; font-weight: 700; color: #1f2937;">
+                <i class="fas fa-plus-circle text-primary" style="margin-right: 12px;"></i>
                 Add New Cluster
             </h3>
-            <button class="modal-close" onclick="closeModal()" aria-label="Close modal" type="button">
+            <button class="modal-close" onclick="closeModal()" aria-label="Close modal" type="button" 
+                    style="background: none; border: none; font-size: 18px; color: #6b7280; cursor: pointer; padding: 8px;">
                 <i class="fas fa-times"></i>
             </button>
-        </div>
+        </div> -->
 
         <!-- ===== SUBSCRIPTION SELECTION SECTION ===== -->
         <div class="subscription-selection-section">
@@ -273,7 +274,6 @@
                     id="subscriptionSelect" 
                     name="subscription_id" 
                     class="enhanced-select form-control" 
-                    required 
                     aria-describedby="subscriptionHelp subscriptionError"
                 >
                     <option value="" disabled selected>Loading subscriptions...</option>
@@ -287,8 +287,8 @@
         </div>
 
         <!-- ===== MODAL BODY ===== -->
-        <div class="modal-body">
-            <form id="clusterForm" class="enhanced-form" novalidate>
+        <div class="modal-body" style="padding: 32px;">
+            <form id="clusterForm" class="enhanced-form" novalidate action="javascript:void(0)" method="post">
                 
                 <!-- ===== CLUSTER DETAILS ROW ===== -->
                 <div class="form-row">
@@ -303,7 +303,6 @@
                             name="clusterName"
                             class="enhanced-input" 
                             placeholder="production-aks-east" 
-                            required 
                             aria-describedby="clusterNameError"
                             pattern="^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]$"
                         >
@@ -321,7 +320,6 @@
                             name="resourceGroup"
                             class="enhanced-input" 
                             placeholder="rg-production-east" 
-                            required 
                             aria-describedby="resourceGroupError"
                         >
                         <div id="resourceGroupError" class="field-error" role="alert"></div>
@@ -387,7 +385,7 @@
                 </div>
                 
                 <!-- ===== ADVANCED OPTIONS ===== -->
-                <div class="form-field full-width">
+                <!-- <div class="form-field full-width">
                     <fieldset class="form-fieldset">
                         <legend class="form-legend">
                             <i class="fas fa-sliders-h me-2 text-primary"></i>
@@ -422,7 +420,7 @@
                             </label>
                         </div>
                     </fieldset>
-                </div>
+                </div> -->
 
                 <!-- ===== VALIDATION STATUS ===== -->
                 <div id="validationStatus" class="validation-status" style="display: none;" aria-live="polite">
@@ -435,12 +433,13 @@
         </div>
         
         <!-- ===== MODAL FOOTER ===== -->
-        <div class="modal-footer">
+        <div class="modal-footer" style="padding: 24px 32px; border-top: 1px solid #e5e7eb; background: #f9fafb; border-radius: 0 0 20px 20px; margin-top: 0;">
             <button 
                 class="btn btn-outline-secondary" 
                 onclick="closeModal()" 
                 type="button"
                 aria-label="Cancel adding cluster"
+                style="padding: 12px 24px; font-weight: 600; border-radius: 8px; margin-right: 12px;"
             >
                 <i class="fas fa-times me-2"></i>
                 Cancel
@@ -448,11 +447,10 @@
             
             <button 
                 class="btn btn-primary enhanced-btn" 
-                onclick="addCluster()" 
                 id="addClusterBtn"
-                type="submit"
-                form="clusterForm"
+                type="button"
                 aria-describedby="addClusterStatus"
+                style="padding: 12px 32px; font-weight: 600; border-radius: 8px; font-size: 15px;"
             >
                 <span class="btn-content">
                     <i class="fas fa-plus me-2"></i>
@@ -803,6 +801,44 @@
 }
 
 /* ===== ENHANCED FORM STYLES ===== */
+.modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: rgba(0, 0, 0, 0.75) !important;
+    display: none !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 99999 !important;
+    pointer-events: none !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+}
+
+.modal-overlay.show {
+    display: flex !important;
+    pointer-events: auto !important;
+}
+
+/* Better approach - just ensure modal is properly layered */
+
+/* Modal container - properly centered with solid background */
+.modal-container {
+    max-width: 700px !important;
+    width: 95% !important;
+    background: #ffffff !important;
+    border-radius: 16px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3) !important;
+    position: relative !important;
+    z-index: 100000 !important;
+    margin: auto !important;
+    border: 1px solid #e5e7eb !important;
+}
+
 .enhanced-form .form-field {
     margin-bottom: 20px;
 }
@@ -811,9 +847,9 @@
     display: flex;
     align-items: center;
     font-weight: 600;
-    color: #374151;
-    margin-bottom: 8px;
-    font-size: 14px;
+    color: #1f2937;
+    margin-bottom: 10px;
+    font-size: 15px;
 }
 
 .enhanced-form .text-primary {
@@ -826,23 +862,43 @@
 
 .enhanced-input, .enhanced-select {
     width: 100%;
-    padding: 12px 16px;
-    border: 2px solid #e5e7eb;
-    border-radius: 12px;
-    font-size: 14px;
+    padding: 14px 16px;
+    border: 2px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #111827 !important;
+    background: #ffffff !important;
     transition: all 0.2s ease;
-    background: white;
+    line-height: 1.5;
 }
 
 .enhanced-input:focus, .enhanced-select:focus {
     outline: none;
     border-color: #4f46e5;
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    background: #ffffff !important;
+    color: #111827 !important;
+}
+
+.enhanced-input:hover, .enhanced-select:hover {
+    border-color: #9ca3af;
 }
 
 .enhanced-input.error, .enhanced-select.error {
     border-color: #ef4444;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.enhanced-input::placeholder {
+    color: #9ca3af !important;
+    font-weight: 400;
+}
+
+.enhanced-select option {
+    color: #111827;
+    background: #ffffff;
+    padding: 8px;
 }
 
 .field-error {
@@ -865,11 +921,20 @@
 .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: 24px;
+    margin-bottom: 8px;
 }
 
 .form-field.full-width {
     grid-column: 1 / -1;
+}
+
+.subscription-selection-section {
+    margin-bottom: 24px;
+    padding: 16px;
+    background: #f9fafb;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
 }
 
 .form-fieldset {
@@ -1340,65 +1405,58 @@ const Utils = {
 
 // ===== ENHANCED FORM VALIDATION =====
 function validateForm() {
-    const clusterName = Utils.safeGetElement('clusterName', 'Form Validation');
-    const resourceGroup = Utils.safeGetElement('resourceGroup', 'Form Validation');
-    const subscriptionSelect = Utils.safeGetElement('subscriptionSelect', 'Form Validation');
-    
-    if (!clusterName || !resourceGroup || !subscriptionSelect) {
-        console.error('❌ Cannot validate form - required elements missing');
-        NotificationManager.show(
-            'Form Error',
-            'Required form elements are missing. Please refresh the page.',
-            'error'
-        );
-        return false;
-    }
+    // Clear previous validation errors
+    document.querySelectorAll('.field-error').forEach(error => {
+        error.textContent = '';
+    });
+    document.querySelectorAll('.enhanced-input, .enhanced-select').forEach(input => {
+        input.classList.remove('error');
+    });
     
     let isValid = true;
     
-    // Clear previous errors safely
-    document.querySelectorAll('.field-error').forEach(el => {
-        if (el) el.textContent = '';
-    });
-    document.querySelectorAll('.error').forEach(el => {
-        if (el) el.classList.remove('error');
-    });
+    // Validate cluster name
+    const clusterNameInput = document.getElementById('clusterName');
+    const clusterNameError = document.getElementById('clusterNameError');
+    const clusterNameValue = clusterNameInput?.value?.trim();
     
-    // ✅ ENHANCED: Validate cluster name with pattern
-    const clusterValidation = Utils.validateInput(clusterName, {
-        required: true,
-        minLength: 2,
-        maxLength: 50,
-        pattern: /^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]$/,
-        message: 'Cluster name must start and end with alphanumeric characters, and can contain hyphens'
-    });
-    
-    if (!clusterValidation.valid) {
-        clusterName.classList.add('error');
-        const errorEl = clusterName.parentNode?.querySelector('.field-error');
-        if (errorEl) errorEl.textContent = clusterValidation.errors[0];
+    if (!clusterNameValue) {
+        if (clusterNameInput) clusterNameInput.classList.add('error');
+        if (clusterNameError) clusterNameError.textContent = 'Cluster name is required';
+        isValid = false;
+    } else if (clusterNameValue.length < 3) {
+        if (clusterNameInput) clusterNameInput.classList.add('error');
+        if (clusterNameError) clusterNameError.textContent = 'Cluster name must be at least 3 characters';
+        isValid = false;
+    } else if (!/^[a-zA-Z0-9-_]+$/.test(clusterNameValue)) {
+        if (clusterNameInput) clusterNameInput.classList.add('error');
+        if (clusterNameError) clusterNameError.textContent = 'Cluster name can only contain letters, numbers, hyphens, and underscores';
         isValid = false;
     }
     
-    // ✅ ENHANCED: Validate resource group
-    const resourceGroupValidation = Utils.validateInput(resourceGroup, {
-        required: true,
-        minLength: 1,
-        maxLength: 90
-    });
+    // Validate resource group
+    const resourceGroupInput = document.getElementById('resourceGroup');
+    const resourceGroupError = document.getElementById('resourceGroupError');
+    const resourceGroupValue = resourceGroupInput?.value?.trim();
     
-    if (!resourceGroupValidation.valid) {
-        resourceGroup.classList.add('error');
-        const errorEl = resourceGroup.parentNode?.querySelector('.field-error');
-        if (errorEl) errorEl.textContent = resourceGroupValidation.errors[0];
+    if (!resourceGroupValue) {
+        if (resourceGroupInput) resourceGroupInput.classList.add('error');
+        if (resourceGroupError) resourceGroupError.textContent = 'Resource group is required';
+        isValid = false;
+    } else if (resourceGroupValue.length < 3) {
+        if (resourceGroupInput) resourceGroupInput.classList.add('error');
+        if (resourceGroupError) resourceGroupError.textContent = 'Resource group must be at least 3 characters';
         isValid = false;
     }
     
-    // ✅ ENHANCED: Validate subscription selection
-    if (!subscriptionSelect.value) {
-        subscriptionSelect.classList.add('error');
-        const errorEl = subscriptionSelect.parentNode?.querySelector('.field-error');
-        if (errorEl) errorEl.textContent = 'Please select a subscription';
+    // Validate subscription
+    const subscriptionSelect = document.getElementById('subscriptionSelect');
+    const subscriptionError = document.getElementById('subscriptionError');
+    const subscriptionValue = subscriptionSelect?.value;
+    
+    if (!subscriptionValue) {
+        if (subscriptionSelect) subscriptionSelect.classList.add('error');
+        if (subscriptionError) subscriptionError.textContent = 'Azure subscription is required';
         isValid = false;
     }
     
@@ -1977,7 +2035,7 @@ const ModalManager = {
         const overlay = Utils.safeGetElement('modalOverlay', 'ModalManager.open');
         if (overlay) {
             overlay.classList.add('show');
-            overlay.setAttribute('aria-hidden', 'false');
+            overlay.removeAttribute('aria-hidden');
             AppState.currentModal = 'add';
         }
         
@@ -1995,7 +2053,6 @@ const ModalManager = {
             }
         }, 200);
 
-        console.log('📝 Add cluster modal opened');
     },
 
     close(event = null) {
@@ -2006,7 +2063,8 @@ const ModalManager = {
         const overlay = Utils.safeGetElement('modalOverlay', 'ModalManager.close');
         if (overlay) {
             overlay.classList.remove('show');
-            overlay.setAttribute('aria-hidden', 'true');
+            // Remove aria-hidden entirely when modal is closed
+            overlay.removeAttribute('aria-hidden');
             AppState.currentModal = null;
         }
         
@@ -2014,8 +2072,13 @@ const ModalManager = {
             document.body.style.overflow = '';
         }
         
+        // Move focus back to the trigger element
+        const addButton = document.querySelector('.add-btn');
+        if (addButton) {
+            addButton.focus();
+        }
+        
         this.resetForm();
-        console.log('📝 Add cluster modal closed');
     },
 
     resetForm() {
@@ -2215,15 +2278,10 @@ const ClusterManager = {
 
     async add() {
         if (!validateForm()) {
-            NotificationManager.show(
-                'Validation Error', 
-                'Please correct the errors in the form before submitting', 
-                'warning'
-            );
             return;
         }
 
-        // ✅ ENHANCED: Collect form data with validation
+        // Collect form data
         const formData = {
             cluster_name: Utils.withElement('clusterName', el => el.value.trim()) || '',
             resource_group: Utils.withElement('resourceGroup', el => el.value.trim()) || '',
@@ -2231,8 +2289,13 @@ const ClusterManager = {
             environment: Utils.withElement('environment', el => el.value) || 'development',
             region: Utils.withElement('region', el => el.value.trim()) || '',
             description: Utils.withElement('description', el => el.value.trim()) || '',
-            auto_analyze: Utils.withElement('autoAnalyze', el => el.checked) || false,
-            enable_monitoring: Utils.withElement('enableMonitoring', el => el.checked) || false
+            // Original checkbox-based approach (commented out)
+            // auto_analyze: Utils.withElement('autoAnalyze', el => el.checked) || false,
+            // enable_monitoring: Utils.withElement('enableMonitoring', el => el.checked) || false
+            
+            // New approach: Always auto-analyze new clusters
+            auto_analyze: true, // Always start analysis automatically after adding cluster
+            enable_monitoring: false // Default monitoring to false
         };
 
         const button = Utils.safeGetElement('addClusterBtn', 'ClusterManager.add');
@@ -2562,7 +2625,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // ✅ ENHANCED: Add subscription validation listeners with debouncing
+    // Add form submit handler to prevent any form submission
+    const clusterForm = Utils.safeGetElement('clusterForm', 'DOMContentLoaded');
+    if (clusterForm) {
+        clusterForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+        });
+    }
+    
+    // Add button click handler
+    const addClusterBtn = Utils.safeGetElement('addClusterBtn', 'DOMContentLoaded');
+    if (addClusterBtn) {
+        addClusterBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            addCluster();
+        });
+    }
+    
+    // Add subscription validation listeners with debouncing
     const subscriptionSelect = Utils.safeGetElement('subscriptionSelect', 'DOMContentLoaded');
     const resourceGroup = Utils.safeGetElement('resourceGroup', 'DOMContentLoaded');
     const clusterName = Utils.safeGetElement('clusterName', 'DOMContentLoaded');
@@ -2578,7 +2661,6 @@ document.addEventListener('DOMContentLoaded', () => {
         resourceGroup.addEventListener('input', validateOnChange);
         clusterName.addEventListener('input', validateOnChange);
         
-        console.log('✅ Subscription validation listeners added');
     }
     
     // ✅ ENHANCED: Counter animation with staggered start

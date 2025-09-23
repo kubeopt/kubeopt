@@ -164,6 +164,26 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         if not validation_result['valid']:
             raise Exception(f"Cluster validation failed: {validation_result['error']}")
         
+        # CRITICAL FIX: Ensure cluster exists in database before analysis (from backup code)
+        cluster_config = {
+            'cluster_name': cluster_name,
+            'resource_group': resource_group,
+            'subscription_id': subscription_id,
+            'status': 'active',
+            'auto_analyze': True
+        }
+        
+        subscription_info = azure_subscription_manager.get_subscription_info(subscription_id)
+        subscription_name = subscription_info.subscription_name if subscription_info else subscription_id[:8]
+        
+        try:
+            cluster_id_check = enhanced_cluster_manager.add_cluster_with_subscription(
+                cluster_config, subscription_id, subscription_name
+            )
+            logger.info(f"✅ Ensured cluster exists in database: {cluster_id_check}")
+        except Exception as cluster_add_error:
+            logger.warning(f"⚠️ Cluster add failed (might already exist): {cluster_add_error}")
+        
         update_progress(10, f'Setting subscription context...')
         
         # Record performance metric
@@ -206,6 +226,16 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
                     'cluster_validation': validation_result.get('cluster_info', {}),
                     'multi_subscription_enabled': True
                 }
+            
+            # CRITICAL DEBUG: Check if high_cpu_summary is in analysis_results_data before DB save
+            if 'high_cpu_summary' in analysis_results_data:
+                logger.info(f"✅ BACKGROUND_PROCESSOR: high_cpu_summary IS present before DB save")
+                summary = analysis_results_data['high_cpu_summary']
+                logger.info(f"   - high_cpu_workloads: {len(summary.get('high_cpu_workloads', []))}")
+                logger.info(f"   - high_cpu_hpas: {len(summary.get('high_cpu_hpas', []))}")
+            else:
+                logger.error(f"❌ BACKGROUND_PROCESSOR: high_cpu_summary MISSING before DB save")
+                logger.error(f"🔍 BACKGROUND_PROCESSOR: Available keys: {list(analysis_results_data.keys())[:20]}")
             
             # Store results in database with subscription context
             enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_results_data)
