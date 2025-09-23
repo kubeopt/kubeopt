@@ -377,13 +377,13 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, #00fff2, #13bf74);
+    background: #222140;
     border-radius: 10px;
     transition: background 0.3s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, #00b3aa, #00853c);
+    background: #222140;
 }
 
 /* === ENHANCED ALERTS AND NOTIFICATIONS === */
