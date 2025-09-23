@@ -78,7 +78,7 @@ header {
 }
 
 .active-nav-link, .nav-link.active-nav-link {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(251, 191, 36, 0.15)) !important;
+    background: #1f243b !important;
     color: #48bb78 !important;
     border-radius: 8px;
     transform: translateX(4px);
