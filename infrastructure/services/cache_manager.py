@@ -351,6 +351,12 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
                 'cache_type': 'reference'
             }
         
+        # Verify high_cpu_summary was preserved
+        if 'high_cpu_summary' in cache_data:
+            logger.info(f"✅ CACHE SAVE SUCCESS: high_cpu_summary preserved with {len(cache_data['high_cpu_summary'].get('high_cpu_workloads', []))} workloads")
+        else:
+            logger.warning(f"⚠️ CACHE SAVE WARNING: high_cpu_summary missing from cached data")
+        
         logger.info(f"💾 CACHE SAVED: {cache_key} with validated data ({len(cache_data)} components)")
         return True
         
@@ -389,8 +395,15 @@ def load_from_cache_with_validation(cluster_id: str, subscription_id: str = None
             if _check_cache_timestamp(cluster_cache, cluster_id):
                 cached_data = cluster_cache.get('data', {})
                 
-                # Minimal validation - just check essential fields
+                # Minimal validation - check essential fields including high_cpu_summary
                 if cached_data.get('total_cost', 0) > 0 and cached_data.get('hpa_recommendations'):
+                    # Check if high_cpu_summary exists
+                    has_high_cpu_summary = 'high_cpu_summary' in cached_data
+                    if has_high_cpu_summary:
+                        logger.info(f"✅ CACHE LOAD: Found high_cpu_summary with {len(cached_data['high_cpu_summary'].get('high_cpu_workloads', []))} workloads")
+                    else:
+                        logger.warning(f"⚠️ CACHE LOAD: Missing high_cpu_summary in cached data for {cluster_id}")
+                    
                     # 🔍 CACHE LOAD: Log gap data being returned
                     cpu_gap = cached_data.get('cpu_gap', 'NOT_FOUND')
                     memory_gap = cached_data.get('memory_gap', 'NOT_FOUND')
@@ -497,6 +510,9 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'cluster_name': str(complete_analysis_data.get('cluster_name', '')),
         'analysis_timestamp': complete_analysis_data.get('analysis_timestamp', datetime.now().isoformat()),
         
+        # CRITICAL: Preserve high_cpu_summary for UI compatibility
+        'high_cpu_summary': complete_analysis_data.get('high_cpu_summary', {}),
+        
         # Optional components (preserve everything)
         'implementation_plan': complete_analysis_data.get('implementation_plan'),
         'pod_cost_analysis': complete_analysis_data.get('pod_cost_analysis'),
@@ -511,10 +527,18 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
     hpa_eff_pct = cache_data.get('hpa_efficiency_percentage')
     hpa_red = cache_data.get('hpa_reduction')
     
+    # Log high_cpu_summary data preservation
+    high_cpu_summary = cache_data.get('high_cpu_summary', {})
+    high_cpu_workloads = high_cpu_summary.get('high_cpu_workloads', [])
+    high_cpu_hpas = high_cpu_summary.get('high_cpu_hpas', [])
+    
     logger.info(f"💾 CACHE PREP: HPA efficiency data for {cluster_id}:")
     logger.info(f"   - hpa_efficiency: {hpa_eff}")
     logger.info(f"   - hpa_efficiency_percentage: {hpa_eff_pct}")
     logger.info(f"   - hpa_reduction: {hpa_red}")
+    logger.info(f"💾 CACHE PREP: High CPU summary data for {cluster_id}:")
+    logger.info(f"   - high_cpu_workloads: {len(high_cpu_workloads)}")
+    logger.info(f"   - high_cpu_hpas: {len(high_cpu_hpas)}")
     
     # Remove None values but keep 0 values
     cache_data = {k: v for k, v in cache_data.items() if v is not None}

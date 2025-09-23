@@ -57,8 +57,10 @@ export function validateAnalysisForm() {
  * Sets up real-time input validation
  */
 export function setupInputValidation() {
-    const resourceGroupInput = document.getElementById('resource_group');
-    const clusterNameInput = document.getElementById('cluster_name');
+    // Support both old and new field naming conventions
+    const resourceGroupInput = document.getElementById('resource_group') || document.getElementById('resourceGroup');
+    const clusterNameInput = document.getElementById('cluster_name') || document.getElementById('clusterName');
+    const subscriptionSelect = document.getElementById('subscriptionSelect');
     
     if (resourceGroupInput) {
         resourceGroupInput.addEventListener('input', function() {
@@ -86,7 +88,8 @@ export function setupInputValidation() {
         clusterNameInput.addEventListener('input', function() {
             const validation = validateInput(this.value.trim(), {
                 required: true,
-                minLength: AppConfig.MIN_VALIDATION_LENGTH
+                minLength: AppConfig.MIN_VALIDATION_LENGTH,
+                pattern: /^[a-zA-Z0-9-_]+$/
             });
             
             this.classList.remove('is-invalid', 'is-valid');
@@ -96,6 +99,19 @@ export function setupInputValidation() {
             }
             
             if (validation.isValid) {
+                this.classList.add('is-valid');
+            } else {
+                this.classList.add('is-invalid');
+            }
+        });
+    }
+    
+    // Add subscription validation for cluster form
+    if (subscriptionSelect) {
+        subscriptionSelect.addEventListener('change', function() {
+            this.classList.remove('is-invalid', 'is-valid');
+            
+            if (this.value && this.value !== '') {
                 this.classList.add('is-valid');
             } else {
                 this.classList.add('is-invalid');
@@ -112,6 +128,11 @@ export function validateClusterForm(formData) {
     
     const clusterName = formData.cluster_name?.trim();
     const resourceGroup = formData.resource_group?.trim();
+    const subscriptionId = formData.subscription_id?.trim();
+    
+    if (!subscriptionId) {
+        errors.push('Azure subscription is required');
+    }
     
     if (!clusterName) {
         errors.push('Cluster name is required');
@@ -150,14 +171,15 @@ export function handleEnhancedClusterFormSubmission(event) {
     const form = event.target;
     const formData = new FormData(form);
     
-    // Get form values with proper validation
+    // Get form values with proper validation - match actual form field names
     const clusterData = {
-        cluster_name: (formData.get('cluster_name') || '').trim(),
-        resource_group: (formData.get('resource_group') || '').trim(),
+        cluster_name: (formData.get('clusterName') || '').trim(),
+        resource_group: (formData.get('resourceGroup') || '').trim(),
         environment: formData.get('environment') || 'development',
         region: (formData.get('region') || '').trim(),
         description: (formData.get('description') || '').trim(),
-        auto_analyze: formData.get('auto_analyze') === 'on' || document.getElementById('auto_analyze')?.checked === true
+        auto_analyze: formData.get('auto_analyze') === 'on' || document.getElementById('auto_analyze')?.checked === true,
+        subscription_id: (formData.get('subscription_id') || '').trim()
     };
     
     console.log('📋 Form data collected:', clusterData);
@@ -273,7 +295,7 @@ export function handleEnhancedClusterFormSubmission(event) {
  * Sets up form event handlers
  */
 export function setupFormHandlers() {
-    console.log('🔧 Setting up FIXED form handlers');
+    console.log('🔧 Setting up enhanced form handlers');
     
     // Handle analysis form ONLY ONCE
     const analysisForm = document.getElementById('analysisForm');
@@ -287,28 +309,7 @@ export function setupFormHandlers() {
         console.log('✅ Analysis form handler attached (fixed version)');
     }
     
-    // Handle add cluster modal form
-    const addClusterModal = document.getElementById('addClusterModal');
-    if (addClusterModal) {
-        addClusterModal.addEventListener('show.bs.modal', function() {
-            const form = this.querySelector('form');
-            if (form) {
-                form.reset();
-                form.querySelectorAll('.form-control').forEach(input => {
-                    input.classList.remove('is-invalid', 'is-valid');
-                });
-            }
-        });
-        
-        const form = addClusterModal.querySelector('form');
-        if (form) {
-            // Remove existing handlers and add fresh one
-            const newForm = form.cloneNode(true);
-            form.parentNode.replaceChild(newForm, form);
-            newForm.addEventListener('submit', handleEnhancedClusterFormSubmission);
-            console.log('✅ Add cluster form handler attached');
-        }
-    }
+    console.log('✅ Form handlers setup complete - cluster validation will use enhanced validateForm()');
 }
 
 /**
@@ -501,4 +502,6 @@ if (typeof window !== 'undefined') {
     window.handleAnalysisSubmit = handleAnalysisSubmit;
     window.resetAnalysisForm = resetAnalysisForm;
     window.handleEnhancedClusterFormSubmission = handleEnhancedClusterFormSubmission;
+    
+    // validateForm is now directly implemented in the template - no override needed
 }

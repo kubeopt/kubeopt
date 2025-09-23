@@ -460,7 +460,7 @@ input[type="number"], input[type="time"], .form-control {
 }
 
 .cpu-card-header.warning-header {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+    background: linear-gradient(135deg, rgba(34, 39, 62, 1));
     border-bottom: 1px solid rgba(245, 158, 11, 0.2);
 }
 
@@ -492,15 +492,15 @@ input[type="number"], input[type="time"], .form-control {
 }
 
 .bg-gradient-danger {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
+    background: linear-gradient(135deg, #ef4444);
 }
 
 .bg-gradient-warning {
-    background: linear-gradient(135deg, #48bb78, #d97706);
+    background: linear-gradient(135deg, #161c33);
 }
 
 .bg-gradient-success {
-    background: linear-gradient(135deg, #10b981, #059669);
+    background: linear-gradient(135deg, #10b981);
 }
 
 .cpu-title {

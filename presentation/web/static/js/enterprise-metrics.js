@@ -109,7 +109,15 @@ class EnterpriseMetricsManager {
             let errorMessage = `Failed to load enterprise metrics: ${error.message}`;
             
             // Add specific troubleshooting based on error type
-            if (error.message.includes('No specific cluster selected')) {
+            if (error.message.includes('No analysis data available') || error.message.includes('Please run cluster analysis first')) {
+                errorMessage = '📊 Latest Analysis Not Available Yet\n\n' +
+                             '🔄 To view Enterprise Metrics, please run an analysis first:\n\n' +
+                             '📋 Quick Steps:\n' +
+                             '1. Click the "Run Analysis" button on this cluster\n' +
+                             '2. Wait for the analysis to complete\n' +
+                             '3. Return to this tab to view your metrics\n\n' +
+                             '💡 Enterprise Metrics provide deep insights after analyzing your cluster data.';
+            } else if (error.message.includes('No specific cluster selected')) {
                 errorMessage = '🏠 Enterprise Metrics requires a specific cluster to be selected.\n\n' +
                              '📋 Steps to view metrics:\n' +
                              '1. Go to the home page\n' +
