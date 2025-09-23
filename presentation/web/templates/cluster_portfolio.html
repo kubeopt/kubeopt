@@ -62,8 +62,8 @@
                 <div class="metric-data">
                     <div class="metric-value" data-target="{{ "%.1f"|format(portfolio_summary.avg_optimization_pct or 0.0) }}">0%</div>
                     <div class="metric-label">Avg Optimization</div>
-                    <div class="metric-progress">
-                        <div class="progress-fill" style="width: 72%"></div>
+                    <div class="metric-trend up">
+                        <i class="fas fa-arrow-up"></i>
                     </div>
                 </div>
             </div>
@@ -497,7 +497,7 @@
             
             <div class="confirmation-checkbox">
                 <label class="checkbox">
-                    <input type="checkbox" id="confirmDelete" required>
+                    <input type="checkbox" id="confirmDelete">
                     <span class="checkmark">
                         <i class="fas fa-check"></i>
                     </span>
@@ -701,6 +701,17 @@
 
 .confirmation-checkbox {
     margin-bottom: 24px;
+    transition: all 0.3s ease;
+}
+
+.confirmation-checkbox.error {
+    animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
 }
 
 .confirmation-checkbox .checkbox {
@@ -1831,12 +1842,46 @@ function setupDeleteFormHandlers() {
         }
         
         if (!currentCheckbox.checked) {
+            // Highlight the checkbox and its container
+            const checkboxContainer = currentCheckbox.closest('.confirmation-checkbox');
+            if (checkboxContainer) {
+                checkboxContainer.classList.add('error');
+                checkboxContainer.style.border = '2px solid #ef4444';
+                checkboxContainer.style.borderRadius = '8px';
+                checkboxContainer.style.padding = '12px';
+                checkboxContainer.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                checkboxContainer.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.2)';
+                
+                // Also highlight the checkbox itself
+                const checkmark = checkboxContainer.querySelector('.checkmark');
+                if (checkmark) {
+                    checkmark.style.border = '2px solid #ef4444';
+                    checkmark.style.backgroundColor = '#fef2f2';
+                }
+                
+                // Remove highlight after 3 seconds
+                setTimeout(() => {
+                    checkboxContainer.classList.remove('error');
+                    checkboxContainer.style.border = '';
+                    checkboxContainer.style.backgroundColor = '';
+                    checkboxContainer.style.padding = '';
+                    checkboxContainer.style.boxShadow = '';
+                    
+                    if (checkmark) {
+                        checkmark.style.border = '';
+                        checkmark.style.backgroundColor = '';
+                    }
+                }, 3000);
+            }
+            
+            // Focus on the checkbox
+            currentCheckbox.focus();
+            
             NotificationManager.show(
                 'Confirmation Required',
                 'Please confirm that you understand this action cannot be undone',
                 'warning'
             );
-            currentCheckbox.focus();
             return;
         }
 

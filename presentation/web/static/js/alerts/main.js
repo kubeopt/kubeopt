@@ -966,7 +966,7 @@ function showCreateAlertModal() {
         <div class="modal" id="createAlertModal" style="background: rgba(0,0,0,0.8);">
             <div class="modal-content" style="background: rgb(30, 41, 59); color: white; border: 1px solid rgba(255,255,255,0.1);">
                 <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <h3 class="modal-title" style="color: white;">🔔 Create New Alert</h3>
+                    <h3 class="modal-title" style="color: white;">Create New Alert</h3>
                     <button class="modal-close" onclick="closeModal('createAlertModal')" style="background: rgba(255,255,255,0.1); color: white;">&times;</button>
                 </div>
                 <div class="modal-body">
