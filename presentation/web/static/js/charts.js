@@ -3305,7 +3305,7 @@ export function createMainTrendChart(data, isRealData) {
                 // Data indicator
                 subtitle: {
                     display: true,
-                    text: isRealData !== undefined ? (isRealData ? '● Live Data' : '● Projected Trends') : '',
+                    text: isRealData !== undefined ? (isRealData ? '● Cost Trend' : '● Projected Trends') : '',
                     color: isRealData ? 'rgba(46, 204, 113, 0.8)' : 'rgba(241, 196, 15, 0.8)',
                     font: {
                         size: 11,

@@ -144,66 +144,52 @@ function loadNotifications() {
 }
 
 /**
- * GLOBAL ALERTS/NOTIFICATIONS LOADER - ALL CLUSTERS
- * This loads alerts and notifications from ALL clusters for the header bell
+ * CLUSTER-SPECIFIC NOTIFICATIONS LOADER - FILTERED BY CURRENT CLUSTER
+ * This loads notifications only for the current cluster for the header bell
  */
 function loadGlobalNotifications() {
-    console.log('🌍 Loading global notifications from all clusters...');
+    console.log('🔔 Loading cluster-specific notifications for bell icon...');
     
-    // Load notifications without cluster filter to get ALL notifications
-    fetch('/api/notifications/in-app?unread_only=false&limit=100')
+    const clusterId = window.AlertsState.currentClusterId;
+    
+    // Build URL with cluster filter if we have a cluster ID
+    let url = '/api/notifications/in-app?unread_only=false&limit=100';
+    if (clusterId) {
+        url += `&cluster_id=${encodeURIComponent(clusterId)}`;
+        console.log(`🎯 Loading notifications for cluster: ${clusterId}`);
+    } else {
+        console.log('🌍 No cluster detected, loading all notifications');
+    }
+    
+    fetch(url)
         .then(response => {
-            console.log(`🌍 Global notifications API response: ${response.status}`);
+            console.log(`🔔 Cluster notifications API response: ${response.status}`);
             return response.json();
         })
         .then(data => {
-            console.log('🌍 Global notifications API data:', data);
+            console.log('🔔 Cluster notifications API data:', data);
             
             if (data.status === 'success') {
                 window.AlertsState.globalNotifications = data.notifications || [];
                 window.AlertsState.globalUnreadCount = data.unread_count || 0;
                 
-                console.log(`🌍 Loaded ${window.AlertsState.globalNotifications.length} global notifications`);
-                console.log(`🌍 Global unread count: ${window.AlertsState.globalUnreadCount}`);
+                console.log(`🔔 Loaded ${window.AlertsState.globalNotifications.length} cluster-specific notifications`);
+                console.log(`🔔 Cluster unread count: ${window.AlertsState.globalUnreadCount}`);
+                console.log(`🎯 Filtered for cluster: ${clusterId || 'all clusters'}`);
                 
-                // Update header bell with global count
+                // Update header bell with cluster-specific count
                 updateGlobalNotificationBadge();
             } else {
-                console.log('🌍 Global notifications API error:', data.message);
-                // Create some test data if API fails for development
-                window.AlertsState.globalNotifications = [
-                    {
-                        id: 'test-1',
-                        title: 'Test Notification',
-                        message: 'This is a test notification to verify the system works',
-                        timestamp: new Date().toISOString(),
-                        read: false
-                    }
-                ];
-                window.AlertsState.globalUnreadCount = 1;
+                console.log('🔔 Cluster notifications API error:', data.message);
+                window.AlertsState.globalNotifications = [];
+                window.AlertsState.globalUnreadCount = 0;
                 updateGlobalNotificationBadge();
             }
         })
         .catch(error => {
-            console.error('❌ Error loading global notifications:', error);
-            // Create some test data if API fails for development
-            window.AlertsState.globalNotifications = [
-                {
-                    id: 'test-1',
-                    title: 'Test Notification',
-                    message: 'This is a test notification to verify the system works',
-                    timestamp: new Date().toISOString(),
-                    read: false
-                },
-                {
-                    id: 'test-2',
-                    title: 'Another Test',
-                    message: 'Another test notification with different content',
-                    timestamp: new Date(Date.now() - 60000).toISOString(),
-                    read: true
-                }
-            ];
-            window.AlertsState.globalUnreadCount = 1;
+            console.error('❌ Error loading cluster notifications:', error);
+            window.AlertsState.globalNotifications = [];
+            window.AlertsState.globalUnreadCount = 0;
             updateGlobalNotificationBadge();
         });
 }
@@ -275,11 +261,11 @@ function updateNotificationBadge() {
 }
 
 /**
- * UPDATE GLOBAL NOTIFICATION BADGE (HEADER BELL) - FIXED
+ * UPDATE CLUSTER NOTIFICATION BADGE (HEADER BELL) - CLUSTER-SPECIFIC FILTERING
  */
 function updateGlobalNotificationBadge() {
     const globalCount = window.AlertsState.globalUnreadCount || 0;
-    console.log(`🌍 Updating global notification badge with count: ${globalCount}`);
+    console.log(`🔔 Updating cluster notification badge with count: ${globalCount}`);
     
     // Target the specific bell icon by ID or class
     const headerBellIcon = document.querySelector('#global-notification-badge, .fa-regular.fa-bell');
@@ -305,16 +291,16 @@ function updateGlobalNotificationBadge() {
             `;
             
             headerBellContainer.appendChild(badge);
-            console.log(`✅ Global bell badge updated: ${globalCount}`);
+            console.log(`✅ Cluster bell badge updated: ${globalCount}`);
         } else {
             // Show static dot when count is 0
             const staticBadge = document.createElement('span');
             staticBadge.className = 'absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse';
             headerBellContainer.appendChild(staticBadge);
-            console.log(`✅ Global bell badge set to static dot (count: 0)`);
+            console.log(`✅ Cluster bell badge set to static dot (count: 0)`);
         }
     } else {
-        console.warn('❌ Bell icon or container not found for global badge update');
+        console.warn('❌ Bell icon or container not found for cluster badge update');
     }
 }
 
@@ -357,19 +343,20 @@ function bellClickHandler(event) {
     event.preventDefault();
     event.stopPropagation();
     
-    console.log('🔔 Bell icon clicked - showing global notifications');
-    console.log('🔔 Global notifications count:', window.AlertsState.globalNotifications?.length || 0);
-    console.log('🔔 Global unread count:', window.AlertsState.globalUnreadCount || 0);
+    console.log('🔔 Bell icon clicked - showing cluster notifications');
+    console.log('🔔 Cluster notifications count:', window.AlertsState.globalNotifications?.length || 0);
+    console.log('🔔 Cluster unread count:', window.AlertsState.globalUnreadCount || 0);
+    console.log('🎯 Current cluster:', window.AlertsState.currentClusterId || 'all clusters');
     
-    // Show global notifications dropdown
+    // Show cluster notifications dropdown
     showGlobalNotificationsDropdown(event);
 }
 
 /**
- * ENHANCED GLOBAL NOTIFICATIONS DROPDOWN - BETTER POSITIONING
+ * ENHANCED CLUSTER NOTIFICATIONS DROPDOWN - CLUSTER-SPECIFIC FILTERING
  */
 function showGlobalNotificationsDropdown(event) {
-    console.log('🔔 Creating notifications dropdown...');
+    console.log('🔔 Creating cluster notifications dropdown...');
     
     // Remove existing dropdown
     const existingDropdown = document.getElementById('global-notifications-dropdown');
@@ -415,11 +402,15 @@ function showGlobalNotificationsDropdown(event) {
         <div style="padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); background: #171d33; color: white;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
-                    🔔 Notifications
+                    🔔 ${window.AlertsState.currentClusterId ? 'Cluster' : 'All'} Notifications
                 </h3>
                 <button onclick="closeNotificationsDropdown()" 
                         style="background: rgba(255,255,255,0.2); border: none; color: white; width: 28px; height: 28px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
             </div>
+            ${window.AlertsState.currentClusterId ? 
+                `<p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.7;">🎯 ${window.AlertsState.currentClusterId}</p>` : 
+                ''
+            }
             ${unreadCount > 0 ? 
                 `<p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}</p>` : 
                 `<p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">All caught up! 🎉</p>`
@@ -453,7 +444,7 @@ function showGlobalNotificationsDropdown(event) {
                             </div>
                         </div>
                         ${!notification.read ? `
-                            <button onclick="event.stopPropagation(); markAsReadAndUpdateGlobal('${notification.id}')" 
+                            <button id="mark-read-${notification.id}" class="mark-read-btn" data-notification-id="${notification.id}"
                                     style="background: #3bf66dff; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
                                 Mark Read
                             </button>
@@ -466,13 +457,13 @@ function showGlobalNotificationsDropdown(event) {
         ${recentNotifications.length > 0 ? `
             <div style="padding: 16px; background: #f9fafb; border-top: 1px solid #e5e7eb; display: flex; gap: 8px;">
                 ${unreadCount > 0 ? `
-                    <button onclick="markAllGlobalAsRead()" 
-                            style="flex: 1; background: #10b981; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+                    <button id="mark-all-read-global" class="mark-all-read-btn"
+                            style="flex: 1; background: #171d34; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
                         Mark All Read
                     </button>
                 ` : ''}
                 <button onclick="navigateToAlertsTab(); closeNotificationsDropdown();" 
-                        style="flex: 1; background: #3bf6a8ff; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+                        style="flex: 1; background: #171d34; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
                     View All
                 </button>
             </div>
@@ -481,6 +472,9 @@ function showGlobalNotificationsDropdown(event) {
     
     dropdown.innerHTML = dropdownContent;
     document.body.appendChild(dropdown);
+    
+    // Add event listeners for buttons IMMEDIATELY after creation
+    setupDropdownEventListeners(dropdown);
     
     // Animate in
     requestAnimationFrame(() => {
@@ -514,6 +508,82 @@ function closeNotificationsDropdown() {
 }
 
 /**
+ * SETUP EVENT LISTENERS FOR DROPDOWN BUTTONS - FIXES DOUBLE-CLICK ISSUE
+ */
+function setupDropdownEventListeners(dropdown) {
+    console.log('🔧 Setting up dropdown event listeners...');
+    
+    // Setup individual "Mark Read" button listeners
+    const markReadButtons = dropdown.querySelectorAll('.mark-read-btn');
+    markReadButtons.forEach(button => {
+        const notificationId = button.getAttribute('data-notification-id');
+        button.addEventListener('click', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            console.log(`🔔 Mark Read clicked for notification: ${notificationId}`);
+            markAsReadAndUpdateGlobal(notificationId);
+        });
+    });
+    
+    // Setup "Mark All Read" button listener
+    const markAllButton = dropdown.querySelector('.mark-all-read-btn');
+    if (markAllButton) {
+        markAllButton.addEventListener('click', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            console.log('🔔 Mark All Read clicked');
+            markAllGlobalAsRead();
+        });
+    }
+    
+    console.log(`✅ Setup ${markReadButtons.length} Mark Read buttons and ${markAllButton ? 1 : 0} Mark All Read button`);
+}
+
+/**
+ * REFRESH NOTIFICATIONS DROPDOWN CONTENT - IN-PLACE UPDATE
+ */
+function refreshNotificationsDropdown() {
+    const existingDropdown = document.getElementById('global-notifications-dropdown');
+    if (existingDropdown) {
+        console.log('🔄 Refreshing notifications dropdown content in-place...');
+        
+        // Hide all "Mark Read" buttons since all notifications are now read
+        const markReadButtons = existingDropdown.querySelectorAll('[id^="mark-read-"]');
+        markReadButtons.forEach(button => {
+            if (button.parentElement) {
+                button.parentElement.style.display = 'none';
+            }
+        });
+        
+        // Update the header to show "All caught up!"
+        const headerText = existingDropdown.querySelector('p[style*="margin: 8px 0 0 0"]');
+        if (headerText) {
+            headerText.innerHTML = 'All caught up! 🎉';
+        }
+        
+        // Hide the "Mark All Read" button
+        const markAllButton = existingDropdown.querySelector('#mark-all-read-global');
+        if (markAllButton && markAllButton.parentElement) {
+            markAllButton.parentElement.style.display = 'none';
+        }
+        
+        // Remove the unread indicators (yellow left border)
+        const notificationItems = existingDropdown.querySelectorAll('[style*="linear-gradient(90deg, #fef3c7"]');
+        notificationItems.forEach(item => {
+            item.style.background = 'white';
+        });
+        
+        // Remove unread dots
+        const unreadDots = existingDropdown.querySelectorAll('[style*="width: 8px; height: 8px; background: #ef4444"]');
+        unreadDots.forEach(dot => {
+            dot.style.display = 'none';
+        });
+        
+        console.log('✅ Dropdown content updated to reflect all notifications as read');
+    }
+}
+
+/**
  * HANDLE NOTIFICATION CLICK
  */
 function handleNotificationClick(notificationId) {
@@ -531,17 +601,41 @@ function handleNotificationClick(notificationId) {
  * MARK ALL GLOBAL NOTIFICATIONS AS READ
  */
 function markAllGlobalAsRead() {
-    console.log('📖 Marking all global notifications as read...');
+    console.log('📖 Marking all global notifications as read (DROPDOWN function)...');
+    console.log('📊 Current state check:');
+    console.log('  - notifications array length:', window.AlertsState.notifications?.length || 0);
+    console.log('  - globalNotifications array length:', window.AlertsState.globalNotifications?.length || 0);
+    console.log('  - unreadNotificationsCount:', window.AlertsState.unreadNotificationsCount || 0);
+    console.log('  - globalUnreadCount:', window.AlertsState.globalUnreadCount || 0);
     
-    const unreadNotifications = window.AlertsState.globalNotifications.filter(n => !n.read);
+    // Check both notification arrays for unread notifications
+    const unreadNotifications = window.AlertsState.notifications?.filter(n => !n.read) || [];
+    const unreadGlobalNotifications = window.AlertsState.globalNotifications?.filter(n => !n.read) || [];
     
-    if (unreadNotifications.length === 0) {
+    console.log('  - unread in notifications array:', unreadNotifications.length);
+    console.log('  - unread in globalNotifications array:', unreadGlobalNotifications.length);
+    
+    // Use the array with more unread notifications, prefer globalNotifications for dropdown
+    const notificationsToMark = unreadGlobalNotifications.length > 0 ? unreadGlobalNotifications : unreadNotifications;
+    
+    if (notificationsToMark.length === 0) {
+        console.log('⚠️ No unread notifications found in either array');
         showToast('info', 'No unread notifications');
         return;
     }
     
+    // Disable the button to prevent double-clicking
+    const button = document.getElementById('mark-all-read-global');
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Marking...';
+        button.style.opacity = '0.6';
+    }
+    
+    console.log(`📖 Marking ${notificationsToMark.length} global notifications as read individually`);
+    
     // Mark each notification as read
-    const markPromises = unreadNotifications.map(notification => 
+    const markPromises = notificationsToMark.map(notification => 
         fetch(`/api/notifications/${notification.id}/mark-read`, {
             method: 'POST',
             headers: {
@@ -557,30 +651,77 @@ function markAllGlobalAsRead() {
             
             if (successful > 0) {
                 showToast('success', `${successful} notifications marked as read`);
+                
+                // Immediately update counts and mark all notifications as read locally
+                window.AlertsState.unreadNotificationsCount = 0;
+                window.AlertsState.globalUnreadCount = 0;
+                
+                // Mark all notifications in both arrays as read
+                if (window.AlertsState.notifications) {
+                    window.AlertsState.notifications.forEach(notification => {
+                        notification.read = true;
+                    });
+                }
+                if (window.AlertsState.globalNotifications) {
+                    window.AlertsState.globalNotifications.forEach(notification => {
+                        notification.read = true;
+                    });
+                }
+                
+                updateNotificationBadge();
+                updateGlobalNotificationBadge();
+                
                 loadGlobalNotifications();
                 loadNotifications();
-                closeNotificationsDropdown();
+                
+                // Close and reopen dropdown to show fresh data from backend
+                setTimeout(() => {
+                    closeNotificationsDropdown();
+                    setTimeout(() => {
+                        // Bell icon will show updated state when clicked again
+                        console.log('✅ Dropdown closed - bell icon will show updated state when clicked');
+                    }, 200);
+                }, 500);
+            }
+            
+            // Update button state
+            if (button) {
+                button.innerHTML = '✓ All Read';
+                button.style.background = '#059669';
             }
         })
         .catch(error => {
             console.error('❌ Error marking all as read:', error);
             showToast('error', 'Failed to mark notifications as read');
+            
+            // Re-enable button on error
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = 'Mark All Read';
+                button.style.opacity = '1';
+                button.style.background = '#10b981';
+            }
         });
 }
 
 /**
- * AUTO-REFRESH NOTIFICATIONS POLLING
+ * MANUAL REFRESH NOTIFICATIONS - TRIGGERED BY USER ACTION OR ANALYSIS COMPLETION
+ * 
+ * Call this function when:
+ * - Analysis completes (new alerts may have been generated)
+ * - User manually clicks a refresh button
+ * - User navigates to notifications section
+ * - After performing actions that might affect notifications
+ * 
+ * NO automatic polling - notifications only update when analysis runs!
  */
-function startNotificationPolling() {
-    console.log('🔄 Starting notification polling every 30 seconds...');
+function refreshNotificationsManually() {
+    console.log('🔄 Manually refreshing notifications (triggered by user action or analysis)...');
     
-    setInterval(() => {
-        if (window.AlertsState) {
-            console.log('🔄 Auto-refreshing notifications...');
-            loadNotifications();
-            loadGlobalNotifications();
-        }
-    }, 30000);
+    if (window.AlertsState) {
+        loadNotifications();
+        loadGlobalNotifications();
+    }
 }
 
 /**
@@ -1456,7 +1597,7 @@ function confirmDeleteAlert(alertId) {
 function markAsRead(notificationId) {
     console.log('📖 Marking notification as read via API:', notificationId);
     
-    fetch(`/api/notifications/${notificationId}/mark-read`, {
+    return fetch(`/api/notifications/${notificationId}/mark-read`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1467,6 +1608,28 @@ function markAsRead(notificationId) {
     .then(result => {
         if (result.status === 'success') {
             console.log('✅ Notification marked as read via API');
+            
+            // Immediately update local state for instant feedback
+            if (window.AlertsState.notifications) {
+                const notification = window.AlertsState.notifications.find(n => n.id === notificationId);
+                if (notification) {
+                    notification.read = true;
+                    window.AlertsState.unreadNotificationsCount = Math.max(0, (window.AlertsState.unreadNotificationsCount || 0) - 1);
+                }
+            }
+            
+            if (window.AlertsState.globalNotifications) {
+                const globalNotification = window.AlertsState.globalNotifications.find(n => n.id === notificationId);
+                if (globalNotification) {
+                    globalNotification.read = true;
+                    window.AlertsState.globalUnreadCount = Math.max(0, (window.AlertsState.globalUnreadCount || 0) - 1);
+                }
+            }
+            
+            // Update badges immediately
+            updateNotificationBadge();
+            updateGlobalNotificationBadge();
+            
             // Reload notifications to get updated state from backend
             loadNotifications();
             loadGlobalNotifications();
@@ -1474,14 +1637,17 @@ function markAsRead(notificationId) {
             if (window.AlertsState.notifications) {
                 displayNotificationsInTab();
             }
+            return result;
         } else {
             console.error('❌ Failed to mark notification as read:', result.message);
             showToast('error', 'Failed to mark notification as read');
+            throw new Error(result.message || 'Failed to mark notification as read');
         }
     })
     .catch(error => {
         console.error('❌ Error marking notification as read:', error);
         showToast('error', `Error: ${error.message}`);
+        throw error;
     });
 }
 
@@ -1518,20 +1684,33 @@ function dismissNotification(notificationId) {
 }
 
 function markAllAsRead() {
-    console.log('📖 Marking all notifications as read via API');
+    console.log('📖 Marking all notifications as read via API (TAB function)');
+    console.log('📊 Current state check:');
+    console.log('  - notifications array length:', window.AlertsState.notifications?.length || 0);
+    console.log('  - globalNotifications array length:', window.AlertsState.globalNotifications?.length || 0);
+    console.log('  - unreadNotificationsCount:', window.AlertsState.unreadNotificationsCount || 0);
+    console.log('  - globalUnreadCount:', window.AlertsState.globalUnreadCount || 0);
     
-    // First, try to get all notification IDs and mark them individually
-    const unreadNotifications = window.AlertsState.notifications.filter(n => !n.read);
+    // Check both notification arrays for unread notifications
+    const unreadNotifications = window.AlertsState.notifications?.filter(n => !n.read) || [];
+    const unreadGlobalNotifications = window.AlertsState.globalNotifications?.filter(n => !n.read) || [];
     
-    if (unreadNotifications.length === 0) {
+    console.log('  - unread in notifications array:', unreadNotifications.length);
+    console.log('  - unread in globalNotifications array:', unreadGlobalNotifications.length);
+    
+    // Use the array with more unread notifications
+    const notificationsToMark = unreadNotifications.length > 0 ? unreadNotifications : unreadGlobalNotifications;
+    
+    if (notificationsToMark.length === 0) {
+        console.log('⚠️ No unread notifications found in either array');
         showToast('info', 'No unread notifications to mark');
         return;
     }
     
-    console.log(`📖 Marking ${unreadNotifications.length} notifications as read individually`);
+    console.log(`📖 Marking ${notificationsToMark.length} notifications as read individually`);
     
     // Mark each notification as read individually
-    const markPromises = unreadNotifications.map(notification => 
+    const markPromises = notificationsToMark.map(notification => 
         fetch(`/api/notifications/${notification.id}/mark-read`, {
             method: 'POST',
             headers: {
@@ -1549,6 +1728,25 @@ function markAllAsRead() {
             if (failed === 0) {
                 console.log('✅ All notifications marked as read via individual API calls');
                 showToast('success', `All ${successful} notifications marked as read`);
+                
+                // Immediately update counts and mark all notifications as read locally
+                window.AlertsState.unreadNotificationsCount = 0;
+                window.AlertsState.globalUnreadCount = 0;
+                
+                // Mark all notifications in both arrays as read
+                if (window.AlertsState.notifications) {
+                    window.AlertsState.notifications.forEach(notification => {
+                        notification.read = true;
+                    });
+                }
+                if (window.AlertsState.globalNotifications) {
+                    window.AlertsState.globalNotifications.forEach(notification => {
+                        notification.read = true;
+                    });
+                }
+                
+                updateNotificationBadge();
+                updateGlobalNotificationBadge();
             } else {
                 console.log(`⚠️ ${successful} notifications marked as read, ${failed} failed`);
                 showToast('warning', `${successful} marked as read, ${failed} failed`);
@@ -1572,11 +1770,41 @@ function markAllAsRead() {
  * HELPER FUNCTIONS FOR GLOBAL NOTIFICATIONS
  */
 function markAsReadAndUpdateGlobal(notificationId) {
-    markAsRead(notificationId);
-    // Reload global notifications after marking as read
-    setTimeout(() => {
-        loadGlobalNotifications();
-    }, 500);
+    console.log('📖 Marking notification as read and updating global state:', notificationId);
+    
+    // Disable the button to prevent double-clicking
+    const button = document.getElementById(`mark-read-${notificationId}`);
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reading...';
+        button.style.opacity = '0.6';
+    }
+    
+    return markAsRead(notificationId)
+        .then(() => {
+            console.log('✅ Global notification update completed');
+            // The markAsRead function already handles the reloading, no need for additional calls
+            if (button) {
+                button.innerHTML = '✓ Read';
+                button.style.background = '#10b981';
+                setTimeout(() => {
+                    // The dropdown will refresh anyway, but this provides immediate feedback
+                    if (button.parentElement) {
+                        button.parentElement.style.display = 'none';
+                    }
+                }, 500);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error in global notification update:', error);
+            // Re-enable the button on error
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = 'Mark Read';
+                button.style.opacity = '1';
+                button.style.background = '#3bf66dff';
+            }
+        });
 }
 
 function navigateToAlertsTab() {
@@ -1880,9 +2108,6 @@ function initializeEnhancedAlerts() {
     loadAlerts();
     loadNotifications();
     
-    // Start polling for new notifications
-    startNotificationPolling();
-    
     // Initialize with alerts tab active
     setTimeout(() => {
         switchAlertsTab('alerts');
@@ -1896,12 +2121,14 @@ function initializeEnhancedAlerts() {
     window.reinitializeBellIcon = reinitializeBellIcon;
     
     console.log('✅ Enhanced alerts system initialized with debugging helpers');
-    console.log('💡 Available debug commands:');
+    console.log('💡 Available commands:');
     console.log('   - debugNotificationSystem() - Check notification system status');
     console.log('   - testBellIconClick() - Test bell icon click manually');
+    console.log('   - refreshNotificationsManually() - Manually refresh notifications');
     console.log('   - forceReloadNotifications() - Force reload all notifications');
     console.log('   - checkDropdownVisibility() - Check if dropdown is hidden');
     console.log('   - reinitializeBellIcon() - Completely reinitialize bell icon');
+    console.log('ℹ️  Notifications auto-refresh ONLY when analysis runs - no background polling!');
 }
 
 // Global exports - COMPREHENSIVE MERGED SYSTEM
@@ -1927,12 +2154,15 @@ window.markAllAsRead = markAllAsRead;
 window.detectCurrentCluster = detectCurrentCluster;
 window.loadNotifications = loadNotifications;
 window.loadGlobalNotifications = loadGlobalNotifications;
+window.refreshNotificationsManually = refreshNotificationsManually;
 window.updateNotificationBadge = updateNotificationBadge;
 window.updateGlobalNotificationBadge = updateGlobalNotificationBadge;
 window.setupBellIconInteraction = setupBellIconInteraction;
 window.markAsReadAndUpdateGlobal = markAsReadAndUpdateGlobal;
 window.navigateToAlertsTab = navigateToAlertsTab;
 window.closeNotificationsDropdown = closeNotificationsDropdown;
+window.setupDropdownEventListeners = setupDropdownEventListeners;
+window.refreshNotificationsDropdown = refreshNotificationsDropdown;
 window.handleNotificationClick = handleNotificationClick;
 window.markAllGlobalAsRead = markAllGlobalAsRead;
 window.showGlobalNotificationsDropdown = showGlobalNotificationsDropdown;

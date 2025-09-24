@@ -166,28 +166,28 @@ header {
 /* Specific metric value colors */
 .metric-card:nth-child(1) .metric-value,
 .metric-card:nth-child(1) #current-cost {
-    background: linear-gradient(135deg, #10b981, #059669) !important;
+    background: white !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
 }
 
 .metric-card:nth-child(2) .metric-value,
 .metric-card:nth-child(2) #potential-savings {
-    background: linear-gradient(135deg, #10b981, #059669) !important;
+    background: white !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
 }
 
 .metric-card:nth-child(3) .metric-value,
 .metric-card:nth-child(3) #hpa-efficiency {
-    background: linear-gradient(135deg, #10b981, #059669) !important;
+    background: white !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
 }
 
 .metric-card:nth-child(4) .metric-value,
 .metric-card:nth-child(4) #optimization-score {
-    background: linear-gradient(135deg, #48bb78, #48bb78) !important;
+    background: white !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
 }
@@ -200,14 +200,14 @@ header {
 }
 
 .metric-value.text-blue-500, .text-blue-500 {
-    background: linear-gradient(135deg, #10b981, #059669) !important;
+    background: white !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
     background-clip: text !important;
 }
 
 .metric-value.text-indigo-500, .text-indigo-500 {
-    background: linear-gradient(135deg, #10b981, #059669) !important;
+    background: white !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
     background-clip: text !important;
@@ -640,12 +640,12 @@ input[type="number"], input[type="time"], .form-control {
 
 /* Metric color variations */
 .metric-success .metric-icon-bg {
-    background: linear-gradient(135deg, #10b981, #059669);
+    background: white;
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 .metric-success .metric-value {
-    background: linear-gradient(135deg, #10b981, #059669) !important;
+    background: white !important;
     -webkit-background-clip: text !important;
     -webkit-text-fill-color: transparent !important;
 }
@@ -826,7 +826,7 @@ input[type="number"], input[type="time"], .form-control {
 }
 
 .btn-monitor {
-    background: linear-gradient(135deg, #10b981, #059669);
+    background: white;
     color: white;
     box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
@@ -959,7 +959,7 @@ input[type="number"], input[type="time"], .form-control {
 }
 
 button:focus, input:focus, select:focus {
-    outline: 2px solid #48bb78;
+    outline: 2px solid #33384e;
     outline-offset: 1px;
 }
 
@@ -1737,7 +1737,7 @@ position: relative;
 }
 
 .action-btn.primary {
-    background: linear-gradient(135deg, #10b981, #059669) !important;
+    background: white !important;
     color: white !important;
     box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3) !important;
 }
@@ -1898,4 +1898,409 @@ from-gray-100.to-gray-200 {
 .text-gray-900{
     --tw-text-opacity: 1 !important;
     color: rgb(17 24 39 / var(--tw-text-opacity, 1)) !important;
+}
+
+.bg-blue-500 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(32 38 61) !important;
+}
+
+.bg-orange-500 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(31 40 62) !important;
+}
+
+/* ========== Enhanced Security Charts Styling ========== */
+.chart-container {
+    position: relative;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.3);
+    border-radius: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.chart-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.02) 0%, rgba(147, 51, 234, 0.02) 100%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.chart-container:hover::before {
+    opacity: 1;
+}
+
+.chart-container:hover {
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.1);
+    transform: translateY(-2px);
+}
+
+.chart-container canvas {
+    transition: all 0.2s ease;
+}
+
+/* Security Tab Enhancements */
+.security-tab-content .bg-slate-800 {
+    background: rgba(30, 41, 59, 0.6) !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(148, 163, 184, 0.1) !important;
+    transition: all 0.3s ease;
+}
+
+.security-tab-content .bg-slate-800:hover {
+    background: rgba(30, 41, 59, 0.8) !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.1);
+    transform: translateY(-1px);
+}
+
+/* Enhanced Donut Chart Center Text */
+.chart-center-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.chart-center-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    animation: fadeInScale 0.8s ease-out;
+}
+
+.chart-center-label {
+    font-size: 0.75rem;
+    color: rgb(148, 163, 184);
+    font-weight: 500;
+    margin-top: 0.25rem;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Enhanced Risk Distribution Styling */
+.risk-distribution-summary {
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    margin-top: 1rem;
+}
+
+.risk-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    background: rgba(30, 41, 59, 0.4);
+    border-radius: 6px;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    transition: all 0.2s ease;
+}
+
+.risk-item:hover {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(59, 130, 246, 0.3);
+    transform: translateX(4px);
+}
+
+.risk-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+}
+
+/* Chart Loading Animation */
+.chart-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    background: rgba(15, 23, 42, 0.3);
+    border-radius: 8px;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.chart-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(59, 130, 246, 0.2);
+    border-top: 4px solid rgb(59, 130, 246);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ========== Security Posture Tab Styling ========== */
+.security-dashboard-layout {
+    padding: 0;
+    background: transparent;
+}
+
+.security-tab-btn {
+    color: rgb(148, 163, 184);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: 'Poppins', sans-serif;
+}
+
+.security-tab-btn:hover {
+    color: rgb(226, 232, 240);
+    background: rgba(71, 85, 105, 0.5);
+}
+
+.security-tab-btn.active {
+    color: white;
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.security-tab-pane {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.security-tab-pane.hidden {
+    display: none;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Security content styling */
+.security-tab-content {
+    background: transparent;
+}
+
+/* Remove harsh colors from badges and indicators */
+.security-tab-content .bg-red-600 {
+    background: rgba(239, 68, 68, 0.2) !important;
+    color: rgb(248, 113, 113) !important;
+}
+
+.security-tab-content .text-red-400 {
+    color: rgb(148, 163, 184) !important;
+}
+
+.security-tab-content .text-orange-400 {
+    color: rgb(148, 163, 184) !important;
+}
+
+.security-tab-content .text-blue-400 {
+    color: rgb(148, 163, 184) !important;
+}
+
+/* Clean scrollbar for security lists */
+.security-tab-content .overflow-y-auto::-webkit-scrollbar {
+    width: 4px;
+}
+
+.security-tab-content .overflow-y-auto::-webkit-scrollbar-track {
+    background: rgba(71, 85, 105, 0.2);
+    border-radius: 2px;
+}
+
+.security-tab-content .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 2px;
+}
+
+.security-tab-content .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.5);
+}
+
+/* Consistent card styling across all security tabs */
+.security-tab-content .bg-slate-800\/40,
+.security-tab-content [style*="background: #171d33"] {
+    background: rgba(51, 65, 85, 0.4) !important;
+    border: 1px solid rgba(71, 85, 105, 0.5) !important;
+    border-radius: 0.5rem !important;
+    transition: all 0.2s ease !important;
+}
+
+.security-tab-content .bg-slate-800\/40:hover,
+.security-tab-content [style*="background: #171d33"]:hover {
+    background: rgba(51, 65, 85, 0.6) !important;
+    border-color: rgba(71, 85, 105, 0.7) !important;
+}
+
+/* Override inline styles for consistency */
+.security-tab-content [style*="color: rgb(248, 113, 113)"] {
+    color: rgb(148, 163, 184) !important;
+}
+
+.security-tab-content [style*="color: rgb(251, 146, 60)"] {
+    color: rgb(148, 163, 184) !important;
+}
+
+.security-tab-content [style*="color: rgb(96, 165, 250)"] {
+    color: rgb(148, 163, 184) !important;
+}
+
+.security-tab-content [style*="color: rgb(74, 222, 128)"] {
+    color: rgb(148, 163, 184) !important;
+}
+
+/* Clean form styling */
+.security-tab-content select {
+    background: rgba(51, 65, 85, 0.5) !important;
+    border: 1px solid rgba(71, 85, 105, 0.5) !important;
+    color: white !important;
+    font-size: 0.875rem !important;
+    padding: 0.5rem 0.75rem !important;
+    border-radius: 0.375rem !important;
+    outline: none !important;
+}
+
+.security-tab-content select:focus {
+    border-color: rgba(71, 85, 105, 0.8) !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Smooth animations for all security content */
+.security-tab-content * {
+    transition: all 0.2s ease;
+}
+
+/* ========== Consistent Typography ========== */
+.security-tab-content,
+.security-tab-content * {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+
+.security-tab-content h1,
+.security-tab-content h2,
+.security-tab-content h3,
+.security-tab-content h4,
+.security-tab-content h5,
+.security-tab-content h6 {
+    font-family: 'Poppins', sans-serif !important;
+    font-weight: 500 !important;
+    color: white !important;
+}
+
+.security-tab-content p,
+.security-tab-content span,
+.security-tab-content div {
+    font-family: 'Poppins', sans-serif !important;
+}
+
+/* Consistent color scheme */
+.security-tab-content {
+    --text-primary: rgb(255, 255, 255);
+    --text-secondary: rgb(148, 163, 184);
+    --text-muted: rgb(100, 116, 139);
+    --accent-red: rgb(248, 113, 113);
+    --accent-yellow: rgb(250, 204, 21);
+    --accent-green: rgb(74, 222, 128);
+    --accent-blue: rgb(96, 165, 250);
+}
+
+/* Override specific color classes to be consistent */
+.security-tab-content .text-white {
+    color: var(--text-primary) !important;
+}
+
+.security-tab-content .text-slate-400,
+.security-tab-content .text-gray-400 {
+    color: var(--text-secondary) !important;
+}
+
+.security-tab-content .text-slate-500,
+.security-tab-content .text-gray-500 {
+    color: var(--text-muted) !important;
+}
+
+/* Subtle accent colors */
+.security-tab-content .text-red-400,
+.security-tab-content .text-red-500 {
+    color: var(--accent-red) !important;
+}
+
+.security-tab-content .text-yellow-400,
+.security-tab-content .text-yellow-500,
+.security-tab-content .text-orange-400 {
+    color: var(--accent-yellow) !important;
+}
+
+.security-tab-content .text-green-400,
+.security-tab-content .text-green-500 {
+    color: var(--accent-green) !important;
+}
+
+.security-tab-content .text-blue-400,
+.security-tab-content .text-blue-500 {
+    color: var(--accent-blue) !important;
+}
+
+/* Enhanced Card Effects */
+.security-tab-content .bg-slate-800 {
+    background: rgba(30, 41, 59, 0.6) !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(148, 163, 184, 0.1) !important;
+    transition: all 0.3s ease;
+}
+
+.security-tab-content .bg-slate-800:hover {
+    background: rgba(30, 41, 59, 0.8) !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.1);
+    transform: translateY(-1px);
+}
+
+.bg-red-900\/20 {
+    background-color: rgb(32 38 61) !important;
+}
+
+.border-red-700 {
+    --tw-border-opacity: 1;
+    border-color: rgb(32 38 61) !important;
 }

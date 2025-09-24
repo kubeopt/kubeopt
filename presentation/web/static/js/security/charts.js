@@ -44,12 +44,25 @@ class SecurityCharts {
 
         console.log('📊 Chart data extracted:');
         console.log('  - Violations:', violations.length);
+        console.log('  - Alerts:', alerts.length);
         console.log('  - Compliance frameworks:', Object.keys(compliance).length);
         console.log('  - Security score:', posture.overall_score);
+        
+        // Debug cluster-specific data
+        const clusterId = window.currentClusterState?.clusterId || 'unknown';
+        console.log('🏷️ Current cluster:', clusterId);
+        
+        // Sample a few items to check data structure
+        if (violations.length > 0) {
+            console.log('📋 Sample violation:', violations[0]);
+        }
+        if (alerts.length > 0) {
+            console.log('🚨 Sample alert:', alerts[0]);
+        }
 
         // Initialize Overview Charts
         this.createSecurityTrendChart(posture);
-        this.createRiskDistributionChart(violations);
+        this.createRiskDistributionChart(violations, alerts);
         this.createComplianceChart(compliance);
 
         // Initialize Dynamic Alert Chart
@@ -91,31 +104,102 @@ class SecurityCharts {
             }
         });
 
+        // Show all categories (including zeros for complete visualization)
+        const allData = Object.entries(counts);
+        const labels = allData.map(([category, _]) => category);
+        const values = allData.map(([_, count]) => count);
+        
+        // Dynamic color mapping with enhanced gradients
+        const dynamicColors = [
+            { bg: 'rgba(248, 113, 113, 0.85)', border: 'rgb(220, 38, 38)', hover: 'rgba(248, 113, 113, 1)' },
+            { bg: 'rgba(251, 146, 60, 0.85)', border: 'rgb(234, 88, 12)', hover: 'rgba(251, 146, 60, 1)' },
+            { bg: 'rgba(250, 204, 21, 0.85)', border: 'rgb(234, 179, 8)', hover: 'rgba(250, 204, 21, 1)' },
+            { bg: 'rgba(74, 222, 128, 0.85)', border: 'rgb(34, 197, 94)', hover: 'rgba(74, 222, 128, 1)' },
+            { bg: 'rgba(96, 165, 250, 0.85)', border: 'rgb(59, 130, 246)', hover: 'rgba(96, 165, 250, 1)' },
+            { bg: 'rgba(167, 139, 250, 0.85)', border: 'rgb(139, 92, 246)', hover: 'rgba(167, 139, 250, 1)' },
+            { bg: 'rgba(244, 114, 182, 0.85)', border: 'rgb(236, 72, 153)', hover: 'rgba(244, 114, 182, 1)' }
+        ];
+
+        const backgroundColors = labels.map((_, index) => dynamicColors[index % dynamicColors.length].bg);
+        const borderColors = labels.map((_, index) => dynamicColors[index % dynamicColors.length].border);
+        const hoverBackgroundColors = labels.map((_, index) => dynamicColors[index % dynamicColors.length].hover);
+
+        const totalCount = values.reduce((a, b) => a + b, 0);
+
         const config = {
             type: 'doughnut',
             data: {
-                labels: Object.keys(counts),
+                labels: labels,
                 datasets: [{
-                    data: Object.values(counts),
-                    backgroundColor: ['rgb(248, 113, 113)', 'rgb(251, 146, 60)', 'rgb(250, 204, 21)', 'rgb(74, 222, 128)', 'rgb(96, 165, 250)'],
-                    borderWidth: 2,
-                    borderColor: '#171d33'
+                    data: values,
+                    backgroundColor: backgroundColors,
+                    borderColor: 'transparent',
+                    hoverBackgroundColor: hoverBackgroundColors,
+                    borderWidth: 0,
+                    hoverBorderWidth: 0,
+                    hoverOffset: 10,
+                    borderAlign: 'center'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'point'
+                },
                 plugins: {
-                    legend: { display: false },
+                    legend: { 
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            color: 'rgb(148, 163, 184)',
+                            font: { size: 11, family: 'Poppins', weight: '500' },
+                            padding: 12,
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            boxWidth: 10,
+                            boxHeight: 10
+                        }
+                    },
                     tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
                         titleColor: 'white',
                         bodyColor: 'white',
-                        borderColor: 'rgba(255, 255, 255, 0.1)',
-                        borderWidth: 1
+                        borderColor: 'rgba(148, 163, 184, 0.3)',
+                        borderWidth: 1,
+                        cornerRadius: 10,
+                        displayColors: true,
+                        titleFont: { size: 13, weight: 'bold', family: 'Poppins' },
+                        bodyFont: { size: 12, family: 'Poppins' },
+                        padding: 10,
+                        callbacks: {
+                            label: function(context) {
+                                const percentage = totalCount > 0 ? ((context.parsed / totalCount) * 100).toFixed(1) : 0;
+                                return `${context.label}: ${context.parsed} (${percentage}%)`;
+                            }
+                        }
                     }
                 },
-                cutout: '60%'
+                cutout: '58%',
+                rotation: -90,
+                circumference: 360,
+                animation: {
+                    animateRotate: true,
+                    animateScale: true,
+                    duration: 1200,
+                    easing: 'easeOutQuart',
+                    delay: (context) => context.dataIndex * 80
+                },
+                elements: {
+                    arc: {
+                        borderWidth: 0,
+                        hoverBorderWidth: 0
+                    }
+                },
+                onHover: (event, activeElements) => {
+                    event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
+                }
             }
         };
 
@@ -174,7 +258,20 @@ class SecurityCharts {
                     }
                 },
                 elements: {
-                    point: { radius: 3, hoverRadius: 6 }
+                    point: { 
+                        radius: 4, 
+                        hoverRadius: 8,
+                        backgroundColor: 'rgb(96, 165, 250)',
+                        borderColor: '#ffffff',
+                        borderWidth: 2,
+                        hoverBorderWidth: 3
+                    },
+                    line: {
+                        tension: 0.3
+                    }
+                },
+                onHover: (event, activeElements) => {
+                    event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
                 }
             }
         };
@@ -182,8 +279,9 @@ class SecurityCharts {
         window.securityChartInstances['security-trend-chart'] = new Chart(ctx, config);
     }
 
-    createRiskDistributionChart(violations) {
+    createRiskDistributionChart(violations, alerts = []) {
         console.log('🍩 Creating enhanced risk distribution chart with violations:', violations);
+        console.log('🚨 Including security alerts:', alerts);
         const canvas = document.getElementById('risk-donut-chart');
         if (!canvas) {
             console.warn('❌ Risk donut chart canvas not found!');
@@ -194,38 +292,135 @@ class SecurityCharts {
 
         const ctx = canvas.getContext('2d');
 
+        // Combine violations and alerts for total risk calculation
+        const allRiskItems = [...(violations || []), ...(alerts || [])];
+        console.log('🔍 Combined risk items (violations + alerts):', allRiskItems.length);
+        
+        // Helper function to get severity level from an item
+        const getSeverityLevel = (item) => {
+            // Check multiple possible field names and formats
+            const severityFields = [
+                item.severity,
+                item.risk_level, 
+                item.level,
+                item.priority,
+                item.criticality
+            ];
+            
+            for (let field of severityFields) {
+                if (field) {
+                    const severity = String(field).toLowerCase().trim();
+                    // Map different severity variations
+                    if (severity === 'critical' || severity === 'crit' || severity === '4' || severity === 'highest') {
+                        return 'critical';
+                    }
+                    if (severity === 'high' || severity === '3' || severity === 'h') {
+                        return 'high';
+                    }
+                    if (severity === 'medium' || severity === 'med' || severity === 'moderate' || severity === '2' || severity === 'm') {
+                        return 'medium';
+                    }
+                    if (severity === 'low' || severity === '1' || severity === 'l' || severity === 'info' || severity === 'informational') {
+                        return 'low';
+                    }
+                }
+            }
+            return 'unknown';
+        };
+        
+        // Ensure all risk levels are represented (even if zero)
         const riskCounts = {
-            critical: violations.filter(v => (v.severity || '').toLowerCase() === 'critical').length,
-            high: violations.filter(v => (v.severity || '').toLowerCase() === 'high').length,
-            medium: violations.filter(v => (v.severity || '').toLowerCase() === 'medium').length,
-            low: violations.filter(v => (v.severity || '').toLowerCase() === 'low').length
+            Critical: allRiskItems.filter(item => getSeverityLevel(item) === 'critical').length,
+            High: allRiskItems.filter(item => getSeverityLevel(item) === 'high').length,
+            Medium: allRiskItems.filter(item => getSeverityLevel(item) === 'medium').length,
+            Low: allRiskItems.filter(item => getSeverityLevel(item) === 'low').length
         };
 
         console.log('📊 Enhanced risk counts calculated:', riskCounts);
         
+        // Add detailed debugging for each item
+        console.group('🔍 Detailed Risk Item Analysis');
+        allRiskItems.forEach((item, index) => {
+            const rawSeverity = item.severity || item.risk_level || item.level || 'unknown';
+            const normalizedSeverity = getSeverityLevel(item);
+            const title = item.title || item.policy_name || item.name || 'unnamed';
+            console.log(`Item ${index + 1}: "${title}" - Raw: "${rawSeverity}" → Normalized: "${normalizedSeverity}"`);
+        });
+        console.groupEnd();
+        
+        // Count unknown/unmapped severity items
+        const unknownSeverityItems = allRiskItems.filter(item => getSeverityLevel(item) === 'unknown');
+        if (unknownSeverityItems.length > 0) {
+            console.warn('⚠️ Items with unknown severity:', unknownSeverityItems.length);
+            console.log('Unknown severity items:', unknownSeverityItems.map(item => ({
+                title: item.title || item.policy_name || 'unnamed',
+                severity: item.severity,
+                risk_level: item.risk_level,
+                level: item.level,
+                priority: item.priority
+            })));
+        }
+        
         // Handle empty data case with better UX
         const totalRisks = Object.values(riskCounts).reduce((a, b) => a + b, 0);
+        console.log('🔢 Total risks calculated:', totalRisks, '(from', violations?.length || 0, 'violations +', alerts?.length || 0, 'alerts)');
+        console.log('🎯 Individual counts:', Object.entries(riskCounts));
+        
+        // Debug missing high severity items specifically
+        const highSeverityItems = allRiskItems.filter(item => getSeverityLevel(item) === 'high');
+        console.log('🚨 High severity items found:', highSeverityItems.length);
+        if (highSeverityItems.length > 0) {
+            console.log('High severity details:', highSeverityItems.map(item => ({
+                title: item.title || item.policy_name || 'unnamed',
+                rawSeverity: item.severity || item.risk_level || item.level,
+                normalizedSeverity: getSeverityLevel(item),
+                source: item.hasOwnProperty('policy_name') ? 'violation' : 'alert'
+            })));
+        } else {
+            console.warn('❌ No high severity items found! Check data structure.');
+        }
         if (totalRisks === 0) {
             // Show a "no risks" visualization instead of hiding
             this.showNoRisksVisualization(canvas);
             return;
         }
 
-        // Filter out zero values for cleaner chart
-        const nonZeroRisks = Object.entries(riskCounts).filter(([_, count]) => count > 0);
-        const labels = nonZeroRisks.map(([level, _]) => level.charAt(0).toUpperCase() + level.slice(1));
-        const data = nonZeroRisks.map(([_, count]) => count);
+        // Show all data segments (including zeros for complete visualization)
+        const allRisks = Object.entries(riskCounts);
+        const labels = allRisks.map(([level, _]) => level); // Already capitalized
+        const data = allRisks.map(([_, count]) => count);
         
-        // Enhanced color scheme with better contrast
+        // Enhanced dynamic color scheme with gradients and better contrast
         const colorMap = {
-            'Critical': { bg: 'rgba(239, 68, 68, 0.9)', border: 'rgb(220, 38, 38)' },
-            'High': { bg: 'rgba(245, 101, 101, 0.9)', border: 'rgb(239, 68, 68)' },
-            'Medium': { bg: 'rgba(251, 146, 60, 0.9)', border: 'rgb(245, 101, 101)' },
-            'Low': { bg: 'rgba(34, 197, 94, 0.9)', border: 'rgb(22, 163, 74)' }
+            'Critical': { 
+                bg: 'rgba(239, 68, 68, 0.85)', 
+                border: 'rgb(220, 38, 38)',
+                hoverBg: 'rgba(239, 68, 68, 1)',
+                gradient: ['#ef4444', '#dc2626', '#991b1b']
+            },
+            'High': { 
+                bg: 'rgba(251, 146, 60, 0.85)', 
+                border: 'rgb(245, 101, 101)',
+                hoverBg: 'rgba(251, 146, 60, 1)',
+                gradient: ['#fb923c', '#f59e0b', '#d97706']
+            },
+            'Medium': { 
+                bg: 'rgba(250, 204, 21, 0.85)', 
+                border: 'rgb(234, 179, 8)',
+                hoverBg: 'rgba(250, 204, 21, 1)',
+                gradient: ['#facc15', '#eab308', '#ca8a04']
+            },
+            'Low': { 
+                bg: 'rgba(34, 197, 94, 0.85)', 
+                border: 'rgb(22, 163, 74)',
+                hoverBg: 'rgba(34, 197, 94, 1)',
+                gradient: ['#22c55e', '#16a34a', '#15803d']
+            }
         };
         
         const backgroundColors = labels.map(label => colorMap[label].bg);
         const borderColors = labels.map(label => colorMap[label].border);
+        const hoverBackgroundColors = labels.map(label => colorMap[label].hoverBg);
 
         const config = {
             type: 'doughnut',
@@ -234,25 +429,33 @@ class SecurityCharts {
                 datasets: [{
                     data: data,
                     backgroundColor: backgroundColors,
-                    borderColor: borderColors,
-                    borderWidth: 3,
-                    hoverBorderWidth: 4,
-                    hoverOffset: 8
+                    borderColor: 'transparent',
+                    hoverBackgroundColor: hoverBackgroundColors,
+                    borderWidth: 0,
+                    hoverBorderWidth: 0,
+                    hoverOffset: 12,
+                    borderAlign: 'center'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'point'
+                },
                 plugins: {
                     legend: { 
                         display: true,
                         position: 'bottom',
                         labels: {
                             color: 'rgb(148, 163, 184)',
-                            font: { size: 12, family: 'Poppins' },
-                            padding: 15,
+                            font: { size: 12, family: 'Poppins', weight: '500' },
+                            padding: 20,
                             usePointStyle: true,
-                            pointStyle: 'circle'
+                            pointStyle: 'circle',
+                            boxWidth: 12,
+                            boxHeight: 12
                         }
                     },
                     tooltip: {
@@ -261,28 +464,54 @@ class SecurityCharts {
                         bodyColor: 'white',
                         borderColor: 'rgba(148, 163, 184, 0.3)',
                         borderWidth: 1,
-                        cornerRadius: 8,
-                        titleFont: { size: 14, weight: 'bold' },
-                        bodyFont: { size: 13 },
+                        cornerRadius: 12,
+                        displayColors: true,
+                        titleFont: { size: 14, weight: 'bold', family: 'Poppins' },
+                        bodyFont: { size: 13, family: 'Poppins' },
+                        padding: 12,
+                        boxPadding: 8,
                         callbacks: {
+                            title: function(context) {
+                                return `${context[0].label} Severity`;
+                            },
                             label: function(context) {
                                 const percentage = ((context.parsed / totalRisks) * 100).toFixed(1);
-                                return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                const count = context.parsed;
+                                return [
+                                    `Count: ${count} violations`,
+                                    `Percentage: ${percentage}%`,
+                                    `Impact: ${count > 5 ? 'High' : count > 2 ? 'Medium' : 'Low'}`
+                                ];
                             }
                         }
                     }
                 },
-                cutout: '50%',
+                cutout: '55%',
+                rotation: -90,
+                circumference: 360,
                 animation: {
                     animateRotate: true,
                     animateScale: true,
-                    duration: 1000,
-                    easing: 'easeOutQuart'
+                    duration: 1500,
+                    easing: 'easeOutCubic',
+                    delay: (context) => context.dataIndex * 100
+                },
+                elements: {
+                    arc: {
+                        borderWidth: 0,
+                        hoverBorderWidth: 0
+                    }
+                },
+                onHover: (event, activeElements) => {
+                    event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
                 }
             }
         };
 
         window.securityChartInstances['risk-donut-chart'] = new Chart(ctx, config);
+
+        // Add center text overlay for total risks
+        this.addChartCenterText('risk-donut-chart', totalRisks, 'Total Risks');
 
         // Enhanced risk distribution summary with better styling
         this.updateRiskDistributionSummary(riskCounts, totalRisks);
@@ -332,6 +561,33 @@ class SecurityCharts {
             canvas.parentNode.appendChild(centerText);
         }
     }
+
+    // Helper function to add center text to donut charts
+    addChartCenterText(chartId, value, label) {
+        const chartContainer = document.getElementById(chartId);
+        if (!chartContainer) return;
+
+        const parentContainer = chartContainer.parentNode;
+        if (!parentContainer) return;
+
+        // Remove existing center text if present
+        const existingOverlay = parentContainer.querySelector('.chart-center-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+
+        // Create center text overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'chart-center-overlay';
+        overlay.innerHTML = `
+            <div class="chart-center-value">${value}</div>
+            <div class="chart-center-label">${label}</div>
+        `;
+
+        // Ensure parent container has relative positioning
+        parentContainer.style.position = 'relative';
+        parentContainer.appendChild(overlay);
+    }
     
     updateRiskDistributionSummary(riskCounts, totalRisks) {
         const riskContainer = document.getElementById('risk-distribution');
@@ -339,10 +595,10 @@ class SecurityCharts {
 
         // Calculate risk score (weighted)
         const riskScore = (
-            (riskCounts.critical * 10) + 
-            (riskCounts.high * 7) + 
-            (riskCounts.medium * 4) + 
-            (riskCounts.low * 1)
+            (riskCounts.Critical * 10) + 
+            (riskCounts.High * 7) + 
+            (riskCounts.Medium * 4) + 
+            (riskCounts.Low * 1)
         );
         
         const maxPossibleScore = totalRisks * 10;
@@ -369,13 +625,13 @@ class SecurityCharts {
             <!-- Risk Breakdown -->
             <div class="space-y-3">
                 ${Object.entries(riskCounts).map(([level, count]) => {
-                    if (count === 0) return '';
-                    const percentage = ((count / totalRisks) * 100).toFixed(1);
+                    // Show all levels, including zero counts for complete visualization
+                    const percentage = totalRisks > 0 ? ((count / totalRisks) * 100).toFixed(1) : '0.0';
                     const colors = {
-                        critical: { text: 'text-red-400', bg: 'bg-red-500' },
-                        high: { text: 'text-orange-400', bg: 'bg-orange-500' },
-                        medium: { text: 'text-yellow-400', bg: 'bg-yellow-500' },
-                        low: { text: 'text-green-400', bg: 'bg-green-500' }
+                        Critical: { text: 'text-red-400', bg: 'bg-red-500' },
+                        High: { text: 'text-orange-400', bg: 'bg-orange-500' },
+                        Medium: { text: 'text-yellow-400', bg: 'bg-yellow-500' },
+                        Low: { text: 'text-green-400', bg: 'bg-green-500' }
                     };
                     const color = colors[level] || { text: 'text-slate-400', bg: 'bg-slate-500' };
                     
@@ -383,7 +639,7 @@ class SecurityCharts {
                         <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors">
                             <div class="flex items-center space-x-3">
                                 <div class="w-3 h-3 ${color.bg} rounded-full"></div>
-                                <span class="text-sm font-medium text-slate-200">${level.charAt(0).toUpperCase() + level.slice(1)}</span>
+                                <span class="text-sm font-medium text-slate-200">${level}</span>
                             </div>
                             <div class="flex items-center space-x-3">
                                 <span class="${color.text} text-sm font-bold">${count}</span>
@@ -428,22 +684,43 @@ class SecurityCharts {
             return;
         }
 
-        // Enhanced color coding based on compliance scores
-        const backgroundColors = scores.map(score => {
-            if (score >= 90) return 'rgba(34, 197, 94, 0.8)';   // Green - Excellent
-            if (score >= 80) return 'rgba(59, 130, 246, 0.8)';  // Blue - Good  
-            if (score >= 70) return 'rgba(251, 146, 60, 0.8)';  // Orange - Fair
-            if (score >= 60) return 'rgba(245, 101, 101, 0.8)'; // Light Red - Poor
-            return 'rgba(239, 68, 68, 0.8)';                    // Red - Critical
-        });
+        // Enhanced dynamic color coding based on compliance scores with gradients
+        const getColorForScore = (score) => {
+            if (score >= 90) return {
+                bg: 'rgba(34, 197, 94, 0.85)',
+                border: 'rgb(34, 197, 94)',
+                hover: 'rgba(34, 197, 94, 1)',
+                gradient: 'linear-gradient(135deg, #22c55e, #16a34a)'
+            };
+            if (score >= 80) return {
+                bg: 'rgba(59, 130, 246, 0.85)',
+                border: 'rgb(59, 130, 246)',
+                hover: 'rgba(59, 130, 246, 1)',
+                gradient: 'linear-gradient(135deg, #3b82f6, #2563eb)'
+            };
+            if (score >= 70) return {
+                bg: 'rgba(251, 146, 60, 0.85)',
+                border: 'rgb(251, 146, 60)',
+                hover: 'rgba(251, 146, 60, 1)',
+                gradient: 'linear-gradient(135deg, #fb923c, #f59e0b)'
+            };
+            if (score >= 60) return {
+                bg: 'rgba(245, 101, 101, 0.85)',
+                border: 'rgb(245, 101, 101)',
+                hover: 'rgba(245, 101, 101, 1)',
+                gradient: 'linear-gradient(135deg, #f56565, #ef4444)'
+            };
+            return {
+                bg: 'rgba(239, 68, 68, 0.85)',
+                border: 'rgb(239, 68, 68)',
+                hover: 'rgba(239, 68, 68, 1)',
+                gradient: 'linear-gradient(135deg, #ef4444, #dc2626)'
+            };
+        };
 
-        const borderColors = scores.map(score => {
-            if (score >= 90) return 'rgb(34, 197, 94)';
-            if (score >= 80) return 'rgb(59, 130, 246)';
-            if (score >= 70) return 'rgb(251, 146, 60)';
-            if (score >= 60) return 'rgb(245, 101, 101)';
-            return 'rgb(239, 68, 68)';
-        });
+        const backgroundColors = scores.map(score => getColorForScore(score).bg);
+        const borderColors = scores.map(score => getColorForScore(score).border);
+        const hoverBackgroundColors = scores.map(score => getColorForScore(score).hover);
 
         // Enhanced framework labels with proper casing
         const enhancedLabels = frameworks.map(f => {
@@ -451,35 +728,100 @@ class SecurityCharts {
             return label.length > 8 ? label.substring(0, 8) + '...' : label;
         });
 
+        // Create datasets for different compliance levels for better legend
+        const excellentData = scores.map(score => score >= 90 ? score : null);
+        const goodData = scores.map(score => score >= 80 && score < 90 ? score : null);
+        const fairData = scores.map(score => score >= 70 && score < 80 ? score : null);
+        const poorData = scores.map(score => score < 70 ? score : null);
+
         const config = {
             type: 'bar',
             data: {
                 labels: enhancedLabels,
-                datasets: [{
-                    label: 'Compliance Score (%)',
-                    data: scores,
-                    backgroundColor: backgroundColors,
-                    borderColor: borderColors,
-                    borderWidth: 2,
-                    borderRadius: 4,
-                    borderSkipped: false,
-                    hoverBackgroundColor: backgroundColors.map(color => color.replace('0.8', '1.0')),
-                    hoverBorderWidth: 3,
-                    barThickness: 40,
-                    maxBarThickness: 50
-                }]
+                datasets: [
+                    {
+                        label: 'Excellent (90-100%)',
+                        data: excellentData,
+                        backgroundColor: 'rgba(34, 197, 94, 0.85)',
+                        borderColor: 'rgb(34, 197, 94)',
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        borderSkipped: false,
+                        barThickness: 45,
+                        maxBarThickness: 55,
+                        hidden: false
+                    },
+                    {
+                        label: 'Good (80-89%)',
+                        data: goodData,
+                        backgroundColor: 'rgba(59, 130, 246, 0.85)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        borderSkipped: false,
+                        barThickness: 45,
+                        maxBarThickness: 55,
+                        hidden: false
+                    },
+                    {
+                        label: 'Fair (70-79%)',
+                        data: fairData,
+                        backgroundColor: 'rgba(251, 146, 60, 0.85)',
+                        borderColor: 'rgb(251, 146, 60)',
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        borderSkipped: false,
+                        barThickness: 45,
+                        maxBarThickness: 55,
+                        hidden: false
+                    },
+                    {
+                        label: 'Needs Improvement (<70%)',
+                        data: poorData,
+                        backgroundColor: 'rgba(239, 68, 68, 0.85)',
+                        borderColor: 'rgb(239, 68, 68)',
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        borderSkipped: false,
+                        barThickness: 45,
+                        maxBarThickness: 55,
+                        hidden: false
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
                 plugins: {
                     legend: { 
                         display: true,
                         position: 'top',
                         labels: {
                             color: 'rgb(148, 163, 184)',
-                            font: { size: 12, family: 'Poppins' },
-                            padding: 15
+                            font: { size: 11, family: 'Poppins', weight: '500' },
+                            padding: 12,
+                            usePointStyle: true,
+                            pointStyle: 'rect',
+                            boxWidth: 12,
+                            boxHeight: 12,
+                            filter: function(legendItem, chartData) {
+                                // Only show legend items that have data
+                                const dataset = chartData.datasets[legendItem.datasetIndex];
+                                return dataset.data.some(value => value !== null && value !== undefined);
+                            }
+                        },
+                        onClick: function(evt, legendItem, legend) {
+                            // Enable legend click to toggle datasets
+                            const index = legendItem.datasetIndex;
+                            const chart = legend.chart;
+                            const dataset = chart.data.datasets[index];
+                            
+                            dataset.hidden = !dataset.hidden;
+                            chart.update();
                         }
                     },
                     tooltip: {
@@ -488,24 +830,44 @@ class SecurityCharts {
                         bodyColor: 'white',
                         borderColor: 'rgba(148, 163, 184, 0.3)',
                         borderWidth: 1,
-                        cornerRadius: 8,
-                        titleFont: { size: 14, weight: 'bold' },
-                        bodyFont: { size: 13 },
+                        cornerRadius: 12,
+                        displayColors: true,
+                        titleFont: { size: 14, weight: 'bold', family: 'Poppins' },
+                        bodyFont: { size: 13, family: 'Poppins' },
+                        padding: 12,
+                        boxPadding: 8,
                         callbacks: {
                             title: function(context) {
-                                return frameworks[context[0].dataIndex];
+                                return `${frameworks[context[0].dataIndex]} Framework`;
                             },
                             label: function(context) {
                                 const score = context.parsed.y;
+                                if (score === null || score === undefined) return null;
+                                
                                 const grade = score >= 90 ? 'A+' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : 'F';
-                                return `Compliance: ${score.toFixed(1)}% (Grade: ${grade})`;
+                                const status = score >= 90 ? 'Excellent' : score >= 80 ? 'Good' : score >= 70 ? 'Fair' : 'Needs Improvement';
+                                return [
+                                    `${context.dataset.label}`,
+                                    `Compliance Score: ${score.toFixed(1)}%`,
+                                    `Grade: ${grade} (${status})`,
+                                    `Industry Standard: ${score >= 80 ? 'Met' : 'Below Standard'}`
+                                ];
                             },
                             afterLabel: function(context) {
+                                const score = context.parsed.y;
+                                if (score === null || score === undefined) return '';
+                                
                                 const frameworkData = compliance[frameworks[context.dataIndex]];
                                 if (frameworkData) {
                                     const passed = frameworkData.passed_controls || 0;
                                     const failed = frameworkData.failed_controls || 0;
-                                    return `Controls: ${passed} passed, ${failed} failed`;
+                                    const total = passed + failed;
+                                    const passRate = total > 0 ? ((passed / total) * 100).toFixed(1) : 0;
+                                    return [
+                                        '',
+                                        `Controls: ${passed} passed, ${failed} failed`,
+                                        `Pass Rate: ${passRate}%`
+                                    ];
                                 }
                                 return '';
                             }
@@ -516,33 +878,42 @@ class SecurityCharts {
                     x: {
                         grid: { 
                             color: 'rgba(148, 163, 184, 0.1)', 
-                            drawBorder: false 
+                            drawBorder: false,
+                            lineWidth: 1
                         },
                         ticks: { 
                             color: 'rgb(148, 163, 184)', 
-                            font: { size: 11, family: 'Poppins' },
-                            maxRotation: 45
+                            font: { size: 11, family: 'Poppins', weight: '500' },
+                            maxRotation: 45,
+                            padding: 8
                         }
                     },
                     y: {
                         grid: { 
                             color: 'rgba(148, 163, 184, 0.1)', 
-                            drawBorder: false 
+                            drawBorder: false,
+                            lineWidth: 1
                         },
                         ticks: { 
                             color: 'rgb(148, 163, 184)', 
-                            font: { size: 11, family: 'Poppins' },
+                            font: { size: 11, family: 'Poppins', weight: '500' },
+                            padding: 8,
                             callback: function(value) {
                                 return value + '%';
                             }
                         },
                         beginAtZero: true,
-                        max: 100
+                        max: 100,
+                        stepSize: 20
                     }
                 },
                 animation: {
-                    duration: 1000,
-                    easing: 'easeOutQuart'
+                    duration: 1500,
+                    easing: 'easeOutCubic',
+                    delay: (context) => context.dataIndex * 150
+                },
+                onHover: (event, activeElements) => {
+                    event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
                 }
             }
         };
