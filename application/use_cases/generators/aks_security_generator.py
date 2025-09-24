@@ -40,7 +40,9 @@ class AKSSecurityCommandGenerator:
                 description="Enable Azure Defender for Kubernetes for enhanced security monitoring",
                 category="aks_security",
                 priority_score=90,
-                savings_estimate=0
+                savings_estimate=0,
+                rollback_commands=[f"az security pricing create --name KubernetesService --tier Free --subscription {variable_context['subscription_id']}"],
+                validation_commands=[f"az security pricing show --name KubernetesService --subscription {variable_context['subscription_id']} --query 'pricingTier'"]
             ))
         
         # Network policy enforcement
@@ -62,7 +64,9 @@ EOF"""
                 description="Apply default network policy to restrict pod-to-pod communication",
                 category="aks_security",
                 priority_score=85,
-                savings_estimate=0
+                savings_estimate=0,
+                rollback_commands=["kubectl delete networkpolicy default-deny-all -n default"],
+                validation_commands=["kubectl get networkpolicy default-deny-all -n default -o jsonpath='{.metadata.name}'"]
             ))
         
         # Pod security standards
@@ -71,7 +75,9 @@ EOF"""
             description="Enforce pod security standards for enhanced workload security",
             category="aks_security",
             priority_score=80,
-            savings_estimate=0
+            savings_estimate=0,
+            rollback_commands=["kubectl label namespace default pod-security.kubernetes.io/enforce- pod-security.kubernetes.io/audit- pod-security.kubernetes.io/warn-"],
+            validation_commands=["kubectl get namespace default -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}'"]
         ))
         
         # Authorized IP ranges check
@@ -80,7 +86,9 @@ EOF"""
             description="Review authorized IP ranges configuration",
             category="aks_security",
             priority_score=60,
-            savings_estimate=0
+            savings_estimate=0,
+            rollback_commands=["# Read-only command - no rollback needed"],
+            validation_commands=[f"az aks show --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --query 'apiServerAccessProfile.enablePrivateCluster'"]
         ))
         
         return commands

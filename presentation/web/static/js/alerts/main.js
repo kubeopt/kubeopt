@@ -445,7 +445,7 @@ function showGlobalNotificationsDropdown(event) {
                         </div>
                         ${!notification.read ? `
                             <button id="mark-read-${notification.id}" class="mark-read-btn" data-notification-id="${notification.id}"
-                                    style="background: #3bf66dff; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
+                                    style="background: #171d34; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
                                 Mark Read
                             </button>
                         ` : ''}
@@ -1802,7 +1802,7 @@ function markAsReadAndUpdateGlobal(notificationId) {
                 button.disabled = false;
                 button.innerHTML = 'Mark Read';
                 button.style.opacity = '1';
-                button.style.background = '#3bf66dff';
+                button.style.background = '#171d34';
             }
         });
 }

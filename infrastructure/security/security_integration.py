@@ -24,6 +24,13 @@ from .policy_analyzer import create_policy_analyzer
 from .compliance_framework import create_compliance_framework_engine
 from .vulnerability_scanner import create_vulnerability_scanner
 
+# Import ExecutableCommand for proper command formatting
+try:
+    from application.use_cases.models.core import ExecutableCommand
+except ImportError:
+    logger.warning("Could not import ExecutableCommand - security commands may display as JSON")
+    ExecutableCommand = None
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -942,31 +949,74 @@ class SecurityIntegrationMixin:
                 # Commands for real RBAC issues
                 rbac_score = breakdown.get('rbac_score', 100)
                 if rbac_score < 70:
-                    commands.append({
-                        'title': 'Fix RBAC Configuration',
-                        'commands': [
+                    if ExecutableCommand:
+                        # Create proper ExecutableCommand objects
+                        rbac_commands = [
                             'kubectl get clusterroles,clusterrolebindings -o yaml > rbac-backup.yaml',
-                            'kubectl create clusterrole security-admin --verb=get,list,watch --resource=pods,services,deployments',
+                            'kubectl create clusterrole security-admin --verb=get,list,watch --resource=pods,services,deployments', 
                             'kubectl create rolebinding security-viewer --clusterrole=view --user=security-team -n default',
                             'kubectl auth can-i --list --as=system:serviceaccount:default:default'
-                        ],
-                        'description': f'Address RBAC score of {rbac_score:.1f}',
-                        'based_on_real_score': True
-                    })
+                        ]
+                        for i, cmd in enumerate(rbac_commands):
+                            commands.append(ExecutableCommand(
+                                command=cmd,
+                                description=f'Fix RBAC Configuration - Step {i+1} (RBAC score: {rbac_score:.1f})',
+                                category='aks_security',
+                                priority_score=95,
+                                savings_estimate=0,
+                                estimated_duration_minutes=5,
+                                risk_level='medium',
+                                rollback_commands=[f'# Manual rollback required - restore from rbac-backup.yaml'],
+                                validation_commands=[f'kubectl auth can-i --list --as=system:serviceaccount:default:default']
+                            ))
+                    else:
+                        # Fallback to dictionary format if ExecutableCommand not available
+                        commands.append({
+                            'title': 'Fix RBAC Configuration',
+                            'commands': [
+                                'kubectl get clusterroles,clusterrolebindings -o yaml > rbac-backup.yaml',
+                                'kubectl create clusterrole security-admin --verb=get,list,watch --resource=pods,services,deployments',
+                                'kubectl create rolebinding security-viewer --clusterrole=view --user=security-team -n default',
+                                'kubectl auth can-i --list --as=system:serviceaccount:default:default'
+                            ],
+                            'description': f'Address RBAC score of {rbac_score:.1f}',
+                            'based_on_real_score': True
+                        })
                 
                 # Commands for real network issues
                 network_score = breakdown.get('network_score', 100)
                 if network_score < 70:
-                    commands.append({
-                        'title': 'Implement Network Policies',
-                        'commands': [
+                    if ExecutableCommand:
+                        # Create proper ExecutableCommand objects
+                        network_commands = [
                             'kubectl get networkpolicies --all-namespaces',
                             'kubectl apply -f - <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-ingress\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\nEOF',
                             'kubectl describe networkpolicy default-deny-ingress'
-                        ],
-                        'description': f'Address network score of {network_score:.1f}',
-                        'based_on_real_score': True
-                    })
+                        ]
+                        for i, cmd in enumerate(network_commands):
+                            commands.append(ExecutableCommand(
+                                command=cmd,
+                                description=f'Implement Network Policies - Step {i+1} (Network score: {network_score:.1f})',
+                                category='aks_security',
+                                priority_score=90,
+                                savings_estimate=0,
+                                estimated_duration_minutes=10,
+                                risk_level='medium',
+                                rollback_commands=['kubectl delete networkpolicy default-deny-ingress'],
+                                validation_commands=['kubectl get networkpolicies --all-namespaces']
+                            ))
+                    else:
+                        # Fallback to dictionary format
+                        commands.append({
+                            'title': 'Implement Network Policies',
+                            'commands': [
+                                'kubectl get networkpolicies --all-namespaces',
+                                'kubectl apply -f - <<EOF\napiVersion: networking.k8s.io/v1\nkind: NetworkPolicy\nmetadata:\n  name: default-deny-ingress\nspec:\n  podSelector: {}\n  policyTypes:\n  - Ingress\nEOF',
+                                'kubectl describe networkpolicy default-deny-ingress'
+                            ],
+                            'description': f'Address network score of {network_score:.1f}',
+                            'based_on_real_score': True
+                        })
             
             elif 'Vulnerability' in phase_title:
                 vuln_data = security_analysis.get('vulnerability_assessment', {})

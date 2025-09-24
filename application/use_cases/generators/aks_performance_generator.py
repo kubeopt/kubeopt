@@ -40,7 +40,9 @@ class AKSPerformanceCommandGenerator:
             description="Enable Container Insights for comprehensive performance monitoring",
             category="aks_performance",
             priority_score=80,
-            savings_estimate=0
+            savings_estimate=0,
+            rollback_commands=[f"az aks disable-addons --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --addons monitoring"],
+            validation_commands=[f"az aks show --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --query 'addonProfiles.omsagent.enabled'"]
         ))
         
         # High CPU workload optimization - only if there are actual savings
@@ -65,7 +67,9 @@ class AKSPerformanceCommandGenerator:
             description="Enable ultra SSD for high-performance storage requirements",
             category="aks_performance", 
             priority_score=70,
-            savings_estimate=0
+            savings_estimate=0,
+            rollback_commands=[f"# Manual rollback - recreate nodepool without ultra SSD"],
+            validation_commands=[f"az aks nodepool show --resource-group {variable_context['resource_group']} --cluster-name {variable_context['cluster_name']} --name agentpool --query 'enableUltraSsd'"]
         ))
         
         # Pod disruption budgets for high-priority workloads
@@ -87,7 +91,9 @@ EOF"""
                     description=f"Create pod disruption budget for critical workload {workload}",
                     category="aks_performance",
                     priority_score=65,
-                    savings_estimate=0
+                    savings_estimate=0,
+                    rollback_commands=[f"kubectl delete pdb {workload}-pdb"],
+                    validation_commands=[f"kubectl get pdb {workload}-pdb -o jsonpath='{{.metadata.name}}'"]
                 ))
         
         return commands

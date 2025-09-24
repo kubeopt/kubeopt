@@ -41,7 +41,9 @@ class AKSAddonsCommandGenerator:
                 description="Enable application routing addon for ingress management",
                 category="aks_addons",
                 priority_score=75,
-                savings_estimate=0
+                savings_estimate=0,
+                rollback_commands=[f"az aks approuting disable --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']}"],
+                validation_commands=[f"az aks show --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --query 'addonProfiles.httpApplicationRouting.enabled'"]
             ))
         
         # Enable KEDA for event-driven autoscaling - only if there are event-driven workloads that could benefit
@@ -55,7 +57,9 @@ class AKSAddonsCommandGenerator:
                 priority_score=80,
                 savings_estimate=keda_savings,
                 estimated_duration_minutes=12,
-                risk_level="low"
+                risk_level="low",
+                rollback_commands=[f"az aks addon disable --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --addon keda"],
+                validation_commands=[f"az aks show --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --query 'addonProfiles.kedaAddon.enabled'"]
             ))
         
         # Enable Dapr for microservices
@@ -65,7 +69,9 @@ class AKSAddonsCommandGenerator:
                 description="Enable Dapr addon for distributed application runtime capabilities",
                 category="aks_addons",
                 priority_score=60,
-                savings_estimate=0
+                savings_estimate=0,
+                rollback_commands=[f"az aks addon disable --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --addon dapr"],
+                validation_commands=[f"az aks show --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --query 'addonProfiles.daprAddon.enabled'"]
             ))
         
         # Enable GitOps with Flux
@@ -75,7 +81,9 @@ class AKSAddonsCommandGenerator:
                 description="Enable GitOps with Flux for automated application deployment",
                 category="aks_addons",
                 priority_score=70,
-                savings_estimate=0
+                savings_estimate=0,
+                rollback_commands=[f"az k8s-configuration flux delete --resource-group {variable_context['resource_group']} --cluster-name {variable_context['cluster_name']} --cluster-type managedClusters --name gitops-config --yes"],
+                validation_commands=[f"az k8s-configuration flux list --resource-group {variable_context['resource_group']} --cluster-name {variable_context['cluster_name']} --cluster-type managedClusters --query '[?name==`gitops-config`]'"]
             ))
         
         # Enable backup addon
@@ -85,7 +93,9 @@ class AKSAddonsCommandGenerator:
                 description="Enable Azure Backup addon for cluster backup and disaster recovery",
                 category="aks_addons", 
                 priority_score=65,
-                savings_estimate=0
+                savings_estimate=0,
+                rollback_commands=[f"az aks addon disable --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --addon azure-backup"],
+                validation_commands=[f"az aks show --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --query 'addonProfiles.azureBackup.enabled'"]
             ))
         
         return commands

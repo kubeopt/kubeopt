@@ -32,19 +32,25 @@ class CoreOptimizationCommandGenerator:
                 priority_score=80,
                 savings_estimate=hpa_savings,
                 estimated_duration_minutes=estimated_minutes,
-                risk_level="medium" if hpa_savings > 1000 else "low"
+                risk_level="medium" if hpa_savings > 1000 else "low",
+                rollback_commands=["# Read-only command - no rollback needed"],
+                validation_commands=["kubectl get deployments -A --no-headers | wc -l"]
             ))
             
             # Add actual HPA creation commands if specific opportunities exist
             for opportunity in hpa_opportunities[:3]:  # Limit to top 3 for practicality
+                deployment_name = opportunity.get('name', 'deployment')
+                namespace = opportunity.get('namespace', 'default')
                 commands.append(ExecutableCommand(
-                    command=f"kubectl autoscale deployment {opportunity.get('name', 'deployment')} --cpu-percent={opportunity.get('cpu_target', 70)} --min={opportunity.get('min_replicas', 2)} --max={opportunity.get('max_replicas', 10)} -n {opportunity.get('namespace', 'default')}",
-                    description=f"Create HPA for {opportunity.get('name', 'deployment')} (estimated ${opportunity.get('monthly_savings', 100)}/month savings)",
+                    command=f"kubectl autoscale deployment {deployment_name} --cpu-percent={opportunity.get('cpu_target', 70)} --min={opportunity.get('min_replicas', 2)} --max={opportunity.get('max_replicas', 10)} -n {namespace}",
+                    description=f"Create HPA for {deployment_name} (estimated ${opportunity.get('monthly_savings', 100)}/month savings)",
                     category="hpa_optimization",
                     priority_score=85,
                     savings_estimate=opportunity.get('monthly_savings', 100),
                     estimated_duration_minutes=5,
-                    risk_level="low"
+                    risk_level="low",
+                    rollback_commands=[f"kubectl delete hpa {deployment_name} -n {namespace}"],
+                    validation_commands=[f"kubectl get hpa {deployment_name} -n {namespace} -o jsonpath='{{.status.currentReplicas}}'"]
                 ))
         
         return commands
@@ -79,7 +85,9 @@ class CoreOptimizationCommandGenerator:
                 priority_score=85,
                 savings_estimate=total_savings * 0.2,  # Analysis step saves 20% of potential
                 estimated_duration_minutes=analysis_duration,
-                risk_level="low"
+                risk_level="low",
+                rollback_commands=["# Read-only command - no rollback needed"],
+                validation_commands=["kubectl top pods -A --no-headers | wc -l"]
             ))
             
             # Memory analysis command
@@ -90,7 +98,9 @@ class CoreOptimizationCommandGenerator:
                 priority_score=80,
                 savings_estimate=memory_optimization.get('potential_savings', total_savings * 0.3),
                 estimated_duration_minutes=10,
-                risk_level="low"
+                risk_level="low",
+                rollback_commands=["# Read-only command - no rollback needed"],
+                validation_commands=["kubectl top pods -A --no-headers | wc -l"]
             ))
             
             # Generate specific rightsizing commands
@@ -102,6 +112,9 @@ class CoreOptimizationCommandGenerator:
                 monthly_savings = opportunity.get('monthly_savings', 50)
                 
                 patch_json = f'{{"spec":{{"template":{{"spec":{{"containers":[{{"name":"{workload_name}","resources":{{"requests":{{"{resource_type}":"{recommended_value}"}}}}}}]}}}}}}}}'
+                current_value = opportunity.get('current_value', '200m' if resource_type == 'cpu' else '256Mi')
+                rollback_json = f'{{"spec":{{"template":{{"spec":{{"containers":[{{"name":"{workload_name}","resources":{{"requests":{{"{resource_type}":"{current_value}"}}}}}}]}}}}}}}}'
+                
                 commands.append(ExecutableCommand(
                     command=f"kubectl patch deployment {workload_name} -n {namespace} -p '{patch_json}'",
                     description=f"Optimize {resource_type} for {workload_name} (save ${monthly_savings}/month)",
@@ -109,7 +122,9 @@ class CoreOptimizationCommandGenerator:
                     priority_score=90,
                     savings_estimate=monthly_savings,
                     estimated_duration_minutes=8,
-                    risk_level="medium"
+                    risk_level="medium",
+                    rollback_commands=[f"kubectl patch deployment {workload_name} -n {namespace} -p '{rollback_json}'"],
+                    validation_commands=[f"kubectl get deployment {workload_name} -n {namespace} -o jsonpath='{{.spec.template.spec.containers[0].resources.requests.{resource_type}}}'"]
                 ))
         
         return commands
@@ -136,7 +151,9 @@ class CoreOptimizationCommandGenerator:
                     priority_score=75,
                     savings_estimate=estimated_savings,
                     estimated_duration_minutes=12,
-                    risk_level="medium"
+                    risk_level="medium",
+                    rollback_commands=[f"az aks nodepool update --resource-group {variable_context['resource_group']} --cluster-name {variable_context['cluster_name']} --name agentpool --disable-cluster-autoscaler"],
+                    validation_commands=[f"az aks nodepool show --resource-group {variable_context['resource_group']} --cluster-name {variable_context['cluster_name']} --name agentpool --query 'enableAutoScaling'"]
                 ))
         
         return commands
@@ -158,7 +175,9 @@ class CoreOptimizationCommandGenerator:
                 priority_score=70,
                 savings_estimate=storage_savings,
                 estimated_duration_minutes=8,
-                risk_level="low"
+                risk_level="low",
+                rollback_commands=["# Read-only command - no rollback needed"],
+                validation_commands=["kubectl get pvc -A --no-headers | wc -l"]
             ))
         
         return commands
@@ -174,8 +193,8 @@ class CoreOptimizationCommandGenerator:
             analysis_results.get('storage_optimization', {}).get('potential_savings', 0)
         )
         
-        # Only add monitoring infrastructure if savings justify the overhead
-        if total_savings > 50:  # Only if >$50/month savings to monitor
+        # Add monitoring infrastructure if any savings to track
+        if total_savings > 0:
             commands.append(ExecutableCommand(
                 command=f"kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/master/examples/standard/cluster-role-binding.yaml",
                 description=f"Deploy monitoring to track ${total_savings}/month optimization progress",
@@ -183,7 +202,9 @@ class CoreOptimizationCommandGenerator:
                 priority_score=60,
                 savings_estimate=0,  # Monitoring doesn't save money directly
                 estimated_duration_minutes=10,
-                risk_level="low"
+                risk_level="low",
+                rollback_commands=["kubectl delete -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/master/examples/standard/cluster-role-binding.yaml"],
+                validation_commands=["kubectl get clusterrolebinding kube-state-metrics"]
             ))
         
         return commands
@@ -206,7 +227,9 @@ class CoreOptimizationCommandGenerator:
                 priority_score=75,
                 savings_estimate=networking_savings * 0.3,  # Analysis provides 30% of savings
                 estimated_duration_minutes=10,
-                risk_level="low"
+                risk_level="low",
+                rollback_commands=["# Read-only command - no rollback needed"],
+                validation_commands=["kubectl get services -A --no-headers | wc -l"]
             ))
             
             # Load balancer optimization if significant networking costs
@@ -218,7 +241,9 @@ class CoreOptimizationCommandGenerator:
                     priority_score=80,
                     savings_estimate=networking_savings * 0.7,
                     estimated_duration_minutes=15,
-                    risk_level="medium"
+                    risk_level="medium",
+                    rollback_commands=[f"# Manual rollback required - document current LB configuration before changes"],
+                    validation_commands=[f"az network lb list --resource-group {variable_context['resource_group']} --query '[].provisioningState'"]
                 ))
         
         return commands
