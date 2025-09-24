@@ -37,7 +37,9 @@ class AKSMaintenanceCommandGenerator:
                 description="Enable automatic cluster upgrades for better security and performance",
                 category="aks_maintenance",
                 priority_score=75,
-                savings_estimate=0
+                savings_estimate=0,
+                rollback_commands=[f"az aks update --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --disable-auto-upgrade"],
+                validation_commands=[f"az aks show --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --query 'autoUpgradeProfile.upgradeChannel'"]
             ))
         
         # Configure maintenance window
@@ -47,7 +49,9 @@ class AKSMaintenanceCommandGenerator:
                 description="Configure maintenance window to minimize business impact",
                 category="aks_maintenance",
                 priority_score=65,
-                savings_estimate=0
+                savings_estimate=0,
+                rollback_commands=[f"az aks maintenanceconfiguration delete --resource-group {variable_context['resource_group']} --cluster-name {variable_context['cluster_name']} --config-name default"],
+                validation_commands=[f"az aks maintenanceconfiguration list --resource-group {variable_context['resource_group']} --cluster-name {variable_context['cluster_name']}"]
             ))
         
         # Cluster version check
@@ -56,7 +60,9 @@ class AKSMaintenanceCommandGenerator:
             description="Check available Kubernetes version upgrades",
             category="aks_maintenance",
             priority_score=50,
-            savings_estimate=0
+            savings_estimate=0,
+            rollback_commands=["# Read-only command - no rollback needed"],
+            validation_commands=[f"az aks show --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --query 'currentKubernetesVersion'"]
         ))
         
         return commands

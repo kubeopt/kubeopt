@@ -40,70 +40,90 @@ class AKSOptimizationOrchestrator:
         # Core optimization commands (HPA, rightsizing, etc.)
         try:
             core_commands = []
-            core_commands.extend(self.core_generator.generate_hpa_commands(analysis_results, variable_context))
-            core_commands.extend(self.core_generator.generate_rightsizing_commands(analysis_results, variable_context))
-            core_commands.extend(self.core_generator.generate_node_optimization_commands(analysis_results, variable_context))
-            core_commands.extend(self.core_generator.generate_storage_optimization_commands(analysis_results, variable_context))
-            core_commands.extend(self.core_generator.generate_networking_commands(analysis_results, variable_context))
-            core_commands.extend(self.core_generator.generate_monitoring_commands(analysis_results, variable_context))
+            hpa_cmds = self.core_generator.generate_hpa_commands(analysis_results, variable_context)
+            rightsizing_cmds = self.core_generator.generate_rightsizing_commands(analysis_results, variable_context)
+            node_cmds = self.core_generator.generate_node_optimization_commands(analysis_results, variable_context)
+            storage_cmds = self.core_generator.generate_storage_optimization_commands(analysis_results, variable_context)
+            networking_cmds = self.core_generator.generate_networking_commands(analysis_results, variable_context)
+            monitoring_cmds = self.core_generator.generate_monitoring_commands(analysis_results, variable_context)
+            
+            core_commands.extend(hpa_cmds)
+            core_commands.extend(rightsizing_cmds)
+            core_commands.extend(node_cmds)
+            core_commands.extend(storage_cmds)
+            core_commands.extend(networking_cmds)
+            core_commands.extend(monitoring_cmds)
+            
+            logger.info(f"🔧 Core commands: HPA={len(hpa_cmds)}, Rightsizing={len(rightsizing_cmds)}, Node={len(node_cmds)}, Storage={len(storage_cmds)}, Network={len(networking_cmds)}, Monitor={len(monitoring_cmds)}")
             all_commands.extend(core_commands)
         except Exception as e:
             logger.warning(f"Failed to generate core optimization commands: {e}")
         
-        # Only generate additional commands if there are significant savings or specific needs
-        total_core_savings = (
-            analysis_results.get('hpa_savings', 0) +
-            analysis_results.get('right_sizing_savings', 0) +
-            analysis_results.get('networking_monthly_savings', 0) +
-            analysis_results.get('storage_savings', 0)
-        )
+        # Generate additional commands based on analysis results - no arbitrary thresholds
         
-        # Cost management commands (only if cost optimizations are significant)
-        if total_core_savings > 50:  # Only if meaningful savings
+        # Cost management commands (if any cost optimizations detected)
+        cost_opportunities = analysis_results.get('optimization_opportunities', {}).get('cost_reduction', [])
+        total_potential_savings = analysis_results.get('total_savings', 0)
+        if cost_opportunities or total_potential_savings > 0:
             try:
                 cost_data = self.cost_generator.extract_cost_data(analysis_results, cluster_dna, optimization_strategy)
                 cost_commands = self.cost_generator.generate_commands(cost_data, variable_context)
                 all_commands.extend(cost_commands)
-                logger.info(f"🔄 Generated cost management commands (${total_core_savings:.2f} core savings)")
+                logger.info(f"🔄 Generated cost management commands (${total_potential_savings:.2f} potential savings)")
             except Exception as e:
                 logger.warning(f"Failed to generate cost commands: {e}")
         
-        # Maintenance commands (only if cluster needs maintenance)
+        # Maintenance commands (based on actual cluster health or version issues)
         health_score = analysis_results.get('current_health_score', 100)
-        if health_score < 50:  # Only if cluster health is poor
+        kubernetes_version = analysis_results.get('kubernetes_version')
+        cluster_issues = analysis_results.get('cluster_issues', [])
+        if health_score < 90 or kubernetes_version or cluster_issues:
             try:
                 maintenance_data = self.maintenance_generator.extract_maintenance_data(analysis_results, cluster_dna, optimization_strategy)
                 maintenance_commands = self.maintenance_generator.generate_commands(maintenance_data, variable_context)
                 all_commands.extend(maintenance_commands)
-                logger.info(f"🔄 Generated maintenance commands (health score: {health_score})")
+                logger.info(f"🔄 Generated maintenance commands (health: {health_score}, issues: {len(cluster_issues)})")
             except Exception as e:
                 logger.warning(f"Failed to generate maintenance commands: {e}")
         
-        # Security commands (only if security analysis shows issues)
-        security_score = analysis_results.get('security_analysis', {}).get('security_posture', {}).get('overall_score', 100)
-        if security_score < 70:  # Only if security needs improvement
+        # Security commands (if security analysis exists or security issues found)
+        security_analysis = analysis_results.get('security_analysis', {})
+        security_issues = analysis_results.get('security_issues', [])
+        if security_analysis or security_issues:
             try:
                 security_data = self.security_generator.extract_security_data(analysis_results, cluster_dna, optimization_strategy)
                 security_commands = self.security_generator.generate_commands(security_data, variable_context)
                 all_commands.extend(security_commands)
-                logger.info(f"🔄 Generated security commands (security score: {security_score})")
+                security_score = security_analysis.get('security_posture', {}).get('overall_score', 'N/A')
+                logger.info(f"🔄 Generated security commands (score: {security_score}, issues: {len(security_issues)})")
             except Exception as e:
                 logger.warning(f"Failed to generate security commands: {e}")
         
-        # Performance commands (only if performance issues detected)
+        # Performance commands (if performance issues or metrics exist)
+        performance_metrics = analysis_results.get('performance_metrics', {})
         avg_cpu = analysis_results.get('current_cpu_utilization', 0)
-        if avg_cpu > 80 or avg_cpu < 10:  # High utilization or severely underutilized
+        avg_memory = analysis_results.get('current_memory_utilization', 0)
+        networking_savings = analysis_results.get('networking_monthly_savings', 0)
+        if performance_metrics or avg_cpu > 0 or avg_memory > 0 or networking_savings > 0:
             try:
                 performance_data = self.performance_generator.extract_performance_data(analysis_results, cluster_dna, optimization_strategy)
                 performance_commands = self.performance_generator.generate_commands(performance_data, variable_context)
                 all_commands.extend(performance_commands)
-                logger.info(f"🔄 Generated performance commands (CPU utilization: {avg_cpu}%)")
+                logger.info(f"🔄 Generated performance commands (CPU: {avg_cpu}%, Memory: {avg_memory}%)")
             except Exception as e:
                 logger.warning(f"Failed to generate performance commands: {e}")
         
-        # Skip addons commands unless explicitly needed (they often add unnecessary complexity)
-        # Addons should only be suggested if there are specific integration requirements
-        logger.info(f"ℹ️ Skipping addons commands (focus on core optimization findings only)")
+        # Addons commands (if specific addon opportunities or integrations detected)
+        addon_opportunities = analysis_results.get('addon_opportunities', [])
+        monitoring_gaps = analysis_results.get('monitoring_gaps', [])
+        if addon_opportunities or monitoring_gaps:
+            try:
+                addons_data = self.addons_generator.extract_addons_data(analysis_results, cluster_dna, optimization_strategy)
+                addons_commands = self.addons_generator.generate_commands(addons_data, variable_context)
+                all_commands.extend(addons_commands)
+                logger.info(f"🔄 Generated addons commands ({len(addon_opportunities)} opportunities, {len(monitoring_gaps)} gaps)")
+            except Exception as e:
+                logger.warning(f"Failed to generate addons commands: {e}")
         
         # Sort commands by priority score (highest first)
         all_commands.sort(key=lambda cmd: cmd.priority_score, reverse=True)
@@ -111,12 +131,23 @@ class AKSOptimizationOrchestrator:
         # Categorize commands
         categorized_commands = self._categorize_commands(all_commands)
         
+        # Log command distribution for debugging
+        logger.info(f"📊 Command distribution: Total={len(all_commands)}")
+        for category, cmds in categorized_commands.items():
+            if cmds:
+                logger.info(f"   {category}: {len(cmds)} commands")
+        
         # Calculate totals
         total_savings = sum(cmd.savings_estimate for cmd in all_commands)
         total_minutes = sum(cmd.estimated_duration_minutes for cmd in all_commands)
         
         # Create phase_commands mapping for backward compatibility
         phase_commands = self._create_phase_commands_mapping(all_commands)
+        
+        # Log final command distribution for UI debugging
+        logger.info(f"🎯 Final UI Data: categories={len([k for k,v in categorized_commands.items() if v])}, phases={len([k for k,v in phase_commands.items() if v])}")
+        logger.info(f"📊 Categories populated: {[k for k,v in categorized_commands.items() if v]}")
+        logger.info(f"📅 Phases populated: {[k for k,v in phase_commands.items() if v]}")
         
         # Calculate enhanced timeline information
         timeline_info = self._calculate_enhanced_timeline(phase_commands, total_minutes)
@@ -164,6 +195,11 @@ class AKSOptimizationOrchestrator:
                 'resource_group': cluster_config.get('resource_group', context['resource_group']),
                 'subscription_id': cluster_config.get('subscription_id', context['subscription_id'])
             })
+            
+        # Log warning if still using default values (could indicate data flow issue)
+        if 'unknown' in context.get('cluster_name', '') or 'unknown' in context.get('resource_group', ''):
+            logger.warning(f"⚠️ Using default cluster context - cluster: {context.get('cluster_name')}, rg: {context.get('resource_group')}")
+            logger.warning("⚠️ This may result in invalid commands. Check analysis_results data flow.")
         
         return context
     
@@ -180,14 +216,31 @@ class AKSOptimizationOrchestrator:
         }
         
         for cmd in commands:
-            if 'cost_management' in cmd.category or 'performance' in cmd.category:
+            # Core optimization categories
+            if cmd.category in ['hpa_optimization', 'resource_rightsizing', 'node_optimization', 'storage_optimization']:
                 categories['optimization'].append(cmd)
+            # Cost management and performance
+            elif 'cost_management' in cmd.category or 'performance' in cmd.category:
+                categories['optimization'].append(cmd)
+            # Networking
+            elif 'networking' in cmd.category:
+                categories['networking'].append(cmd)
+            # Security
             elif 'security' in cmd.category:
                 categories['security'].append(cmd)
+            # Maintenance and preparation
             elif 'maintenance' in cmd.category:
                 categories['preparation'].append(cmd)
-            elif 'addons' in cmd.category:
+            # Monitoring and addons
+            elif 'addons' in cmd.category or 'monitoring' in cmd.category:
                 categories['monitoring'].append(cmd)
+            # Validation commands
+            elif 'validation' in cmd.category:
+                categories['validation'].append(cmd)
+            # Rollback commands  
+            elif 'rollback' in cmd.category:
+                categories['rollback'].append(cmd)
+            # Default to optimization
             else:
                 categories['optimization'].append(cmd)
         
@@ -226,41 +279,62 @@ class AKSOptimizationOrchestrator:
         """Create phase_commands mapping for backward compatibility with implementation_generator"""
         
         # Map commands to the EXACT phases expected by implementation_generator
+        # Include ALL phases to ensure UI doesn't skip any
         phase_mapping = {
             'phase-1': [],   # Environment Assessment and Preparation
+            'phase-2': [],   # Configuration and Setup
             'phase-3': [],   # Dynamic HPA Implementation  
             'phase-4': [],   # Driven Resource Right-sizing Optimization
             'phase-5': [],   # Enhanced Storage Optimization
-            'phase-7': [],   # Security Foundation Setup
+            'phase-6': [],   # Security Foundation Setup
+            'phase-7': [],   # Compliance Framework Implementation
             'phase-8': [],   # Enhanced Monitoring and Observability
+            'phase-9': [],   # Network Optimization
+            'phase-10': [],  # Performance Optimization
             'phase-11': []   # Enhanced Final Validation and Optimization
         }
         
-        # Distribute commands across phases intelligently
+        # Distribute commands across phases intelligently using ALL command categories
         for cmd in commands:
             # Phase 1: Environment Assessment and Preparation
             if cmd.category in ['aks_maintenance'] or 'preparation' in cmd.category:
                 phase_mapping['phase-1'].append(cmd)
+            
+            # Phase 2: Configuration and Setup
+            elif cmd.category in ['aks_addons']:
+                phase_mapping['phase-2'].append(cmd)
             
             # Phase 3: Dynamic HPA Implementation
             elif cmd.category in ['hpa_optimization']:
                 phase_mapping['phase-3'].append(cmd)
             
             # Phase 4: Driven Resource Right-sizing Optimization  
-            elif cmd.category in ['resource_rightsizing', 'node_optimization']:
+            elif cmd.category in ['resource_rightsizing']:
                 phase_mapping['phase-4'].append(cmd)
             
             # Phase 5: Enhanced Storage Optimization
             elif cmd.category in ['storage_optimization']:
                 phase_mapping['phase-5'].append(cmd)
             
-            # Phase 7: Security Foundation Setup
+            # Phase 6: Security Foundation Setup
             elif cmd.category in ['aks_security']:
+                phase_mapping['phase-6'].append(cmd)
+            
+            # Phase 7: Compliance Framework Implementation
+            elif cmd.category in ['node_optimization']:
                 phase_mapping['phase-7'].append(cmd)
             
             # Phase 8: Enhanced Monitoring and Observability
-            elif cmd.category in ['aks_performance', 'aks_addons', 'monitoring_optimization']:
+            elif cmd.category in ['monitoring_optimization']:
                 phase_mapping['phase-8'].append(cmd)
+            
+            # Phase 9: Network Optimization
+            elif cmd.category in ['networking_optimization']:
+                phase_mapping['phase-9'].append(cmd)
+            
+            # Phase 10: Performance Optimization
+            elif cmd.category in ['aks_performance']:
+                phase_mapping['phase-10'].append(cmd)
             
             # Phase 11: Enhanced Final Validation and Optimization (cost management, validation)
             elif cmd.category in ['aks_cost_management'] or 'validation' in cmd.category:
@@ -269,6 +343,7 @@ class AKSOptimizationOrchestrator:
             else:
                 # If no specific mapping, distribute to phase 1 (preparation)
                 phase_mapping['phase-1'].append(cmd)
+                logger.warning(f"⚠️ Unknown command category '{cmd.category}' mapped to phase-1")
         
         # Ensure balanced distribution - if a phase is empty, redistribute some commands
         self._balance_phase_distribution(phase_mapping)

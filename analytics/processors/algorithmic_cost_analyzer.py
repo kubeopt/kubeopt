@@ -2051,6 +2051,14 @@ class ConsistentCostAnalyzer:
             'cpu_gap': cpu_gap_value,
             'memory_gap': memory_gap_value,
             
+            # === NODE ANALYSIS DATA ===
+            'node_analysis': {
+                'potential_savings': optimization.get('node_optimization_savings', optimization.get('rightsizing_monthly_savings', 0) * 0.4),
+                'current_node_count': current_usage.get('node_count', 3),
+                'optimization_type': 'autoscaler_and_rightsizing',
+                'underutilized_nodes': max(0, current_usage.get('node_count', 3) - 2) if current_usage.get('avg_cpu_utilization', 20) < 50 else 0
+            },
+            
             # === CONFIDENCE & QUALITY ===
             'analysis_confidence': confidence.get('overall_confidence', 0.7),
             'confidence_level': confidence.get('confidence_level', 'Medium'),

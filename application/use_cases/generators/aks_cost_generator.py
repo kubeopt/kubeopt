@@ -67,7 +67,9 @@ class AKSCostCommandGenerator:
                 priority_score=85,
                 savings_estimate=spot_savings,
                 estimated_duration_minutes=15,
-                risk_level="medium"
+                risk_level="medium",
+                rollback_commands=[f"az aks nodepool delete --resource-group {variable_context['resource_group']} --cluster-name {variable_context['cluster_name']} --name spotpool --no-wait"],
+                validation_commands=[f"az aks nodepool show --resource-group {variable_context['resource_group']} --cluster-name {variable_context['cluster_name']} --name spotpool --query 'scaleSetPriority'"]
             ))
         
         # Generate commands for specific cost opportunities
@@ -87,8 +89,8 @@ class AKSCostCommandGenerator:
                 risk_level="low"
             ))
         
-        # Reserved instance recommendations (if significant savings)
-        if cost_data['reserved_instances_potential'] > 500:  # Only if >$500/month savings
+        # Reserved instance recommendations (if any potential savings)
+        if cost_data['reserved_instances_potential'] > 0:
             commands.append(ExecutableCommand(
                 command=f"az consumption reservation recommendation list --resource-group {variable_context['resource_group']} --look-back-period Last30Days",
                 description=f"Analyze reserved instance opportunities (${cost_data['reserved_instances_potential']}/month potential)",
@@ -99,8 +101,8 @@ class AKSCostCommandGenerator:
                 risk_level="low"
             ))
         
-        # Cost allocation tags (only if significant cost savings expected)
-        if cost_data['total_cost_savings'] > 100:
+        # Cost allocation tags (if any cost savings expected)
+        if cost_data['total_cost_savings'] > 0:
             commands.append(ExecutableCommand(
                 command=f"az aks update --resource-group {variable_context['resource_group']} --name {variable_context['cluster_name']} --tags Environment=Production CostCenter=Engineering Owner=DevOps TotalOptimization=${cost_data['total_cost_savings']:.0f}",
                 description=f"Add cost allocation tags for ${cost_data['total_cost_savings']:.0f}/month optimization tracking",

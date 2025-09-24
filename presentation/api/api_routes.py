@@ -129,7 +129,13 @@ def convert_implementation_plan_for_ui(implementation_plan: Dict) -> Dict:
             if isinstance(phase, dict) and 'commands' in phase:
                 # Handle both ExecutableCommand objects and string commands
                 converted_commands = []
-                for cmd in phase['commands']:
+                for i, cmd in enumerate(phase['commands']):
+                    # Debug: Log what type of command we're processing
+                    cmd_type = type(cmd).__name__
+                    logger.debug(f"🔍 API Processing command {i} in phase {phase.get('title', 'unknown')}: type={cmd_type}")
+                    if hasattr(cmd, 'rollback_commands'):
+                        logger.debug(f"🔄 Command has {len(getattr(cmd, 'rollback_commands', []))} rollback commands")
+                    
                     if isinstance(cmd, str):
                         # Convert string command to UI format
                         converted_commands.append({
@@ -148,7 +154,11 @@ def convert_implementation_plan_for_ui(implementation_plan: Dict) -> Dict:
                             'rollback_commands': []
                         })
                     else:
-                        converted_commands.append(convert_command_to_ui(cmd))
+                        # Use ExecutableCommand.to_ui_format() method
+                        ui_formatted_cmd = convert_command_to_ui(cmd)
+                        if isinstance(ui_formatted_cmd, dict) and 'rollback_commands' in ui_formatted_cmd:
+                            logger.debug(f"✅ Command converted with {len(ui_formatted_cmd.get('rollback_commands', []))} rollback commands")
+                        converted_commands.append(ui_formatted_cmd)
                 phase['commands'] = converted_commands
     
     # Convert any ExecutableCommand objects in the plan itself

@@ -2304,3 +2304,9 @@ from-gray-100.to-gray-200 {
     --tw-border-opacity: 1;
     border-color: rgb(32 38 61) !important;
 }
+
+
+.text-gray-800 {
+    --tw-text-opacity: 1;
+    color: rgb(118 132 160) !important;
+}

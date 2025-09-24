@@ -1138,8 +1138,9 @@ function populateOptimizationCommands(commands) {
                         <code class="block bg-gray-800 text-white p-3 rounded text-sm font-mono whitespace-pre-wrap ${isTemplate ? 'border-l-4 border-yellow-500' : ''}">${cmd.command}</code>
                     </div>
                     ${cmd.estimated_impact ? `<p class="text-sm text-gray-600 mb-2"><strong>Impact:</strong> ${cmd.estimated_impact}</p>` : ''}
-                    ${cmd.validation_command ? `<p class="text-sm text-gray-600 mb-2"><strong>Validation:</strong> <code class="bg-gray-100 px-2 py-1 rounded text-xs">${cmd.validation_command}</code></p>` : ''}
-                    ${cmd.prerequisite_commands.length > 0 ? `<p class="text-sm text-gray-600 mb-2"><strong>Prerequisites:</strong> ${cmd.prerequisite_commands.join(', ')}</p>` : ''}
+                    ${cmd.validation_commands && cmd.validation_commands.length > 0 ? `<p class="text-sm text-gray-600 mb-2"><strong>Validation:</strong> <code class="bg-gray-100 px-2 py-1 rounded text-xs">${cmd.validation_commands[0]}</code></p>` : ''}
+                    ${cmd.rollback_commands && cmd.rollback_commands.length > 0 ? `<p class="text-sm text-red-600 mb-2"><strong>Rollback:</strong> <code class="bg-red-50 px-2 py-1 rounded text-xs border border-red-200">${cmd.rollback_commands[0]}</code></p>` : ''}
+                    ${cmd.prerequisites && cmd.prerequisites.length > 0 ? `<p class="text-sm text-gray-600 mb-2"><strong>Prerequisites:</strong> ${cmd.prerequisites.join(', ')}</p>` : ''}
                     ${isTemplate ? '<p class="text-yellow-600 text-sm flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i>Template command - requires manual configuration</p>' : ''}
                 </div>
             `;
