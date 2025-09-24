@@ -538,7 +538,7 @@ p {
 }
 
 .card-header {
-    background: #373b48 !important;
+    background: #242c47 !important;
     color: var(--text-white) !important;
     border: none !important;
     padding: var(--spacing-xl) !important;
@@ -559,7 +559,7 @@ p {
     left: 0;
     right: 0;
     bottom: 0;
-    background: #373b48;
+    background: #242c47;
     pointer-events: none;
 }
 
@@ -917,6 +917,7 @@ p {
     display: flex;
     flex-direction: column;
     will-change: transform;
+    background: #17213b;
 }
 
 .cluster-card::before {
@@ -1002,7 +1003,7 @@ p {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    border: 3px solid rgba(255, 255, 255, 0.8);
+    border: 3px solid var(--glass-white-strong);
     position: absolute;
     top: var(--spacing-lg);
     right: var(--spacing-lg);
@@ -2039,7 +2040,7 @@ p {
 }
 
 .page-header {
-    background: #373b48;
+    background: #242c47;
     border-radius: var(--radius-lg);
     padding: 16px 20px;
     box-shadow: var(--shadow-sm);
@@ -2091,7 +2092,7 @@ p {
 
 /* ===== SPECIAL CARDS ===== */
 .add-card {
-    background: #373b48;
+    background: #242c47;
     border: 2px dashed var(--gray-300);
     border-radius: var(--radius-lg);
     padding: 20px;
@@ -2121,7 +2122,7 @@ p {
 
 .add-card:hover {
     border-color: var(--primary);
-    background: #373b48;
+    background: #242c47;
     transform: translateY(-2px);
 }
 
@@ -2167,7 +2168,7 @@ p {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--gray-50);
+    background: #30304c;
     border-radius: var(--radius-md);
     padding: 10px 12px;
     margin: 0 16px 12px;
