@@ -1146,7 +1146,7 @@ class MLEnhancedHPARecommendationEngine:
         elif workload_type == 'LOW_UTILIZATION':
             recommendation = {
                 **base_recommendation,  # Include base with ml_enhanced: True
-                'title': '📉 Resource Right-sizing Opportunity (Comprehensive ML)',
+                'title': '📉 Resource Right-sizing Opportunity',
                 'description': (
                     f'Comprehensive self-learning ML classified workload as {workload_type} with {confidence:.1%} confidence. '
                     f'Significant resource reduction possible. Expected improvement: {expected_improvement}.'
@@ -2708,6 +2708,20 @@ class OptimizationCalculatorAlgorithm:
                    f"cpu_waste={cpu_waste_percentage:.1f}%, memory_waste={memory_waste_percentage:.1f}%, "
                    f"startup_time={pod_startup_time}s, network_p95={network_latency_p95}ms, savings=${final_savings:.2f}")
         
+        # ENHANCED: Cost-aware autoscaling with predictive scaling
+        workload_seasonality = usage.get('workload_seasonality_score', 0.0)
+        if workload_seasonality > 0.3:  # Significant seasonal patterns
+            predictive_scaling_savings = final_savings * 0.25  # 25% additional savings from predictive scaling
+            final_savings += predictive_scaling_savings
+            logger.info(f"🔮 PREDICTIVE SCALING: seasonality={workload_seasonality:.2f}, additional_savings=${predictive_scaling_savings:.2f}")
+        
+        # ENHANCED: Multi-zone cost optimization
+        cross_zone_traffic_cost = usage.get('cross_zone_traffic_cost', 0)
+        if cross_zone_traffic_cost > 50:  # Significant inter-zone costs
+            zone_optimization_savings = min(cross_zone_traffic_cost * 0.4, final_savings * 0.1)  # 40% of inter-zone costs or 10% of total savings
+            final_savings += zone_optimization_savings
+            logger.info(f"🌐 ZONE OPTIMIZATION: cross_zone_cost=${cross_zone_traffic_cost:.2f}, savings=${zone_optimization_savings:.2f}")
+
         return final_savings
     
     def _calculate_standards_based_hpa_savings(self, node_cost: float, usage: Dict) -> float:
@@ -2823,20 +2837,23 @@ class OptimizationCalculatorAlgorithm:
         # STEP 6: Container rightsizing impact
         container_savings = self._calculate_container_rightsizing_savings(node_cost, usage)
         
-        # STEP 7: Cost model based savings (use the realistic model we calculated)
+        # STEP 7: Advanced add-on service optimization (NEW ENHANCEMENT)
+        addon_optimization_savings = self._calculate_advanced_addon_optimization_savings(node_cost, usage)
+        
+        # STEP 8: Cost model based savings (use the realistic model we calculated)
         cost_model_savings = cost_model.get('potential_monthly_savings_from_optimization', 0)
         
         # Combine all rightsizing opportunities with proper weighting
         total_rightsizing_savings = self._combine_rightsizing_savings(
             performance_savings, standards_savings, overprovisioning_savings, 
             underutilization_savings, vm_optimization_savings, container_savings, usage,
-            cost_model_savings  # Add the cost model based savings
+            cost_model_savings, addon_optimization_savings  # Add both cost model and addon savings
         )
         
         logger.info(f"💰 COMPREHENSIVE RIGHTSIZING: Performance=${performance_savings:.2f}, Standards=${standards_savings:.2f}, "
                    f"Overprovisioning=${overprovisioning_savings:.2f}, Underutilization=${underutilization_savings:.2f}, "
                    f"VM_Optimization=${vm_optimization_savings:.2f}, Container=${container_savings:.2f}, "
-                   f"CostModel=${cost_model_savings:.2f}")
+                   f"AddonOptimization=${addon_optimization_savings:.2f}, CostModel=${cost_model_savings:.2f}")
         logger.info(f"✅ TOTAL RIGHTSIZING SAVINGS: ${total_rightsizing_savings:.2f}")
         
         return total_rightsizing_savings
@@ -2869,7 +2886,28 @@ class OptimizationCalculatorAlgorithm:
             snapshot_savings = min(100, redundant_snapshots * 5)  # $5 per redundant snapshot
             savings += snapshot_savings
         
-        return min(savings, storage_cost * 0.5)  # Cap at 50% of storage cost
+        # ENHANCED: Advanced idle resource detection
+        zombie_services = usage.get('zombie_services_count', 0)
+        if zombie_services > 0:
+            zombie_cleanup_savings = min(100, zombie_services * 8)  # $8 per zombie service
+            savings += zombie_cleanup_savings
+            logger.info(f"🧟 ZOMBIE SERVICE CLEANUP: count={zombie_services}, savings=${zombie_cleanup_savings:.2f}")
+        
+        # ENHANCED: Load balancer consolidation
+        underutilized_load_balancers = usage.get('underutilized_lb_count', 0)
+        if underutilized_load_balancers > 0:
+            lb_consolidation_savings = underutilized_load_balancers * 22  # $22/month per Standard LB
+            savings += lb_consolidation_savings
+            logger.info(f"⚖️ LOAD BALANCER CONSOLIDATION: count={underutilized_load_balancers}, savings=${lb_consolidation_savings:.2f}")
+        
+        # ENHANCED: Unused persistent volume detection
+        orphaned_pvs = usage.get('orphaned_persistent_volumes', 0)
+        if orphaned_pvs > 0:
+            pv_cleanup_savings = orphaned_pvs * 15  # Average $15/month per unused PV
+            savings += pv_cleanup_savings
+            logger.info(f"💽 PV CLEANUP: orphaned_pvs={orphaned_pvs}, savings=${pv_cleanup_savings:.2f}")
+
+        return min(savings, storage_cost * 0.6)  # Cap at 60% of storage cost (increased for advanced cleanup)
     
     def _calculate_performance_waste_savings(self, node_cost: float, high_cpu_workloads: list, usage: Dict) -> float:
         """Calculate savings from fixing performance waste issues"""
@@ -3293,7 +3331,21 @@ class OptimizationCalculatorAlgorithm:
                 logger.info(f"💰 RESERVED INSTANCE OPPORTUNITY: current={current_ri_coverage}%, "
                            f"potential={predictable_workloads}%, additional_savings=${ri_savings:.2f}")
         
-        return min(savings, node_cost * 0.50)  # Cap at 50% of node cost
+        # ENHANCED: Live bin-packing opportunities
+        node_fragmentation_score = usage.get('node_fragmentation_score', 0.3)
+        if node_fragmentation_score > 0.4:  # High fragmentation
+            bin_packing_savings = node_cost * 0.12 * node_fragmentation_score  # 12% base savings scaled by fragmentation
+            savings += bin_packing_savings
+            logger.info(f"📦 BIN-PACKING OPPORTUNITY: fragmentation_score={node_fragmentation_score:.2f}, savings=${bin_packing_savings:.2f}")
+        
+        # ENHANCED: Node consolidation with zero-downtime migration
+        node_utilization_variance = usage.get('node_utilization_variance', 0.2)
+        if node_utilization_variance > 0.3:  # High variance indicates consolidation opportunity
+            consolidation_savings = node_cost * 0.08 * node_utilization_variance
+            savings += consolidation_savings
+            logger.info(f"🔄 NODE CONSOLIDATION: variance={node_utilization_variance:.2f}, savings=${consolidation_savings:.2f}")
+
+        return min(savings, node_cost * 0.55)  # Cap at 55% of node cost (increased for advanced optimizations)
     
     def _calculate_container_rightsizing_savings(self, node_cost: float, usage: Dict) -> float:
         """Calculate savings from container-level rightsizing"""
@@ -3328,26 +3380,79 @@ class OptimizationCalculatorAlgorithm:
         logger.info(f"📦 CONTAINER RIGHTSIZING: pods={pod_count}, containers={total_containers:.0f}, "
                    f"oversized={oversized_containers}%, accuracy={request_accuracy}%, savings=${savings:.2f}")
         
+        # ENHANCED: Container image optimization
+        large_image_count = usage.get('large_container_images', 0)
+        if large_image_count > 0:
+            image_optimization_savings = large_image_count * 3  # $3/month per large image optimized
+            savings += image_optimization_savings
+            logger.info(f"🖼️ IMAGE OPTIMIZATION: large_images={large_image_count}, savings=${image_optimization_savings:.2f}")
+
         return min(savings, node_cost * 0.25)  # Cap at 25% of node cost
+    
+    def _calculate_advanced_addon_optimization_savings(self, node_cost: float, usage: Dict) -> float:
+        """Calculate savings from optimizing add-on services and registry operations"""
+        
+        savings = 0.0
+        
+        # Container registry optimization
+        registry_storage_gb = usage.get('registry_storage_gb', 0)
+        if registry_storage_gb > 100:  # Significant registry usage
+            # Image layer deduplication savings (typically 30-50% reduction)
+            deduplication_savings = (registry_storage_gb / 10) * 0.4  # $0.40 per GB saved through deduplication
+            savings += deduplication_savings
+            logger.info(f"🗂️ REGISTRY DEDUPLICATION: storage={registry_storage_gb}GB, savings=${deduplication_savings:.2f}")
+        
+        # Unused image cleanup
+        stale_images_count = usage.get('stale_container_images', 0)
+        if stale_images_count > 10:
+            image_cleanup_savings = stale_images_count * 2  # $2/month per stale image
+            savings += image_cleanup_savings
+            logger.info(f"🧹 IMAGE CLEANUP: stale_count={stale_images_count}, savings=${image_cleanup_savings:.2f}")
+        
+        # Service mesh optimization
+        service_mesh_overhead = usage.get('service_mesh_overhead_percentage', 0)
+        if service_mesh_overhead > 15:  # Above 15% overhead
+            mesh_optimization_savings = node_cost * 0.08 * (service_mesh_overhead / 100)
+            savings += mesh_optimization_savings
+            logger.info(f"🕸️ SERVICE MESH OPTIMIZATION: overhead={service_mesh_overhead}%, savings=${mesh_optimization_savings:.2f}")
+        
+        # API gateway consolidation
+        redundant_gateways = usage.get('redundant_api_gateways', 0)
+        if redundant_gateways > 0:
+            gateway_consolidation_savings = redundant_gateways * 45  # $45/month per API Gateway
+            savings += gateway_consolidation_savings
+            logger.info(f"🚪 API GATEWAY CONSOLIDATION: redundant={redundant_gateways}, savings=${gateway_consolidation_savings:.2f}")
+        
+        # Ingress controller optimization
+        underutilized_ingress = usage.get('underutilized_ingress_controllers', 0)
+        if underutilized_ingress > 0:
+            ingress_optimization_savings = underutilized_ingress * 20  # $20/month per ingress controller
+            savings += ingress_optimization_savings
+            logger.info(f"🔀 INGRESS OPTIMIZATION: underutilized={underutilized_ingress}, savings=${ingress_optimization_savings:.2f}")
+        
+        logger.info(f"🔧 ADDON OPTIMIZATION TOTAL: registry, service_mesh, gateways, ingress = ${savings:.2f}")
+        
+        return min(savings, node_cost * 0.15)  # Cap at 15% of node cost
     
     def _combine_rightsizing_savings(self, performance_savings: float, standards_savings: float, 
                                    overprovisioning_savings: float, underutilization_savings: float,
                                    vm_optimization_savings: float, container_savings: float, usage: Dict,
-                                   cost_model_savings: float = 0) -> float:
+                                   cost_model_savings: float = 0, addon_optimization_savings: float = 0) -> float:
         """Combine all rightsizing savings with intelligent weighting to avoid double-counting"""
         
-        # Weight factors based on confidence and impact
+        # Weight factors based on confidence and impact (enhanced with addon optimization)
         weights = {
-            'performance': 0.22,      # High confidence, direct impact
-            'standards': 0.18,        # Medium-high confidence, proven impact 
-            'overprovisioning': 0.18, # High confidence, direct waste
-            'underutilization': 0.15, # Medium confidence, pattern-dependent
+            'performance': 0.20,      # High confidence, direct impact
+            'standards': 0.16,        # Medium-high confidence, proven impact 
+            'overprovisioning': 0.16, # High confidence, direct waste
+            'underutilization': 0.14, # Medium confidence, pattern-dependent
             'vm_optimization': 0.10,  # Medium confidence, infrastructure dependent
-            'container': 0.07,        # Lower confidence, granular impact
-            'cost_model': 0.10        # Medium-high confidence, based on actual costs
+            'container': 0.06,        # Lower confidence, granular impact
+            'cost_model': 0.10,       # Medium-high confidence, based on actual costs
+            'addon_optimization': 0.08 # Medium confidence, service-specific impact
         }
         
-        # Calculate weighted average to reduce double-counting
+        # Calculate weighted average to reduce double-counting (updated with addon optimization)
         weighted_total = (
             performance_savings * weights['performance'] +
             standards_savings * weights['standards'] +
@@ -3355,14 +3460,15 @@ class OptimizationCalculatorAlgorithm:
             underutilization_savings * weights['underutilization'] +
             vm_optimization_savings * weights['vm_optimization'] +
             container_savings * weights['container'] +
-            cost_model_savings * weights['cost_model']
+            cost_model_savings * weights['cost_model'] +
+            addon_optimization_savings * weights['addon_optimization']
         )
         
         # Take the maximum of the weighted total and the highest individual component
         # This ensures we don't lose significant savings from overlapping categories
         max_individual = max(performance_savings, standards_savings, overprovisioning_savings, 
                            underutilization_savings, vm_optimization_savings, container_savings,
-                           cost_model_savings)
+                           cost_model_savings, addon_optimization_savings)
         
         # Combine with confidence adjustment
         confidence_factor = usage.get('analysis_confidence', 0.8)

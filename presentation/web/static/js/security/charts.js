@@ -385,56 +385,91 @@ class SecurityCharts {
             return;
         }
 
-        // Show all data segments (including zeros for complete visualization)
-        const allRisks = Object.entries(riskCounts);
-        const labels = allRisks.map(([level, _]) => level); // Already capitalized
-        const data = allRisks.map(([_, count]) => count);
+        // Filter out zero values for better visualization  
+        const filteredData = Object.entries(riskCounts)
+            .map(([level, count]) => ({ level, count }))
+            .filter(item => item.count > 0);
+            
+        if (filteredData.length === 0) {
+            this.showNoRisksVisualization(canvas);
+            return;
+        }
         
-        // Enhanced dynamic color scheme with gradients and better contrast
+        console.log(`🔧 Processing ${filteredData.length} risk categories:`, filteredData);
+        
+        // Clean static color palette for risk levels
         const colorMap = {
-            'Critical': { 
-                bg: 'rgba(239, 68, 68, 0.85)', 
-                border: 'rgb(220, 38, 38)',
-                hoverBg: 'rgba(239, 68, 68, 1)',
-                gradient: ['#ef4444', '#dc2626', '#991b1b']
-            },
-            'High': { 
-                bg: 'rgba(251, 146, 60, 0.85)', 
-                border: 'rgb(245, 101, 101)',
-                hoverBg: 'rgba(251, 146, 60, 1)',
-                gradient: ['#fb923c', '#f59e0b', '#d97706']
-            },
-            'Medium': { 
-                bg: 'rgba(250, 204, 21, 0.85)', 
-                border: 'rgb(234, 179, 8)',
-                hoverBg: 'rgba(250, 204, 21, 1)',
-                gradient: ['#facc15', '#eab308', '#ca8a04']
-            },
-            'Low': { 
-                bg: 'rgba(34, 197, 94, 0.85)', 
-                border: 'rgb(22, 163, 74)',
-                hoverBg: 'rgba(34, 197, 94, 1)',
-                gradient: ['#22c55e', '#16a34a', '#15803d']
-            }
+            'Critical': '#ef4444',    // Clean red
+            'High': '#f97316',        // Clean orange  
+            'Medium': '#eab308',      // Clean yellow
+            'Low': '#22c55e'          // Clean green
         };
-        
-        const backgroundColors = labels.map(label => colorMap[label].bg);
-        const borderColors = labels.map(label => colorMap[label].border);
-        const hoverBackgroundColors = labels.map(label => colorMap[label].hoverBg);
+
+        // Generate static colors
+        const chartColors = filteredData.map(item => colorMap[item.level]);
+        const baseColors = filteredData.map(item => colorMap[item.level]);
 
         const config = {
             type: 'doughnut',
+            plugins: [{
+                beforeDraw: function(chart) {
+                    const ctx = chart.ctx;
+                    ctx.save();
+                    // Add subtle shadow
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                    ctx.shadowBlur = 15;
+                    ctx.shadowOffsetX = 3;
+                    ctx.shadowOffsetY = 3;
+                },
+                afterDraw: function(chart) {
+                    chart.ctx.restore();
+                    
+                    // Add center text with total risks
+                    const ctx = chart.ctx;
+                    ctx.save();
+                    const centerX = (chart.chartArea.left + chart.chartArea.right) / 2;
+                    const centerY = (chart.chartArea.top + chart.chartArea.bottom) / 2;
+                    
+                    // Calculate visible risks (non-hidden segments)
+                    const meta = chart.getDatasetMeta(0);
+                    let visibleRisks = 0;
+                    filteredData.forEach((item, i) => {
+                        if (!meta.data[i].hidden) {
+                            visibleRisks += item.count;
+                        }
+                    });
+                    
+                    // Draw risk count
+                    ctx.font = 'bold 20px Arial';
+                    ctx.fillStyle = visibleRisks > 0 ? '#ef4444' : '#22c55e';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(visibleRisks.toString(), centerX, centerY - 8);
+                    
+                    ctx.font = '13px Arial';
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.fillText('Total Risks', centerX, centerY + 12);
+                    
+                    // Add risk level indicator icon
+                    ctx.font = '25px Arial';
+                    ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';
+                    const riskIcon = visibleRisks > 10 ? '⚠️' : visibleRisks > 5 ? '⚡' : visibleRisks > 0 ? '🔍' : '✅';
+                    ctx.fillText(riskIcon, centerX, centerY - 35);
+                    
+                    ctx.restore();
+                }
+            }],
             data: {
-                labels: labels,
+                labels: filteredData.map(item => item.level),
                 datasets: [{
-                    data: data,
-                    backgroundColor: backgroundColors,
-                    borderColor: 'transparent',
-                    hoverBackgroundColor: hoverBackgroundColors,
-                    borderWidth: 0,
-                    hoverBorderWidth: 0,
-                    hoverOffset: 12,
-                    borderAlign: 'center'
+                    data: filteredData.map(item => item.count),
+                    backgroundColor: chartColors,
+                    borderWidth: 2,
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    hoverOffset: 25,
+                    hoverBorderWidth: 3,
+                    hoverBorderColor: 'rgba(255, 255, 255, 0.8)',
+                    spacing: 2
                 }]
             },
             options: {
@@ -445,43 +480,81 @@ class SecurityCharts {
                     mode: 'point'
                 },
                 plugins: {
-                    legend: { 
-                        display: true,
+                    legend: {
                         position: 'bottom',
                         labels: {
-                            color: 'rgb(148, 163, 184)',
-                            font: { size: 12, family: 'Poppins', weight: '500' },
-                            padding: 20,
+                            color: 'white',
+                            padding: 10,
                             usePointStyle: true,
-                            pointStyle: 'circle',
-                            boxWidth: 12,
-                            boxHeight: 12
+                            font: {
+                                size: 12,
+                                weight: '500'
+                            },
+                            generateLabels: function(chart) {
+                                const data = chart.data;
+                                if (data.labels.length && data.datasets.length) {
+                                    return data.labels.map((label, i) => {
+                                        const meta = chart.getDatasetMeta(0);
+                                        const value = data.datasets[0].data[i];
+                                        const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                        const isHidden = meta.data[i] && meta.data[i].hidden;
+                                        
+                                        return {
+                                            text: `${label}: ${value} (${percentage}%)`,
+                                            fillStyle: isHidden ? 'rgba(150, 150, 150, 0.3)' : baseColors[i],
+                                            fontColor: isHidden ? 'rgba(255, 255, 255, 0.3)' : 'white',
+                                            textDecoration: isHidden ? 'line-through' : '',
+                                            strokeStyle: isHidden ? 'rgba(255, 255, 255, 0.3)' : undefined,
+                                            hidden: isHidden,
+                                            index: i
+                                        };
+                                    });
+                                }
+                                return [];
+                            }
+                        },
+                        onClick: function(e, legendItem, legend) {
+                            const index = legendItem.index;
+                            const chart = legend.chart;
+                            const meta = chart.getDatasetMeta(0);
+                            
+                            meta.data[index].hidden = !meta.data[index].hidden;
+                            chart.update('none');
                         }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        enabled: true,
+                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
                         titleColor: 'white',
                         bodyColor: 'white',
-                        borderColor: 'rgba(148, 163, 184, 0.3)',
+                        borderColor: 'rgba(239, 68, 68, 0.3)',
                         borderWidth: 1,
-                        cornerRadius: 12,
-                        displayColors: true,
-                        titleFont: { size: 14, weight: 'bold', family: 'Poppins' },
-                        bodyFont: { size: 13, family: 'Poppins' },
+                        cornerRadius: 8,
                         padding: 12,
-                        boxPadding: 8,
+                        displayColors: true,
+                        filter: function(tooltipItem) {
+                            const meta = tooltipItem.chart.getDatasetMeta(0);
+                            return !meta.data[tooltipItem.dataIndex].hidden;
+                        },
                         callbacks: {
-                            title: function(context) {
-                                return `${context[0].label} Severity`;
-                            },
                             label: function(context) {
-                                const percentage = ((context.parsed / totalRisks) * 100).toFixed(1);
-                                const count = context.parsed;
-                                return [
-                                    `Count: ${count} violations`,
-                                    `Percentage: ${percentage}%`,
-                                    `Impact: ${count > 5 ? 'High' : count > 2 ? 'Medium' : 'Low'}`
-                                ];
+                                const value = context.parsed;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                return `${context.label}: ${value} risks (${percentage}%)`;
+                            },
+                            afterLabel: function(context) {
+                                const value = context.parsed;
+                                const level = context.label.toLowerCase();
+                                if (level === 'critical' && value > 0) {
+                                    return '🚨 Immediate attention required!';
+                                } else if (level === 'high' && value > 0) {
+                                    return '⚠️ High priority issue';
+                                } else if (level === 'medium' && value > 2) {
+                                    return '📋 Review recommended';
+                                }
+                                return '';
                             }
                         }
                     }
@@ -492,9 +565,28 @@ class SecurityCharts {
                 animation: {
                     animateRotate: true,
                     animateScale: true,
-                    duration: 1500,
-                    easing: 'easeOutCubic',
-                    delay: (context) => context.dataIndex * 100
+                    duration: 2200,
+                    easing: 'easeInOutCubic',
+                    delay: (context) => {
+                        return context.dataIndex * 150;
+                    }
+                },
+                transitions: {
+                    active: {
+                        animation: {
+                            duration: 300
+                        }
+                    },
+                    hide: {
+                        animation: {
+                            duration: 0
+                        }
+                    },
+                    show: {
+                        animation: {
+                            duration: 0
+                        }
+                    }
                 },
                 elements: {
                     arc: {
@@ -510,11 +602,10 @@ class SecurityCharts {
 
         window.securityChartInstances['risk-donut-chart'] = new Chart(ctx, config);
 
-        // Add center text overlay for total risks
-        this.addChartCenterText('risk-donut-chart', totalRisks, 'Total Risks');
-
-        // Enhanced risk distribution summary with better styling
+        // Enhanced risk distribution summary
         this.updateRiskDistributionSummary(riskCounts, totalRisks);
+        
+        console.log('✅ Enhanced risk distribution chart created successfully with gradients and animations');
     }
     
     showNoRisksVisualization(canvas) {

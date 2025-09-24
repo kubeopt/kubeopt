@@ -293,6 +293,7 @@ class ContainerRegistryCostStandards:
     # Registry Optimization Opportunities
     REGISTRY_CLEANUP_SAVINGS = 0.2            # 20% savings from cleanup
     REGISTRY_IMAGE_OPTIMIZATION = 0.15        # 15% savings from image optimization
+    REGISTRY_DEDUPLICATION_SAVINGS = 0.40     # 40% savings from layer deduplication
     
     # REALISTIC Registry Optimization Standards (Used in Analysis)
     REGISTRY_CLEANUP_OPTIMIZATION = 0.10      # 10% conservative cleanup optimization
@@ -303,6 +304,60 @@ class ContainerRegistryCostStandards:
     # Registry Size Criteria  
     REGISTRY_MIN_COST_OPTIMIZATION = 100      # $100 minimum registry cost
     REGISTRY_EXCESSIVE_COST_MULTIPLIER = 2    # 2x expected cost = excessive
+
+
+class AdvancedOptimizationStandards:
+    """Advanced optimization strategies for modern AKS environments"""
+    
+    # =============================================
+    # BIN-PACKING AND CONSOLIDATION
+    # =============================================
+    
+    # Node consolidation thresholds
+    NODE_FRAGMENTATION_THRESHOLD = 0.4        # 40% fragmentation triggers bin-packing
+    NODE_UTILIZATION_VARIANCE_THRESHOLD = 0.3 # 30% variance triggers consolidation
+    BIN_PACKING_EFFICIENCY_TARGET = 0.85      # 85% bin-packing efficiency target
+    
+    # Savings from consolidation
+    BIN_PACKING_BASE_SAVINGS = 0.12           # 12% base savings from bin-packing
+    NODE_CONSOLIDATION_SAVINGS = 0.08         # 8% savings from consolidation
+    
+    # =============================================
+    # PREDICTIVE AND COST-AWARE SCALING
+    # =============================================
+    
+    # Seasonality and pattern detection
+    WORKLOAD_SEASONALITY_THRESHOLD = 0.3      # 30% seasonality for predictive scaling
+    PREDICTIVE_SCALING_ADDITIONAL_SAVINGS = 0.25  # 25% additional savings
+    
+    # Cross-zone optimization
+    CROSS_ZONE_TRAFFIC_THRESHOLD = 50         # $50 threshold for zone optimization
+    ZONE_OPTIMIZATION_SAVINGS = 0.4           # 40% of inter-zone costs can be saved
+    
+    # =============================================
+    # SERVICE MESH AND ADDON OPTIMIZATION
+    # =============================================
+    
+    # Service mesh overhead thresholds
+    SERVICE_MESH_OVERHEAD_THRESHOLD = 15      # 15% overhead threshold
+    SERVICE_MESH_OPTIMIZATION_SAVINGS = 0.08  # 8% savings from mesh optimization
+    
+    # Gateway and ingress optimization
+    API_GATEWAY_MONTHLY_COST = 45             # $45/month per API Gateway
+    INGRESS_CONTROLLER_MONTHLY_COST = 20      # $20/month per ingress controller
+    
+    # Container image optimization
+    LARGE_IMAGE_OPTIMIZATION_SAVINGS = 3      # $3/month per large image
+    STALE_IMAGE_CLEANUP_SAVINGS = 2           # $2/month per stale image
+    
+    # =============================================
+    # IDLE RESOURCE DETECTION THRESHOLDS
+    # =============================================
+    
+    # Advanced idle resource detection
+    ZOMBIE_SERVICE_CLEANUP_SAVINGS = 8        # $8/month per zombie service
+    LOAD_BALANCER_CONSOLIDATION_SAVINGS = 22  # $22/month per LB consolidated
+    ORPHANED_PV_CLEANUP_SAVINGS = 15          # $15/month per orphaned PV
 
 
 class CostSavingsTargetStandards:

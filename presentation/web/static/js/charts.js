@@ -208,10 +208,12 @@ function actualInitializeCharts() {
             // Create all charts with CPU awareness
             createAllChartsWithCPU(data);
             
-            // Update insights with CPU considerations
-            if (typeof window.updateRealDynamicInsights === 'function') {
-                console.log('📊 Updating insights with CPU-aware chart data...');
+            // Update insights with CPU considerations - but only if backend insights don't exist
+            if (typeof window.updateRealDynamicInsights === 'function' && !data.insights) {
+                console.log('📊 Updating insights with CPU-aware chart data (no backend insights)...');
                 window.updateRealDynamicInsights(data);
+            } else if (data.insights) {
+                console.log('📊 Using backend insights instead of dynamic insights');
             }
             
             // Clear loading states and show CPU metrics
