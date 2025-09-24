@@ -276,17 +276,35 @@ def trigger_alert_checking_after_analysis(cluster_id: str, analysis_results: dic
             logger.warning("⚠️ Alerts manager not available")
             return []
         
+        # Check cost-based alerts
         triggered_alerts = alerts_manager.check_cluster_alerts(cluster_id, current_cost)
         
-        if triggered_alerts:
-            logger.info(f"🚨 Alert check completed: {len(triggered_alerts)} alerts triggered")
-            for triggered_alert in triggered_alerts:
+        # Check CPU monitoring alerts if CPU metrics are available
+        cpu_triggered_alerts = []
+        if 'cpu_analysis' in analysis_results or 'node_metrics' in analysis_results:
+            try:
+                cpu_metrics = analysis_results.get('cpu_analysis') or analysis_results.get('node_metrics', {})
+                if cpu_metrics and hasattr(alerts_manager, 'check_cpu_monitoring_alerts'):
+                    cpu_triggered_alerts = alerts_manager.check_cpu_monitoring_alerts(cluster_id, cpu_metrics)
+                    logger.info(f"🖥️ CPU alert check completed: {len(cpu_triggered_alerts)} CPU alerts triggered")
+            except Exception as e:
+                logger.error(f"❌ Error checking CPU alerts: {e}")
+        
+        # Combine all triggered alerts
+        all_triggered_alerts = triggered_alerts + cpu_triggered_alerts
+        
+        if all_triggered_alerts:
+            logger.info(f"🚨 Total alert check completed: {len(all_triggered_alerts)} alerts triggered")
+            for triggered_alert in all_triggered_alerts:
                 alert = triggered_alert['alert']
-                logger.info(f"   ✅ Alert '{alert['name']}': ${current_cost:.2f} > ${alert['threshold_amount']:.2f}")
+                if alert.get('alert_type') == 'cpu_monitoring':
+                    logger.info(f"   ✅ CPU Alert '{alert['name']}': triggered by CPU metrics")
+                else:
+                    logger.info(f"   ✅ Cost Alert '{alert['name']}': ${current_cost:.2f} > ${alert['threshold_amount']:.2f}")
         else:
             logger.info(f"✅ Alert check completed: No alerts triggered for cluster {cluster_id}")
         
-        return triggered_alerts
+        return all_triggered_alerts
         
     except Exception as e:
         logger.error(f"❌ Error in post-analysis alert checking: {e}")

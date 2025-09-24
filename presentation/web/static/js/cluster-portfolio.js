@@ -1122,6 +1122,14 @@ const ClusterManager = {
                 AnalysisStateManager.setAnalyzing(clusterId, false);
                 LoadingManager.hide();
                 
+                // ✅ REFRESH NOTIFICATIONS: Analysis may have triggered new alerts
+                console.log('🔔 Analysis complete - refreshing notifications for new alerts...');
+                if (typeof window.refreshNotificationsManually === 'function') {
+                    window.refreshNotificationsManually();
+                } else {
+                    console.warn('⚠️ refreshNotificationsManually function not available');
+                }
+                
                 // ✅ ENHANCED: Show completion notification
                 // NotificationManager.show(
                 //     'Analysis Complete!', 
