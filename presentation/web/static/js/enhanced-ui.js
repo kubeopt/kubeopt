@@ -617,6 +617,8 @@ window.updateAllCharts = window.updateAllCharts || function(data) { console.log(
 // Enhanced insights rendering function to override dynamic-insights.js
 window.updateInsightsDisplay = function(insights) {
     console.log('🔧 Updating insights with compact bullet-point style');
+    console.log('🔧 Received insights:', insights);
+    console.log('🔧 Insight keys:', Object.keys(insights));
     
     const container = document.getElementById('insights-container');
     if (!container || !insights) return;
@@ -693,7 +695,15 @@ function getInsightIcon(type) {
         'ml_classification': 'robot',
         'actions': 'tasks',
         'prediction': 'chart-area',
-        'resource_balance': 'balance-scale'
+        'resource_balance': 'balance-scale',
+        // Add missing insight keys (original 4)
+        'cost_breakdown': 'chart-pie',
+        'hpa_comparison': 'rocket',
+        'resource_gap': 'expand-arrows-alt',
+        'savings_summary': 'piggy-bank',
+        // Add new 2 insights
+        'operational_efficiency': 'cogs',
+        'business_impact': 'briefcase'
     };
     return icons[type] || 'lightbulb';
 }
@@ -710,7 +720,15 @@ function getInsightColorClass(type) {
         'ml_classification': 'info',
         'actions': 'warning',
         'prediction': 'success',
-        'resource_balance': 'primary'
+        'resource_balance': 'primary',
+        // Add missing insight keys (original 4)
+        'cost_breakdown': 'info',
+        'hpa_comparison': 'success',
+        'resource_gap': 'warning',
+        'savings_summary': 'primary',
+        // Add new 2 insights
+        'operational_efficiency': 'info',
+        'business_impact': 'primary'
     };
     return colors[type] || 'primary';
 }

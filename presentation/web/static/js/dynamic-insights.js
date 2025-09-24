@@ -308,6 +308,9 @@ export function updateRealDynamicInsights(data) {
         updateAdditionalInsights(insightsContainer, insights);
     }
     
+    // Advanced optimizations are now integrated into existing insights
+    // No separate display needed - they appear in savings_summary, hpa_comparison, and resource_gap
+    
     // Update specific insight cards if they exist
     updateSpecificInsightCards(insights);
 }
@@ -601,6 +604,60 @@ function addInsightAnimationCSS() {
     document.head.appendChild(style);
 }
 
+/**
+ * Display advanced optimization insights based on enhanced algorithms
+ */
+function displayAdvancedOptimizationInsights(data) {
+    console.log('🚀 Displaying advanced optimization insights:', data);
+    
+    try {
+        const insights = data.insights || {};
+        const advancedOptimization = insights.advanced_optimizations;
+        
+        if (advancedOptimization) {
+            // Find or create advanced optimization insight container
+            let advancedContainer = document.querySelector('#advanced-optimization-insight');
+            
+            if (!advancedContainer) {
+                // Create new container after performance insight
+                const performanceInsight = document.querySelector('.performance-insight');
+                if (performanceInsight && performanceInsight.parentElement) {
+                    advancedContainer = document.createElement('div');
+                    advancedContainer.id = 'advanced-optimization-insight';
+                    advancedContainer.className = 'col-md-12 mb-4';
+                    advancedContainer.innerHTML = `
+                        <div class="insight-box border-info bg-light">
+                            <div class="insight-content">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="mr-2">🚀</span>
+                                    <strong class="insight-title text-info">Advanced Optimization</strong>
+                                </div>
+                                <div class="insight-text" id="advanced-insight-text">Loading advanced optimization insights...</div>
+                            </div>
+                        </div>
+                    `;
+                    performanceInsight.parentElement.appendChild(advancedContainer);
+                }
+            }
+            
+            // Update content if container exists
+            const advancedTextElement = document.querySelector('#advanced-insight-text');
+            if (advancedTextElement) {
+                animateInsightUpdate(advancedTextElement, advancedOptimization);
+                console.log('✅ Updated advanced optimization insight');
+                
+                // Add notification for significant advanced optimizations
+                if (advancedOptimization.includes('$') && data.metrics?.total_savings > 0) {
+                    showNotification('Advanced optimization opportunities detected! Check the Advanced Optimization insight.', 'info');
+                }
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Error displaying advanced optimization insights:', error);
+    }
+}
+
 // Make functions globally available (but don't override charts.js functions)
 if (typeof window !== 'undefined') {
     window.generateRealDynamicInsights = generateRealDynamicInsights;
@@ -608,6 +665,7 @@ if (typeof window !== 'undefined') {
     window.generateInsightSummary = generateInsightSummary;
     //window.createInsightNotification = createInsightNotification;
     window.showInsightLoadingStates = showInsightLoadingStates;
+    window.displayAdvancedOptimizationInsights = displayAdvancedOptimizationInsights;
 }
 
 console.log('✅ REAL Dynamic Insights Generator loaded (fixed - no API duplicates)');

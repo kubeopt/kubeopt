@@ -496,7 +496,7 @@ input[type="number"], input[type="time"], .form-control {
 }
 
 .bg-gradient-warning {
-    background: linear-gradient(135deg, #161c33);
+    background: linear-gradient(135deg, #965e05);
 }
 
 .bg-gradient-success {
@@ -1097,7 +1097,7 @@ button:focus, input:focus, select:focus {
     border-radius: 8px !important;
     border: none !important;
     border-left: 3px solid #48bb78 !important;
-    background: rgba(245, 158, 11, 0.08) !important;
+    background: rgb(34 40 63) !important;
     transition: all 0.2s ease !important;
     font-size: 0.875rem;
     line-height: 1.4;
@@ -1105,8 +1105,8 @@ button:focus, input:focus, select:focus {
 
 .insight-item:hover {
     transform: translateX(4px) !important;
-    background: rgba(245, 158, 11, 0.12) !important;
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2) !important;
+    background: rgba(30, 39, 58, 0.12) !important;
+    box-shadow: 0 2px 8px rgba(38, 46, 61, 0.2) !important;
 }
 
 .insight-item h6 {
