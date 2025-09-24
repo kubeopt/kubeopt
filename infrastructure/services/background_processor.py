@@ -84,7 +84,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         
         # Import subscription manager and analysis engine
         from infrastructure.services.subscription_manager import azure_subscription_manager
-        from infrastructure.data.processing.analysis_engine import multi_subscription_analysis_engine
+        from infrastructure.persistence.processing.analysis_engine import multi_subscription_analysis_engine
         
         # Auto-detect subscription if not provided
         if not subscription_id:

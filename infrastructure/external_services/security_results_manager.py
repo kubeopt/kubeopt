@@ -48,8 +48,8 @@ class SecurityResultsManager:
         
         # Import unified database managers
         try:
-            from infrastructure.data.operational_data_db import operational_data_db
-            from infrastructure.data.security_analytics_db import security_analytics_db
+            from infrastructure.persistence.operational_data_db import operational_data_db
+            from infrastructure.persistence.security_analytics_db import security_analytics_db
             self.operational_db = operational_data_db
             self.security_db = security_analytics_db
             logger.info("🔒 Security Results Manager initialized with unified database")

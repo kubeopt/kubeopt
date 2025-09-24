@@ -438,12 +438,302 @@ const DeleteFormManager = {
         }
 
         // ✅ ENHANCED: Show with proper ARIA and focus management
+        // Apply essential positioning and centering while preserving CSS styles
         form.style.display = 'flex';
+        form.style.position = 'fixed';
+        form.style.top = '0';
+        form.style.left = '0';
+        form.style.width = '100%';
+        form.style.height = '100%';
+        form.style.alignItems = 'center';
+        form.style.justifyContent = 'center';
+        form.style.background = 'rgba(0, 0, 0, 0.6)';  // Dark backdrop
+        form.style.zIndex = '10000';
+        
+        // Properly set aria attributes for accessibility
         form.setAttribute('aria-hidden', 'false');
+        form.setAttribute('aria-modal', 'true');
         AppState.currentModal = 'delete';
+        
+        // Add click outside to close functionality
+        form.addEventListener('click', (e) => {
+            // Close modal if clicking on the backdrop (not the modal content)
+            if (e.target === form) {
+                DeleteFormManager.hide();
+            }
+        });
         
         setTimeout(() => {
             form.classList.add('show');
+            
+            // Apply dark theme styled modal
+            const formContent = form.querySelector('.delete-form-content');
+            if (formContent) {
+                // Dark theme modal styling
+                formContent.style.background = 'linear-gradient(145deg, #1f2937, #111827)';
+                formContent.style.borderRadius = '24px';
+                formContent.style.padding = '36px';
+                formContent.style.maxWidth = '500px';
+                formContent.style.width = '92%';
+                formContent.style.boxShadow = '0 32px 64px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(75, 85, 99, 0.3)';
+                formContent.style.transform = 'scale(1) translateY(0)';
+                formContent.style.transition = 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                formContent.style.border = '1px solid rgba(75, 85, 99, 0.4)';
+                
+                // Enhanced header styling
+                const header = formContent.querySelector('.delete-form-header');
+                if (header) {
+                    header.style.display = 'flex';
+                    header.style.alignItems = 'flex-start';
+                    header.style.gap = '24px';
+                    header.style.marginBottom = '28px';
+                }
+                
+                // Better delete icon - trash can instead of triangle
+                const iconWrapper = formContent.querySelector('.delete-icon-wrapper');
+                if (iconWrapper) {
+                    iconWrapper.style.width = '64px';
+                    iconWrapper.style.height = '64px';
+                    iconWrapper.style.borderRadius = '16px';
+                    iconWrapper.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+                    iconWrapper.style.display = 'flex';
+                    iconWrapper.style.alignItems = 'center';
+                    iconWrapper.style.justifyContent = 'center';
+                    iconWrapper.style.fontSize = '24px';
+                    iconWrapper.style.color = 'white';
+                    iconWrapper.style.boxShadow = '0 8px 32px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)';
+                    
+                    // Change icon to trash can
+                    const icon = iconWrapper.querySelector('i');
+                    if (icon) {
+                        icon.className = 'fas fa-trash-alt';
+                    }
+                }
+                
+                // Dark theme title styling
+                const title = formContent.querySelector('#deleteTitle');
+                if (title) {
+                    title.style.color = '#f9fafb';
+                    title.style.fontSize = '24px';
+                    title.style.fontWeight = '700';
+                    title.style.marginBottom = '8px';
+                    title.style.letterSpacing = '-0.025em';
+                }
+                
+                // Dark theme description text
+                const description = formContent.querySelector('.delete-form-info p');
+                if (description) {
+                    description.style.color = '#d1d5db';
+                    description.style.fontSize = '16px';
+                    description.style.lineHeight = '1.6';
+                    description.style.margin = '0';
+                }
+                
+                // Dark theme form details
+                const details = formContent.querySelector('.delete-form-details');
+                if (details) {
+                    details.style.background = 'linear-gradient(145deg, #374151, #2d3748)';
+                    details.style.borderRadius = '16px';
+                    details.style.padding = '24px';
+                    details.style.marginBottom = '28px';
+                    details.style.border = '1px solid rgba(75, 85, 99, 0.4)';
+                    details.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.2)';
+                    
+                    // Style detail items for dark theme
+                    const detailItems = details.querySelectorAll('.detail-item');
+                    detailItems.forEach(item => {
+                        item.style.display = 'flex';
+                        item.style.justifyContent = 'space-between';
+                        item.style.alignItems = 'center';
+                        item.style.marginBottom = '12px';
+                        
+                        const label = item.querySelector('.detail-label');
+                        const value = item.querySelector('.detail-value');
+                        
+                        if (label) {
+                            label.style.fontWeight = '600';
+                            label.style.color = '#e5e7eb';
+                            label.style.fontSize = '14px';
+                        }
+                        
+                        if (value) {
+                            value.style.fontWeight = '500';
+                            value.style.color = '#f9fafb';
+                            value.style.fontSize = '14px';
+                            value.style.fontFamily = 'monospace';
+                            value.style.background = 'rgba(55, 65, 81, 0.8)';
+                            value.style.padding = '4px 8px';
+                            value.style.borderRadius = '6px';
+                            value.style.border = '1px solid rgba(75, 85, 99, 0.4)';
+                        }
+                    });
+                }
+                
+                // Fix checkbox styling and functionality
+                const checkboxContainer = formContent.querySelector('.confirmation-checkbox');
+                if (checkboxContainer) {
+                    checkboxContainer.style.marginBottom = '32px';
+                    checkboxContainer.style.display = 'flex';
+                    checkboxContainer.style.alignItems = 'center';
+                    checkboxContainer.style.gap = '12px';
+                    checkboxContainer.style.padding = '16px';
+                    checkboxContainer.style.background = 'rgba(251, 191, 36, 0.1)';
+                    checkboxContainer.style.borderRadius = '12px';
+                    checkboxContainer.style.border = '1px solid rgba(251, 191, 36, 0.3)';
+                    checkboxContainer.style.color = '#f9fafb';
+                    
+                    // Style the checkbox properly
+                    const checkbox = checkboxContainer.querySelector('input[type="checkbox"]');
+                    const checkmark = checkboxContainer.querySelector('.checkmark');
+                    const label = checkboxContainer.querySelector('.checkbox');
+                    
+                    if (checkbox && checkmark) {
+                        // Hide default checkbox
+                        checkbox.style.display = 'none';
+                        
+                        // Style custom checkmark
+                        checkmark.style.display = 'flex';
+                        checkmark.style.alignItems = 'center';
+                        checkmark.style.justifyContent = 'center';
+                        checkmark.style.width = '20px';
+                        checkmark.style.height = '20px';
+                        checkmark.style.borderRadius = '4px';
+                        checkmark.style.border = '2px solid #6b7280';
+                        checkmark.style.background = 'transparent';
+                        checkmark.style.transition = 'all 0.2s ease';
+                        checkmark.style.cursor = 'pointer';
+                        
+                        // Hide checkmark initially
+                        const checkIcon = checkmark.querySelector('i');
+                        if (checkIcon) {
+                            checkIcon.style.color = 'white';
+                            checkIcon.style.fontSize = '12px';
+                            checkIcon.style.opacity = '0';
+                            checkIcon.style.transition = 'opacity 0.2s ease';
+                        }
+                        
+                        // Remove any existing event listeners and add fresh ones
+                        if (label) {
+                            label.style.cursor = 'pointer';
+                            
+                            // Remove existing event listener if present
+                            if (label._checkboxClickHandler) {
+                                label.removeEventListener('click', label._checkboxClickHandler);
+                            }
+                            
+                            // Create new event handler
+                            label._checkboxClickHandler = (e) => {
+                                e.preventDefault();
+                                checkbox.checked = !checkbox.checked;
+                                
+                                console.log('📋 Checkbox toggled:', checkbox.checked);
+                                
+                                if (checkbox.checked) {
+                                    checkmark.style.background = '#10b981';
+                                    checkmark.style.borderColor = '#10b981';
+                                    if (checkIcon) checkIcon.style.opacity = '1';
+                                } else {
+                                    checkmark.style.background = 'transparent';
+                                    checkmark.style.borderColor = '#6b7280';
+                                    if (checkIcon) checkIcon.style.opacity = '0';
+                                }
+                                
+                                // Enable/disable delete button
+                                const deleteBtn = formContent.querySelector('.btn:not(.secondary)');
+                                if (deleteBtn) {
+                                    deleteBtn.disabled = !checkbox.checked;
+                                    if (checkbox.checked) {
+                                        deleteBtn.style.opacity = '1';
+                                        deleteBtn.style.cursor = 'pointer';
+                                    } else {
+                                        deleteBtn.style.opacity = '0.5';
+                                        deleteBtn.style.cursor = 'not-allowed';
+                                    }
+                                }
+                            };
+                            
+                            // Add the new event listener
+                            label.addEventListener('click', label._checkboxClickHandler);
+                        }
+                    }
+                }
+                
+                // Dark theme button styling
+                const buttonContainer = formContent.querySelector('.delete-form-actions');
+                if (buttonContainer) {
+                    buttonContainer.style.display = 'flex';
+                    buttonContainer.style.gap = '16px';
+                    buttonContainer.style.justifyContent = 'flex-end';
+                }
+                
+                const buttons = formContent.querySelectorAll('.btn');
+                buttons.forEach(btn => {
+                    btn.style.padding = '14px 28px';
+                    btn.style.borderRadius = '14px';
+                    btn.style.fontWeight = '600';
+                    btn.style.fontSize = '15px';
+                    btn.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                    btn.style.border = 'none';
+                    btn.style.cursor = 'pointer';
+                    btn.style.position = 'relative';
+                    btn.style.overflow = 'hidden';
+                    
+                    if (btn.classList.contains('secondary')) {
+                        btn.style.background = 'linear-gradient(145deg, #4b5563, #374151)';
+                        btn.style.color = '#e5e7eb';
+                        btn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)';
+                        
+                        btn.addEventListener('mouseover', () => {
+                            btn.style.background = 'linear-gradient(145deg, #374151, #2d3748)';
+                            btn.style.transform = 'translateY(-2px)';
+                            btn.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.3)';
+                        });
+                        
+                        btn.addEventListener('mouseout', () => {
+                            btn.style.background = 'linear-gradient(145deg, #4b5563, #374151)';
+                            btn.style.transform = 'translateY(0)';
+                            btn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+                        });
+                    } else {
+                        btn.style.background = 'linear-gradient(145deg, #ef4444, #dc2626)';
+                        btn.style.color = 'white';
+                        btn.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2)';
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'not-allowed';
+                        btn.disabled = true;
+                        
+                        btn.addEventListener('mouseover', () => {
+                            if (!btn.disabled) {
+                                btn.style.background = 'linear-gradient(145deg, #dc2626, #b91c1c)';
+                                btn.style.transform = 'translateY(-2px)';
+                                btn.style.boxShadow = '0 8px 20px rgba(239, 68, 68, 0.5)';
+                            }
+                        });
+                        
+                        btn.addEventListener('mouseout', () => {
+                            if (!btn.disabled) {
+                                btn.style.background = 'linear-gradient(145deg, #ef4444, #dc2626)';
+                                btn.style.transform = 'translateY(0)';
+                                btn.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+                            }
+                        });
+                    }
+                });
+            }
+            
+            // Add CSS animation keyframes
+            if (!document.querySelector('#delete-modal-animations')) {
+                const style = document.createElement('style');
+                style.id = 'delete-modal-animations';
+                style.textContent = `
+                    @keyframes pulse {
+                        0%, 100% { transform: scale(1); }
+                        50% { transform: scale(1.05); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
             if (checkbox) {
                 checkbox.focus();
             }
@@ -459,13 +749,32 @@ const DeleteFormManager = {
     hide() {
         const form = Utils.safeGetElement('deleteConfirmationForm', 'DeleteFormManager.hide');
         if (form) {
-            form.classList.remove('show');
-            form.setAttribute('aria-hidden', 'true');
-            AppState.currentModal = null;
+            // Reset checkbox state for next time
+            const checkbox = form.querySelector('input[type="checkbox"]');
+            const checkmark = form.querySelector('.checkmark');
+            const deleteBtn = form.querySelector('.btn:not(.secondary)');
             
-            setTimeout(() => {
-                form.style.display = 'none';
-            }, 300);
+            if (checkbox) {
+                checkbox.checked = false;
+                console.log('📋 Checkbox reset to unchecked');
+            }
+            
+            if (checkmark) {
+                checkmark.style.background = 'transparent';
+                checkmark.style.borderColor = '#6b7280';
+                const checkIcon = checkmark.querySelector('i');
+                if (checkIcon) checkIcon.style.opacity = '0';
+            }
+            
+            if (deleteBtn) {
+                deleteBtn.disabled = true;
+                deleteBtn.style.opacity = '0.5';
+                deleteBtn.style.cursor = 'not-allowed';
+            }
+            
+            // Simple, smooth closure - just hide immediately
+            form.style.display = 'none';
+            AppState.currentModal = null;
         }
         
         if (document.body) {
@@ -753,6 +1062,9 @@ const ModalManager = {
             overlay.classList.add('show');
             overlay.removeAttribute('aria-hidden');
             AppState.currentModal = 'add';
+            
+            // Apply dark theme styling to add cluster modal
+            this.applyDarkTheme(overlay);
         }
         
         if (document.body) {
@@ -827,6 +1139,189 @@ const ModalManager = {
         const charCount = Utils.safeGetElement('charCount', 'ModalManager.resetForm');
         if (charCount) {
             charCount.textContent = '0';
+        }
+    },
+    
+    applyDarkTheme(overlay) {
+        // Apply dark theme styling to add cluster modal
+        if (overlay) {
+            // Dark theme modal overlay
+            overlay.style.background = 'rgba(0, 0, 0, 0.7)';
+            
+            const modalContainer = overlay.querySelector('.modal-container');
+            if (modalContainer) {
+                // Dark theme modal container with optimized size
+                modalContainer.style.background = 'linear-gradient(145deg, #1f2937, #111827)';
+                modalContainer.style.border = '1px solid rgba(75, 85, 99, 0.4)';
+                modalContainer.style.boxShadow = '0 32px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(75, 85, 99, 0.3)';
+                modalContainer.style.maxWidth = '600px';  // Slightly wider for better field arrangement
+                modalContainer.style.width = '95%';  // More responsive
+                modalContainer.style.maxHeight = '85vh';  // Prevent modal from being too tall
+                modalContainer.style.overflowY = 'auto';  // Allow scrolling if needed
+                
+                // Style form labels with compact sizing
+                const labels = modalContainer.querySelectorAll('.form-label');
+                labels.forEach(label => {
+                    label.style.color = '#e5e7eb';
+                    label.style.fontWeight = '600';
+                    label.style.fontSize = '14px';  // Consistent label size
+                    label.style.marginBottom = '6px';  // Reduced label spacing
+                    label.style.display = 'block';
+                });
+                
+                // Style form inputs and selects with compact sizing
+                const inputs = modalContainer.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    input.style.background = 'rgba(55, 65, 81, 0.8)';
+                    input.style.border = '1px solid rgba(75, 85, 99, 0.5)';
+                    input.style.borderRadius = '10px';  // Slightly smaller radius
+                    input.style.color = '#f9fafb';
+                    input.style.padding = '10px 14px';  // More compact padding
+                    input.style.fontSize = '14px';  // Consistent font size
+                    input.style.width = '100%';  // Full width within grid
+                    
+                    // Focus states
+                    input.addEventListener('focus', () => {
+                        input.style.borderColor = '#3b82f6';
+                        input.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+                    });
+                    
+                    input.addEventListener('blur', () => {
+                        input.style.borderColor = 'rgba(75, 85, 99, 0.5)';
+                        input.style.boxShadow = 'none';
+                    });
+                });
+                
+                // Style help text
+                const helpTexts = modalContainer.querySelectorAll('.help-text, .form-help');
+                helpTexts.forEach(help => {
+                    help.style.color = '#9ca3af';
+                });
+                
+                // Optimize layout and reduce wasted space
+                const modalBody = modalContainer.querySelector('.modal-body');
+                if (modalBody) {
+                    modalBody.style.padding = '20px';  // Reduced from 32px
+                }
+                
+                // Style subscription section with reduced spacing
+                const subscriptionSection = modalContainer.querySelector('.subscription-selection-section');
+                if (subscriptionSection) {
+                    subscriptionSection.style.background = 'rgba(55, 65, 81, 0.3)';
+                    subscriptionSection.style.border = '1px solid rgba(75, 85, 99, 0.3)';
+                    subscriptionSection.style.borderRadius = '16px';
+                    subscriptionSection.style.padding = '20px';  // Reduced padding
+                    subscriptionSection.style.marginBottom = '16px';  // Reduced gap
+                }
+                
+                // Create more compact form rows
+                const formRows = modalContainer.querySelectorAll('.form-row');
+                formRows.forEach(row => {
+                    row.style.display = 'grid';
+                    row.style.gridTemplateColumns = '1fr 1fr';  // Two equal columns
+                    row.style.gap = '16px';  // Reduced gap between fields
+                    row.style.marginBottom = '16px';  // Reduced bottom margin
+                });
+                
+                // Style individual form fields for better spacing
+                const formFields = modalContainer.querySelectorAll('.form-field');
+                formFields.forEach(field => {
+                    field.style.marginBottom = '0';  // Remove individual margins since we use grid gap
+                });
+                
+                // Style other sections
+                const sections = modalContainer.querySelectorAll('.form-section');
+                sections.forEach(section => {
+                    section.style.background = 'rgba(55, 65, 81, 0.3)';
+                    section.style.border = '1px solid rgba(75, 85, 99, 0.3)';
+                    section.style.borderRadius = '16px';
+                    section.style.padding = '20px';
+                    section.style.marginBottom = '16px';
+                });
+                
+                // Style buttons
+                const buttons = modalContainer.querySelectorAll('button');
+                buttons.forEach(btn => {
+                    if (btn.classList.contains('btn-primary') || btn.id === 'addClusterBtn') {
+                        // Primary button (Add Cluster)
+                        btn.style.background = 'linear-gradient(145deg, #3b82f6, #2563eb)';
+                        btn.style.color = 'white';
+                        btn.style.border = 'none';
+                        btn.style.borderRadius = '14px';
+                        btn.style.padding = '14px 28px';
+                        btn.style.fontWeight = '600';
+                        btn.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)';
+                        btn.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                        
+                        btn.addEventListener('mouseover', () => {
+                            if (!btn.disabled) {
+                                btn.style.background = 'linear-gradient(145deg, #2563eb, #1d4ed8)';
+                                btn.style.transform = 'translateY(-2px)';
+                                btn.style.boxShadow = '0 8px 20px rgba(59, 130, 246, 0.4)';
+                            }
+                        });
+                        
+                        btn.addEventListener('mouseout', () => {
+                            if (!btn.disabled) {
+                                btn.style.background = 'linear-gradient(145deg, #3b82f6, #2563eb)';
+                                btn.style.transform = 'translateY(0)';
+                                btn.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
+                            }
+                        });
+                    } else {
+                        // Secondary buttons (Cancel, etc.)
+                        btn.style.background = 'linear-gradient(145deg, #4b5563, #374151)';
+                        btn.style.color = '#e5e7eb';
+                        btn.style.border = 'none';
+                        btn.style.borderRadius = '14px';
+                        btn.style.padding = '14px 28px';
+                        btn.style.fontWeight = '600';
+                        btn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)';
+                        btn.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                        
+                        btn.addEventListener('mouseover', () => {
+                            btn.style.background = 'linear-gradient(145deg, #374151, #2d3748)';
+                            btn.style.transform = 'translateY(-2px)';
+                            btn.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.3)';
+                        });
+                        
+                        btn.addEventListener('mouseout', () => {
+                            btn.style.background = 'linear-gradient(145deg, #4b5563, #374151)';
+                            btn.style.transform = 'translateY(0)';
+                            btn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+                        });
+                    }
+                });
+                
+                // Style modal footer with reduced padding
+                const footer = modalContainer.querySelector('.modal-footer');
+                if (footer) {
+                    footer.style.background = 'rgba(17, 24, 39, 0.8)';
+                    footer.style.borderTop = '1px solid rgba(75, 85, 99, 0.3)';
+                    footer.style.padding = '16px 20px';  // Reduced from default
+                    footer.style.display = 'flex';
+                    footer.style.gap = '12px';
+                    footer.style.justifyContent = 'flex-end';
+                    footer.style.alignItems = 'center';
+                }
+                
+                // Style checkboxes and radio buttons
+                const checkboxes = modalContainer.querySelectorAll('input[type="checkbox"], input[type="radio"]');
+                checkboxes.forEach(cb => {
+                    const parent = cb.parentElement;
+                    if (parent) {
+                        parent.style.color = '#e5e7eb';
+                    }
+                });
+                
+                // Style any icons
+                const icons = modalContainer.querySelectorAll('i.fas, i.fab');
+                icons.forEach(icon => {
+                    if (!icon.closest('button')) {
+                        icon.style.color = '#3b82f6';
+                    }
+                });
+            }
         }
     }
 };
@@ -961,20 +1456,53 @@ const ClusterManager = {
             
             if (result.status === 'success' && result.validation_result?.valid) {
                 validationStatus.classList.remove('error');
+                
+                // Use enhanced message if available, otherwise default
+                let successMessage = '✅ Cluster access validated successfully';
+                if (result.message) {
+                    successMessage = `✅ ${result.message}`;
+                }
+                
                 if (validationText) {
-                    validationText.textContent = '✅ Cluster access validated successfully';
+                    validationText.textContent = successMessage;
                 }
                 if (validationIcon) {
                     validationIcon.className = 'fas fa-check-circle';
                 }
                 
+                // Auto-populate resource group if discovered
+                if (result.validation_result?.discovered_resource_group) {
+                    const resourceGroupInput = document.getElementById('resourceGroup') || document.getElementById('resource_group');
+                    if (resourceGroupInput && !resourceGroupInput.value.trim()) {
+                        resourceGroupInput.value = result.validation_result.discovered_resource_group;
+                        
+                        // Show user that we auto-filled
+                        if (result.validation_result.auto_discovered) {
+                            const rgLabel = resourceGroupInput.parentElement?.querySelector('label');
+                            if (rgLabel) {
+                                rgLabel.style.color = '#28a745';
+                                setTimeout(() => {
+                                    if (rgLabel) rgLabel.style.color = '';
+                                }, 3000);
+                            }
+                        }
+                    }
+                }
+                
                 setTimeout(() => {
                     validationStatus.style.display = 'none';
-                }, 3000);
+                }, 5000); // Extended timeout for user to see auto-discovery message
             } else {
                 validationStatus.classList.add('error');
+                
+                // Use enhanced error message if available
+                let errorMessage = `❌ Validation failed: ${result.validation_result?.error || 'Unknown error'}`;
+                if (result.message) {
+                    errorMessage = `❌ ${result.message}`;
+                }
+                
                 if (validationText) {
-                    validationText.textContent = `❌ Validation failed: ${result.validation_result?.error || 'Unknown error'}`;
+                    validationText.textContent = errorMessage;
                 }
                 if (validationIcon) {
                     validationIcon.className = 'fas fa-exclamation-triangle';
@@ -1002,7 +1530,7 @@ const ClusterManager = {
             cluster_name: Utils.withElement('clusterName', el => el.value.trim()) || '',
             resource_group: Utils.withElement('resourceGroup', el => el.value.trim()) || '',
             subscription_id: Utils.withElement('subscriptionSelect', el => el.value) || '',
-            environment: Utils.withElement('environment', el => el.value) || 'development',
+            environment: Utils.withElement('environment', el => el.value) || '',
             region: Utils.withElement('region', el => el.value.trim()) || '',
             description: Utils.withElement('description', el => el.value.trim()) || '',
             // Original checkbox-based approach (commented out)
@@ -1296,7 +1824,31 @@ function analyzeCluster(clusterId) {
 }
 
 function deleteCluster(clusterId) {
-    DeleteFormManager.show(clusterId);
+    // Find cluster data from the DOM
+    const clusterCard = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+    let clusterName = 'Unknown Cluster';
+    let resourceGroup = 'Unknown Resource Group';
+    
+    if (clusterCard) {
+        const nameElement = clusterCard.querySelector('.cluster-name, h3');
+        if (nameElement) {
+            clusterName = nameElement.textContent.trim();
+        }
+        
+        // Try to extract resource group from cluster ID or data attributes
+        const rgElement = clusterCard.querySelector('[data-resource-group]');
+        if (rgElement) {
+            resourceGroup = rgElement.dataset.resourceGroup;
+        } else {
+            // Try to extract from cluster ID format: "rg-xxx_cluster-name"
+            const parts = clusterId.split('_');
+            if (parts.length >= 2) {
+                resourceGroup = parts[0];
+            }
+        }
+    }
+    
+    DeleteFormManager.show(clusterId, clusterName, resourceGroup);
 }
 
 function closeModal(event) {

@@ -784,7 +784,22 @@ export function renderEnhancedMainHeader(data) {
             </div>
             <div class="enhanced-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 30px;">
                     <div class="enhanced-stat-card" style="background: #2d3748; border: 1px solid #4a5568; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
-                        <div class="stat-value" style="font-size: 32px; font-weight: 700; color: #48bb78; margin-bottom: 8px;">${phasesWithCommands > 0 ? phasesWithCommands : data.totalPhases}</div>
+                        <div class="stat-value" style="font-size: 32px; font-weight: 700; color: #48bb78; margin-bottom: 8px;">${(() => {
+                            // Calculate phases with commands on the fly
+                            let phasesWithCommands = 0;
+                            if (data.weeks && Array.isArray(data.weeks)) {
+                                data.weeks.forEach(weekGroup => {
+                                    if (weekGroup.phases && Array.isArray(weekGroup.phases)) {
+                                        weekGroup.phases.forEach(phase => {
+                                            if (phase.commands && Array.isArray(phase.commands) && phase.commands.length > 0) {
+                                                phasesWithCommands++;
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                            return phasesWithCommands > 0 ? phasesWithCommands : (data.totalPhases || 0);
+                        })()}</div>
                         <div class="stat-label" style="color: #e2e8f0; font-size: 14px; opacity: 0.9;">Implementation Phases</div>
                     </div>
                     <div class="enhanced-stat-card" style="background: #2d3748; border: 1px solid #4a5568; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
@@ -1250,9 +1265,26 @@ export function renderEnhancedCompleteTimeline(data) {
                             ${categoryData.commands.map((cmd, idx) => {
                                 const commandId = `cmd_${category.replace(/[^a-zA-Z0-9]/g, '_')}_${idx}`;
                                 if (!window.commandStore) window.commandStore = {};
-                                window.commandStore[commandId] = cmd;
                                 
-                                const formattedCmd = cmd
+                                // Handle both ExecutableCommand objects and strings
+                                let commandText, commandObj;
+                                if (typeof cmd === 'object' && cmd !== null) {
+                                    // It's an ExecutableCommand object
+                                    commandText = cmd.command || cmd.description || JSON.stringify(cmd);
+                                    commandObj = cmd;
+                                    window.commandStore[commandId] = cmd;
+                                } else if (typeof cmd === 'string') {
+                                    // It's a string command
+                                    commandText = cmd;
+                                    commandObj = { command: cmd, rollback_commands: [], validation_commands: [] };
+                                    window.commandStore[commandId] = commandText;
+                                } else {
+                                    commandText = String(cmd);
+                                    commandObj = { command: commandText, rollback_commands: [], validation_commands: [] };
+                                    window.commandStore[commandId] = commandText;
+                                }
+                                
+                                const formattedCmd = commandText
                                     .replace(/</g, '&lt;')
                                     .replace(/>/g, '&gt;')
                                     .replace(/(^|\n)(#.*$)/gm, '$1<span style="color: #48bb78; opacity: 0.8;">$2</span>')
@@ -1273,6 +1305,18 @@ export function renderEnhancedCompleteTimeline(data) {
                                             </div>
                                         </div>
                                         <pre style="background: #1a202c; color: #e2e8f0; padding: 15px; border-radius: 6px; overflow-x: auto; margin: 0; font-family: 'Fira Code', 'Courier New', monospace; font-size: 13px; line-height: 1.4;">${formattedCmd}</pre>
+                                        ${commandObj.validation_commands && commandObj.validation_commands.length > 0 ? `
+                                            <div style="margin-top: 10px; padding: 8px 12px; background: #0a3d2e; border-radius: 6px; border: 1px solid #22c55e;">
+                                                <div style="font-size: 12px; color: #22c55e; font-weight: 600; margin-bottom: 4px;">✅ Validation:</div>
+                                                <code style="font-size: 11px; color: #86efac;">${commandObj.validation_commands[0]}</code>
+                                            </div>
+                                        ` : ''}
+                                        ${commandObj.rollback_commands && commandObj.rollback_commands.length > 0 ? `
+                                            <div style="margin-top: 10px; padding: 8px 12px; background: #3d0a0a; border-radius: 6px; border: 1px solid #dc2626;">
+                                                <div style="font-size: 12px; color: #dc2626; font-weight: 600; margin-bottom: 4px;">🔄 Rollback:</div>
+                                                <code style="font-size: 11px; color: #fca5a5;">${commandObj.rollback_commands[0]}</code>
+                                            </div>
+                                        ` : ''}
                                     </div>
                                 `;
                             }).join('')}

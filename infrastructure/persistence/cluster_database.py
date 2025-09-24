@@ -118,7 +118,7 @@ def migrate_analysis_data_to_blob(db_path: str = '../data/database/clusters.db')
                             id TEXT PRIMARY KEY,
                             name TEXT NOT NULL,
                             resource_group TEXT NOT NULL,
-                            environment TEXT DEFAULT 'development',
+                            environment TEXT DEFAULT 'unknown',
                             region TEXT DEFAULT 'Unknown',
                             description TEXT DEFAULT '',
                             status TEXT DEFAULT 'active',
@@ -710,76 +710,11 @@ class EnhancedMultiSubscriptionClusterManager:
     # ========================================
 
     def add_cluster_with_subscription_validation(self, cluster_config: Dict, subscription_id: str, subscription_name: str) -> str:
-        """Add a new cluster with comprehensive subscription validation"""
-        try:
-            cluster_id = f"{cluster_config['resource_group']}_{cluster_config['cluster_name']}"
-            
-            # Try to import and validate, but handle gracefully if not available
-            validation_result = {'valid': True, 'cluster_info': {}}
-            
-            try:
-                from infrastructure.services.subscription_manager import azure_subscription_manager
-                
-                # Validate cluster access
-                validation_result = azure_subscription_manager.validate_cluster_access(
-                    subscription_id, 
-                    cluster_config['resource_group'], 
-                    cluster_config['cluster_name']
-                )
-                
-                if not validation_result['valid']:
-                    raise ValueError(f"Cluster validation failed: {validation_result['error']}")
-                    
-            except ImportError:
-                self.logger.warning("⚠️ Subscription manager not available for validation")
-            
-            with sqlite3.connect(self.db_path) as conn:
-                # Insert cluster with subscription context
-                conn.execute('''
-                    INSERT OR REPLACE INTO clusters 
-                    (id, name, resource_group, environment, region, description, status, 
-                    subscription_id, subscription_name, subscription_context_verified, 
-                    subscription_last_validated, created_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    cluster_id,
-                    cluster_config['cluster_name'],
-                    cluster_config['resource_group'],
-                    cluster_config.get('environment', 'development'),
-                    cluster_config.get('region', 'Unknown'),
-                    cluster_config.get('description', ''),
-                    'active',
-                    subscription_id,
-                    subscription_name,
-                    True,  # subscription_context_verified
-                    datetime.now().isoformat(),
-                    datetime.now().isoformat(),
-                    json.dumps({
-                        **cluster_config.get('metadata', {}),
-                        'cluster_validation': validation_result.get('cluster_info', {}),
-                        'subscription_validation_timestamp': datetime.now().isoformat()
-                    })
-                ))
-                
-                # Update subscription cluster count
-                conn.execute('''
-                    UPDATE subscriptions 
-                    SET cluster_count = (
-                        SELECT COUNT(*) FROM clusters WHERE subscription_id = ? AND status = 'active'
-                    ),
-                    last_used = ?,
-                    updated_at = ?
-                    WHERE subscription_id = ?
-                ''', (subscription_id, datetime.now().isoformat(), datetime.now().isoformat(), subscription_id))
-                
-                conn.commit()
-                
-            self.logger.info(f"✅ Added cluster with validated subscription: {cluster_id} -> {subscription_name}")
-            return cluster_id
-            
-        except Exception as e:
-            self.logger.error(f"❌ Failed to add cluster with subscription validation: {e}")
-            raise
+        """Add a new cluster with comprehensive subscription validation - DEPRECATED: Use add_cluster_with_subscription instead"""
+        self.logger.warning("⚠️ DEPRECATED: add_cluster_with_subscription_validation is deprecated. Use add_cluster_with_subscription for enhanced validation.")
+        
+        # Redirect to the enhanced method
+        return self.add_cluster_with_subscription(cluster_config, subscription_id, subscription_name)
 
     def track_subscription_analysis_session(self, session_data: Dict) -> bool:
         """Track subscription-aware analysis session"""
@@ -1057,13 +992,33 @@ class EnhancedMultiSubscriptionClusterManager:
                             
                             validation_results[cluster_id] = validation_result['valid']
                             
-                            # Update database with validation result
-                            conn.execute('''
+                            # Update database with validation result and discovered information
+                            update_fields = ['subscription_context_verified = ?', 'subscription_last_validated = ?']
+                            update_values = [validation_result['valid'], datetime.now().isoformat()]
+                            
+                            # Update location if discovered and different
+                            if validation_result['valid'] and validation_result.get('cluster_info'):
+                                cluster_info = validation_result['cluster_info']
+                                discovered_location = cluster_info.get('location')
+                                discovered_rg = validation_result.get('discovered_resource_group')
+                                
+                                if discovered_location and discovered_location != cluster.get('region'):
+                                    update_fields.append('region = ?')
+                                    update_values.append(discovered_location)
+                                    self.logger.info(f"📍 Updated location for {cluster_id}: {discovered_location}")
+                                
+                                if discovered_rg and discovered_rg != cluster.get('resource_group'):
+                                    update_fields.append('resource_group = ?')
+                                    update_values.append(discovered_rg)
+                                    self.logger.info(f"📁 Updated resource group for {cluster_id}: {discovered_rg}")
+                            
+                            update_values.append(cluster_id)
+                            
+                            conn.execute(f'''
                                 UPDATE clusters 
-                                SET subscription_context_verified = ?,
-                                    subscription_last_validated = ?
+                                SET {', '.join(update_fields)}
                                 WHERE id = ?
-                            ''', (validation_result['valid'], datetime.now().isoformat(), cluster_id))
+                            ''', tuple(update_values))
                             
                         except Exception as cluster_error:
                             self.logger.error(f"❌ Validation failed for cluster {cluster_id}: {cluster_error}")
@@ -1121,28 +1076,56 @@ class EnhancedMultiSubscriptionClusterManager:
             raise
 
     def add_cluster_with_subscription(self, cluster_config: Dict, subscription_id: str, subscription_name: str) -> str:
-        """Add a new cluster with subscription context"""
+        """Add a new cluster with subscription context and enhanced validation"""
         try:
+            # Perform validation to get accurate cluster information
+            validation_result = self._validate_and_discover_cluster_info(
+                subscription_id, 
+                cluster_config.get('resource_group', ''), 
+                cluster_config['cluster_name']
+            )
+            
+            # Use discovered information if available, otherwise fallback to provided data
+            if validation_result['valid']:
+                cluster_info = validation_result.get('cluster_info', {})
+                discovered_rg = validation_result.get('discovered_resource_group', cluster_config.get('resource_group', ''))
+                discovered_location = cluster_info.get('location', cluster_config.get('region', 'Unknown'))
+                
+                # Update cluster config with discovered values
+                cluster_config['resource_group'] = discovered_rg
+                cluster_config['region'] = discovered_location
+                
+                self.logger.info(f"✅ Enhanced cluster info: {cluster_config['cluster_name']} -> RG: {discovered_rg}, Location: {discovered_location}, Environment: {cluster_config.get('environment', 'MISSING')}")
+            else:
+                self.logger.warning(f"⚠️ Validation failed, using provided data for cluster: {cluster_config['cluster_name']} (Environment: {cluster_config.get('environment', 'MISSING')})")
+            
             cluster_id = f"{cluster_config['resource_group']}_{cluster_config['cluster_name']}"
             
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute('''
                     INSERT OR REPLACE INTO clusters 
                     (id, name, resource_group, environment, region, description, status, 
-                    subscription_id, subscription_name, created_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    subscription_id, subscription_name, subscription_context_verified, 
+                    subscription_last_validated, created_at, metadata)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     cluster_id,
                     cluster_config['cluster_name'],
                     cluster_config['resource_group'],
-                    cluster_config.get('environment', 'development'),
+                    cluster_config['environment'],
                     cluster_config.get('region', 'Unknown'),
                     cluster_config.get('description', ''),
                     'active',
                     subscription_id,
                     subscription_name,
+                    validation_result['valid'],
+                    datetime.now().isoformat() if validation_result['valid'] else None,
                     datetime.now().isoformat(),
-                    json.dumps(cluster_config.get('metadata', {}))
+                    json.dumps({
+                        **cluster_config.get('metadata', {}),
+                        'validation_info': validation_result,
+                        'auto_discovered': validation_result.get('auto_discovered', False)
+                    })
                 ))
                 conn.commit()
                 
@@ -1152,6 +1135,24 @@ class EnhancedMultiSubscriptionClusterManager:
         except Exception as e:
             self.logger.error(f"❌ Failed to add cluster with subscription: {e}")
             raise
+    
+    def _validate_and_discover_cluster_info(self, subscription_id: str, resource_group: str, cluster_name: str) -> Dict:
+        """Validate cluster and discover accurate information"""
+        try:
+            # Import here to avoid circular imports
+            from infrastructure.services.subscription_manager import AzureSubscriptionManager
+            azure_subscription_manager = AzureSubscriptionManager()
+            
+            return azure_subscription_manager.validate_cluster_access(
+                subscription_id, resource_group, cluster_name
+            )
+            
+        except ImportError:
+            self.logger.warning("⚠️ Subscription manager not available for validation")
+            return {'valid': False, 'error': 'Validation service unavailable'}
+        except Exception as e:
+            self.logger.error(f"❌ Validation error: {e}")
+            return {'valid': False, 'error': str(e)}
 
     def get_cluster(self, cluster_id: str) -> Optional[Dict]:
         """Get cluster configuration"""
@@ -1230,6 +1231,10 @@ class EnhancedMultiSubscriptionClusterManager:
                 for row in cursor.fetchall():
                     cluster = dict(row)
                     cluster['metadata'] = json.loads(cluster.get('metadata', '{}'))
+                    
+                    # DEBUG: Log environment retrieval
+                    self.logger.info(f"🔍 Retrieved cluster '{cluster.get('name')}': environment='{cluster.get('environment', 'MISSING_FROM_DB')}'")
+                    
                     clusters.append(cluster)
                 
                 self.logger.info(f"📋 Retrieved {len(clusters)} clusters with subscription info")

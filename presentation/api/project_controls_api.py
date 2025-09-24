@@ -535,8 +535,8 @@ def get_enterprise_metrics_sync():
             if use_database:
                 logger.info(f"🔄 Attempting enterprise metrics from database for {cluster_name}")
                 try:
-                    from infrastructure.data.ml_analytics_db import ml_analytics_db
-                    from infrastructure.data.operational_data_db import operational_data_db
+                    from infrastructure.persistence.ml_analytics_db import ml_analytics_db
+                    from infrastructure.persistence.operational_data_db import operational_data_db
                     
                     # Get optimization results and performance data from database
                     optimization_history = ml_analytics_db.get_optimization_history(cluster_id)
