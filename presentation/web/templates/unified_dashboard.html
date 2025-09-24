@@ -211,7 +211,7 @@
                     <button onclick="triggerAnalysis('{{ cluster.id }}')" class="bg-green-500 text-white font-semibold text-sm py-3 px-6 rounded-xl hover:bg-green-600 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl">
                         <i class="fas fa-play"></i>Analyze
                     </button>
-                    <button onclick="compareWithOtherClusters()" class="bg-green-500 text-white font-semibold text-sm py-3 px-6 rounded-xl hover:bg-green-600 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl">
+                    <!-- <button onclick="compareWithOtherClusters()" class="bg-green-500 text-white font-semibold text-sm py-3 px-6 rounded-xl hover:bg-green-600 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl">
                         <i class="fas fa-balance-scale"></i>Compare
                     </button>
                     <button onclick="exportClusterReport()" class="bg-green-500 text-white font-semibold text-sm py-3 px-6 rounded-xl hover:bg-green-600 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl">
@@ -219,14 +219,14 @@
                     </button>
                     <button onclick="deleteCurrentCluster('{{ cluster.id }}')" class="bg-red-500 text-white font-semibold text-sm py-3 px-6 rounded-xl hover:bg-red-600 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl">
                         <i class="fas fa-trash"></i>Delete
-                    </button>
+                    </button> -->
                     {% else %}
                     <button onclick="triggerAnalysis()" class="bg-green-500 text-white font-semibold text-sm py-3 px-6 rounded-xl hover:bg-green-600 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl">
                         <i class="fas fa-play"></i>Analyze
                     </button>
-                    <button onclick="exportClusterReport()" class="bg-blue-500 text-white font-semibold text-sm py-3 px-6 rounded-xl hover:bg-blue-600 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl">
+                    <!-- <button onclick="exportClusterReport()" class="bg-blue-500 text-white font-semibold text-sm py-3 px-6 rounded-xl hover:bg-blue-600 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl">
                         <i class="fas fa-download"></i>Export
-                    </button>
+                    </button> -->
                     {% endif %}
                     <div class="flex items-center space-x-4 text-gray-600 pl-4 border-l border-gray-200">
                         <div class="relative">

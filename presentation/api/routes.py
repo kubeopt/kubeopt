@@ -29,7 +29,7 @@ from infrastructure.services.cache_manager import (
 from infrastructure.services.background_processor import run_background_analysis, check_alerts_after_analysis
 from shared.utils.shared import _get_analysis_data
 from infrastructure.services.subscription_manager import azure_subscription_manager
-from infrastructure.data.processing.analysis_engine import multi_subscription_analysis_engine
+from infrastructure.persistence.processing.analysis_engine import multi_subscription_analysis_engine
 
 def register_routes(app):
     """Register all routes with the Flask app - now with multi-subscription support"""

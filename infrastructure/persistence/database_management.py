@@ -23,8 +23,8 @@ from typing import Dict, List, Optional, Any
 
 # Import your existing components
 try:
-    from infrastructure.data.cluster_database import EnhancedClusterManager
-    from alerts.enhanced_alerts_manager import EnhancedAlertsManager
+    from infrastructure.persistence.cluster_database import EnhancedClusterManager
+    from infrastructure.services.enhanced_alerts_manager import EnhancedAlertsManager
 except ImportError:
     # Fallback for development
     EnhancedClusterManager = None

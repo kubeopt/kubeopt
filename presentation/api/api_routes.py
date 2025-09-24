@@ -31,7 +31,7 @@ from shared.config.config import (
 from infrastructure.services.background_processor import run_subscription_aware_background_analysis
 from shared.utils.shared import _get_analysis_data  # Import from shared module
 from infrastructure.services.subscription_manager import azure_subscription_manager
-from infrastructure.data.processing.analysis_engine import multi_subscription_analysis_engine
+from infrastructure.persistence.processing.analysis_engine import multi_subscription_analysis_engine
 
 # FIXED: Import alerts integration
 from infrastructure.services.alerts_integration import initialize_alerts_system, register_alerts_routes, get_alerts_manager
@@ -403,7 +403,7 @@ def register_api_routes(app):
 
     @app.route('/api/subscriptions/<subscription_id>/validate', methods=['POST'])
     def api_validate_subscription_cluster(subscription_id):
-        """Validate cluster access in specific subscription"""
+        """Validate cluster access in specific subscription with auto-discovery"""
         try:
             data = request.get_json()
             if not data:
@@ -412,26 +412,39 @@ def register_api_routes(app):
                     'message': 'No data provided'
                 }), 400
             
-            resource_group = data.get('resource_group')
-            cluster_name = data.get('cluster_name')
+            resource_group = data.get('resource_group', '').strip()  # Now optional
+            cluster_name = data.get('cluster_name', '').strip()
             
-            if not resource_group or not cluster_name:
+            if not cluster_name:
                 return jsonify({
                     'status': 'error',
-                    'message': 'Resource group and cluster name are required'
+                    'message': 'Cluster name is required'
                 }), 400
             
-            logger.info(f"🔍 Validating cluster {cluster_name} in subscription {subscription_id[:8]}")
+            # Log with more context
+            rg_info = f" in resource group '{resource_group}'" if resource_group else " (auto-discovering resource group)"
+            logger.info(f"🔍 Validating cluster {cluster_name}{rg_info} in subscription {subscription_id[:8]}")
             
             validation_result = azure_subscription_manager.validate_cluster_access(
                 subscription_id, resource_group, cluster_name
             )
             
-            return jsonify({
+            # Enhanced response with more context
+            response_data = {
                 'status': 'success' if validation_result['valid'] else 'error',
                 'validation_result': validation_result,
                 'subscription_id': subscription_id
-            })
+            }
+            
+            # Add helpful information for successful auto-discovery
+            if validation_result['valid'] and validation_result.get('auto_discovered'):
+                response_data['message'] = f"Cluster found! Auto-discovered in resource group: {validation_result.get('discovered_resource_group')}"
+            elif validation_result['valid'] and validation_result.get('discovered_resource_group'):
+                response_data['message'] = f"Cluster validated successfully in resource group: {validation_result.get('discovered_resource_group')}"
+            elif not validation_result['valid'] and validation_result.get('suggestion'):
+                response_data['message'] = f"Validation failed: {validation_result.get('error')}. {validation_result.get('suggestion')}"
+            
+            return jsonify(response_data)
             
         except Exception as e:
             logger.error(f"❌ Error validating cluster: {e}")
@@ -983,8 +996,19 @@ def register_api_routes(app):
                         'message': 'No data provided'
                     }), 400
                 
-                # Validate required fields including subscription
-                required_fields = ['cluster_name', 'resource_group', 'subscription_id']
+                # Debug: Log the received cluster config
+                logger.info(f"📋 Received cluster config: {cluster_config}")
+                logger.info(f"🏷️ Environment received: '{cluster_config.get('environment', 'NOT_PROVIDED')}'")
+                
+                # Ensure environment is properly set
+                if not cluster_config.get('environment') or cluster_config.get('environment').strip() == '':
+                    logger.warning("⚠️ No environment provided, defaulting to 'staging'")
+                    cluster_config['environment'] = 'staging'
+                else:
+                    logger.info(f"✅ Environment set to: '{cluster_config['environment']}'")
+                
+                # Validate required fields including subscription and environment
+                required_fields = ['cluster_name', 'subscription_id', 'environment']
                 missing_fields = [field for field in required_fields if not cluster_config.get(field)]
                 
                 if missing_fields:

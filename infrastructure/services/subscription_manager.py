@@ -300,10 +300,33 @@ class AzureSubscriptionManager:
             return False
     
     def validate_cluster_access(self, subscription_id: str, resource_group: str, cluster_name: str) -> Dict[str, any]:
-        """Validate that we can access the specified cluster"""
+        """Validate that we can access the specified cluster with enhanced auto-discovery"""
         try:
             logger.info(f"🔍 Validating access to cluster {cluster_name} in subscription {subscription_id}")
             
+            # First try with provided resource group if specified
+            if resource_group and resource_group.strip():
+                result = self._validate_cluster_in_rg(subscription_id, resource_group.strip(), cluster_name)
+                if result['valid']:
+                    return result
+                    
+                # If resource group not found, log and continue with auto-discovery
+                if 'ResourceGroupNotFound' in result.get('error', ''):
+                    logger.warning(f"🔍 Resource group '{resource_group}' not found in subscription {subscription_id}, attempting auto-discovery")
+                else:
+                    # Other errors (like cluster not found in RG) should return immediately
+                    return result
+            
+            # Auto-discovery: search for cluster across all resource groups in subscription
+            logger.info(f"🔍 Auto-discovering cluster {cluster_name} across all resource groups in subscription {subscription_id}")
+            return self._auto_discover_cluster(subscription_id, cluster_name)
+                
+        except Exception as e:
+            return {'valid': False, 'error': f'Validation error: {e}', 'subscription_id': subscription_id}
+    
+    def _validate_cluster_in_rg(self, subscription_id: str, resource_group: str, cluster_name: str) -> Dict[str, any]:
+        """Validate cluster in specific resource group"""
+        try:
             result = self._rate_limited_az_call(
                 'validate_cluster',
                 [
@@ -311,7 +334,7 @@ class AzureSubscriptionManager:
                     '--subscription', subscription_id,
                     '--resource-group', resource_group,
                     '--name', cluster_name,
-                    '--query', '{name:name, location:location, powerState:powerState, provisioningState:provisioningState}',
+                    '--query', '{name:name, location:location, powerState:powerState, provisioningState:provisioningState, resourceGroup:resourceGroup}',
                     '--output', 'json'
                 ],
                 timeout=30
@@ -323,11 +346,11 @@ class AzureSubscriptionManager:
                 return {
                     'valid': True,
                     'cluster_info': cluster_info,
-                    'subscription_id': subscription_id
+                    'subscription_id': subscription_id,
+                    'discovered_resource_group': resource_group
                 }
             else:
                 error_msg = result.stderr.strip()
-                logger.error(f"❌ Cluster validation failed: {error_msg}")
                 return {
                     'valid': False,
                     'error': error_msg,
@@ -335,9 +358,64 @@ class AzureSubscriptionManager:
                 }
                 
         except json.JSONDecodeError as e:
-            return {'valid': False, 'error': f'Invalid response format: {e}'}
+            return {'valid': False, 'error': f'Invalid response format: {e}', 'subscription_id': subscription_id}
         except Exception as e:
-            return {'valid': False, 'error': f'Validation error: {e}'}
+            return {'valid': False, 'error': f'Cluster validation error: {e}', 'subscription_id': subscription_id}
+    
+    def _auto_discover_cluster(self, subscription_id: str, cluster_name: str) -> Dict[str, any]:
+        """Auto-discover cluster by searching all resource groups in subscription"""
+        try:
+            # List all AKS clusters in the subscription
+            result = self._rate_limited_az_call(
+                'list_aks_clusters',
+                [
+                    'az', 'aks', 'list',
+                    '--subscription', subscription_id,
+                    '--query', f"[?name=='{cluster_name}'].[name,location,powerState,provisioningState,resourceGroup]",
+                    '--output', 'json'
+                ],
+                timeout=60
+            )
+            
+            if result.returncode == 0:
+                clusters = json.loads(result.stdout)
+                if clusters and len(clusters) > 0:
+                    cluster_data = clusters[0]
+                    cluster_info = {
+                        'name': cluster_data[0],
+                        'location': cluster_data[1],
+                        'powerState': cluster_data[2],
+                        'provisioningState': cluster_data[3],
+                        'resourceGroup': cluster_data[4]
+                    }
+                    
+                    logger.info(f"✅ Cluster auto-discovery successful: {cluster_info}")
+                    return {
+                        'valid': True,
+                        'cluster_info': cluster_info,
+                        'subscription_id': subscription_id,
+                        'discovered_resource_group': cluster_data[4],
+                        'auto_discovered': True
+                    }
+                else:
+                    return {
+                        'valid': False,
+                        'error': f'Cluster "{cluster_name}" not found in subscription {subscription_id}',
+                        'subscription_id': subscription_id,
+                        'suggestion': 'Verify cluster name and subscription access'
+                    }
+            else:
+                error_msg = result.stderr.strip()
+                return {
+                    'valid': False,
+                    'error': f'Failed to list clusters: {error_msg}',
+                    'subscription_id': subscription_id
+                }
+                
+        except json.JSONDecodeError as e:
+            return {'valid': False, 'error': f'Invalid response format: {e}', 'subscription_id': subscription_id}
+        except Exception as e:
+            return {'valid': False, 'error': f'Auto-discovery error: {e}', 'subscription_id': subscription_id}
     
     def cleanup_caches(self):
         """Cleanup cached data periodically"""

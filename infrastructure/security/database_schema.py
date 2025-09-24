@@ -31,7 +31,7 @@ class SecurityDatabaseManager:
         """Initialize database manager"""
         # Use unified database structure
         if database_path is None:
-            from infrastructure.data.database_config import DatabaseConfig
+            from infrastructure.persistence.database_config import DatabaseConfig
             self.database_path = str(DatabaseConfig.DATABASES['security_analytics'])
         else:
             self.database_path = database_path

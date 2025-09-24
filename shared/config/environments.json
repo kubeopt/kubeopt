@@ -66,7 +66,7 @@
       "description": "Production environment prioritizing stability and compliance"
     }
   },
-  "default_environment": "development",
+  "default_environment": "staging",
   "metadata": {
     "version": "1.0",
     "last_updated": "2025-09-04T00:00:00Z",

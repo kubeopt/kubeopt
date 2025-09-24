@@ -59,7 +59,7 @@ analysis_cache = {
 }
 
 # Initialize enhanced database components with multi-subscription support
-from infrastructure.data.cluster_database import EnhancedMultiSubscriptionClusterManager, migrate_database_for_multi_subscription
+from infrastructure.persistence.cluster_database import EnhancedMultiSubscriptionClusterManager, migrate_database_for_multi_subscription
 from machine_learning.core.implementation_generator import AKSImplementationGenerator
 
 # Use the enhanced multi-subscription cluster manager
@@ -137,7 +137,7 @@ def initialize_database():
         # Check if old clusters.json exists and migrate
         if os.path.exists('clusters.json'):
             logger.info("🔄 Migrating from JSON to multi-subscription SQLite database")
-            from infrastructure.data.cluster_database import migrate_from_json
+            from infrastructure.persistence.cluster_database import migrate_from_json
             migrate_from_json('clusters.json', enhanced_cluster_manager)
         
         # Run multi-subscription schema enhancement
@@ -154,7 +154,7 @@ def initialize_database():
 def setup_subscription_aware_analysis_engine():
     """Setup the multi-subscription analysis engine"""
     try:
-        from infrastructure.data.processing.analysis_engine import multi_subscription_analysis_engine
+        from infrastructure.persistence.processing.analysis_engine import multi_subscription_analysis_engine
         
         # Validate analysis engine is ready
         if hasattr(multi_subscription_analysis_engine, 'run_subscription_aware_analysis'):
@@ -286,7 +286,7 @@ def get_multi_subscription_status():
         
         # Analysis engine status
         try:
-            from infrastructure.data.processing.analysis_engine import multi_subscription_analysis_engine
+            from infrastructure.persistence.processing.analysis_engine import multi_subscription_analysis_engine
             status['analysis_engine'] = {
                 'available': True,
                 'subscription_locks_count': len(multi_subscription_analysis_engine.subscription_locks)

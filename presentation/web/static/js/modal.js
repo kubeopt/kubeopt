@@ -282,7 +282,7 @@ function handleFormSubmissionSafe(event) {
     const clusterData = {
         cluster_name: (formData.get('cluster_name') || '').trim(),
         resource_group: (formData.get('resource_group') || '').trim(),
-        environment: formData.get('environment') || 'development',
+        environment: formData.get('environment') || '',
         region: (formData.get('region') || '').trim(),
         description: (formData.get('description') || '').trim(),
         auto_analyze: form.querySelector('#auto_analyze')?.checked === true
@@ -296,8 +296,15 @@ function handleFormSubmissionSafe(event) {
         return;
     }
     
-    if (!clusterData.resource_group || clusterData.resource_group.length < 3) {
-        alert('Resource group name must be at least 3 characters long');
+    // Resource group is now optional - auto-discovery will handle it
+    if (clusterData.resource_group && clusterData.resource_group.length > 0 && clusterData.resource_group.length < 3) {
+        alert('Resource group name must be at least 3 characters long (or leave empty for auto-discovery)');
+        return;
+    }
+    
+    // Validate environment is selected
+    if (!clusterData.environment || clusterData.environment === '') {
+        alert('Please select an environment');
         return;
     }
     

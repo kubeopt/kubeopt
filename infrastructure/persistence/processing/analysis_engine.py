@@ -24,8 +24,8 @@ from shared.config.config import (
     logger, enhanced_cluster_manager, _analysis_lock, _analysis_sessions,
     implementation_generator
 )
-from infrastructure.data.processing.cost_processor import get_aks_specific_cost_data, extract_cost_components
-from infrastructure.data.processing.metrics_processor import get_aks_metrics_from_monitor
+from infrastructure.persistence.processing.cost_processor import get_aks_specific_cost_data, extract_cost_components
+from infrastructure.persistence.processing.metrics_processor import get_aks_metrics_from_monitor
 from infrastructure.services.cache_manager import save_to_cache
 from shared.utils.utils import validate_cost_data
 

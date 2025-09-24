@@ -123,7 +123,7 @@ class EnhancedLearningOptimizationEngine:
     def __init__(self, db_path: str = None):
         # Use unified database structure
         if db_path is None:
-            from infrastructure.data.database_config import DatabaseConfig
+            from infrastructure.persistence.database_config import DatabaseConfig
             DatabaseConfig.ensure_directories()  # Ensure database directories exist
             self.db_path = str(DatabaseConfig.DATABASES['ml_analytics'])
         else:

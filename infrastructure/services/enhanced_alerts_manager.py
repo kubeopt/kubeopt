@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Any
 import logging
 
 # Import the alerts database
-from infrastructure.data.alerts_database import alerts_db
+from infrastructure.persistence.alerts_database import alerts_db
 
 logger = logging.getLogger(__name__)
 
