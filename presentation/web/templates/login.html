@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AKS Cost Optimizer - Login</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body class="auth-page">
+    <div class="login-container">
+        <div>
+            <div class="brand-icon">
+                <i class="fas fa-dharmachakra"></i>
+            </div>
+            <h1 class="brand-title">AKS Cost Optimizer</h1>
+            <p class="brand-subtitle">KubeVista Enterprise Platform</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div>
+            {% for category, message in messages %}
+            <div class="alert {% if category == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            <div class="form-group">
+                <label for="username" class="form-label">Username</label>
+                <div class="form-input-wrapper">
+                    <i class="fas fa-user form-input-icon"></i>
+                    <input type="text" id="username" name="username" required
+                           class="form-input"
+                           placeholder="Enter your username">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="form-label">Password</label>
+                <div class="form-input-wrapper">
+                    <i class="fas fa-lock form-input-icon"></i>
+                    <input type="password" id="password" name="password" required
+                           class="form-input"
+                           placeholder="Enter your password">
+                </div>
+            </div>
+
+            <div class="checkbox-wrapper">
+                <input id="remember-me" name="remember-me" type="checkbox" class="checkbox">
+                <label for="remember-me" class="checkbox-label">Remember me</label>
+            </div>
+
+            <button type="submit" class="login-btn">
+                <i class="fas fa-sign-in-alt"></i>
+                Sign in
+            </button>
+        </form>
+
+        <div class="footer-text">
+            Default Admin: kubevista / kubevista<br>
+            Powered by Nivaya Technologies
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+</body>
+</html>

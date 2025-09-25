@@ -30,6 +30,7 @@ from infrastructure.services.background_processor import run_background_analysis
 from shared.utils.shared import _get_analysis_data
 from infrastructure.services.subscription_manager import azure_subscription_manager
 from infrastructure.persistence.processing.analysis_engine import multi_subscription_analysis_engine
+from infrastructure.services.auth_manager import auth_manager
 
 def register_routes(app):
     """Register all routes with the Flask app - now with multi-subscription support"""
@@ -43,6 +44,7 @@ def register_routes(app):
     
     @app.route('/')
     @app.route('/clusters')
+    @auth_manager.require_auth
     def cluster_portfolio():
         """Enhanced multi-subscription cluster portfolio management page"""
         try:
@@ -81,6 +83,7 @@ def register_routes(app):
             return render_template('error.html', error=str(e))
 
     @app.route('/cluster/<cluster_id>')
+    @auth_manager.require_auth
     def single_cluster_dashboard(cluster_id: str):
         """Enhanced cluster dashboard with subscription awareness"""
         try:
@@ -118,6 +121,7 @@ def register_routes(app):
             return render_template('error.html', error=str(e))
 
     @app.route('/analyze/<subscription_id>/<cluster_name>')
+    @auth_manager.require_auth
     def analyze_cluster(subscription_id, cluster_name):
         """Enhanced cluster analysis with multi-subscription support"""
         try:
@@ -145,6 +149,7 @@ def register_routes(app):
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
     @app.route('/analysis_status/<session_key>')
+    @auth_manager.require_auth
     def analysis_status(session_key):
         """Check analysis status for a specific cluster session"""
         try:
@@ -172,6 +177,7 @@ def register_routes(app):
             return jsonify({'status': 'error', 'message': str(e)}), 500
 
     @app.route('/results/<session_key>')
+    @auth_manager.require_auth
     def analysis_results_page(session_key):
         """Enhanced analysis results page with multi-subscription support"""
         try:
