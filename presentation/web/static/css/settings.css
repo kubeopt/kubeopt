@@ -132,7 +132,7 @@
 }
 
 .settings-card {
-    background: var(--bg-card);
+    background: #2c314d;
     border: 1px solid var(--border-card);
     border-radius: 8px;
     padding: 1rem;

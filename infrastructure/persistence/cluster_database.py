@@ -980,7 +980,9 @@ class EnhancedMultiSubscriptionClusterManager:
                     
                     clusters = cursor.fetchall()
                     
-                    for cluster in clusters:
+                    for cluster_row in clusters:
+                        # Convert SQLite Row to dictionary to enable .get() method
+                        cluster = dict(cluster_row)
                         cluster_id = cluster['id']
                         subscription_id = cluster['subscription_id']
                         
@@ -1091,9 +1093,22 @@ class EnhancedMultiSubscriptionClusterManager:
                 discovered_rg = validation_result.get('discovered_resource_group', cluster_config.get('resource_group', ''))
                 discovered_location = cluster_info.get('location', cluster_config.get('region', 'Unknown'))
                 
+                # Extract environment from cluster tags if available
+                tags = cluster_info.get('tags', {})
+                discovered_environment = None
+                
+                # Look for environment in common tag names
+                if tags:
+                    for tag_name in ['Environment', 'environment', 'env', 'Env']:
+                        if tag_name in tags:
+                            discovered_environment = str(tags[tag_name]).lower()
+                            break
+                
                 # Update cluster config with discovered values
                 cluster_config['resource_group'] = discovered_rg
                 cluster_config['region'] = discovered_location
+                if discovered_environment:
+                    cluster_config['environment'] = discovered_environment
                 
                 self.logger.info(f"✅ Enhanced cluster info: {cluster_config['cluster_name']} -> RG: {discovered_rg}, Location: {discovered_location}, Environment: {cluster_config.get('environment', 'MISSING')}")
             else:
@@ -1112,7 +1127,7 @@ class EnhancedMultiSubscriptionClusterManager:
                     cluster_id,
                     cluster_config['cluster_name'],
                     cluster_config['resource_group'],
-                    cluster_config['environment'],
+                    cluster_config.get('environment', 'unknown'),
                     cluster_config.get('region', 'Unknown'),
                     cluster_config.get('description', ''),
                     'active',

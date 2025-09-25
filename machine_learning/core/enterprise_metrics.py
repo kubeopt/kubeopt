@@ -347,6 +347,8 @@ class EnterpriseOperationalMetricsEngine:
         maturity_level = self._determine_maturity_level(overall_score)
         
         logger.info(f"✅ Enterprise metrics calculation completed for {self.cluster_name} - Overall Score: {overall_score:.1f}")
+        logger.info(f"🔍 {self.cluster_name}: Final Scores - " + 
+                   ", ".join([f"{m.metric_name}: {m.score:.1f}" for m in metrics]))
         
         return EnterpriseMaturityAssessment(
             overall_score=overall_score,
@@ -383,6 +385,32 @@ class EnterpriseOperationalMetricsEngine:
             # Add infrastructure data
             infra_data = self.cache.get_infrastructure_data()
             results.update(infra_data)
+            
+            # 🚀 ADD RICH AKS CONFIG DATA
+            try:
+                from analytics.collectors.aks_config_fetcher import AKSConfigurationFetcher
+                logger.info(f"🔧 {self.cluster_name}: Fetching rich AKS configuration data...")
+                
+                aks_config_fetcher = AKSConfigurationFetcher(
+                    resource_group=self.resource_group,
+                    cluster_name=self.cluster_name,
+                    subscription_id=self.subscription_id,
+                    cache=self.cache
+                )
+                
+                # Get comprehensive cluster configuration
+                aks_config_data = aks_config_fetcher.fetch_raw_cluster_configuration()
+                results['aks_config'] = aks_config_data
+                
+                logger.info(f"✅ {self.cluster_name}: Enhanced with rich AKS config data - "
+                           f"Azure info: {'Yes' if aks_config_data.get('azure_cluster_info') else 'No'}, "
+                           f"K8s info: {'Yes' if aks_config_data.get('kubernetes_cluster_info') else 'No'}, "
+                           f"Node data: {len(aks_config_data.get('node_data', {}).get('node_list', []))} nodes, "
+                           f"Resources: {len(aks_config_data.get('workload_resources', {}))} types")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ {self.cluster_name}: Could not fetch AKS config data: {e}")
+                results['aks_config'] = {}
             
             # Add any missing keys for backward compatibility (but don't override properly typed data)
             all_cache_data = self.cache.get_all_data()
@@ -462,9 +490,17 @@ class EnterpriseOperationalMetricsEngine:
         logger.info("🔄 Calculating Kubernetes upgrade readiness...")
         
         try:
-            # Get current cluster version
-            version_info = cluster_data.get("version", {})
-            current_version = version_info.get("serverVersion", {}).get("gitVersion", "").replace("v", "")
+            # 🚀 ENHANCED: Get current cluster version from AKS config or kubectl
+            aks_cluster_details = cluster_data.get('aks_config', {}).get('azure_cluster_info', {}).get('aks_cluster_details', {})
+            
+            if aks_cluster_details:
+                # Use AKS config data (more reliable)
+                current_version = aks_cluster_details.get('kubernetesVersion', '').replace('v', '')
+                logger.info(f"🚀 Using AKS cluster version: {current_version}")
+            else:
+                # Fallback to kubectl version
+                version_info = cluster_data.get("version", {})
+                current_version = version_info.get("serverVersion", {}).get("gitVersion", "").replace("v", "")
             
             if not current_version:
                 raise ValueError("Could not determine cluster version")
@@ -618,6 +654,8 @@ class EnterpriseOperationalMetricsEngine:
             logger.info(f"📊 {self.cluster_name}: NIST DR scoring - Snapshots: {snapshot_coverage:.1f}%, "
                        f"Backup: {backup_effectiveness:.1f}%, StatefulSets: {stateful_protection_score:.1f}% "
                        f"= Total: {dr_score:.1f}%")
+            logger.info(f"🔍 {self.cluster_name}: DR Debug - stateful_count={stateful_count}, backup_solutions={backup_solutions}, "
+                       f"sub_id={self.subscription_id[:8]}, cluster_env={self.cluster_environment}")
             
             risk_level = "OPTIMAL" if dr_score >= 81 else "ACCEPTABLE" if dr_score >= 61 else "NEEDS_ATTENTION" if dr_score >= 41 else "CRITICAL"
             
@@ -762,6 +800,41 @@ class EnterpriseOperationalMetricsEngine:
             nodes = cluster_data.get("nodes", {}).get("items", [])
             pods = cluster_data.get("pods", {}).get("items", [])
             
+            # 🚀 ENHANCED: Try AKS config node data first, fallback to kubectl nodes
+            aks_nodes = cluster_data.get('aks_config', {}).get('node_data', {}).get('node_list', [])
+            if aks_nodes:
+                logger.info(f"🚀 Using rich AKS config node data: {len(aks_nodes)} nodes")
+                nodes = aks_nodes
+                # Convert AKS node format to expected format for compatibility
+                for node in nodes:
+                    if 'status' not in node and 'capacity' in node:
+                        node['status'] = {
+                            'capacity': node['capacity'],
+                            'allocatable': node['allocatable'],
+                            'conditions': node.get('conditions', []),
+                            'nodeInfo': node.get('node_info', {})
+                        }
+            else:
+                # Fallback to original kubectl nodes data
+                logger.info("📋 Using kubectl nodes data (AKS config not available)")
+                
+            # CRITICAL DEBUG: Check if nodes data exists
+            raw_nodes = cluster_data.get("nodes", {})
+            logger.info(f"🔍 NODES DEBUG: kubectl raw_nodes type={type(raw_nodes)}, keys={list(raw_nodes.keys()) if isinstance(raw_nodes, dict) else 'Not dict'}")
+            if aks_nodes:
+                logger.info(f"🔍 NODES DEBUG: AKS config provides {len(aks_nodes)} nodes with rich data")
+            elif isinstance(raw_nodes, dict) and 'items' in raw_nodes:
+                logger.info(f"🔍 NODES DEBUG: Found {len(raw_nodes['items'])} nodes in kubectl items")
+                if raw_nodes['items']:
+                    sample_node = raw_nodes['items'][0]
+                    logger.info(f"🔍 NODES DEBUG: Sample node keys: {list(sample_node.keys()) if isinstance(sample_node, dict) else 'Not dict'}")
+                    if isinstance(sample_node, dict) and 'status' in sample_node:
+                        logger.info(f"🔍 NODES DEBUG: Sample node status keys: {list(sample_node['status'].keys())}")
+                        if 'allocatable' in sample_node['status']:
+                            logger.info(f"🔍 NODES DEBUG: Sample allocatable: {sample_node['status']['allocatable']}")
+            else:
+                logger.error(f"🚨 NODES DEBUG: nodes data structure is invalid: {raw_nodes}")
+            
             # Debug logging to understand data availability
             logger.info(f"📊 Capacity analysis: {len(nodes)} nodes, {len(pods)} running pods")
             
@@ -788,6 +861,7 @@ class EnterpriseOperationalMetricsEngine:
             total_actual_memory = 0
             
             # Sum allocatable resources from nodes
+            logger.info(f"🔍 Node data debug: Found {len(nodes)} nodes, sample: {nodes[0] if nodes else 'None'}")
             for node in nodes:
                 allocatable = node.get("status", {}).get("allocatable", {})
                 cpu_str = allocatable.get("cpu", "0")
@@ -1291,8 +1365,16 @@ class EnterpriseOperationalMetricsEngine:
     
     def _count_cluster_admin_bindings(self, cluster_data: Dict) -> int:
         """Count potentially risky cluster-admin role bindings"""
-        cluster_role_bindings = cluster_data.get("cluster_role_bindings", {}).get("items", [])
-        logger.info(f"📊 {self.cluster_name}: Found {len(cluster_role_bindings)} cluster role bindings")
+        # 🚀 ENHANCED: Try AKS config data first
+        aks_resources = cluster_data.get('aks_config', {}).get('workload_resources', {})
+        if aks_resources:
+            cluster_role_bindings = aks_resources.get("clusterrolebindings", {}).get("items", [])
+            logger.info(f"🚀 {self.cluster_name}: Using AKS config - Found {len(cluster_role_bindings)} cluster role bindings")
+        else:
+            # Try both possible keys (for backward compatibility)
+            cluster_role_bindings = (cluster_data.get("cluster_role_bindings", {}).get("items", []) or 
+                                    cluster_data.get("clusterrolebindings", {}).get("items", []))
+            logger.info(f"📊 {self.cluster_name}: Found {len(cluster_role_bindings)} cluster role bindings")
         count = 0
         
         for binding in cluster_role_bindings:

@@ -246,18 +246,45 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
                 hpa_impl = metrics_data['hpa_implementation']
                 logger.info(f"🎯 FINAL: Found metrics_data.hpa_implementation with keys: {list(hpa_impl.keys())}")
                 
-                if 'total_hpas' in hpa_impl:
+                # Check for HPA list in different possible fields
+                hpa_list = None
+                hpa_count = 0
+                
+                # Try hpa_list first (most likely location based on your logs)
+                if 'hpa_list' in hpa_impl and isinstance(hpa_impl['hpa_list'], list):
+                    hpa_list = hpa_impl['hpa_list']
+                    hpa_count = len(hpa_list)
+                    logger.info(f"🎯 FINAL: Found {hpa_count} HPAs in metrics_data.hpa_list")
+                    hpa_detection_results['hpa_count'] = hpa_count
+                    hpa_detection_results['detection_sources'].append('metrics_data_hpa_list')
+                    hpa_detection_results['confidence_score'] = 0.9
+                    hpa_detection_results['validation_passed'] = True
+                    return hpa_detection_results
+                
+                # Fallback to total_hpas if it's a list
+                elif 'total_hpas' in hpa_impl:
                     total_hpas_value = hpa_impl['total_hpas']
                     logger.info(f"🎯 FINAL: total_hpas type: {type(total_hpas_value)}")
                     
                     if isinstance(total_hpas_value, list):
                         hpa_count = len(total_hpas_value)
-                        logger.info(f"🎯 FINAL: Found {hpa_count} HPAs in metrics_data.total_hpas")
+                        logger.info(f"🎯 FINAL: Found {hpa_count} HPAs in metrics_data.total_hpas (list)")
                         hpa_detection_results['hpa_count'] = hpa_count
-                        hpa_detection_results['detection_sources'].append('metrics_data_total_hpas')
+                        hpa_detection_results['detection_sources'].append('metrics_data_total_hpas_list')
                         hpa_detection_results['confidence_score'] = 0.9
                         hpa_detection_results['validation_passed'] = True
                         return hpa_detection_results
+                    elif isinstance(total_hpas_value, int) and total_hpas_value > 0:
+                        # If total_hpas is an int count, try to get actual list from hpa_details
+                        if 'hpa_details' in hpa_impl and isinstance(hpa_impl['hpa_details'], list):
+                            hpa_list = hpa_impl['hpa_details']
+                            hpa_count = len(hpa_list)
+                            logger.info(f"🎯 FINAL: Found {hpa_count} HPAs in metrics_data.hpa_details (using int total_hpas={total_hpas_value})")
+                            hpa_detection_results['hpa_count'] = hpa_count
+                            hpa_detection_results['detection_sources'].append('metrics_data_hpa_details')
+                            hpa_detection_results['confidence_score'] = 0.9
+                            hpa_detection_results['validation_passed'] = True
+                            return hpa_detection_results
             else:
                 logger.warning("⚠️ FINAL: No metrics_data provided - this is why we're finding 0 HPAs!")
             

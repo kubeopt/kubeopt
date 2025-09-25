@@ -280,12 +280,28 @@ class ClusterAnalyzer:
             logger.info("🎯 UNIFIED: Using kubernetes_data_cache as ONLY source of truth")
             hpa_state = HPAAnalyzer.analyze_hpa_state(k8s_cache)
             
+            # CRITICAL FIX: Add hpa_implementation structure for DNA analyzer compatibility
+            all_hpas = []
+            all_hpas.extend(hpa_state.get('existing_hpas', []))
+            all_hpas.extend(hpa_state.get('suboptimal_hpas', []))
+            
+            hpa_state['hpa_implementation'] = {
+                'total_hpas': all_hpas,
+                'current_hpa_pattern': f'unified_analysis_{len(all_hpas)}_hpas',
+                'confidence': 'high',
+                'source': 'HPAAnalyzer.analyze_hpa_state',
+                'extraction_method': 'complete_hpa_data'
+            }
+            
             # Log results
             if 'summary' in hpa_state:
                 summary = hpa_state['summary']
                 logger.info(f"📊 HPA Analysis Results: {summary.get('existing_hpas', 0)} HPAs active, "
                            f"{summary.get('missing_candidates', 0)} candidates identified, "
                            f"{summary.get('hpa_coverage_percent', 0):.1f}% coverage")
+            
+            # Log DNA analyzer compatibility fix
+            logger.info(f"✅ DNA Analyzer compatibility: Created hpa_implementation with {len(all_hpas)} total HPAs")
             
             return hpa_state
             
@@ -1545,8 +1561,26 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         
         try:
             logger.info("🔄 Calling DNA analyzer with cluster config...")
-            # Pass cluster_config to DNA analyzer
-            cluster_dna = self.dna_analyzer.analyze_cluster_dna(analysis_results, historical_data, cluster_config)
+            
+            # Extract metrics_data from analysis_results (same as chart_generator does)
+            metrics_data = None
+            if 'hpa_recommendations' in analysis_results:
+                hpa_recommendations = analysis_results['hpa_recommendations']
+                if isinstance(hpa_recommendations, dict) and 'metrics_data' in hpa_recommendations:
+                    metrics_data = hpa_recommendations['metrics_data']
+                    if metrics_data and 'hpa_implementation' in metrics_data:
+                        total_hpas = metrics_data['hpa_implementation'].get('total_hpas', 0)
+                        hpa_count = len(total_hpas) if isinstance(total_hpas, list) else total_hpas
+                        logger.info(f"🎯 DNA_ANALYZER: Extracted metrics_data with {hpa_count} HPAs for DNA analysis")
+                    else:
+                        logger.info("🎯 DNA_ANALYZER: Found hpa_recommendations.metrics_data but no hpa_implementation")
+                else:
+                    logger.info("🎯 DNA_ANALYZER: Found hpa_recommendations but no metrics_data")
+            else:
+                logger.warning("⚠️ DNA_ANALYZER: No hpa_recommendations in analysis_results - HPA data may be missing")
+            
+            # Pass cluster_config AND metrics_data to DNA analyzer
+            cluster_dna = self.dna_analyzer.analyze_cluster_dna(analysis_results, historical_data, cluster_config, metrics_data)
             
             if cluster_dna is None:
                 error_msg = "DNA analyzer returned None"

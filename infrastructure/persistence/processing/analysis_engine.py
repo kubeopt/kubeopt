@@ -295,7 +295,7 @@ class MultiSubscriptionAnalysisEngine:
             with subscription_lock:
                 logger.info(f"🔒 Acquired subscription lock for {subscription_id[:8]}")
                 
-                def analysis_function():
+                def analysis_function(subscription_id=None):
                     return self._execute_core_analysis_with_cluster_config_support(
                         resource_group, cluster_name, days, enable_pod_analysis,
                         session_id, log_prefix, config

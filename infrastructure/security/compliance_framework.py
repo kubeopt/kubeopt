@@ -3480,7 +3480,13 @@ class ComplianceFrameworkEngine:
             
             # Scale features and predict
             features_scaled = self.compliance_scaler.transform([features])
-            compliance_probability = self.compliance_predictor.predict_proba(features_scaled)[0][1]
+            prob_result = self.compliance_predictor.predict_proba(features_scaled)[0]
+            
+            # Handle both binary and single-class predictions
+            if len(prob_result) > 1:
+                compliance_probability = prob_result[1]  # Positive class probability
+            else:
+                compliance_probability = prob_result[0]  # Single class, use as-is
             
             return compliance_probability
             

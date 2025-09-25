@@ -68,6 +68,8 @@ class KubernetesDataCache:
             "deployments_text": "kubectl get deployments --all-namespaces",
             "replicasets": "kubectl get replicasets --all-namespaces -o json",
             "statefulsets": "kubectl get statefulsets --all-namespaces -o json",
+            "daemonsets": "kubectl get daemonsets --all-namespaces -o json",
+            "jobs": "kubectl get jobs --all-namespaces -o json",
             
             # === INFRASTRUCTURE ===
             "services": "kubectl get services --all-namespaces -o json", 
@@ -75,6 +77,7 @@ class KubernetesDataCache:
             "services_loadbalancer": "kubectl get services --all-namespaces --field-selector spec.type=LoadBalancer",
             "pvcs": "kubectl get pvc --all-namespaces -o json",
             "pvc_text": "kubectl get pvc --all-namespaces",
+            "persistentvolumes": "kubectl get persistentvolumes -o json",
             "storage_classes": "kubectl get storageclass -o json",
             "storage_classes_text": "kubectl get storageclass",
             "volume_snapshot_classes": "kubectl get volumesnapshotclass",
@@ -91,26 +94,20 @@ class KubernetesDataCache:
             "resource_quota_default": "kubectl get resourcequota -n default",
             "limit_ranges": "kubectl get limitranges --all-namespaces -o json",
             "secrets": "kubectl get secrets --all-namespaces -o json",
-            "pod_security_policies": "kubectl get podsecuritypolicies -o json",
-            
-            # === SPECIALIZED RESOURCES ===
-            "namespace_cost_monitoring": "kubectl get namespace cost-monitoring",
-            "namespace_security_optimized": "kubectl get namespace security-optimized",
-            "networkpolicy_comprehensive": "kubectl get networkpolicy comprehensive-network-security -n default",
-            "storageclass_cost_optimized": "kubectl get storageclass cost-optimized-ssd",
-            
-            # === SYSTEM COMPONENTS ===
-            "deployment_cluster_autoscaler": "kubectl get deployment cluster-autoscaler -n kube-system",
-            "deployment_metrics_server": "kubectl get deployment metrics-server -n kube-system",
-            "configmap_pv_lifecycle": "kubectl get configmap pv-lifecycle-policy -n kube-system",
+            # === RECOMMENDED ALTERNATIVES (Broader queries instead of specific failing ones) ===
+            "namespaces_with_labels": "kubectl get ns --show-labels",  # Alternative to PSP - check Pod Security Admission labels
+            "all_namespaces_list": "kubectl get ns",  # Alternative to specific namespace queries - filter results
+            "all_networkpolicies": "kubectl get networkpolicy -A",  # Alternative to specific policy queries
+            "all_storageclasses_list": "kubectl get storageclass",  # Alternative to specific storageclass queries
             
             # === EVENTS & CONFIG ===
-            "events": "kubectl get events --all-namespaces --sort-by='.lastTimestamp' --limit=200 -o json",
+            "events": "kubectl get events --all-namespaces --sort-by='.lastTimestamp' -o json | head -n 200",
             "configmaps": "kubectl get configmaps --all-namespaces -o json",
             "applications": "kubectl get applications --all-namespaces -o json",  # ArgoCD
             "api_resources": "kubectl api-resources --output=wide",  # For config fetcher
             "api_versions": "kubectl api-versions",  # For config fetcher
             "cluster_info": "kubectl cluster-info",  # For ML framework health check
+            "config_view": "kubectl config view --output=json",  # For config fetcher
             
             # === HPA & AUTOSCALING ===
             "hpa": "kubectl get hpa --all-namespaces -o json",
@@ -121,43 +118,66 @@ class KubernetesDataCache:
             "hpa_high_cpu": '''kubectl get hpa --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,CPU_CURRENT:.status.currentMetrics[0].resource.current.averageUtilization,CPU_TARGET:.spec.metrics[0].resource.target.averageUtilization"''',
             
             # === JSON FALLBACKS (for backward compatibility) ===
-            "pods": "kubectl get pods --all-namespaces -o json"  # Get ALL pods, not just running
+            "pods": "kubectl get pods --all-namespaces -o json",  # Get ALL pods, not just running
+            
+            # === AZURE AKS COMMANDS ===
+            "aks_cluster_info": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --output json",
+            "aks_nodepool_list": f"az aks nodepool list --resource-group {self.resource_group} --cluster-name {self.cluster_name} --subscription {self.subscription_id} --output json", 
+            "aks_managed_identity": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query identity --output json",
+            
+            # === SYSTEM COMPONENTS (Broader queries - always work) ===
+            "kube_system_deployments": "kubectl get deployment -n kube-system",  # Alternative to specific deployments - filter results
+            "kube_system_configmaps": "kubectl get configmap -n kube-system",   # Alternative to specific configmaps - filter results
         }
     
     def _execute_kubectl_command(self, cmd: str, timeout: int = None) -> Optional[str]:
-        """Execute single kubectl command via Azure SDK server-side execution"""
+        """Execute single kubectl or az command via Azure SDK only"""
+        # All commands (kubectl and Azure CLI) should go through Azure SDK
+        return self._execute_kubectl_via_sdk(cmd, timeout)
+    
+    def _execute_kubectl_via_sdk(self, cmd: str, timeout: int = None) -> Optional[str]:
+        """Execute kubectl or Azure CLI commands via Azure SDK"""
         try:
             # Import Azure SDK manager
             from infrastructure.services.azure_sdk_manager import azure_sdk_manager
             
-            # Smart timeout based on command type (same logic as before)
-            if timeout is None:
-                if "kubectl version" in cmd:
-                    timeout = 30   # Version commands should be quick
-                elif "kubectl top" in cmd:
-                    timeout = 45  # Metrics server commands are faster but can fail
-                elif "get namespaces" in cmd or "get nodes" in cmd:
-                    timeout = 120  # Basic cluster info - allow more time
-                elif "get pods --all-namespaces" in cmd:
-                    timeout = 180  # Large clusters may have many pods
-                elif "get services --all-namespaces" in cmd or "get pvc --all-namespaces" in cmd:
-                    timeout = 150  # Service/storage queries can be slow
-                elif "-o json" in cmd and ("events" in cmd or "secrets" in cmd):
-                    timeout = 90   # JSON queries with potential large output
-                else:
-                    timeout = 75   # Default increased from 60 to 75
-                    
-                logger.info(f"🕐 {self.cluster_name}: Using {timeout}s timeout for: {cmd[:50]}...")
-            
             cmd_start = time.time()
             
-            # Use SDK server-side execution (same as az aks command invoke)
-            result_output = azure_sdk_manager.execute_aks_command_without_cli(
-                subscription_id=self.subscription_id,
-                resource_group=self.resource_group,
-                cluster_name=self.cluster_name,
-                kubectl_command=cmd
-            )
+            # Handle Azure CLI commands through direct SDK calls
+            if cmd.startswith('az aks show'):
+                result_output = self._execute_aks_show_via_sdk()
+            elif cmd.startswith('az aks nodepool list'):
+                result_output = self._execute_aks_nodepool_list_via_sdk()
+            elif 'az aks show' in cmd and '--query identity' in cmd:
+                result_output = self._execute_aks_identity_via_sdk()
+            else:
+                # Handle kubectl commands through server-side execution
+                # Smart timeout based on command type
+                if timeout is None:
+                    if "kubectl version" in cmd:
+                        timeout = 30   # Version commands should be quick
+                    elif "kubectl top" in cmd:
+                        timeout = 45  # Metrics server commands are faster but can fail
+                    elif "get namespaces" in cmd or "get nodes" in cmd:
+                        timeout = 120  # Basic cluster info - allow more time
+                    elif "get pods --all-namespaces" in cmd:
+                        timeout = 180  # Large clusters may have many pods
+                    elif "get services --all-namespaces" in cmd or "get pvc --all-namespaces" in cmd:
+                        timeout = 150  # Service/storage queries can be slow
+                    elif "-o json" in cmd and ("events" in cmd or "secrets" in cmd):
+                        timeout = 90   # JSON queries with potential large output
+                    else:
+                        timeout = 75   # Default increased from 60 to 75
+                        
+                    logger.info(f"🕐 {self.cluster_name}: Using {timeout}s timeout for: {cmd[:50]}...")
+                
+                # Use SDK server-side execution (same as az aks command invoke)
+                result_output = azure_sdk_manager.execute_aks_command(
+                    subscription_id=self.subscription_id,
+                    resource_group=self.resource_group,
+                    cluster_name=self.cluster_name,
+                    kubectl_command=cmd
+                )
             
             cmd_duration = time.time() - cmd_start
             
@@ -167,12 +187,20 @@ class KubernetesDataCache:
             else:
                 # Command failed - handle gracefully based on command type
                 if "kubectl top" in cmd:
-                    logger.warning(f"⚠️ {self.cluster_name}: kubectl top failed (metrics server may be unavailable): {cmd[:60]}...")
-                    logger.info(f"📊 {self.cluster_name}: Metrics server not ready, will use resource requests as fallback")
+                    logger.warning(f"⚠️ {self.cluster_name}: kubectl top failed (metrics not available for some pods): {cmd[:60]}...")
+                    logger.info(f"📊 {self.cluster_name}: This is normal for old/restarted pods. Using resource requests as fallback for cost analysis")
                 elif "kubectl get hpa" in cmd:
                     logger.warning(f"⚠️ {self.cluster_name}: HPA command failed: {cmd[:60]}...")
                     logger.info(f"🔍 DEBUGGING HPA ERROR: Used subscription: {self.subscription_id}")
                     logger.debug(f"📈 {self.cluster_name}: HPA API unavailable (cluster may not have HPA enabled): {cmd[:60]}...")
+                elif "NotFound" in str(result_output) or "not found" in str(result_output):
+                    # Resource doesn't exist - this is expected for optional resources
+                    logger.debug(f"📋 {self.cluster_name}: Optional resource not found: {cmd[:60]}...")
+                    return None
+                elif "podsecuritypolicies" in cmd:
+                    # PSP deprecated in k8s 1.25+
+                    logger.debug(f"📋 {self.cluster_name}: PodSecurityPolicy deprecated/removed: {cmd[:60]}...")
+                    return None
                 else:
                     # Handle different types of kubectl failures gracefully
                     logger.warning(f"⚠️ {self.cluster_name}: kubectl command failed: {cmd[:60]}...")
@@ -194,12 +222,93 @@ class KubernetesDataCache:
                 if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
                     raise TimeoutError(f"Critical kubectl command timed out after {timeout}s: {cmd[:60]}...")
                 return None
+            elif "NotFound" in str(e) or "not found" in str(e):
+                # Resource doesn't exist - this is expected for optional resources
+                logger.debug(f"📋 {self.cluster_name}: Optional resource not found (exception): {cmd[:60]}...")
+                return None
+            elif "podsecuritypolicies" in cmd:
+                # PSP deprecated in k8s 1.25+
+                logger.debug(f"📋 {self.cluster_name}: PodSecurityPolicy deprecated/removed (exception): {cmd[:60]}...")
+                return None
             else:
                 logger.error(f"❌ {self.cluster_name}: kubectl SDK error: {cmd[:60]}... - {e}")
                 # For critical commands, re-raise the error
                 if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
                     raise RuntimeError(f"kubectl execution failed: {cmd[:60]}... - {e}")
                 return None
+    
+    def _execute_aks_show_via_sdk(self) -> Optional[str]:
+        """Execute 'az aks show' command via Azure SDK"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            import json
+            
+            # Get AKS client
+            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
+            if not aks_client:
+                logger.error(f"❌ Cannot get AKS client for {self.cluster_name}")
+                return None
+            
+            # Get cluster information
+            cluster = aks_client.managed_clusters.get(self.resource_group, self.cluster_name)
+            
+            # Convert to dictionary and serialize to JSON
+            cluster_dict = cluster.as_dict()
+            return json.dumps(cluster_dict, indent=2)
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to get AKS cluster info via SDK: {e}")
+            return None
+    
+    def _execute_aks_nodepool_list_via_sdk(self) -> Optional[str]:
+        """Execute 'az aks nodepool list' command via Azure SDK"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            import json
+            
+            # Get AKS client
+            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
+            if not aks_client:
+                logger.error(f"❌ Cannot get AKS client for {self.cluster_name}")
+                return None
+            
+            # List node pools
+            nodepools = list(aks_client.agent_pools.list(self.resource_group, self.cluster_name))
+            
+            # Convert to list of dictionaries and serialize to JSON
+            nodepools_list = [nodepool.as_dict() for nodepool in nodepools]
+            return json.dumps(nodepools_list, indent=2)
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to get AKS nodepool list via SDK: {e}")
+            return None
+    
+    def _execute_aks_identity_via_sdk(self) -> Optional[str]:
+        """Execute 'az aks show --query identity' command via Azure SDK"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            import json
+            
+            # Get AKS client
+            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
+            if not aks_client:
+                logger.error(f"❌ Cannot get AKS client for {self.cluster_name}")
+                return None
+            
+            # Get cluster information
+            cluster = aks_client.managed_clusters.get(self.resource_group, self.cluster_name)
+            
+            # Extract identity information
+            identity = cluster.identity
+            if identity:
+                identity_dict = identity.as_dict()
+                return json.dumps(identity_dict, indent=2)
+            else:
+                return json.dumps({}, indent=2)
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to get AKS identity via SDK: {e}")
+            return None
     
     def _extract_kubectl_output_from_azure_text(self, azure_output: str, cmd: str) -> Optional[str]:
         """Extract actual kubectl output from Azure CLI text response"""
@@ -268,8 +377,9 @@ class KubernetesDataCache:
         results = {}
         failed_commands = {}
         
-        # Use minimal workers to prevent overwhelming the AKS API server
-        max_workers = 3  # Reduced from 6 to 3 - AKS API server can get overwhelmed with too many concurrent requests
+        # Balanced workers for SDK-based execution with built-in rate limiting
+        import os
+        max_workers = int(os.getenv('KUBECTL_BATCH_WORKERS', '5'))  # Configurable: 5 default, can override with env var
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit commands with slight delay to be gentle on AKS API server
             future_to_key = {}
@@ -339,12 +449,12 @@ class KubernetesDataCache:
             'deployment_info', 'pod_timestamps', 'pods_running', 'pods_basic',
             'pvc_text', 'services_text', 'storage_classes_text', 'nodes_text',
             'services_loadbalancer', 'volume_snapshot_classes', 'service_accounts_default',
-            'roles_default', 'resource_quota_default', 'namespace_cost_monitoring',
-            'namespace_security_optimized', 'networkpolicy_comprehensive', 
-            'storageclass_cost_optimized', 'deployment_cluster_autoscaler',
-            'deployment_metrics_server', 'configmap_pv_lifecycle', 'api_resources',
+            'roles_default', 'resource_quota_default', 'api_resources',
             'api_versions', 'cluster_info', 'hpa_text', 'hpa_no_headers', 'hpa_basic',
-            'hpa_custom', 'hpa_high_cpu', 'deployments_text', 'pods_all', 'cluster_utilization'
+            'hpa_custom', 'hpa_high_cpu', 'deployments_text', 'pods_all', 'cluster_utilization',
+            # New broader query commands (all return text)
+            'namespaces_with_labels', 'all_namespaces_list', 'all_networkpolicies', 
+            'all_storageclasses_list', 'kube_system_deployments', 'kube_system_configmaps'
         }
         return key in text_commands
     
@@ -450,6 +560,8 @@ class KubernetesDataCache:
             'deployments': deployments_formatted,  # Use deployments data (converted from available sources)
             'replicasets': self._ensure_json_format('replicasets'),  # JSON - ensure dict with items  
             'statefulsets': self._ensure_json_format('statefulsets'),  # JSON - ensure dict with items
+            'daemonsets': self._ensure_json_format('daemonsets'),  # JSON - ensure dict with items
+            'jobs': self._ensure_json_format('jobs'),  # JSON - ensure dict with items
             'services': self._ensure_json_format('services'),  # JSON - ensure dict with items
             'pvcs': self._ensure_json_format('pvcs'),  # JSON - ensure dict with items
             'namespaces': self._ensure_json_format('namespaces'),  # JSON - ensure dict with items
@@ -498,7 +610,7 @@ class KubernetesDataCache:
             'resource_quotas': self._ensure_json_format('resource_quotas'),  # JSON - ensure dict
             'limit_ranges': self._ensure_json_format('limit_ranges'),  # JSON - ensure dict
             'secrets': self._ensure_json_format('secrets'),  # JSON - ensure dict
-            'pod_security_policies': self._ensure_json_format('pod_security_policies')  # JSON - ensure dict
+            'pod_security_policies': {"items": []}  # Deprecated in k8s 1.25+ - return empty structure
         }
     
     def get_infrastructure_data(self) -> Dict[str, Any]:
@@ -508,6 +620,7 @@ class KubernetesDataCache:
             'services_text': self.get('services_text') or "",  # Text fallback
             'pvcs': self._ensure_json_format('pvcs'),  # JSON - ensure dict
             'pvc_text': self.get('pvc_text') or "",  # Text fallback
+            'persistentvolumes': self._ensure_json_format('persistentvolumes'),  # JSON - ensure dict
             'storage_classes': self._ensure_json_format('storage_classes'),  # JSON - ensure dict
             'storage_classes_text': self.get('storage_classes_text') or "",  # Text fallback
             'volume_snapshot_classes': self.get('volume_snapshot_classes') or "",  # Text
@@ -1162,52 +1275,142 @@ class KubernetesDataCache:
                     elif query_type == 'memory':
                         return node.get('status', {}).get('allocatable', {}).get('memory', '')
         
-        # Fallback to direct query if not found in cache
-        cmd_map = {
-            'instance-type': f"kubectl get node {node_name} -o jsonpath='{{.metadata.labels.node\\.kubernetes\\.io/instance-type}}'",
-            'cpu': f"kubectl get node {node_name} -o jsonpath='{{.status.allocatable.cpu}}'",
-            'memory': f"kubectl get node {node_name} -o jsonpath='{{.status.allocatable.memory}}'"
-        }
-        
-        if query_type in cmd_map:
-            return self._execute_kubectl_command(cmd_map[query_type])
-        
+        # NO FALLBACK TO COMMAND EXECUTION - CACHE ONLY DURING ANALYSIS
+        logger.warning(f"⚠️ {self.cluster_name}: Node {node_name} {query_type} not found in cached nodes data, no command execution during analysis")
         return None
+    
+    # =====================================
+    # CENTRALIZED COMMAND EXECUTION METHODS
+    # =====================================
+    
+    def execute_kubectl_command(self, kubectl_cmd: str, timeout: int = 120) -> Optional[str]:
+        """
+        Centralized kubectl command execution via Azure SDK
+        Replaces all subprocess/CLI methods across the codebase
+        """
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            
+            # Use Azure SDK for kubectl execution
+            result = azure_sdk_manager.execute_aks_command(
+                subscription_id=self.subscription_id,
+                resource_group=self.resource_group,
+                cluster_name=self.cluster_name,
+                kubectl_command=kubectl_cmd
+            )
+            
+            if result:
+                logger.debug(f"✅ {self.cluster_name}: kubectl command executed via SDK: {kubectl_cmd[:60]}...")
+                return result
+            else:
+                logger.warning(f"⚠️ {self.cluster_name}: kubectl command returned empty result: {kubectl_cmd[:60]}...")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: kubectl command failed via SDK: {kubectl_cmd[:60]}... - {e}")
+            return None
+    
+    def execute_kubectl_json(self, kubectl_args: List[str]) -> Optional[Dict]:
+        """
+        Execute kubectl command and return JSON result
+        Used by aks_config_fetcher and other components
+        """
+        cmd_str = ' '.join(['kubectl'] + kubectl_args)
+        result = self.execute_kubectl_command(cmd_str)
+        
+        if result:
+            try:
+                return json.loads(result)
+            except json.JSONDecodeError as e:
+                logger.warning(f"⚠️ {self.cluster_name}: Failed to parse kubectl JSON output: {e}")
+                return None
+        return None
+    
+    def verify_cluster_connection(self) -> bool:
+        """
+        Centralized cluster connection verification
+        Replaces verify_cluster_connection in aks_realtime_metrics
+        """
+        try:
+            subscription_info = f" in subscription {self.subscription_id[:8]}" if self.subscription_id else ""
+            logger.info(f"Verifying connection to AKS cluster {self.cluster_name}{subscription_info}")
+            
+            result = self.execute_kubectl_command("kubectl cluster-info")
+            
+            if result and "running at" in result.lower():
+                logger.info(f"✅ {self.cluster_name}: Cluster connection verified")
+                return True
+            else:
+                logger.error(f"❌ {self.cluster_name}: Cluster connection failed")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Connection verification error: {e}")
+            return False
+    
+    def get_cluster_info(self) -> Optional[Dict]:
+        """
+        Get cluster info via centralized command execution
+        """
+        return self.execute_kubectl_json(['cluster-info', '--output=json'])
+    
+    def get_cluster_config(self) -> Optional[Dict]:
+        """
+        Get cluster config via centralized command execution
+        """
+        return self.execute_kubectl_json(['config', 'view', '--output=json'])
 
 
 # === GLOBAL CACHE MANAGER ===
 _active_caches: Dict[str, KubernetesDataCache] = {}
 
-def get_or_create_cache(cluster_name: str, resource_group: str, subscription_id: str) -> KubernetesDataCache:
+def get_or_create_cache(cluster_name: str, resource_group: str, subscription_id: str, force_fetch: bool = True) -> KubernetesDataCache:
     """
     Get or create cache instance for a cluster.
-    Reuses existing cache if available, creates fresh cache only if needed.
+    Reuses existing cache if available, creates fresh cache with pre-populated data if needed.
     """
     cache_key = f"{subscription_id}:{resource_group}:{cluster_name}"
     
     # Check if cache already exists and reuse it
     if cache_key in _active_caches:
-        logger.info(f"♻️ Reusing existing cache for {cluster_name} (avoiding duplicate kubectl execution)")
-        return _active_caches[cache_key]
+        existing_cache = _active_caches[cache_key]
+        # Check if cache has data, if not fetch it
+        if force_fetch and not existing_cache.data:
+            logger.info(f"🔄 {cluster_name}: Cache exists but empty, fetching all data...")
+            existing_cache.fetch_all_data()
+        else:
+            logger.info(f"♻️ Reusing existing cache for {cluster_name} (data already available)")
+        return existing_cache
     
-    # Create fresh cache only if none exists
-    logger.info(f"🆕 Creating initial cache for {cluster_name} (ready for data - kubectl commands will run on analysis)")
-    _active_caches[cache_key] = KubernetesDataCache(cluster_name, resource_group, subscription_id, auto_fetch=False)
+    # Create fresh cache with pre-populated data
+    logger.info(f"🆕 Creating cache for {cluster_name} with pre-populated data...")
+    _active_caches[cache_key] = KubernetesDataCache(cluster_name, resource_group, subscription_id, auto_fetch=force_fetch)
     
     return _active_caches[cache_key]
 
 def fetch_cluster_data(cluster_name: str, resource_group: str, subscription_id: str) -> KubernetesDataCache:
-    """Convenience function to get cache with fresh data (triggers kubectl commands for analysis)"""
-    cache = get_or_create_cache(cluster_name, resource_group, subscription_id)
-    
-    # Explicitly fetch data for analysis - this is when kubectl commands should run
-    logger.info(f"🔄 {cluster_name}: Starting kubectl data collection for analysis...")
-    cache.fetch_all_data()
-    
-    return cache
+    """Convenience function to get cache with pre-populated data (no duplicate execution)"""
+    # Use get_or_create_cache which now handles data fetching automatically
+    return get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=True)
 
 def clear_all_caches():
     """Clear all active caches"""
     global _active_caches
     _active_caches.clear()
     logger.info("🗑️ All caches cleared")
+
+def execute_cluster_command(cluster_name: str, resource_group: str, subscription_id: str, kubectl_cmd: str) -> Optional[str]:
+    """
+    Convenience function for external components to execute kubectl commands
+    via the centralized cache system
+    """
+    cache = get_or_create_cache(cluster_name, resource_group, subscription_id)
+    return cache.execute_kubectl_command(kubectl_cmd)
+
+def verify_cluster_connection(cluster_name: str, resource_group: str, subscription_id: str) -> bool:
+    """
+    Convenience function for external components to verify cluster connection
+    via the centralized cache system
+    """
+    cache = get_or_create_cache(cluster_name, resource_group, subscription_id)
+    return cache.verify_cluster_connection()

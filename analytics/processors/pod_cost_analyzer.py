@@ -252,7 +252,7 @@ class SubscriptionAwareKubectlExecutor:
             start_time = time.time()
             
             # Use SDK-based kubectl execution
-            result_output = azure_sdk_manager.execute_aks_command_without_cli(
+            result_output = azure_sdk_manager.execute_aks_command(
                 subscription_id=self.subscription_id,
                 resource_group=self.resource_group,
                 cluster_name=self.cluster_name,
@@ -392,9 +392,9 @@ class EnhancedDynamicCostDistributionEngine:
                     elif ".status.allocatable.memory" in kubectl_cmd:
                         return self.cache.get_node_specific_data(node_name, 'memory')
             
-            # For any unmapped commands, use dynamic execution
-            logger.debug(f"⚠️ Unmapped command, using dynamic execution: {kubectl_cmd[:30]}...")
-            return self.cache.execute_dynamic_command(kubectl_cmd, timeout)
+            # NO DYNAMIC EXECUTION DURING ANALYSIS - READ FROM CACHE ONLY
+            logger.warning(f"⚠️ PodCostAnalyzer: Unmapped command not found in cache, no execution during analysis: {kubectl_cmd[:50]}...")
+            return None
             
         except Exception as e:
             logger.error(f"❌ Cache query failed for {kubectl_cmd[:30]}...: {e}")

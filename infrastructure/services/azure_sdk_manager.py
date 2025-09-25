@@ -42,6 +42,12 @@ try:
 except ImportError as e:
     logging.warning(f"⚠️ Azure SDK not available: {e}")
     AZURE_SDK_AVAILABLE = False
+    # Define dummy classes for type hints when SDK not available
+    class CostManagementClient: pass
+    class MonitorManagementClient: pass
+    class ResourceManagementClient: pass
+    class ContainerServiceClient: pass
+    class LogsQueryClient: pass
 
 logger = logging.getLogger(__name__)
 
@@ -103,14 +109,16 @@ class AzureSDKManager:
                 except Exception as e:
                     logger.warning(f"⚠️ Username/password credential failed: {e}")
             
-            # 2. Interactive browser credential for testing
-            if not credential_chain and tenant_id:
+            # 2. Interactive browser credential for testing (only with valid tenant ID)
+            if not credential_chain and tenant_id and not tenant_id.startswith('your-') and 'placeholder' not in tenant_id.lower():
                 try:
                     browser_credential = InteractiveBrowserCredential(tenant_id=tenant_id)
                     credential_chain.append(browser_credential)
                     logger.info("✅ Added interactive browser credential for testing")
                 except Exception as e:
                     logger.debug(f"Interactive browser credential not available: {e}")
+            else:
+                logger.debug("Skipping interactive browser credential due to placeholder/missing tenant ID")
             
             # 3. Environment credentials (for CI/CD, service principals)
             if tenant_id and not tenant_id.startswith('your-') and 'placeholder' not in tenant_id.lower():
@@ -131,13 +139,16 @@ class AzureSDKManager:
             except Exception as e:
                 logger.debug(f"Managed identity credential not available: {e}")
             
-            # 3. Azure CLI credential (for development)
+            # 3. Azure CLI credential (for development) - PRIORITY
             try:
                 cli_credential = AzureCliCredential()
+                # Test if CLI is actually logged in
+                cli_credential.get_token("https://management.azure.com/.default")
                 credential_chain.append(cli_credential)
-                logger.info("✅ Added Azure CLI credential to chain")
+                logger.info("✅ Added Azure CLI credential to chain (verified working)")
             except Exception as e:
-                logger.debug(f"Azure CLI credential not available: {e}")
+                logger.debug(f"Azure CLI credential not available or not logged in: {e}")
+                logger.info("💡 Hint: Run 'az login' to authenticate with Azure CLI")
             
             if not credential_chain:
                 logger.error("❌ No Azure credentials available")
@@ -168,7 +179,6 @@ class AzureSDKManager:
     def _get_subscription_id(self):
         """Get current Azure subscription ID with caching"""
         import os
-        import subprocess
         
         # Try environment variable first
         self.subscription_id = os.getenv('AZURE_SUBSCRIPTION_ID')
@@ -182,20 +192,27 @@ class AzureSDKManager:
             logger.debug(f"✅ Using cached subscription ID: {self.subscription_id[:8]}...")
             return
         
-        # Try Azure CLI as fallback - but cache the result
+        # Try Azure SDK to get default subscription - no CLI fallback
         try:
-            result = subprocess.run(['az', 'account', 'show', '--query', 'id', '-o', 'tsv'], 
-                                  capture_output=True, text=True, timeout=10)
-            if result.returncode == 0 and result.stdout.strip():
-                self.subscription_id = result.stdout.strip()
+            from azure.mgmt.subscription import SubscriptionClient
+            from azure.identity import DefaultAzureCredential
+            
+            credential = DefaultAzureCredential()
+            subscription_client = SubscriptionClient(credential)
+            
+            # Get first enabled subscription as default
+            subscriptions = list(subscription_client.subscriptions.list())
+            if subscriptions:
+                default_subscription = subscriptions[0]
+                self.subscription_id = default_subscription.subscription_id
                 self._cached_subscription_id = self.subscription_id  # Cache it
-                logger.info(f"✅ Using subscription ID from Azure CLI: {self.subscription_id[:8]}...")
+                logger.info(f"✅ SDK: Using default subscription ID: {self.subscription_id[:8]}...")
                 return
         except Exception as e:
-            logger.debug(f"Could not get subscription from Azure CLI: {e}")
+            logger.debug(f"Could not get subscription from Azure SDK: {e}")
         
-        logger.error("❌ No subscription ID available. Set AZURE_SUBSCRIPTION_ID or run 'az login'")
-        raise RuntimeError("Azure subscription ID not available")
+        logger.error("❌ No subscription ID available. Set AZURE_SUBSCRIPTION_ID environment variable")
+        raise RuntimeError("Azure subscription ID not available - set AZURE_SUBSCRIPTION_ID environment variable")
     
     def is_authenticated(self) -> bool:
         """Check if Azure credentials are available and valid - optimized"""
@@ -313,7 +330,7 @@ class AzureSDKManager:
             logger.error(f"❌ No access to subscription {subscription_id[:8]}...: {e}")
             return False
     
-    def execute_aks_command_without_cli(self, subscription_id: str, resource_group: str, 
+    def execute_aks_command(self, subscription_id: str, resource_group: str, 
                                       cluster_name: str, kubectl_command: str) -> Optional[str]:
         """
         Execute kubectl command using Azure SDK Run Command API
@@ -322,7 +339,7 @@ class AzureSDKManager:
         - Works with private AKS clusters
         - No VNet connectivity required  
         - Secure execution through Azure's network
-        - Container-friendly (no CLI dependency)
+        - Container-friendly (pure SDK implementation)
         """
         try:
             import os
@@ -370,58 +387,30 @@ class AzureSDKManager:
                 logger.debug(f"✅ Server-side kubectl execution successful: {kubectl_command}")
                 return output.strip()
             else:
-                logger.error(f"❌ Server-side kubectl command failed (exit {command_result.exit_code}): {kubectl_command}")
-                if command_result.logs:
-                    logger.error(f"Error logs: {command_result.logs}")
-                
-                # In production mode, don't fall back to CLI
-                if production_mode:
-                    logger.error("🚫 Production mode: CLI fallback disabled for security")
-                    return None
+                # Handle expected failures gracefully
+                if "kubectl top" in kubectl_command and "Metrics not available" in command_result.logs:
+                    logger.debug(f"⚠️ Server-side kubectl top command failed (metrics not available): {kubectl_command}")
+                    if command_result.logs:
+                        logger.debug(f"Metrics error details: {command_result.logs}")
+                elif "kubectl get" in kubectl_command and ("NotFound" in command_result.logs or "not found" in command_result.logs):
+                    logger.debug(f"📋 Server-side kubectl get failed (resource not found): {kubectl_command}")
                 else:
-                    logger.info("🔄 Development mode: Trying CLI fallback...")
-                    return self._execute_kubectl_via_cli_fallback(subscription_id, resource_group, cluster_name, kubectl_command)
+                    # Unexpected failures should still be logged as errors
+                    logger.error(f"❌ Server-side kubectl command failed (exit {command_result.exit_code}): {kubectl_command}")
+                    if command_result.logs:
+                        logger.error(f"Error logs: {command_result.logs}")
                 
-        except Exception as e:
-            logger.error(f"❌ Server-side kubectl execution failed: {e}")
-            
-            # In production mode, no fallback to CLI
-            if os.getenv('PRODUCTION_MODE', 'false').lower() == 'true':
-                logger.error("🚫 Production mode: No CLI fallback available")
-                return None
-            else:
-                logger.info("🔄 Development mode: Attempting CLI fallback...")
-                return self._execute_kubectl_via_cli_fallback(subscription_id, resource_group, cluster_name, kubectl_command)
-    
-    def _execute_kubectl_via_cli_fallback(self, subscription_id: str, resource_group: str,
-                                        cluster_name: str, kubectl_command: str) -> Optional[str]:
-        """Fallback to CLI for preview features or SDK failures"""
-        try:
-            import subprocess
-            
-            # Build az aks command invoke as fallback
-            cmd = [
-                'az', 'aks', 'command', 'invoke',
-                '--resource-group', resource_group,
-                '--name', cluster_name,
-                '--subscription', subscription_id,
-                '--command', kubectl_command
-            ]
-            
-            logger.debug(f"🔄 CLI Fallback: {kubectl_command}")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-            
-            if result.returncode == 0:
-                logger.debug(f"✅ kubectl command executed via CLI fallback: {kubectl_command}")
-                return result.stdout.strip()
-            else:
-                logger.error(f"❌ CLI fallback also failed (exit {result.returncode}): {kubectl_command}")
-                logger.error(f"Error: {result.stderr}")
                 return None
                 
         except Exception as e:
-            logger.error(f"❌ CLI fallback failed: {e}")
+            # Handle exceptions gracefully based on command type
+            if "kubectl top" in kubectl_command:
+                logger.debug(f"⚠️ Server-side kubectl top execution failed: {e}")
+            else:
+                logger.error(f"❌ Server-side kubectl execution failed: {e}")
+            
             return None
+    
     
     def _get_cluster_token_for_aad(self, subscription_id: str, resource_group: str, cluster_name: str) -> Optional[str]:
         """Get cluster token for AAD-enabled AKS clusters"""

@@ -10,7 +10,7 @@ Azure Subscription Manager for Multi-Subscription AKS Cost Optimization
 """
 
 import json
-import subprocess  
+# Removed subprocess import - using Azure SDK instead  
 import logging
 import threading
 import time
@@ -43,47 +43,13 @@ class AzureSubscriptionManager:
         self.cache_expiry = timedelta(hours=1)
         self.last_cache_update = None
         
-        # Controlled thread pool for Azure CLI operations
-        self.az_thread_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="AZ-CLI")
+        # Controlled thread pool for Azure SDK operations
+        self.az_thread_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="AZ-SDK")
         self.operation_semaphore = threading.Semaphore(5)  # Max 5 concurrent operations
         self.operation_queue = queue.Queue(maxsize=20)
         
-        # Rate limiting for Azure CLI calls
-        self.last_az_call = {}  # Track last call time per operation type
-        self.min_interval = 2.0  # Minimum 2 seconds between similar calls
-        
-    def _rate_limited_az_call(self, operation_type: str, az_command: list, timeout: int = 30):
-        """Rate-limited Azure CLI call with thread management"""
-        
-        # Rate limiting
-        current_time = time.time()
-        last_call = self.last_az_call.get(operation_type, 0)
-        
-        if current_time - last_call < self.min_interval:
-            sleep_time = self.min_interval - (current_time - last_call)
-            logger.debug(f"🔄 Rate limiting {operation_type}, sleeping {sleep_time:.1f}s")
-            time.sleep(sleep_time)
-        
-        # Semaphore control
-        if not self.operation_semaphore.acquire(timeout=10):
-            raise Exception(f"Too many concurrent Azure operations for {operation_type}")
-        
-        try:
-            self.last_az_call[operation_type] = time.time()
-            
-            logger.debug(f"🔄 Azure CLI: {' '.join(az_command[:3])}... (timeout: {timeout}s)")
-            
-            result = subprocess.run(
-                az_command, 
-                capture_output=True, 
-                text=True, 
-                timeout=timeout
-            )
-            
-            return result
-            
-        finally:
-            self.operation_semaphore.release()
+        # SDK-based operation management - no CLI rate limiting needed
+        # Azure SDK has built-in rate limiting and retry policies
     
     @lru_cache(maxsize=100)
     def get_available_subscriptions(self, force_refresh: bool = False) -> List[SubscriptionInfo]:
@@ -101,12 +67,17 @@ class AzureSubscriptionManager:
         
         try:
             # Use Azure SDK instead of CLI
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            from azure.mgmt.resource import SubscriptionClient
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager, AZURE_SDK_AVAILABLE
+            
+            if not AZURE_SDK_AVAILABLE:
+                logger.error("❌ Azure SDK not available - CLI fallback removed")
+                return []
             
             if not azure_sdk_manager.is_authenticated():
                 logger.error("❌ Azure SDK not authenticated")
                 return []
+            
+            from azure.mgmt.resource import SubscriptionClient
             
             # Create subscription client
             subscription_client = SubscriptionClient(azure_sdk_manager.credential)
@@ -145,9 +116,6 @@ class AzureSubscriptionManager:
             logger.info(f"✅ Found {len(subscriptions)} enabled subscriptions")
             return subscriptions
             
-        except subprocess.TimeoutExpired:
-            logger.error("❌ Timeout while fetching subscriptions")
-            return []
         except json.JSONDecodeError as e:
             logger.error(f"❌ Failed to parse subscription data: {e}")
             return []
@@ -170,75 +138,95 @@ class AzureSubscriptionManager:
         return None
     
     def set_active_subscription(self, subscription_id: str) -> bool:
-        """Set the active Azure subscription with rate limiting"""
+        """Validate subscription access using Azure SDK (no CLI switching needed)"""
         try:
-            logger.info(f"🔄 Setting active subscription: {subscription_id}")
+            logger.info(f"🔄 Validating subscription access: {subscription_id}")
             
-            # Use controlled Azure CLI call
-            result = self._rate_limited_az_call(
-                'set_subscription',
-                ['az', 'account', 'set', '--subscription', subscription_id],
-                timeout=15
-            )
+            # Import Azure SDK manager
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
             
-            if result.returncode == 0:
-                logger.info(f"✅ Successfully set active subscription: {subscription_id}")
-                return True
+            # Test subscription access by trying to get a client
+            # This validates both authentication and subscription access
+            resource_client = azure_sdk_manager.get_resource_client(subscription_id)
+            if resource_client:
+                # Try a simple API call to validate access
+                try:
+                    # List resource groups (minimal operation to test access)
+                    list(resource_client.resource_groups.list())
+                    logger.info(f"✅ Successfully validated subscription access: {subscription_id}")
+                    return True
+                except Exception as api_error:
+                    logger.error(f"❌ Cannot access subscription {subscription_id}: {api_error}")
+                    return False
             else:
-                logger.error(f"❌ Failed to set subscription: {result.stderr}")
+                logger.error(f"❌ Cannot create client for subscription: {subscription_id}")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Error setting subscription: {e}")
+            logger.error(f"❌ Error validating subscription {subscription_id}: {e}")
             return False
     
     def execute_with_subscription_context(self, subscription_id: str, func, *args, **kwargs):
-        """Execute function with specific subscription context"""
+        """Execute function with specific subscription context using Azure SDK"""
         
-        # Limit concurrent context switches
+        # Limit concurrent subscription operations
         if not self.operation_semaphore.acquire(timeout=30):
             raise Exception("Too many concurrent subscription operations")
         
-        original_subscription = None
         try:
-            # Get current subscription (cached call)
-            original_subscription = self.get_current_subscription()
+            # Validate subscription access first
+            if not self.set_active_subscription(subscription_id):
+                raise Exception(f"Cannot access subscription {subscription_id}")
             
-            # Set target subscription if different
-            if original_subscription != subscription_id:
-                if not self.set_active_subscription(subscription_id):
-                    raise Exception(f"Failed to set subscription {subscription_id}")
-            
-            # Execute function
-            result = func(*args, **kwargs)
+            # Execute function with subscription_id passed as context
+            # The function should use Azure SDK clients with the subscription_id parameter
+            result = func(*args, **kwargs, subscription_id=subscription_id)
             return result
             
         finally:
-            try:
-                # Restore original subscription if it was different
-                if original_subscription and original_subscription != subscription_id:
-                    self.set_active_subscription(original_subscription)
-            finally:
-                self.operation_semaphore.release()
+            # No cleanup needed - Azure SDK manages per-client subscription context
+            self.operation_semaphore.release()
     
     @lru_cache(maxsize=10, typed=False)
     def get_current_subscription(self) -> Optional[str]:
-        """Get currently active subscription ID with caching"""
+        """Get currently active subscription ID using Azure SDK with caching"""
         try:
-            result = self._rate_limited_az_call(
-                'get_current',
-                ['az', 'account', 'show', '--query', 'id', '--output', 'tsv'],
-                timeout=10
-            )
+            # Use centralized Azure SDK manager instead of creating new credentials
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            from azure.mgmt.subscription import SubscriptionClient
             
-            if result.returncode == 0:
-                return result.stdout.strip()
+            if not azure_sdk_manager.is_authenticated():
+                logger.warning("⚠️ SDK: Azure SDK manager not authenticated")
+                return None
+                
+            subscription_client = SubscriptionClient(azure_sdk_manager.credential)
+            
+            # Get the default subscription from the credential context
+            # The SDK will use the default subscription from the authentication context
+            subscriptions = list(subscription_client.subscriptions.list())
+            
+            if subscriptions:
+                # Return the first subscription (default one)
+                default_subscription = subscriptions[0]
+                subscription_id = default_subscription.subscription_id
+                logger.info(f"✅ SDK: Got current subscription {subscription_id[:8]}...")
+                return subscription_id
             else:
-                logger.warning(f"Failed to get current subscription: {result.stderr}")
+                logger.warning("⚠️ SDK: No subscriptions found in authentication context")
                 return None
                 
         except Exception as e:
-            logger.error(f"Error getting current subscription: {e}")
+            # Check if this is an authentication issue
+            if "DefaultAzureCredential failed" in str(e) or "tenant" in str(e).lower():
+                logger.error("❌ SDK: Azure authentication failed. Please either:")
+                logger.error("   1. Run 'az login' to authenticate with Azure CLI, OR")
+                logger.error("   2. Set proper values in .env file (remove placeholder values):")
+                logger.error("      AZURE_TENANT_ID=your-real-tenant-id")
+                logger.error("      AZURE_CLIENT_ID=your-real-client-id") 
+                logger.error("      AZURE_CLIENT_SECRET=your-real-client-secret")
+                logger.error("      AZURE_SUBSCRIPTION_ID=your-real-subscription-id")
+            else:
+                logger.error(f"❌ SDK: Error getting current subscription: {e}")
             return None
     
     def find_cluster_subscription(self, resource_group: str, cluster_name: str) -> Optional[str]:
@@ -285,22 +273,19 @@ class AzureSubscriptionManager:
         return None
     
     def _check_cluster_in_subscription(self, subscription_id: str, resource_group: str, cluster_name: str) -> bool:
-        """Check if cluster exists in specific subscription"""
+        """Check if cluster exists in specific subscription using Azure SDK"""
         try:
-            result = self._rate_limited_az_call(
-                'check_cluster',
-                [
-                    'az', 'aks', 'show',
-                    '--subscription', subscription_id,
-                    '--resource-group', resource_group,
-                    '--name', cluster_name,
-                    '--query', 'name',
-                    '--output', 'tsv'
-                ],
-                timeout=20
-            )
+            # Use Azure SDK instead of CLI
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
             
-            return result.returncode == 0 and result.stdout.strip() == cluster_name
+            # Get AKS client for the subscription
+            aks_client = azure_sdk_manager.get_aks_client(subscription_id)
+            if not aks_client:
+                return False
+            
+            # Try to get the cluster - if it exists, this won't throw an exception
+            cluster = aks_client.managed_clusters.get(resource_group, cluster_name)
+            return cluster is not None and cluster.name == cluster_name
             
         except Exception:
             return False
@@ -331,24 +316,33 @@ class AzureSubscriptionManager:
             return {'valid': False, 'error': f'Validation error: {e}', 'subscription_id': subscription_id}
     
     def _validate_cluster_in_rg(self, subscription_id: str, resource_group: str, cluster_name: str) -> Dict[str, any]:
-        """Validate cluster in specific resource group"""
+        """Validate cluster in specific resource group using Azure SDK"""
         try:
-            result = self._rate_limited_az_call(
-                'validate_cluster',
-                [
-                    'az', 'aks', 'show',
-                    '--subscription', subscription_id,
-                    '--resource-group', resource_group,
-                    '--name', cluster_name,
-                    '--query', '{name:name, location:location, powerState:powerState, provisioningState:provisioningState, resourceGroup:resourceGroup}',
-                    '--output', 'json'
-                ],
-                timeout=30
-            )
+            # Use Azure SDK instead of CLI
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
             
-            if result.returncode == 0:
-                cluster_info = json.loads(result.stdout)
-                logger.info(f"✅ Cluster validation successful: {cluster_info}")
+            # Get AKS client for the subscription
+            aks_client = azure_sdk_manager.get_aks_client(subscription_id)
+            if not aks_client:
+                return {
+                    'valid': False,
+                    'error': f'Cannot get AKS client for subscription {subscription_id}',
+                    'subscription_id': subscription_id
+                }
+            
+            # Get cluster information
+            cluster = aks_client.managed_clusters.get(resource_group, cluster_name)
+            
+            if cluster:
+                cluster_info = {
+                    'name': cluster.name,
+                    'location': cluster.location,
+                    'powerState': cluster.power_state.code if cluster.power_state else 'Unknown',
+                    'provisioningState': cluster.provisioning_state,
+                    'resourceGroup': resource_group,
+                    'tags': cluster.tags or {}
+                }
+                logger.info(f"✅ SDK: Cluster validation successful: {cluster_info}")
                 return {
                     'valid': True,
                     'cluster_info': cluster_info,
@@ -356,72 +350,63 @@ class AzureSubscriptionManager:
                     'discovered_resource_group': resource_group
                 }
             else:
-                error_msg = result.stderr.strip()
                 return {
                     'valid': False,
-                    'error': error_msg,
+                    'error': f'Cluster {cluster_name} not found in resource group {resource_group}',
                     'subscription_id': subscription_id
                 }
                 
-        except json.JSONDecodeError as e:
-            return {'valid': False, 'error': f'Invalid response format: {e}', 'subscription_id': subscription_id}
         except Exception as e:
-            return {'valid': False, 'error': f'Cluster validation error: {e}', 'subscription_id': subscription_id}
+            return {'valid': False, 'error': f'SDK Cluster validation error: {e}', 'subscription_id': subscription_id}
     
     def _auto_discover_cluster(self, subscription_id: str, cluster_name: str) -> Dict[str, any]:
-        """Auto-discover cluster by searching all resource groups in subscription"""
+        """Auto-discover cluster by searching all resource groups in subscription using Azure SDK"""
         try:
-            # List all AKS clusters in the subscription
-            result = self._rate_limited_az_call(
-                'list_aks_clusters',
-                [
-                    'az', 'aks', 'list',
-                    '--subscription', subscription_id,
-                    '--query', f"[?name=='{cluster_name}'].[name,location,powerState,provisioningState,resourceGroup]",
-                    '--output', 'json'
-                ],
-                timeout=60
-            )
+            # Use Azure SDK instead of CLI
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
             
-            if result.returncode == 0:
-                clusters = json.loads(result.stdout)
-                if clusters and len(clusters) > 0:
-                    cluster_data = clusters[0]
+            # Get AKS client for the subscription
+            aks_client = azure_sdk_manager.get_aks_client(subscription_id)
+            if not aks_client:
+                return {
+                    'valid': False,
+                    'error': f'Cannot get AKS client for subscription {subscription_id}',
+                    'subscription_id': subscription_id
+                }
+            
+            # List all AKS clusters in the subscription
+            clusters = list(aks_client.managed_clusters.list())
+            
+            # Find matching cluster by name
+            for cluster in clusters:
+                if cluster.name == cluster_name:
                     cluster_info = {
-                        'name': cluster_data[0],
-                        'location': cluster_data[1],
-                        'powerState': cluster_data[2],
-                        'provisioningState': cluster_data[3],
-                        'resourceGroup': cluster_data[4]
+                        'name': cluster.name,
+                        'location': cluster.location,
+                        'powerState': cluster.power_state.code if cluster.power_state else 'Unknown',
+                        'provisioningState': cluster.provisioning_state,
+                        'resourceGroup': cluster.id.split('/')[4]  # Extract RG from cluster ID
                     }
                     
-                    logger.info(f"✅ Cluster auto-discovery successful: {cluster_info}")
+                    logger.info(f"✅ SDK: Cluster auto-discovery successful: {cluster_info}")
                     return {
                         'valid': True,
                         'cluster_info': cluster_info,
                         'subscription_id': subscription_id,
-                        'discovered_resource_group': cluster_data[4],
+                        'discovered_resource_group': cluster_info['resourceGroup'],
                         'auto_discovered': True
                     }
-                else:
-                    return {
-                        'valid': False,
-                        'error': f'Cluster "{cluster_name}" not found in subscription {subscription_id}',
-                        'subscription_id': subscription_id,
-                        'suggestion': 'Verify cluster name and subscription access'
-                    }
-            else:
-                error_msg = result.stderr.strip()
-                return {
-                    'valid': False,
-                    'error': f'Failed to list clusters: {error_msg}',
-                    'subscription_id': subscription_id
-                }
+            
+            # Cluster not found
+            return {
+                'valid': False,
+                'error': f'Cluster "{cluster_name}" not found in subscription {subscription_id}',
+                'subscription_id': subscription_id,
+                'suggestion': 'Verify cluster name and subscription access'
+            }
                 
-        except json.JSONDecodeError as e:
-            return {'valid': False, 'error': f'Invalid response format: {e}', 'subscription_id': subscription_id}
         except Exception as e:
-            return {'valid': False, 'error': f'Auto-discovery error: {e}', 'subscription_id': subscription_id}
+            return {'valid': False, 'error': f'SDK Auto-discovery error: {e}', 'subscription_id': subscription_id}
     
     def cleanup_caches(self):
         """Cleanup cached data periodically"""

@@ -6,7 +6,7 @@ Project: AKS Cost Optimizer
 """
 
 import logging
-from application.services.enterprise_metrics import create_enterprise_metrics
+from machine_learning.core.enterprise_metrics import create_enterprise_metrics
 from datetime import datetime
 from typing import Dict, Optional
 

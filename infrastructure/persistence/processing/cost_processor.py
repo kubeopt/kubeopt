@@ -13,7 +13,7 @@ Includes all cost components: networking, system pods, idle resources, add-ons, 
 """
 
 import json
-import subprocess
+# subprocess removed - using Azure SDK instead
 import threading
 import time
 import os
@@ -1258,16 +1258,20 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
     
     for attempt in range(max_retries):
         try:
-            # Format dates
-            start_date_str = start_date.strftime("%Y-%m-%d")
-            end_date_str = end_date.strftime("%Y-%m-%d")
+            # Format dates for Azure SDK (ISO 8601 format)
+            start_date_str = start_date.strftime("%Y-%m-%dT00:00:00Z")
+            end_date_str = end_date.strftime("%Y-%m-%dT23:59:59Z")
             
             logger.info(f"📅 Thread {thread_id}: Using date range: {start_date_str} to {end_date_str}")
             
-            # Get the node resource group using subscription-specific command
-            node_rg_cmd = f"az aks show --resource-group {resource_group} --name {cluster_name} --subscription {subscription_id} --query nodeResourceGroup -o tsv"
-            node_rg_result = subprocess.run(node_rg_cmd, shell=True, check=True, capture_output=True, text=True)
-            node_resource_group = node_rg_result.stdout.strip()
+            # Get the node resource group using Azure SDK
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            aks_client = azure_sdk_manager.get_aks_client(subscription_id)
+            if not aks_client:
+                raise Exception(f"Cannot get AKS client for subscription {subscription_id}")
+            
+            cluster_info = aks_client.managed_clusters.get(resource_group, cluster_name)
+            node_resource_group = cluster_info.node_resource_group
             
             logger.info(f"🔧 Thread {thread_id}: Using node resource group: {node_resource_group}")
             
@@ -1519,7 +1523,7 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
                         logger.error(f"❌ Thread {thread_id}: Rate limit exceeded after {max_retries} attempts")
                         raise Exception("Comprehensive Cost API rate limit exceeded")
                 else:
-                    logger.error(f"❌ Thread {thread_id}: Comprehensive API error: {e.stderr}")
+                    logger.error(f"❌ Thread {thread_id}: Comprehensive SDK API error: {e}")
                     raise
                 
             except Exception as e:

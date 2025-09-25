@@ -32,6 +32,12 @@ logging.basicConfig(
         #logging.FileHandler('multi_subscription_analysis.log')  # Separate log for subscription analysis
     ]
 )
+
+# Suppress verbose Azure SDK HTTP logging
+logging.getLogger('azure.core.pipeline.policies.http_logging_policy').setLevel(logging.WARNING)
+logging.getLogger('azure.core.pipeline').setLevel(logging.WARNING)
+logging.getLogger('azure.mgmt').setLevel(logging.WARNING)
+logging.getLogger('azure.identity').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 ALERTS_AVAILABLE = True
@@ -362,17 +368,19 @@ def initialize_application_with_multi_subscription():
     
     return successful_steps == len(initialization_steps)
 
-# Configuration validation on import
+# Configuration validation on import - SDK-based
 try:
-    # Validate Azure CLI is available
-    import subprocess
-    result = subprocess.run(['az', '--version'], capture_output=True, text=True, timeout=10)
-    if result.returncode == 0:
-        logger.info("✅ Azure CLI available for multi-subscription operations")
+    # Validate Azure SDK is available and working
+    from infrastructure.services.azure_sdk_manager import azure_sdk_manager, AZURE_SDK_AVAILABLE
+    
+    if AZURE_SDK_AVAILABLE and azure_sdk_manager.is_authenticated():
+        logger.info("✅ Azure SDK available and authenticated for multi-subscription operations")
+    elif AZURE_SDK_AVAILABLE:
+        logger.warning("⚠️ Azure SDK available but not authenticated - set Azure credentials")
     else:
-        logger.warning("⚠️ Azure CLI not available - subscription operations may fail")
+        logger.warning("⚠️ Azure SDK not available - subscription operations may fail")
 except Exception as e:
-    logger.warning(f"⚠️ Could not verify Azure CLI: {e}")
+    logger.warning(f"⚠️ Could not verify Azure SDK: {e}")
 
 # Export key components
 __all__ = [
