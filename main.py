@@ -28,6 +28,10 @@ def create_app():
                 template_folder='presentation/web/templates')
     app.secret_key = os.urandom(24)
     
+    # Register authentication routes first
+    from presentation.api.auth_routes import register_auth_routes
+    register_auth_routes(app)
+    
     # Register routes using clean architecture
     from presentation.api.routes import register_routes
     register_routes(app)

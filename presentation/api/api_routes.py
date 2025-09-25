@@ -28,6 +28,7 @@ from shared.config.config import (
     logger, enhanced_cluster_manager, analysis_status_tracker, 
     _analysis_lock, _analysis_sessions, analysis_cache
 )
+from infrastructure.services.auth_manager import auth_manager
 from infrastructure.services.background_processor import run_subscription_aware_background_analysis
 from shared.utils.shared import _get_analysis_data  # Import from shared module
 from infrastructure.services.subscription_manager import azure_subscription_manager

@@ -8,6 +8,119 @@
 
 /* ===== CSS CUSTOM PROPERTIES ===== */
 
+/* User Menu Styles */
+.user-menu-trigger {
+    transition: all 0.2s ease;
+}
+
+.user-menu-trigger:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+#userDropdownMenu {
+    transition: all 0.2s ease;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+#userDropdownMenu .dropdown-item {
+    transition: all 0.2s ease;
+}
+
+#userDropdownMenu .dropdown-item:hover {
+    transform: translateX(4px);
+    background-color: rgba(237, 241, 240, 0.1);
+}
+
+/* User dropdown menu - modal-style overlay approach */
+#userDropdownMenu {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 2147483647 !important; /* Maximum z-index value */
+    pointer-events: none !important;
+    display: none !important;
+}
+
+/* The actual menu content */
+#userDropdownMenu .dropdown-content,
+#userDropdownMenu > div {
+    position: fixed !important;
+    top: 70px !important;
+    right: 20px !important;
+    min-width: 200px !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+    border-radius: 8px !important;
+    pointer-events: all !important;
+    z-index: 2147483647 !important;
+}
+
+/* When menu is shown */
+#userDropdownMenu.show,
+#userDropdownMenu:not(.d-none),
+#userDropdownMenu:not(.hidden) {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: all !important;
+}
+
+/* Hidden state */
+#userDropdownMenu.hidden,
+#userDropdownMenu.d-none {
+    display: none !important;
+    pointer-events: none !important;
+}
+
+/* Tailwind menu styling */
+#userDropdownMenu:not(.dropdown-menu) > div {
+    background: rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
+}
+
+/* Ensure user menu container also has high z-index */
+.nav-item.dropdown,
+.position-relative {
+    z-index: 999998 !important;
+}
+
+/* Flash messages styling */
+.alert {
+    margin-top: 1rem;
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    font-weight: 500;
+}
+
+.alert-success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    border-left: 4px solid #059669;
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    border-left: 4px solid #dc2626;
+}
+
+.alert-info {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    border-left: 4px solid #2563eb;
+}
+
+.alert .btn-close {
+    filter: brightness(0) invert(1);
+}
 
 :root {
     /* SPACING - Keep as is */
@@ -175,7 +288,7 @@ body {
     min-height: 100vh;
     position: relative;
     overflow-x: hidden;
-    padding-top: 80px;
+    padding-top: 0; /* Let each page handle its own top spacing */
 }
 
 /* ===== ANIMATED BACKGROUNDS ===== */
@@ -384,8 +497,10 @@ p {
     box-shadow: var(--shadow-glass);
     height: 80px;
     position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
-    z-index: 1000;
+    z-index: 10000;
     transition: var(--transition);
 }
 
@@ -480,11 +595,17 @@ p {
 }
 
 /* ===== CONTAINERS ===== */
-.container,
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-left: 15px;
+    padding-right: 15px;
+}
+
 .dashboard-container,
 .portfolio-container {
     max-width: 1200px;
-    margin: 0 auto;
+    margin: 90px auto 0 auto; /* Top margin for fixed navbar */
     padding-left: 15px;
     padding-right: 15px;
 }
