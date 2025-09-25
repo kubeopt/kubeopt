@@ -233,31 +233,15 @@
                             <i class="fa-regular fa-bell text-xl cursor-pointer hover:text-blue-500 transition-colors duration-300" id="global-notification-badge"></i>
                             <span class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
                         </div>
-                        <div class="relative z-50">
-                            <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold cursor-pointer hover:shadow-lg transition-all duration-300" onclick="window.toggleUserMenu(); return false;">
-                                <i class="fas fa-user text-sm"></i>
-                            </div>
-                            <!-- User Dropdown Menu -->
-                            <div id="userDropdownMenu" class="hidden absolute right-0 top-full mt-2 w-48 bg-gray-800 rounded-lg shadow-xl border border-gray-700 overflow-hidden z-50">
-                                <div class="py-2">
-                                    <div class="px-4 py-2 border-b border-gray-700">
-                                        <p class="text-xs text-gray-400">Signed in as</p>
-                                        <p class="text-sm font-semibold text-white">{{ session.username or 'Admin' }}</p>
-                                    </div>
-                                    <a href="{{ url_for('settings') }}" class="flex items-center px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 hover:text-white transition-all duration-200">
-                                        <i class="fas fa-cog w-4 text-center mr-3"></i>
-                                        Settings
-                                    </a>
-                                    <a href="{{ url_for('logout') }}" class="flex items-center px-4 py-2 text-sm text-red-300 hover:bg-red-900/30 hover:text-red-200 transition-all duration-200">
-                                        <i class="fas fa-sign-out-alt w-4 text-center mr-3"></i>
-                                        Logout
-                                    </a>
-                                </div>
+                        <div class="user-menu-container" style="position: relative;">
+                            <div class="user-avatar" onclick="window.toggleUserMenu(); return false;" style="width: 40px; height: 40px; background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.25)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
+                                <i class="fas fa-user" style="font-size: 14px;"></i>
                             </div>
                         </div>
                     </div>
                 </div>
             </header>
+
 
             <!-- Enhanced Content Body -->
             <section class="flex-grow p-6 overflow-y-auto">
@@ -783,6 +767,24 @@
     <script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>
 
 </script>
+
+<!-- User Dropdown Menu - At end of body for maximum visibility -->
+<div id="userDropdownMenu" class="user-dropdown hidden" style="position: fixed; right: 20px; top: 70px; width: 200px; background: #1f2937; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); border: 1px solid #374151; overflow: hidden;">
+    <div style="padding: 8px 0;">
+        <div style="padding: 8px 16px; border-bottom: 1px solid #374151; margin-bottom: 4px;">
+            <p style="font-size: 12px; color: #9ca3af; margin: 0;">Signed in as</p>
+            <p style="font-size: 14px; font-weight: 600; color: white; margin: 0;">{{ session.username or 'Admin' }}</p>
+        </div>
+        <a href="{{ url_for('settings') }}" class="menu-item" style="display: flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #d1d5db; text-decoration: none; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#374151'; this.style.color='white'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='#d1d5db'">
+            <i class="fas fa-cog" style="width: 16px; margin-right: 12px;"></i>
+            Settings
+        </a>
+        <a href="{{ url_for('logout') }}" class="menu-item" style="display: flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #fca5a5; text-decoration: none; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='rgba(153, 27, 27, 0.3)'; this.style.color='#fecaca'" onmouseout="this.style.backgroundColor='transparent'; this.style.color='#fca5a5'">
+            <i class="fas fa-sign-out-alt" style="width: 16px; margin-right: 12px;"></i>
+            Logout
+        </a>
+    </div>
+</div>
 
 </body>
 

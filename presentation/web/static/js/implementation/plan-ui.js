@@ -1234,7 +1234,7 @@ export function renderEnhancedCompleteTimeline(data) {
             <!-- Header without duplicate stats -->
             <div style="margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #4a5568;">
                 <h2 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 15px;">
-                    <span style="background: #48bb78; color: white; padding: 12px; border-radius: 12px; font-size: 24px;">💻</span>
+                    <span style="color: white; padding: 12px; border-radius: 12px; font-size: 24px;">💻</span>
                     Implementation Commands
                 </h2>
                 <p style="margin: 8px 0 0 0; color: #e2e8f0; font-size: 16px;">

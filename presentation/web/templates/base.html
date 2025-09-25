@@ -46,24 +46,24 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    <li class="nav-item relative">
-                        <div class="relative z-50">
-                            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-blue-700 hover:shadow-lg transition-all duration-300" onclick="window.toggleUserMenu(); return false;">
+                    <li class="nav-item dropdown">
+                        <div class="user-menu-container" style="position: relative;">
+                            <div class="user-avatar" onclick="window.toggleUserMenu(); return false;" style="width: 40px; height: 40px; background: #2563eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.background='#1d4ed8'; this.style.transform='scale(1.05)'" onmouseout="this.style.background='#2563eb'; this.style.transform='scale(1)'">
                                 <i class="fas fa-user"></i>
                             </div>
                             <!-- User Dropdown Menu -->
-                            <div id="userDropdownMenu" class="hidden absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden z-50">
-                                <div class="py-2">
-                                    <div class="px-4 py-2 border-b border-gray-200">
-                                        <p class="text-xs text-gray-500">Signed in as</p>
-                                        <p class="text-sm font-semibold text-gray-900">{{ session.username or 'Admin' }}</p>
+                            <div id="userDropdownMenu" class="user-dropdown hidden" style="position: absolute; right: 0; top: 100%; margin-top: 8px; width: 200px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e5e7eb; overflow: hidden;">
+                                <div style="padding: 8px 0;">
+                                    <div style="padding: 8px 16px; border-bottom: 1px solid #e5e7eb; margin-bottom: 4px;">
+                                        <p style="font-size: 12px; color: #6b7280; margin: 0;">Signed in as</p>
+                                        <p style="font-size: 14px; font-weight: 600; color: #111827; margin: 0;">{{ session.username or 'Admin' }}</p>
                                     </div>
-                                    <a href="{{ url_for('settings') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-all duration-200">
-                                        <i class="fas fa-cog w-4 text-center mr-3"></i>
+                                    <a href="{{ url_for('settings') }}" class="menu-item" style="display: flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #374151; text-decoration: none; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#f3f4f6'" onmouseout="this.style.backgroundColor='transparent'">
+                                        <i class="fas fa-cog" style="width: 16px; margin-right: 12px;"></i>
                                         Settings
                                     </a>
-                                    <a href="{{ url_for('logout') }}" class="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-all duration-200">
-                                        <i class="fas fa-sign-out-alt w-4 text-center mr-3"></i>
+                                    <a href="{{ url_for('logout') }}" class="menu-item" style="display: flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #dc2626; text-decoration: none; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#fef2f2'" onmouseout="this.style.backgroundColor='transparent'">
+                                        <i class="fas fa-sign-out-alt" style="width: 16px; margin-right: 12px;"></i>
                                         Logout
                                     </a>
                                 </div>

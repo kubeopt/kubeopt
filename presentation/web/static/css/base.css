@@ -32,63 +32,19 @@
     background-color: rgba(237, 241, 240, 0.1);
 }
 
-/* User dropdown menu - modal-style overlay approach */
-#userDropdownMenu {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    z-index: 2147483647 !important; /* Maximum z-index value */
-    pointer-events: none !important;
-    display: none !important;
+/* Simple user dropdown menu styling */
+.user-menu-container {
+    position: relative;
 }
 
-/* The actual menu content */
-#userDropdownMenu .dropdown-content,
-#userDropdownMenu > div {
-    position: fixed !important;
-    top: 70px !important;
-    right: 20px !important;
-    min-width: 200px !important;
-    background: rgba(255, 255, 255, 0.95) !important;
-    backdrop-filter: blur(10px) !important;
-    border: 1px solid rgba(0, 0, 0, 0.1) !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
-    border-radius: 8px !important;
-    pointer-events: all !important;
-    z-index: 2147483647 !important;
+.user-dropdown.hidden {
+    display: none;
 }
 
-/* When menu is shown */
-#userDropdownMenu.show,
-#userDropdownMenu:not(.d-none),
-#userDropdownMenu:not(.hidden) {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    pointer-events: all !important;
-}
-
-/* Hidden state */
-#userDropdownMenu.hidden,
-#userDropdownMenu.d-none {
-    display: none !important;
-    pointer-events: none !important;
-}
-
-/* Tailwind menu styling */
-#userDropdownMenu:not(.dropdown-menu) > div {
-    background: rgba(255, 255, 255, 0.1) !important;
-    backdrop-filter: blur(16px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    color: white !important;
-}
-
-/* Ensure user menu container also has high z-index */
-.nav-item.dropdown,
-.position-relative {
-    z-index: 999998 !important;
+.user-dropdown:not(.hidden) {
+    display: block;
+    position: absolute;
+    z-index: 1000;
 }
 
 /* Flash messages styling */
@@ -1582,7 +1538,7 @@ p {
     display: block;
     font-weight: 600;
     margin-bottom: var(--spacing-sm);
-    color: var(--text-primary);
+    color: #f9fafb;
     font-size: 0.875rem;
     letter-spacing: -0.01em;
 }
@@ -1590,7 +1546,7 @@ p {
 .form-field label {
     font-size: 13px;
     font-weight: 500;
-    color: var(--gray-700);
+    color: #d1d5db;
     margin-bottom: 4px;
 }
 
@@ -1614,11 +1570,12 @@ p {
 .form-field select,
 .form-field textarea {
     padding: 10px 12px;
-    border: 2px solid var(--gray-200);
+    border: 2px solid #374151;
     border-radius: var(--radius-md);
     font-size: 13px;
     transition: var(--transition);
-    background: white;
+    background: #111827;
+    color: #f9fafb;
 }
 
 .enhanced-input:focus,
@@ -1629,22 +1586,22 @@ p {
 .form-field select:focus,
 .form-field textarea:focus {
     outline: none;
-    border-color: rgba(30, 188, 109, 0.4);
-    background: rgba(255, 255, 255, 0.6);
+    border-color: #3b82f6;
+    background: #1f2937;
     box-shadow: 
-        0 0 0 4px rgba(0, 122, 255, 0.1),
-        var(--shadow-colored);
+        0 0 0 4px rgba(59, 130, 246, 0.1),
+        0 2px 4px rgba(0, 0, 0, 0.1);
     transform: translateY(-1px);
 }
 
 .enhanced-input::placeholder {
-    color: var(--text-tertiary);
+    color: #6b7280;
     font-style: italic;
 }
 
 .form-hint {
     font-size: 0.75rem;
-    color: var(--text-tertiary);
+    color: #9ca3af;
     margin-top: var(--spacing-xs);
     font-style: italic;
 }
@@ -2214,7 +2171,7 @@ p {
 /* ===== SPECIAL CARDS ===== */
 .add-card {
     background: #242c47;
-    border: 2px dashed var(--gray-300);
+    border: 2px dashed #6b7280;
     border-radius: var(--radius-lg);
     padding: 20px;
     text-align: center;
@@ -2274,13 +2231,13 @@ p {
 .add-info h4 {
     font-size: 14px;
     font-weight: 600;
-    color: var(--gray-900);
+    color: #f9fafb;
     margin: 0 0 2px 0;
 }
 
 .add-info p {
     font-size: 12px;
-    color: var(--gray-500);
+    color: #9ca3af;
     margin: 0;
 }
 
@@ -2425,7 +2382,7 @@ p {
 
 .modal-container,
 .modal-content {
-    background: white;
+    background: #1f2937;
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-xl);
     width: 90%;
@@ -2449,7 +2406,7 @@ p {
 
 .modal-header {
     padding: 16px 20px;
-    border-bottom: 1px solid var(--gray-200);
+    border-bottom: 1px solid #374151;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -2458,7 +2415,7 @@ p {
 .modal-header h3 {
     font-size: 16px;
     font-weight: 600;
-    color: #151427;
+    color: #f9fafb;
     margin: 0;
     display: flex;
     align-items: center;
@@ -2474,8 +2431,8 @@ p {
     height: 28px;
     border-radius: var(--radius-sm);
     border: none;
-    background: var(--gray-100);
-    color: var(--gray-500);
+    background: #374151;
+    color: #9ca3af;
     cursor: pointer;
     transition: var(--transition);
     display: flex;
@@ -2485,8 +2442,8 @@ p {
 }
 
 .modal-close:hover {
-    background: var(--gray-200);
-    color: var(--gray-700);
+    background: #4b5563;
+    color: #f9fafb;
 }
 
 .modal-body {
@@ -2495,7 +2452,7 @@ p {
 
 .modal-footer {
     padding: 16px 20px;
-    border-top: 1px solid var(--gray-200);
+    border-top: 1px solid #374151;
     display: flex;
     justify-content: flex-end;
     gap: 8px;
