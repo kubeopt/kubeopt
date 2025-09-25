@@ -1,0 +1,69 @@
+# Production Dockerfile for AKS Cost Optimizer
+# Optimized for private AKS clusters and multi-subscription deployment
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies (minimal)
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional Azure SDK packages for production
+RUN pip install --no-cache-dir \
+    azure-identity==1.15.0 \
+    azure-mgmt-costmanagement==4.0.1 \
+    azure-mgmt-containerservice==29.1.0 \
+    azure-mgmt-resource==23.1.0 \
+    azure-mgmt-monitor==6.0.2 \
+    azure-monitor-query==1.2.0
+
+# Copy application code
+COPY . .
+
+# Set production environment variables
+ENV PRODUCTION_MODE=true
+ENV PYTHONPATH=/app
+ENV FLASK_ENV=production
+ENV FLASK_DEBUG=false
+
+# Security: Run as non-root user
+RUN useradd --create-home --shell /bin/bash aksopt
+RUN chown -R aksopt:aksopt /app
+USER aksopt
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "from infrastructure.services.azure_sdk_manager import azure_sdk_manager; exit(0 if azure_sdk_manager.is_authenticated() else 1)"
+
+# Expose port
+EXPOSE 5000
+
+# Production startup command
+CMD ["python", "production_main.py"]
+
+# Container deployment notes:
+# 
+# Build:
+#   docker build -f Dockerfile.production -t aks-cost-optimizer:prod .
+#
+# Run with service principal:
+#   docker run -d \
+#     -e AZURE_CLIENT_ID=your-service-principal-id \
+#     -e AZURE_CLIENT_SECRET=your-service-principal-secret \
+#     -e AZURE_TENANT_ID=your-tenant-id \
+#     -p 5000:5000 \
+#     aks-cost-optimizer:prod
+#
+# For multiple subscriptions, the tool will automatically discover and analyze
+# all accessible subscriptions using the service principal credentials.
+#
+# No VNet connectivity required - uses Azure's server-side execution!

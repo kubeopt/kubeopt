@@ -87,7 +87,7 @@ class AzureSubscriptionManager:
     
     @lru_cache(maxsize=100)
     def get_available_subscriptions(self, force_refresh: bool = False) -> List[SubscriptionInfo]:
-        """Get all available Azure subscriptions with caching"""
+        """Get all available Azure subscriptions using SDK"""
         
         # Check cache first (unless force refresh)
         with self.cache_lock:
@@ -97,25 +97,31 @@ class AzureSubscriptionManager:
                 logger.info(f"📋 Using cached subscriptions ({len(self.subscriptions_cache)} found)")
                 return list(self.subscriptions_cache.values())
         
-        logger.info("🔍 Fetching available Azure subscriptions...")
+        logger.info("🔍 Fetching available Azure subscriptions via SDK...")
         
         try:
-            # Use controlled Azure CLI call
-            result = self._rate_limited_az_call(
-                'list_subscriptions',
-                [
-                    'az', 'account', 'list', 
-                    '--query', '[].{id:id, name:name, tenantId:tenantId, state:state, isDefault:isDefault}',
-                    '--output', 'json'
-                ],
-                timeout=30
-            )
+            # Use Azure SDK instead of CLI
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            from azure.mgmt.resource import SubscriptionClient
             
-            if result.returncode != 0:
-                logger.error(f"❌ Failed to fetch subscriptions: {result.stderr}")
+            if not azure_sdk_manager.is_authenticated():
+                logger.error("❌ Azure SDK not authenticated")
                 return []
             
-            subscriptions_data = json.loads(result.stdout)
+            # Create subscription client
+            subscription_client = SubscriptionClient(azure_sdk_manager.credential)
+            
+            # Get all subscriptions
+            subscriptions_data = []
+            for subscription in subscription_client.subscriptions.list():
+                if subscription.state and subscription.state.lower() == 'enabled':
+                    subscriptions_data.append({
+                        'id': subscription.subscription_id,
+                        'name': subscription.display_name,
+                        'tenantId': subscription.tenant_id,
+                        'state': subscription.state,
+                        'isDefault': False  # SDK doesn't provide default info easily
+                    })
             subscriptions = []
             
             with self.cache_lock:

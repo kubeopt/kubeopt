@@ -125,9 +125,12 @@ class KubernetesDataCache:
         }
     
     def _execute_kubectl_command(self, cmd: str, timeout: int = None) -> Optional[str]:
-        """Execute single kubectl command via az aks command invoke"""
+        """Execute single kubectl command via Azure SDK server-side execution"""
         try:
-            # Smart timeout based on command type
+            # Import Azure SDK manager
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            
+            # Smart timeout based on command type (same logic as before)
             if timeout is None:
                 if "kubectl version" in cmd:
                     timeout = 30   # Version commands should be quick
@@ -147,117 +150,56 @@ class KubernetesDataCache:
                 logger.info(f"🕐 {self.cluster_name}: Using {timeout}s timeout for: {cmd[:50]}...")
             
             cmd_start = time.time()
-            full_cmd = [
-                'az', 'aks', 'command', 'invoke',
-                '--resource-group', self.resource_group,
-                '--name', self.cluster_name,
-                '--subscription', self.subscription_id,
-                '--command', cmd
-            ]
             
-            result = subprocess.run(
-                full_cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False
+            # Use SDK server-side execution (same as az aks command invoke)
+            result_output = azure_sdk_manager.execute_aks_command_without_cli(
+                subscription_id=self.subscription_id,
+                resource_group=self.resource_group,
+                cluster_name=self.cluster_name,
+                kubectl_command=cmd
             )
             
             cmd_duration = time.time() - cmd_start
             
-            if result.returncode == 0 and result.stdout:
+            if result_output:
                 logger.info(f"✅ {self.cluster_name}: Command succeeded in {cmd_duration:.1f}s: {cmd[:50]}...")
-                try:
-                    response = json.loads(result.stdout)
-                    # Extract the actual kubectl output from Azure CLI response
-                    if 'logs' in response and response['logs']:
-                        return response['logs']
-                    else:
-                        logger.warning(f"⚠️ {self.cluster_name}: No 'logs' in Azure CLI response for: {cmd[:50]}...")
-                        return None
-                except json.JSONDecodeError:
-                    # If not JSON, try to extract kubectl output from raw text
-                    return self._extract_kubectl_output_from_azure_text(result.stdout, cmd)
+                return result_output
             else:
-                # Special handling for metrics server commands
+                # Command failed - handle gracefully based on command type
                 if "kubectl top" in cmd:
-                    logger.warning(f"⚠️ {self.cluster_name}: kubectl top failed (metrics server may be unavailable): {cmd[:60]}... (exit code: {result.returncode})")
-                    if result.stderr and "metrics not available" in result.stderr.lower():
-                        logger.info(f"📊 {self.cluster_name}: Metrics server not ready, will use resource requests as fallback")
-                # Special handling for HPA commands
+                    logger.warning(f"⚠️ {self.cluster_name}: kubectl top failed (metrics server may be unavailable): {cmd[:60]}...")
+                    logger.info(f"📊 {self.cluster_name}: Metrics server not ready, will use resource requests as fallback")
                 elif "kubectl get hpa" in cmd:
-                    error_msg = result.stderr.strip() if result.stderr else "No error message"
-                    stdout_msg = result.stdout.strip() if result.stdout else "No stdout"
-                    
-                    # ENHANCED DEBUGGING for HPA failures
-                    logger.warning(f"⚠️ {self.cluster_name}: HPA command failed: {cmd[:60]}... (exit code: {result.returncode})")
-                    logger.info(f"🔍 DEBUGGING HPA ERROR: Full stderr: {error_msg}")
-                    logger.info(f"🔍 DEBUGGING HPA ERROR: Full stdout: {stdout_msg}")
+                    logger.warning(f"⚠️ {self.cluster_name}: HPA command failed: {cmd[:60]}...")
                     logger.info(f"🔍 DEBUGGING HPA ERROR: Used subscription: {self.subscription_id}")
-                    
-                    if "service unavailable" in error_msg.lower() or "the server doesn't have a resource type" in error_msg.lower():
-                        logger.debug(f"📈 {self.cluster_name}: HPA API unavailable (cluster may not have HPA enabled): {cmd[:60]}...")
-                    else:
-                        logger.error(f"❌ {self.cluster_name}: Unexpected HPA command failure - this needs investigation")
+                    logger.debug(f"📈 {self.cluster_name}: HPA API unavailable (cluster may not have HPA enabled): {cmd[:60]}...")
                 else:
                     # Handle different types of kubectl failures gracefully
-                    error_msg = result.stderr.strip() if result.stderr else "No error message"
+                    logger.warning(f"⚠️ {self.cluster_name}: kubectl command failed: {cmd[:60]}...")
                     
-                    # Check if it's a "resource not found" issue (normal behavior)
-                    not_found_keywords = ["no resources found", "not found", "doesn't have a resource type"]
-                    is_not_found = any(keyword in error_msg.lower() for keyword in not_found_keywords)
-                    
-                    # Check if it's a permission/RBAC issue
-                    permission_keywords = ["forbidden", "unauthorized", "permission denied", "cannot list", "cannot get"]
-                    is_permission_error = any(keyword in error_msg.lower() for keyword in permission_keywords)
-                    
-                    if is_not_found:
-                        logger.debug(f"📭 {self.cluster_name}: Resource not found for {cmd[:60]}... (normal for optional resources)")
-                    elif is_permission_error:
-                        logger.error(f"🔐 CRITICAL: Permission denied for {cmd[:60]}... - {error_msg}")
-                        raise PermissionError(f"RBAC permission denied for kubectl command: {cmd[:60]}... - {error_msg}")
-                    else:
-                        logger.error(f"❌ CRITICAL: kubectl failed in {cmd_duration:.1f}s: {cmd[:60]}... (exit code: {result.returncode})")
-                        logger.error(f"🔍 Error details: {error_msg}")
-                        # For critical commands, raise an error instead of returning None
-                        if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
-                            raise RuntimeError(f"Critical kubectl command failed: {cmd[:60]}... - {error_msg}")
+                    # For critical commands, raise an error instead of returning None
+                    if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
+                        logger.error(f"❌ CRITICAL: kubectl command failed in {cmd_duration:.1f}s: {cmd[:60]}...")
+                        raise RuntimeError(f"Critical kubectl command failed: {cmd[:60]}...")
                         
                 return None
                 
-        except subprocess.TimeoutExpired:
-            # For critical commands, try once more with extended timeout
-            if any(critical in cmd for critical in ["get nodes", "get namespaces", "get pods"]):
-                logger.warning(f"⚠️ {self.cluster_name}: kubectl timeout, retrying with extended timeout: {cmd[:60]}...")
-                try:
-                    extended_timeout = timeout + 60  # Add 60 seconds
-                    result = subprocess.run(
-                        full_cmd,
-                        capture_output=True,
-                        text=True,
-                        timeout=extended_timeout,
-                        check=False
-                    )
-                    if result.returncode == 0 and result.stdout:
-                        logger.info(f"✅ {self.cluster_name}: Retry successful for: {cmd[:60]}...")
-                        try:
-                            response = json.loads(result.stdout)
-                            return response.get('logs', '') if 'logs' in response else result.stdout
-                        except json.JSONDecodeError:
-                            return result.stdout
-                except subprocess.TimeoutExpired:
-                    logger.error(f"❌ {self.cluster_name}: Retry also timed out: {cmd[:60]}...")
-                except Exception as retry_error:
-                    logger.error(f"❌ {self.cluster_name}: Retry error: {retry_error}")
-                    
-            logger.error(f"❌ CRITICAL: kubectl timeout after {timeout}s: {cmd[:60]}...")
-            # For critical commands, raise timeout error instead of returning None
-            if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
-                raise TimeoutError(f"Critical kubectl command timed out after {timeout}s: {cmd[:60]}...")
-            return None
         except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: kubectl error: {cmd[:60]}... - {e}")
-            return None
+            # Handle SDK execution errors
+            error_str = str(e).lower()
+            
+            if "timeout" in error_str:
+                logger.error(f"❌ CRITICAL: kubectl timeout after {timeout}s: {cmd[:60]}...")
+                # For critical commands, raise timeout error instead of returning None
+                if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
+                    raise TimeoutError(f"Critical kubectl command timed out after {timeout}s: {cmd[:60]}...")
+                return None
+            else:
+                logger.error(f"❌ {self.cluster_name}: kubectl SDK error: {cmd[:60]}... - {e}")
+                # For critical commands, re-raise the error
+                if any(critical in cmd for critical in ["get nodes", "get namespaces", "version"]):
+                    raise RuntimeError(f"kubectl execution failed: {cmd[:60]}... - {e}")
+                return None
     
     def _extract_kubectl_output_from_azure_text(self, azure_output: str, cmd: str) -> Optional[str]:
         """Extract actual kubectl output from Azure CLI text response"""
