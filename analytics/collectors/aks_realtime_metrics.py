@@ -752,53 +752,28 @@ class AKSRealTimeMetricsFetcher:
             return clean_output
 
     def verify_cluster_connection(self) -> bool:
-        """Verify AKS cluster connectivity with subscription context"""
+        """Verify AKS cluster connectivity via centralized kubernetes_data_cache"""
         try:
+            from shared.kubernetes_data_cache import verify_cluster_connection
+            
             subscription_info = f" in subscription {self.subscription_id[:8]}" if self.subscription_id else ""
             logger.info(f"Verifying connection to AKS cluster {self.cluster_name}{subscription_info}")
             
-            # Build verification command with subscription context
-            cmd = [
-                'az', 'aks', 'command', 'invoke',
-                '--resource-group', self.resource_group,
-                '--name', self.cluster_name,
-                '--command', 'kubectl cluster-info'
-            ]
+            # Use centralized connection verification
+            result = verify_cluster_connection(
+                cluster_name=self.cluster_name,
+                resource_group=self.resource_group,
+                subscription_id=self.subscription_id
+            )
             
-            # Add subscription context if available
-            if self.subscription_id:
-                cmd.extend(['--subscription', self.subscription_id])
-            
-            logger.info(f"🔧 DEBUG: Executing verification command with subscription context")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-            
-            logger.info(f"🔧 DEBUG: Return code: {result.returncode}")
-            logger.info(f"🔧 DEBUG: STDOUT length: {len(result.stdout)}")
-            logger.info(f"🔧 DEBUG: STDERR: {result.stderr}")
-            
-            if result.returncode == 0 and result.stdout.strip():
-                # Check if the output contains cluster info (even with metadata)
-                if "Kubernetes control plane" in result.stdout or "Kubernetes master" in result.stdout:
-                    logger.info(f"✅ Successfully connected to AKS cluster{subscription_info}")
-                    self.connection_verified = True
-                    return True
-                else:
-                    logger.warning(f"⚠️ Connected but no cluster info found{subscription_info}")
-                    # Still consider it successful if we got a response
-                    self.connection_verified = True
-                    return True
+            if result:
+                logger.info(f"✅ Successfully connected to AKS cluster{subscription_info}")
+                self.connection_verified = True
+                return True
             else:
-                if "ResourceGroupNotFound" in result.stderr and self.subscription_id:
-                    logger.error(f"❌ Cluster verification failed: Resource group not found in subscription {self.subscription_id[:8]}")
-                    logger.error(f"❌ Please verify the subscription ID and resource group are correct")
-                else:
-                    logger.error(f"❌ Failed to verify cluster connection. Return code: {result.returncode}")
-                    logger.error(f"❌ STDERR: {result.stderr}")
+                logger.error(f"❌ Failed to verify cluster connection{subscription_info}")
                 return False
                 
-        except subprocess.TimeoutExpired:
-            logger.error(f"❌ Connection timeout to AKS cluster")
-            return False
         except Exception as e:
             logger.error(f"❌ Unexpected error during connection verification: {e}")
             return False
@@ -843,9 +818,9 @@ class AKSRealTimeMetricsFetcher:
                 else:
                     return cache_data.get('hpa_basic', '')
             
-            # For any unmapped commands, use dynamic execution
-            logger.debug(f"⚠️ Unmapped command, using dynamic execution: {kubectl_cmd[:30]}...")
-            return self.cache.execute_dynamic_command(kubectl_cmd, timeout)
+            # NO DYNAMIC EXECUTION DURING ANALYSIS - READ FROM CACHE ONLY  
+            logger.warning(f"⚠️ AKSRealTimeMetrics: Unmapped command not found in cache, no execution during analysis: {kubectl_cmd[:50]}...")
+            return None
             
         except Exception as e:
             logger.error(f"❌ Cache query failed for {kubectl_cmd[:30]}...: {e}")

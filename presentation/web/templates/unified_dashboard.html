@@ -233,22 +233,22 @@
                             <i class="fa-regular fa-bell text-xl cursor-pointer hover:text-blue-500 transition-colors duration-300" id="global-notification-badge"></i>
                             <span class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
                         </div>
-                        <div class="relative" style="z-index: 999998;">
+                        <div class="relative z-50">
                             <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold cursor-pointer hover:shadow-lg transition-all duration-300" onclick="window.toggleUserMenu(); return false;">
                                 <i class="fas fa-user text-sm"></i>
                             </div>
                             <!-- User Dropdown Menu -->
-                            <div id="userDropdownMenu" class="hidden">
+                            <div id="userDropdownMenu" class="hidden absolute right-0 top-full mt-2 w-48 bg-gray-800 rounded-lg shadow-xl border border-gray-700 overflow-hidden z-50">
                                 <div class="py-2">
-                                    <div class="px-4 py-2 border-b border-white/20">
-                                        <p class="text-xs text-gray-300">Signed in as</p>
+                                    <div class="px-4 py-2 border-b border-gray-700">
+                                        <p class="text-xs text-gray-400">Signed in as</p>
                                         <p class="text-sm font-semibold text-white">{{ session.username or 'Admin' }}</p>
                                     </div>
-                                    <a href="{{ url_for('settings') }}" class="flex items-center px-4 py-2 text-sm text-gray-200 hover:bg-white/10 hover:text-white transition-all duration-200">
+                                    <a href="{{ url_for('settings') }}" class="flex items-center px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 hover:text-white transition-all duration-200">
                                         <i class="fas fa-cog w-4 text-center mr-3"></i>
                                         Settings
                                     </a>
-                                    <a href="{{ url_for('logout') }}" class="flex items-center px-4 py-2 text-sm text-red-300 hover:bg-red-500/20 hover:text-red-200 transition-all duration-200">
+                                    <a href="{{ url_for('logout') }}" class="flex items-center px-4 py-2 text-sm text-red-300 hover:bg-red-900/30 hover:text-red-200 transition-all duration-200">
                                         <i class="fas fa-sign-out-alt w-4 text-center mr-3"></i>
                                         Logout
                                     </a>

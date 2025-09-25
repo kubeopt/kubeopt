@@ -197,47 +197,22 @@ class SubscriptionAwareKubectlExecutor:
     
     def execute_command(self, kubectl_cmd: str, timeout: int = 120) -> Optional[str]:
         """
-        Execute kubectl command with guaranteed subscription context isolation
+        Execute kubectl command via centralized kubernetes_data_cache
+        DEPRECATED: Use kubernetes_data_cache directly instead
         """
         try:
-            # Build command with explicit subscription context
-            cmd = [
-                'az', 'aks', 'command', 'invoke',
-                '--resource-group', self.resource_group,
-                '--name', self.cluster_name,
-                '--subscription', self.subscription_id,  # EXPLICIT subscription prevents conflicts
-                '--command', kubectl_cmd
-            ]
+            from shared.kubernetes_data_cache import execute_cluster_command
             
-            logger.debug(f"🔧 Thread {self.thread_id}: Executing kubectl with subscription {self.subscription_id[:8]}: {kubectl_cmd}")
-            start_time = time.time()
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-            execution_time = time.time() - start_time
-            
-            logger.debug(f"🔧 Thread {self.thread_id}: Command completed in {execution_time:.2f}s, return code: {result.returncode}")
-            
-            if result.returncode != 0:
-                # Check for subscription context errors specifically
-                if "ResourceGroupNotFound" in result.stderr:
-                    logger.error(f"❌ Thread {self.thread_id}: Resource group not found in subscription {self.subscription_id[:8]} - possible context issue")
-                    logger.error(f"❌ Thread {self.thread_id}: Command: {kubectl_cmd}")
-                    logger.error(f"❌ Thread {self.thread_id}: Error: {result.stderr}")
-                else:
-                    logger.warning(f"⚠️ Thread {self.thread_id}: kubectl command failed: {result.stderr}")
-                return None
-            
-            # Clean and return output
-            clean_output = self._clean_output(result.stdout)
-            logger.debug(f"🔧 Thread {self.thread_id}: Clean output length: {len(clean_output)}")
-            
-            return clean_output
-            
-        except subprocess.TimeoutExpired:
-            logger.error(f"⏰ Thread {self.thread_id}: kubectl command timeout ({timeout}s): {kubectl_cmd}")
-            return None
+            logger.debug(f"🔄 Thread {self.thread_id}: Executing via centralized cache: {kubectl_cmd}")
+            return execute_cluster_command(
+                cluster_name=self.cluster_name,
+                resource_group=self.resource_group,
+                subscription_id=self.subscription_id,
+                kubectl_cmd=kubectl_cmd
+            )
+                
         except Exception as e:
-            logger.error(f"❌ Thread {self.thread_id}: kubectl execution error: {e}")
+            logger.error(f"❌ Thread {self.thread_id}: kubectl command error via cache: {e}")
             return None
     
     def execute_with_fallback(self, primary_cmd: str, fallback_cmd: str = None, timeout: int = 120) -> Optional[str]:

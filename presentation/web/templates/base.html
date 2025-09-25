@@ -46,26 +46,27 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    <li class="nav-item dropdown">
-                        <div class="position-relative">
-                            <div class="user-menu-trigger d-flex align-items-center justify-content-center rounded-circle bg-primary text-white" 
-                                 style="width: 40px; height: 40px; cursor: pointer;" onclick="window.toggleUserMenu(); return false;">
+                    <li class="nav-item relative">
+                        <div class="relative z-50">
+                            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white cursor-pointer hover:bg-blue-700 hover:shadow-lg transition-all duration-300" onclick="window.toggleUserMenu(); return false;">
                                 <i class="fas fa-user"></i>
                             </div>
                             <!-- User Dropdown Menu -->
-                            <div id="userDropdownMenu" class="dropdown-menu d-none">
-                                <div class="px-3 py-2 border-bottom">
-                                    <p class="mb-0 text-muted small">Signed in as</p>
-                                    <p class="mb-0 fw-semibold">{{ session.username or 'Admin' }}</p>
+                            <div id="userDropdownMenu" class="hidden absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden z-50">
+                                <div class="py-2">
+                                    <div class="px-4 py-2 border-b border-gray-200">
+                                        <p class="text-xs text-gray-500">Signed in as</p>
+                                        <p class="text-sm font-semibold text-gray-900">{{ session.username or 'Admin' }}</p>
+                                    </div>
+                                    <a href="{{ url_for('settings') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-all duration-200">
+                                        <i class="fas fa-cog w-4 text-center mr-3"></i>
+                                        Settings
+                                    </a>
+                                    <a href="{{ url_for('logout') }}" class="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-all duration-200">
+                                        <i class="fas fa-sign-out-alt w-4 text-center mr-3"></i>
+                                        Logout
+                                    </a>
                                 </div>
-                                <a href="{{ url_for('settings') }}" class="dropdown-item d-flex align-items-center">
-                                    <i class="fas fa-cog me-2"></i>
-                                    Settings
-                                </a>
-                                <a href="{{ url_for('logout') }}" class="dropdown-item d-flex align-items-center text-danger">
-                                    <i class="fas fa-sign-out-alt me-2"></i>
-                                    Logout
-                                </a>
                             </div>
                         </div>
                     </li>

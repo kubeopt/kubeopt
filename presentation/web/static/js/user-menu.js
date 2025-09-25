@@ -15,38 +15,18 @@ window.toggleUserMenu = function() {
         return;
     }
 
-    // Check if using Bootstrap classes (base template) or Tailwind classes (unified dashboard)
-    const usingBootstrap = menu.classList.contains('dropdown-menu');
-    console.log('🔹 Using Bootstrap classes:', usingBootstrap);
+    // Pure Tailwind implementation - toggle hidden class
+    const isVisible = !menu.classList.contains('hidden');
+    console.log('🔹 Menu currently visible:', isVisible);
     
-    if (usingBootstrap) {
-        // Bootstrap version (base template)
-        const isVisible = !menu.classList.contains('d-none') && menu.style.display !== 'none';
-        console.log('🔹 Bootstrap menu currently visible:', isVisible);
-        
-        if (isVisible) {
-            // Hide menu
-            menu.classList.add('d-none');
-            console.log('✅ Hiding Bootstrap menu');
-        } else {
-            // Show menu
-            menu.classList.remove('d-none');
-            console.log('✅ Showing Bootstrap menu');
-        }
+    if (isVisible) {
+        // Hide menu
+        menu.classList.add('hidden');
+        console.log('✅ Hiding menu');
     } else {
-        // Tailwind version (unified dashboard)
-        const isVisible = !menu.classList.contains('hidden');
-        console.log('🔹 Tailwind menu currently visible:', isVisible);
-        
-        if (isVisible) {
-            // Hide menu
-            menu.classList.add('hidden');
-            console.log('✅ Hiding Tailwind menu');
-        } else {
-            // Show menu
-            menu.classList.remove('hidden');
-            console.log('✅ Showing Tailwind menu');
-        }
+        // Show menu
+        menu.classList.remove('hidden');
+        console.log('✅ Showing menu');
     }
 };
 
@@ -80,7 +60,7 @@ function initializeUserMenu() {
         }
         
         // Find user buttons
-        const allButtons = document.querySelectorAll('div[onclick*="toggleUserMenu"], .user-menu-trigger, [class*="bg-primary"]');
+        const allButtons = document.querySelectorAll('div[onclick*="toggleUserMenu"], .user-menu-trigger, [class*="bg-blue-600"]');
         console.log('Found potential user buttons:', allButtons.length);
         
         allButtons.forEach((btn, i) => {

@@ -157,8 +157,10 @@ class KubernetesDataService:
         return self._get_cache().get('secrets') or {"items": []}
     
     def get_pod_security_policies(self) -> Dict[str, Any]:
-        """Get all pod security policies"""
-        return self._get_cache().get('pod_security_policies') or {"items": []}
+        """Get all pod security policies - DEPRECATED in k8s 1.25+"""
+        # PodSecurityPolicies are deprecated in Kubernetes 1.25+
+        # Return empty structure to maintain compatibility
+        return {"items": []}
     
     # === AUTOSCALING & HPA ===
     

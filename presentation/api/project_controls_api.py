@@ -16,7 +16,7 @@ import traceback
 import asyncio
 from shared.config.config import logger, enhanced_cluster_manager
 from shared.utils.shared import _get_analysis_data
-from application.services.enterprise_metrics import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
+from machine_learning.core.enterprise_metrics import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
 from machine_learning.core.implementation_generator import AKSImplementationGenerator
 
 def sanitize_for_json(obj):
@@ -784,20 +784,11 @@ async def get_enterprise_metrics():
         
         logger.info(f"🎯 Enterprise metrics for: {cluster_name} in {resource_group}")
         
-        # Initialize enterprise metrics engine
+        # Initialize enterprise metrics engine with real cluster data
+        logger.info("📊 Calculating real enterprise metrics from cluster data...")
         metrics_engine = EnterpriseOperationalMetricsEngine(
             resource_group=resource_group,
             cluster_name=cluster_name,
-            subscription_id=subscription_id
-        )
-        
-        # Calculate real enterprise metrics using actual cluster data
-        logger.info("📊 Calculating real enterprise metrics from cluster data...")
-        
-        # Use the enterprise metrics integration to get real data
-        metrics_engine = EnterpriseOperationalMetricsEngine(
-            resource_group=resource_group,
-            cluster_name=cluster_name, 
             subscription_id=subscription_id
         )
         integration = EnterpriseMetricsIntegration(metrics_engine)

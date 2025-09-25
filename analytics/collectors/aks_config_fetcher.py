@@ -16,18 +16,18 @@ This integrates the pure cluster config fetcher into your existing project struc
 """
 
 # Import the pure cluster config fetcher
+import json
 import time
 from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
 import json
-import subprocess
 import logging
 import concurrent.futures
 from enum import Enum
 from dataclasses import dataclass
 
 # Import the centralized cache
-from shared.kubernetes_data_cache import get_or_create_cache, KubernetesDataCache
+from shared.kubernetes_data_cache import fetch_cluster_data, get_or_create_cache, KubernetesDataCache
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +110,9 @@ class PureAKSClusterConfigFetcher:
         self.max_workers = max_workers
         self.timeout_seconds = timeout_seconds
         
-        # Use centralized cache instead of direct kubectl calls
-        self.cache = get_or_create_cache(cluster_name, resource_group, subscription_id)
-        logger.info(f"🔄 {cluster_name}: Initialized config fetcher with centralized cache")
+        # Use centralized cache with data pre-fetching for initialization
+        self.cache = fetch_cluster_data(cluster_name, resource_group, subscription_id)
+        logger.info(f"✅ {cluster_name}: Initialized config fetcher with pre-populated cache")
         
         # Simple state tracking
         self.fetched_resources = set()
@@ -581,73 +581,63 @@ class PureAKSClusterConfigFetcher:
         return api_data
     
     def _run_az_aks_show(self) -> Optional[Dict]:
-        """Get AKS cluster details using Azure CLI"""
+        """Get AKS cluster details from centralized cache"""
         try:
-            cmd = [
-                'az', 'aks', 'show',
-                '--resource-group', self.resource_group,
-                '--name', self.cluster_name,
-                '--subscription', self.subscription_id,
-                '--output', 'json'
-            ]
+            # Use centralized cache instead of direct command execution
+            cached_data = self.cache.get('aks_cluster_info')
+            if cached_data:
+                # If cached data is string, parse as JSON
+                if isinstance(cached_data, str):
+                    return json.loads(cached_data)
+                # If already dict, return directly
+                elif isinstance(cached_data, dict):
+                    return cached_data
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout_seconds)
-            
-            if result.returncode == 0:
-                return json.loads(result.stdout)
-            else:
-                logger.warning(f"az aks show failed: {result.stderr}")
-                return None
+            logger.warning(f"AKS cluster info not found in cache")
+            return None
                 
         except Exception as e:
-            logger.warning(f"Failed to get AKS cluster details: {e}")
+            logger.warning(f"Failed to get AKS cluster details from cache: {e}")
             return None
     
     def _run_az_aks_nodepool_list(self) -> Optional[List]:
-        """Get AKS node pools using Azure CLI"""
+        """Get AKS node pools from centralized cache"""
         try:
-            cmd = [
-                'az', 'aks', 'nodepool', 'list',
-                '--resource-group', self.resource_group,
-                '--cluster-name', self.cluster_name,
-                '--subscription', self.subscription_id,
-                '--output', 'json'
-            ]
+            # Use centralized cache instead of direct command execution
+            cached_data = self.cache.get('aks_nodepool_list')
+            if cached_data:
+                # If cached data is string, parse as JSON
+                if isinstance(cached_data, str):
+                    return json.loads(cached_data)
+                # If already list, return directly
+                elif isinstance(cached_data, list):
+                    return cached_data
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout_seconds)
-            
-            if result.returncode == 0:
-                return json.loads(result.stdout)
-            else:
-                logger.warning(f"az aks nodepool list failed: {result.stderr}")
-                return None
+            logger.warning(f"AKS nodepool list not found in cache")
+            return None
                 
         except Exception as e:
-            logger.warning(f"Failed to get AKS node pools: {e}")
+            logger.warning(f"Failed to get AKS node pools from cache: {e}")
             return None
     
     def _get_managed_identity(self) -> Optional[Dict]:
-        """Get managed identity information"""
+        """Get managed identity information from centralized cache"""
         try:
-            cmd = [
-                'az', 'aks', 'show',
-                '--resource-group', self.resource_group,
-                '--name', self.cluster_name,
-                '--subscription', self.subscription_id,
-                '--query', 'identity',
-                '--output', 'json'
-            ]
+            # Use centralized cache instead of direct command execution
+            cached_data = self.cache.get('aks_managed_identity')
+            if cached_data:
+                # If cached data is string, parse as JSON
+                if isinstance(cached_data, str):
+                    return json.loads(cached_data)
+                # If already dict, return directly
+                elif isinstance(cached_data, dict):
+                    return cached_data
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout_seconds)
-            
-            if result.returncode == 0:
-                return json.loads(result.stdout)
-            else:
-                logger.warning(f"Managed identity fetch failed: {result.stderr}")
-                return None
+            logger.warning(f"AKS managed identity not found in cache")
+            return None
                 
         except Exception as e:
-            logger.warning(f"Failed to get managed identity: {e}")
+            logger.warning(f"Failed to get managed identity from cache: {e}")
             return None
     
     def _safe_kubectl_yaml_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[Union[Dict, str]]:
@@ -671,15 +661,54 @@ class PureAKSClusterConfigFetcher:
     def execute_kubectl_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[str]:
         """
         REPLACED: Use centralized cache instead of direct kubectl execution
-        Maps kubectl commands to cached data
+        Maps kubectl commands to cached data keys - READ ONLY, NO EXECUTION
         """
-        logger.info(f"🔄 ConfigFetcher: Using cached data instead of executing: {kubectl_cmd}")
+        logger.debug(f"🔍 ConfigFetcher: Reading cached data for: {kubectl_cmd}")
         
-        # Map kubectl commands to cached data keys
-        if "kubectl get" in kubectl_cmd:
-            return self.cache.execute_dynamic_command(kubectl_cmd, timeout or self.timeout_seconds)
+        # Map kubectl commands to cached data keys - NO EXECUTION, READ ONLY
+        if "kubectl version" in kubectl_cmd:
+            cached_data = self.cache.get('version')
+            if cached_data and isinstance(cached_data, dict):
+                return json.dumps(cached_data)
+            return None
+        elif "kubectl api-resources" in kubectl_cmd:
+            return self.cache.get('api_resources')
+        elif "kubectl api-versions" in kubectl_cmd:
+            return self.cache.get('api_versions')
+        elif "kubectl cluster-info" in kubectl_cmd:
+            return self.cache.get('cluster_info')
+        elif "kubectl config view" in kubectl_cmd:
+            cached_data = self.cache.get('config_view')
+            if cached_data and isinstance(cached_data, dict):
+                return json.dumps(cached_data)
+            return cached_data  # Return raw if not dict
+        elif "kubectl get nodes" in kubectl_cmd and "-o json" in kubectl_cmd:
+            cached_data = self.cache.get('nodes')
+            if cached_data and isinstance(cached_data, dict):
+                return json.dumps(cached_data)
+            return None
+        elif "kubectl get namespaces" in kubectl_cmd and "-o json" in kubectl_cmd:
+            cached_data = self.cache.get('namespaces')
+            if cached_data and isinstance(cached_data, dict):
+                return json.dumps(cached_data)
+            return None
+        elif "kubectl get pods" in kubectl_cmd and "-o json" in kubectl_cmd:
+            cached_data = self.cache.get('pods')
+            if cached_data and isinstance(cached_data, dict):
+                return json.dumps(cached_data)
+            return None
+        elif "kubectl get services" in kubectl_cmd and "-o json" in kubectl_cmd:
+            cached_data = self.cache.get('services')
+            if cached_data and isinstance(cached_data, dict):
+                return json.dumps(cached_data)
+            return None
+        elif "kubectl get deployments" in kubectl_cmd and "-o json" in kubectl_cmd:
+            cached_data = self.cache.get('deployments')
+            if cached_data and isinstance(cached_data, dict):
+                return json.dumps(cached_data)
+            return None
         else:
-            logger.warning(f"⚠️ ConfigFetcher: Unsupported kubectl command pattern: {kubectl_cmd}")
+            logger.warning(f"⚠️ ConfigFetcher: No cached data mapping for command: {kubectl_cmd}")
             return None
 
     def _clean_command_output(self, raw_output: str) -> str:
@@ -711,47 +740,69 @@ class PureAKSClusterConfigFetcher:
 
     def _run_kubectl_command(self, kubectl_args: List[str]) -> Optional[Union[Dict, str]]:
         """
-        Run kubectl command using the WORKING method from aks_realtime_metrics.py
+        Get kubectl data from pre-populated cache (avoid running commands during analysis)
         """
         try:
-            # Construct az aks command (same as before)
-            cmd = [
-                'az', 'aks', 'command', 'invoke',
-                '--resource-group', self.resource_group,
-                '--name', self.cluster_name,
-                '--subscription', self.subscription_id,
-                '--command', ' '.join(['kubectl'] + kubectl_args)
-            ]
+            # Convert kubectl args to cache key mapping
+            kubectl_cmd = ' '.join(kubectl_args)
             
-            result = subprocess.run(
-                cmd, 
-                capture_output=True, 
-                text=True, 
-                timeout=self.timeout_seconds
-            )
+            # Map common kubectl commands to cache keys - this avoids running commands during analysis
+            # Note: Commands are in format: get <resource> -o json --all-namespaces (from _fetch_single_resource_type)
+            cache_key_mapping = {
+                'version -o json': 'version',
+                'get nodes -o json': 'nodes',
+                'get namespaces -o json': 'namespaces',
+                'get pods -o json --all-namespaces': 'pods',
+                'get deployments -o json --all-namespaces': 'deployments',
+                'get replicasets -o json --all-namespaces': 'replicasets',
+                'get statefulsets -o json --all-namespaces': 'statefulsets',
+                'get daemonsets -o json --all-namespaces': 'daemonsets',
+                'get jobs -o json --all-namespaces': 'jobs',
+                'get cronjobs -o json --all-namespaces': 'jobs',
+                'get services -o json --all-namespaces': 'services',
+                'get endpoints -o json --all-namespaces': 'services',
+                'get ingresses -o json --all-namespaces': 'services',
+                'get configmaps -o json --all-namespaces': 'configmaps',
+                'get secrets -o json --all-namespaces': 'secrets',
+                'get persistentvolumes -o json --all-namespaces': 'persistentvolumes',
+                'get persistentvolumeclaims -o json --all-namespaces': 'pvcs',
+                'get storageclasses -o json --all-namespaces': 'storage_classes',
+                'get networkpolicies -o json --all-namespaces': 'network_policies',
+                'get serviceaccounts -o json --all-namespaces': 'service_accounts',
+                'get roles -o json --all-namespaces': 'cluster_roles',
+                'get clusterroles -o json --all-namespaces': 'cluster_roles',
+                'get rolebindings -o json --all-namespaces': 'role_bindings',
+                'get clusterrolebindings -o json --all-namespaces': 'cluster_role_bindings',
+                'get resourcequotas -o json --all-namespaces': 'resource_quotas',
+                'get limitranges -o json --all-namespaces': 'limit_ranges',
+                'get horizontalpodautoscalers -o json --all-namespaces': 'hpa',
+                'get verticalpodautoscalers -o json --all-namespaces': 'hpa',
+                'get poddisruptionbudgets -o json --all-namespaces': 'hpa',
+                'get servicemonitors -o json --all-namespaces': 'hpa',
+                'get podmonitors -o json --all-namespaces': 'hpa',
+                'get prometheusrules -o json --all-namespaces': 'hpa',
+                'cluster-info --output=json': 'cluster_info',
+                'config view --output=json': 'config_view',
+                'api-resources --output=wide': 'api_resources',
+                'api-versions': 'api_versions'
+            }
             
-            if result.returncode == 0:
-                # USE THE WORKING OUTPUT CLEANING METHOD (not JSON parsing)
-                clean_output = self._clean_command_output(result.stdout)
-                
-                if not clean_output:
-                    return None
-                
-                # Try to parse as JSON first
-                try:
-                    return json.loads(clean_output)
-                except json.JSONDecodeError:
-                    # Return raw output for non-JSON responses
-                    return clean_output.strip()
-            else:
-                logger.debug(f"kubectl command failed: {' '.join(kubectl_args)} - {result.stderr}")
-                return None
-                
-        except subprocess.TimeoutExpired:
-            logger.warning(f"kubectl command timed out: {' '.join(kubectl_args)}")
+            # Try to get from cache first (this is the key change)
+            cache_key = cache_key_mapping.get(kubectl_cmd)
+            if cache_key:
+                cached_result = self.cache.get(cache_key)
+                if cached_result is not None:
+                    logger.info(f"✅ {self.cluster_name}: Got {cache_key} from cache")
+                    return cached_result
+                else:
+                    logger.info(f"⚠️ {self.cluster_name}: {cache_key} not in cache, executing command")
+            
+            # NO FALLBACK TO COMMAND EXECUTION - READ FROM CACHE ONLY
+            logger.warning(f"⚠️ {self.cluster_name}: Data for {cache_key or kubectl_cmd} not found in cache, no command execution during analysis")
             return None
+                
         except Exception as e:
-            logger.debug(f"kubectl command error: {e}")
+            logger.debug(f"kubectl command error via cache: {e}")
             return None
     
     def _parse_api_resources(self, api_resources_output: str) -> List[Dict]:
