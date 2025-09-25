@@ -313,13 +313,13 @@
 .modal-container {
     max-width: 700px !important;
     width: 95% !important;
-    background: #ffffff !important;
+    background: #1f2937 !important;
     border-radius: 16px !important;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3) !important;
     position: relative !important;
     z-index: 100000 !important;
     margin: auto !important;
-    border: 1px solid #e5e7eb !important;
+    border: 1px solid #374151 !important;
 }
 
 .enhanced-form .form-field {
@@ -330,7 +330,7 @@
     display: flex;
     align-items: center;
     font-weight: 600;
-    color: #1f2937;
+    color: #f9fafb;
     margin-bottom: 10px;
     font-size: 15px;
 }
@@ -346,26 +346,38 @@
 .enhanced-input, .enhanced-select {
     width: 100%;
     padding: 14px 16px;
-    border: 2px solid #d1d5db;
+    border: 2px solid #374151;
     border-radius: 8px;
     font-size: 15px;
     font-weight: 500;
-    color: #111827 !important;
-    background: #ffffff !important;
+    color: #f9fafb !important;
+    background: #111827 !important;
     transition: all 0.2s ease;
     line-height: 1.5;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
+/* Safari-specific select styling */
+.enhanced-select {
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f9fafb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    padding-right: 40px !important;
 }
 
 .enhanced-input:focus, .enhanced-select:focus {
     outline: none;
     border-color: #4f46e5;
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
-    background: #ffffff !important;
-    color: #111827 !important;
+    background: #1f2937 !important;
+    color: #f9fafb !important;
 }
 
 .enhanced-input:hover, .enhanced-select:hover {
-    border-color: #9ca3af;
+    border-color: #6b7280;
 }
 
 .enhanced-input.error, .enhanced-select.error {
@@ -374,14 +386,55 @@
 }
 
 .enhanced-input::placeholder {
-    color: #9ca3af !important;
+    color: #6b7280 !important;
     font-weight: 400;
 }
 
 .enhanced-select option {
-    color: #111827;
-    background: #ffffff;
+    color: #f9fafb;
+    background: #111827;
     padding: 8px;
+}
+
+/* Additional Safari compatibility */
+@supports (-webkit-appearance: none) {
+    .enhanced-select {
+        -webkit-appearance: none !important;
+        background-color: #111827 !important;
+    }
+    
+    .enhanced-select option {
+        background: #111827 !important;
+        color: #f9fafb !important;
+    }
+}
+
+/* Force Safari to respect dark styling */
+.enhanced-select::-webkit-scrollbar {
+    background: #111827;
+}
+
+.enhanced-select::-webkit-scrollbar-thumb {
+    background: #374151;
+    border-radius: 4px;
+}
+
+/* More specific Safari fixes */
+@media screen and (-webkit-min-device-pixel-ratio:0) {
+    .enhanced-select {
+        background: #111827 !important;
+        color: #f9fafb !important;
+        -webkit-appearance: none !important;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f9fafb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 12px center !important;
+        background-size: 16px !important;
+    }
+    
+    .enhanced-select option {
+        background: #1f2937 !important;
+        color: #f9fafb !important;
+    }
 }
 
 .field-error {
@@ -393,7 +446,7 @@
 }
 
 .form-hint {
-    color: #6b7280;
+    color: #9ca3af;
     font-size: 12px;
     margin-top: 4px;
     display: flex;

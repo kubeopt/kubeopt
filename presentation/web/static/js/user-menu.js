@@ -5,19 +5,26 @@
  */
 
 // Global function - needed for inline onclick handlers
-window.toggleUserMenu = function() {
-    console.log('🔹 toggleUserMenu called!');
+window.toggleUserMenu = function(event) {
+    console.log('🔹 toggleUserMenu called!', event);
+    
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
     const menu = document.getElementById('userDropdownMenu');
     console.log('🔹 Menu element found:', !!menu);
     
     if (!menu) {
         console.error('❌ User dropdown menu not found!');
-        return;
+        return false;
     }
 
     // Pure Tailwind implementation - toggle hidden class
     const isVisible = !menu.classList.contains('hidden');
     console.log('🔹 Menu currently visible:', isVisible);
+    console.log('🔹 Menu classes:', menu.className);
     
     if (isVisible) {
         // Hide menu
@@ -28,6 +35,8 @@ window.toggleUserMenu = function() {
         menu.classList.remove('hidden');
         console.log('✅ Showing menu');
     }
+    
+    return false;
 };
 
 // Test that the function is available
@@ -59,13 +68,20 @@ function initializeUserMenu() {
             console.log('Menu style:', menu.style.cssText);
         }
         
-        // Find user buttons
-        const allButtons = document.querySelectorAll('div[onclick*="toggleUserMenu"], .user-menu-trigger, [class*="bg-blue-600"]');
+        // Find user buttons and add event listeners as backup
+        const allButtons = document.querySelectorAll('div[onclick*="toggleUserMenu"], .user-menu-trigger, [class*="bg-blue-600"], [class*="bg-gradient-to-r"]');
         console.log('Found potential user buttons:', allButtons.length);
         
         allButtons.forEach((btn, i) => {
             console.log(`Button ${i}:`, btn.tagName, btn.className);
+            
+            // Add click event listener as backup to onclick
+            btn.addEventListener('click', function(event) {
+                console.log('Event listener triggered for button', i);
+                window.toggleUserMenu(event);
+            });
         });
+        
         
         console.log('User menu initialization completed');
     } catch (error) {
@@ -81,23 +97,14 @@ function setupOutsideClickClose() {
         if (!userMenu) return;
         
         // Check if click was on user button or menu
-        const userButton = document.querySelector('.user-menu-trigger') || 
-                          document.querySelector('.w-10.h-10.bg-gradient-to-r') ||
-                          document.querySelector('[onclick*="toggleUserMenu"]');
+        const userButton = document.querySelector('[onclick*="toggleUserMenu"]');
         
         if (userButton && (userButton.contains(event.target) || userMenu.contains(event.target))) {
             return; // Don't close if clicking on button or menu
         }
         
-        // Close menu
-        if (userMenu.classList.contains('dropdown-menu')) {
-            // Bootstrap
-            userMenu.classList.add('d-none');
-            userMenu.style.display = 'none';
-        } else {
-            // Tailwind
-            userMenu.classList.add('hidden');
-        }
+        // Close menu using Tailwind classes
+        userMenu.classList.add('hidden');
     });
 }
 
@@ -107,16 +114,11 @@ function setupKeyboardNavigation() {
         if (event.key === 'Escape') {
             const userMenu = document.getElementById('userDropdownMenu');
             if (userMenu) {
-                if (userMenu.classList.contains('dropdown-menu')) {
-                    // Bootstrap
-                    userMenu.classList.add('d-none');
-                    userMenu.style.display = 'none';
-                } else {
-                    // Tailwind
-                    userMenu.classList.add('hidden');
-                }
+                // Close menu using Tailwind classes
+                userMenu.classList.add('hidden');
             }
         }
     });
 }
+
 
