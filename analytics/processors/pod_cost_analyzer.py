@@ -240,69 +240,46 @@ class SubscriptionAwareKubectlExecutor:
         return None
     
     def _execute_with_retry(self, kubectl_cmd: str, timeout: int, attempt: int) -> Optional[str]:
-        """Execute az aks command invoke with Azure API error handling"""
+        """Execute kubectl command using Azure SDK instead of CLI"""
         try:
-            # Build az aks command invoke with explicit subscription context
-            cmd = [
-                'az', 'aks', 'command', 'invoke',
-                '--resource-group', self.resource_group,
-                '--name', self.cluster_name,
-                '--subscription', self.subscription_id,  # EXPLICIT subscription prevents conflicts
-                '--command', kubectl_cmd
-            ]
+            # Use Azure SDK manager for CLI-free execution
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
             
             if attempt > 0:
                 logger.info(f"🔄 Retry attempt {attempt+1} for {kubectl_cmd}")
             
-            logger.debug(f"🔧 Subscription {self.subscription_id[:8]}: Executing kubectl: {kubectl_cmd}")
+            logger.debug(f"🔧 Subscription {self.subscription_id[:8]}: Executing kubectl via SDK: {kubectl_cmd}")
             start_time = time.time()
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            # Use SDK-based kubectl execution
+            result_output = azure_sdk_manager.execute_aks_command_without_cli(
+                subscription_id=self.subscription_id,
+                resource_group=self.resource_group,
+                cluster_name=self.cluster_name,
+                kubectl_command=kubectl_cmd
+            )
+            
             execution_time = time.time() - start_time
             
-            if result.returncode != 0:
-                error_msg = result.stderr.strip()
-                
-                # Check for Azure AKS API and Kubernetes connectivity issues
-                if any(api_error in error_msg for api_error in [
-                    "Service Unavailable", 
-                    "Too Many Requests",
-                    "ThrottlingException",
-                    "API rate limit exceeded",
-                    "OperationNotAllowed",
-                    "TLS handshake timeout",
-                    "KubernetesOperationError",
-                    "connection timeout",
-                    "Failed to run command in managed cluster"
-                ]):
-                    raise Exception(f"Azure AKS connectivity issue: {error_msg}")
-                
-                # Check for subscription context errors specifically
-                if "ResourceGroupNotFound" in error_msg:
-                    logger.error(f"❌ Resource group not found in subscription {self.subscription_id[:8]} - context issue detected")
-                    logger.error(f"❌ Command: {kubectl_cmd}")
-                    logger.error(f"❌ Error: {result.stderr}")
-                else:
-                    logger.warning(f"⚠️ kubectl command failed (exit {result.returncode}): {kubectl_cmd}")
-                    logger.warning(f"Error: {result.stderr}")
+            if result_output is None:
+                logger.warning(f"⚠️ kubectl command failed via SDK: {kubectl_cmd}")
                 return None
             
-            output = result.stdout.strip()
-            if not output or output == "null":
+            if not result_output or result_output.strip() == "null":
                 logger.warning(f"Empty response from: {kubectl_cmd}")
                 return None
             
-            # Clean output from Azure CLI metadata (PRESERVED)
-            clean_output = self._clean_output(output)
+            # Clean output from Azure SDK metadata (PRESERVED)
+            clean_output = self._clean_output(result_output)
             logger.debug(f"🔧 Subscription {self.subscription_id[:8]}: Command completed in {execution_time:.2f}s")
             
             return clean_output
             
-        except subprocess.TimeoutExpired:
-            logger.error(f"⏰ kubectl command timeout ({timeout}s) in subscription {self.subscription_id[:8]}: {kubectl_cmd}")
-            return None
         except Exception as e:
-            logger.error(f"❌ kubectl execution error in subscription {self.subscription_id[:8]}: {e}")
+            if "timeout" in str(e).lower():
+                logger.error(f"⏰ kubectl command timeout ({timeout}s) in subscription {self.subscription_id[:8]}: {kubectl_cmd}")
+            else:
+                logger.error(f"❌ kubectl execution error in subscription {self.subscription_id[:8]}: {e}")
             return None
     
     def execute_with_fallback(self, primary_cmd: str, fallback_cmd: str = None, timeout: int = None) -> Optional[str]:

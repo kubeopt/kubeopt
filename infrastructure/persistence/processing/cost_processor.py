@@ -1430,31 +1430,53 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
                 json.dump(additional_services_query, f, indent=2)
             
             try:
-                # Execute AKS-specific query
-                aks_api_cmd = f'''
-                az rest --method POST \
-                --uri "https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.CostManagement/query?api-version=2023-03-01" \
-                --headers "ClientType=KubeVista-Comprehensive-v2.0" "x-ms-command-name=KubeVistaComprehensive" \
-                --body @{aks_query_file} \
-                --output json
-                '''
+                # Use Azure SDK instead of CLI for cost queries
+                from infrastructure.services.azure_sdk_manager import azure_sdk_manager
                 
-                logger.info(f"💰 COMPREHENSIVE: Thread {thread_id}: Executing direct AKS resources query (attempt {attempt + 1}/{max_retries})")
-                aks_result = subprocess.run(aks_api_cmd, shell=True, check=True, capture_output=True, text=True, timeout=120)
-                aks_cost_data = json.loads(aks_result.stdout)
+                cost_client = azure_sdk_manager.get_cost_client(subscription_id)
+                if not cost_client:
+                    raise Exception(f"Cannot get cost client for subscription {subscription_id}")
                 
-                # Execute additional services query
-                additional_api_cmd = f'''
-                az rest --method POST \
-                --uri "https://management.azure.com/subscriptions/{subscription_id}/providers/Microsoft.CostManagement/query?api-version=2023-03-01" \
-                --headers "ClientType=KubeVista-Comprehensive-v2.0" "x-ms-command-name=KubeVistaComprehensive" \
-                --body @{additional_query_file} \
-                --output json
-                '''
+                # Execute AKS-specific query using SDK
+                logger.info(f"💰 COMPREHENSIVE: Thread {thread_id}: Executing direct AKS resources query via SDK (attempt {attempt + 1}/{max_retries})")
                 
-                logger.info(f"🔧 COMPREHENSIVE: Thread {thread_id}: Executing subscription-wide supporting services query")
-                additional_result = subprocess.run(additional_api_cmd, shell=True, check=True, capture_output=True, text=True, timeout=120)
-                additional_cost_data = json.loads(additional_result.stdout)
+                # Load query definition from JSON file
+                with open(aks_query_file, 'r') as f:
+                    aks_query_dict = json.load(f)
+                
+                # Convert to SDK query definition
+                from azure.mgmt.costmanagement.models import QueryDefinition
+                aks_query_definition = QueryDefinition.from_dict(aks_query_dict)
+                
+                # Execute query
+                scope = f"/subscriptions/{subscription_id}"
+                aks_query_result = cost_client.query.usage(scope=scope, parameters=aks_query_definition)
+                
+                # Convert result to expected format
+                aks_cost_data = {
+                    'properties': {
+                        'rows': aks_query_result.rows,
+                        'columns': [{'name': col.name, 'type': col.type} for col in aks_query_result.columns] if aks_query_result.columns else []
+                    }
+                }
+                
+                # Execute additional services query using SDK
+                logger.info(f"🔧 COMPREHENSIVE: Thread {thread_id}: Executing subscription-wide supporting services query via SDK")
+                
+                # Load additional query definition
+                with open(additional_query_file, 'r') as f:
+                    additional_query_dict = json.load(f)
+                
+                additional_query_definition = QueryDefinition.from_dict(additional_query_dict)
+                additional_query_result = cost_client.query.usage(scope=scope, parameters=additional_query_definition)
+                
+                # Convert result to expected format
+                additional_cost_data = {
+                    'properties': {
+                        'rows': additional_query_result.rows,
+                        'columns': [{'name': col.name, 'type': col.type} for col in additional_query_result.columns] if additional_query_result.columns else []
+                    }
+                }
                 
                 # Merge cost data from both queries to get ACTUAL cluster costs
                 merged_cost_data = _merge_cost_data(aks_cost_data, additional_cost_data, thread_id)
@@ -1472,20 +1494,22 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
                     'subscription_id': subscription_id,
                     'cluster_name': cluster_name,
                     'thread_id': thread_id,
-                    'data_source': 'Comprehensive Azure Cost Management API - Dual Query',
-                    'collection_method': 'comprehensive_dual_query',
+                    'data_source': 'Comprehensive Azure Cost Management SDK - Dual Query',
+                    'collection_method': 'comprehensive_dual_query_sdk',
                     'backward_compatibility': False,
                     'captures_actual_costs': True,
                     'queries_executed': ['aks_resources', 'additional_services'],
                     'cost_completeness': 'comprehensive',
                     'enhancement_version': '2.0',
-                    'kubevista_comprehensive': True
+                    'kubevista_comprehensive': True,
+                    'cli_free': True
                 })
                 
                 return cost_df
             
-            except subprocess.CalledProcessError as e:
-                if "429" in e.stderr or "Too Many Requests" in e.stderr:
+            except Exception as e:
+                error_str = str(e).lower()
+                if "429" in error_str or "too many requests" in error_str or "throttl" in error_str:
                     if attempt < max_retries - 1:
                         retry_delay = base_delay * (2 ** attempt)
                         logger.warning(f"⚠️ Thread {thread_id}: Rate limited, retrying in {retry_delay}s")

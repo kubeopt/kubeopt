@@ -27,7 +27,9 @@ try:
         ChainedTokenCredential, 
         ManagedIdentityCredential, 
         AzureCliCredential, 
-        EnvironmentCredential
+        EnvironmentCredential,
+        UsernamePasswordCredential,
+        InteractiveBrowserCredential
     )
     from azure.mgmt.costmanagement import CostManagementClient
     from azure.mgmt.monitor import MonitorManagementClient
@@ -45,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 class AzureSDKManager:
     """
-    Centralized Azure SDK authentication and client management
+    Centralized Azure SDK authentication and client management with multi-subscription support
     """
     
     _instance = None
@@ -64,10 +66,11 @@ class AzureSDKManager:
         
         self._initialized = True
         self.credential: Optional[TokenCredential] = None
-        self.clients: Dict[str, Any] = {}
+        self.clients: Dict[str, Dict[str, Any]] = {}  # {subscription_id: {client_type: client}}
         self.subscription_id: Optional[str] = None
         self._auth_time: Optional[datetime] = None
         self._lock = threading.Lock()
+        self._subscription_cache: Dict[str, str] = {}  # Cache for subscription access
         
         if AZURE_SDK_AVAILABLE:
             self._initialize_credentials()
@@ -75,25 +78,50 @@ class AzureSDKManager:
             logger.warning("⚠️ Azure SDK not available - some features will use fallbacks")
     
     def _initialize_credentials(self) -> bool:
-        """Initialize Azure credentials following best practices"""
+        """Initialize Azure credentials with testing support"""
         try:
-            logger.info("🔐 Initializing Azure credentials with standard chain...")
+            logger.info("🔐 Initializing Azure credentials with testing support...")
             
             # Build credential chain based on environment
             credential_chain = []
+            import os
             
-            # 1. Environment credentials (for CI/CD, service principals) - but skip if placeholder values
-            try:
-                import os
-                tenant_id = os.getenv('AZURE_TENANT_ID', '')
-                if tenant_id and not tenant_id.startswith('your-') and 'placeholder' not in tenant_id.lower():
+            # 1. Check for username/password testing credentials
+            username = os.getenv('AZURE_USERNAME')
+            password = os.getenv('AZURE_PASSWORD') 
+            tenant_id = os.getenv('AZURE_TENANT_ID', '')
+            
+            if username and password and tenant_id:
+                try:
+                    user_pass_credential = UsernamePasswordCredential(
+                        username=username,
+                        password=password,
+                        tenant_id=tenant_id
+                    )
+                    credential_chain.append(user_pass_credential)
+                    logger.info("✅ Added username/password credential for testing")
+                except Exception as e:
+                    logger.warning(f"⚠️ Username/password credential failed: {e}")
+            
+            # 2. Interactive browser credential for testing
+            if not credential_chain and tenant_id:
+                try:
+                    browser_credential = InteractiveBrowserCredential(tenant_id=tenant_id)
+                    credential_chain.append(browser_credential)
+                    logger.info("✅ Added interactive browser credential for testing")
+                except Exception as e:
+                    logger.debug(f"Interactive browser credential not available: {e}")
+            
+            # 3. Environment credentials (for CI/CD, service principals)
+            if tenant_id and not tenant_id.startswith('your-') and 'placeholder' not in tenant_id.lower():
+                try:
                     env_credential = EnvironmentCredential()
                     credential_chain.append(env_credential)
                     logger.info("✅ Added environment credential to chain")
-                else:
-                    logger.debug("Skipping environment credential due to placeholder/missing tenant ID")
-            except Exception as e:
-                logger.debug(f"Environment credential not available: {e}")
+                except Exception as e:
+                    logger.debug(f"Environment credential not available: {e}")
+            else:
+                logger.debug("Skipping environment credential due to placeholder/missing tenant ID")
             
             # 2. Managed identity (for Azure-hosted applications)
             try:
@@ -187,27 +215,37 @@ class AzureSDKManager:
             logger.debug(f"Authentication failed: {e}")
             return False
     
-    def get_client(self, client_type: str) -> Optional[Any]:
-        """Get Azure client by type, with caching"""
+    def get_client(self, client_type: str, subscription_id: Optional[str] = None) -> Optional[Any]:
+        """Get Azure client by type and subscription, with caching"""
         if not self.is_authenticated():
             logger.warning(f"⚠️ Cannot create {client_type} client - not authenticated")
             return None
         
+        # Use default subscription if none specified
+        target_subscription = subscription_id or self.subscription_id
+        if not target_subscription:
+            logger.error("❌ No subscription ID available")
+            return None
+        
         with self._lock:
+            # Initialize subscription cache if needed
+            if target_subscription not in self.clients:
+                self.clients[target_subscription] = {}
+            
             # Return cached client if available
-            if client_type in self.clients:
-                return self.clients[client_type]
+            if client_type in self.clients[target_subscription]:
+                return self.clients[target_subscription][client_type]
             
             # Create new client
             try:
                 if client_type == 'cost':
                     client = CostManagementClient(self.credential)
                 elif client_type == 'monitor':
-                    client = MonitorManagementClient(self.credential, self.subscription_id)
+                    client = MonitorManagementClient(self.credential, target_subscription)
                 elif client_type == 'resource':
-                    client = ResourceManagementClient(self.credential, self.subscription_id)
+                    client = ResourceManagementClient(self.credential, target_subscription)
                 elif client_type == 'aks':
-                    client = ContainerServiceClient(self.credential, self.subscription_id)
+                    client = ContainerServiceClient(self.credential, target_subscription)
                 elif client_type == 'logs':
                     client = LogsQueryClient(self.credential)
                 else:
@@ -215,43 +253,212 @@ class AzureSDKManager:
                     return None
                 
                 # Cache the client
-                self.clients[client_type] = client
-                logger.info(f"✅ Created {client_type} client")
+                self.clients[target_subscription][client_type] = client
+                logger.info(f"✅ Created {client_type} client for subscription {target_subscription[:8]}...")
                 return client
                 
             except Exception as e:
-                logger.error(f"❌ Failed to create {client_type} client: {e}")
+                logger.error(f"❌ Failed to create {client_type} client for subscription {target_subscription[:8]}...: {e}")
                 return None
     
-    def get_cost_client(self) -> Optional[CostManagementClient]:
-        """Get Azure Cost Management client"""
-        return self.get_client('cost')
+    def get_cost_client(self, subscription_id: Optional[str] = None) -> Optional[CostManagementClient]:
+        """Get Azure Cost Management client for specified subscription"""
+        return self.get_client('cost', subscription_id)
     
-    def get_monitor_client(self) -> Optional[MonitorManagementClient]:
-        """Get Azure Monitor client"""
-        return self.get_client('monitor')
+    def get_monitor_client(self, subscription_id: Optional[str] = None) -> Optional[MonitorManagementClient]:
+        """Get Azure Monitor client for specified subscription"""
+        return self.get_client('monitor', subscription_id)
     
-    def get_resource_client(self) -> Optional[ResourceManagementClient]:
-        """Get Azure Resource Management client"""
-        return self.get_client('resource')
+    def get_resource_client(self, subscription_id: Optional[str] = None) -> Optional[ResourceManagementClient]:
+        """Get Azure Resource Management client for specified subscription"""
+        return self.get_client('resource', subscription_id)
     
-    def get_aks_client(self) -> Optional[ContainerServiceClient]:
-        """Get Azure Container Service (AKS) client"""
-        return self.get_client('aks')
+    def get_aks_client(self, subscription_id: Optional[str] = None) -> Optional[ContainerServiceClient]:
+        """Get Azure Container Service (AKS) client for specified subscription"""
+        return self.get_client('aks', subscription_id)
     
-    def get_logs_client(self) -> Optional[LogsQueryClient]:
-        """Get Azure Monitor Logs client"""
-        return self.get_client('logs')
+    def get_logs_client(self, subscription_id: Optional[str] = None) -> Optional[LogsQueryClient]:
+        """Get Azure Monitor Logs client for specified subscription"""
+        return self.get_client('logs', subscription_id)
     
     def get_subscription_id(self) -> Optional[str]:
         """Get current Azure subscription ID"""
         return self.subscription_id
     
-    def clear_clients(self):
+    def clear_clients(self, subscription_id: Optional[str] = None):
         """Clear cached clients (useful for subscription switches)"""
         with self._lock:
-            self.clients.clear()
-            logger.info("🧹 Cleared Azure client cache")
+            if subscription_id:
+                if subscription_id in self.clients:
+                    del self.clients[subscription_id]
+                    logger.info(f"🧹 Cleared Azure client cache for subscription {subscription_id[:8]}...")
+            else:
+                self.clients.clear()
+                logger.info("🧹 Cleared all Azure client caches")
+    
+    def validate_subscription_access(self, subscription_id: str) -> bool:
+        """Validate that the service principal has access to the specified subscription"""
+        try:
+            # Try to get a resource client for the subscription
+            resource_client = self.get_resource_client(subscription_id)
+            if not resource_client:
+                return False
+            
+            # Try to list resource groups (minimal permission test)
+            list(resource_client.resource_groups.list())
+            logger.info(f"✅ Validated access to subscription {subscription_id[:8]}...")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ No access to subscription {subscription_id[:8]}...: {e}")
+            return False
+    
+    def execute_aks_command_without_cli(self, subscription_id: str, resource_group: str, 
+                                      cluster_name: str, kubectl_command: str) -> Optional[str]:
+        """
+        Execute kubectl command using Azure SDK Run Command API
+        
+        This provides the SAME server-side execution as 'az aks command invoke':
+        - Works with private AKS clusters
+        - No VNet connectivity required  
+        - Secure execution through Azure's network
+        - Container-friendly (no CLI dependency)
+        """
+        try:
+            import os
+            production_mode = os.getenv('PRODUCTION_MODE', 'false').lower() == 'true'
+            
+            logger.debug(f"🔧 Executing kubectl command via SDK server-side: {kubectl_command}")
+            
+            # Get AKS client for the subscription
+            aks_client = self.get_aks_client(subscription_id)
+            if not aks_client:
+                logger.error(f"❌ Cannot get AKS client for subscription {subscription_id[:8]}...")
+                return None
+            
+            # Create run command request with AAD cluster token support
+            from azure.mgmt.containerservice.models import RunCommandRequest
+            
+            # Get cluster token for AAD-enabled clusters
+            cluster_token = self._get_cluster_token_for_aad(subscription_id, resource_group, cluster_name)
+            
+            if cluster_token:
+                run_command_request = RunCommandRequest(
+                    command=kubectl_command,
+                    cluster_token=cluster_token
+                )
+                logger.debug(f"🔐 Using AAD cluster token for {cluster_name}")
+            else:
+                run_command_request = RunCommandRequest(command=kubectl_command)
+                logger.debug(f"🔓 No AAD cluster token needed for {cluster_name}")
+            
+            logger.debug(f"🚀 Server-side execution starting for cluster {cluster_name}")
+            
+            # Execute command server-side (same as CLI command invoke)
+            result_operation = aks_client.managed_clusters.begin_run_command(
+                resource_group_name=resource_group,
+                resource_name=cluster_name,
+                request_payload=run_command_request
+            )
+            
+            # Wait for server-side execution to complete
+            command_result = result_operation.result(timeout=180)  # 3 minute timeout for server-side execution
+            
+            # Process results
+            if command_result.exit_code == 0:
+                output = command_result.logs or ""
+                logger.debug(f"✅ Server-side kubectl execution successful: {kubectl_command}")
+                return output.strip()
+            else:
+                logger.error(f"❌ Server-side kubectl command failed (exit {command_result.exit_code}): {kubectl_command}")
+                if command_result.logs:
+                    logger.error(f"Error logs: {command_result.logs}")
+                
+                # In production mode, don't fall back to CLI
+                if production_mode:
+                    logger.error("🚫 Production mode: CLI fallback disabled for security")
+                    return None
+                else:
+                    logger.info("🔄 Development mode: Trying CLI fallback...")
+                    return self._execute_kubectl_via_cli_fallback(subscription_id, resource_group, cluster_name, kubectl_command)
+                
+        except Exception as e:
+            logger.error(f"❌ Server-side kubectl execution failed: {e}")
+            
+            # In production mode, no fallback to CLI
+            if os.getenv('PRODUCTION_MODE', 'false').lower() == 'true':
+                logger.error("🚫 Production mode: No CLI fallback available")
+                return None
+            else:
+                logger.info("🔄 Development mode: Attempting CLI fallback...")
+                return self._execute_kubectl_via_cli_fallback(subscription_id, resource_group, cluster_name, kubectl_command)
+    
+    def _execute_kubectl_via_cli_fallback(self, subscription_id: str, resource_group: str,
+                                        cluster_name: str, kubectl_command: str) -> Optional[str]:
+        """Fallback to CLI for preview features or SDK failures"""
+        try:
+            import subprocess
+            
+            # Build az aks command invoke as fallback
+            cmd = [
+                'az', 'aks', 'command', 'invoke',
+                '--resource-group', resource_group,
+                '--name', cluster_name,
+                '--subscription', subscription_id,
+                '--command', kubectl_command
+            ]
+            
+            logger.debug(f"🔄 CLI Fallback: {kubectl_command}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            
+            if result.returncode == 0:
+                logger.debug(f"✅ kubectl command executed via CLI fallback: {kubectl_command}")
+                return result.stdout.strip()
+            else:
+                logger.error(f"❌ CLI fallback also failed (exit {result.returncode}): {kubectl_command}")
+                logger.error(f"Error: {result.stderr}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ CLI fallback failed: {e}")
+            return None
+    
+    def _get_cluster_token_for_aad(self, subscription_id: str, resource_group: str, cluster_name: str) -> Optional[str]:
+        """Get cluster token for AAD-enabled AKS clusters"""
+        try:
+            # Get a token scoped to the AKS cluster
+            # This is equivalent to what 'az aks get-credentials' does for AAD clusters
+            cluster_resource_id = f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}/providers/Microsoft.ContainerService/managedClusters/{cluster_name}"
+            
+            # Try to get an AAD token for the cluster
+            try:
+                # Get token for AKS cluster access
+                token = self.credential.get_token("6dae42f8-4368-4678-94ff-3960e28e3630/.default")  # AKS AAD Server App ID
+                
+                if token and token.token:
+                    logger.debug(f"✅ Successfully obtained AAD cluster token for {cluster_name}")
+                    return token.token
+                else:
+                    logger.debug(f"⚠️ No AAD token obtained for {cluster_name}")
+                    return None
+                    
+            except Exception as token_error:
+                logger.debug(f"⚠️ AAD token acquisition failed for {cluster_name}: {token_error}")
+                
+                # Try alternative token scope
+                try:
+                    token = self.credential.get_token("https://management.azure.com/.default")
+                    if token and token.token:
+                        logger.debug(f"✅ Using management token as fallback for {cluster_name}")
+                        return token.token
+                except Exception:
+                    pass
+                    
+                return None
+                
+        except Exception as e:
+            logger.debug(f"⚠️ Cluster token acquisition failed: {e}")
+            return None
 
 # Global instance
 azure_sdk_manager = AzureSDKManager()
