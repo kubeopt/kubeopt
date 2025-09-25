@@ -1071,7 +1071,7 @@ p {
 
 .action-icon:hover {
     background: var(--primary);
-    color: white;
+    color: rgb(40, 53, 77);
     transform: scale(1.1);
     box-shadow: var(--shadow-md);
 }
