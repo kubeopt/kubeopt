@@ -1172,7 +1172,7 @@ function showCreateAlertModal() {
                         <i class="fas fa-times"></i> Cancel
                     </button>
                     <button class="btn btn-primary" onclick="createAlert()" 
-                            style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500;">
+                            style="background: linear-gradient(135deg, #07080d, #07080d); border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500;">
                         <i class="fas fa-plus"></i> Create Alert
                     </button>
                 </div>
