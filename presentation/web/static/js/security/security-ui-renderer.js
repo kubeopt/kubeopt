@@ -80,24 +80,24 @@ class SecurityUIRenderer {
             return;
         }
 
-        // Create the clean dashboard structure
+        // Create the clean dashboard structure with improved styling
         const dashboardHTML = `
             <div class="security-dashboard-layout">
-                <!-- Clean Tab Navigation -->
-                <div class="mb-8">
-                    <nav class="flex space-x-1 p-1 bg-slate-800/50 rounded-lg border border-slate-700/50">
-                        <button class="security-tab-btn active flex-1 text-center py-2.5 px-4 rounded-md transition-all duration-200 text-sm font-medium" data-tab="dashboard">
-                            <i class="fas fa-tachometer-alt mr-2 text-xs"></i>Dashboard
+                <!-- Professional Tab Navigation -->
+                <div style="margin-bottom: 2rem;">
+                    <nav style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; padding: 1rem; background: rgba(255, 255, 255, 0.02); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <button class="security-tab-btn active" data-tab="dashboard">
+                            <i class="fas fa-tachometer-alt"></i>Dashboard
                         </button>
-                        <button class="security-tab-btn flex-1 text-center py-2.5 px-4 rounded-md transition-all duration-200 text-sm font-medium" data-tab="issues">
-                            <i class="fas fa-exclamation-triangle mr-2 text-xs"></i>Issues
-                            <span id="issues-badge" class="ml-1.5 px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full hidden">0</span>
+                        <button class="security-tab-btn" data-tab="issues">
+                            <i class="fas fa-exclamation-triangle"></i>Issues
+                            <span id="issues-badge" style="margin-left: 0.5rem; padding: 0.25rem 0.5rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; font-size: 0.75rem; border-radius: 6px; display: none;">0</span>
                         </button>
-                        <button class="security-tab-btn flex-1 text-center py-2.5 px-4 rounded-md transition-all duration-200 text-sm font-medium" data-tab="compliance">
-                            <i class="fas fa-shield-check mr-2 text-xs"></i>Compliance
+                        <button class="security-tab-btn" data-tab="compliance">
+                            <i class="fas fa-shield-check"></i>Compliance
                         </button>
-                        <button class="security-tab-btn flex-1 text-center py-2.5 px-4 rounded-md transition-all duration-200 text-sm font-medium" data-tab="analytics">
-                            <i class="fas fa-chart-line mr-2 text-xs"></i>Analytics
+                        <button class="security-tab-btn" data-tab="analytics">
+                            <i class="fas fa-chart-line"></i>Analytics
                         </button>
                     </nav>
                 </div>
@@ -106,77 +106,77 @@ class SecurityUIRenderer {
                 <div class="security-tab-content">
                     <!-- Security Dashboard Tab -->
                     <div id="dashboard-tab" class="security-tab-pane active">
-                        <!-- Clean Metrics Cards -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                            <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4 hover:bg-slate-800/60 transition-colors">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="text-slate-400 text-sm font-medium">Security Score</span>
-                                    <div class="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center">
-                                        <i class="fas fa-shield-alt text-slate-400 text-sm"></i>
+                        <!-- Professional Metrics Cards -->
+                        <div class="security-metrics-grid">
+                            <div class="security-metric-card">
+                                <div class="security-metric-header">
+                                    <span class="security-metric-title">Security Score</span>
+                                    <div class="security-metric-icon">
+                                        <i class="fas fa-shield-alt" style="color: #4f77ff;"></i>
                                     </div>
                                 </div>
-                                <div id="security-score" class="text-2xl font-bold text-white mb-1">--</div>
-                                <div id="security-grade" class="text-slate-500 text-xs">Loading...</div>
-                                <div id="security-trend" class="text-xs mt-2"></div>
+                                <div id="security-score" class="security-metric-value">--</div>
+                                <div id="security-grade" class="security-metric-description">Loading...</div>
+                                <div id="security-trend" class="security-metric-trend"></div>
                             </div>
 
-                            <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4 hover:bg-slate-800/60 transition-colors">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="text-slate-400 text-sm font-medium">Active Alerts</span>
-                                    <div class="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center">
-                                        <i class="fas fa-exclamation-triangle text-slate-400 text-sm"></i>
+                            <div class="security-metric-card">
+                                <div class="security-metric-header">
+                                    <span class="security-metric-title">Active Alerts</span>
+                                    <div class="security-metric-icon">
+                                        <i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i>
                                     </div>
                                 </div>
-                                <div id="total-alerts" class="text-2xl font-bold text-white mb-1">0</div>
-                                <div class="text-xs mt-1">
-                                    <span id="critical-alerts-count" class="text-slate-400">0 Critical</span>
-                                    <span class="text-slate-600 mx-1">•</span>
-                                    <span id="high-alerts-count" class="text-slate-400">0 High</span>
-                                </div>
-                            </div>
-
-                            <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4 hover:bg-slate-800/60 transition-colors">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="text-slate-400 text-sm font-medium">Violations</span>
-                                    <div class="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center">
-                                        <i class="fas fa-ban text-slate-400 text-sm"></i>
-                                    </div>
-                                </div>
-                                <div id="total-violations" class="text-2xl font-bold text-white mb-1">0</div>
-                                <div class="text-xs mt-1">
-                                    <span id="critical-violations-count" class="text-slate-400">0 Critical</span>
-                                    <span class="text-slate-600 mx-1">•</span>
-                                    <span id="high-violations-count" class="text-slate-400">0 High</span>
+                                <div id="total-alerts" class="security-metric-value">0</div>
+                                <div class="security-metric-description">
+                                    <span id="critical-alerts-count">0 Critical</span>
+                                    <span style="margin: 0 0.5rem; color: var(--security-text-muted);">•</span>
+                                    <span id="high-alerts-count">0 High</span>
                                 </div>
                             </div>
 
-                            <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4 hover:bg-slate-800/60 transition-colors">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="text-slate-400 text-sm font-medium">Compliance</span>
-                                    <div class="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center">
-                                        <i class="fas fa-clipboard-check text-slate-400 text-sm"></i>
+                            <div class="security-metric-card">
+                                <div class="security-metric-header">
+                                    <span class="security-metric-title">Violations</span>
+                                    <div class="security-metric-icon">
+                                        <i class="fas fa-ban" style="color: #ef4444;"></i>
                                     </div>
                                 </div>
-                                <div id="compliance-score" class="text-2xl font-bold text-white mb-1">--</div>
-                                <div class="text-slate-500 text-xs mt-1">Policy adherence</div>
-                                <div id="frameworks-status" class="text-xs mt-2"></div>
+                                <div id="total-violations" class="security-metric-value">0</div>
+                                <div class="security-metric-description">
+                                    <span id="critical-violations-count">0 Critical</span>
+                                    <span style="margin: 0 0.5rem; color: var(--security-text-muted);">•</span>
+                                    <span id="high-violations-count">0 High</span>
+                                </div>
+                            </div>
+
+                            <div class="security-metric-card">
+                                <div class="security-metric-header">
+                                    <span class="security-metric-title">Compliance</span>
+                                    <div class="security-metric-icon">
+                                        <i class="fas fa-clipboard-check" style="color: #22c55e;"></i>
+                                    </div>
+                                </div>
+                                <div id="compliance-score" class="security-metric-value">--</div>
+                                <div class="security-metric-description">Policy adherence</div>
+                                <div id="frameworks-status" class="security-metric-trend"></div>
                             </div>
                         </div>
 
-                        <!-- Clean Chart Section -->
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                        <!-- Professional Chart Section -->
+                        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; margin-bottom: 2rem;">
                             <!-- Security Trend Chart -->
-                            <div class="lg:col-span-2 bg-slate-800/40 border border-slate-700/50 rounded-lg p-5">
-                                <div class="flex items-center justify-between mb-4">
-                                    <h3 class="text-base font-medium text-white">Security Posture Trend</h3>
-                                    <div class="flex items-center gap-3 text-xs">
-                                        <div class="flex items-center gap-1">
-                                            <div class="w-2 h-2 bg-slate-400 rounded-full"></div>
-                                            <span class="text-slate-400">Score</span>
+                            <div class="security-chart-container">
+                                <div class="security-chart-header">
+                                    <h3 class="security-chart-title">Security Posture Trend</h3>
+                                    <div style="display: flex; align-items: center; gap: 1rem; font-size: 0.75rem;">
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <div style="width: 8px; height: 8px; background: var(--security-accent); border-radius: 50%;"></div>
+                                            <span style="color: var(--security-text-secondary);">Score</span>
                                         </div>
-                                        <div class="flex items-center gap-1">
-                                            <div class="w-2 h-2 bg-slate-500 rounded-full"></div>
-                                            <span class="text-slate-400">Alerts</span>
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <div style="width: 8px; height: 8px; background: var(--security-warning); border-radius: 50%;"></div>
+                                            <span style="color: var(--security-text-secondary);">Alerts</span>
                                         </div>
                                     </div>
                                 </div>
@@ -186,13 +186,15 @@ class SecurityUIRenderer {
                             </div>
                             
                             <!-- Risk Level Distribution -->
-                            <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-5">
-                                <h3 class="text-base font-medium text-white mb-4">Risk Distribution</h3>
+                            <div class="security-chart-container">
+                                <div class="security-chart-header">
+                                    <h3 class="security-chart-title">Risk Distribution</h3>
+                                </div>
                                 <div class="chart-container">
                                     <canvas id="risk-donut-chart"></canvas>
                                 </div>
-                                <div id="risk-distribution" class="mt-4 space-y-2">
-                                    <div class="text-center text-slate-500 text-xs">Loading risk data...</div>
+                                <div id="risk-distribution" style="margin-top: 1.5rem;">
+                                    <div style="text-align: center; color: var(--security-text-muted); font-size: 0.8rem;">Loading risk data...</div>
                                 </div>
                             </div>
                         </div>
@@ -223,89 +225,93 @@ class SecurityUIRenderer {
 
                     <!-- Issues & Alerts Tab -->
                     <div id="issues-tab" class="security-tab-pane hidden">
-                        <!-- Issues Metrics Cards -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                            <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4 hover:bg-slate-800/60 transition-colors">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="text-slate-400 text-sm font-medium">Total Issues</span>
-                                    <div class="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center">
-                                        <i class="fas fa-exclamation-triangle text-slate-400 text-sm"></i>
+                        <!-- Professional Issues Metrics Cards -->
+                        <div class="security-metrics-grid">
+                            <div class="security-metric-card">
+                                <div class="security-metric-header">
+                                    <span class="security-metric-title">Total Issues</span>
+                                    <div class="security-metric-icon">
+                                        <i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i>
                                     </div>
                                 </div>
-                                <div id="total-issues-count" class="text-2xl font-bold text-white mb-1">0</div>
-                                <div class="text-xs text-slate-500">Alerts + Violations</div>
+                                <div id="total-issues-count" class="security-metric-value">0</div>
+                                <div class="security-metric-description">Alerts + Violations</div>
                             </div>
 
-                            <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4 hover:bg-slate-800/60 transition-colors">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="text-slate-400 text-sm font-medium">Critical</span>
-                                    <div class="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center">
-                                        <i class="fas fa-fire text-red-400 text-sm"></i>
+                            <div class="security-metric-card">
+                                <div class="security-metric-header">
+                                    <span class="security-metric-title">Critical</span>
+                                    <div class="security-metric-icon">
+                                        <i class="fas fa-fire" style="color: #ef4444;"></i>
                                     </div>
                                 </div>
-                                <div id="critical-issues-count" class="text-2xl font-bold text-white mb-1">0</div>
-                                <div class="text-xs text-slate-500">Immediate attention</div>
+                                <div id="critical-issues-count" class="security-metric-value">0</div>
+                                <div class="security-metric-description">Immediate attention</div>
                             </div>
 
-                            <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4 hover:bg-slate-800/60 transition-colors">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="text-slate-400 text-sm font-medium">High Priority</span>
-                                    <div class="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center">
-                                        <i class="fas fa-exclamation text-yellow-400 text-sm"></i>
+                            <div class="security-metric-card">
+                                <div class="security-metric-header">
+                                    <span class="security-metric-title">High Priority</span>
+                                    <div class="security-metric-icon">
+                                        <i class="fas fa-exclamation" style="color: #f59e0b;"></i>
                                     </div>
                                 </div>
-                                <div id="high-issues-count" class="text-2xl font-bold text-white mb-1">0</div>
-                                <div class="text-xs text-slate-500">High severity</div>
+                                <div id="high-issues-count" class="security-metric-value">0</div>
+                                <div class="security-metric-description">High severity</div>
                             </div>
 
-                            <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-4 hover:bg-slate-800/60 transition-colors">
-                                <div class="flex items-center justify-between mb-3">
-                                    <span class="text-slate-400 text-sm font-medium">Medium & Low</span>
-                                    <div class="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center">
-                                        <i class="fas fa-info-circle text-slate-400 text-sm"></i>
+                            <div class="security-metric-card">
+                                <div class="security-metric-header">
+                                    <span class="security-metric-title">Medium & Low</span>
+                                    <div class="security-metric-icon">
+                                        <i class="fas fa-info-circle" style="color: #06b6d4;"></i>
                                     </div>
                                 </div>
-                                <div id="medium-low-issues-count" class="text-2xl font-bold text-white mb-1">0</div>
-                                <div class="text-xs text-slate-500">Lower priority</div>
+                                <div id="medium-low-issues-count" class="security-metric-value">0</div>
+                                <div class="security-metric-description">Lower priority</div>
                             </div>
                         </div>
 
                         <!-- Critical Findings Summary -->
                         <div id="issues-critical-findings" class="mb-8"></div>
                         
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
                             <!-- Security Alerts -->
-                            <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-5">
-                                <div class="flex items-center justify-between mb-4">
-                                    <h3 class="text-base font-medium text-white flex items-center">
-                                        <i class="fas fa-exclamation-triangle text-slate-400 mr-2 text-sm"></i>Security Alerts
+                            <div class="security-chart-container">
+                                <div class="security-chart-header">
+                                    <h3 class="security-chart-title" style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i>Security Alerts
                                     </h3>
-                                    <select id="alert-severity-filter" class="bg-slate-700/50 border border-slate-600/50 text-white text-sm px-3 py-1.5 rounded-md focus:outline-none focus:border-slate-500">
-                                        <option value="">All Severities</option>
-                                        <option value="CRITICAL">Critical</option>
-                                        <option value="HIGH">High</option>
-                                        <option value="MEDIUM">Medium</option>
-                                        <option value="LOW">Low</option>
-                                    </select>
+                                    <div class="security-filters">
+                                        <select id="alert-severity-filter" class="security-select" style="max-width: 200px;">
+                                            <option value="">All Severities</option>
+                                            <option value="CRITICAL">Critical</option>
+                                            <option value="HIGH">High</option>
+                                            <option value="MEDIUM">Medium</option>
+                                            <option value="LOW">Low</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <div id="alerts-list" class="space-y-3 max-h-96 overflow-y-auto"></div>
+                                <div id="alerts-list" class="security-list"></div>
                             </div>
                             
                             <!-- Policy Violations -->
-                            <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-5">
-                                <div class="flex items-center justify-between mb-4">
-                                    <h3 class="text-base font-medium text-white flex items-center">
-                                        <i class="fas fa-ban text-slate-400 mr-2 text-sm"></i>Policy Violations
+                            <div class="security-chart-container">
+                                <div class="security-chart-header">
+                                    <h3 class="security-chart-title" style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <i class="fas fa-ban" style="color: #ef4444;"></i>Policy Violations
                                     </h3>
-                                    <select id="violation-severity-filter" class="bg-slate-700/50 border border-slate-600/50 text-white text-sm px-3 py-1.5 rounded-md focus:outline-none focus:border-slate-500">
-                                        <option value="">All Severities</option>
-                                        <option value="CRITICAL">Critical</option>
-                                        <option value="HIGH">High</option>
-                                        <option value="MEDIUM">Medium</option>
-                                        <option value="LOW">Low</option>
-                                    </select>
+                                    <div class="security-filters">
+                                        <select id="violation-severity-filter" class="security-select" style="max-width: 200px;">
+                                            <option value="">All Severities</option>
+                                            <option value="CRITICAL">Critical</option>
+                                            <option value="HIGH">High</option>
+                                            <option value="MEDIUM">Medium</option>
+                                            <option value="LOW">Low</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <div id="violations-list" class="space-y-3 max-h-96 overflow-y-auto"></div>
+                                <div id="violations-list" class="security-list"></div>
                             </div>
                         </div>
                         
@@ -313,21 +319,43 @@ class SecurityUIRenderer {
 
                     <!-- Compliance Tab -->
                     <div id="compliance-tab" class="security-tab-pane hidden">
-                        <!-- Compliance Summary Stats -->
-                        <div id="compliance-summary-stats" class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <!-- Professional Compliance Summary Stats -->
+                        <div id="compliance-summary-stats" class="security-metrics-grid" style="margin-bottom: 2rem;">
                             <!-- Stats will be populated when compliance data is loaded -->
                         </div>
                         
-                        <!-- Framework Details -->
-                        <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-5">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-base font-medium text-white">Compliance Frameworks</h3>
-                                <div class="text-xs text-slate-400">
-                                    <i class="fas fa-info-circle mr-1"></i>
-                                    Click framework names to expand details
+                        <!-- Professional Framework Details with Enhanced Styling -->
+                        <div style="background: var(--security-bg-card); border: 1px solid var(--security-border); border-radius: 12px; padding: 2rem; backdrop-filter: blur(10px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
+                            <!-- Header Section with Settings.css Style -->
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; padding: 1.5rem; border-radius: 12px 12px 0 0; position: relative; text-align: left; background: rgba(255, 255, 255, 0.02); border-bottom: 1px solid var(--security-border);">
+                                <div style="width: 48px; height: 48px; background: rgba(34, 197, 94, 0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-shield-check" style="color: #22c55e; font-size: 1.25rem;"></i>
+                                </div>
+                                <div style="flex: 1;">
+                                    <h3 style="font-size: 1.4rem; font-weight: 700; color: var(--security-text-primary); letter-spacing: 0.025em; margin: 0; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);">
+                                        Compliance Frameworks
+                                    </h3>
+                                    <div style="font-size: 0.875rem; color: var(--security-text-muted); margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                                        <i class="fas fa-info-circle" style="opacity: 0.7;"></i>
+                                        Click framework names to expand detailed control information
+                                    </div>
                                 </div>
                             </div>
-                            <div id="compliance-frameworks" class="space-y-4"></div>
+                            
+                            <!-- Frameworks Content with Enhanced Container -->
+                            <div id="compliance-frameworks" style="max-height: 600px; overflow-y: auto; padding: 0.5rem;">
+                                <!-- Custom scrollbar styling will be applied via CSS -->
+                            </div>
+                        </div>
+                        
+                        <!-- Professional Info Box (Settings.css Style) -->
+                        <div style="padding: 1.5rem; border-radius: 12px; margin-top: 2rem; font-size: 0.9rem; line-height: 1.6; position: relative; overflow: hidden; background: rgba(79, 119, 255, 0.1); border: 1px solid var(--security-accent); color: var(--security-text-secondary);">
+                            <div style="content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--security-accent); opacity: 0.7;"></div>
+                            <div style="font-weight: 700; font-size: 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.75rem; letter-spacing: 0.025em;">
+                                <i class="fas fa-lightbulb" style="font-size: 1.1rem; opacity: 0.8; color: var(--security-accent);"></i>
+                                Compliance Insights
+                            </div>
+                            <p style="margin: 0;">Compliance frameworks are evaluated against your cluster's actual configuration and policies. Grades are calculated based on the percentage of controls that pass validation.</p>
                         </div>
                     </div>
 
@@ -865,9 +893,10 @@ class SecurityUIRenderer {
     renderAlertsList(container, alerts) {
         if (alerts.length === 0) {
             container.innerHTML = `
-                <div class="text-center py-8 text-slate-400">
-                    <i class="fas fa-check-circle text-4xl mb-4 text-green-400"></i>
-                    <p>No active security alerts</p>
+                <div style="text-align: center; padding: 3rem 1rem; color: var(--security-text-muted);">
+                    <i class="fas fa-check-circle" style="font-size: 3rem; margin-bottom: 1rem; color: var(--security-success);"></i>
+                    <p style="font-size: 1rem; font-weight: 500;">No active security alerts</p>
+                    <p style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.7;">Your security posture looks good!</p>
                 </div>
             `;
             return;
@@ -950,9 +979,10 @@ class SecurityUIRenderer {
     renderViolationsList(container, violations) {
         if (violations.length === 0) {
             container.innerHTML = `
-                <div class="text-center py-8 text-slate-400">
-                    <i class="fas fa-check-circle text-4xl mb-4 text-green-400"></i>
-                    <p>No policy violations detected</p>
+                <div style="text-align: center; padding: 3rem 1rem; color: var(--security-text-muted);">
+                    <i class="fas fa-check-circle" style="font-size: 3rem; margin-bottom: 1rem; color: var(--security-success);"></i>
+                    <p style="font-size: 1rem; font-weight: 500;">No policy violations detected</p>
+                    <p style="font-size: 0.8rem; margin-top: 0.5rem; opacity: 0.7;">All policies are being followed correctly!</p>
                 </div>
             `;
             return;
@@ -1081,45 +1111,76 @@ class SecurityUIRenderer {
         }, {});
 
         statsContainer.innerHTML = `
-            <div class="p-4 border rounded" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1);">
-                <div class="flex items-center mb-2">
-                    <i class="fas fa-shield-check text-blue-400 mr-2"></i>
-                    <span class="text-sm text-slate-400">Avg Compliance</span>
+            <div class="security-metric-card">
+                <div class="security-metric-header">
+                    <span class="security-metric-title">Average Compliance</span>
+                    <div class="security-metric-icon">
+                        <i class="fas fa-shield-check" style="color: var(--security-accent);"></i>
+                    </div>
                 </div>
-                <div class="text-2xl font-bold ${avgCompliance >= 80 ? 'text-green-400' : avgCompliance >= 60 ? 'text-yellow-400' : 'text-red-400'}">${avgCompliance}%</div>
-                <div class="text-xs text-slate-500">${totalFrameworks} frameworks</div>
+                <div class="security-metric-value ${avgCompliance >= 80 ? 'text-green-400' : avgCompliance >= 60 ? 'text-yellow-400' : 'text-red-400'}">${avgCompliance}%</div>
+                <div class="security-metric-description">${totalFrameworks} frameworks evaluated</div>
+                <div class="security-metric-trend">
+                    <span style="color: var(--security-text-secondary);">${avgCompliance >= 80 ? '✓' : avgCompliance >= 60 ? '!' : '⚠'}</span>
+                    <span style="color: var(--security-text-muted); margin-left: 0.5rem;">${avgCompliance >= 80 ? 'Excellent' : avgCompliance >= 60 ? 'Good' : 'Needs attention'}</span>
+                </div>
             </div>
 
-            <div class="p-4 border rounded" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1);">
-                <div class="flex items-center mb-2">
-                    <i class="fas fa-check-circle text-green-400 mr-2"></i>
-                    <span class="text-sm text-slate-400">Passed Controls</span>
+            <div class="security-metric-card">
+                <div class="security-metric-header">
+                    <span class="security-metric-title">Passed Controls</span>
+                    <div class="security-metric-icon">
+                        <i class="fas fa-check-circle" style="color: #22c55e;"></i>
+                    </div>
                 </div>
-                <div class="text-2xl font-bold text-green-400">${passedControls}</div>
-                <div class="text-xs text-slate-500">of ${totalControls} total</div>
+                <div class="security-metric-value" style="color: #22c55e;">${passedControls}</div>
+                <div class="security-metric-description">of ${totalControls} total controls</div>
+                <div class="security-metric-trend">
+                    <span style="color: var(--security-text-secondary);">📊</span>
+                    <span style="color: var(--security-text-muted); margin-left: 0.5rem;">${Math.round((passedControls/totalControls) * 100)}% pass rate</span>
+                </div>
             </div>
 
-            <div class="p-4 border rounded" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1);">
-                <div class="flex items-center mb-2">
-                    <i class="fas fa-times-circle text-red-400 mr-2"></i>
-                    <span class="text-sm text-slate-400">Failed Controls</span>
+            <div class="security-metric-card">
+                <div class="security-metric-header">
+                    <span class="security-metric-title">Failed Controls</span>
+                    <div class="security-metric-icon">
+                        <i class="fas fa-times-circle" style="color: #ef4444;"></i>
+                    </div>
                 </div>
-                <div class="text-2xl font-bold text-red-400">${failedControls}</div>
-                <div class="text-xs text-slate-500">${Math.round((failedControls/totalControls) * 100)}% of total</div>
+                <div class="security-metric-value" style="color: #ef4444;">${failedControls}</div>
+                <div class="security-metric-description">require remediation</div>
+                <div class="security-metric-trend">
+                    <span style="color: var(--security-text-secondary);">${failedControls === 0 ? '✓' : '!'}</span>
+                    <span style="color: var(--security-text-muted); margin-left: 0.5rem;">${failedControls === 0 ? 'All passing' : 'Action needed'}</span>
+                </div>
             </div>
 
-            <div class="p-4 border rounded" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1);">
-                <div class="flex items-center mb-2">
-                    <i class="fas fa-exclamation-triangle ${riskLevels.HIGH || riskLevels.CRITICAL ? 'text-red-400' : 'text-green-400'} mr-2"></i>
-                    <span class="text-sm text-slate-400">Risk Status</span>
+            <div class="security-metric-card">
+                <div class="security-metric-header">
+                    <span class="security-metric-title">Risk Assessment</span>
+                    <div class="security-metric-icon">
+                        <i class="fas fa-exclamation-triangle" style="color: ${riskLevels.HIGH || riskLevels.CRITICAL ? '#ef4444' : '#22c55e'};"></i>
+                    </div>
                 </div>
-                <div class="text-lg font-bold text-white">
-                    ${riskLevels.CRITICAL ? `${riskLevels.CRITICAL} Critical` : 
-                      riskLevels.HIGH ? `${riskLevels.HIGH} High` : 
-                      riskLevels.MEDIUM ? `${riskLevels.MEDIUM} Medium` : 
-                      'Low Risk'}
+                <div class="security-metric-value" style="color: var(--security-text-primary);">
+                    ${riskLevels.CRITICAL ? riskLevels.CRITICAL : 
+                      riskLevels.HIGH ? riskLevels.HIGH : 
+                      riskLevels.MEDIUM ? riskLevels.MEDIUM : 0}
                 </div>
-                <div class="text-xs text-slate-500">frameworks</div>
+                <div class="security-metric-description">
+                    ${riskLevels.CRITICAL ? 'Critical risk frameworks' : 
+                      riskLevels.HIGH ? 'High risk frameworks' : 
+                      riskLevels.MEDIUM ? 'Medium risk frameworks' : 'Low risk frameworks'}
+                </div>
+                <div class="security-metric-trend">
+                    <span style="color: var(--security-text-secondary);">${riskLevels.HIGH || riskLevels.CRITICAL ? '🔴' : '🟢'}</span>
+                    <span style="color: var(--security-text-muted); margin-left: 0.5rem;">
+                        ${riskLevels.CRITICAL ? 'Critical' : 
+                          riskLevels.HIGH ? 'High' : 
+                          riskLevels.MEDIUM ? 'Medium' : 'Low'} risk
+                    </span>
+                </div>
             </div>
         `;
     }
@@ -1133,101 +1194,112 @@ class SecurityUIRenderer {
         const riskLevel = framework.risk_level || 'UNKNOWN';
         
         const gradeColors = {
-            'A+': 'green', 'A': 'green', 'A-': 'green',
-            'B+': 'blue', 'B': 'blue', 'B-': 'blue',
-            'C+': 'yellow', 'C': 'yellow', 'C-': 'yellow',
-            'D+': 'orange', 'D': 'orange', 'D-': 'orange',
-            'F': 'red'
+            'A+': '#22c55e', 'A': '#22c55e', 'A-': '#22c55e',
+            'B+': '#4f77ff', 'B': '#4f77ff', 'B-': '#4f77ff',
+            'C+': '#f59e0b', 'C': '#f59e0b', 'C-': '#f59e0b',
+            'D+': '#f97316', 'D': '#f97316', 'D-': '#f97316',
+            'F': '#ef4444'
         };
-        const gradeColor = gradeColors[grade] || 'gray';
+        const gradeColor = gradeColors[grade] || '#6b7280';
         
         const riskColors = {
-            'LOW': 'green',
-            'MEDIUM': 'yellow',
-            'HIGH': 'orange',
-            'CRITICAL': 'red'
+            'LOW': '#22c55e',
+            'MEDIUM': '#f59e0b',
+            'HIGH': '#f97316',
+            'CRITICAL': '#ef4444'
         };
-        const riskColor = riskColors[riskLevel] || 'gray';
+        const riskColor = riskColors[riskLevel] || '#6b7280';
 
         return `
-            <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 class="text-xl font-semibold text-white mb-2">${frameworkName}</h3>
-                        <div class="flex items-center space-x-3">
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-${gradeColor}-900/50 text-${gradeColor}-400 border border-${gradeColor}-700">
-                                <i class="fas fa-graduation-cap mr-2"></i>
-                                Grade: ${grade}
-                            </span>
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-${riskColor}-900/50 text-${riskColor}-400 border border-${riskColor}-700">
-                                <i class="fas fa-shield-alt mr-2"></i>
-                                Risk: ${riskLevel}
-                            </span>
-                            ${framework.based_on_actual_controls ? `
-                                <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-900/30 text-green-400 border border-green-800">
-                                    <i class="fas fa-database mr-1"></i>
-                                    Live Data
-                                </span>
-                            ` : ''}
+            <div style="background: var(--security-bg-card); border: 1px solid var(--security-border); border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; backdrop-filter: blur(10px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); transition: all 0.3s ease; position: relative; overflow: hidden;">
+                <!-- Professional Header with Settings.css Style -->
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 2rem;">
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                            <div style="width: 48px; height: 48px; background: rgba(79, 119, 255, 0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-shield-check" style="color: var(--security-accent); font-size: 1.25rem;"></i>
+                            </div>
+                            <div>
+                                <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--security-text-primary); letter-spacing: 0.025em; margin: 0; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);">
+                                    ${frameworkName}
+                                </h3>
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem;">
+                                    <span style="display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 600; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--security-text-primary);">
+                                        <i class="fas fa-graduation-cap" style="color: ${gradeColor}; margin-right: 0.5rem;"></i>
+                                        Grade: ${grade}
+                                    </span>
+                                    <span style="display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.75rem; font-weight: 600; background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--security-text-primary);">
+                                        <i class="fas fa-shield-alt" style="color: ${riskColor}; margin-right: 0.5rem;"></i>
+                                        Risk: ${riskLevel}
+                                    </span>
+                                    ${framework.based_on_actual_controls ? `
+                                        <span style="display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3);">
+                                            <i class="fas fa-database" style="margin-right: 0.5rem;"></i>
+                                            Live Data
+                                        </span>
+                                    ` : ''}
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="text-right">
-                        <div class="text-3xl font-bold ${compliance >= 80 ? 'text-green-400' : compliance >= 60 ? 'text-yellow-400' : 'text-red-400'}">
+                    <div style="text-align: right; margin-left: 2rem;">
+                        <div style="font-size: 3rem; font-weight: 700; color: ${compliance >= 80 ? '#22c55e' : compliance >= 60 ? '#f59e0b' : '#ef4444'}; line-height: 1; margin-bottom: 0.5rem; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);">
                             ${compliance}%
                         </div>
-                        <div class="text-sm text-slate-500">Compliance Score</div>
+                        <div style="font-size: 0.875rem; color: var(--security-text-muted); font-weight: 500;">Compliance Score</div>
                     </div>
                 </div>
                 
-                <div class="grid grid-cols-3 gap-4 mb-4">
-                    <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
-                        <div class="text-green-400 text-2xl font-bold">${passedControls}</div>
-                        <div class="text-xs text-slate-400">Passed</div>
+                <!-- Professional Metrics Grid -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div style="padding: 1.5rem; background: rgba(255, 255, 255, 0.02); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05); text-align: center; transition: all 0.3s ease;">
+                        <div style="font-size: 2rem; font-weight: 700; color: #22c55e; line-height: 1; margin-bottom: 0.5rem;">${passedControls}</div>
+                        <div style="font-size: 0.75rem; color: var(--security-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Passed</div>
                     </div>
-                    <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
-                        <div class="text-red-400 text-2xl font-bold">${failedControls}</div>
-                        <div class="text-xs text-slate-400">Failed</div>
+                    <div style="padding: 1.5rem; background: rgba(255, 255, 255, 0.02); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05); text-align: center; transition: all 0.3s ease;">
+                        <div style="font-size: 2rem; font-weight: 700; color: #ef4444; line-height: 1; margin-bottom: 0.5rem;">${failedControls}</div>
+                        <div style="font-size: 0.75rem; color: var(--security-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Failed</div>
                     </div>
-                    <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-700">
-                        <div class="text-blue-400 text-2xl font-bold">${totalControls}</div>
-                        <div class="text-xs text-slate-400">Total</div>
+                    <div style="padding: 1.5rem; background: rgba(255, 255, 255, 0.02); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05); text-align: center; transition: all 0.3s ease;">
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--security-accent); line-height: 1; margin-bottom: 0.5rem;">${totalControls}</div>
+                        <div style="font-size: 0.75rem; color: var(--security-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Total</div>
                     </div>
                 </div>
                 
                 ${totalControls > 0 ? `
-                    <div class="mb-4">
-                        <div class="flex items-center justify-between text-sm text-slate-400 mb-2">
-                            <span>Control Coverage</span>
-                            <span class="font-medium">${passedControls}/${totalControls} Passed</span>
+                    <!-- Professional Progress Bar -->
+                    <div style="margin-bottom: 2rem;">
+                        <div style="display: flex; align-items: center; justify-content: between; margin-bottom: 1rem;">
+                            <span style="font-weight: 600; color: var(--security-text-primary); font-size: 0.95rem;">Control Coverage</span>
+                            <span style="color: var(--security-text-secondary); font-weight: 500; font-size: 0.875rem;">${passedControls}/${totalControls} Passed (${Math.round((passedControls/totalControls) * 100)}%)</span>
                         </div>
-                        <div class="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
-                            <div class="h-3 rounded-full" style="background: rgb(74, 222, 128); width: ${(passedControls/totalControls * 100)}%"></div>
+                        <div style="width: 100%; background: var(--security-bg-input); border-radius: 8px; height: 8px; overflow: hidden; border: 1px solid var(--security-border);">
+                            <div style="height: 100%; background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%); border-radius: 8px; width: ${(passedControls/totalControls * 100)}%; transition: width 0.5s ease;"></div>
                         </div>
                     </div>
                 ` : ''}
                 
                 ${framework.control_details && framework.control_details.length > 0 ? `
-                    <details class="mt-4 bg-slate-900/30 rounded-lg p-3 border border-slate-700">
-                        <summary class="cursor-pointer text-sm text-slate-300 hover:text-white">
-                            <i class="fas fa-list-check mr-2"></i>
+                    <!-- Professional Expandable Details -->
+                    <details style="background: rgba(255, 255, 255, 0.02); border-radius: 8px; padding: 1rem; border: 1px solid rgba(255, 255, 255, 0.05); transition: all 0.3s ease;">
+                        <summary style="cursor: pointer; color: var(--security-text-primary); font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border-radius: 6px; transition: all 0.2s ease;">
+                            <i class="fas fa-list-check" style="color: var(--security-accent);"></i>
                             View Control Details (${framework.control_details.length} controls)
+                            <i class="fas fa-chevron-down" style="margin-left: auto; font-size: 0.75rem; opacity: 0.6;"></i>
                         </summary>
-                        <div class="mt-4 space-y-2">
+                        <div style="margin-top: 1.5rem; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 1.5rem;">
                             ${framework.control_details.map(control => `
-                                <div class="flex items-center justify-between py-2 px-3 rounded hover:bg-slate-800/50">
-                                    <div class="flex-1">
-                                        <span class="text-sm text-slate-300 font-medium">${control.control_id}</span>
-                                        <span class="text-xs text-slate-500 ml-2">${control.title}</span>
+                                <div style="display: flex; align-items: center; justify-content: between; padding: 1rem; margin-bottom: 0.75rem; background: rgba(255, 255, 255, 0.02); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05); transition: all 0.3s ease;">
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 600; color: var(--security-text-primary); font-size: 0.875rem; margin-bottom: 0.25rem;">${control.control_id}</div>
+                                        <div style="color: var(--security-text-muted); font-size: 0.75rem; line-height: 1.4;">${control.title}</div>
                                     </div>
-                                    <span class="ml-4 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                    <span style="margin-left: 1rem; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.75rem; font-weight: 600; ${
                                         control.compliance_status === 'COMPLIANT' 
-                                            ? 'bg-green-900/50 text-green-400' 
-                                            : 'bg-red-900/50 text-red-400'
+                                            ? 'background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3);' 
+                                            : 'background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);'
                                     }">
-                                        ${control.compliance_status === 'COMPLIANT' ? 
-                                            '<i class="fas fa-check mr-1"></i>' : 
-                                            '<i class="fas fa-times mr-1"></i>'
-                                        }
+                                        <i class="fas ${control.compliance_status === 'COMPLIANT' ? 'fa-check' : 'fa-times'}" style="margin-right: 0.5rem;"></i>
                                         ${control.compliance_status}
                                     </span>
                                 </div>
@@ -1247,12 +1319,12 @@ class SecurityUIRenderer {
         if (!vulnerabilityData || vulnerabilityData.total_vulnerabilities === 0) {
             if (summaryContainer) {
                 summaryContainer.innerHTML = `
-                    <div class="text-center py-4 text-slate-400">
-                        <i class="fas fa-shield-alt text-2xl mb-2 text-green-400"></i>
-                        <div class="text-green-400 font-medium">No vulnerabilities detected</div>
-                        <div class="text-xs mt-1 text-slate-500">Cluster security scan complete</div>
-                        <div class="mt-2 text-xs">
-                            <span class="px-2 py-1 bg-green-900/20 text-green-400 rounded">✓ Secure</span>
+                    <div style="text-align: center; padding: 2rem; color: var(--security-text-muted);">
+                        <i class="fas fa-shield-alt" style="font-size: 2rem; margin-bottom: 1rem; color: var(--security-success);"></i>
+                        <div style="color: var(--security-success); font-weight: 600; margin-bottom: 0.5rem;">No vulnerabilities detected</div>
+                        <div style="font-size: 0.8rem; margin-bottom: 1rem; opacity: 0.8;">Cluster security scan complete</div>
+                        <div>
+                            <span style="padding: 0.25rem 0.75rem; background: rgba(34, 197, 94, 0.2); color: var(--security-success); border-radius: 6px; font-size: 0.75rem; font-weight: 600;">✓ Secure</span>
                         </div>
                     </div>
                 `;
@@ -1263,10 +1335,10 @@ class SecurityUIRenderer {
         // Display vulnerability data if we have any
         if (summaryContainer) {
             summaryContainer.innerHTML = `
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="text-slate-400">Total Vulnerabilities</span>
-                        <span class="text-red-400 font-bold">${vulnerabilityData.total_vulnerabilities}</span>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: rgba(255, 255, 255, 0.02); border-radius: 6px;">
+                        <span style="color: var(--security-text-secondary);">Total Vulnerabilities</span>
+                        <span style="color: var(--security-error); font-weight: 700; font-size: 1.1rem;">${vulnerabilityData.total_vulnerabilities}</span>
                     </div>
                     <div class="flex justify-between items-center">
                         <span class="text-slate-400">Critical</span>
