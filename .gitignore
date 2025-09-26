@@ -7,3 +7,12 @@ static/.DS_Store
 .DS_Store
 *.png
 app-bkp/*
+
+# Node.js dependencies (in tailwind folder)
+tailwind/node_modules/
+tailwind/npm-debug.log*
+tailwind/yarn-debug.log*
+tailwind/yarn-error.log*
+
+# Keep generated CSS committed for production deployments
+# presentation/web/static/css/tailwind.css

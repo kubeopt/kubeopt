@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  aks-cost-optimizer:
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
+    container_name: aks-cost-optimizer
+    ports:
+      - "5030:5001"
+    volumes:
+      - ./logs:/app/logs
+      - ./infrastructure/persistence/database:/app/infrastructure/persistence/database
+      - ./config:/app/config
+    environment:
+      - FLASK_ENV=production
+      - PYTHONPATH=/app
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
