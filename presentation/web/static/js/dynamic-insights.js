@@ -91,7 +91,7 @@ export function generateRealDynamicInsights(data) {
         
         insights.hpa = `🤖 <strong>ML Analysis (${confidenceText} Confidence)</strong>: Classified as <strong>${workloadType}</strong> - ${workloadDescription}. ${hpaComparison.recommendation_text}`;
         
-        logDebug(`✅ Generated ML-integrated HPA insight: ${workloadType} with $${savings} savings`);
+        logDebug(`✅ Generated ML-integrated HPA insight: ${workloadType} with optimization potential`);
     }
     
     // ============================================================================

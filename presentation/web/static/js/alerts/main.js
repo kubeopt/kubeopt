@@ -1138,6 +1138,7 @@ function showCreateAlertModal() {
                             <div class="form-group">
                                 <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Email Address *</label>
                                 <input type="email" class="form-control" name="email" required 
+                                       autocomplete="email"
                                        style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;"
                                        placeholder="admin@company.com">
                             </div>
@@ -1259,6 +1260,7 @@ function showEditAlertModal(alertId) {
                             <div class="form-group">
                                 <label class="form-label">Email Address *</label>
                                 <input type="email" class="form-control" name="email" required 
+                                       autocomplete="email"
                                        value="${escapeHtml(alert.email || '')}">
                             </div>
                         </div>

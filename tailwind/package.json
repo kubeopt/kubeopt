@@ -1,0 +1,14 @@
+{
+  "name": "aks-cost-optimizer",
+  "version": "1.0.0",
+  "description": "AKS Cost Optimizer with Tailwind CSS",
+  "scripts": {
+    "build-css": "tailwindcss -i ./input.css -o ../presentation/web/static/css/tailwind.css --watch",
+    "build-css-prod": "tailwindcss -i ./input.css -o ../presentation/web/static/css/tailwind.css --minify",
+    "dev": "npm run build-css",
+    "prod": "npm run build-css-prod"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.3.0"
+  }
+}

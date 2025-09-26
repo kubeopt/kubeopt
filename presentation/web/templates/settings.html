@@ -77,6 +77,7 @@
                                 <label class="form-label">Azure Tenant ID</label>
                                 <input type="text" name="azure_tenant_id" value="{{ config.get('AZURE_TENANT_ID', '') }}" 
                                        class="form-input"
+                                       autocomplete="off"
                                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
                                 <p class="form-help">Your Azure Active Directory tenant ID</p>
                             </div>
@@ -85,6 +86,7 @@
                                 <label class="form-label">Azure Subscription ID</label>
                                 <input type="text" name="azure_subscription_id" value="{{ config.get('AZURE_SUBSCRIPTION_ID', '') }}" 
                                        class="form-input"
+                                       autocomplete="off"
                                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
                                 <p class="form-help">Primary Azure subscription for analysis</p>
                             </div>
@@ -95,6 +97,7 @@
                                 <label class="form-label">Service Principal Client ID</label>
                                 <input type="text" name="azure_client_id" value="{{ config.get('AZURE_CLIENT_ID', '') }}" 
                                        class="form-input"
+                                       autocomplete="username"
                                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
                                 <p class="form-help">Service principal application ID</p>
                             </div>
@@ -103,6 +106,7 @@
                                 <label class="form-label">Service Principal Client Secret</label>
                                 <input type="password" name="azure_client_secret" value="{{ config.get('AZURE_CLIENT_SECRET', '') }}" 
                                        class="form-input"
+                                       autocomplete="new-password"
                                        placeholder="Enter client secret">
                                 <p class="form-help">Service principal secret key</p>
                             </div>
@@ -174,6 +178,7 @@
                             <label class="form-label">Slack Webhook URL</label>
                             <input type="url" name="slack_webhook_url" value="{{ config.get('SLACK_WEBHOOK_URL', '') }}" 
                                    class="form-input"
+                                   autocomplete="url"
                                    placeholder="https://hooks.slack.com/services/...">
                             <p class="form-help">Slack incoming webhook URL for notifications</p>
                         </div>
@@ -183,6 +188,7 @@
                                 <label class="form-label">Default Channel</label>
                                 <input type="text" name="slack_channel" value="{{ config.get('SLACK_CHANNEL', '') }}" 
                                        class="form-input"
+                                       autocomplete="off"
                                        placeholder="#aks-cost-alerts">
                                 <p class="form-help">Default channel for cost optimization alerts</p>
                             </div>
@@ -191,6 +197,7 @@
                                 <label class="form-label">Notification Threshold (USD)</label>
                                 <input type="number" name="slack_cost_threshold" value="{{ config.get('SLACK_COST_THRESHOLD', '100') }}" 
                                        class="form-input"
+                                       autocomplete="off"
                                        placeholder="100" min="0" step="0.01">
                                 <p class="form-help">Send alerts when daily costs exceed this amount</p>
                             </div>
@@ -281,6 +288,7 @@
                                 <label class="form-label">Email Username</label>
                                 <input type="email" name="email_username" value="{{ config.get('EMAIL_USERNAME', '') }}" 
                                        class="form-input"
+                                       autocomplete="email"
                                        placeholder="your-email@company.com">
                             </div>
                                 
@@ -288,6 +296,7 @@
                                 <label class="form-label">Email Password</label>
                                 <input type="password" name="email_password" value="{{ config.get('EMAIL_PASSWORD', '') }}" 
                                        class="form-input"
+                                       autocomplete="new-password"
                                        placeholder="Enter email password or app password">
                             </div>
                         </div>
@@ -387,14 +396,14 @@
                             </p>
                         </div>
                         
-                        <!-- <div class="checkbox-group">
+                        <div class="checkbox-group">
                             <input type="checkbox" name="production_mode" id="production_mode" 
                                    {% if config.get('PRODUCTION_MODE') == 'true' %}checked{% endif %}
                                    class="checkbox">
                             <label for="production_mode" class="checkbox-label">
-                                Production Mode (Disable CLI fallbacks)
+                                Production Mode
                             </label>
-                        </div> -->
+                        </div>
                         
                         <div class="btn-actions">
                             <button type="submit" class="btn btn-primary">
