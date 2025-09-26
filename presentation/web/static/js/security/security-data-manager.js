@@ -12,6 +12,22 @@ class SecurityDataManager {
         this.activeIntervals = new Map();
     }
 
+    // Check if security features are enabled before making API calls
+    isSecurityFeatureEnabled() {
+        if (window.checkFeatureAccess) {
+            return window.checkFeatureAccess('security_posture');
+        }
+        
+        // Fallback: check global feature flags
+        if (window.featureLockManager && window.featureLockManager.featureFlags) {
+            return window.featureLockManager.featureFlags.security_posture;
+        }
+        
+        // Default to false if we can't determine
+        console.warn('⚠️ Cannot determine security feature status, assuming disabled');
+        return false;
+    }
+
     getCurrentClusterId() {
         // Extract cluster ID from URL - format: rg-dpl-mad-dev-ne2-2_aks-dpl-mad-dev-ne2-1
         const path = window.location.pathname;
@@ -19,11 +35,11 @@ class SecurityDataManager {
         
         if (match && match[1]) {
             const clusterId = decodeURIComponent(match[1]);
-            console.log(`🎯 SECURITY: Extracted Cluster ID from URL: ${clusterId}`);
+            logDebug(`🎯 SECURITY: Extracted Cluster ID from URL: ${clusterId}`);
             
             // Validate the format (should contain underscore between RG and AKS name)
             if (clusterId.includes('_')) {
-                console.log(`✅ SECURITY: Valid cluster ID format: ${clusterId}`);
+                logDebug(`✅ SECURITY: Valid cluster ID format: ${clusterId}`);
                 
                 // Update global state
                 window.currentClusterState.clusterId = clusterId;
@@ -43,7 +59,7 @@ class SecurityDataManager {
         
         // Fallback: From global cluster object (if available from main page)
         if (window.currentCluster && window.currentCluster.id) {
-            console.log(`🎯 SECURITY: Cluster ID from global: ${window.currentCluster.id}`);
+            logDebug(`🎯 SECURITY: Cluster ID from global: ${window.currentCluster.id}`);
             return window.currentCluster.id;
         }
         
@@ -53,15 +69,21 @@ class SecurityDataManager {
     }
 
     async loadSecurityOverview() {
+        // Check if security features are enabled
+        if (!this.isSecurityFeatureEnabled()) {
+            logDebug('🔒 Security features are locked - skipping API call');
+            return null;
+        }
+        
         try {
             const clusterId = await this.getCurrentClusterId();
             
             if (!clusterId) {
-                console.log('ℹ️ No cluster ID available for security overview');
+                logDebug('ℹ️ No cluster ID available for security overview');
                 return null;
             }
             
-            console.log(`🔍 Loading security overview for cluster: ${clusterId}`);
+            logDebug(`🔍 Loading security overview for cluster: ${clusterId}`);
             
             // Try multiple API endpoints to find the data
             const endpoints = [
@@ -77,16 +99,16 @@ class SecurityDataManager {
             
             for (const endpoint of endpoints) {
                 try {
-                    console.log(`📡 Trying endpoint: ${endpoint}`);
+                    logDebug(`📡 Trying endpoint: ${endpoint}`);
                     const response = await fetch(endpoint);
-                    console.log(`   Response status: ${response.status}`);
+                    logDebug(`   Response status: ${response.status}`);
                     
                     if (response.ok) {
                         const responseData = await response.json();
                         if (responseData && Object.keys(responseData).length > 0) {
                             data = responseData;
                             successfulEndpoint = endpoint;
-                            console.log(`   ✅ Data found! Keys:`, Object.keys(responseData));
+                            logDebug(`   ✅ Data found! Keys:`, Object.keys(responseData));
                             break;
                         }
                     }
@@ -103,8 +125,8 @@ class SecurityDataManager {
             // Cache the data for use in other functions
             this.cachedData = data;
             
-            console.log('📊 Security data received from:', successfulEndpoint);
-            console.log('Data structure:', Object.keys(data));
+            logDebug('📊 Security data received from:', successfulEndpoint);
+            logDebug('Data structure:', Object.keys(data));
             
             return data;
             
@@ -115,13 +137,19 @@ class SecurityDataManager {
     }
 
     async loadSecurityAlerts() {
+        // Check if security features are enabled
+        if (!this.isSecurityFeatureEnabled()) {
+            logDebug('🔒 Security features are locked - skipping alerts API call');
+            return [];
+        }
+        
         try {
             // Use cached data if available
             if (this.cachedData && this.cachedData.analysis) {
                 const analysis = this.cachedData.analysis || this.cachedData;
                 const alerts = analysis.security_posture?.alerts || [];
                 
-                console.log(`✅ Retrieved ${alerts.length} security alerts from cache`);
+                logDebug(`✅ Retrieved ${alerts.length} security alerts from cache`);
                 return alerts;
             }
 
@@ -143,13 +171,19 @@ class SecurityDataManager {
     }
 
     async loadPolicyViolations() {
+        // Check if security features are enabled
+        if (!this.isSecurityFeatureEnabled()) {
+            logDebug('🔒 Security features are locked - skipping policy violations API call');
+            return [];
+        }
+        
         try {
             // Use cached data if available
             if (this.cachedData && this.cachedData.analysis) {
                 const analysis = this.cachedData.analysis || this.cachedData;
                 const violations = analysis.policy_compliance?.violations || [];
                 
-                console.log(`✅ Retrieved ${violations.length} policy violations from cache`);
+                logDebug(`✅ Retrieved ${violations.length} policy violations from cache`);
                 return violations;
             }
 
@@ -171,13 +205,19 @@ class SecurityDataManager {
     }
 
     async loadCompliance() {
+        // Check if security features are enabled
+        if (!this.isSecurityFeatureEnabled()) {
+            logDebug('🔒 Security features are locked - skipping compliance API call');
+            return {};
+        }
+        
         try {
             // Use cached data if available
             if (this.cachedData && this.cachedData.analysis) {
                 const analysis = this.cachedData.analysis || this.cachedData;
                 const complianceFrameworks = analysis.compliance_frameworks || {};
                 
-                console.log(`✅ Retrieved ${Object.keys(complianceFrameworks).length} compliance frameworks from cache`);
+                logDebug(`✅ Retrieved ${Object.keys(complianceFrameworks).length} compliance frameworks from cache`);
                 return complianceFrameworks;
             }
 
@@ -199,6 +239,12 @@ class SecurityDataManager {
     }
 
     async loadVulnerabilities() {
+        // Check if security features are enabled
+        if (!this.isSecurityFeatureEnabled()) {
+            logDebug('🔒 Security features are locked - skipping vulnerabilities API call');
+            return {};
+        }
+        
         try {
             const clusterId = await this.getCurrentClusterId();
             if (!clusterId) return null;
@@ -254,7 +300,7 @@ class SecurityDataManager {
     startAutoRefresh(callback) {
         const clusterId = this.getCurrentClusterId();
         if (!clusterId) {
-            console.log('ℹ️ Auto-refresh disabled - no cluster ID');
+            logDebug('ℹ️ Auto-refresh disabled - no cluster ID');
             return;
         }
         
@@ -273,32 +319,32 @@ class SecurityDataManager {
         }, this.refreshInterval);
         
         this.activeIntervals.set('overview', overviewInterval);
-        console.log(`🔄 Auto-refresh started (${this.refreshInterval/1000}s interval)`);
+        logDebug(`🔄 Auto-refresh started (${this.refreshInterval/1000}s interval)`);
     }
 
     stopAutoRefresh() {
         this.activeIntervals.forEach(interval => clearInterval(interval));
         this.activeIntervals.clear();
-        console.log('ℹ️ Auto-refresh stopped');
+        logDebug('ℹ️ Auto-refresh stopped');
     }
 
     async debugClusterAndAPIs() {
-        console.log('🔍 === SECURITY DASHBOARD DEBUG ===');
+        logDebug('🔍 === SECURITY DASHBOARD DEBUG ===');
         
         const clusterId = this.getCurrentClusterId();
-        console.log('📌 Current Cluster ID:', clusterId);
-        console.log('📌 Global State:', window.currentClusterState);
-        console.log('📌 Cached Data Available:', !!this.cachedData);
+        logDebug('📌 Current Cluster ID:', clusterId);
+        logDebug('📌 Global State:', window.currentClusterState);
+        logDebug('📌 Cached Data Available:', !!this.cachedData);
         
         if (this.cachedData) {
-            console.log('📌 Cached Data Structure:', Object.keys(this.cachedData));
+            logDebug('📌 Cached Data Structure:', Object.keys(this.cachedData));
             
             if (this.cachedData.analysis) {
                 const analysis = this.cachedData.analysis;
-                console.log('📊 Security Score:', analysis.security_posture?.overall_score);
-                console.log('📊 Total Alerts:', analysis.security_posture?.alerts?.length);
-                console.log('📊 Total Violations:', analysis.policy_compliance?.violations?.length);
-                console.log('📊 Compliance Frameworks:', Object.keys(analysis.compliance_frameworks || {}));
+                logDebug('📊 Security Score:', analysis.security_posture?.overall_score);
+                logDebug('📊 Total Alerts:', analysis.security_posture?.alerts?.length);
+                logDebug('📊 Total Violations:', analysis.policy_compliance?.violations?.length);
+                logDebug('📊 Compliance Frameworks:', Object.keys(analysis.compliance_frameworks || {}));
             }
         }
         

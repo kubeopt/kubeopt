@@ -9,13 +9,25 @@
 /* Locked features (when you want to show but disable) */
 .feature-locked {
     position: relative;
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
-    pointer-events: none;
+    pointer-events: auto; /* Allow click for upgrade modal */
+    transition: opacity 0.2s ease;
 }
 
-.feature-locked * {
-    pointer-events: none;
+.feature-locked:hover {
+    opacity: 0.7;
+}
+
+/* Special styling for locked navigation tabs */
+.nav-link.feature-locked {
+    border-left: 3px solid #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+}
+
+/* Locked content panels */
+.feature-locked-content {
+    display: none !important;
 }
 
 /* Lock overlay styling */
@@ -120,7 +132,7 @@
 
 /* Upgrade banner */
 .upgrade-banner {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #353c5d 0%, #4b71a2 100%);
     color: white;
     padding: 12px 20px;
     text-align: center;

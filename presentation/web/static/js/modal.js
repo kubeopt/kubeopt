@@ -11,7 +11,7 @@
 // ============================================================================
 
 function forceResetModal() {
-    console.log('🔧 Force resetting modal state...');
+    logDebug('🔧 Force resetting modal state...');
     
     // Remove any existing modal instances
     const existingModals = document.querySelectorAll('.modal');
@@ -31,7 +31,7 @@ function forceResetModal() {
     document.body.style.paddingRight = '';
     document.body.style.overflow = '';
     
-    console.log('✅ Modal state reset complete');
+    logDebug('✅ Modal state reset complete');
 }
 
 // ============================================================================
@@ -39,7 +39,7 @@ function forceResetModal() {
 // ============================================================================
 
 function addModalInputFix() {
-    console.log('🎨 Adding comprehensive modal CSS fix...');
+    logDebug('🎨 Adding comprehensive modal CSS fix...');
     
     // Remove any existing fix
     const existingStyle = document.getElementById('modal-input-fix');
@@ -158,7 +158,7 @@ function addModalInputFix() {
     `;
     
     document.head.appendChild(style);
-    console.log('✅ Modal CSS fix applied');
+    logDebug('✅ Modal CSS fix applied');
 }
 
 // ============================================================================
@@ -166,11 +166,11 @@ function addModalInputFix() {
 // ============================================================================
 
 function initializeModalFixed() {
-    console.log('🚀 Initializing modal with comprehensive fixes...');
+    logDebug('🚀 Initializing modal with comprehensive fixes...');
     
     const addClusterModal = document.getElementById('addClusterModal');
     if (!addClusterModal) {
-        console.error('❌ Modal not found');
+        logError('❌ Modal not found');
         return;
     }
     
@@ -187,7 +187,7 @@ function initializeModalFixed() {
     
     // CRITICAL: Set up proper modal events
     modal.addEventListener('show.bs.modal', function(event) {
-        console.log('📝 Modal opening - setting up form');
+        logDebug('📝 Modal opening - setting up form');
         
         setTimeout(() => {
             // Ensure all inputs are enabled and focusable
@@ -207,13 +207,13 @@ function initializeModalFixed() {
             if (firstInput) {
                 firstInput.focus();
                 firstInput.click();
-                console.log('✅ Focused on first input');
+                logDebug('✅ Focused on first input');
             }
         }, 100);
     });
     
     modal.addEventListener('shown.bs.modal', function(event) {
-        console.log('📝 Modal fully shown - ensuring accessibility');
+        logDebug('📝 Modal fully shown - ensuring accessibility');
         
         // Double-check all inputs are accessible
         const inputs = this.querySelectorAll('input, select, textarea');
@@ -235,7 +235,7 @@ function initializeModalFixed() {
     
     // CRITICAL: Handle modal close properly
     modal.addEventListener('hide.bs.modal', function(event) {
-        console.log('📝 Modal closing - cleanup');
+        logDebug('📝 Modal closing - cleanup');
         if (form) {
             form.reset();
         }
@@ -245,7 +245,7 @@ function initializeModalFixed() {
     const cancelButtons = modal.querySelectorAll('[data-bs-dismiss="modal"], .btn-secondary');
     cancelButtons.forEach(btn => {
         btn.addEventListener('click', function(event) {
-            console.log('❌ Cancel button clicked');
+            logDebug('❌ Cancel button clicked');
             event.preventDefault();
             event.stopPropagation();
             
@@ -260,12 +260,12 @@ function initializeModalFixed() {
             event.preventDefault();
             event.stopPropagation();
             
-            console.log('📝 Form submitted');
+            logDebug('📝 Form submitted');
             handleFormSubmissionSafe(event);
         });
     }
     
-    console.log('✅ Modal initialization complete');
+    logDebug('✅ Modal initialization complete');
 }
 
 // ============================================================================
@@ -273,7 +273,7 @@ function initializeModalFixed() {
 // ============================================================================
 
 function handleFormSubmissionSafe(event) {
-    console.log('📝 Safe form submission handler');
+    logDebug('📝 Safe form submission handler');
     
     const form = event.target;
     const formData = new FormData(form);
@@ -288,7 +288,7 @@ function handleFormSubmissionSafe(event) {
         auto_analyze: form.querySelector('#auto_analyze')?.checked === true
     };
     
-    console.log('📋 Form data:', clusterData);
+    logDebug('📋 Form data:', clusterData);
     
     // Basic validation
     if (!clusterData.cluster_name || clusterData.cluster_name.length < 3) {
@@ -333,7 +333,7 @@ function handleFormSubmissionSafe(event) {
         return response.json();
     })
     .then(data => {
-        console.log('✅ Cluster added:', data);
+        logDebug('✅ Cluster added:', data);
         alert('Cluster added successfully!');
         
         // Close modal
@@ -348,7 +348,7 @@ function handleFormSubmissionSafe(event) {
         }, 1000);
     })
     .catch(error => {
-        console.error('❌ Error:', error);
+        logError('❌ Error:', error);
         alert('Error adding cluster: ' + error.message);
     })
     .finally(() => {
@@ -364,7 +364,7 @@ function handleFormSubmissionSafe(event) {
 // ============================================================================
 
 function emergencyCloseModal() {
-    console.log('🚨 Emergency modal close');
+    logDebug('🚨 Emergency modal close');
     
     // Close all modals
     const modals = document.querySelectorAll('.modal');
@@ -393,14 +393,14 @@ function debugModal() {
     const modal = document.getElementById('addClusterModal');
     const inputs = modal?.querySelectorAll('input, select, textarea');
     
-    console.log('🔍 Modal debug info:');
-    console.log('Modal element:', modal);
-    console.log('Modal display:', modal?.style.display);
-    console.log('Modal classes:', modal?.className);
-    console.log('Input count:', inputs?.length);
+    logDebug('🔍 Modal debug info:');
+    logDebug('Modal element:', modal);
+    logDebug('Modal display:', modal?.style.display);
+    logDebug('Modal classes:', modal?.className);
+    logDebug('Input count:', inputs?.length);
     
     inputs?.forEach((input, index) => {
-        console.log(`Input ${index}:`, {
+        logDebug(`Input ${index}:`, {
             type: input.type,
             disabled: input.disabled,
             readonly: input.readOnly,
@@ -411,7 +411,7 @@ function debugModal() {
     });
     
     const backdrops = document.querySelectorAll('.modal-backdrop');
-    console.log('Backdrop count:', backdrops.length);
+    logDebug('Backdrop count:', backdrops.length);
 }
 
 // ============================================================================
@@ -425,7 +425,7 @@ window.forceResetModal = forceResetModal;
 
 // Auto-initialize
 function autoInitializeModalFix() {
-    console.log('🚀 Auto-initializing modal fix...');
+    logDebug('🚀 Auto-initializing modal fix...');
     
     // Add CSS fix
     addModalInputFix();
@@ -446,11 +446,11 @@ function autoInitializeModalFix() {
         }
     });
     
-    console.log('✅ Modal fix initialization complete');
-    console.log('💡 If modal still doesn\'t work, try:');
-    console.log('   - Press Ctrl+Shift+M to debug');
-    console.log('   - Call emergencyCloseModal() in console');
-    console.log('   - Press ESC to force close');
+    logDebug('✅ Modal fix initialization complete');
+    logDebug('💡 If modal still doesn\'t work, try:');
+    logDebug('   - Press Ctrl+Shift+M to debug');
+    logDebug('   - Call emergencyCloseModal() in console');
+    logDebug('   - Press ESC to force close');
 }
 
 // Initialize immediately if DOM is ready, otherwise wait
@@ -460,5 +460,5 @@ if (document.readyState === 'loading') {
     autoInitializeModalFix();
 }
 
-console.log('✅ Modal Input Fix loaded successfully');
-console.log('🔧 Available functions: emergencyCloseModal(), debugModal(), forceResetModal()');
+logDebug('✅ Modal Input Fix loaded successfully');
+logDebug('🔧 Available functions: emergencyCloseModal(), debugModal(), forceResetModal()');

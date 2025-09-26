@@ -120,110 +120,83 @@ class LicenseManager:
             }
     
     def validate_license_key(self, license_key: str) -> Dict:
-        """Validate a license key using the advanced algorithms"""
+        """Validate a license key using standalone validation logic"""
         try:
-            # Try to import the new license validation system
-            try:
-                import sys
-                import os
-                license_manager_path = os.path.join(os.getcwd(), 'license_manager')
-                if os.path.exists(license_manager_path):
-                    sys.path.insert(0, license_manager_path)
-                    from generators.key_generator import LicenseGenerator
-                    
-                    # Use the new validation system
-                    is_valid, validation_info = LicenseGenerator.validate_license(license_key)
-                    
-                    if is_valid:
-                        # Convert to our expected format
-                        license_data = {
-                            'tier': validation_info.get('tier'),
-                            'expires': validation_info.get('expires_timestamp'),
-                            'features': validation_info.get('features', []),
-                            'license_key': license_key,
-                            'tier_display': validation_info.get('tier_display'),
-                            'algorithm': validation_info.get('algorithm'),
-                            'is_trial': validation_info.get('is_trial', False),
-                            'is_lifetime': validation_info.get('is_lifetime', False)
-                        }
-                        
-                        logger.info(f"✅ Valid {validation_info.get('tier_display', 'Unknown')} license loaded (Algorithm: {validation_info.get('algorithm', 'unknown')})")
-                        return license_data
-                    else:
-                        error_msg = validation_info.get('error', 'Unknown validation error')
-                        raise ValueError(error_msg)
-                        
-            except ImportError:
-                # Fall back to legacy validation if new system not available
-                logger.warning("⚠️ New license system not available, using legacy validation")
-                pass
-            
-            # Legacy validation system (fallback)
-            parts = license_key.split('-')
-            if len(parts) < 3:
-                raise ValueError("Invalid license key format")
-                
-            tier_code = parts[0]
-            
-            # Handle new format tier codes
-            if tier_code.startswith('P') and ('3M' in tier_code or '6M' in tier_code or '12M' in tier_code or '3T' in tier_code):
-                tier_str = 'pro'
-            elif tier_code.startswith('E') and ('3M' in tier_code or '6M' in tier_code or '12M' in tier_code or 'LT' in tier_code):
-                tier_str = 'enterprise'
-            elif tier_code.startswith('F'):
-                tier_str = 'free'
-            else:
-                # Legacy format
-                tier_map = {
-                    'FREE': 'free',
-                    'PRO': 'pro', 
-                    'ENT': 'enterprise'
-                }
-                tier_str = tier_map.get(tier_code, 'free')
-            
-            # Get tier enum
-            tier_enum_map = {
-                'free': LicenseTier.FREE,
-                'pro': LicenseTier.PRO,
-                'enterprise': LicenseTier.ENTERPRISE
-            }
-            tier = tier_enum_map[tier_str]
-            
-            # Basic expiry check for legacy format
-            expires = None
-            if len(parts) >= 3:
-                expiry_str = parts[2]
-                if expiry_str != 'NEVER' and expiry_str != 'never':
-                    try:
-                        if len(expiry_str) == 6:  # YYMMDD format
-                            expires = datetime.strptime(expiry_str, '%y%m%d').date()
-                        else:  # YYYYMMDD format
-                            expires = datetime.strptime(expiry_str, '%Y%m%d').date()
-                        
-                        if expires < datetime.now().date():
-                            raise ValueError("License expired")
-                    except ValueError as e:
-                        if "expired" in str(e):
-                            raise
-                        # Invalid date format, treat as non-expiring for now
-                        expires = None
-            
-            # Create license data
-            license_data = {
-                'tier': tier_str,
-                'expires': expires.isoformat() if expires else None,
-                'features': [f.value for f in self.tier_features[tier]],
-                'license_key': license_key,
-                'tier_display': tier_str.capitalize(),
-                'algorithm': 'legacy_validation'
-            }
-            
-            logger.info(f"✅ Valid {tier_str.upper()} license loaded (Legacy validation)")
-            return license_data
+            # Standalone license validation (matches simple_generator format)
+            return self._validate_simple_license(license_key)
             
         except Exception as e:
             logger.error(f"Invalid license key: {e}")
             raise ValueError(f"Invalid license key: {e}")
+    
+    def _validate_simple_license(self, license_key: str) -> Dict:
+        """Validate license keys generated by simple_generator.py"""
+        # Validate basic format
+        parts = license_key.strip().upper().split('-')
+        if len(parts) < 3:
+            raise ValueError("Invalid license key format")
+        
+        tier_code = parts[0]
+        checksum = parts[1]
+        
+        # Validate tier and duration codes
+        if tier_code.startswith('P') and ('3M' in tier_code or '6M' in tier_code or '12M' in tier_code or '3T' in tier_code):
+            tier_str = 'pro'
+        elif tier_code.startswith('E') and ('3M' in tier_code or '6M' in tier_code or '12M' in tier_code or 'LT' in tier_code):
+            tier_str = 'enterprise'
+        elif tier_code.startswith('F'):
+            tier_str = 'free'
+        else:
+            raise ValueError("Invalid license tier code")
+        
+        # Get tier enum
+        tier_enum_map = {
+            'free': LicenseTier.FREE,
+            'pro': LicenseTier.PRO,
+            'enterprise': LicenseTier.ENTERPRISE
+        }
+        tier = tier_enum_map[tier_str]
+        
+        # Parse expiry date (position 2 for most licenses)
+        expires = None
+        is_trial = 'T' in tier_code
+        is_lifetime = 'LT' in tier_code
+        
+        if not is_lifetime and len(parts) >= 3:
+            expiry_str = parts[2]
+            if expiry_str != 'NEVER':
+                try:
+                    if len(expiry_str) == 6:  # YYMMDD format
+                        expires = datetime.strptime(expiry_str, '%y%m%d').date()
+                    elif len(expiry_str) == 8:  # YYYYMMDD format
+                        expires = datetime.strptime(expiry_str, '%Y%m%d').date()
+                    
+                    # Check if expired
+                    if expires and expires < datetime.now().date():
+                        raise ValueError("License expired")
+                except ValueError as e:
+                    if "expired" in str(e).lower():
+                        raise
+                    raise ValueError("Invalid expiry date format")
+        
+        # Validate checksum length (basic validation)
+        if len(checksum) < 8:
+            raise ValueError("Invalid license checksum")
+        
+        # Create license data
+        license_data = {
+            'tier': tier_str,
+            'expires': expires.isoformat() if expires else None,
+            'features': [f.value for f in self.tier_features[tier]],
+            'license_key': license_key,
+            'tier_display': tier_str.capitalize(),
+            'algorithm': 'simple_generator',
+            'is_trial': is_trial,
+            'is_lifetime': is_lifetime
+        }
+        
+        logger.info(f"✅ Valid {tier_str.upper()} license loaded ({tier_code})")
+        return license_data
     
     def is_license_valid(self, license_data: Dict) -> bool:
         """Check if license data is valid and not expired"""
@@ -274,6 +247,10 @@ class LicenseManager:
             'tier': tier.value,
             'tier_display': tier.value.title(),
             'expires': self.current_license.get('expires'),
+            'license_key': self.current_license.get('license_key', ''),
+            'is_trial': self.current_license.get('is_trial', False),
+            'is_lifetime': self.current_license.get('is_lifetime', False),
+            'algorithm': self.current_license.get('algorithm', 'unknown'),
             'enabled_features': self.get_enabled_features(),
             'locked_features': self.get_locked_features(),
             'is_valid': self.is_license_valid(self.current_license)

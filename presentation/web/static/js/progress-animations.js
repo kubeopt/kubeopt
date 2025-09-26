@@ -731,4 +731,4 @@ if (typeof window !== 'undefined') {
     window.slideUp = slideUp;
 }
 
-console.log('✅ Progress animation functions loaded successfully');
+logDebug('✅ Progress animation functions loaded successfully');

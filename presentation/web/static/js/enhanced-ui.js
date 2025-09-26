@@ -56,7 +56,7 @@ if (!window.chartInstances) {
 // --- Content Panel Management ---
 
 function initializeSecurityDashboard() {
-    console.log('🔐 Initializing security dashboard...');
+    logDebug('🔐 Initializing security dashboard...');
     
     // Check if security dashboard is already initialized
     const securityContainer = document.getElementById('securityposture-content');
@@ -67,18 +67,18 @@ function initializeSecurityDashboard() {
     
     // If already has content, don't reinitialize
     if (securityContainer.children.length > 0 && !securityContainer.innerHTML.includes('Security dashboard will be dynamically loaded here')) {
-        console.log('Security dashboard already initialized');
+        logDebug('Security dashboard already initialized');
         return;
     }
     
-    console.log('Creating new security dashboard instance...');
+    logDebug('Creating new security dashboard instance...');
     
     // Initialize the enhanced security dashboard
     if (window.SecurityPostureDashboard) {
         try {
             // Create new security dashboard instance
             window.securityDashboard = new window.SecurityPostureDashboard();
-            console.log('✅ Security dashboard initialized successfully');
+            logDebug('✅ Security dashboard initialized successfully');
         } catch (error) {
             console.error('❌ Failed to initialize security dashboard:', error);
             
@@ -98,7 +98,7 @@ function initializeSecurityDashboard() {
                 if (window.SecurityPostureDashboard) {
                     try {
                         window.securityDashboard = new window.SecurityPostureDashboard();
-                        console.log('✅ Security dashboard initialized on retry');
+                        logDebug('✅ Security dashboard initialized on retry');
                     } catch (retryError) {
                         console.error('❌ Security dashboard initialization failed on retry:', retryError);
                     }
@@ -125,7 +125,7 @@ function initializeSecurityDashboard() {
                 clearInterval(checkForSecurityDashboard);
                 try {
                     window.securityDashboard = new window.SecurityPostureDashboard();
-                    console.log('✅ Security dashboard initialized after waiting for scripts');
+                    logDebug('✅ Security dashboard initialized after waiting for scripts');
                 } catch (error) {
                     console.error('❌ Security dashboard initialization failed after waiting:', error);
                 }
@@ -207,7 +207,7 @@ function showContent(contentType, element) {
             
         case 'securityposture':
             // Load security posture data with reinitialization
-            console.log('Security Posture tab selected');
+            logDebug('Security Posture tab selected');
             // Reinitialize security dashboard when switching to it
             if (window.securityDashboard) {
                 setTimeout(() => {
@@ -218,16 +218,16 @@ function showContent(contentType, element) {
             
         case 'compliance':
             // Load compliance data
-            console.log('Compliance tab selected');
+            logDebug('Compliance tab selected');
             break;
             
         case 'vulnerabilities':
             // Load vulnerabilities data
-            console.log('Vulnerabilities tab selected');
+            logDebug('Vulnerabilities tab selected');
             break;
             
         default:
-            console.log(`Tab ${contentType} selected`);
+            logDebug(`Tab ${contentType} selected`);
     }
 }
 
@@ -492,11 +492,11 @@ function showNotification(title, message, type = 'info', duration = 5000) {
             finalMessage.includes("'#' is not a valid selector") ||
             finalMessage.includes("An unexpected error occurred")
         )) {
-            console.log('Suppressed notification for handled error:', finalMessage);
+            logDebug('Suppressed notification for handled error:', finalMessage);
             return;
         }
         
-        console.log(`${type.toUpperCase()}: ${finalMessage}`);
+        logDebug(`${type.toUpperCase()}: ${finalMessage}`);
         const toastContainer = document.createElement('div');
         toastContainer.className = `fixed top-20 right-5 z-50`;
         const toast = document.createElement('div');
@@ -535,7 +535,7 @@ window.switchToTab = function(tabSelector) {
 };
 
 function triggerAnalysis(clusterId) {
-    console.log(`🚀 Triggering analysis for ${clusterId || 'demo cluster'}`);
+    logDebug(`🚀 Triggering analysis for ${clusterId || 'demo cluster'}`);
     const analyzeButton = document.querySelector(`button[onclick*="triggerAnalysis"]`);
     if (analyzeButton) {
         analyzeButton.disabled = true;
@@ -609,16 +609,16 @@ function initializeTheme() {
 }
 
 // Keep ALL existing functions available globally
-window.updateCpuWorkloadDisplay = window.updateCpuWorkloadDisplay || function(data) { console.log('CPU workload display updated', data); };
-window.initializeCharts = window.initializeCharts || function() { console.log('Charts initialized'); };
-window.refreshCharts = window.refreshCharts || function() { console.log('Charts refreshed'); };
-window.updateAllCharts = window.updateAllCharts || function(data) { console.log('All charts updated', data); };
+window.updateCpuWorkloadDisplay = window.updateCpuWorkloadDisplay || function(data) { logDebug('CPU workload display updated', data); };
+window.initializeCharts = window.initializeCharts || function() { logDebug('Charts initialized'); };
+window.refreshCharts = window.refreshCharts || function() { logDebug('Charts refreshed'); };
+window.updateAllCharts = window.updateAllCharts || function(data) { logDebug('All charts updated', data); };
 
 // Enhanced insights rendering function to override dynamic-insights.js
 window.updateInsightsDisplay = function(insights) {
-    console.log('🔧 Updating insights with compact bullet-point style');
-    console.log('🔧 Received insights:', insights);
-    console.log('🔧 Insight keys:', Object.keys(insights));
+    logDebug('🔧 Updating insights with compact bullet-point style');
+    logDebug('🔧 Received insights:', insights);
+    logDebug('🔧 Insight keys:', Object.keys(insights));
     
     const container = document.getElementById('insights-container');
     if (!container || !insights) return;
@@ -753,7 +753,7 @@ if (typeof window.updateRealDynamicInsights === 'function') {
 
 // Initialize when DOM is ready - PRESERVE BACKEND INTEGRATION
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 Initializing Enhanced KubeVista Dashboard...');
+    logDebug('🚀 Initializing Enhanced KubeVista Dashboard...');
     
     try {
         initializeTheme();
@@ -767,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             try {
                 if (typeof window.initializeCharts === 'function') {
-                    console.log('🔄 Calling existing backend chart initialization...');
+                    logDebug('🔄 Calling existing backend chart initialization...');
                     window.initializeCharts();
                 }
             } catch (error) {
@@ -827,7 +827,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error setting up delete confirmation:', error);
         }
         
-        console.log('✅ Enhanced dashboard initialization complete - Backend ready');
+        logDebug('✅ Enhanced dashboard initialization complete - Backend ready');
         
     } catch (error) {
         console.error('❌ Critical error during dashboard initialization:', error);

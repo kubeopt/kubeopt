@@ -33,8 +33,8 @@ import { initializeDashboard } from './main.js';
  * This replaces the original DOMContentLoaded handler
  */
 function initializeApplication() {
-    console.log('🚀 Starting AKS Cost Intelligence Dashboard');
-    console.log('📦 All modules loaded and ready');
+    logDebug('🚀 Starting AKS Cost Intelligence Dashboard');
+    logDebug('📦 All modules loaded and ready');
     
     try {
         // Show loading notification
@@ -42,9 +42,9 @@ function initializeApplication() {
         
         // ✅ Verify cluster isolation is working
         if (typeof window.validateClusterContext === 'function') {
-            console.log('✅ Cluster isolation functions available');
+            logDebug('✅ Cluster isolation functions available');
             const clusterId = window.getCurrentClusterId();
-            console.log(`🎯 Current cluster: ${clusterId}`);
+            logDebug(`🎯 Current cluster: ${clusterId}`);
         } else {
             console.warn('⚠️ Cluster isolation functions not found');
         }
@@ -54,7 +54,7 @@ function initializeApplication() {
         
         // Log successful initialization
         setTimeout(() => {
-            console.log('✅ AKS Cost Intelligence Dashboard fully initialized');
+            logDebug('✅ AKS Cost Intelligence Dashboard fully initialized');
             
             // Show available functions for debugging
             const availableFunctions = Object.keys(window).filter(key => 
@@ -65,8 +65,6 @@ function initializeApplication() {
                 key.includes('load') ||
                 key.includes('refresh')
             );
-            
-            console.log('📊 Available global functions:', availableFunctions);
             
             if (availableFunctions.length === 0) {
                 console.warn('⚠️ No global functions found - check module exports');
@@ -94,4 +92,4 @@ export {
     showNotification 
 };
 
-console.log('🎯 AKS Cost Intelligence - All modules loaded successfully');
+logDebug('🎯 AKS Cost Intelligence - All modules loaded successfully');

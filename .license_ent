@@ -1,0 +1,21 @@
+{
+  "tier": "enterprise",
+  "expires": "2026-09-26",
+  "features": [
+    "dashboard",
+    "manual_analysis",
+    "implementation_plan",
+    "auto_analysis",
+    "email_alerts",
+    "slack_alerts",
+    "enterprise_metrics",
+    "security_posture",
+    "advanced_alerts",
+    "multi_subscription"
+  ],
+  "license_key": "E12M-P7S1KSPUGZT3HMHN-260926-F-76C8",
+  "tier_display": "Enterprise",
+  "algorithm": "simple_generator",
+  "is_trial": false,
+  "is_lifetime": false
+}

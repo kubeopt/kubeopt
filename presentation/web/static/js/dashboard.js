@@ -18,11 +18,11 @@ export function setupDashboardPolling() {
     const clusterId = getCurrentClusterId();
     
     if (!clusterId) {
-        console.error('❌ Cannot setup polling without cluster ID');
+        logError('❌ Cannot setup polling without cluster ID');
         return;
     }
     
-    console.log(`🔄 Setting up polling for cluster: ${clusterId}`);
+    logDebug(`🔄 Setting up polling for cluster: ${clusterId}`);
     
     // Clear any existing timers
     if (window.dashboardTimers) {
@@ -37,14 +37,14 @@ export function setupDashboardPolling() {
             makeClusterAwareAPICall('/api/cache/status')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('✅ Cache status for current cluster:', data);
+                    logDebug('✅ Cache status for current cluster:', data);
                     updateCacheStatusIndicator(data);
                 })
                 .catch(error => {
-                    console.error('Cache status error:', error);
+                    logError('Cache status error:', error);
                 });
         } else {
-            console.log(`🛑 Stopping polling for ${clusterId} - cluster changed to ${currentClusterId}`);
+            logDebug(`🛑 Stopping polling for ${clusterId} - cluster changed to ${currentClusterId}`);
             clearInterval(cacheTimer);
         }
     }, 30000);
@@ -63,7 +63,7 @@ export function validatePageState() {
     const clusterId = getCurrentClusterId();
     
     if (!clusterId) {
-        console.error('❌ Page state validation failed - no cluster ID');
+        logError('❌ Page state validation failed - no cluster ID');
         return false;
     }
     
@@ -72,7 +72,7 @@ export function validatePageState() {
     dataElements.forEach(element => {
         const elementClusterId = element.getAttribute('data-cluster-id');
         if (elementClusterId && elementClusterId !== clusterId) {
-            console.warn(`⚠️ Found stale data element with cluster ID: ${elementClusterId}`);
+            logWarn(`⚠️ Found stale data element with cluster ID: ${elementClusterId}`);
             element.style.opacity = '0.5';
             element.title = 'Stale data detected - refreshing...';
         }
@@ -81,11 +81,11 @@ export function validatePageState() {
     // Validate URL matches expected cluster
     const expectedUrl = `/cluster/${clusterId}`;
     if (!window.location.pathname.startsWith(expectedUrl)) {
-        console.error(`❌ URL mismatch: expected ${expectedUrl}, got ${window.location.pathname}`);
+        logError(`❌ URL mismatch: expected ${expectedUrl}, got ${window.location.pathname}`);
         return false;
     }
     
-    console.log(`✅ Page state validated for cluster: ${clusterId}`);
+    logDebug(`✅ Page state validated for cluster: ${clusterId}`);
     return true;
 }
 
@@ -109,12 +109,12 @@ function updateCacheStatusIndicator(cacheData) {
  */
 export function refreshCurrentCluster() {
     if (!validateClusterContext('refreshCurrentCluster')) {
-        console.error('❌ BLOCKED: refreshCurrentCluster - invalid cluster context');
+        logError('❌ BLOCKED: refreshCurrentCluster - invalid cluster context');
         return;
     }
     
     const clusterId = getCurrentClusterId();
-    console.log(`🔄 Refreshing data for cluster: ${clusterId}`);
+    logDebug(`🔄 Refreshing data for cluster: ${clusterId}`);
     
     // Clear cache for current cluster
     makeClusterAwareAPICall('/api/cache/clear', {
@@ -122,7 +122,7 @@ export function refreshCurrentCluster() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cluster_id: clusterId })
     }).then(() => {
-        console.log(`🧹 Cleared cache for cluster: ${clusterId}`);
+        logDebug(`🧹 Cleared cache for cluster: ${clusterId}`);
         
         // Refresh all components
         if (typeof window.initializeCharts === 'function') {
@@ -136,7 +136,7 @@ export function refreshCurrentCluster() {
         showNotification(`Data refreshed for cluster: ${clusterId}`, 'success');
         
     }).catch(error => {
-        console.error('Cache clear error:', error);
+        logError('Cache clear error:', error);
         showNotification(`Failed to refresh cluster data: ${error.message}`, 'error');
     });
 }
@@ -146,12 +146,12 @@ export function refreshCurrentCluster() {
  */
 export function handleAnalysisCompletion() {
     if (!validateClusterContext('handleAnalysisCompletion')) {
-        console.error('❌ BLOCKED: handleAnalysisCompletion - invalid cluster context');
+        logError('❌ BLOCKED: handleAnalysisCompletion - invalid cluster context');
         return;
     }
     
     const clusterId = getCurrentClusterId();
-    console.log(`🎉 Analysis completed for cluster: ${clusterId}`);
+    logDebug(`🎉 Analysis completed for cluster: ${clusterId}`);
     
     // Refresh dashboard components
     setTimeout(() => {
@@ -170,7 +170,7 @@ export function handleAnalysisCompletion() {
  */
 export function handleVisibilityChange() {
     if (document.hidden) {
-        console.log('📱 Page hidden - pausing cluster polling');
+        logDebug('📱 Page hidden - pausing cluster polling');
         
         // Pause timers when page is hidden
         if (window.dashboardTimers) {
@@ -180,7 +180,7 @@ export function handleVisibilityChange() {
             });
         }
     } else {
-        console.log('📱 Page visible - resuming cluster polling');
+        logDebug('📱 Page visible - resuming cluster polling');
         
         // Resume polling when page becomes visible
         const clusterId = getCurrentClusterId();
@@ -189,7 +189,7 @@ export function handleVisibilityChange() {
             
             // Validate we're still on the correct cluster
             if (!validatePageState()) {
-                console.warn('⚠️ Page state invalid after visibility change - refreshing');
+                logWarn('⚠️ Page state invalid after visibility change - refreshing');
                 window.location.reload();
             }
         }
@@ -200,7 +200,7 @@ export function handleVisibilityChange() {
  * Cleanup function for page unload
  */
 export function cleanupDashboard() {
-    console.log('🧹 Cleaning up dashboard timers and state');
+    logDebug('🧹 Cleaning up dashboard timers and state');
     
     // Clear all timers
     if (window.dashboardTimers) {
@@ -221,7 +221,7 @@ export function debugClusterState() {
     const clusterId = getCurrentClusterId();
     const state = window.currentClusterState;
     
-    console.log('🔍 Current cluster state:', {
+    logDebug('🔍 Current cluster state:', {
         urlClusterId: clusterId,
         stateClusterId: state?.clusterId,
         validated: state?.validated,
@@ -251,4 +251,4 @@ if (typeof window !== 'undefined') {
     window.validatePageState = validatePageState;
 }
 
-console.log('✅ Dashboard management module loaded');
+logDebug('✅ Dashboard management module loaded');

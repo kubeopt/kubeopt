@@ -26,8 +26,8 @@ class AKSDashboard {
     }
     
     init() {
-        console.log('Initializing AKS Dashboard...');
-        console.log(`API Base URL: ${this.apiBaseUrl}`);
+        logDebug('Initializing AKS Dashboard...');
+        logDebug(`API Base URL: ${this.apiBaseUrl}`);
         
         // Test backend connectivity
         this.testBackendConnection();
@@ -48,21 +48,21 @@ class AKSDashboard {
             const response = await fetch(healthUrl);
             if (response.ok) {
                 const data = await response.json();
-                console.log('✅ Backend connection successful:', data);
+                logDebug('✅ Backend connection successful:', data);
                 this.updateConnectionStatus('online', 'Connected');
                 
                 // Check if frontend files are available on backend
                 if (data.frontend_files_available) {
                     const { html, js } = data.frontend_files_available;
                     if (!html || !js) {
-                        console.warn('⚠️ Some frontend files missing on backend');
+                        logWarn('⚠️ Some frontend files missing on backend');
                     }
                 }
             } else {
                 throw new Error(`HTTP ${response.status}`);
             }
         } catch (error) {
-            console.error('❌ Backend connection failed:', error);
+            logError('❌ Backend connection failed:', error);
             this.updateConnectionStatus('error', 'Backend Offline');
             this.showError(`Cannot connect to backend at ${this.apiBaseUrl || 'same origin'}. Please ensure the backend server is running.`);
         }
@@ -114,11 +114,11 @@ class AKSDashboard {
                 wsUrl = `${protocol}//${baseUrl}/ws/analytics/default`;
             }
             
-            console.log(`Connecting to WebSocket: ${wsUrl}`);
+            logDebug(`Connecting to WebSocket: ${wsUrl}`);
             this.websocket = new WebSocket(wsUrl);
             
             this.websocket.onopen = () => {
-                console.log('WebSocket connected');
+                logDebug('WebSocket connected');
                 this.updateWebSocketStatus('online', 'Connected');
             };
             
@@ -128,12 +128,12 @@ class AKSDashboard {
             };
             
             this.websocket.onerror = (error) => {
-                console.error('WebSocket error:', error);
+                logError('WebSocket error:', error);
                 this.updateWebSocketStatus('error', 'Connection Error');
             };
             
             this.websocket.onclose = () => {
-                console.log('WebSocket disconnected');
+                logDebug('WebSocket disconnected');
                 this.updateWebSocketStatus('warning', 'Disconnected');
                 
                 // Attempt to reconnect after 5 seconds
@@ -142,7 +142,7 @@ class AKSDashboard {
                 }, 5000);
             };
         } catch (error) {
-            console.error('Failed to connect WebSocket:', error);
+            logError('Failed to connect WebSocket:', error);
             this.updateWebSocketStatus('error', 'Failed to Connect');
         }
     }
@@ -161,7 +161,7 @@ class AKSDashboard {
     }
     
     handleWebSocketMessage(data) {
-        console.log('WebSocket message received:', data);
+        logDebug('WebSocket message received:', data);
         
         if (data.type === 'metrics_update') {
             // Handle real-time metrics updates
@@ -223,7 +223,7 @@ class AKSDashboard {
             }
             
         } catch (error) {
-            console.error('Analysis error:', error);
+            logError('Analysis error:', error);
             this.showError(`Analysis failed: ${error.message}`);
             this.updateConnectionStatus('error', 'Analysis Failed');
         } finally {
@@ -311,7 +311,7 @@ class AKSDashboard {
     }
     
     displayAnalysisResults(result) {
-        console.log('Displaying analysis results:', result);
+        logDebug('Displaying analysis results:', result);
         
         // Show results dashboard
         const resultsDiv = document.getElementById('results-dashboard');
@@ -355,7 +355,7 @@ class AKSDashboard {
             const metricsData = result.metrics_data.data;
             
             this.updateElement('node-count', metricsData.node_count || 0);
-            this.updateElement('cpu-utilization', `${metricsData.cpu_utilization || 0}%`);
+            this.updateElement('cpu-utilization', this.sanitizeCpuDisplay(metricsData.cpu_utilization || 0));
             this.updateElement('memory-utilization', `${metricsData.memory_utilization || 0}%`);
             
             // Update progress bars
@@ -751,13 +751,13 @@ class AKSDashboard {
                 }
             }
         } catch (error) {
-            console.error('Failed to refresh real-time data:', error);
+            logError('Failed to refresh real-time data:', error);
         }
     }
     
     updateRealTimeMetrics(metricsData) {
         // Update CPU and memory utilization
-        this.updateElement('cpu-utilization', `${metricsData.cpu_utilization || 0}%`);
+        this.updateElement('cpu-utilization', this.sanitizeCpuDisplay(metricsData.cpu_utilization || 0));
         this.updateElement('memory-utilization', `${metricsData.memory_utilization || 0}%`);
         
         // Update progress bars
@@ -865,6 +865,14 @@ class AKSDashboard {
         if (errorDiv) {
             errorDiv.style.display = 'none';
         }
+    }
+    sanitizeCpuDisplay(cpuValue) {
+        // Sanitize CPU utilization display to avoid exposing exact values
+        if (cpuValue > 80) return 'High';
+        if (cpuValue > 60) return 'Medium-High';
+        if (cpuValue > 40) return 'Medium';
+        if (cpuValue > 20) return 'Low-Medium';
+        return 'Low';
     }
 }
 

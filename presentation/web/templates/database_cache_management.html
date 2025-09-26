@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enhanced Database & Analysis Management</title>
+    <meta name="log-level" content="{{ config.get('LOG_LEVEL', 'INFO') }}">
+    <meta name="production-mode" content="{{ config.get('PRODUCTION_MODE', 'false') }}">
     <style>
         * { box-sizing: border-box; }
         body { 
@@ -579,6 +581,9 @@
             }
         }
     </style>
+    
+    <!-- Logger must be loaded first -->
+    <script src="{{ url_for('static', filename='js/logger.js') }}"></script>
 </head>
 <body>
     <div class="container">
@@ -955,7 +960,7 @@
                         `${healthyComponents}/3`;
                 }
             } catch (error) {
-                console.error('Error loading database overview:', error);
+                logError('Error loading database overview:', error);
             }
         }
 
@@ -1008,7 +1013,7 @@
                     displayDatabaseClustersTable(clustersData);
                     resultDiv.innerHTML = `<div class="result success">Loaded ${clustersData.length} clusters</div>`;
                 } else {
-                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="result error">Operation failed</div>`;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
@@ -1091,7 +1096,7 @@
                     displayDatabaseAlertsTable(alertsData);
                     resultDiv.innerHTML = `<div class="result success">Loaded ${alertsData.length} alerts</div>`;
                 } else {
-                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="result error">Operation failed</div>`;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
@@ -1165,9 +1170,9 @@
                 
                 if (data.status === 'success') {
                     displayDatabaseAlertTriggersTable(data.triggers);
-                    resultDiv.innerHTML = `<div class="result success">Loaded ${data.triggers.length} alert triggers</div>`;
+                    resultDiv.innerHTML = `<div class="result success">Alert triggers loaded successfully</div>`;
                 } else {
-                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="result error">Operation failed</div>`;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
@@ -1227,9 +1232,9 @@
                     displayDatabaseLearningTable(learningData, dataType);
                     resultDiv.innerHTML = `<div class="result success">Loaded ${learningData.length} ${dataType} records</div>`;
                 } else if (data.status === 'info') {
-                    resultDiv.innerHTML = `<div class="result info">${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="result info">Operation completed</div>`;
                 } else {
-                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="result error">Operation failed</div>`;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
@@ -1263,7 +1268,7 @@
                 keys.forEach(key => {
                     const value = row[key];
                     if (typeof value === 'object' && value !== null) {
-                        html += `<td>${JSON.stringify(value).substring(0, 50)}...</td>`;
+                        html += `<td>[Object Data]</td>`;
                     } else {
                         html += `<td>${value || 'N/A'}</td>`;
                     }
@@ -1300,7 +1305,7 @@
                     displayAnalysisResults(analysisData);
                     resultDiv.innerHTML = `<div class="result success">Loaded ${analysisData.length} analysis results</div>`;
                 } else {
-                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="result error">Operation failed</div>`;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
@@ -1377,7 +1382,7 @@
                         </div>
                     `;
                 } catch (error) {
-                    console.error('Error processing cluster analysis data:', error);
+                    logError('Error processing cluster analysis data:', error);
                 }
             });
             
@@ -1586,7 +1591,7 @@
                     displayImplementationPlans(implementationPlansData);
                     resultDiv.innerHTML = `<div class="result success">Loaded ${implementationPlansData.length} implementation plans</div>`;
                 } else {
-                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="result error">Operation failed</div>`;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
@@ -1664,7 +1669,7 @@
                         </div>
                     `;
                 } catch (error) {
-                    console.error('Error processing implementation plan:', error);
+                    logError('Error processing implementation plan:', error);
                 }
             });
             
@@ -1842,7 +1847,7 @@
                     totalTests += tests.length;
                     passedTests += tests.filter(t => t.status === 'pass').length;
                 } catch (error) {
-                    console.error('Error testing plan for cluster:', cluster.id, error);
+                    logError('Error testing plan for cluster:', cluster.id, error);
                 }
             }
             
@@ -1910,7 +1915,7 @@
                         totalCount > 0 ? `${(validCount/totalCount*100).toFixed(1)}%` : '0%';
                 }
             } catch (error) {
-                console.error('Error loading cache overview:', error);
+                logError('Error loading cache overview:', error);
             }
         }
 
@@ -1924,9 +1929,9 @@
                 
                 if (data.status === 'success') {
                     displayCacheClusters(data.cache_status);
-                    resultDiv.innerHTML = `<div class="result success">Loaded ${data.cache_status.total_cached_clusters} cluster caches</div>`;
+                    resultDiv.innerHTML = `<div class="result success">Cluster caches loaded successfully</div>`;
                 } else {
-                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="result error">Operation failed</div>`;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
@@ -2047,7 +2052,7 @@
                     resultDiv.innerHTML = `<div class="result success">${data.message}</div>`;
                     loadCacheOverview(); // Refresh overview
                 } else {
-                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="result error">Operation failed</div>`;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
@@ -2091,7 +2096,7 @@
                         loadCacheClusters(); // Refresh cluster list
                     }
                 } else {
-                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="result error">Operation failed</div>`;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
@@ -2135,7 +2140,7 @@
                     
                     resultDiv.innerHTML = html;
                 } else {
-                    resultDiv.innerHTML = `<div class="result error">Error: ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="result error">Operation failed</div>`;
                 }
             } catch (error) {
                 resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
@@ -2228,11 +2233,13 @@
             
             // Raw JSON for debugging
             modalHtml += `
-                <h3>Complete Analysis Data (JSON)</h3>
-                <div style="margin-bottom: 10px;">
-                    <button class="btn btn-info" onclick="downloadAnalysisData('${cluster_info.id}')">💾 Download JSON</button>
+                <h3>Analysis Summary</h3>
+                <div class="analysis-summary">
+                    <p><strong>Analysis Status:</strong> ${analysis_data.status || 'Completed'}</p>
+                    <p><strong>Timestamp:</strong> ${analysis_data.timestamp || 'N/A'}</p>
+                    <p><strong>Metrics Count:</strong> ${analysis_data.metrics ? Object.keys(analysis_data.metrics).length : 0}</p>
+                    <p><strong>Recommendations:</strong> ${analysis_data.recommendations ? analysis_data.recommendations.length : 0}</p>
                 </div>
-                <pre class="json-viewer">${JSON.stringify(analysis_data, null, 2)}</pre>
             `;
             
             modalHtml += `
@@ -2342,10 +2349,10 @@
                 modalHtml += `<div class="result warning">No implementation phases found in this plan.</div>`;
             }
             
-            // Raw JSON for debugging
+            // Implementation plan summary
             modalHtml += `
-                <h3>Raw Implementation Plan Data</h3>
-                <pre class="json-viewer">${JSON.stringify(implementation_plan, null, 2)}</pre>
+                <h3>Implementation Plan Summary</h3>
+                <div class="plan-summary">Plan loaded successfully</div>
             `;
             
             modalHtml += `
@@ -2373,25 +2380,7 @@
             });
         }
 
-        function downloadAnalysisData(clusterId) {
-            fetch(`/api/db-mgmt/clusters/${clusterId}/analysis-data`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        const dataStr = JSON.stringify(data.analysis_data, null, 2);
-                        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-                        const url = URL.createObjectURL(dataBlob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `${clusterId}_analysis_data.json`;
-                        link.click();
-                        URL.revokeObjectURL(url);
-                    }
-                })
-                .catch(error => {
-                    alert(`Error downloading data: ${error.message}`);
-                });
-        }
+        // Download functionality removed to prevent data exposure
 
         // =============================================================================
         // DELETE FUNCTIONS
@@ -2525,25 +2514,7 @@
             exportToCSV(exportData, 'analysis_results.csv');
         }
 
-        function exportImplementationPlan(clusterId) {
-            fetch(`/api/db-mgmt/clusters/${clusterId}/implementation-plan`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        const dataStr = JSON.stringify(data.implementation_plan, null, 2);
-                        const dataBlob = new Blob([dataStr], {type: 'application/json'});
-                        const url = URL.createObjectURL(dataBlob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = `${clusterId}_implementation_plan.json`;
-                        link.click();
-                        URL.revokeObjectURL(url);
-                    }
-                })
-                .catch(error => {
-                    alert(`Error exporting plan: ${error.message}`);
-                });
-        }
+        // Implementation plan export removed to prevent data exposure
 
         function exportToCSV(data, filename) {
             if (!data || data.length === 0) {

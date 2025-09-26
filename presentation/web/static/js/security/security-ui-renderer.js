@@ -18,7 +18,7 @@ class SecurityUIRenderer {
     }
 
     async init() {
-        console.log('🔒 Initializing Security UI Renderer...');
+        logDebug('🔒 Initializing Security UI Renderer...');
         
         // Check if we're on the security posture page
         if (document.getElementById('securityposture-content')) {
@@ -28,7 +28,7 @@ class SecurityUIRenderer {
             });
         }
         
-        console.log('✅ Security UI Renderer initialized');
+        logDebug('✅ Security UI Renderer initialized');
     }
 
     async initializeSecurityDashboard() {
@@ -723,7 +723,7 @@ class SecurityUIRenderer {
             // Add critical findings summary
             this.updateCriticalFindings(posture.alerts, policyCompliance.violations);
 
-            console.log('✅ Enhanced security overview updated successfully');
+            logDebug('✅ Enhanced security overview updated successfully');
             
         } catch (error) {
             console.error('❌ Failed to update enhanced security overview:', error);
@@ -773,7 +773,7 @@ class SecurityUIRenderer {
         const container = document.getElementById('critical-findings-summary');
         if (!container) return;
 
-        console.log('🔍 Critical Findings Debug:', {
+        logDebug('🔍 Critical Findings Debug:', {
             totalAlerts: alerts?.length || 0,
             totalViolations: violations?.length || 0,
             alertSeverities: alerts?.map(a => a.severity).slice(0, 5) || [],
@@ -784,7 +784,7 @@ class SecurityUIRenderer {
         const criticalAlerts = (alerts || []).filter(a => a.severity === 'CRITICAL' || a.severity === 'HIGH');
         const criticalViolations = (violations || []).filter(v => v.severity === 'CRITICAL' || v.severity === 'HIGH');
         
-        console.log('🔥 Filtered Critical/High Items:', {
+        logDebug('🔥 Filtered Critical/High Items:', {
             criticalAlerts: criticalAlerts.length,
             criticalViolations: criticalViolations.length
         });
@@ -941,8 +941,8 @@ class SecurityUIRenderer {
                             <div class="flex items-center justify-between">
                                 <div class="text-xs text-slate-500">
                                     <i class="fas fa-cube mr-1"></i>
-                                    ${alert.resource_type}: ${alert.resource_name}
-                                    ${alert.namespace ? ` • ${alert.namespace}` : ''}
+                                    ${alert.resource_type}: [Protected]
+                                    ${alert.namespace ? ` • [Protected]` : ''}
                                 </div>
                                 ${alert.remediation ? `
                                     <details class="inline">
@@ -1548,7 +1548,7 @@ class SecurityUIRenderer {
     }
 
     updateCriticalFindingsForIssuesTab(container, alerts, violations) {
-        console.log('🔍 Issues Tab Critical Findings Debug:', {
+        logDebug('🔍 Issues Tab Critical Findings Debug:', {
             totalAlerts: alerts?.length || 0,
             totalViolations: violations?.length || 0,
             alertSeverities: alerts?.map(a => a.severity).slice(0, 5) || [],
@@ -1559,7 +1559,7 @@ class SecurityUIRenderer {
         const criticalAlerts = (alerts || []).filter(a => a.severity === 'CRITICAL' || a.severity === 'HIGH');
         const criticalViolations = (violations || []).filter(v => v.severity === 'CRITICAL' || v.severity === 'HIGH');
         
-        console.log('🔥 Issues Tab Filtered Critical/High Items:', {
+        logDebug('🔥 Issues Tab Filtered Critical/High Items:', {
             criticalAlerts: criticalAlerts.length,
             criticalViolations: criticalViolations.length
         });
@@ -1829,7 +1829,7 @@ class SecurityUIRenderer {
     }
 
     async forceRefresh() {
-        console.log('🔄 Force refreshing security dashboard...');
+        logDebug('🔄 Force refreshing security dashboard...');
         const data = await this.dataManager.loadSecurityOverview();
         if (data) {
             this.updateDashboardFromData(data);
@@ -1846,7 +1846,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const match = urlPath.match(/\/cluster\/([^\/\?]+)/);
         if (match && match[1]) {
             const clusterId = decodeURIComponent(match[1]);
-            console.log(`🚀 Initializing with Cluster ID: ${clusterId}`);
+            logDebug(`🚀 Initializing with Cluster ID: ${clusterId}`);
             
             window.currentCluster = {
                 id: clusterId,
@@ -1897,7 +1897,7 @@ window.securityDebug = {
     }
 };
 
-console.log('💡 Enhanced Security UI Renderer Ready');
-console.log('   window.securityDebug.test()     - Test cluster ID and APIs');
-console.log('   window.securityDebug.refresh()  - Force refresh dashboard');
-console.log('   window.securityDebug.getData()  - View cached security data');
+logDebug('💡 Enhanced Security UI Renderer Ready');
+logDebug('   window.securityDebug.test()     - Test cluster ID and APIs');
+logDebug('   window.securityDebug.refresh()  - Force refresh dashboard');
+logDebug('   window.securityDebug.getData()  - View cached security data');

@@ -163,9 +163,9 @@ export function testAPIConnectivity() {
     return fetch(`${API_BASE_URL}/clusters`)
         .then(response => response.json())
         .then(data => {
-            console.log('✅ API connectivity test passed');
+            logDebug('✅ API connectivity test passed');
             if (data.clusters?.length > 0) {
-                console.log(`📊 Found ${data.clusters.length} existing clusters`);
+                logDebug('📊 Found existing clusters');
             }
             return { success: true, data };
         })

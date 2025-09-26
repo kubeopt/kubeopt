@@ -690,7 +690,7 @@ export function addDarkThemeCSS() {
  * Initialize all CSS enhancements
  */
 export function initializeAllCSS() {
-    console.log('🎨 Initializing all CSS enhancements');
+    logDebug('🎨 Initializing all CSS enhancements');
     
     injectEnhancedCSS();
     addFixedDataSourceCSS();
@@ -701,7 +701,7 @@ export function initializeAllCSS() {
     addResponsiveCSS();
     addDarkThemeCSS();
     
-    console.log('✅ All CSS enhancements loaded');
+    logDebug('✅ All CSS enhancements loaded');
 }
 
 /**
@@ -756,4 +756,4 @@ if (typeof window !== 'undefined') {
     window.initializeTheme = initializeTheme;
 }
 
-console.log('✅ CSS injection utilities loaded successfully');
+logDebug('✅ CSS injection utilities loaded successfully');

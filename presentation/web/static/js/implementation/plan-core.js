@@ -9,7 +9,15 @@ let PLAN_DATA_CACHE = null;
 let UI_STABLE = false;
 
 export function loadImplementationPlan() {
-    console.log('📋 Loading implementation plan...');
+    logDebug('📋 Loading implementation plan...');
+    
+    // Check if implementation plan features are enabled
+    if (window.checkFeatureAccess && !window.checkFeatureAccess('implementation_plan')) {
+        logDebug('🔒 Implementation plan features are locked - skipping API call');
+        showLockedImplementationMessage();
+        return;
+    }
+    
     const validateClusterContext = window.validateClusterContext || (() => true);
     const makeClusterAwareAPICall = window.makeClusterAwareAPICall || fetch;
     
@@ -98,7 +106,7 @@ export function loadImplementationPlan() {
     makeClusterAwareAPICall('/api/implementation-plan')
         .then(response => response.json())
         .then(planData => {
-            console.log('📋 Plan data received', planData);
+            logDebug('📋 Plan data received', planData);
             PLAN_DATA_CACHE = planData;
             sessionStorage.setItem('implementationPlanData', JSON.stringify(planData));
             displayImplementationPlan(planData);
@@ -158,8 +166,27 @@ export function loadImplementationPlan() {
         });
 }
 
+function showLockedImplementationMessage() {
+    const container = document.getElementById('implementation-plan-container');
+    if (container) {
+        container.innerHTML = `
+            <div class="bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-lg p-6 text-center">
+                <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-lock text-yellow-600 text-2xl"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-800 mb-2">Implementation Plan Locked</h3>
+                <p class="text-gray-600 mb-4">Implementation plans are available with Pro tier and above.</p>
+                <button onclick="window.showUpgradePrompt('Implementation Plan', 'Pro')" 
+                        class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                    Upgrade to Pro
+                </button>
+            </div>
+        `;
+    }
+}
+
 export function displayImplementationPlan(planData) {
-    console.log('🎨 Displaying complete implementation plan with ALL real data');
+    logDebug('🎨 Displaying complete implementation plan with ALL real data');
     
     try {
         PLAN_DATA_CACHE = planData;
@@ -181,7 +208,7 @@ export function displayImplementationPlan(planData) {
  * PROCESS COMPLETE IMPLEMENTATION DATA - All real data, no fallbacks
  */
 export function processCompleteImplementationData(planData) {
-    console.log('🔄 Processing COMPLETE implementation data - ALL REAL DATA');
+    logDebug('🔄 Processing COMPLETE implementation data - ALL REAL DATA');
     
     if (!planData) {
         console.error('❌ No plan data provided');
@@ -207,7 +234,7 @@ export function processCompleteImplementationData(planData) {
     const risk = planData.risk_mitigation || {};
     const metadata = planData.metadata || planData.api_metadata || {};
     
-    console.log('📊 Found phases:', phases.map(p => ({
+    logDebug('📊 Found phases:', phases.map(p => ({
         title: p.title,
         type: p.type,
         start_week: p.start_week,
@@ -368,7 +395,7 @@ export function extractAllRealCommands(planData) {
  */
 export function extractPhaseCommands(phase, fullData) {
     let commandGroups = [];
-    console.log(`🔍 Extracting commands for phase: "${phase.title}" (type: ${phase.type})`);
+    logDebug('🔍 Extracting commands for phase');
     
     // 1. Commands from phase.commands (direct from backend)
     if (phase.commands && Array.isArray(phase.commands) && phase.commands.length > 0) {
@@ -382,7 +409,7 @@ export function extractPhaseCommands(phase, fullData) {
             description: `Direct commands for ${phase.title}`,
             source: 'phase_direct'
         });
-        console.log(`   ✅ Found ${phase.commands.length} direct phase commands`);
+        logDebug(`   ✅ Found ${phase.commands.length} direct phase commands`);
     }
     
     // 2. Commands from phase tasks (direct association)
@@ -395,7 +422,7 @@ export function extractPhaseCommands(phase, fullData) {
                     description: task.description,
                     source: 'task'
                 });
-                console.log(`   ✅ Found task command: ${task.title}`);
+                logDebug(`   ✅ Found task command: ${task.title}`);
             }
             if (task.commands && Array.isArray(task.commands)) {
                 commandGroups.push({
@@ -404,17 +431,17 @@ export function extractPhaseCommands(phase, fullData) {
                     description: task.description,
                     source: 'task'
                 });
-                console.log(`   ✅ Found task commands: ${task.title} (${task.commands.length})`);
+                logDebug(`   ✅ Found task commands: ${task.title} (${task.commands.length})`);
             }
         });
     }
     
     // 3. Commands from intelligence insights
     if (fullData?.intelligence_insights?.dynamic_strategy_insights?.priority_areas) {
-        console.log(`   🎯 Checking ${fullData.intelligence_insights.dynamic_strategy_insights.priority_areas.length} priority areas for matches`);
+        logDebug(`   🎯 Checking ${fullData.intelligence_insights.dynamic_strategy_insights.priority_areas.length} priority areas for matches`);
         
         fullData.intelligence_insights.dynamic_strategy_insights.priority_areas.forEach(area => {
-            console.log(`   📋 Checking area: "${area.type}" with ${area.executable_commands?.length || 0} commands`);
+            logDebug(`   📋 Checking area: "${area.type}" with ${area.executable_commands?.length || 0} commands`);
             
             if (area.executable_commands && area.type) {
                 const shouldInclude = shouldIncludeCommandsInPhase(phase, area);
@@ -435,7 +462,7 @@ export function extractPhaseCommands(phase, fullData) {
                             confidence: area.confidence_level,
                             source: 'intelligence'
                         });
-                        console.log(`   ✅ MATCHED! Added command group: ${formatCommandGroupTitle(area.type)} (${cleanCommands.length} commands)`);
+                        logDebug(`   ✅ MATCHED! Added command group: ${formatCommandGroupTitle(area.type)} (${cleanCommands.length} commands)`);
                     }
                 }
             }
@@ -443,9 +470,9 @@ export function extractPhaseCommands(phase, fullData) {
     }
     
     // NO FALLBACK COMMANDS - Return only what we actually have
-    console.log(`   📊 Final result: ${commandGroups.length} command groups for "${phase.title}"`);
+    logDebug(`   📊 Final result: ${commandGroups.length} command groups for "${phase.title}"`);
     commandGroups.forEach((group, i) => {
-        console.log(`     ${i+1}. ${group.title} (${group.commands.length} commands, source: ${group.source})`);
+        logDebug(`     ${i+1}. ${group.title} (${group.commands.length} commands, source: ${group.source})`);
     });
     
     return commandGroups;
@@ -459,11 +486,11 @@ export function shouldIncludeCommandsInPhase(phase, area) {
     const phaseType = Array.isArray(phase.type) ? phase.type : [phase.type || ''];
     const areaType = (area.type || '').toLowerCase();
     
-    console.log(`🔍 MATCHING: Phase "${phase.title}" vs Area "${area.type}"`);
+    logDebug(`🔍 MATCHING: Phase "${phase.title}" vs Area "${area.type}"`);
     
     // Direct type matching first
     if (phaseType.some(pType => pType.toLowerCase() === areaType)) {
-        console.log(`   ✅ DIRECT TYPE MATCH: ${areaType}`);
+        logDebug(`   ✅ DIRECT TYPE MATCH: ${areaType}`);
         return true;
     }
     
@@ -508,17 +535,17 @@ export function shouldIncludeCommandsInPhase(phase, area) {
         );
         
         if (phaseMatches && rule.areaTypes.includes(areaType)) {
-            console.log(`   ✅ RULE MATCH: ${rule.reason} - ${areaType}`);
+            logDebug(`   ✅ RULE MATCH: ${rule.reason} - ${areaType}`);
             return true;
         }
     }
     
     if (phaseTitle.includes('optimization') && areaType.includes('optimization')) {
-        console.log(`   ✅ OPTIMIZATION FALLBACK: Both contain 'optimization'`);
+        logDebug(`   ✅ OPTIMIZATION FALLBACK: Both contain 'optimization'`);
         return true;
     }
     
-    console.log(`   ❌ NO MATCH: "${phaseTitle}" doesn't match "${areaType}"`);
+    logDebug(`   ❌ NO MATCH: "${phaseTitle}" doesn't match "${areaType}"`);
     return false;
 }
 

@@ -1,0 +1,13 @@
+{
+  "tier": "free",
+  "expires": "2026-03-26",
+  "features": [
+    "dashboard",
+    "manual_analysis"
+  ],
+  "license_key": "F3M-KFV8FZA2-260326",
+  "tier_display": "Free",
+  "algorithm": "simple_generator",
+  "is_trial": false,
+  "is_lifetime": false
+}

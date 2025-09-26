@@ -272,7 +272,7 @@ body::after {
     height: 100%;
     background: 
         radial-gradient(circle at 25% 25%, rgba(0, 122, 255, 0.1) 0%, transparent 50%),
-        radial-gradient(circle at 75% 75%, rgba(175, 82, 222, 0.1) 0%, transparent 50%);
+        radial-gradient(circle at 75% 75%, rgba(82, 152, 222, 0.1) 0%, transparent 50%);
     animation: float-orbs 20s ease-in-out infinite;
     pointer-events: none;
     z-index: -1;

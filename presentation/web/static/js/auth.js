@@ -22,11 +22,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Add loading state to login button
-    const loginForm = document.querySelector('form');
+    const logDebugrm = document.querySelector('form');
     const loginBtn = document.querySelector('.login-btn');
     
-    if (loginForm && loginBtn) {
-        loginForm.addEventListener('submit', function() {
+    if (logDebugrm && loginBtn) {
+        logDebugrm.addEventListener('submit', function() {
             loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
             loginBtn.disabled = true;
         });

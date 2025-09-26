@@ -684,18 +684,8 @@ class ProjectControlsManager {
     }
 
     exportFrameworkData() {
-        if (!this.frameworkData) {
-            alert('No framework data available to export');
-            return;
-        }
-
-        const dataStr = JSON.stringify(this.frameworkData, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(dataBlob);
-        link.download = `project-controls-${this.clusterId}-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
+        // Export functionality disabled to prevent data exposure
+        alert('Framework data export has been disabled for security purposes');
     }
 }
 
@@ -704,7 +694,7 @@ let projectControlsManager;
 
 document.addEventListener('DOMContentLoaded', function() {
     projectControlsManager = new ProjectControlsManager();
-    console.log('✅ Project Controls Manager initialized');
+    logDebug('✅ Project Controls Manager initialized');
 });
 
 // Global function for tab loading
@@ -717,7 +707,7 @@ function loadProjectControlsTab() {
 // Debug function
 window.debugProjectControls = function() {
     if (projectControlsManager?.frameworkData) {
-        console.log('Project Controls Data:', projectControlsManager.frameworkData);
+        logDebug('Project Controls Data:', projectControlsManager.frameworkData);
     } else {
         console.warn('No project controls data available');
     }

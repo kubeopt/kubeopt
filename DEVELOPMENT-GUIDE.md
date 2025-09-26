@@ -110,13 +110,13 @@ python3 dev-mode.py status
 ### **Browser Console:**
 ```javascript
 // Check feature flags in browser
-console.log(window.featureLockManager.featureFlags);
+logDebug(window.featureLockManager.featureFlags);
 
 // Check license info
-console.log(window.featureLockManager.licenseInfo);
+logDebug(window.featureLockManager.licenseInfo);
 
 // Test feature access
-console.log(checkFeatureAccess('implementation_plan'));
+logDebug(checkFeatureAccess('implementation_plan'));
 ```
 
 ### **API Endpoints:**
