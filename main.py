@@ -40,6 +40,19 @@ def create_app():
     from presentation.api.api_routes import register_api_routes
     register_api_routes(app)
     
+    # Initialize auto-analysis scheduler
+    from infrastructure.services.auto_analysis_scheduler import auto_scheduler
+    auto_scheduler.init_app(app)
+    
+    # Start scheduler after app initialization
+    @app.before_first_request
+    def start_background_services():
+        auto_scheduler.start_scheduler()
+    
+    # Graceful shutdown
+    import atexit
+    atexit.register(auto_scheduler.stop_scheduler)
+    
     return app
 
 def initialize_application():

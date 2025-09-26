@@ -281,7 +281,25 @@
                             <h2 class="section-title">General Settings</h2>
                         </div>
                         
+                        <div class="checkbox-group">
+                            <input type="checkbox" name="auto_analysis_enabled" id="auto_analysis_enabled" 
+                                   {% if config.get('AUTO_ANALYSIS_ENABLED') == 'true' %}checked{% endif %}
+                                   class="checkbox">
+                            <label for="auto_analysis_enabled" class="checkbox-label">
+                                Enable Automatic Analysis
+                            </label>
+                            <p class="form-help">Automatically run analysis at regular intervals</p>
+                        </div>
+
                         <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Auto-Analysis Interval (hours)</label>
+                                <input type="number" name="auto_analysis_interval" value="{{ config.get('AUTO_ANALYSIS_INTERVAL', '1') }}" 
+                                       class="form-input"
+                                       placeholder="1" min="1" max="168">
+                                <p class="form-help">How often to automatically run analysis (default: 1 hour)</p>
+                            </div>
+                            
                             <div class="form-group">
                                 <label class="form-label">Analysis Refresh Interval (hours)</label>
                                 <input type="number" name="analysis_refresh_interval" value="{{ config.get('ANALYSIS_REFRESH_INTERVAL', '24') }}" 
@@ -289,14 +307,14 @@
                                        placeholder="24" min="1" max="168">
                                 <p class="form-help">How often to refresh cost analysis data</p>
                             </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label">Cost Alert Threshold (USD)</label>
-                                <input type="number" name="cost_alert_threshold" value="{{ config.get('COST_ALERT_THRESHOLD', '500') }}" 
-                                       class="form-input"
-                                       placeholder="500" min="0" step="0.01">
-                                <p class="form-help">Send alerts when monthly cluster costs exceed this amount</p>
-                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Cost Alert Threshold (USD)</label>
+                            <input type="number" name="cost_alert_threshold" value="{{ config.get('COST_ALERT_THRESHOLD', '500') }}" 
+                                   class="form-input"
+                                   placeholder="500" min="0" step="0.01">
+                            <p class="form-help">Send alerts when monthly cluster costs exceed this amount</p>
                         </div>
                         
                         <div class="form-group form-full-width">
