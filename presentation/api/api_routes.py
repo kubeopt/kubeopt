@@ -1713,6 +1713,81 @@ def register_api_routes(app):
                 'message': str(e)
             }), 500
 
+    # Auto-Analysis Scheduler API endpoints
+    @app.route('/api/scheduler/status', methods=['GET'])
+    def get_scheduler_status():
+        """Get automatic analysis scheduler status"""
+        try:
+            from infrastructure.services.auto_analysis_scheduler import auto_scheduler
+            status = auto_scheduler.get_scheduler_status()
+            return jsonify({
+                'status': 'success',
+                'scheduler': status
+            })
+        except Exception as e:
+            logger.error(f"❌ Error getting scheduler status: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/scheduler/start', methods=['POST'])
+    def start_scheduler():
+        """Start the automatic analysis scheduler"""
+        try:
+            from infrastructure.services.auto_analysis_scheduler import auto_scheduler
+            auto_scheduler.start_scheduler()
+            return jsonify({
+                'status': 'success',
+                'message': 'Auto-analysis scheduler started successfully'
+            })
+        except Exception as e:
+            logger.error(f"❌ Error starting scheduler: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/scheduler/stop', methods=['POST'])
+    def stop_scheduler():
+        """Stop the automatic analysis scheduler"""
+        try:
+            from infrastructure.services.auto_analysis_scheduler import auto_scheduler
+            auto_scheduler.stop_scheduler()
+            return jsonify({
+                'status': 'success',
+                'message': 'Auto-analysis scheduler stopped successfully'
+            })
+        except Exception as e:
+            logger.error(f"❌ Error stopping scheduler: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/scheduler/force-analysis', methods=['POST'])
+    def force_immediate_analysis():
+        """Force an immediate analysis run"""
+        try:
+            from infrastructure.services.auto_analysis_scheduler import auto_scheduler
+            success = auto_scheduler.force_analysis_now()
+            if success:
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Immediate analysis triggered successfully'
+                })
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to trigger immediate analysis'
+                }), 500
+        except Exception as e:
+            logger.error(f"❌ Error forcing immediate analysis: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
 # 🆕 ENHANCED BACKGROUND ANALYSIS WITH ALERT INTEGRATION
 def run_subscription_aware_background_analysis_with_alerts(cluster_id, resource_group, cluster_name, subscription_id, days=30, enable_pod_analysis=True):
     """Enhanced background analysis that triggers alert checking and stores security results"""

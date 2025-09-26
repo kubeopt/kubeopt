@@ -56,7 +56,7 @@ class SettingsManager:
             
             # Override with actual environment variables
             for key, value in os.environ.items():
-                if key.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_')):
+                if key.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_', 'AUTO_')):
                     config[key] = value
             
             self.config_cache = config
@@ -96,7 +96,7 @@ class SettingsManager:
             azure_settings = {k: v for k, v in settings.items() if k.startswith('AZURE_') or k in ['azure_tenant_id', 'azure_subscription_id', 'azure_client_id', 'azure_client_secret']}
             slack_settings = {k: v for k, v in settings.items() if k.startswith('SLACK_') or k in ['slack_enabled', 'slack_webhook_url', 'slack_channel', 'slack_cost_threshold']}
             email_settings = {k: v for k, v in settings.items() if k.startswith(('EMAIL_', 'SMTP_')) or k in ['email_enabled', 'email_username', 'email_password', 'email_recipients', 'smtp_server', 'smtp_port']}
-            general_settings = {k: v for k, v in settings.items() if k in ['analysis_refresh_interval', 'cost_alert_threshold', 'log_level', 'production_mode']}
+            general_settings = {k: v for k, v in settings.items() if k in ['analysis_refresh_interval', 'cost_alert_threshold', 'log_level', 'production_mode', 'auto_analysis_enabled', 'auto_analysis_interval']}
             
             # Write Azure settings
             for key, value in azure_settings.items():
@@ -130,6 +130,10 @@ class SettingsManager:
                     env_key = 'LOG_LEVEL'
                 elif key == 'production_mode':
                     env_key = 'PRODUCTION_MODE'
+                elif key == 'auto_analysis_enabled':
+                    env_key = 'AUTO_ANALYSIS_ENABLED'
+                elif key == 'auto_analysis_interval':
+                    env_key = 'AUTO_ANALYSIS_INTERVAL'
                 config_lines.append(f"{env_key}={value}")
             
             # Handle custom environment variables
@@ -187,7 +191,9 @@ class SettingsManager:
             'analysis_refresh_interval': 'ANALYSIS_REFRESH_INTERVAL',
             'cost_alert_threshold': 'COST_ALERT_THRESHOLD',
             'log_level': 'LOG_LEVEL',
-            'production_mode': 'PRODUCTION_MODE'
+            'production_mode': 'PRODUCTION_MODE',
+            'auto_analysis_enabled': 'AUTO_ANALYSIS_ENABLED',
+            'auto_analysis_interval': 'AUTO_ANALYSIS_INTERVAL'
         }
         
         return mapping.get(setting_key, setting_key.upper())
