@@ -78,10 +78,15 @@ def register_auth_routes(app):
             from infrastructure.services.feature_guard import get_ui_feature_flags
             feature_flags = get_ui_feature_flags()
             
+            # Get license information
+            from infrastructure.services.license_manager import license_manager
+            license_info = license_manager.get_license_info()
+            
             return render_template('settings.html', 
                                  config=current_config,
                                  custom_env_vars=custom_env_vars,
-                                 feature_flags=feature_flags)
+                                 feature_flags=feature_flags,
+                                 license_info=license_info)
         except Exception as e:
             logger.error(f"Error loading settings page: {e}")
             flash('Error loading settings', 'error')
@@ -138,7 +143,24 @@ def register_auth_routes(app):
                     if value:
                         settings_data[field] = value
                 settings_data['production_mode'] = 'true' if request.form.get('production_mode') else 'false'
-                success_message = 'General settings saved successfully!'
+                
+                # Handle license key activation
+                license_key = request.form.get('license_key', '').strip()
+                if license_key:
+                    try:
+                        from infrastructure.services.license_manager import license_manager
+                        success, message = license_manager.activate_license(license_key)
+                        if success:
+                            success_message = f'General settings saved successfully! {message}'
+                        else:
+                            flash(f'License activation failed: {message}', 'error')
+                            success_message = 'General settings saved successfully, but license activation failed.'
+                    except Exception as e:
+                        logger.error(f"Error activating license: {e}")
+                        flash(f'License activation error: {str(e)}', 'error')
+                        success_message = 'General settings saved successfully, but license activation failed.'
+                else:
+                    success_message = 'General settings saved successfully!'
             
             elif section == 'advanced':
                 # Custom environment variables

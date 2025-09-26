@@ -189,7 +189,7 @@ class SmoothTabManager {
     }
     
     initializeDashboardTab() {
-        console.log('🎨 Initializing dashboard tab with smooth animations...');
+        logDebug('🎨 Initializing dashboard tab with smooth animations...');
         
         // Animate metric cards
         const metricCards = document.querySelectorAll('#dashboard .metric-card');
@@ -213,7 +213,7 @@ class SmoothTabManager {
     }
     
     initializeImplementationTab() {
-        console.log('🚀 Initializing implementation tab with enhanced loading...');
+        logDebug('🚀 Initializing implementation tab with enhanced loading...');
         
         if (SmoothState.implementationLoaded) {
             this.showImplementationContent();
@@ -225,7 +225,7 @@ class SmoothTabManager {
     }
     
     initializeAnalysisTab() {
-        console.log('🔍 Initializing analysis tab...');
+        logDebug('🔍 Initializing analysis tab...');
         
         // Animate form elements
         const formElements = document.querySelectorAll('#analysis .form-group, #analysis .form-check');
@@ -242,7 +242,7 @@ class SmoothTabManager {
     }
     
     initializeAlertsTab() {
-        console.log('🔔 Initializing alerts tab...');
+        logDebug('🔔 Initializing alerts tab...');
         // Enterprise mode: No animations for professional appearance
     }
     
@@ -276,6 +276,12 @@ class SmoothTabManager {
     }
     
     loadImplementationContent() {
+        // Check if implementation plan features are enabled
+        if (window.checkFeatureAccess && !window.checkFeatureAccess('implementation_plan')) {
+            logDebug('🔒 Implementation plan features are locked - skipping API call');
+            return;
+        }
+        
         // Use existing loadImplementationPlan function if available
         if (typeof loadImplementationPlan === 'function') {
             loadImplementationPlan();
@@ -288,13 +294,19 @@ class SmoothTabManager {
                     SmoothState.implementationLoaded = true;
                 })
                 .catch(error => {
-                    console.error('Failed to load implementation plan:', error);
+                    logError('Failed to load implementation plan:', error);
                     this.showImplementationError(error.message);
                 });
         }
     }
     
     preloadImplementationContent() {
+        // Check if implementation plan features are enabled
+        if (window.checkFeatureAccess && !window.checkFeatureAccess('implementation_plan')) {
+            logDebug('🔒 Implementation plan features are locked - skipping preload API call');
+            return;
+        }
+        
         // Silent preload for faster tab switching
         if (!SmoothState.implementationLoaded) {
             fetch('/api/implementation-plan')
@@ -305,7 +317,7 @@ class SmoothTabManager {
                     SmoothState.implementationLoaded = true;
                 })
                 .catch(error => {
-                    console.warn('Preload failed:', error);
+                    logWarn('Preload failed:', error);
                 });
         }
     }
@@ -437,7 +449,7 @@ class SmoothChartManager {
             const originalInitializeCharts = window.initializeCharts;
             
             window.initializeCharts = () => {
-                console.log('📊 Enhanced chart initialization started...');
+                logDebug('📊 Enhanced chart initialization started...');
                 
                 // Show loading for all charts
                 const chartIds = [
@@ -726,7 +738,16 @@ window.showSmoothNotification = function(message, type = 'info', duration = 5000
     if (window.smoothNotificationManager) {
         return window.smoothNotificationManager.show(message, type, duration);
     } else {
-        console.log(`${type.toUpperCase()}: ${message}`);
+        // Use the global logger based on type
+        if (type === 'error') {
+            logError(message);
+        } else if (type === 'warn') {
+            logWarn(message);
+        } else if (type === 'debug') {
+            logDebug(message);
+        } else {
+            logDebug(message);
+        }
     }
 };
 
@@ -776,7 +797,7 @@ class SmoothUIManager {
         // Initialize current tab if active
         this.initializeActiveTab();
         
-        console.log('🚀 Smooth UI Manager initialized successfully');
+        logDebug('🚀 Smooth UI Manager initialized successfully');
     }
     
     setupPageTransitions() {
@@ -908,7 +929,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.head.appendChild(style);
     }
     
-    console.log('✨ Enhanced smooth UI system loaded successfully');
+    logDebug('✨ Enhanced smooth UI system loaded successfully');
 });
 
 // Export for external use

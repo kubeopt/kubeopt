@@ -10,13 +10,13 @@ import { showCopyNotification } from './plan-utils.js';
 
 // Initialize the implementation plan system
 function initializeImplementationPlan() {
-    console.log('🚀 Initializing Implementation Plan System...');
+    logDebug('🚀 Initializing Implementation Plan System...');
     
     // Set up event listener for when plan data is ready
     if (typeof window !== 'undefined') {
         window.addEventListener('implementationPlanDataReady', (event) => {
             const { planData } = event.detail;
-            console.log('📊 Plan data received, injecting UI...');
+            logDebug('📊 Plan data received, injecting UI...');
             
             // Set cache for interactions module
             setPlanDataCache(planData);
@@ -30,8 +30,8 @@ function initializeImplementationPlan() {
         window.displayImplementationPlan = displayImplementationPlan;
         window.showCopyNotification = showCopyNotification;
         
-        console.log('✅ Implementation Plan System Ready');
-        console.log('📋 Core functions:', {
+        logDebug('✅ Implementation Plan System Ready');
+        logDebug('📋 Core functions:', {
             loadImplementationPlan: typeof window.loadImplementationPlan,
             displayImplementationPlan: typeof window.displayImplementationPlan
         });

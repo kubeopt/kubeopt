@@ -26,7 +26,7 @@ import './css-injection.js';
  * ✅  Ensure functions are available both as imports and globals
  */
 function ensureGlobalFunctions() {
-    console.log('🔧 Ensuring functions are globally available...');
+    logDebug('🔧 Ensuring functions are globally available...');
     
     // Assign imported functions to window for backward compatibility
     if (typeof window !== 'undefined') {
@@ -38,7 +38,7 @@ function ensureGlobalFunctions() {
         if (typeof window.switchToTab !== 'function') {
             console.warn('⚠️ switchToTab not found, defining fallback...');
             window.switchToTab = function(selector) {
-                console.log('🔄 Fallback switchToTab called for:', selector);
+                logDebug('🔄 Fallback switchToTab called for:', selector);
                 
                 // Simple tab switching logic
                 const tabButton = document.querySelector(`[data-bs-target="${selector}"]`);
@@ -50,7 +50,7 @@ function ensureGlobalFunctions() {
             };
         }
         
-        console.log('✅ Global functions ensured');
+        logDebug('✅ Global functions ensured');
     }
 }
 
@@ -104,7 +104,7 @@ function setupKeyboardShortcuts() {
         }
     });
     
-    console.log('⌨️ Keyboard shortcuts enabled');
+    logDebug('⌨️ Keyboard shortcuts enabled');
 }
 
 /**
@@ -119,30 +119,30 @@ function setupTabHandlers() {
     tabButtons.forEach(button => {
         button.addEventListener('shown.bs.tab', function(event) {
             const tabId = event.target.getAttribute('data-bs-target');
-            console.log('📑 Tab switched to:', tabId);
+            logDebug('📑 Tab switched to:', tabId);
             
             // Handle specific tab activations
             if (tabId === '#dashboard') {
                 setTimeout(() => {
                     // Check if chart operation is already in progress
                     if (isChartOperationInProgress) {
-                        console.log('⚠️ Chart operation in progress, skipping...');
+                        logDebug('⚠️ Chart operation in progress, skipping...');
                         return;
                     }
                     
                     // Set flag to prevent concurrent operations
                     isChartOperationInProgress = true;
-                    console.log('🔄 Dashboard tab - initializing charts...');
+                    logDebug('🔄 Dashboard tab - initializing charts...');
                     
                     // Destroy existing charts first to prevent memory leaks
                     if (typeof destroyAllCharts === 'function') {
-                        console.log('🧹 Destroying existing charts...');
+                        logDebug('🧹 Destroying existing charts...');
                         destroyAllCharts();
                     }
                     
                     // Initialize new charts
                     if (typeof initializeCharts === 'function') {
-                        console.log('📊 Initializing new charts...');
+                        logDebug('📊 Initializing new charts...');
                         initializeCharts();
                     } else {
                         console.error('❌ initializeCharts function not available');
@@ -151,22 +151,22 @@ function setupTabHandlers() {
                     // Reset flag after operation completes
                     setTimeout(() => {
                         isChartOperationInProgress = false;
-                        console.log('✅ Chart operation completed');
+                        logDebug('✅ Chart operation completed');
                     }, 3000);
                 }, 200);
                 
             } else if (tabId === '#implementation') {
-                console.log('🔄 Implementation tab activated - loading plan...');
+                logDebug('🔄 Implementation tab activated - loading plan...');
                 setTimeout(() => {
-                    console.log('🔄 Attempting to load implementation plan...');
+                    logDebug('🔄 Attempting to load implementation plan...');
                     
                     // Try to load implementation plan with multiple fallbacks
                     try {
                         if (typeof loadImplementationPlan === 'function') {
-                            console.log('✅ Using imported loadImplementationPlan');
+                            logDebug('✅ Using imported loadImplementationPlan');
                             loadImplementationPlan();
                         } else if (typeof window.loadImplementationPlan === 'function') {
-                            console.log('✅ Using window.loadImplementationPlan');
+                            logDebug('✅ Using window.loadImplementationPlan');
                             window.loadImplementationPlan();
                         } else {
                             console.warn('⚠️ loadImplementationPlan not found, showing fallback');
@@ -183,7 +183,7 @@ function setupTabHandlers() {
             // Example:
             // else if (tabId === '#analytics') {
             //     setTimeout(() => {
-            //         console.log('📈 Analytics tab activated');
+            //         logDebug('📈 Analytics tab activated');
             //         if (typeof loadAnalytics === 'function') {
             //             loadAnalytics();
             //         }
@@ -192,12 +192,12 @@ function setupTabHandlers() {
         });
     });
     
-    console.log('✅ Tab handlers setup complete');
+    logDebug('✅ Tab handlers setup complete');
 }
 
 // Fallback function for implementation tab
 // function showImplementationFallback() {
-//     console.log('📋 Showing implementation fallback content');
+//     logDebug('📋 Showing implementation fallback content');
 //     const implementationContainer = document.querySelector('#implementation .container');
     
 //     if (implementationContainer) {
@@ -215,7 +215,7 @@ function setupTabHandlers() {
 // Helper function to manually reset chart operation flag if needed
 function resetChartOperationFlag() {
     isChartOperationInProgress = false;
-    console.log('🔄 Chart operation flag manually reset');
+    logDebug('🔄 Chart operation flag manually reset');
 }
 
 // Helper function to check if charts are currently being operated on
@@ -269,15 +269,15 @@ function showImplementationFallback() {
  * ✅  Force load implementation plan function
  */
 function forceLoadImplementationPlan() {
-    console.log('🔄 Force loading implementation plan...');
+    logDebug('🔄 Force loading implementation plan...');
     showNotification('Force reloading implementation plan...', 'info');
     
     try {
         if (typeof loadImplementationPlan === 'function') {
-            console.log('✅ Using imported loadImplementationPlan');
+            logDebug('✅ Using imported loadImplementationPlan');
             loadImplementationPlan();
         } else if (typeof window.loadImplementationPlan === 'function') {
-            console.log('✅ Using window.loadImplementationPlan');
+            logDebug('✅ Using window.loadImplementationPlan');
             window.loadImplementationPlan();
         } else {
             console.error('❌ loadImplementationPlan not available');
@@ -362,11 +362,11 @@ function initializeActiveTabContent() {
     const activeTab = document.querySelector('.tab-pane.active');
     if (activeTab) {
         const tabId = '#' + activeTab.id;
-        console.log(`🎯 Active tab detected: ${tabId}`);
+        logDebug(`🎯 Active tab detected: ${tabId}`);
         
         if (tabId === '#dashboard') {
             setTimeout(() => {
-                console.log('🔄 Auto-initializing charts for active dashboard tab...');
+                logDebug('🔄 Auto-initializing charts for active dashboard tab...');
                 if (typeof initializeCharts === 'function') {
                     initializeCharts();
                 } else {
@@ -375,7 +375,7 @@ function initializeActiveTabContent() {
             }, 500);
         } else if (tabId === '#implementation') {
             setTimeout(() => {
-                console.log('🔄 Auto-loading implementation plan for active tab...');
+                logDebug('🔄 Auto-loading implementation plan for active tab...');
                 if (typeof loadImplementationPlan === 'function') {
                     loadImplementationPlan();
                 } else {
@@ -391,7 +391,7 @@ function initializeActiveTabContent() {
  * ✅  Main initialization function without module loading timeout
  */
 async function initializeDashboard() {
-    console.log('🚀 Initializing AKS Cost Intelligence Dashboard (FIXED VERSION)');
+    logDebug('🚀 Initializing AKS Cost Intelligence Dashboard (FIXED VERSION)');
     
     const progress = showProgressNotification([
         'Loading configuration...',
@@ -445,7 +445,7 @@ async function initializeDashboard() {
         // Show welcome message for new users
         showWelcomeMessage();
         
-        console.log('✅ Dashboard initialization completed successfully (FIXED VERSION)');
+        logDebug('✅ Dashboard initialization completed successfully (FIXED VERSION)');
         
     } catch (error) {
         console.error('❌ Error during initialization:', error);
@@ -507,14 +507,14 @@ if (typeof window !== 'undefined') {
  */
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-        console.log('📄 DOM loaded, initializing dashboard...');
+        logDebug('📄 DOM loaded, initializing dashboard...');
         initializeDashboard();
     });
 } else {
-    console.log('📄 DOM already ready, initializing dashboard immediately...');
+    logDebug('📄 DOM already ready, initializing dashboard immediately...');
     initializeDashboard();
 }
 
-console.log('✅ AKS Cost Intelligence Dashboard main module loaded (FIXED VERSION)');
+logDebug('✅ AKS Cost Intelligence Dashboard main module loaded (FIXED VERSION)');
 
 export { initializeDashboard };

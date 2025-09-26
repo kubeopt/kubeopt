@@ -6,7 +6,7 @@
 
 // Global function - needed for inline onclick handlers
 window.toggleUserMenu = function(event) {
-    console.log('🔹 toggleUserMenu called!', event);
+    logDebug('🔹 toggleUserMenu called!', event);
     
     if (event) {
         event.preventDefault();
@@ -14,78 +14,78 @@ window.toggleUserMenu = function(event) {
     }
     
     const menu = document.getElementById('userDropdownMenu');
-    console.log('🔹 Menu element found:', !!menu);
+    logDebug('🔹 Menu element found:', !!menu);
     
     if (!menu) {
-        console.error('❌ User dropdown menu not found!');
+        logError('❌ User dropdown menu not found!');
         return false;
     }
 
     // Pure Tailwind implementation - toggle hidden class
     const isVisible = !menu.classList.contains('hidden');
-    console.log('🔹 Menu currently visible:', isVisible);
-    console.log('🔹 Menu classes:', menu.className);
+    logDebug('🔹 Menu currently visible:', isVisible);
+    logDebug('🔹 Menu classes:', menu.className);
     
     if (isVisible) {
         // Hide menu
         menu.classList.add('hidden');
-        console.log('✅ Hiding menu');
+        logDebug('✅ Hiding menu');
     } else {
         // Show menu
         menu.classList.remove('hidden');
-        console.log('✅ Showing menu');
+        logDebug('✅ Showing menu');
     }
     
     return false;
 };
 
 // Test that the function is available
-console.log('🔹 User menu script loaded, toggleUserMenu available:', typeof window.toggleUserMenu);
+logDebug('🔹 User menu script loaded, toggleUserMenu available:', typeof window.toggleUserMenu);
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded, initializing user menu...');
+    logDebug('DOM loaded, initializing user menu...');
     initializeUserMenu();
 });
 
 // Also try to initialize on window load as backup
 window.addEventListener('load', function() {
-    console.log('Window loaded, re-initializing user menu...');
+    logDebug('Window loaded, re-initializing user menu...');
     setTimeout(initializeUserMenu, 100);
 });
 
 function initializeUserMenu() {
     try {
-        console.log('Setting up user menu handlers...');
+        logDebug('Setting up user menu handlers...');
         setupOutsideClickClose();
         setupKeyboardNavigation();
         
         // Test if menu exists
         const menu = document.getElementById('userDropdownMenu');
-        console.log('User dropdown menu found:', !!menu);
+        logDebug('User dropdown menu found:', !!menu);
         
         if (menu) {
-            console.log('Menu classes:', menu.className);
-            console.log('Menu style:', menu.style.cssText);
+            logDebug('Menu classes:', menu.className);
+            logDebug('Menu style:', menu.style.cssText);
         }
         
         // Find user buttons and add event listeners as backup
         const allButtons = document.querySelectorAll('div[onclick*="toggleUserMenu"], .user-menu-trigger, [class*="bg-blue-600"], [class*="bg-gradient-to-r"]');
-        console.log('Found potential user buttons:', allButtons.length);
+        logDebug('Found potential user buttons:', allButtons.length);
         
         allButtons.forEach((btn, i) => {
-            console.log(`Button ${i}:`, btn.tagName, btn.className);
+            logDebug(`Button ${i}:`, btn.tagName, btn.className);
             
             // Add click event listener as backup to onclick
             btn.addEventListener('click', function(event) {
-                console.log('Event listener triggered for button', i);
+                logDebug('Event listener triggered for button', i);
                 window.toggleUserMenu(event);
             });
         });
         
         
-        console.log('User menu initialization completed');
+        logDebug('User menu initialization completed');
     } catch (error) {
-        console.error('Error initializing user menu:', error);
+        logError('Error initializing user menu:', error);
     }
 }
 

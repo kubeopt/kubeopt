@@ -24,7 +24,7 @@ class FeatureLockManager {
                 const data = await response.json();
                 this.featureFlags = data.feature_flags;
                 this.licenseInfo = data.license;
-                console.log('✅ License info loaded:', data);
+                logDebug('✅ License info loaded:', data);
             } else {
                 console.warn('⚠️ Could not load license info');
                 this.featureFlags = {};
@@ -38,48 +38,87 @@ class FeatureLockManager {
     }
 
     setupFeatureLocks() {
-        // Hide implementation plan features instead of locking
+        // Lock main navigation tabs based on license
+        if (!this.featureFlags.implementation_plan) {
+            this.lockNavigationTab('implementation', 'IMPLEMENTATION', 'Pro', 'fas fa-rocket');
+        }
+
+        if (!this.featureFlags.enterprise_metrics) {
+            this.lockNavigationTab('enterprise-metrics', 'ENTERPRISE METRICS', 'Enterprise', 'fas fa-building');
+        }
+
+        if (!this.featureFlags.security_posture) {
+            this.lockNavigationTab('securityposture', 'SECURITY POSTURE', 'Enterprise', 'fas fa-shield-alt');
+        }
+
+        if (!this.featureFlags.email_alerts && !this.featureFlags.slack_alerts) {
+            this.lockNavigationTab('alerts', 'ALERTS', 'Pro', 'fas fa-bell');
+        }
+
+        // Also hide old selectors for backwards compatibility
         if (!this.featureFlags.implementation_plan) {
             this.hideFeature('.implementation-plan-btn', 'Implementation Plan', 'Pro');
             this.hideFeature('[data-feature="implementation_plan"]', 'Implementation Plan', 'Pro');
-            this.hideFeature('.implementation-tab', 'Implementation Plan', 'Pro');
-            this.hideFeature('#implementation-plan-section', 'Implementation Plan', 'Pro');
         }
 
-        // Hide enterprise metrics features
         if (!this.featureFlags.enterprise_metrics) {
             this.hideFeature('.enterprise-metrics-btn', 'Enterprise Metrics', 'Enterprise');
             this.hideFeature('[data-feature="enterprise_metrics"]', 'Enterprise Metrics', 'Enterprise');
-            this.hideFeature('.enterprise-metrics-tab', 'Enterprise Metrics', 'Enterprise');
-            this.hideFeature('#enterprise-metrics-section', 'Enterprise Metrics', 'Enterprise');
         }
 
-        // Hide security posture features
         if (!this.featureFlags.security_posture) {
             this.hideFeature('.security-posture-btn', 'Security Posture', 'Enterprise');
             this.hideFeature('[data-feature="security_posture"]', 'Security Posture', 'Enterprise');
-            this.hideFeature('.security-tab', 'Security Posture', 'Enterprise');
-            this.hideFeature('#security-section', 'Security Posture', 'Enterprise');
         }
 
-        // Hide alert features
-        if (!this.featureFlags.email_alerts) {
-            this.hideFeature('.alerts-btn', 'Email Alerts', 'Pro');
-            this.hideFeature('[data-feature="email_alerts"]', 'Email Alerts', 'Pro');
-            this.hideFeature('.alerts-tab', 'Email Alerts', 'Pro');
-            this.hideFeature('#alerts-section', 'Email Alerts', 'Pro');
-        }
-
-        // Hide auto-analysis features
         if (!this.featureFlags.auto_analysis) {
             this.hideFeature('.auto-analysis-btn', 'Auto-Analysis', 'Pro');
             this.hideFeature('[data-feature="auto_analysis"]', 'Auto-Analysis', 'Pro');
-            this.hideFeature('.auto-analysis-tab', 'Auto-Analysis', 'Pro');
-            this.hideFeature('#auto-analysis-section', 'Auto-Analysis', 'Pro');
         }
+    }
 
-        // Add upgrade prompts where tabs were hidden
-        this.addUpgradePrompts();
+    lockNavigationTab(tabId, featureName, requiredTier, iconClass) {
+        // Find navigation link for this tab (targets the unified dashboard nav structure)
+        const navLink = document.querySelector(`a[href="#${tabId}-content"], a[onclick*="showContent('${tabId}',"]`);
+        
+        if (navLink) {
+            // Make the tab look locked with visual indicators
+            navLink.style.opacity = '0.5';
+            navLink.style.cursor = 'not-allowed';
+            navLink.classList.add('feature-locked');
+            
+            // Add lock icon if not already present
+            if (!navLink.querySelector('.fa-lock')) {
+                const lockIcon = document.createElement('i');
+                lockIcon.className = 'fas fa-lock ml-2 text-yellow-500 text-xs';
+                navLink.appendChild(lockIcon);
+                
+                // Add tier badge
+                const tierBadge = document.createElement('span');
+                tierBadge.className = 'ml-1 px-2 py-1 text-xs bg-yellow-600 text-white rounded';
+                tierBadge.textContent = requiredTier;
+                navLink.appendChild(tierBadge);
+            }
+            
+            // Prevent navigation and show upgrade prompt
+            navLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.showUpgradeModal(featureName, requiredTier);
+                return false;
+            });
+            
+            // Store info for upgrade modal
+            navLink.setAttribute('data-locked-feature', featureName);
+            navLink.setAttribute('data-required-tier', requiredTier);
+        }
+        
+        // Also hide the content panel
+        const contentPanel = document.querySelector(`#${tabId}-content`);
+        if (contentPanel) {
+            contentPanel.style.display = 'none';
+            contentPanel.classList.add('feature-locked-content');
+        }
     }
 
     hideFeature(selector, featureName, requiredTier) {
@@ -193,6 +232,11 @@ class FeatureLockManager {
                 input.style.opacity = '0.5';
             });
         });
+    }
+
+    showUpgradeModal(featureName, requiredTier) {
+        // Alias for showUpgradePrompt for consistency
+        this.showUpgradePrompt(featureName, requiredTier);
     }
 
     showUpgradePrompt(featureName, requiredTier) {
@@ -352,7 +396,7 @@ class FeatureLockManager {
         const banner = document.createElement('div');
         banner.className = 'upgrade-banner';
         banner.style.cssText = `
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #2a385dff 100%);
             color: white;
             padding: 12px 20px;
             text-align: center;

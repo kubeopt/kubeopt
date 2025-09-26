@@ -12,7 +12,7 @@ class AutoAnalysisScheduler {
     init() {
         if (this.isInitialized) return;
         
-        console.log('🕐 Initializing Auto-Analysis Scheduler UI');
+        logDebug('🕐 Initializing Auto-Analysis Scheduler UI');
         this.addSchedulerStatusToUI();
         this.startStatusChecking();
         this.isInitialized = true;
@@ -58,11 +58,11 @@ class AutoAnalysisScheduler {
             if (data.status === 'success') {
                 return data.scheduler;
             } else {
-                console.error('Failed to get scheduler status:', data.message);
+                logError('Failed to get scheduler status:', data.message);
                 return null;
             }
         } catch (error) {
-            console.error('Error fetching scheduler status:', error);
+            logError('Error fetching scheduler status:', error);
             return null;
         }
     }
@@ -131,7 +131,7 @@ class AutoAnalysisScheduler {
                 this.showNotification(`Failed to ${action} scheduler: ${data.message}`, 'error');
             }
         } catch (error) {
-            console.error('Error toggling scheduler:', error);
+            logError('Error toggling scheduler:', error);
             this.showNotification(`Error toggling scheduler: ${error.message}`, 'error');
         }
     }
@@ -231,7 +231,7 @@ class AutoAnalysisScheduler {
                 this.showNotification(`Failed to start analysis: ${data.message}`, 'error');
             }
         } catch (error) {
-            console.error('Error forcing analysis:', error);
+            logError('Error forcing analysis:', error);
             this.showNotification(`Error starting analysis: ${error.message}`, 'error');
         }
     }
@@ -242,7 +242,7 @@ class AutoAnalysisScheduler {
             window.showNotification('Scheduler', message, type);
         } else {
             // Fallback notification
-            console.log(`[${type.toUpperCase()}] ${message}`);
+            logDebug(`[${type.toUpperCase()}] ${message}`);
             alert(message);
         }
     }

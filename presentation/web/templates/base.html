@@ -14,6 +14,8 @@
     <meta name="description" content="KUBEVISTA is an intelligent AKS cost optimization platform leveraging analysis insights for actionable cloud savings.">
     <meta name="author" content="NIVAYA">
     <meta name="theme-color" content="#0d6efd" />
+    <meta name="log-level" content="{{ config.get('LOG_LEVEL', 'INFO') }}">
+    <meta name="production-mode" content="{{ config.get('PRODUCTION_MODE', 'false') }}">
 
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -104,6 +106,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/logger.js') }}"></script>
     <script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>
     
     <script>
@@ -133,7 +136,7 @@
                     }
                 }
             } catch (error) {
-                console.error('Error toggling theme:', error);
+                logError('Error toggling theme:', error);
             }
         }
 
@@ -179,9 +182,9 @@
                     }
                 }
                 
-                console.log('Base template loaded successfully');
+                logDebug('Base template loaded successfully');
             } catch (error) {
-                console.error('Error initializing page:', error);
+                logError('Error initializing page:', error);
             }
         });
 
@@ -190,25 +193,25 @@
             try {
                 const canvas = document.getElementById(canvasId);
                 if (!canvas) {
-                    console.warn(`Canvas with id '${canvasId}' not found`);
+                    logWarn(`Canvas with id '${canvasId}' not found`);
                     return null;
                 }
                 
                 const ctx = canvas.getContext('2d');
                 if (!ctx) {
-                    console.warn(`Unable to get 2D context for canvas '${canvasId}'`);
+                    logWarn(`Unable to get 2D context for canvas '${canvasId}'`);
                     return null;
                 }
                 
                 // Check if Chart is available
                 if (typeof Chart === 'undefined') {
-                    console.error('Chart.js is not loaded');
+                    logError('Chart.js is not loaded');
                     return null;
                 }
                 
                 return new Chart(ctx, config);
             } catch (error) {
-                console.error(`Error creating chart for '${canvasId}':`, error);
+                logError(`Error creating chart for '${canvasId}':`, error);
                 return null;
             }
         }

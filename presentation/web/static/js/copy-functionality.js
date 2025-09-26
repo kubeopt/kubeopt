@@ -17,11 +17,11 @@ export function copyToClipboard(text, buttonElement = null) {
         buttonElement = event.target.closest('.copy-btn, button');
     }
     
-    console.log('📋 Copy function called:', { text, buttonElement });
+    logDebug('📋 Copy function called:', { text, buttonElement });
     
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
-            console.log('✅ Successfully copied to clipboard:', text.substring(0, 50) + '...');
+            logDebug('✅ Successfully copied to clipboard:', text.substring(0, 50) + '...');
             showCopySuccess(buttonElement, 'Copied to clipboard!');
             showNotification('📋 Copied to clipboard!', 'success', 2000);
         }).catch(err => {
@@ -29,7 +29,7 @@ export function copyToClipboard(text, buttonElement = null) {
             fallbackCopy(text, buttonElement);
         });
     } else {
-        console.log('📋 Using fallback copy method');
+        logDebug('📋 Using fallback copy method');
         fallbackCopy(text, buttonElement);
     }
 }
@@ -57,7 +57,7 @@ function fallbackCopy(text, buttonElement = null) {
     try {
         const successful = document.execCommand('copy');
         if (successful) {
-            console.log('✅ Fallback copy successful');
+            logDebug('✅ Fallback copy successful');
             showCopySuccess(buttonElement, 'Copied to clipboard!');
             showNotification('📋 Copied to clipboard!', 'success', 2000);
         } else {
@@ -76,7 +76,7 @@ function fallbackCopy(text, buttonElement = null) {
  * Enhanced copyCommand function
  */
 export function copyCommand(elementId, buttonElement = null) {
-    console.log('📋 copyCommand called with elementId:', elementId);
+    logDebug('📋 copyCommand called with elementId:', elementId);
     
     const element = document.getElementById(elementId);
     if (!element) {
@@ -106,7 +106,7 @@ export function copyCommand(elementId, buttonElement = null) {
  */
 function showCopySuccess(buttonElement, message = 'Copied!') {
     if (!buttonElement) {
-        console.log('✅ Copy successful (no button element for feedback)');
+        logDebug('✅ Copy successful (no button element for feedback)');
         return;
     }
     
@@ -134,7 +134,7 @@ function showCopySuccess(buttonElement, message = 'Copied!') {
         buttonElement.innerHTML = originalHTML;
         buttonElement.style.background = '';
         buttonElement.style.transform = '';
-        console.log('🔄 Button state reset');
+        logDebug('🔄 Button state reset');
     }, 2000);
 }
 
@@ -143,7 +143,7 @@ function showCopySuccess(buttonElement, message = 'Copied!') {
  */
 function showCopyError(buttonElement, message = 'Copy failed') {
     if (!buttonElement) {
-        console.log('❌ Copy failed (no button element for feedback)');
+        logDebug('❌ Copy failed (no button element for feedback)');
         return;
     }
     
@@ -164,18 +164,18 @@ function showCopyError(buttonElement, message = 'Copy failed') {
  * Enhanced event handler setup for copy buttons
  */
 function setupCopyButtonHandlers() {
-    console.log('🔧 Setting up copy button handlers...');
+    logDebug('🔧 Setting up copy button handlers...');
     
     // ✅ CHECK IF ALREADY SETUP
     if (window.copyHandlersSetup) {
-        console.log('Copy handlers already setup, skipping...');
+        logDebug('Copy handlers already setup, skipping...');
         return;
     }
     
     document.addEventListener('click', handleCopyButtonClick);
     window.copyHandlersSetup = true;  // ✅ PREVENT DUPLICATES
     
-    console.log('✅ Copy button handlers setup complete');
+    logDebug('✅ Copy button handlers setup complete');
 }
 
 /**
@@ -185,7 +185,7 @@ function handleCopyButtonClick(event) {
     const copyBtn = event.target.closest('.copy-btn, [onclick*="copy"], [data-copy]');
     if (!copyBtn) return;
     
-    console.log('📋 Copy button clicked:', copyBtn);
+    logDebug('📋 Copy button clicked:', copyBtn);
     
     // Prevent default action
     event.preventDefault();
@@ -198,7 +198,7 @@ function handleCopyButtonClick(event) {
     // Method 1: data-copy attribute
     if (copyBtn.hasAttribute('data-copy')) {
         copyText = copyBtn.getAttribute('data-copy');
-        console.log('📋 Method 1: Using data-copy attribute');
+        logDebug('📋 Method 1: Using data-copy attribute');
     }
     
     // Method 2: data-copy-target attribute
@@ -207,7 +207,7 @@ function handleCopyButtonClick(event) {
         copyTarget = document.getElementById(targetId);
         if (copyTarget) {
             copyText = copyTarget.textContent || copyTarget.innerText || copyTarget.value;
-            console.log('📋 Method 2: Using data-copy-target attribute');
+            logDebug('📋 Method 2: Using data-copy-target attribute');
         }
     }
     
@@ -220,7 +220,7 @@ function handleCopyButtonClick(event) {
             copyTarget = document.getElementById(elementId);
             if (copyTarget) {
                 copyText = copyTarget.textContent || copyTarget.innerText || copyTarget.value;
-                console.log('📋 Method 3: Using onclick attribute parsing');
+                logDebug('📋 Method 3: Using onclick attribute parsing');
             }
         }
     }
@@ -231,13 +231,13 @@ function handleCopyButtonClick(event) {
                            ?.querySelector('.command-code, .code-content, pre, code');
         if (copyTarget) {
             copyText = copyTarget.textContent || copyTarget.innerText;
-            console.log('📋 Method 4: Using nearest code block');
+            logDebug('📋 Method 4: Using nearest code block');
         }
     }
     
     // Execute copy if we found content
     if (copyText && copyText.trim()) {
-        console.log('📋 Copying text:', copyText.substring(0, 50) + '...');
+        logDebug('📋 Copying text:', copyText.substring(0, 50) + '...');
         copyToClipboard(copyText.trim(), copyBtn);
     } else {
         console.error('❌ No content found to copy');
@@ -250,7 +250,7 @@ function handleCopyButtonClick(event) {
  * Initialize copy functionality
  */
 export function initializeCopyFunctionality() {
-    console.log('🚀 Initializing copy functionality...');
+    logDebug('🚀 Initializing copy functionality...');
     
     // Setup event handlers
     setupCopyButtonHandlers();
@@ -264,14 +264,14 @@ export function initializeCopyFunctionality() {
     // Ensure copy buttons are visible
     setTimeout(() => {
         const copyButtons = document.querySelectorAll('.copy-btn');
-        console.log(`🔍 Found ${copyButtons.length} copy buttons`);
+        logDebug(`🔍 Found ${copyButtons.length} copy buttons`);
         
         copyButtons.forEach((btn, index) => {
             // Make sure copy buttons are visible
             if (btn.style.opacity === '0' || btn.style.display === 'none') {
                 btn.style.opacity = '0.8';
                 btn.style.display = 'block';
-                console.log(`👁️ Made copy button ${index + 1} visible`);
+                logDebug(`👁️ Made copy button ${index + 1} visible`);
             }
             
             // Add data attributes for easier targeting
@@ -280,13 +280,13 @@ export function initializeCopyFunctionality() {
                 const codeElement = commandWrapper?.querySelector('.command-code, .code-content, pre, code');
                 if (codeElement && codeElement.id) {
                     btn.setAttribute('data-copy-target', codeElement.id);
-                    console.log(`🔗 Added data-copy-target to button ${index + 1}`);
+                    logDebug(`🔗 Added data-copy-target to button ${index + 1}`);
                 }
             }
         });
     }, 1000);
     
-    console.log('✅ Copy functionality initialization complete');
+    logDebug('✅ Copy functionality initialization complete');
 }
 
 /**
@@ -362,4 +362,4 @@ if (typeof window !== 'undefined') {
     window.initializeCopyFunctionality = initializeCopyFunctionality;
 }
 
-console.log('✅ Copy functionality script loaded successfully');
+logDebug('✅ Copy functionality script loaded successfully');

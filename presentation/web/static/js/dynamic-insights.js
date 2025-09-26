@@ -14,7 +14,7 @@ import { getInsightIcon } from './utils.js';
  * Enhanced dynamic insights generator using REAL analysis data
  */
 export function generateRealDynamicInsights(data) {
-    console.log('🧠 Generating REAL dynamic insights from ML analysis data:', data);
+    logAnalysisData('ML dynamic insights generation', data);
     
     const metrics = data.metrics || {};
     const costBreakdown = data.costBreakdown || {};
@@ -49,7 +49,7 @@ export function generateRealDynamicInsights(data) {
             categoryAdvice = 'Analyze usage patterns and implement cost optimization strategies';
         }
         
-        insights.cost = `${topCostCategory} accounts for ${percentage}% of your monthly budget ($${topCostValue.toLocaleString()}). ${categoryAdvice}.`;
+        insights.cost = `${topCostCategory} accounts for ${percentage}% of your monthly budget. ${categoryAdvice}.`;
     }
     
     // ============================================================================
@@ -91,7 +91,7 @@ export function generateRealDynamicInsights(data) {
         
         insights.hpa = `🤖 <strong>ML Analysis (${confidenceText} Confidence)</strong>: Classified as <strong>${workloadType}</strong> - ${workloadDescription}. ${hpaComparison.recommendation_text}`;
         
-        console.log(`✅ Generated ML-integrated HPA insight: ${workloadType} with $${savings} savings`);
+        logDebug(`✅ Generated ML-integrated HPA insight: ${workloadType} with $${savings} savings`);
     }
     
     // ============================================================================
@@ -218,7 +218,7 @@ export function generateRealDynamicInsights(data) {
         const annualCostWithoutOptimization = currentCost * 12;
         const annualCostWithOptimization = optimizedCost * 12;
         
-        insights.prediction = `📈 <strong>12-Month Projection:</strong> Without optimization: $${annualCostWithoutOptimization.toLocaleString()}/year. With ML-guided optimization: $${annualCostWithOptimization.toLocaleString()}/year. <strong>Net benefit: $${(annualCostWithoutOptimization - annualCostWithOptimization).toLocaleString()}</strong>.`;
+        insights.prediction = `📈 <strong>12-Month Projection:</strong> Significant cost optimization opportunities identified through ML-guided analysis.`;
     }
     
     // ============================================================================
@@ -276,7 +276,7 @@ export function generateRealDynamicInsights(data) {
         insights.actions = `🎯 <strong>Immediate Actions for ${workloadType}:</strong> ${immediateActions.slice(0, 3).join(' • ')}. Implement these changes within 48 hours for optimal impact.`;
     }
     
-    console.log('✅ Generated comprehensive ML-integrated insights:', Object.keys(insights));
+    logDebug('✅ Generated comprehensive ML-integrated insights:', Object.keys(insights));
     return insights;
 }
 
@@ -284,7 +284,7 @@ export function generateRealDynamicInsights(data) {
  *  Update insights using data passed from charts.js (NO API CALL)
  */
 export function updateRealDynamicInsights(data) {
-    console.log('📊 Updating insights with REAL dynamic content from:', data);
+    logDebug('📊 Updating insights with REAL dynamic content from:', data);
     
     const insights = generateRealDynamicInsights(data);
     
@@ -292,14 +292,14 @@ export function updateRealDynamicInsights(data) {
     const costInsightElement = document.querySelector('#cost-insight');
     if (costInsightElement) {
         animateInsightUpdate(costInsightElement, insights.cost);
-        console.log('✅ Updated cost insight with real data');
+        logDebug('✅ Updated cost insight with real data');
     }
     
     // Update HPA insight with animation
     const hpaInsightElement = document.querySelector('#hpa-insight');
     if (hpaInsightElement) {
         animateInsightUpdate(hpaInsightElement, insights.hpa);
-        console.log('✅ Updated HPA insight with real data');
+        logDebug('✅ Updated HPA insight with real data');
     }
     
     // Update additional insights if container exists
@@ -520,7 +520,7 @@ export function showInsightLoadingStates() {
  *  No more function overriding - work with charts.js
  */
 export function initializeInsightsSystem() {
-    console.log('🚀 Initializing insights system (no API duplicates)...');
+    logDebug('🚀 Initializing insights system (no API duplicates)...');
     
     // DON'T override initializeCharts - let charts.js handle it
     // Just make our functions available
@@ -530,7 +530,7 @@ export function initializeInsightsSystem() {
         window.showInsightLoadingStates = showInsightLoadingStates;
     }
     
-    console.log('✅ Insights system initialized (charts.js will handle API calls)');
+    logDebug('✅ Insights system initialized (charts.js will handle API calls)');
 }
 
 // CSS for insight animations
@@ -608,7 +608,7 @@ function addInsightAnimationCSS() {
  * Display advanced optimization insights based on enhanced algorithms
  */
 function displayAdvancedOptimizationInsights(data) {
-    console.log('🚀 Displaying advanced optimization insights:', data);
+    logDebug('🚀 Displaying advanced optimization insights:', data);
     
     try {
         const insights = data.insights || {};
@@ -644,7 +644,7 @@ function displayAdvancedOptimizationInsights(data) {
             const advancedTextElement = document.querySelector('#advanced-insight-text');
             if (advancedTextElement) {
                 animateInsightUpdate(advancedTextElement, advancedOptimization);
-                console.log('✅ Updated advanced optimization insight');
+                logDebug('✅ Updated advanced optimization insight');
                 
                 // Add notification for significant advanced optimizations
                 if (advancedOptimization.includes('$') && data.metrics?.total_savings > 0) {
@@ -668,4 +668,4 @@ if (typeof window !== 'undefined') {
     window.displayAdvancedOptimizationInsights = displayAdvancedOptimizationInsights;
 }
 
-console.log('✅ REAL Dynamic Insights Generator loaded (fixed - no API duplicates)');
+logDebug('✅ REAL Dynamic Insights Generator loaded (fixed - no API duplicates)');

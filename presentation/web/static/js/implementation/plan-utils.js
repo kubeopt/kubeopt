@@ -241,7 +241,7 @@ export function renderMarkdownData(markdownContent, containerTitle = 'Configurat
  * Standalone copy function for markdown content (with interference protection)
  */
 window.copyMarkdownStandalone = function(buttonId) {
-    console.log('📋 Standalone markdown copy for button:', buttonId);
+    logDebug('📋 Standalone markdown copy for button:', buttonId);
     
     const markdownContent = window.markdownStore?.[buttonId];
     const button = document.getElementById(buttonId);
@@ -263,7 +263,7 @@ window.copyMarkdownStandalone = function(buttonId) {
     // Try modern clipboard API first
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(markdownContent).then(() => {
-            console.log('✅ Markdown copied via Clipboard API');
+            logDebug('✅ Markdown copied via Clipboard API');
             
             // Use existing notification system if available
             if (window.showNotification) {
@@ -279,7 +279,7 @@ window.copyMarkdownStandalone = function(buttonId) {
             fallbackCopyMarkdown(markdownContent, button);
         });
     } else {
-        console.log('📋 Clipboard API not available, using fallback');
+        logDebug('📋 Clipboard API not available, using fallback');
         fallbackCopyMarkdown(markdownContent, button);
     }
     
@@ -337,7 +337,7 @@ function fallbackCopyMarkdown(text, button) {
     try {
         const successful = document.execCommand('copy');
         if (successful) {
-            console.log('✅ Markdown copied via fallback method');
+            logDebug('✅ Markdown copied via fallback method');
             
             // Use existing notification system if available
             if (window.showNotification) {
@@ -678,7 +678,7 @@ export function findAncestor(element, selector) {
 
 // Global assignments for compatibility
 if (typeof window !== 'undefined') {
-    console.log('✅ Implementation Plan Utils loaded');
-    console.log('📋 Markdown conversion and copy functionality ready');
-    console.log('🛠️ Helper utilities and formatters available');
+    logDebug('✅ Implementation Plan Utils loaded');
+    logDebug('📋 Markdown conversion and copy functionality ready');
+    logDebug('🛠️ Helper utilities and formatters available');
 }

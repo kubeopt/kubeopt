@@ -1125,8 +1125,15 @@ def register_api_routes(app):
             # Extract analysis parameters
             days = data.get('days', 30)
             enable_pod_analysis = data.get('enable_pod_analysis', True)
+            force_refresh = data.get('force_refresh', False)
             
-            logger.info(f"🚀 Analysis parameters: days={days}, pod_analysis={enable_pod_analysis}")
+            logger.info(f"🚀 Analysis parameters: days={days}, pod_analysis={enable_pod_analysis}, force_refresh={force_refresh}")
+            
+            # Clear cache for fresh analysis requests
+            logger.info(f"🔄 Analysis requested - clearing cache for {cluster_id}")
+            from infrastructure.services.cache_manager import clear_analysis_cache
+            clear_analysis_cache(cluster_id)
+            logger.info("🧹 Cache cleared for fresh analysis")
             
             # Update analysis status
             enhanced_cluster_manager.update_analysis_status(

@@ -12,7 +12,7 @@ import { showNotification } from './notifications.js';
  * Selects a cluster and navigates to its detail page
  */
 export function selectCluster(clusterId) {
-    console.log('🎯 Selecting cluster:', clusterId);
+    logDebug('🎯 Selecting cluster:', clusterId);
     
     // Show loading notification
     showNotification('Loading cluster dashboard...', 'info', 2000);
@@ -35,7 +35,7 @@ export function selectCluster(clusterId) {
  */
 export function analyzeCluster(clusterId) {
     if (event) event.stopPropagation();
-    console.log('🔍 Analyzing cluster:', clusterId);
+    logDebug('🔍 Analyzing cluster:', clusterId);
     
     const button = event?.target?.closest('button');
     if (button) {
@@ -81,7 +81,7 @@ export function removeCluster(clusterId) {
         return;
     }
     
-    console.log('🗑️ Removing cluster:', clusterId);
+    logDebug('🗑️ Removing cluster:', clusterId);
     
     showNotification('Removing cluster...', 'warning', 0);
     
@@ -190,7 +190,7 @@ export function fetchClusters() {
             return response.json();
         })
         .then(data => {
-            console.log('📊 Clusters fetched:', data);
+            logDebug('📊 Clusters fetched:', data);
             return data.clusters || [];
         })
         .catch(error => {

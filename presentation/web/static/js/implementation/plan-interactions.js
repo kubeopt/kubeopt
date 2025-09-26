@@ -11,18 +11,18 @@ let PLAN_DATA_CACHE = null;
  * EXISTING GLOBAL FUNCTIONS - PRESERVED EXACTLY
  */
 window.toggleCompletePhase = function(phaseId) {
-    console.log(`🔄 Toggling phase: ${phaseId}`);
+    logDebug(`🔄 Toggling phase: ${phaseId}`);
     const content = document.getElementById(`complete-content-${phaseId}`);
     if (content) {
         const isExpanded = content.style.maxHeight !== '0px' && content.style.maxHeight !== '';
-        console.log(`   Current state: ${isExpanded ? 'expanded' : 'collapsed'}`);
+        logDebug(`   Current state: ${isExpanded ? 'expanded' : 'collapsed'}`);
         
         if (isExpanded) {
             content.style.maxHeight = '0px';
-            console.log(`   ✅ Collapsed phase ${phaseId}`);
+            logDebug(`   ✅ Collapsed phase ${phaseId}`);
         } else {
             content.style.maxHeight = '5000px'; // Large height for commands
-            console.log(`   ✅ Expanded phase ${phaseId}`);
+            logDebug(`   ✅ Expanded phase ${phaseId}`);
         }
     } else {
         console.error(`❌ Could not find element: complete-content-${phaseId}`);
@@ -30,7 +30,7 @@ window.toggleCompletePhase = function(phaseId) {
 };
 
 window.toggleCommandSection = function(commandId) {
-    console.log(`🔄 Toggling command section: ${commandId}`);
+    logDebug(`🔄 Toggling command section: ${commandId}`);
     const content = document.getElementById(commandId);
     const toggleBtn = document.getElementById(`toggle-${commandId}`);
     
@@ -43,14 +43,14 @@ window.toggleCommandSection = function(commandId) {
                 toggleBtn.innerHTML = '⬆️ Hide Commands';
                 toggleBtn.style.background = 'rgba(104, 211, 145, 0.2)';
             }
-            console.log(`   ✅ Expanded command section ${commandId}`);
+            logDebug(`   ✅ Expanded command section ${commandId}`);
         } else {
             content.style.maxHeight = '0px';
             if (toggleBtn) {
                 toggleBtn.innerHTML = '⬇️ Show Commands';
                 toggleBtn.style.background = 'rgba(255,255,255,0.1)';
             }
-            console.log(`   ✅ Collapsed command section ${commandId}`);
+            logDebug(`   ✅ Collapsed command section ${commandId}`);
         }
     } else {
         console.error(`❌ Could not find command section: ${commandId}`);
@@ -60,7 +60,7 @@ window.toggleCommandSection = function(commandId) {
 window.copyCompleteCommand = function(command) {
     if (navigator.clipboard) {
         navigator.clipboard.writeText(command).then(() => {
-            console.log('📋 Command copied');
+            logDebug('📋 Command copied');
             showCopyNotification('All commands copied to clipboard!', 'success');
         }).catch(err => {
             console.error('Copy failed:', err);
@@ -73,7 +73,7 @@ window.copyStoredCommand = function(commandId, index, buttonElement) {
     const command = window.commandStore?.[commandId];
     if (command && navigator.clipboard) {
         navigator.clipboard.writeText(command).then(() => {
-            console.log(`📋 Individual command ${index} copied`);
+            logDebug(`📋 Individual command ${index} copied`);
             showCopyNotification(`Command ${index} copied to clipboard!`, 'success');
             
             // Visual feedback on the button - only if it's a button element
@@ -108,7 +108,7 @@ window.copyCommandGroup = function(phaseId, groupIndex, buttonElement) {
     if (commandGroup?.commands && navigator.clipboard) {
         const commandText = commandGroup.commands.join('\n\n');
         navigator.clipboard.writeText(commandText).then(() => {
-            console.log('📋 Command group copied');
+            logDebug('📋 Command group copied');
             showCopyNotification('All commands copied to clipboard!', 'success');
             
             // Visual feedback on the button
@@ -148,7 +148,7 @@ window.copyAllCompleteCommands = function() {
         const commandText = allCommands.join('\n');
         if (navigator.clipboard && commandText.trim()) {
             navigator.clipboard.writeText(commandText).then(() => {
-                console.log('📋 All commands copied');
+                logDebug('📋 All commands copied');
                 showCopyNotification('All implementation commands copied to clipboard!');
             }).catch(err => console.error('Copy failed:', err));
         }
@@ -224,7 +224,7 @@ window.exportCompletePlan = function() {
 
 // FIXED Tab switching functionality - Simplified approach
 window.switchFrameworkTab = function(tabId, buttonElement) {
-    console.log('🔄 Switching to tab:', tabId);
+    logDebug('🔄 Switching to tab:', tabId);
     
     // Hide all tab panels
     document.querySelectorAll('.tab-panel').forEach(panel => {
@@ -240,7 +240,7 @@ window.switchFrameworkTab = function(tabId, buttonElement) {
     const targetPanel = document.getElementById(`framework-tab-${tabId}`);
     if (targetPanel) {
         targetPanel.classList.add('active');
-        console.log('✅ Activated tab panel:', `framework-tab-${tabId}`);
+        logDebug('✅ Activated tab panel:', `framework-tab-${tabId}`);
     } else {
         console.error('❌ Tab panel not found:', `framework-tab-${tabId}`);
     }
@@ -248,7 +248,7 @@ window.switchFrameworkTab = function(tabId, buttonElement) {
     // Add active class to clicked tab
     if (buttonElement) {
         buttonElement.classList.add('active');
-        console.log('✅ Activated tab button');
+        logDebug('✅ Activated tab button');
     }
     
     // Scroll tab into view if needed
@@ -259,7 +259,7 @@ window.switchFrameworkTab = function(tabId, buttonElement) {
 
 // NEW: Simplified function for "View Details" buttons
 window.switchFrameworkTabById = function(tabId) {
-    console.log('🔄 Switching to tab by ID:', tabId);
+    logDebug('🔄 Switching to tab by ID:', tabId);
     
     // Hide all tab panels
     document.querySelectorAll('.tab-panel').forEach(panel => {
@@ -275,7 +275,7 @@ window.switchFrameworkTabById = function(tabId) {
     const targetPanel = document.getElementById(`framework-tab-${tabId}`);
     if (targetPanel) {
         targetPanel.classList.add('active');
-        console.log('✅ Activated tab panel:', `framework-tab-${tabId}`);
+        logDebug('✅ Activated tab panel:', `framework-tab-${tabId}`);
     } else {
         console.error('❌ Tab panel not found:', `framework-tab-${tabId}`);
         return;
@@ -285,7 +285,7 @@ window.switchFrameworkTabById = function(tabId) {
     const targetButton = document.querySelector(`[data-tab="${tabId}"]`);
     if (targetButton) {
         targetButton.classList.add('active');
-        console.log('✅ Activated tab button for:', tabId);
+        logDebug('✅ Activated tab button for:', tabId);
         
         // Scroll tab into view if needed
         targetButton.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
@@ -379,7 +379,7 @@ window.validateCommand = function(commandId) {
 
 // Terminal Preview
 window.previewCommand = function(commandId) {
-    console.log('🖥️ Preview requested for commandId:', commandId);
+    logDebug('🖥️ Preview requested for commandId:', commandId);
     
     const command = window.commandStore?.[commandId];
     if (!command) {
@@ -388,7 +388,7 @@ window.previewCommand = function(commandId) {
         return;
     }
     
-    console.log('✅ Found command for preview:', command.substring(0, 100) + '...');
+    logDebug('✅ Found command for preview:', command.substring(0, 100) + '...');
     
     const modal = document.createElement('div');
     modal.className = 'terminal-preview';
@@ -449,7 +449,7 @@ window.previewCommand = function(commandId) {
     };
     document.addEventListener('keydown', handleEscape);
     
-    console.log('✅ Preview modal created successfully');
+    logDebug('✅ Preview modal created successfully');
 };
 
 // Enhanced validation for preview

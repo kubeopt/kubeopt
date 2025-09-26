@@ -371,14 +371,30 @@
                             </select>
                         </div>
                         
-                        <div class="checkbox-group">
+                        <div class="form-group form-full-width">
+                            <label class="form-label">License Key</label>
+                            <input type="text" name="license_key" value="{{ license_info.get('license_key', '') }}" 
+                                   class="form-input"
+                                   placeholder="Enter your license key (e.g., P6M-ABC123-250930-IMPL-AUTO)">
+                            <p class="form-help">
+                                Current License: <strong>{{ license_info.get('tier_display', 'Free') }}</strong>
+                                {% if license_info.get('expires') %}
+                                    - Expires: {{ license_info.get('expires') }}
+                                {% endif %}
+                                {% if license_info.get('is_trial') %}
+                                    <span style="color: #f59e0b;">(Trial)</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        
+                        <!-- <div class="checkbox-group">
                             <input type="checkbox" name="production_mode" id="production_mode" 
                                    {% if config.get('PRODUCTION_MODE') == 'true' %}checked{% endif %}
                                    class="checkbox">
                             <label for="production_mode" class="checkbox-label">
                                 Production Mode (Disable CLI fallbacks)
                             </label>
-                        </div>
+                        </div> -->
                         
                         <div class="btn-actions">
                             <button type="submit" class="btn btn-primary">

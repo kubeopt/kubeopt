@@ -9,6 +9,8 @@
     <meta name="description" content="KUBEVISTA is an intelligent AKS cost optimization platform leveraging ML insights for actionable cloud savings.">
     <meta name="author" content="NIVAYA">
     <meta name="theme-color" content="#0d6efd" />
+    <meta name="log-level" content="{{ config.get('LOG_LEVEL', 'INFO') }}">
+    <meta name="production-mode" content="{{ config.get('PRODUCTION_MODE', 'false') }}">
     
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -24,6 +26,9 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Logger must be loaded first -->
+    <script src="{{ url_for('static', filename='js/logger.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='js/index.js') }}"></script>
     <script src="{{ url_for('static', filename='js/smooth.js') }}"></script>
     <script src="{{ url_for('static', filename='js/enhanced-ui.js') }}"></script>
