@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-AKS Cost Optimizer - Production Entry Point
-==========================================
-Production-ready version with proper WSGI server support.
+AKS Cost Optimizer - Clean Architecture Main Entry Point
+=======================================================
+Clean architecture implementation with proper separation of concerns.
 
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & KubeVista
@@ -40,12 +40,15 @@ def create_app():
     from presentation.api.api_routes import register_api_routes
     register_api_routes(app)
     
+    # Note: project_controls_api routes are now integrated into api_routes
+    # to avoid duplicate endpoint registration
+    
     return app
 
 def initialize_application():
     """Initialize all application components"""
     
-    print("🌐 Initializing AKS Cost Optimizer (Production Mode)")
+    print("🌐 Initializing AKS Cost Optimizer (Clean Architecture)")
     
     # Initialize configuration
     from shared.config.config import (
@@ -70,9 +73,9 @@ def initialize_application():
         return False
 
 def main():
-    """Main application entry point for production"""
+    """Main application entry point"""
     
-    print("🚀 Starting AKS Cost Optimizer (Production Mode)")
+    print("🚀 Starting AKS Cost Optimizer (Clean Architecture)")
     print("=" * 60)
     
     # Initialize application components
@@ -89,14 +92,9 @@ def main():
     print("📊 Enterprise metrics: http://localhost:5001/api/enterprise-metrics")
     print("=" * 60)
     
-    # Production server options
-    port = int(os.environ.get('PORT', 5001))
-    host = os.environ.get('HOST', '0.0.0.0')
-    
-    # Start the application (production mode - no debug)
+    # Start the application
     try:
-        print(f"🌟 Starting production server on {host}:{port}")
-        app.run(host=host, port=port, debug=False, threaded=True)
+        app.run(host='0.0.0.0', port=5001, debug=True)
     except KeyboardInterrupt:
         print("\n👋 Application stopped by user")
     except Exception as e:
@@ -104,13 +102,6 @@ def main():
         return False
     
     return True
-
-# For WSGI servers (Gunicorn, uWSGI, etc.)
-app = None
-if __name__ != "__main__":
-    # Initialize for WSGI
-    if initialize_application():
-        app = create_app()
 
 if __name__ == "__main__":
     success = main()

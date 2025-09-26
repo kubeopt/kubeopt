@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # Bytecode variant - recommended for most use cases
+  aks-optimizer-bytecode:
+    build:
+      context: .
+      dockerfile: Dockerfile.bytecode
+    image: aks-cost-optimizer-bytecode:latest
+    container_name: aks-optimizer-bytecode
+    ports:
+      - "5001:5000"
+    environment:
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - FLASK_ENV=production
+      - PRODUCTION_MODE=true
+    volumes:
+      - ./logs:/app/logs
+      - ./infrastructure/persistence/database:/app/infrastructure/persistence/database
+      - azure_config:/home/appuser/.azure
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - aks-optimizer-network
+
+  # PyInstaller variant - most secure (binary)
+  aks-optimizer-pyinstaller:
+    build:
+      context: .
+      dockerfile: Dockerfile.pyinstaller
+    image: aks-cost-optimizer-pyinstaller:latest
+    container_name: aks-optimizer-pyinstaller
+    ports:
+      - "5002:5000"
+    environment:
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - FLASK_ENV=production
+      - PRODUCTION_MODE=true
+    volumes:
+      - ./logs:/app/logs
+      - ./infrastructure/persistence/database:/app/infrastructure/persistence/database
+      - azure_config:/home/appuser/.azure
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - aks-optimizer-network
+
+  # Obfuscated variant - moderate security
+  aks-optimizer-obfuscated:
+    build:
+      context: .
+      dockerfile: Dockerfile.obfuscated
+    image: aks-cost-optimizer-obfuscated:latest
+    container_name: aks-optimizer-obfuscated
+    ports:
+      - "5003:5000"
+    environment:
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - FLASK_ENV=production
+      - PRODUCTION_MODE=true
+    volumes:
+      - ./logs:/app/logs
+      - ./infrastructure/persistence/database:/app/infrastructure/persistence/database
+      - azure_config:/home/appuser/.azure
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - aks-optimizer-network
+
+volumes:
+  azure_config:
+    driver: local
+
+networks:
+  aks-optimizer-network:
+    driver: bridge

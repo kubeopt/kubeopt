@@ -101,6 +101,48 @@ function testSlack() {
     });
 }
 
+function testAzure() {
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+    button.disabled = true;
+    
+    // First save the current Azure settings
+    const form = new FormData();
+    form.append('section', 'azure');
+    form.append('azure_tenant_id', document.querySelector('input[name="azure_tenant_id"]').value);
+    form.append('azure_subscription_id', document.querySelector('input[name="azure_subscription_id"]').value);
+    form.append('azure_client_id', document.querySelector('input[name="azure_client_id"]').value);
+    form.append('azure_client_secret', document.querySelector('input[name="azure_client_secret"]').value);
+    
+    // Save settings first, then test
+    fetch('/save_settings', {
+        method: 'POST',
+        body: form
+    })
+    .then(() => {
+        // Now test the Azure connection
+        return fetch('/test_azure', {
+            method: 'POST'
+        });
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Azure connection successful! ' + data.message, 'success');
+        } else {
+            showNotification('Azure connection failed: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Error testing Azure connection: ' + error, 'error');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
 function initializeAutoSave() {
     let saveTimeout;
     const saveButton = document.querySelector('button[type="submit"]');
@@ -262,3 +304,4 @@ function showNotification(message, type = 'info') {
 window.showSection = showSection;
 window.testEmail = testEmail;
 window.testSlack = testSlack;
+window.testAzure = testAzure;

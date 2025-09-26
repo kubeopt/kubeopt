@@ -10,19 +10,10 @@ services:
       - "5020:5000"
     
     volumes:
-      # Mount clean architecture directories for development
-      - ./analytics:/app/analytics:cached
-      - ./application:/app/application:cached
-      - ./infrastructure:/app/infrastructure:cached
-      - ./machine_learning:/app/machine_learning:cached
-      - ./presentation:/app/presentation:cached
-      - ./shared:/app/shared:cached
-      
-      # Data persistence for clean architecture
+      # Data persistence only (no source code mounts for security)
       - sqlite_data:/app/infrastructure/persistence/database
       - ml_models:/app/machine_learning/data
       - app_logs:/app/logs
-      - app_cache:/app/shared/cache
       
       # Mount Azure credentials to temp location for copying
       - ${HOME}/.azure:/tmp/host-azure:ro
@@ -31,9 +22,9 @@ services:
       - azure_config:/home/appuser/.azure
       
     environment:
-      # Flask settings
-      - FLASK_ENV=${FLASK_ENV:-development}
-      - FLASK_DEBUG=${FLASK_DEBUG:-1}
+      # Flask settings - production mode for security
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
       - DATABASE_PATH=/app/data/aks_optimizer.db
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PYTHONPATH=/app

@@ -124,7 +124,7 @@ RUN mkdir -p \
 
 # Copy the compiled binary (no source code!)
 COPY --from=builder /build/dist/aks-cost-optimizer /app/
-COPY --chown=appuser:appuser deploy/docker/docker-entrypoint-binary.sh /usr/local/bin/docker-entrypoint.sh
+COPY --chown=appuser:appuser docker-entrypoint-binary.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh /app/aks-cost-optimizer
 
 # Switch to non-root user
