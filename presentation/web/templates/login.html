@@ -3,19 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AKS Cost Optimizer - Login</title>
+    <title>KUBEVISTA - Your Third Eye for Kubernetes</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kubevista_eyecon.png') }}" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/brand-icons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
 </head>
 <body class="auth-page">
     <div class="login-container">
         <div>
             <div class="brand-icon">
-                <i class="fas fa-dharmachakra"></i>
+                <img src="{{ url_for('static', filename='images/kubevista_eyecon.png') }}" alt="KUBEVISTA Eye Icon" class="eye-icon">
             </div>
-            <h1 class="brand-title">AKS Cost Optimizer</h1>
-            <p class="brand-subtitle">KubeVista Enterprise Platform</p>
+            <h1 class="brand-title">KUBEVISTA</h1>
+            <p class="brand-subtitle">Your Third Eye for Kubernetes</p>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}

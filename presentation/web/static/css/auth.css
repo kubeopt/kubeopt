@@ -41,11 +41,10 @@
     box-shadow: var(--shadow-xl);
     backdrop-filter: blur(10px);
 }
-
+/* 
 .brand-icon {
     width: 64px;
     height: 64px;
-    background: var(--primary);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -53,7 +52,7 @@
     margin: 0 auto 1rem;
     color: var(--bg-primary);
     font-size: 1.5rem;
-}
+} */
 
 .brand-title {
     color: var(--text-primary);

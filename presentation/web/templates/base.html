@@ -4,15 +4,14 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KUBEVISTA - AKS Cost Optimizer</title>
+    <title>KUBEVISTA - Your Third Eye for Kubernetes</title>
     <!-- {% block title %}Cluster Portfolio - AKS Cost Intelligence{% endblock %} -->
 
     <!-- Brand Favicon -->
-    <!-- <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/kubevista_favicon.svg') }}" /> -->
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/nivaya_fevicon.png') }}" />
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kubevista_eyecon.png') }}" />
 
     <!-- Optional: Meta Description for SEO -->
-    <meta name="description" content="KUBEVISTA is an intelligent AKS cost optimization platform leveraging ML insights for actionable cloud savings.">
+    <meta name="description" content="KUBEVISTA is an intelligent AKS cost optimization platform leveraging analysis insights for actionable cloud savings.">
     <meta name="author" content="NIVAYA">
     <meta name="theme-color" content="#0d6efd" />
 
@@ -28,6 +27,7 @@
     
     <!-- <link rel="stylesheet" href="static/css/base.css"> -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/brand-icons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/smooth.css') }}">
     {% block extra_css %}{% endblock %}
 </head>
@@ -36,9 +36,11 @@
     <nav class="navbar navbar-expand-lg fixed-top">
         <div class="container">
             <a class="navbar-brand" href="/">
-                <i class="fas fa-dharmachakra brand-icon"></i>
-                <span class="brand-name">KUBEVISTA</span>
-                <span class="brand-subtitle">Kubernetes Cost Intelligence</span>
+                <img src="{{ url_for('static', filename='images/kubevista_eyecon.png') }}" alt="KUBEVISTA Eye Icon" class="brand-icon">
+                <div class="brand-text">
+                    <span class="brand-name">KUBEVISTA</span>
+                    <span class="brand-subtitle">Your Third Eye for Kubernetes</span>
+                </div>
             </a>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -203,17 +205,18 @@
     </script>
     
     {% block scripts %}{% endblock %}
+    
+    <footer class="footer mt-auto py-3 text-center text-muted">
+      <div class="container">
+        <small class="d-block mb-1">
+          © {{ current_year }} <strong>KUBEVISTA</strong> · Built for Kubernetes · Intelligent. Insightful. Illuminating.
+        </small>
+        <small class="d-block">
+          All rights reserved by <strong>Nivaya Technologies</strong>
+        </small>
+      </div>
+    </footer>
 </body>
-<footer class="footer mt-auto py-3 text-center text-muted">
-  <div class="container">
-    <small class="d-block mb-1">
-      © {{ current_year }} <strong>KUBEVISTA</strong> · Built for Kubernetes · Intelligent. Insightful. Efficient.
-    </small>
-    <small class="d-block">
-      All rights reserved by <strong>Nivaya Technologies</strong>
-    </small>
-  </div>
-</footer>
 
 
 </html>
