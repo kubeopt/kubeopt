@@ -12,6 +12,8 @@ import traceback
 from datetime import datetime
 from flask import jsonify, request
 from shared.config.config import logger, enhanced_cluster_manager, ALERTS_AVAILABLE
+from infrastructure.services.feature_guard import require_feature
+from infrastructure.services.license_manager import FeatureFlag
 
 # Global alerts manager
 alerts_manager = None
@@ -51,6 +53,7 @@ def register_alerts_routes(app):
     """Register enhanced alerts API routes with complete functionality"""
     
     @app.route('/api/alerts', methods=['GET', 'POST'])
+    @require_feature(FeatureFlag.EMAIL_ALERTS, api_response=True)
     def alerts_api():
         """Main alerts endpoint with enhanced frequency handling"""
         try:
@@ -199,6 +202,7 @@ def register_alerts_routes(app):
             }), 500
         
     @app.route('/api/alerts/<int:alert_id>', methods=['GET', 'PUT', 'DELETE'])
+    @require_feature(FeatureFlag.EMAIL_ALERTS, api_response=True)
     def alert_detail_api(alert_id: int):
         """Individual alert management with frequency support"""
         try:
@@ -290,6 +294,7 @@ def register_alerts_routes(app):
             }), 500
 
     @app.route('/api/alerts/<int:alert_id>/test', methods=['POST'])
+    @require_feature(FeatureFlag.EMAIL_ALERTS, api_response=True)
     def test_alert_api(alert_id: int):
         """Test alert notification"""
         try:

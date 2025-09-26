@@ -18,6 +18,8 @@ from shared.config.config import logger, enhanced_cluster_manager
 from shared.utils.shared import _get_analysis_data
 from machine_learning.core.enterprise_metrics import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
 from machine_learning.core.implementation_generator import AKSImplementationGenerator
+from infrastructure.services.feature_guard import require_feature, get_ui_feature_flags
+from infrastructure.services.license_manager import FeatureFlag
 
 def sanitize_for_json(obj):
     """
@@ -169,6 +171,7 @@ def register_project_controls_api(app):
             return jsonify({"status": "error", "message": str(e)}), 500
 
     @app.route('/api/enterprise-metrics', methods=['GET'])
+    @require_feature(FeatureFlag.ENTERPRISE_METRICS, api_response=True)
     def api_enterprise_metrics():
         """Get enterprise operational metrics"""
         return get_enterprise_metrics_sync()

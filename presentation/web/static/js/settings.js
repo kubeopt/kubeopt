@@ -20,6 +20,20 @@ function initializeSettingsPage() {
 }
 
 function showSection(sectionName) {
+    // Check if the clicked tab is feature-locked
+    const clickedTab = event.target.closest('.nav-tab');
+    if (clickedTab && clickedTab.hasAttribute('data-feature')) {
+        const featureName = clickedTab.getAttribute('data-feature');
+        
+        // Check if feature is available
+        if (window.featureLockManager && !window.featureLockManager.hasFeature(featureName)) {
+            // Show upgrade prompt instead of switching tabs
+            const featureDisplayName = featureName === 'slack_alerts' ? 'Slack Integration' : 'Email Settings';
+            window.featureLockManager.showUpgradePrompt(featureDisplayName, 'Pro');
+            return;
+        }
+    }
+    
     // Hide all sections
     const sections = document.querySelectorAll('.form-section');
     sections.forEach(section => section.classList.remove('active'));
@@ -35,7 +49,6 @@ function showSection(sectionName) {
     }
     
     // Add active class to clicked tab
-    const clickedTab = event.target.closest('.nav-tab');
     if (clickedTab) {
         clickedTab.classList.add('active');
     }

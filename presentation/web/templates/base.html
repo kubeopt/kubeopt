@@ -137,9 +137,32 @@
             }
         }
 
-        // Load saved theme on page load with proper error handling
+        // Auto-dismiss flash messages after 5 seconds
         document.addEventListener('DOMContentLoaded', function() {
             try {
+                // Auto-dismiss success alerts after 5 seconds
+                const successAlerts = document.querySelectorAll('.alert-success');
+                successAlerts.forEach(function(alert) {
+                    setTimeout(function() {
+                        if (alert && alert.parentNode) {
+                            const bsAlert = new bootstrap.Alert(alert);
+                            bsAlert.close();
+                        }
+                    }, 5000); // 5 seconds
+                });
+                
+                // Auto-dismiss info alerts after 7 seconds  
+                const infoAlerts = document.querySelectorAll('.alert-info');
+                infoAlerts.forEach(function(alert) {
+                    setTimeout(function() {
+                        if (alert && alert.parentNode) {
+                            const bsAlert = new bootstrap.Alert(alert);
+                            bsAlert.close();
+                        }
+                    }, 7000); // 7 seconds
+                });
+                
+                // Load saved theme
                 const savedTheme = localStorage.getItem('theme') || 'light';
                 document.documentElement.setAttribute('data-theme', savedTheme);
                 

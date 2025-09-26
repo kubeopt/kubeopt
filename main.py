@@ -17,6 +17,23 @@ from flask import Flask
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
+# Load development environment if available
+def load_dev_env():
+    """Load development environment variables"""
+    env_file = os.path.join(current_dir, '.env.development')
+    if os.path.exists(env_file):
+        print("🔧 Loading development environment...")
+        with open(env_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key] = value
+        print("✅ Development environment loaded")
+
+# Load environment variables
+load_dev_env()
+
 def create_app():
     """
     Application factory for creating Flask app with clean architecture
@@ -40,14 +57,13 @@ def create_app():
     from presentation.api.api_routes import register_api_routes
     register_api_routes(app)
     
+    # Register license management routes
+    from presentation.api.license_routes import register_license_routes
+    register_license_routes(app)
+    
     # Initialize auto-analysis scheduler
     from infrastructure.services.auto_analysis_scheduler import auto_scheduler
     auto_scheduler.init_app(app)
-    
-    # Start scheduler after app initialization
-    @app.before_first_request
-    def start_background_services():
-        auto_scheduler.start_scheduler()
     
     # Graceful shutdown
     import atexit
@@ -95,6 +111,14 @@ def main():
     
     # Create Flask app
     app = create_app()
+    
+    # Start background services after app is created
+    from infrastructure.services.auto_analysis_scheduler import auto_scheduler
+    try:
+        auto_scheduler.start_scheduler()
+        print("✅ Auto-analysis scheduler started")
+    except Exception as e:
+        print(f"⚠️ Auto-analysis scheduler failed to start: {e}")
     
     print("=" * 60)
     print("✅ AKS Cost Optimizer is ready!")

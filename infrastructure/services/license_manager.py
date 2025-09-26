@@ -1,0 +1,341 @@
+#!/usr/bin/env python3
+"""
+License Manager for AKS Cost Optimizer
+====================================
+
+Manages feature licensing and tier validation.
+"""
+
+import os
+import json
+import logging
+import hashlib
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+class LicenseTier(Enum):
+    FREE = "free"
+    PRO = "pro" 
+    ENTERPRISE = "enterprise"
+
+class FeatureFlag(Enum):
+    # Free tier features
+    DASHBOARD = "dashboard"
+    MANUAL_ANALYSIS = "manual_analysis"
+    
+    # Pro tier features  
+    IMPLEMENTATION_PLAN = "implementation_plan"
+    AUTO_ANALYSIS = "auto_analysis"
+    EMAIL_ALERTS = "email_alerts"
+    SLACK_ALERTS = "slack_alerts"
+    
+    # Enterprise tier features
+    ENTERPRISE_METRICS = "enterprise_metrics"
+    SECURITY_POSTURE = "security_posture"
+    ADVANCED_ALERTS = "advanced_alerts"
+    MULTI_SUBSCRIPTION = "multi_subscription"
+
+class LicenseManager:
+    """
+    Manages feature licensing and validation
+    """
+    
+    def __init__(self):
+        self.license_file = os.path.join(os.getcwd(), '.license')
+        
+        # Define feature tiers BEFORE loading license
+        self.tier_features = {
+            LicenseTier.FREE: [
+                FeatureFlag.DASHBOARD,
+                FeatureFlag.MANUAL_ANALYSIS
+            ],
+            LicenseTier.PRO: [
+                FeatureFlag.DASHBOARD,
+                FeatureFlag.MANUAL_ANALYSIS,
+                FeatureFlag.IMPLEMENTATION_PLAN,
+                FeatureFlag.AUTO_ANALYSIS,
+                FeatureFlag.EMAIL_ALERTS,
+                FeatureFlag.SLACK_ALERTS
+            ],
+            LicenseTier.ENTERPRISE: [
+                FeatureFlag.DASHBOARD,
+                FeatureFlag.MANUAL_ANALYSIS,
+                FeatureFlag.IMPLEMENTATION_PLAN,
+                FeatureFlag.AUTO_ANALYSIS,
+                FeatureFlag.EMAIL_ALERTS,
+                FeatureFlag.SLACK_ALERTS,
+                FeatureFlag.ENTERPRISE_METRICS,
+                FeatureFlag.SECURITY_POSTURE,
+                FeatureFlag.ADVANCED_ALERTS,
+                FeatureFlag.MULTI_SUBSCRIPTION
+            ]
+        }
+        
+        # Now load the license after tier_features is defined
+        self.current_license = self.load_license()
+    
+    def load_license(self) -> Dict:
+        """Load license from file or environment"""
+        try:
+            # Development mode override
+            if os.getenv('KUBEVISTA_DEV_MODE') == 'true' or os.getenv('KUBEVISTA_BYPASS_LICENSE') == 'true':
+                logger.info("🔧 DEVELOPMENT MODE: Using full Enterprise features")
+                return {
+                    'tier': LicenseTier.ENTERPRISE.value,
+                    'expires': None,
+                    'features': [f.value for f in self.tier_features[LicenseTier.ENTERPRISE]],
+                    'dev_mode': True
+                }
+            
+            # Check environment variable first
+            license_key = os.getenv('KUBEVISTA_LICENSE_KEY')
+            if license_key:
+                return self.validate_license_key(license_key)
+            
+            # Check license file
+            if os.path.exists(self.license_file):
+                with open(self.license_file, 'r') as f:
+                    license_data = json.load(f)
+                    
+                if self.is_license_valid(license_data):
+                    return license_data
+                    
+            # Default to free tier
+            logger.info("🆓 Using FREE tier (no valid license found)")
+            return {
+                'tier': LicenseTier.FREE.value,
+                'expires': None,
+                'features': [f.value for f in self.tier_features[LicenseTier.FREE]]
+            }
+            
+        except Exception as e:
+            logger.error(f"Error loading license: {e}")
+            return {
+                'tier': LicenseTier.FREE.value,
+                'expires': None,
+                'features': [f.value for f in self.tier_features[LicenseTier.FREE]]
+            }
+    
+    def validate_license_key(self, license_key: str) -> Dict:
+        """Validate a license key using the advanced algorithms"""
+        try:
+            # Try to import the new license validation system
+            try:
+                import sys
+                import os
+                license_manager_path = os.path.join(os.getcwd(), 'license_manager')
+                if os.path.exists(license_manager_path):
+                    sys.path.insert(0, license_manager_path)
+                    from generators.key_generator import LicenseGenerator
+                    
+                    # Use the new validation system
+                    is_valid, validation_info = LicenseGenerator.validate_license(license_key)
+                    
+                    if is_valid:
+                        # Convert to our expected format
+                        license_data = {
+                            'tier': validation_info.get('tier'),
+                            'expires': validation_info.get('expires_timestamp'),
+                            'features': validation_info.get('features', []),
+                            'license_key': license_key,
+                            'tier_display': validation_info.get('tier_display'),
+                            'algorithm': validation_info.get('algorithm'),
+                            'is_trial': validation_info.get('is_trial', False),
+                            'is_lifetime': validation_info.get('is_lifetime', False)
+                        }
+                        
+                        logger.info(f"✅ Valid {validation_info.get('tier_display', 'Unknown')} license loaded (Algorithm: {validation_info.get('algorithm', 'unknown')})")
+                        return license_data
+                    else:
+                        error_msg = validation_info.get('error', 'Unknown validation error')
+                        raise ValueError(error_msg)
+                        
+            except ImportError:
+                # Fall back to legacy validation if new system not available
+                logger.warning("⚠️ New license system not available, using legacy validation")
+                pass
+            
+            # Legacy validation system (fallback)
+            parts = license_key.split('-')
+            if len(parts) < 3:
+                raise ValueError("Invalid license key format")
+                
+            tier_code = parts[0]
+            
+            # Handle new format tier codes
+            if tier_code.startswith('P') and ('3M' in tier_code or '6M' in tier_code or '12M' in tier_code or '3T' in tier_code):
+                tier_str = 'pro'
+            elif tier_code.startswith('E') and ('3M' in tier_code or '6M' in tier_code or '12M' in tier_code or 'LT' in tier_code):
+                tier_str = 'enterprise'
+            elif tier_code.startswith('F'):
+                tier_str = 'free'
+            else:
+                # Legacy format
+                tier_map = {
+                    'FREE': 'free',
+                    'PRO': 'pro', 
+                    'ENT': 'enterprise'
+                }
+                tier_str = tier_map.get(tier_code, 'free')
+            
+            # Get tier enum
+            tier_enum_map = {
+                'free': LicenseTier.FREE,
+                'pro': LicenseTier.PRO,
+                'enterprise': LicenseTier.ENTERPRISE
+            }
+            tier = tier_enum_map[tier_str]
+            
+            # Basic expiry check for legacy format
+            expires = None
+            if len(parts) >= 3:
+                expiry_str = parts[2]
+                if expiry_str != 'NEVER' and expiry_str != 'never':
+                    try:
+                        if len(expiry_str) == 6:  # YYMMDD format
+                            expires = datetime.strptime(expiry_str, '%y%m%d').date()
+                        else:  # YYYYMMDD format
+                            expires = datetime.strptime(expiry_str, '%Y%m%d').date()
+                        
+                        if expires < datetime.now().date():
+                            raise ValueError("License expired")
+                    except ValueError as e:
+                        if "expired" in str(e):
+                            raise
+                        # Invalid date format, treat as non-expiring for now
+                        expires = None
+            
+            # Create license data
+            license_data = {
+                'tier': tier_str,
+                'expires': expires.isoformat() if expires else None,
+                'features': [f.value for f in self.tier_features[tier]],
+                'license_key': license_key,
+                'tier_display': tier_str.capitalize(),
+                'algorithm': 'legacy_validation'
+            }
+            
+            logger.info(f"✅ Valid {tier_str.upper()} license loaded (Legacy validation)")
+            return license_data
+            
+        except Exception as e:
+            logger.error(f"Invalid license key: {e}")
+            raise ValueError(f"Invalid license key: {e}")
+    
+    def is_license_valid(self, license_data: Dict) -> bool:
+        """Check if license data is valid and not expired"""
+        try:
+            if not license_data:
+                return False
+                
+            # Check expiry
+            if license_data.get('expires'):
+                expiry = datetime.fromisoformat(license_data['expires']).date()
+                if expiry < datetime.now().date():
+                    logger.warning("License expired")
+                    return False
+                    
+            return True
+        except Exception as e:
+            logger.error(f"Error validating license: {e}")
+            return False
+    
+    def get_current_tier(self) -> LicenseTier:
+        """Get current license tier"""
+        tier_str = self.current_license.get('tier', 'free')
+        try:
+            return LicenseTier(tier_str)
+        except ValueError:
+            return LicenseTier.FREE
+    
+    def is_feature_enabled(self, feature: FeatureFlag) -> bool:
+        """Check if a specific feature is enabled"""
+        enabled_features = self.current_license.get('features', [])
+        return feature.value in enabled_features
+    
+    def get_enabled_features(self) -> List[str]:
+        """Get list of enabled features"""
+        return self.current_license.get('features', [])
+    
+    def get_locked_features(self) -> List[str]:
+        """Get list of locked features for current tier"""
+        current_tier = self.get_current_tier()
+        all_features = set(f.value for f in FeatureFlag)
+        enabled_features = set(self.get_enabled_features())
+        return list(all_features - enabled_features)
+    
+    def get_license_info(self) -> Dict:
+        """Get complete license information"""
+        tier = self.get_current_tier()
+        return {
+            'tier': tier.value,
+            'tier_display': tier.value.title(),
+            'expires': self.current_license.get('expires'),
+            'enabled_features': self.get_enabled_features(),
+            'locked_features': self.get_locked_features(),
+            'is_valid': self.is_license_valid(self.current_license)
+        }
+    
+    def activate_license(self, license_key: str) -> Tuple[bool, str]:
+        """Activate a new license key"""
+        try:
+            new_license = self.validate_license_key(license_key)
+            
+            # Save to file
+            with open(self.license_file, 'w') as f:
+                json.dump(new_license, f, indent=2)
+            
+            # Update current license
+            self.current_license = new_license
+            
+            tier = self.get_current_tier()
+            logger.info(f"✅ License activated: {tier.value.upper()}")
+            
+            return True, f"Successfully activated {tier.value.upper()} license"
+            
+        except Exception as e:
+            logger.error(f"Failed to activate license: {e}")
+            return False, str(e)
+    
+    
+    def get_upgrade_info(self) -> Dict:
+        """Get information about available upgrades"""
+        current_tier = self.get_current_tier()
+        
+        upgrade_info = {
+            'current_tier': current_tier.value,
+            'available_upgrades': []
+        }
+        
+        if current_tier == LicenseTier.FREE:
+            upgrade_info['available_upgrades'] = [
+                {
+                    'tier': 'pro',
+                    'name': 'Pro',
+                    'price': '$49/month',
+                    'features': ['Implementation Plan', 'Auto-Analysis', 'Email/Slack Alerts']
+                },
+                {
+                    'tier': 'enterprise',
+                    'name': 'Enterprise', 
+                    'price': '$199/month',
+                    'features': ['Everything in Pro', 'Enterprise Metrics', 'Security Posture', 'Advanced Alerts']
+                }
+            ]
+        elif current_tier == LicenseTier.PRO:
+            upgrade_info['available_upgrades'] = [
+                {
+                    'tier': 'enterprise',
+                    'name': 'Enterprise',
+                    'price': '$199/month', 
+                    'features': ['Enterprise Metrics', 'Security Posture', 'Advanced Alerts', 'Multi-Subscription']
+                }
+            ]
+            
+        return upgrade_info
+
+# Global license manager instance
+license_manager = LicenseManager()

@@ -28,17 +28,7 @@
         </h1>
     </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div>
-            {% for category, message in messages %}
-            <div class="alert {% if category == 'error' %}alert-error{% else %}alert-success{% endif %}">
-                {{ message }}
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endwith %}
+        <!-- Flash messages handled by base template -->
 
         <div class="settings-layout">
             <!-- Settings Navigation -->
@@ -49,13 +39,15 @@
                             <i class="fab fa-microsoft"></i>
                             Azure Configuration
                         </button>
-                        <button onclick="showSection('slack')" class="nav-tab">
+                        <button onclick="showSection('slack')" class="nav-tab" data-feature="slack_alerts">
                             <i class="fab fa-slack"></i>
                             Slack Integration
+                            {% if not feature_flags.slack_alerts %}<i class="fas fa-lock ml-2 text-yellow-500 text-xs"></i>{% endif %}
                         </button>
-                        <button onclick="showSection('email')" class="nav-tab">
+                        <button onclick="showSection('email')" class="nav-tab" data-feature="email_alerts">
                             <i class="fas fa-envelope"></i>
                             Email Settings
+                            {% if not feature_flags.email_alerts %}<i class="fas fa-lock ml-2 text-yellow-500 text-xs"></i>{% endif %}
                         </button>
                         <button onclick="showSection('general')" class="nav-tab">
                             <i class="fas fa-sliders-h"></i>
@@ -138,7 +130,30 @@
                 </div>
 
                 <!-- Slack Integration Section -->
+                {% if feature_flags.slack_alerts %}
                 <div id="slack-section" class="form-section settings-card">
+                {% else %}
+                <div id="slack-section" class="form-section settings-card">
+                    <div class="upgrade-prompt-section" style="padding: 2rem; text-align: center;">
+                        <div style="width: 64px; height: 64px; background: #fef3c7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+                            <i class="fas fa-lock" style="color: #d97706; font-size: 1.5rem;"></i>
+                        </div>
+                        <h3 style="font-size: 1.25rem; font-weight: bold; color: #111827; margin-bottom: 0.5rem;">Slack Integration Locked</h3>
+                        <p style="color: #6b7280; margin-bottom: 1.5rem;">Slack notifications require Pro tier</p>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem; max-width: 300px; margin: 0 auto;">
+                            <a href="https://kubevista.io/pricing" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1rem; background: #2563eb; color: white; text-decoration: none; border-radius: 0.5rem; font-weight: 500;">
+                                <i class="fas fa-arrow-up" style="margin-right: 0.5rem;"></i>Upgrade to Pro
+                            </a>
+                            {% if feature_flags.current_tier == 'free' %}
+                            <a href="/" class="btn btn-success" style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1rem; background: #16a34a; color: white; text-decoration: none; border-radius: 0.5rem; font-weight: 500;">
+                                <i class="fas fa-gift" style="margin-right: 0.5rem;"></i>Start Free Trial
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div id="slack-section-content" class="form-section settings-card" style="display: none;">
+                {% endif %}
                     <form method="POST" action="{{ url_for('save_settings') }}">
                         <input type="hidden" name="section" value="slack">
                         <div class="section-header">
@@ -200,9 +215,35 @@
                         </div>
                     </form>
                 </div>
+                {% if not feature_flags.slack_alerts %}
+                </div>
+                {% endif %}
 
                 <!-- Email Settings Section -->
+                {% if feature_flags.email_alerts %}
                 <div id="email-section" class="form-section settings-card">
+                {% else %}
+                <div id="email-section" class="form-section settings-card">
+                    <div class="upgrade-prompt-section" style="padding: 2rem; text-align: center;">
+                        <div style="width: 64px; height: 64px; background: #fef3c7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
+                            <i class="fas fa-lock" style="color: #d97706; font-size: 1.5rem;"></i>
+                        </div>
+                        <h3 style="font-size: 1.25rem; font-weight: bold; color: #111827; margin-bottom: 0.5rem;">Email Integration Locked</h3>
+                        <p style="color: #6b7280; margin-bottom: 1.5rem;">Email notifications require Pro tier</p>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem; max-width: 300px; margin: 0 auto;">
+                            <a href="https://kubevista.io/pricing" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1rem; background: #2563eb; color: white; text-decoration: none; border-radius: 0.5rem; font-weight: 500;">
+                                <i class="fas fa-arrow-up" style="margin-right: 0.5rem;"></i>Upgrade to Pro
+                            </a>
+                            {% if feature_flags.current_tier == 'free' %}
+                            <a href="/" class="btn btn-success" style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1rem; background: #16a34a; color: white; text-decoration: none; border-radius: 0.5rem; font-weight: 500;">
+                                <i class="fas fa-gift" style="margin-right: 0.5rem;"></i>Start Free Trial
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div id="email-section-content" class="form-section settings-card" style="display: none;">
+                {% endif %}
                     <form method="POST" action="{{ url_for('save_settings') }}">
                         <input type="hidden" name="section" value="email">
                         <div class="section-header">
@@ -271,6 +312,9 @@
                         </div>
                     </form>
                 </div>
+                {% if not feature_flags.email_alerts %}
+                </div>
+                {% endif %}
 
                 <!-- General Settings Section -->
                 <div id="general-section" class="form-section settings-card">
