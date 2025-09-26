@@ -41,6 +41,7 @@
     
     <!-- KubeVista Enhanced Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/kubevista.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/brand-icons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/controls.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/enterprise-metrics.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/smooth.css') }}" />
@@ -125,7 +126,7 @@
         <aside class="w-64 bg-gradient-dark text-white flex-shrink-0 rounded-xl flex flex-col shadow-2xl">
             <div class="flex items-center p-6 border-b border-gray-700/30">
                 <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-4">
-                    <i class="fas fa-dharmachakra text-white text-xl"></i>
+                    <img src="{{ url_for('static', filename='images/kubevista_eyecon.png') }}" alt="KUBEVISTA Eye Icon" class="w-8 h-8 sidebar-eye-icon">
                 </div>
                 <h1 class="text-xl font-bold text-white tracking-wider">KUBEVISTA</h1>
             </div>
@@ -160,9 +161,9 @@
                 {% if cluster %}
                 <div class="flex-grow">
                     <div class="flex items-center mb-2">
-                        <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-4">
-                            <i class="fas fa-dharmachakra text-white text-xl"></i>
-                        </div>
+                        <!-- <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-4">
+                            <img src="{{ url_for('static', filename='images/kubevista_eyecon.png') }}" alt="KUBEVISTA Eye Icon" class="w-9 h-9 card-eye-icon">
+                        </div> -->
                         <div>
                             <h4 class="font-bold text-2xl text-gray-800 mb-0">
                                 <span class="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{{ cluster.name }}</span>
@@ -186,7 +187,7 @@
                 <div class="flex-grow">
                     <div class="flex items-center mb-2">
                         <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-4">
-                            <i class="fas fa-dharmachakra text-white text-xl"></i>
+                            <img src="{{ url_for('static', filename='images/kubevista_eyecon.png') }}" alt="KUBEVISTA Eye Icon" class="w-9 h-9 card-eye-icon">
                         </div>
                         <div>
                             <h4 class="font-bold text-2xl text-gray-800">
@@ -235,7 +236,7 @@
                             <span class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
                         </div>
                         <div class="user-menu-container" style="position: relative;">
-                            <div class="user-avatar" onclick="window.toggleUserMenu(); return false;" style="width: 40px; height: 40px; background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.25)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
+                            <div class="user-avatar" onclick="window.toggleUserMenu(); return false;" style="width: 40px; height: 40px; background: rgb(37, 99, 235); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.25)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
                                 <i class="fas fa-user" style="font-size: 14px;"></i>
                             </div>
                         </div>

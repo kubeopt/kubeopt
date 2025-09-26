@@ -1,0 +1,110 @@
+/*
+ * KUBEVISTA Brand Icon Styles
+ * ==========================
+ * Centralized styles for all eye icons across the application
+ * Uses !important to override any conflicting styles
+ * Ensures consistent spinning animation and white color
+ */
+
+/* ===== BRAND ICON ANIMATIONS ===== */
+@keyframes continuous-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes fast-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ===== MAIN NAVBAR BRAND ICON ===== */
+img.brand-icon,
+.navbar-brand img.brand-icon {
+    height: 48px !important;
+    width: 48px !important;
+    margin-right: var(--spacing-sm) !important;
+    transition: all 0.3s ease !important;
+    animation: continuous-spin 8s linear infinite !important;
+    filter: brightness(0) invert(1) drop-shadow(0 0 8px #3b82f6) drop-shadow(0 0 4px #1d4ed8) !important;
+    transform-origin: 50% 50% !important;
+    object-fit: contain !important;
+    background: none !important;
+    color: transparent !important;
+    border: none !important;
+}
+
+.navbar-brand:hover img.brand-icon {
+    animation: fast-spin 0.5s ease-in-out, continuous-spin 8s linear infinite 0.5s !important;
+    filter: brightness(0) invert(1) drop-shadow(0 0 12px #60a5fa) drop-shadow(0 0 6px #2563eb) hue-rotate(10deg) !important;
+}
+
+/* ===== LOGIN PAGE EYE ICON ===== */
+img.eye-icon,
+.brand-icon img.eye-icon {
+    height: 80px !important;
+    width: 80px !important;
+    display: block !important;
+    margin: 0 auto 1rem !important;
+    transition: all 0.3s ease !important;
+    animation: continuous-spin 8s linear infinite !important;
+    filter: brightness(0) invert(1) drop-shadow(0 0 12px #3b82f6) drop-shadow(0 0 6px #1d4ed8) !important;
+    transform-origin: 50% 50% !important;
+    object-fit: contain !important;
+    background: none !important;
+    color: transparent !important;
+    border: none !important;
+}
+
+/* ===== SIDEBAR EYE ICON ===== */
+img.sidebar-eye-icon {
+    transition: all 0.3s ease !important;
+    animation: continuous-spin 8s linear infinite !important;
+    filter: brightness(0) invert(1) drop-shadow(0 0 6px #3b82f6) drop-shadow(0 0 3px #1d4ed8) !important;
+    transform-origin: 50% 50% !important;
+    object-fit: contain !important;
+    background: none !important;
+    color: transparent !important;
+    border: none !important;
+}
+
+/* ===== CARD EYE ICON ===== */
+img.card-eye-icon {
+    transition: all 0.3s ease !important;
+    animation: continuous-spin 8s linear infinite !important;
+    filter: brightness(0) invert(1) drop-shadow(0 0 8px #3b82f6) drop-shadow(0 0 4px #1d4ed8) !important;
+    transform-origin: 50% 50% !important;
+    object-fit: contain !important;
+    background: none !important;
+    color: transparent !important;
+    border: none !important;
+}
+
+/* ===== OVERRIDE ANY EXISTING FONT ICON STYLES ===== */
+.brand-icon i,
+.brand-icon .fa-dharmachakra,
+i.brand-icon {
+    display: none !important;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 768px) {
+    img.brand-icon,
+    .navbar-brand img.brand-icon {
+        height: 42px !important;
+        width: 42px !important;
+    }
+}
+
+/* ===== REDUCED MOTION SUPPORT ===== */
+@media (prefers-reduced-motion: reduce) {
+    img.brand-icon,
+    img.eye-icon,
+    img.sidebar-eye-icon,
+    img.card-eye-icon {
+        animation: none !important;
+    }
+    
+    .navbar-brand:hover img.brand-icon {
+        animation: none !important;
+    }
+}

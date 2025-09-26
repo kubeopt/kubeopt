@@ -242,6 +242,8 @@ body {
     color: var(--text-primary);
     line-height: 1.5;
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
     position: relative;
     overflow-x: hidden;
     padding-top: 0; /* Let each page handle its own top spacing */
@@ -485,6 +487,7 @@ p {
     align-items: center;
     text-decoration: none;
     transition: var(--transition);
+    gap: var(--spacing-md);
     letter-spacing: -0.02em;
 }
 
@@ -493,24 +496,36 @@ p {
     filter: brightness(1.1);
 }
 
-.brand-icon {
+.brand-logo {
+    height: 40px;
+    width: auto;
+    transition: var(--transition);
+}
+
+.brand-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.brand-name {
+    font-weight: 700;
+    font-size: 1.3rem;
     background: var(--gradient-primary);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    margin-right: var(--spacing-sm);
-    font-size: 1.5rem;
-    transition: var(--transition);
-    animation: continuous-spin 8s linear infinite;
 }
 
-.navbar-brand:hover .brand-icon {
-    animation: fast-spin 0.5s ease-in-out, continuous-spin 8s linear infinite 0.5s;
-    background: var(--gradient-purple);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+.brand-subtitle {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 400;
+    margin-top: -2px;
+    margin-left: -2px;
 }
+
+/* Brand icon styles moved to brand-icons.css */
 
 .theme-toggle {
     background: var(--glass-white-strong);
@@ -1462,7 +1477,7 @@ p {
 }
 
 .empty-btn {
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    background: linear-gradient(135deg, #3f5288, #17213d);
     color: white;
     border: none;
     padding: 10px 20px;
@@ -2515,7 +2530,7 @@ p {
 
 .empty-icon {
     font-size: 48px;
-    background: linear-gradient(135deg, var(--primary), var(--info));
+    background: linear-gradient(135deg, var(--primary), #2557e3);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -3242,6 +3257,23 @@ p {
     font-weight: 500;
 }
 
+/* ===== FOOTER STYLES ===== */
+.footer {
+    margin-top: auto;
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.footer small {
+    color: inherit;
+}
+
+.footer strong {
+    color: rgba(255, 255, 255, 0.9);
+}
+
 /* ===== RESPONSIVE DESIGN ===== */
 @media (max-width: 768px) {
     body {
@@ -3253,11 +3285,17 @@ p {
     }
     
     .navbar-brand {
-        font-size: 1.2rem;
+        gap: var(--spacing-sm);
     }
     
-    .brand-icon {
-        font-size: 1.3rem;
+    /* Brand icon responsive styles moved to brand-icons.css */
+    
+    .brand-name {
+        font-size: 1.1rem;
+    }
+    
+    .brand-subtitle {
+        font-size: 0.7rem;
     }
     
     .metric-value {
@@ -3418,9 +3456,7 @@ p {
         animation: none;
     }
     
-    .brand-icon {
-        animation: none;
-    }
+    /* Brand icon animation disable moved to brand-icons.css */
 }
 
 *:focus-visible {
@@ -3561,10 +3597,7 @@ p {
     font-size: 1.2rem;
 }
 
-.brand-icon {
-    font-size: 1.5rem;
-    color: #0dcaf0;
-}
+/* Brand icon styles moved to brand-icons.css */
 
 .brand-name {
     font-weight: 700;
@@ -3575,8 +3608,8 @@ p {
 
 .brand-subtitle {
     font-size: 0.75rem;
-    margin-left: 0.5rem;
-    color: #ced4da;
+    margin-left: -2px;
+    color: rgba(255, 255, 255, 0.7);
     font-weight: 400;
     letter-spacing: 0.5px;
 }
