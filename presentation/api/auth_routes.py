@@ -74,9 +74,14 @@ def register_auth_routes(app):
             # Get custom environment variables
             custom_env_vars = settings_manager.get_custom_env_vars()
             
+            # Get feature flags for UI rendering
+            from infrastructure.services.feature_guard import get_ui_feature_flags
+            feature_flags = get_ui_feature_flags()
+            
             return render_template('settings.html', 
                                  config=current_config,
-                                 custom_env_vars=custom_env_vars)
+                                 custom_env_vars=custom_env_vars,
+                                 feature_flags=feature_flags)
         except Exception as e:
             logger.error(f"Error loading settings page: {e}")
             flash('Error loading settings', 'error')

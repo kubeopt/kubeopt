@@ -31,6 +31,7 @@ from shared.utils.shared import _get_analysis_data
 from infrastructure.services.subscription_manager import azure_subscription_manager
 from infrastructure.persistence.processing.analysis_engine import multi_subscription_analysis_engine
 from infrastructure.services.auth_manager import auth_manager
+from infrastructure.services.feature_guard import get_ui_feature_flags
 
 def register_routes(app):
     """Register all routes with the Flask app - now with multi-subscription support"""
@@ -72,10 +73,14 @@ def register_routes(app):
                     'last_analysis': last_analysis
                 }
             
+            # Add feature flags for UI rendering
+            feature_flags = get_ui_feature_flags()
+            
             return render_template('cluster_portfolio.html', 
                                 clusters=clusters_data,
                                 analysis_statuses=analysis_statuses,
-                                portfolio_summary=portfolio_summary)
+                                portfolio_summary=portfolio_summary,
+                                feature_flags=feature_flags)
                                 
         except Exception as e:
             logger.error(f"Error in cluster_portfolio: {e}")
@@ -109,11 +114,15 @@ def register_routes(app):
                 logger.info(f"📊 DASHBOARD: Cost=${cached_analysis.get('total_cost', 0):.2f}, "
                            f"HPA={bool(cached_analysis.get('hpa_recommendations'))}")
             
+            # Add feature flags for UI rendering
+            feature_flags = get_ui_feature_flags()
+            
             return render_template('unified_dashboard.html',
                                 cluster=cluster,
                                 analysis=cached_analysis,
                                 subscription_info=subscription_info,
-                                data_source=data_source)
+                                data_source=data_source,
+                                feature_flags=feature_flags)
                                 
         except Exception as e:
             logger.error(f"Error in single_cluster_dashboard: {e}")

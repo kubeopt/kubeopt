@@ -37,6 +37,10 @@ from infrastructure.persistence.processing.analysis_engine import multi_subscrip
 # FIXED: Import alerts integration
 from infrastructure.services.alerts_integration import initialize_alerts_system, register_alerts_routes, get_alerts_manager
 
+# Feature guards for tier-based access control
+from infrastructure.services.feature_guard import require_feature, get_ui_feature_flags
+from infrastructure.services.license_manager import FeatureFlag
+
 from presentation.api.project_controls_api import integrate_project_controls_api
 from infrastructure.security.security_api_blueprint import security_api
 
@@ -742,6 +746,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/implementation-plan')
+    @require_feature(FeatureFlag.IMPLEMENTATION_PLAN, api_response=True)
     def get_implementation_plan():
         """ ENHANCED: Implementation plan API with format selection and better error handling"""
         try:
@@ -1732,6 +1737,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/scheduler/start', methods=['POST'])
+    @require_feature(FeatureFlag.AUTO_ANALYSIS, api_response=True)
     def start_scheduler():
         """Start the automatic analysis scheduler"""
         try:
@@ -1749,6 +1755,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/scheduler/stop', methods=['POST'])
+    @require_feature(FeatureFlag.AUTO_ANALYSIS, api_response=True)
     def stop_scheduler():
         """Stop the automatic analysis scheduler"""
         try:
@@ -1766,6 +1773,7 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/scheduler/force-analysis', methods=['POST'])
+    @require_feature(FeatureFlag.AUTO_ANALYSIS, api_response=True)
     def force_immediate_analysis():
         """Force an immediate analysis run"""
         try:

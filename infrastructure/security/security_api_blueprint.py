@@ -18,6 +18,10 @@ import traceback
 from flask import Blueprint, jsonify, request, current_app
 from typing import Optional
 
+# Feature guards for security posture
+from infrastructure.services.feature_guard import require_feature
+from infrastructure.services.license_manager import FeatureFlag
+
 logger = logging.getLogger(__name__)
 
 # Create Blueprint
@@ -57,6 +61,7 @@ def get_cluster_id_from_request():
     return None
 
 @security_api.route('/overview', methods=['GET'])
+@require_feature(FeatureFlag.SECURITY_POSTURE, api_response=True)
 def get_security_overview():
     """Get security overview"""
     try:
@@ -137,6 +142,7 @@ def get_security_overview():
         return jsonify({'error': str(e)}), 500
 
 @security_api.route('/results/<cluster_id>', methods=['GET'])
+@require_feature(FeatureFlag.SECURITY_POSTURE, api_response=True)
 def get_security_results(cluster_id):
     """Get stored security results for a cluster"""
     try:
@@ -161,6 +167,7 @@ def get_security_results(cluster_id):
         return jsonify({'error': str(e)}), 500
 
 @security_api.route('/analyze/<cluster_id>', methods=['POST'])
+@require_feature(FeatureFlag.SECURITY_POSTURE, api_response=True)
 def trigger_security_analysis(cluster_id):
     """Trigger security analysis for a cluster"""
     try:

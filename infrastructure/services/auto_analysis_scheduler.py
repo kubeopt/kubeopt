@@ -107,8 +107,18 @@ class AutoAnalysisScheduler:
         
     def _is_auto_analysis_enabled(self) -> bool:
         """Check if automatic analysis is enabled"""
+        # Check environment setting
         enabled = os.getenv('AUTO_ANALYSIS_ENABLED', 'false').lower()
-        return enabled in ['true', '1', 'yes', 'on']
+        env_enabled = enabled in ['true', '1', 'yes', 'on']
+        
+        # Check license feature access
+        try:
+            from infrastructure.services.license_manager import license_manager, FeatureFlag
+            feature_enabled = license_manager.is_feature_enabled(FeatureFlag.AUTO_ANALYSIS)
+            return env_enabled and feature_enabled
+        except Exception as e:
+            logger.warning(f"Could not check license for auto-analysis: {e}")
+            return env_enabled
         
     def _get_analysis_interval(self) -> int:
         """Get the analysis interval in hours"""
@@ -131,6 +141,11 @@ class AutoAnalysisScheduler:
     def _run_scheduled_analysis(self):
         """Run the analysis for all available clusters"""
         try:
+            # Check if app context is available
+            if not self.app:
+                logger.error("❌ Flask app not available for scheduled analysis")
+                return
+                
             with self.app.app_context():
                 # Get list of clusters to analyze
                 clusters = self._get_available_clusters()
