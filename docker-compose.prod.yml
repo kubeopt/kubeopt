@@ -15,6 +15,10 @@ services:
       - FLASK_ENV=production
       - FLASK_DEBUG=0
       - LOG_LEVEL=WARNING
+      - AZURE_CONFIG_DIR=/home/appuser/.azure
+      - AZURE_CORE_COLLECT_TELEMETRY=false
+      - PYTHONUNBUFFERED=1
+      - MPLBACKEND=Agg
     read_only: true
     security_opt:
       - no-new-privileges:true

@@ -91,50 +91,111 @@ def register_auth_routes(app):
             return redirect(url_for('settings'))
         
         try:
-            # Get form data
+            # Get section from form to determine which settings to save
+            section = request.form.get('section', '').strip()
             settings_data = {}
+            success_message = 'Settings saved successfully!'
             
-            # Azure settings
-            azure_fields = ['azure_tenant_id', 'azure_subscription_id', 'azure_client_id', 'azure_client_secret']
-            for field in azure_fields:
-                value = request.form.get(field, '').strip()
-                if value:
-                    settings_data[field] = value
+            if section == 'azure':
+                # Azure settings
+                azure_fields = ['azure_tenant_id', 'azure_subscription_id', 'azure_client_id', 'azure_client_secret']
+                for field in azure_fields:
+                    value = request.form.get(field, '').strip()
+                    if value:
+                        settings_data[field] = value
+                success_message = 'Azure settings saved successfully!'
             
-            # Slack settings
-            settings_data['slack_enabled'] = 'true' if request.form.get('slack_enabled') else 'false'
-            slack_fields = ['slack_webhook_url', 'slack_channel', 'slack_cost_threshold']
-            for field in slack_fields:
-                value = request.form.get(field, '').strip()
-                if value:
-                    settings_data[field] = value
+            elif section == 'slack':
+                # Slack settings
+                settings_data['slack_enabled'] = 'true' if request.form.get('slack_enabled') else 'false'
+                slack_fields = ['slack_webhook_url', 'slack_channel', 'slack_cost_threshold']
+                for field in slack_fields:
+                    value = request.form.get(field, '').strip()
+                    if value:
+                        settings_data[field] = value
+                success_message = 'Slack settings saved successfully!'
             
-            # Email settings
-            settings_data['email_enabled'] = 'true' if request.form.get('email_enabled') else 'false'
-            email_fields = ['smtp_server', 'smtp_port', 'email_username', 'email_password', 'email_recipients']
-            for field in email_fields:
-                value = request.form.get(field, '').strip()
-                if value:
-                    settings_data[field] = value
+            elif section == 'email':
+                # Email settings
+                settings_data['email_enabled'] = 'true' if request.form.get('email_enabled') else 'false'
+                email_fields = ['smtp_server', 'smtp_port', 'email_username', 'email_password', 'email_recipients']
+                for field in email_fields:
+                    value = request.form.get(field, '').strip()
+                    if value:
+                        settings_data[field] = value
+                success_message = 'Email settings saved successfully!'
             
-            # General settings
-            general_fields = ['analysis_refresh_interval', 'cost_alert_threshold', 'log_level']
-            for field in general_fields:
-                value = request.form.get(field, '').strip()
-                if value:
-                    settings_data[field] = value
+            elif section == 'general':
+                # General settings
+                general_fields = ['analysis_refresh_interval', 'cost_alert_threshold', 'log_level']
+                for field in general_fields:
+                    value = request.form.get(field, '').strip()
+                    if value:
+                        settings_data[field] = value
+                settings_data['production_mode'] = 'true' if request.form.get('production_mode') else 'false'
+                success_message = 'General settings saved successfully!'
             
-            settings_data['production_mode'] = 'true' if request.form.get('production_mode') else 'false'
+            elif section == 'advanced':
+                # Custom environment variables
+                custom_env_vars = request.form.get('custom_env_vars', '').strip()
+                if custom_env_vars:
+                    settings_data['custom_env_vars'] = custom_env_vars
+                success_message = 'Advanced settings saved successfully!'
             
-            # Custom environment variables
-            custom_env_vars = request.form.get('custom_env_vars', '').strip()
-            if custom_env_vars:
-                settings_data['custom_env_vars'] = custom_env_vars
+            else:
+                # Fallback to save all settings (for backwards compatibility)
+                # Azure settings
+                azure_fields = ['azure_tenant_id', 'azure_subscription_id', 'azure_client_id', 'azure_client_secret']
+                for field in azure_fields:
+                    value = request.form.get(field, '').strip()
+                    if value:
+                        settings_data[field] = value
+                
+                # Slack settings
+                settings_data['slack_enabled'] = 'true' if request.form.get('slack_enabled') else 'false'
+                slack_fields = ['slack_webhook_url', 'slack_channel', 'slack_cost_threshold']
+                for field in slack_fields:
+                    value = request.form.get(field, '').strip()
+                    if value:
+                        settings_data[field] = value
+                
+                # Email settings
+                settings_data['email_enabled'] = 'true' if request.form.get('email_enabled') else 'false'
+                email_fields = ['smtp_server', 'smtp_port', 'email_username', 'email_password', 'email_recipients']
+                for field in email_fields:
+                    value = request.form.get(field, '').strip()
+                    if value:
+                        settings_data[field] = value
+                
+                # General settings
+                general_fields = ['analysis_refresh_interval', 'cost_alert_threshold', 'log_level']
+                for field in general_fields:
+                    value = request.form.get(field, '').strip()
+                    if value:
+                        settings_data[field] = value
+                settings_data['production_mode'] = 'true' if request.form.get('production_mode') else 'false'
+                
+                # Custom environment variables
+                custom_env_vars = request.form.get('custom_env_vars', '').strip()
+                if custom_env_vars:
+                    settings_data['custom_env_vars'] = custom_env_vars
             
             # Save settings
             if settings_manager.save_settings(settings_data):
-                flash('Settings saved successfully!', 'success')
-                logger.info(f"Settings updated by user: {auth_manager.get_current_user().get('username')}")
+                # If Azure settings were saved, refresh Azure credentials
+                if section == 'azure' or not section:
+                    try:
+                        from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+                        if azure_sdk_manager.refresh_credentials():
+                            success_message += ' Azure credentials refreshed.'
+                        else:
+                            success_message += ' Note: Azure credential refresh failed - check your settings.'
+                    except Exception as e:
+                        logger.warning(f"Azure credential refresh failed: {e}")
+                        success_message += ' Note: Azure credential refresh failed.'
+                
+                flash(success_message, 'success')
+                logger.info(f"Settings ({section or 'all'}) updated by user: {auth_manager.get_current_user().get('username')}")
             else:
                 flash('Error saving settings', 'error')
                 
@@ -183,6 +244,35 @@ def register_auth_routes(app):
         except Exception as e:
             logger.error(f"Error testing email: {e}")
             return jsonify({'success': False, 'message': str(e)})
+    
+    @app.route('/test_azure', methods=['POST'])
+    @auth_manager.require_auth
+    def test_azure():
+        """Test Azure authentication"""
+        if not auth_manager.is_admin():
+            return jsonify({'success': False, 'message': 'Admin access required'})
+        
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            
+            # Try to refresh credentials first with new settings
+            refresh_success = azure_sdk_manager.refresh_credentials()
+            
+            if refresh_success and azure_sdk_manager.is_authenticated():
+                subscription_id = azure_sdk_manager.get_subscription_id()
+                return jsonify({
+                    'success': True, 
+                    'message': f'Azure authentication successful! Connected to subscription: {subscription_id[:8] if subscription_id else "unknown"}...'
+                })
+            else:
+                return jsonify({
+                    'success': False, 
+                    'message': 'Azure authentication failed. Please check your tenant ID, client ID, and client secret.'
+                })
+            
+        except Exception as e:
+            logger.error(f"Error testing Azure authentication: {e}")
+            return jsonify({'success': False, 'message': f'Azure test failed: {str(e)}'})
     
     @app.route('/api/system_status')
     @auth_manager.require_auth

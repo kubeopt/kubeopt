@@ -313,6 +313,37 @@ class AzureSDKManager:
                 self.clients.clear()
                 logger.info("🧹 Cleared all Azure client caches")
     
+    def refresh_credentials(self) -> bool:
+        """
+        Refresh Azure credentials - useful after settings are updated
+        
+        Returns:
+            bool: True if credentials were successfully refreshed
+        """
+        try:
+            logger.info("🔄 Refreshing Azure credentials...")
+            
+            # Clear current state
+            self.credential = None
+            self._auth_time = None
+            self.clear_clients()
+            
+            # Reinitialize credentials with new settings
+            if AZURE_SDK_AVAILABLE:
+                success = self._initialize_credentials()
+                if success:
+                    logger.info("✅ Azure credentials refreshed successfully")
+                else:
+                    logger.warning("⚠️ Failed to refresh Azure credentials")
+                return success
+            else:
+                logger.warning("⚠️ Azure SDK not available")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error refreshing Azure credentials: {e}")
+            return False
+    
     def validate_subscription_access(self, subscription_id: str) -> bool:
         """Validate that the service principal has access to the specified subscription"""
         try:

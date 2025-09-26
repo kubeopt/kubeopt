@@ -71,9 +71,10 @@
 
             <!-- Settings Content -->
             <div class="settings-content">
-                <form method="POST" action="{{ url_for('save_settings') }}">
-                    <!-- Azure Configuration Section -->
-                    <div id="azure-section" class="form-section active settings-card">
+                <!-- Azure Configuration Section -->
+                <div id="azure-section" class="form-section active settings-card">
+                    <form method="POST" action="{{ url_for('save_settings') }}">
+                        <input type="hidden" name="section" value="azure">
                         <div class="section-header">
                             <i class="fab fa-microsoft"></i>
                             <h2 class="section-title">Azure Configuration</h2>
@@ -122,213 +123,250 @@
                             </div>
                             <p>To create a service principal: <code>az ad sp create-for-rbac --name "aks-cost-optimizer" --role "Reader"</code></p>
                         </div>
+                        
+                        <div class="btn-actions">
+                            <button type="button" onclick="testAzure()" class="btn btn-secondary">
+                                <i class="fas fa-cloud"></i>
+                                Test Azure Connection
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                Save Azure Settings
+                            </button>
                         </div>
+                    </form>
+                </div>
 
-                        <!-- Slack Integration Section -->
-                        <div id="slack-section" class="form-section settings-card">
-                            <div class="section-header">
-                                <i class="fab fa-slack"></i>
-                                <h2 class="section-title">Slack Integration</h2>
-                            </div>
-                            
-                            <div class="checkbox-group">
-                                <input type="checkbox" name="slack_enabled" id="slack_enabled" 
-                                       {% if config.get('SLACK_ENABLED') == 'true' %}checked{% endif %}
-                                       class="checkbox">
-                                <label for="slack_enabled" class="checkbox-label">
-                                    Enable Slack Notifications
-                                </label>
-                            </div>
-                            
-                            <div class="form-group form-full-width">
-                                <label class="form-label">Slack Webhook URL</label>
-                                <input type="url" name="slack_webhook_url" value="{{ config.get('SLACK_WEBHOOK_URL', '') }}" 
+                <!-- Slack Integration Section -->
+                <div id="slack-section" class="form-section settings-card">
+                    <form method="POST" action="{{ url_for('save_settings') }}">
+                        <input type="hidden" name="section" value="slack">
+                        <div class="section-header">
+                            <i class="fab fa-slack"></i>
+                            <h2 class="section-title">Slack Integration</h2>
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" name="slack_enabled" id="slack_enabled" 
+                                   {% if config.get('SLACK_ENABLED') == 'true' %}checked{% endif %}
+                                   class="checkbox">
+                            <label for="slack_enabled" class="checkbox-label">
+                                Enable Slack Notifications
+                            </label>
+                        </div>
+                        
+                        <div class="form-group form-full-width">
+                            <label class="form-label">Slack Webhook URL</label>
+                            <input type="url" name="slack_webhook_url" value="{{ config.get('SLACK_WEBHOOK_URL', '') }}" 
+                                   class="form-input"
+                                   placeholder="https://hooks.slack.com/services/...">
+                            <p class="form-help">Slack incoming webhook URL for notifications</p>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Default Channel</label>
+                                <input type="text" name="slack_channel" value="{{ config.get('SLACK_CHANNEL', '') }}" 
                                        class="form-input"
-                                       placeholder="https://hooks.slack.com/services/...">
-                                <p class="form-help">Slack incoming webhook URL for notifications</p>
+                                       placeholder="#aks-cost-alerts">
+                                <p class="form-help">Default channel for cost optimization alerts</p>
                             </div>
                             
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label">Default Channel</label>
-                                    <input type="text" name="slack_channel" value="{{ config.get('SLACK_CHANNEL', '') }}" 
-                                           class="form-input"
-                                           placeholder="#aks-cost-alerts">
-                                    <p class="form-help">Default channel for cost optimization alerts</p>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Notification Threshold (USD)</label>
-                                    <input type="number" name="slack_cost_threshold" value="{{ config.get('SLACK_COST_THRESHOLD', '100') }}" 
-                                           class="form-input"
-                                           placeholder="100" min="0" step="0.01">
-                                    <p class="form-help">Send alerts when daily costs exceed this amount</p>
-                                </div>
-                            </div>
-
-                            <div class="info-box info">
-                                <div class="info-box-title">
-                                    <i class="fas fa-info-circle"></i>
-                                    Slack Webhook Setup
-                                </div>
-                                <p>
-                                    Create a webhook at <a href="https://api.slack.com/apps" target="_blank" style="color: var(--settings-accent); text-decoration: underline;">api.slack.com/apps</a> 
-                                    → Incoming Webhooks → Add New Webhook to Workspace
-                                </p>
-                            </div>
-                        </div>
-
-                        <!-- Email Settings Section -->
-                        <div id="email-section" class="form-section settings-card">
-                            <div class="section-header">
-                                <i class="fas fa-envelope"></i>
-                                <h2 class="section-title">Email Settings</h2>
-                            </div>
-                            
-                            <div class="checkbox-group">
-                                <input type="checkbox" name="email_enabled" id="email_enabled" 
-                                       {% if config.get('EMAIL_ENABLED') == 'true' %}checked{% endif %}
-                                       class="checkbox">
-                                <label for="email_enabled" class="checkbox-label">
-                                    Enable Email Notifications
-                                </label>
-                            </div>
-                                
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label">SMTP Server</label>
-                                    <input type="text" name="smtp_server" value="{{ config.get('SMTP_SERVER', '') }}" 
-                                           class="form-input"
-                                           placeholder="smtp.gmail.com">
-                                </div>
-                                    
-                                <div class="form-group">
-                                    <label class="form-label">SMTP Port</label>
-                                    <input type="number" name="smtp_port" value="{{ config.get('SMTP_PORT', '587') }}" 
-                                           class="form-input"
-                                           placeholder="587">
-                                </div>
-                            </div>
-                            
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label">Email Username</label>
-                                    <input type="email" name="email_username" value="{{ config.get('EMAIL_USERNAME', '') }}" 
-                                           class="form-input"
-                                           placeholder="your-email@company.com">
-                                </div>
-                                    
-                                <div class="form-group">
-                                    <label class="form-label">Email Password</label>
-                                    <input type="password" name="email_password" value="{{ config.get('EMAIL_PASSWORD', '') }}" 
-                                           class="form-input"
-                                           placeholder="Enter email password or app password">
-                                </div>
-                            </div>
-                            
-                            <div class="form-group form-full-width">
-                                <label class="form-label">Recipients (comma-separated)</label>
-                                <input type="text" name="email_recipients" value="{{ config.get('EMAIL_RECIPIENTS', '') }}" 
+                            <div class="form-group">
+                                <label class="form-label">Notification Threshold (USD)</label>
+                                <input type="number" name="slack_cost_threshold" value="{{ config.get('SLACK_COST_THRESHOLD', '100') }}" 
                                        class="form-input"
-                                       placeholder="admin@company.com, devops@company.com">
-                                <p class="form-help">Email addresses to receive cost optimization reports</p>
-                            </div>
-
-                            <div style="margin-top: 1.5rem;">
-                                <button type="button" onclick="testEmail()" class="btn btn-primary">
-                                    <i class="fas fa-paper-plane"></i>
-                                    Test Email
-                                </button>
+                                       placeholder="100" min="0" step="0.01">
+                                <p class="form-help">Send alerts when daily costs exceed this amount</p>
                             </div>
                         </div>
 
-                        <!-- General Settings Section -->
-                        <div id="general-section" class="form-section settings-card">
-                            <div class="section-header">
-                                <i class="fas fa-sliders-h"></i>
-                                <h2 class="section-title">General Settings</h2>
+                        <div class="info-box info">
+                            <div class="info-box-title">
+                                <i class="fas fa-info-circle"></i>
+                                Slack Webhook Setup
                             </div>
+                            <p>
+                                Create a webhook at <a href="https://api.slack.com/apps" target="_blank" style="color: var(--settings-accent); text-decoration: underline;">api.slack.com/apps</a> 
+                                → Incoming Webhooks → Add New Webhook to Workspace
+                            </p>
+                        </div>
+                        
+                        <div class="btn-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                Save Slack Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Email Settings Section -->
+                <div id="email-section" class="form-section settings-card">
+                    <form method="POST" action="{{ url_for('save_settings') }}">
+                        <input type="hidden" name="section" value="email">
+                        <div class="section-header">
+                            <i class="fas fa-envelope"></i>
+                            <h2 class="section-title">Email Settings</h2>
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" name="email_enabled" id="email_enabled" 
+                                   {% if config.get('EMAIL_ENABLED') == 'true' %}checked{% endif %}
+                                   class="checkbox">
+                            <label for="email_enabled" class="checkbox-label">
+                                Enable Email Notifications
+                            </label>
+                        </div>
                             
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label">Analysis Refresh Interval (hours)</label>
-                                    <input type="number" name="analysis_refresh_interval" value="{{ config.get('ANALYSIS_REFRESH_INTERVAL', '24') }}" 
-                                           class="form-input"
-                                           placeholder="24" min="1" max="168">
-                                    <p class="form-help">How often to refresh cost analysis data</p>
-                                </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">SMTP Server</label>
+                                <input type="text" name="smtp_server" value="{{ config.get('SMTP_SERVER', '') }}" 
+                                       class="form-input"
+                                       placeholder="smtp.gmail.com">
+                            </div>
                                 
-                                <div class="form-group">
-                                    <label class="form-label">Cost Alert Threshold (USD)</label>
-                                    <input type="number" name="cost_alert_threshold" value="{{ config.get('COST_ALERT_THRESHOLD', '500') }}" 
-                                           class="form-input"
-                                           placeholder="500" min="0" step="0.01">
-                                    <p class="form-help">Send alerts when monthly cluster costs exceed this amount</p>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group form-full-width">
-                                <label class="form-label">Log Level</label>
-                                <select name="log_level" class="form-select">
-                                    <option value="DEBUG" {% if config.get('LOG_LEVEL') == 'DEBUG' %}selected{% endif %}>DEBUG</option>
-                                    <option value="INFO" {% if config.get('LOG_LEVEL') == 'INFO' or not config.get('LOG_LEVEL') %}selected{% endif %}>INFO</option>
-                                    <option value="WARNING" {% if config.get('LOG_LEVEL') == 'WARNING' %}selected{% endif %}>WARNING</option>
-                                    <option value="ERROR" {% if config.get('LOG_LEVEL') == 'ERROR' %}selected{% endif %}>ERROR</option>
-                                </select>
-                            </div>
-                            
-                            <div class="checkbox-group">
-                                <input type="checkbox" name="production_mode" id="production_mode" 
-                                       {% if config.get('PRODUCTION_MODE') == 'true' %}checked{% endif %}
-                                       class="checkbox">
-                                <label for="production_mode" class="checkbox-label">
-                                    Production Mode (Disable CLI fallbacks)
-                                </label>
+                            <div class="form-group">
+                                <label class="form-label">SMTP Port</label>
+                                <input type="number" name="smtp_port" value="{{ config.get('SMTP_PORT', '587') }}" 
+                                       class="form-input"
+                                       placeholder="587">
                             </div>
                         </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Email Username</label>
+                                <input type="email" name="email_username" value="{{ config.get('EMAIL_USERNAME', '') }}" 
+                                       class="form-input"
+                                       placeholder="your-email@company.com">
+                            </div>
+                                
+                            <div class="form-group">
+                                <label class="form-label">Email Password</label>
+                                <input type="password" name="email_password" value="{{ config.get('EMAIL_PASSWORD', '') }}" 
+                                       class="form-input"
+                                       placeholder="Enter email password or app password">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group form-full-width">
+                            <label class="form-label">Recipients (comma-separated)</label>
+                            <input type="text" name="email_recipients" value="{{ config.get('EMAIL_RECIPIENTS', '') }}" 
+                                   class="form-input"
+                                   placeholder="admin@company.com, devops@company.com">
+                            <p class="form-help">Email addresses to receive cost optimization reports</p>
+                        </div>
 
-                        <!-- Advanced Settings Section -->
-                        <div id="advanced-section" class="form-section settings-card">
-                            <div class="section-header">
-                                <i class="fas fa-code"></i>
-                                <h2 class="section-title">Advanced Environment Variables</h2>
+                        <div class="btn-actions">
+                            <button type="button" onclick="testEmail()" class="btn btn-secondary">
+                                <i class="fas fa-paper-plane"></i>
+                                Test Email
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                Save Email Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- General Settings Section -->
+                <div id="general-section" class="form-section settings-card">
+                    <form method="POST" action="{{ url_for('save_settings') }}">
+                        <input type="hidden" name="section" value="general">
+                        <div class="section-header">
+                            <i class="fas fa-sliders-h"></i>
+                            <h2 class="section-title">General Settings</h2>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Analysis Refresh Interval (hours)</label>
+                                <input type="number" name="analysis_refresh_interval" value="{{ config.get('ANALYSIS_REFRESH_INTERVAL', '24') }}" 
+                                       class="form-input"
+                                       placeholder="24" min="1" max="168">
+                                <p class="form-help">How often to refresh cost analysis data</p>
                             </div>
                             
-                            <div class="form-group form-full-width">
-                                <label class="form-label">Custom Environment Variables</label>
-                                <textarea name="custom_env_vars" rows="12" 
-                                          class="form-textarea" 
-                                          style="font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace; font-size: 0.85rem; line-height: 1.5;"
-                                          placeholder="# Add custom environment variables (one per line)
+                            <div class="form-group">
+                                <label class="form-label">Cost Alert Threshold (USD)</label>
+                                <input type="number" name="cost_alert_threshold" value="{{ config.get('COST_ALERT_THRESHOLD', '500') }}" 
+                                       class="form-input"
+                                       placeholder="500" min="0" step="0.01">
+                                <p class="form-help">Send alerts when monthly cluster costs exceed this amount</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group form-full-width">
+                            <label class="form-label">Log Level</label>
+                            <select name="log_level" class="form-select">
+                                <option value="DEBUG" {% if config.get('LOG_LEVEL') == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                                <option value="INFO" {% if config.get('LOG_LEVEL') == 'INFO' or not config.get('LOG_LEVEL') %}selected{% endif %}>INFO</option>
+                                <option value="WARNING" {% if config.get('LOG_LEVEL') == 'WARNING' %}selected{% endif %}>WARNING</option>
+                                <option value="ERROR" {% if config.get('LOG_LEVEL') == 'ERROR' %}selected{% endif %}>ERROR</option>
+                            </select>
+                        </div>
+                        
+                        <div class="checkbox-group">
+                            <input type="checkbox" name="production_mode" id="production_mode" 
+                                   {% if config.get('PRODUCTION_MODE') == 'true' %}checked{% endif %}
+                                   class="checkbox">
+                            <label for="production_mode" class="checkbox-label">
+                                Production Mode (Disable CLI fallbacks)
+                            </label>
+                        </div>
+                        
+                        <div class="btn-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                Save General Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Advanced Settings Section -->
+                <div id="advanced-section" class="form-section settings-card">
+                    <form method="POST" action="{{ url_for('save_settings') }}">
+                        <input type="hidden" name="section" value="advanced">
+                        <div class="section-header">
+                            <i class="fas fa-code"></i>
+                            <h2 class="section-title">Advanced Environment Variables</h2>
+                        </div>
+                        
+                        <div class="form-group form-full-width">
+                            <label class="form-label">Custom Environment Variables</label>
+                            <textarea name="custom_env_vars" rows="12" 
+                                      class="form-textarea" 
+                                      style="font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace; font-size: 0.85rem; line-height: 1.5;"
+                                      placeholder="# Add custom environment variables (one per line)
 # Example:
 # CUSTOM_API_URL=https://api.company.com
 # CUSTOM_TIMEOUT=300
 # FEATURE_FLAG_ADVANCED_ANALYTICS=true">{{ custom_env_vars }}</textarea>
-                                <p class="form-help">Additional environment variables for advanced configuration</p>
-                            </div>
-                                
-                            <div class="info-box warning">
-                                <div class="info-box-title">
-                                    <i class="fas fa-exclamation-triangle"></i>
-                                    Warning
-                                </div>
-                                <p>
-                                    Modifying environment variables may affect system stability. Only change these if you understand their impact.
-                                </p>
-                            </div>
+                            <p class="form-help">Additional environment variables for advanced configuration</p>
                         </div>
-
-                    <!-- Save Button -->
-                    <div class="btn-actions">
-                        <button type="button" onclick="location.reload()" class="btn btn-secondary">
-                            Reset
-                        </button>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i>
-                            Save Settings
-                        </button>
-                    </div>
+                            
+                        <div class="info-box warning">
+                            <div class="info-box-title">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                Warning
+                            </div>
+                            <p>
+                                Modifying environment variables may affect system stability. Only change these if you understand their impact.
+                            </p>
+                        </div>
+                        
+                        <div class="btn-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i>
+                                Save Advanced Settings
+                            </button>
+                        </div>
                     </form>
+                </div>
                 </div>
         </div>
     </div>

@@ -1,0 +1,125 @@
+# AKS Cost Optimizer - Bytecode Protection
+# Good balance of security and maintainability
+FROM python:3.11-slim-bookworm AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libc6-dev \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Upgrade pip and install build tools
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Copy and install requirements
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY analytics/ ./analytics/
+COPY application/ ./application/
+COPY domain/ ./domain/
+COPY infrastructure/ ./infrastructure/
+COPY machine_learning/ ./machine_learning/
+COPY presentation/ ./presentation/
+COPY shared/ ./shared/
+COPY main.py production_main.py ./
+
+# Compile all Python files to bytecode
+RUN python -m compileall -b . && \
+    # Remove all .py source files (keep only .pyc)
+    find . -name "*.py" -not -path "./venv/*" -delete && \
+    # Move .pyc files to replace .py files
+    find . -name "*.pyc" -exec sh -c 'mv "$1" "${1%.*}.py"' _ {} \; && \
+    # Clean up __pycache__ directories
+    find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+
+# Final production stage
+FROM python:3.11-slim-bookworm
+
+# Install runtime dependencies and Azure CLI
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    libgomp1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgcc-s1 \
+    curl \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    jq \
+    && curl -sL https://aka.ms/InstallAzureCLIDeb | bash \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/*
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Create non-root user
+RUN groupadd -g 1000 appuser \
+    && useradd -r -u 1000 -g appuser -s /bin/bash -m appuser
+
+# Create application directories
+WORKDIR /app
+RUN mkdir -p \
+    /app/infrastructure/persistence/database \
+    /app/machine_learning/data \
+    /app/logs \
+    /app/shared/cache \
+    /home/appuser/.azure \
+    && chown -R appuser:appuser /app /home/appuser
+
+# Copy entrypoint script
+COPY --chown=appuser:appuser docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Copy compiled bytecode (no source code!)
+COPY --from=builder --chown=appuser:appuser /build/analytics/ ./analytics/
+COPY --from=builder --chown=appuser:appuser /build/application/ ./application/
+COPY --from=builder --chown=appuser:appuser /build/domain/ ./domain/
+COPY --from=builder --chown=appuser:appuser /build/infrastructure/ ./infrastructure/
+COPY --from=builder --chown=appuser:appuser /build/machine_learning/ ./machine_learning/
+COPY --from=builder --chown=appuser:appuser /build/presentation/ ./presentation/
+COPY --from=builder --chown=appuser:appuser /build/shared/ ./shared/
+COPY --from=builder --chown=appuser:appuser /build/main.py /build/production_main.py ./
+COPY --chown=appuser:appuser requirements*.txt ./
+
+# Create __init__.py files for Python modules and set permissions
+RUN find /app -type d -exec touch {}/__init__.py \; 2>/dev/null || true \
+    && chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Environment variables
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH="/app" \
+    FLASK_APP="main:app" \
+    FLASK_ENV="production" \
+    MPLBACKEND="Agg" \
+    AZURE_CONFIG_DIR="/home/appuser/.azure" \
+    AZURE_CORE_COLLECT_TELEMETRY=false
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
+
+EXPOSE 5000
+
+# Use entrypoint script
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["python", "main.py"]

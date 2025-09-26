@@ -1,0 +1,203 @@
+# AKS Cost Optimizer - Code Obfuscation Protection
+# Moderate security with debugging capabilities
+FROM python:3.11-slim-bookworm AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libc6-dev \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Upgrade pip and install build tools
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Copy and install requirements
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install obfuscation tools
+RUN pip install --no-cache-dir pyarmor
+
+# Copy application code
+COPY analytics/ ./analytics/
+COPY application/ ./application/
+COPY domain/ ./domain/
+COPY infrastructure/ ./infrastructure/
+COPY machine_learning/ ./machine_learning/
+COPY presentation/ ./presentation/
+COPY shared/ ./shared/
+COPY main.py production_main.py ./
+
+# Create pyarmor configuration
+RUN mkdir -p /build/obfuscated
+
+# Obfuscate Python code with pyarmor
+RUN pyarmor gen --output /build/obfuscated/analytics analytics/ && \
+    pyarmor gen --output /build/obfuscated/application application/ && \
+    pyarmor gen --output /build/obfuscated/domain domain/ && \
+    pyarmor gen --output /build/obfuscated/infrastructure infrastructure/ && \
+    pyarmor gen --output /build/obfuscated/machine_learning machine_learning/ && \
+    pyarmor gen --output /build/obfuscated/presentation presentation/ && \
+    pyarmor gen --output /build/obfuscated/shared shared/ && \
+    pyarmor gen --output /build/obfuscated main.py production_main.py
+
+# Alternative: Use pyobfuscate for different obfuscation approach
+RUN pip install --no-cache-dir pyobfuscate || true
+
+# Create a fallback obfuscation script for critical files
+RUN python3 -c "
+import ast
+import os
+
+def simple_obfuscate(source_code):
+    '''Simple variable name obfuscation'''
+    lines = source_code.split('\n')
+    obfuscated_lines = []
+    var_mapping = {}
+    counter = 0
+    
+    for line in lines:
+        if line.strip().startswith('#') or not line.strip():
+            obfuscated_lines.append(line)
+            continue
+        
+        # Simple variable name replacement (basic obfuscation)
+        words = line.split()
+        new_words = []
+        for word in words:
+            if word.isidentifier() and not word.startswith('_') and word not in ['def', 'class', 'import', 'from', 'if', 'else', 'elif', 'for', 'while', 'try', 'except', 'finally', 'with', 'as', 'return', 'yield', 'break', 'continue', 'pass', 'raise', 'assert', 'del', 'global', 'nonlocal', 'lambda', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None']:
+                if word not in var_mapping:
+                    var_mapping[word] = f'_var_{counter:04d}'
+                    counter += 1
+                new_words.append(var_mapping[word])
+            else:
+                new_words.append(word)
+        
+        obfuscated_lines.append(' '.join(new_words))
+    
+    return '\n'.join(obfuscated_lines)
+
+# Apply fallback obfuscation to main files if pyarmor fails
+for root, dirs, files in os.walk('/build'):
+    for file in files:
+        if file.endswith('.py') and not file.startswith('test_'):
+            file_path = os.path.join(root, file)
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Skip files that are too complex for simple obfuscation
+                if len(content) < 10000:
+                    obfuscated = simple_obfuscate(content)
+                    backup_path = file_path + '.backup'
+                    os.rename(file_path, backup_path)
+                    
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(obfuscated)
+            except Exception as e:
+                print(f'Skipping obfuscation for {file_path}: {e}')
+"
+
+# Final production stage
+FROM python:3.11-slim-bookworm
+
+# Install runtime dependencies and Azure CLI
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    libgomp1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgcc-s1 \
+    curl \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    jq \
+    && curl -sL https://aka.ms/InstallAzureCLIDeb | bash \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/*
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Create non-root user
+RUN groupadd -g 1000 appuser \
+    && useradd -r -u 1000 -g appuser -s /bin/bash -m appuser
+
+# Create application directories
+WORKDIR /app
+RUN mkdir -p \
+    /app/infrastructure/persistence/database \
+    /app/machine_learning/data \
+    /app/logs \
+    /app/shared/cache \
+    /home/appuser/.azure \
+    && chown -R appuser:appuser /app /home/appuser
+
+# Copy entrypoint script
+COPY --chown=appuser:appuser docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Copy obfuscated code (source code is obfuscated!)
+# Try pyarmor output first, fallback to original obfuscated code
+COPY --from=builder --chown=appuser:appuser /build/obfuscated/ ./obfuscated/ 2>/dev/null || \
+COPY --from=builder --chown=appuser:appuser /build/analytics/ ./analytics/
+COPY --from=builder --chown=appuser:appuser /build/obfuscated/ ./obfuscated/ 2>/dev/null || \
+COPY --from=builder --chown=appuser:appuser /build/application/ ./application/
+COPY --from=builder --chown=appuser:appuser /build/obfuscated/ ./obfuscated/ 2>/dev/null || \
+COPY --from=builder --chown=appuser:appuser /build/domain/ ./domain/
+COPY --from=builder --chown=appuser:appuser /build/obfuscated/ ./obfuscated/ 2>/dev/null || \
+COPY --from=builder --chown=appuser:appuser /build/infrastructure/ ./infrastructure/
+COPY --from=builder --chown=appuser:appuser /build/obfuscated/ ./obfuscated/ 2>/dev/null || \
+COPY --from=builder --chown=appuser:appuser /build/machine_learning/ ./machine_learning/
+COPY --from=builder --chown=appuser:appuser /build/obfuscated/ ./obfuscated/ 2>/dev/null || \
+COPY --from=builder --chown=appuser:appuser /build/presentation/ ./presentation/
+COPY --from=builder --chown=appuser:appuser /build/obfuscated/ ./obfuscated/ 2>/dev/null || \
+COPY --from=builder --chown=appuser:appuser /build/shared/ ./shared/
+
+# Copy main files (obfuscated or original)
+COPY --from=builder --chown=appuser:appuser /build/obfuscated/main.py ./main.py 2>/dev/null || \
+COPY --from=builder --chown=appuser:appuser /build/main.py ./main.py
+COPY --from=builder --chown=appuser:appuser /build/obfuscated/production_main.py ./production_main.py 2>/dev/null || \
+COPY --from=builder --chown=appuser:appuser /build/production_main.py ./production_main.py
+
+COPY --chown=appuser:appuser requirements*.txt ./
+
+# Create __init__.py files and set permissions
+RUN find /app -type d -exec touch {}/__init__.py \; 2>/dev/null || true \
+    && chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Environment variables
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH="/app" \
+    FLASK_APP="main:app" \
+    FLASK_ENV="production" \
+    MPLBACKEND="Agg" \
+    AZURE_CONFIG_DIR="/home/appuser/.azure" \
+    AZURE_CORE_COLLECT_TELEMETRY=false
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
+
+EXPOSE 5000
+
+# Use entrypoint script
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["python", "main.py"]
