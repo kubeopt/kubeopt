@@ -26,8 +26,8 @@ class AKSDashboard {
     }
     
     init() {
-        logDebug('Initializing AKS Dashboard...');
-        logDebug(`API Base URL: ${this.apiBaseUrl}`);
+        console.log('Initializing AKS Dashboard...');
+        console.log(`API Base URL: ${this.apiBaseUrl}`);
         
         // Test backend connectivity
         this.testBackendConnection();
@@ -48,7 +48,7 @@ class AKSDashboard {
             const response = await fetch(healthUrl);
             if (response.ok) {
                 const data = await response.json();
-                logDebug('✅ Backend connection successful:', data);
+                console.log('✅ Backend connection successful:', data);
                 this.updateConnectionStatus('online', 'Connected');
                 
                 // Check if frontend files are available on backend
@@ -62,7 +62,7 @@ class AKSDashboard {
                 throw new Error(`HTTP ${response.status}`);
             }
         } catch (error) {
-            logError('❌ Backend connection failed:', error);
+            console.error('❌ Backend connection failed:', error);
             this.updateConnectionStatus('error', 'Backend Offline');
             this.showError(`Cannot connect to backend at ${this.apiBaseUrl || 'same origin'}. Please ensure the backend server is running.`);
         }
@@ -114,11 +114,11 @@ class AKSDashboard {
                 wsUrl = `${protocol}//${baseUrl}/ws/analytics/default`;
             }
             
-            logDebug(`Connecting to WebSocket: ${wsUrl}`);
+            console.log(`Connecting to WebSocket: ${wsUrl}`);
             this.websocket = new WebSocket(wsUrl);
             
             this.websocket.onopen = () => {
-                logDebug('WebSocket connected');
+                console.log('WebSocket connected');
                 this.updateWebSocketStatus('online', 'Connected');
             };
             
@@ -128,12 +128,12 @@ class AKSDashboard {
             };
             
             this.websocket.onerror = (error) => {
-                logError('WebSocket error:', error);
+                console.error('WebSocket error:', error);
                 this.updateWebSocketStatus('error', 'Connection Error');
             };
             
             this.websocket.onclose = () => {
-                logDebug('WebSocket disconnected');
+                console.log('WebSocket disconnected');
                 this.updateWebSocketStatus('warning', 'Disconnected');
                 
                 // Attempt to reconnect after 5 seconds
@@ -142,7 +142,7 @@ class AKSDashboard {
                 }, 5000);
             };
         } catch (error) {
-            logError('Failed to connect WebSocket:', error);
+            console.error('Failed to connect WebSocket:', error);
             this.updateWebSocketStatus('error', 'Failed to Connect');
         }
     }
@@ -161,7 +161,7 @@ class AKSDashboard {
     }
     
     handleWebSocketMessage(data) {
-        logDebug('WebSocket message received:', data);
+        console.log('WebSocket message received:', data);
         
         if (data.type === 'metrics_update') {
             // Handle real-time metrics updates
@@ -223,7 +223,7 @@ class AKSDashboard {
             }
             
         } catch (error) {
-            logError('Analysis error:', error);
+            console.error('Analysis error:', error);
             this.showError(`Analysis failed: ${error.message}`);
             this.updateConnectionStatus('error', 'Analysis Failed');
         } finally {
@@ -311,7 +311,7 @@ class AKSDashboard {
     }
     
     displayAnalysisResults(result) {
-        logDebug('Displaying analysis results:', result);
+        console.log('Displaying analysis results:', result);
         
         // Show results dashboard
         const resultsDiv = document.getElementById('results-dashboard');
@@ -751,7 +751,7 @@ class AKSDashboard {
                 }
             }
         } catch (error) {
-            logError('Failed to refresh real-time data:', error);
+            console.error('Failed to refresh real-time data:', error);
         }
     }
     

@@ -13,14 +13,14 @@ import { AppState } from './config.js';
  * Switches to specified tab with enhanced navigation
  */
 export function switchToTab(selector) {
-    logDebug('🔄 Switching to tab:', selector);
+    console.log('🔄 Switching to tab:', selector);
     
     try {
         // Method 1: Find and click the tab button
         const tabButton = document.querySelector(`[data-bs-target="${selector}"]`);
         if (tabButton) {
             tabButton.click();
-            logDebug('✅ Tab switched via button click');
+            console.log('✅ Tab switched via button click');
             updateAppState('smoothTransitions.currentTab', selector);
             return;
         }
@@ -62,12 +62,12 @@ export function switchToTab(selector) {
                 navLink.classList.add('active');
             }
             
-            logDebug('✅ Tab switched manually');
+            console.log('✅ Tab switched manually');
             updateAppState('smoothTransitions.currentTab', selector);
             return;
         }
         
-        console.warn('⚠️ Could not switch tab - target not found');
+        console.log('⚠️ Could not switch tab - target not found');
         
     } catch (error) {
         console.error('❌ Error switching tab:', error);
@@ -94,7 +94,7 @@ function switchToDashboard() {
         if (dashboardTabBtn) dashboardTabBtn.classList.add('active');
         
         
-        logDebug('✅ Switched to dashboard tab');
+        console.log('✅ Switched to dashboard tab');
         updateAppState('smoothTransitions.currentTab', '#dashboard');
     }
 }
@@ -117,7 +117,7 @@ function switchToAnalysis() {
         analysisTab.classList.add('show', 'active');
         if (analysisTabBtn) analysisTabBtn.classList.add('active');
         
-        logDebug('✅ Switched to analysis tab');
+        console.log('✅ Switched to analysis tab');
         updateAppState('smoothTransitions.currentTab', '#analysis');
     }
 }
@@ -131,7 +131,7 @@ function switchToImplementation() {
         // Switch tab
         switchToTab('#implementation');
         
-        logDebug('✅ Switched to implementation tab');
+        console.log('✅ Switched to implementation tab');
         updateAppState('smoothTransitions.currentTab', '#implementation');
         updateAppState('smoothTransitions.implementationLoaded', true);
     }
@@ -279,7 +279,7 @@ export function handleResponsiveNavigation() {
  * Tab navigation with history support
  */
 export function initializeTabNavigation() {
-    logDebug('🧭 Initializing tab navigation with history support');
+    console.log('🧭 Initializing tab navigation with history support');
     
     // Handle browser back/forward buttons
     window.addEventListener('popstate', (event) => {
@@ -305,7 +305,7 @@ export function initializeTabNavigation() {
             // Update page title based on active tab
             updatePageTitleForTab(tabName);
             
-            logDebug(`📑 Tab changed to: ${tabName}`);
+            console.log(`📑 Tab changed to: ${tabName}`);
         });
     });
     
@@ -338,7 +338,7 @@ function updatePageTitleForTab(tabName) {
  * Keyboard navigation support
  */
 export function initializeKeyboardNavigation() {
-    logDebug('⌨️ Initializing keyboard navigation');
+    console.log('⌨️ Initializing keyboard navigation');
     
     document.addEventListener('keydown', (event) => {
         // Only handle if no input is focused
@@ -448,7 +448,7 @@ export function enhanceNavigation() {
  * Initialize all navigation features
  */
 export function initializeNavigation() {
-    logDebug('🧭 Initializing comprehensive navigation system');
+    console.log('🧭 Initializing comprehensive navigation system');
     
     try {
         initializeTabNavigation();
@@ -459,7 +459,7 @@ export function initializeNavigation() {
         // Set up navigation event listeners
         setupNavigationEvents();
         
-        logDebug('✅ Navigation system initialized successfully');
+        console.log('✅ Navigation system initialized successfully');
     } catch (error) {
         console.error('❌ Navigation initialization failed:', error);
     }
@@ -471,7 +471,7 @@ export function initializeNavigation() {
 function setupNavigationEvents() {
 
     if (window.smoothUIManager) {
-        logDebug('🔄 Skipping ui-navigation events - smooth.js is active');
+        console.log('🔄 Skipping ui-navigation events - smooth.js is active');
         return;
     }
     // Track navigation timing
@@ -479,17 +479,17 @@ function setupNavigationEvents() {
     
     document.addEventListener('DOMContentLoaded', () => {
         const loadTime = performance.now() - navigationStartTime;
-        logDebug(`🧭 Navigation ready in ${Math.round(loadTime)}ms`);
+        console.log(`🧭 Navigation ready in ${Math.round(loadTime)}ms`);
     });
     
     // Handle tab switching events
     document.addEventListener('show.bs.tab', (event) => {
-        logDebug('🔄 Tab switching:', event.target.getAttribute('data-bs-target'));
+        console.log('🔄 Tab switching:', event.target.getAttribute('data-bs-target'));
         setNavigationLoadingState(true, event.target.getAttribute('data-bs-target'));
     });
     
     document.addEventListener('shown.bs.tab', (event) => {
-        logDebug('✅ Tab switched:', event.target.getAttribute('data-bs-target'));
+        console.log('✅ Tab switched:', event.target.getAttribute('data-bs-target'));
         setNavigationLoadingState(false, event.target.getAttribute('data-bs-target'));
     });
 }
@@ -529,4 +529,4 @@ if (typeof window !== 'undefined') {
     window.initializeNavigation = initializeNavigation;
 }
 
-logDebug('✅ UI Navigation module loaded successfully');
+console.log('✅ UI Navigation module loaded successfully');

@@ -136,7 +136,7 @@
                     }
                 }
             } catch (error) {
-                logError('Error toggling theme:', error);
+                console.error('Error toggling theme:', error);
             }
         }
 
@@ -182,9 +182,9 @@
                     }
                 }
                 
-                logDebug('Base template loaded successfully');
+                console.log('Base template loaded successfully');
             } catch (error) {
-                logError('Error initializing page:', error);
+                console.error('Error initializing page:', error);
             }
         });
 
@@ -205,13 +205,13 @@
                 
                 // Check if Chart is available
                 if (typeof Chart === 'undefined') {
-                    logError('Chart.js is not loaded');
+                    console.error('Chart.js is not loaded');
                     return null;
                 }
                 
                 return new Chart(ctx, config);
             } catch (error) {
-                logError(`Error creating chart for '${canvasId}':`, error);
+                console.error(`Error creating chart for '${canvasId}':`, error);
                 return null;
             }
         }

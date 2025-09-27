@@ -33,8 +33,8 @@ import { initializeDashboard } from './main.js';
  * This replaces the original DOMContentLoaded handler
  */
 function initializeApplication() {
-    logDebug('🚀 Starting AKS Cost Intelligence Dashboard');
-    logDebug('📦 All modules loaded and ready');
+    console.log('🚀 Starting AKS Cost Intelligence Dashboard');
+    console.log('📦 All modules loaded and ready');
     
     try {
         // Show loading notification
@@ -42,11 +42,11 @@ function initializeApplication() {
         
         // ✅ Verify cluster isolation is working
         if (typeof window.validateClusterContext === 'function') {
-            logDebug('✅ Cluster isolation functions available');
+            console.log('✅ Cluster isolation functions available');
             const clusterId = window.getCurrentClusterId();
-            logDebug(`🎯 Current cluster: ${clusterId}`);
+            console.log(`🎯 Current cluster: ${clusterId}`);
         } else {
-            console.warn('⚠️ Cluster isolation functions not found');
+            console.log('⚠️ Cluster isolation functions not found');
         }
         
         // Initialize the dashboard (this handles all the setup)
@@ -54,7 +54,7 @@ function initializeApplication() {
         
         // Log successful initialization
         setTimeout(() => {
-            logDebug('✅ AKS Cost Intelligence Dashboard fully initialized');
+            console.log('✅ AKS Cost Intelligence Dashboard fully initialized');
             
             // Show available functions for debugging
             const availableFunctions = Object.keys(window).filter(key => 
@@ -67,7 +67,7 @@ function initializeApplication() {
             );
             
             if (availableFunctions.length === 0) {
-                console.warn('⚠️ No global functions found - check module exports');
+                console.log('⚠️ No global functions found - check module exports');
             }
         }, 1000);
         
@@ -92,4 +92,4 @@ export {
     showNotification 
 };
 
-logDebug('🎯 AKS Cost Intelligence - All modules loaded successfully');
+console.log('🎯 AKS Cost Intelligence - All modules loaded successfully');

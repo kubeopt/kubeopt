@@ -34,7 +34,7 @@ function safeDestroyChart(chartId) {
             }
         }
     } catch (error) {
-        console.warn(`Failed to destroy chart ${chartId}:`, error);
+        console.log(`Failed to destroy chart ${chartId}:`, error);
     }
 }
 
@@ -74,7 +74,7 @@ export function getCurrentClusterId() {
     
     if (match && match[1]) {
         const clusterId = match[1];
-        logDebug(`🎯 CLUSTER ID from URL: ${clusterId}`);
+        console.log(`🎯 CLUSTER ID from URL: ${clusterId}`);
         
         // Validate this is the expected cluster
         if (window.currentClusterState.clusterId && 
@@ -120,7 +120,7 @@ export function validateClusterContext(actionName) {
         return false;
     }
     
-    logDebug(`✅ Cluster context validated for ${actionName}: ${currentClusterId}`);
+    console.log(`✅ Cluster context validated for ${actionName}: ${currentClusterId}`);
     return true;
 }
 
@@ -139,7 +139,7 @@ export function makeClusterAwareAPICall(endpoint, options = {}) {
     const separator = endpoint.includes('?') ? '&' : '?';
     const clusterAwareEndpoint = `${endpoint}${separator}cluster_id=${clusterId}`;
     
-    logDebug(`🔒 Cluster-aware API call: ${clusterAwareEndpoint}`);
+    console.log(`🔒 Cluster-aware API call: ${clusterAwareEndpoint}`);
     
     // Add cluster isolation headers
     const headers = {
@@ -164,7 +164,7 @@ export function makeClusterAwareAPICall(endpoint, options = {}) {
 let chartInitTimer = null;
 
 export function initializeCharts() {
-    logDebug('📊 Initializing enhanced charts with CPU workload analysis and cluster isolation...');
+    console.log('📊 Initializing enhanced charts with CPU workload analysis and cluster isolation...');
     
     if (chartInitTimer) {
         clearTimeout(chartInitTimer);
@@ -187,7 +187,7 @@ function actualInitializeCharts() {
     
     makeClusterAwareAPICall('/api/chart-data')
         .then(response => {
-            logDebug('📡 Enhanced chart data response status:', response.status);
+            console.log('📡 Enhanced chart data response status:', response.status);
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             return response.json();
         })
@@ -210,10 +210,10 @@ function actualInitializeCharts() {
             
             // Update insights with CPU considerations - but only if backend insights don't exist
             if (typeof window.updateRealDynamicInsights === 'function' && !data.insights) {
-                logDebug('📊 Updating insights with CPU-aware chart data (no backend insights)...');
+                console.log('📊 Updating insights with CPU-aware chart data (no backend insights)...');
                 window.updateRealDynamicInsights(data);
             } else if (data.insights) {
-                logDebug('📊 Using backend insights instead of dynamic insights');
+                console.log('📊 Using backend insights instead of dynamic insights');
             }
             
             // Clear loading states and show CPU metrics
@@ -227,7 +227,7 @@ function actualInitializeCharts() {
                 }
             }, 1000);
             
-            logDebug('✅ Enhanced charts with CPU workload analysis initialized successfully');
+            console.log('✅ Enhanced charts with CPU workload analysis initialized successfully');
         })
         .catch(error => {
             console.error('❌ Enhanced chart initialization failed:', error);
@@ -257,7 +257,7 @@ export function refreshChartsSmooth() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ cluster_id: clusterId })
         }).then(() => {
-            logDebug(`🧹 Cleared cache for cluster: ${clusterId}`);
+            console.log(`🧹 Cleared cache for cluster: ${clusterId}`);
             initializeCharts();
         }).catch(error => {
             console.error('Cache clear error:', error);
@@ -270,7 +270,7 @@ export function refreshChartsSmooth() {
  * Update dashboard metrics including CPU workload data
  */
 export function updateDashboardMetricsWithCPU(metrics, cpuWorkloadMetrics) {
-    logDebug('📊 Updating metrics with CPU workload data:', { metrics, cpuWorkloadMetrics });
+    console.log('📊 Updating metrics with CPU workload data:', { metrics, cpuWorkloadMetrics });
     
     // Standard metrics update
     updateDashboardMetrics(metrics);
@@ -328,7 +328,7 @@ function updateCPUMetrics(cpuMetrics) {
         }
     });
     
-    logDebug('✅ CPU metrics updated in dashboard');
+    console.log('✅ CPU metrics updated in dashboard');
 }
 
 /**
@@ -337,7 +337,7 @@ function updateCPUMetrics(cpuMetrics) {
 function displayCPUWorkloadStatus(cpuMetrics) {
     
     if (!cpuMetrics) {
-        console.warn('⚠️ No CPU metrics available for display');
+        console.log('⚠️ No CPU metrics available for display');
         return;
     }
     
@@ -479,7 +479,7 @@ function createFloatingCPUAlert(cpuMetrics) {
  * Create beautiful CPU metrics display that matches the dashboard design
  */
 function createCPUMetricsDisplay(cpuMetrics) {
-    logDebug('📊 Creating enhanced CPU metrics display');
+    console.log('📊 Creating enhanced CPU metrics display');
     
     // Find or create CPU metrics container
     let cpuContainer = document.getElementById('cpu-metrics-container');
@@ -808,23 +808,23 @@ window.generateCPUOptimizationPlan = async function() {
         // Try window.currentClusterState
         if (window.currentClusterState && window.currentClusterState.clusterId) {
             clusterId = window.currentClusterState.clusterId;
-            logDebug('Using clusterId from currentClusterState:', clusterId);
+            console.log('Using clusterId from currentClusterState:', clusterId);
         }
         // Try extracting from URL hash or search params
         else if (window.location.search) {
             const params = new URLSearchParams(window.location.search);
             clusterId = params.get('clusterId') || params.get('cluster');
-            logDebug('Using clusterId from URL params:', clusterId);
+            console.log('Using clusterId from URL params:', clusterId);
         }
         // Try from URL hash
         else if (window.location.hash) {
             const hashParams = new URLSearchParams(window.location.hash.substring(1));
             clusterId = hashParams.get('clusterId') || hashParams.get('cluster');
-            logDebug('Using clusterId from URL hash:', clusterId);
+            console.log('Using clusterId from URL hash:', clusterId);
         }
     }
     
-    logDebug('Final clusterId for optimization plan:', clusterId);
+    console.log('Final clusterId for optimization plan:', clusterId);
     
     if (!clusterId) {
         console.error('No cluster ID available. Current URL:', window.location.href);
@@ -837,10 +837,10 @@ window.generateCPUOptimizationPlan = async function() {
     
     try {
         const apiUrl = `/api/clusters/${encodeURIComponent(clusterId)}/cpu-optimization-plan`;
-        logDebug('Calling optimization plan API:', apiUrl);
+        console.log('Calling optimization plan API:', apiUrl);
         
         const response = await fetch(apiUrl);
-        logDebug('API response status:', response.status, response.statusText);
+        console.log('API response status:', response.status, response.statusText);
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -850,11 +850,11 @@ window.generateCPUOptimizationPlan = async function() {
         }
         
         const result = await response.json();
-        logDebug('API result:', result);
+        console.log('API result:', result);
         
         if (result.status === 'success') {
             if (result.data && result.data.optimization_commands) {
-                logDebug('Showing optimization plan modal with', result.data.optimization_commands.length, 'commands');
+                console.log('Showing optimization plan modal with', result.data.optimization_commands.length, 'commands');
                 showOptimizationPlanModal(result.data);
                 showNotification('Success', `Generated ${result.data.optimization_commands.length} optimization commands`, 'success');
             } else {
@@ -874,28 +874,28 @@ window.generateCPUOptimizationPlan = async function() {
 
 // Debug function to test the optimization plan
 window.testCPUOptimizationPlan = async function() {
-    logDebug('🔧 Testing CPU optimization plan...');
-    logDebug('Current URL:', window.location.href);
-    logDebug('Current cluster state:', window.currentClusterState);
+    console.log('🔧 Testing CPU optimization plan...');
+    console.log('Current URL:', window.location.href);
+    console.log('Current cluster state:', window.currentClusterState);
     
     // Try with a test cluster ID
     const testClusterId = 'test-cluster-123';
     
     try {
         const apiUrl = `/api/clusters/${encodeURIComponent(testClusterId)}/cpu-optimization-plan`;
-        logDebug('Testing API URL:', apiUrl);
+        console.log('Testing API URL:', apiUrl);
         
         const response = await fetch(apiUrl);
-        logDebug('Test API response:', response.status, response.statusText);
+        console.log('Test API response:', response.status, response.statusText);
         
         const result = await response.json();
-        logDebug('Test API result:', result);
+        console.log('Test API result:', result);
         
         if (result.status === 'success') {
-            logDebug('✅ API working! Commands:', result.data.optimization_commands.length);
+            console.log('✅ API working! Commands:', result.data.optimization_commands.length);
             showNotification('Success', 'API test successful!', 'success');
         } else {
-            logDebug('❌ API returned error:', result.message);
+            console.log('❌ API returned error:', result.message);
             showNotification('Error', result.message, 'error');
         }
     } catch (error) {
@@ -954,7 +954,7 @@ window.exportCPUReport = async function(format = 'pdf') {
 
 // Function to display optimization plan in a modal
 function showOptimizationPlanModal(planData) {
-    logDebug('🔧 showOptimizationPlanModal called with:', planData);
+    console.log('🔧 showOptimizationPlanModal called with:', planData);
     
     if (!planData) {
         console.error('❌ No plan data provided to modal');
@@ -968,7 +968,7 @@ function showOptimizationPlanModal(planData) {
         return;
     }
     
-    logDebug('✅ Plan data is valid, creating and populating modal...');
+    console.log('✅ Plan data is valid, creating and populating modal...');
     
     // Store plan data globally for download function
     window.currentOptimizationPlan = planData;
@@ -976,15 +976,15 @@ function showOptimizationPlanModal(planData) {
     // Always create the modal fresh to avoid conflicts
     const existingModal = document.getElementById('optimizationPlanModal');
     if (existingModal) {
-        logDebug('Removing existing modal...');
+        console.log('Removing existing modal...');
         existingModal.remove();
     }
     
-    logDebug('Creating fresh modal...');
+    console.log('Creating fresh modal...');
     createOptimizationPlanModal();
     
     // Now populate the modal AFTER it's been created
-    logDebug('Populating modal content...');
+    console.log('Populating modal content...');
     populateOptimizationSummary(planData);
     populateOptimizationCommands(planData.optimization_commands);
     populateOptimizationValidationSteps(planData.validation_steps);
@@ -994,7 +994,7 @@ function showOptimizationPlanModal(planData) {
     const modal = document.getElementById('optimizationPlanModal');
     if (modal) {
         modal.style.display = 'block';
-        logDebug('✅ Modal created, populated, and shown successfully');
+        console.log('✅ Modal created, populated, and shown successfully');
     } else {
         console.error('❌ Failed to create optimization plan modal');
         showNotification('Error', 'Failed to create optimization plan modal', 'error');
@@ -1338,7 +1338,7 @@ function updateHPASectionCPUWarnings(cpuMetrics) {
  * Create all charts with CPU awareness and improved layout
  */
 export function createAllChartsWithCPU(data) {
-    logDebug('🎨 Creating all charts with enhanced CPU analysis and improved layout...');
+    console.log('🎨 Creating all charts with enhanced CPU analysis and improved layout...');
     
     try {
         destroyAllCharts();
@@ -1390,7 +1390,7 @@ export function createAllChartsWithCPU(data) {
             updatePodCostMetrics(data);
         }
         
-        logDebug('✅ All charts created with enhanced CPU analysis and improved layout');
+        console.log('✅ All charts created with enhanced CPU analysis and improved layout');
         
     } catch (error) {
         console.error('❌ Error building enhanced charts:', error);
@@ -1407,7 +1407,7 @@ export function createHPAComparisonChart(data, isRealData) {
 
     // Validate HPA data
     if (!data || (!data.cpuReplicas && !data.memoryReplicas)) {
-        console.warn('⚠️ No HPA data available for chart');
+        console.log('⚠️ No HPA data available for chart');
         canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No HPA data available</div>';
         return;
     }
@@ -1748,7 +1748,7 @@ export function createHPAComparisonChart(data, isRealData) {
     // Display HPA type distribution if available
     //displayHPATypeDistribution(data);
     
-    logDebug('✅ Enhanced HPA chart created with purple/coral color scheme and improved positioning');
+    console.log('✅ Enhanced HPA chart created with purple/coral color scheme and improved positioning');
 }
 
 /**
@@ -2110,7 +2110,7 @@ function updateHPARecommendationTextWithCPU(data) {
         });
     }
     
-    logDebug('✅ Updated HPA recommendation text with comprehensive CPU data');
+    console.log('✅ Updated HPA recommendation text with comprehensive CPU data');
 }
 
 /**
@@ -2119,7 +2119,7 @@ function updateHPARecommendationTextWithCPU(data) {
 export function createNodeUtilizationChart(data, isRealData) {
     const canvas = document.getElementById('nodeUtilizationChart');
     if (!canvas) {
-        console.warn('⚠️ Node utilization chart canvas not found');
+        console.log('⚠️ Node utilization chart canvas not found');
         return;
     }
 
@@ -2128,7 +2128,7 @@ export function createNodeUtilizationChart(data, isRealData) {
     
     // Enhanced data validation and processing
     if (!data || typeof data !== 'object') {
-        console.warn('⚠️ Invalid node utilization data provided');
+        console.log('⚠️ Invalid node utilization data provided');
         return;
     }
     
@@ -2140,7 +2140,7 @@ export function createNodeUtilizationChart(data, isRealData) {
     
     // If no data available, don't create chart
     if (nodes.length === 0) {
-        console.warn('⚠️ No node data available for chart');
+        console.log('⚠️ No node data available for chart');
         canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No node utilization data available</div>';
         return;
     }
@@ -2163,7 +2163,7 @@ export function createNodeUtilizationChart(data, isRealData) {
     
     // Ensure arrays are not empty after processing
     if (finalNodes.length === 0) {
-        console.warn('⚠️ No valid node data after processing');
+        console.log('⚠️ No valid node data after processing');
         canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No valid node data available</div>';
         return;
     }
@@ -2459,7 +2459,7 @@ export function createNodeUtilizationChart(data, isRealData) {
     safeDestroyChart('nodeUtilizationChart');
 
     AppState.chartInstances['nodeUtilizationChart'] = new Chart(ctx, config);
-    logDebug('✅ Enhanced node utilization chart created successfully');
+    console.log('✅ Enhanced node utilization chart created successfully');
 }
 
 /**
@@ -2521,7 +2521,7 @@ export function updateDashboardMetrics(metrics) {
     
     // Log each update for debugging
     metricUpdates.forEach((metric, index) => {
-        logDebug(`📊 Updating metric ${index} (${metric.label}):`, metric.selectors[0], '=', metric.value);
+        console.log(`📊 Updating metric ${index} (${metric.label}):`, metric.selectors[0], '=', metric.value);
         animateMetricUpdate(metric, index * 100);
     });
     
@@ -2538,7 +2538,7 @@ export function updateDashboardMetrics(metrics) {
  * Update specific savings elements
  */
 function updateSpecificSavingsElements(metrics) {
-    logDebug('🔧 Updating specific savings elements');
+    console.log('🔧 Updating specific savings elements');
     
     // Update monthly savings in multiple locations
     const monthlySavingsElements = [
@@ -2551,7 +2551,7 @@ function updateSpecificSavingsElements(metrics) {
         const element = document.querySelector(selector);
         if (element) {
             element.textContent = formatValue(metrics.total_savings || 0, 'currency');
-            logDebug(`Updated ${selector} to: ${element.textContent}`);
+            console.log(`Updated ${selector} to: ${element.textContent}`);
         }
     });
     
@@ -2572,7 +2572,7 @@ function updateSpecificSavingsElements(metrics) {
  * Update savings breakdown mini elements
  */
 function updateSavingsBreakdownMini(metrics) {
-    logDebug('🔧 Updating savings breakdown mini elements');
+    console.log('🔧 Updating savings breakdown mini elements');
     
     const hpaElement = document.getElementById('hpa-savings-mini');
     const rightsizingElement = document.getElementById('rightsizing-savings-mini');
@@ -2711,7 +2711,7 @@ function updateInsightsWithCPU(insights) {
     });
     
     container.innerHTML = insightElements.join('');
-    logDebug('✅ Insights updated with CPU workload considerations');
+    console.log('✅ Insights updated with CPU workload considerations');
 }
 
 /**
@@ -2720,7 +2720,7 @@ function updateInsightsWithCPU(insights) {
 function updatePodCostMetrics(data) {
     
     if (!data) {
-        console.warn('No data provided to updatePodCostMetrics');
+        console.log('No data provided to updatePodCostMetrics');
         return;
     }
     
@@ -2774,7 +2774,7 @@ function updatePodCostMetrics(data) {
         else accuracy = 'Limited';
     }
     
-    logDebug('Updating metrics display');
+    console.log('Updating metrics display');
     
     // Update the metrics
     const updates = [
@@ -2817,9 +2817,9 @@ function updatePodCostMetrics(data) {
             }
             
             element.textContent = displayValue;
-            logDebug(`Updated ${update.sel} to: ${displayValue}`);
+            console.log(`Updated ${update.sel} to: ${displayValue}`);
         } else {
-            console.warn(`Element not found: ${update.sel}`);
+            console.log(`Element not found: ${update.sel}`);
         }
     });
     
@@ -2828,7 +2828,7 @@ function updatePodCostMetrics(data) {
         const podSection = document.getElementById('pod-cost-section');
         if (podSection) {
             podSection.style.display = 'block';
-            logDebug('Pod cost section made visible');
+            console.log('Pod cost section made visible');
         }
     }
 }
@@ -2861,7 +2861,7 @@ export function createCostBreakdownChart(data, isRealData) {
 
     // Validate cost breakdown data
     if (!data || !data.labels || !data.values || !Array.isArray(data.labels) || !Array.isArray(data.values)) {
-        console.warn('⚠️ Invalid cost breakdown data');
+        console.log('⚠️ Invalid cost breakdown data');
         canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No cost breakdown data available</div>';
         return;
     }
@@ -3084,7 +3084,7 @@ export function createCostBreakdownChart(data, isRealData) {
 
     AppState.chartInstances['costBreakdownChart'] = new Chart(ctx, config);
     
-    logDebug('✅ Cost breakdown chart created with animations');
+    console.log('✅ Cost breakdown chart created with animations');
 }
 
 /**
@@ -3132,7 +3132,7 @@ export function createMainTrendChart(data, isRealData) {
                     index === 0 ? 'cost' : 'optimized'
                 );
                 
-                logDebug(`📊 Generated trend data for ${dataset.name} from flat value ${baseValue}`);
+                console.log(`📊 Generated trend data for ${dataset.name} from flat value ${baseValue}`);
             }
         }
 
@@ -3392,7 +3392,7 @@ export function createMainTrendChart(data, isRealData) {
 
     AppState.chartInstances['mainTrendChart'] = new Chart(ctx, config);
     
-    logDebug('✅ Main trend chart created with dynamic data');
+    console.log('✅ Main trend chart created with dynamic data');
 }
 
 /**
@@ -3401,7 +3401,7 @@ export function createMainTrendChart(data, isRealData) {
 export function createSavingsBreakdownChart(data, isRealData) {
     const canvas = document.getElementById('savingsBreakdownChart');
     if (!canvas) {
-        console.warn('⚠️ Savings breakdown chart canvas not found');
+        console.log('⚠️ Savings breakdown chart canvas not found');
         return;
     }
 
@@ -3419,7 +3419,7 @@ export function createSavingsBreakdownChart(data, isRealData) {
     })).filter(item => item.value > 0);
     
     if (filteredData.length === 0) {
-        console.warn('⚠️ No savings data to display');
+        console.log('⚠️ No savings data to display');
         canvas.parentElement.innerHTML = '<div class="text-center text-muted p-4">No savings opportunities identified</div>';
         return;
     }
@@ -3644,7 +3644,7 @@ export function createSavingsBreakdownChart(data, isRealData) {
     safeDestroyChart('savingsBreakdownChart');
 
     AppState.chartInstances['savingsBreakdownChart'] = new Chart(ctx, config);
-    logDebug('✅ Savings breakdown chart created successfully with animations');
+    console.log('✅ Savings breakdown chart created successfully with animations');
 }
 
 /**
@@ -3884,7 +3884,7 @@ export function createNamespaceCostChart(data) {
         badge.className = `badge ${getAccuracyBadgeClass(data.accuracy_level)}`;
     }
     
-    logDebug('✅ Namespace cost chart created with animations');
+    console.log('✅ Namespace cost chart created with animations');
 }
 
 /**
@@ -4203,8 +4203,8 @@ export function createWorkloadCostChart(data) {
     AppState.chartInstances['workloadCostChart'] = new Chart(ctx, config);
     
     // Log summary
-    logDebug(`✅ Workload cost chart created: Showing top ${filteredData.costs.length} of ${data.costs.length} workloads`);
-    logDebug('💰 Workload cost analysis completed');
+    console.log(`✅ Workload cost chart created: Showing top ${filteredData.costs.length} of ${data.costs.length} workloads`);
+    console.log('💰 Workload cost analysis completed');
 }
 
 /**
@@ -4234,7 +4234,7 @@ export function showChartError(message) {
  * Clears all loading states after analysis completion
  */
 export function clearLoadingStates() {
-    logDebug('🧹 Clearing all loading states...');
+    console.log('🧹 Clearing all loading states...');
     
     // Clear insight loading states
     const insightElements = [
@@ -4248,7 +4248,7 @@ export function clearLoadingStates() {
             const loadingSpan = element.querySelector('.loading-text');
             if (loadingSpan) {
                 element.innerHTML = defaultText;
-                logDebug(`✅ Cleared loading state for ${selector}`);
+                console.log(`✅ Cleared loading state for ${selector}`);
             }
         }
     });
@@ -4349,4 +4349,4 @@ if (typeof window !== 'undefined') {
     // window.testCPUOptimizationPlan - already defined above
 }
 
-logDebug('✅ Enhanced AKS Cost Intelligence charts.js with comprehensive CPU workload support and cluster isolation loaded');
+console.log('✅ Enhanced AKS Cost Intelligence charts.js with comprehensive CPU workload support and cluster isolation loaded');

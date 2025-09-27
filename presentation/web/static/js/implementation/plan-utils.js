@@ -241,7 +241,7 @@ export function renderMarkdownData(markdownContent, containerTitle = 'Configurat
  * Standalone copy function for markdown content (with interference protection)
  */
 window.copyMarkdownStandalone = function(buttonId) {
-    logDebug('📋 Standalone markdown copy for button:', buttonId);
+    console.log('📋 Standalone markdown copy for button:', buttonId);
     
     const markdownContent = window.markdownStore?.[buttonId];
     const button = document.getElementById(buttonId);
@@ -263,7 +263,7 @@ window.copyMarkdownStandalone = function(buttonId) {
     // Try modern clipboard API first
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(markdownContent).then(() => {
-            logDebug('✅ Markdown copied via Clipboard API');
+            console.log('✅ Markdown copied via Clipboard API');
             
             // Use existing notification system if available
             if (window.showNotification) {
@@ -279,7 +279,7 @@ window.copyMarkdownStandalone = function(buttonId) {
             fallbackCopyMarkdown(markdownContent, button);
         });
     } else {
-        logDebug('📋 Clipboard API not available, using fallback');
+        console.log('📋 Clipboard API not available, using fallback');
         fallbackCopyMarkdown(markdownContent, button);
     }
     
@@ -337,7 +337,7 @@ function fallbackCopyMarkdown(text, button) {
     try {
         const successful = document.execCommand('copy');
         if (successful) {
-            logDebug('✅ Markdown copied via fallback method');
+            console.log('✅ Markdown copied via fallback method');
             
             // Use existing notification system if available
             if (window.showNotification) {
@@ -584,7 +584,7 @@ export function getFromStorage(key, defaultValue = null) {
         const item = localStorage.getItem(key);
         return item ? JSON.parse(item) : defaultValue;
     } catch (error) {
-        console.warn('Failed to read from localStorage:', error);
+        console.log('Failed to read from localStorage:', error);
         return defaultValue;
     }
 }
@@ -596,7 +596,7 @@ export function setToStorage(key, value) {
         localStorage.setItem(key, JSON.stringify(value));
         return true;
     } catch (error) {
-        console.warn('Failed to write to localStorage:', error);
+        console.log('Failed to write to localStorage:', error);
         return false;
     }
 }
@@ -608,7 +608,7 @@ export function removeFromStorage(key) {
         localStorage.removeItem(key);
         return true;
     } catch (error) {
-        console.warn('Failed to remove from localStorage:', error);
+        console.log('Failed to remove from localStorage:', error);
         return false;
     }
 }
@@ -678,7 +678,7 @@ export function findAncestor(element, selector) {
 
 // Global assignments for compatibility
 if (typeof window !== 'undefined') {
-    logDebug('✅ Implementation Plan Utils loaded');
-    logDebug('📋 Markdown conversion and copy functionality ready');
-    logDebug('🛠️ Helper utilities and formatters available');
+    console.log('✅ Implementation Plan Utils loaded');
+    console.log('📋 Markdown conversion and copy functionality ready');
+    console.log('🛠️ Helper utilities and formatters available');
 }

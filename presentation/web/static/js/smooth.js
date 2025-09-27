@@ -189,7 +189,7 @@ class SmoothTabManager {
     }
     
     initializeDashboardTab() {
-        logDebug('🎨 Initializing dashboard tab with smooth animations...');
+        console.log('🎨 Initializing dashboard tab with smooth animations...');
         
         // Animate metric cards
         const metricCards = document.querySelectorAll('#dashboard .metric-card');
@@ -213,7 +213,7 @@ class SmoothTabManager {
     }
     
     initializeImplementationTab() {
-        logDebug('🚀 Initializing implementation tab with enhanced loading...');
+        console.log('🚀 Initializing implementation tab with enhanced loading...');
         
         if (SmoothState.implementationLoaded) {
             this.showImplementationContent();
@@ -225,7 +225,7 @@ class SmoothTabManager {
     }
     
     initializeAnalysisTab() {
-        logDebug('🔍 Initializing analysis tab...');
+        console.log('🔍 Initializing analysis tab...');
         
         // Animate form elements
         const formElements = document.querySelectorAll('#analysis .form-group, #analysis .form-check');
@@ -242,7 +242,7 @@ class SmoothTabManager {
     }
     
     initializeAlertsTab() {
-        logDebug('🔔 Initializing alerts tab...');
+        console.log('🔔 Initializing alerts tab...');
         // Enterprise mode: No animations for professional appearance
     }
     
@@ -278,7 +278,7 @@ class SmoothTabManager {
     loadImplementationContent() {
         // Check if implementation plan features are enabled
         if (window.checkFeatureAccess && !window.checkFeatureAccess('implementation_plan')) {
-            logDebug('🔒 Implementation plan features are locked - skipping API call');
+            console.log('🔒 Implementation plan features are locked - skipping API call');
             return;
         }
         
@@ -294,7 +294,7 @@ class SmoothTabManager {
                     SmoothState.implementationLoaded = true;
                 })
                 .catch(error => {
-                    logError('Failed to load implementation plan:', error);
+                    console.error('Failed to load implementation plan:', error);
                     this.showImplementationError(error.message);
                 });
         }
@@ -303,7 +303,7 @@ class SmoothTabManager {
     preloadImplementationContent() {
         // Check if implementation plan features are enabled
         if (window.checkFeatureAccess && !window.checkFeatureAccess('implementation_plan')) {
-            logDebug('🔒 Implementation plan features are locked - skipping preload API call');
+            console.log('🔒 Implementation plan features are locked - skipping preload API call');
             return;
         }
         
@@ -449,7 +449,7 @@ class SmoothChartManager {
             const originalInitializeCharts = window.initializeCharts;
             
             window.initializeCharts = () => {
-                logDebug('📊 Enhanced chart initialization started...');
+                console.log('📊 Enhanced chart initialization started...');
                 
                 // Show loading for all charts
                 const chartIds = [
@@ -740,13 +740,13 @@ window.showSmoothNotification = function(message, type = 'info', duration = 5000
     } else {
         // Use the global logger based on type
         if (type === 'error') {
-            logError(message);
+            console.error(message);
         } else if (type === 'warn') {
             logWarn(message);
         } else if (type === 'debug') {
-            logDebug(message);
+            console.log(message);
         } else {
-            logDebug(message);
+            console.log(message);
         }
     }
 };
@@ -797,7 +797,7 @@ class SmoothUIManager {
         // Initialize current tab if active
         this.initializeActiveTab();
         
-        logDebug('🚀 Smooth UI Manager initialized successfully');
+        console.log('🚀 Smooth UI Manager initialized successfully');
     }
     
     setupPageTransitions() {
@@ -929,7 +929,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.head.appendChild(style);
     }
     
-    logDebug('✨ Enhanced smooth UI system loaded successfully');
+    console.log('✨ Enhanced smooth UI system loaded successfully');
 });
 
 // Export for external use

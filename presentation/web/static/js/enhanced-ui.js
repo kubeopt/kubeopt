@@ -5,7 +5,7 @@
 function safeQuerySelector(selector) {
     try {
         if (!selector || selector === '#' || selector === '' || typeof selector !== 'string') {
-            console.warn('Invalid selector provided:', selector);
+            console.log('Invalid selector provided:', selector);
             return null;
         }
         return document.querySelector(selector);
@@ -18,7 +18,7 @@ function safeQuerySelector(selector) {
 function safeQuerySelectorAll(selector) {
     try {
         if (!selector || selector === '#' || selector === '' || typeof selector !== 'string') {
-            console.warn('Invalid selector provided:', selector);
+            console.log('Invalid selector provided:', selector);
             return [];
         }
         return document.querySelectorAll(selector);
@@ -32,7 +32,7 @@ function safeQuerySelectorAll(selector) {
 window.addEventListener('error', function(event) {
     if (event.error && event.error.message && 
         event.error.message.includes("'#' is not a valid selector")) {
-        console.warn('Caught and handled invalid selector error:', event.error.message);
+        console.log('Caught and handled invalid selector error:', event.error.message);
         event.preventDefault(); // Prevent the error from bubbling up
         return false;
     }
@@ -42,7 +42,7 @@ window.addEventListener('error', function(event) {
 window.addEventListener('unhandledrejection', function(event) {
     if (event.reason && event.reason.message && 
         event.reason.message.includes("'#' is not a valid selector")) {
-        console.warn('Caught and handled invalid selector in promise:', event.reason.message);
+        console.log('Caught and handled invalid selector in promise:', event.reason.message);
         event.preventDefault();
         return false;
     }
@@ -56,7 +56,7 @@ if (!window.chartInstances) {
 // --- Content Panel Management ---
 
 function initializeSecurityDashboard() {
-    logDebug('🔐 Initializing security dashboard...');
+    console.log('🔐 Initializing security dashboard...');
     
     // Check if security dashboard is already initialized
     const securityContainer = document.getElementById('securityposture-content');
@@ -67,18 +67,18 @@ function initializeSecurityDashboard() {
     
     // If already has content, don't reinitialize
     if (securityContainer.children.length > 0 && !securityContainer.innerHTML.includes('Security dashboard will be dynamically loaded here')) {
-        logDebug('Security dashboard already initialized');
+        console.log('Security dashboard already initialized');
         return;
     }
     
-    logDebug('Creating new security dashboard instance...');
+    console.log('Creating new security dashboard instance...');
     
     // Initialize the enhanced security dashboard
     if (window.SecurityPostureDashboard) {
         try {
             // Create new security dashboard instance
             window.securityDashboard = new window.SecurityPostureDashboard();
-            logDebug('✅ Security dashboard initialized successfully');
+            console.log('✅ Security dashboard initialized successfully');
         } catch (error) {
             console.error('❌ Failed to initialize security dashboard:', error);
             
@@ -98,7 +98,7 @@ function initializeSecurityDashboard() {
                 if (window.SecurityPostureDashboard) {
                     try {
                         window.securityDashboard = new window.SecurityPostureDashboard();
-                        logDebug('✅ Security dashboard initialized on retry');
+                        console.log('✅ Security dashboard initialized on retry');
                     } catch (retryError) {
                         console.error('❌ Security dashboard initialization failed on retry:', retryError);
                     }
@@ -106,7 +106,7 @@ function initializeSecurityDashboard() {
             }, 1000);
         }
     } else {
-        console.warn('⚠️ SecurityPostureDashboard class not available, showing loading state...');
+        console.log('⚠️ SecurityPostureDashboard class not available, showing loading state...');
         
         // Show loading state while waiting for security scripts to load
         securityContainer.innerHTML = `
@@ -125,7 +125,7 @@ function initializeSecurityDashboard() {
                 clearInterval(checkForSecurityDashboard);
                 try {
                     window.securityDashboard = new window.SecurityPostureDashboard();
-                    logDebug('✅ Security dashboard initialized after waiting for scripts');
+                    console.log('✅ Security dashboard initialized after waiting for scripts');
                 } catch (error) {
                     console.error('❌ Security dashboard initialization failed after waiting:', error);
                 }
@@ -207,7 +207,7 @@ function showContent(contentType, element) {
             
         case 'securityposture':
             // Load security posture data with reinitialization
-            logDebug('Security Posture tab selected');
+            console.log('Security Posture tab selected');
             // Reinitialize security dashboard when switching to it
             if (window.securityDashboard) {
                 setTimeout(() => {
@@ -218,16 +218,16 @@ function showContent(contentType, element) {
             
         case 'compliance':
             // Load compliance data
-            logDebug('Compliance tab selected');
+            console.log('Compliance tab selected');
             break;
             
         case 'vulnerabilities':
             // Load vulnerabilities data
-            logDebug('Vulnerabilities tab selected');
+            console.log('Vulnerabilities tab selected');
             break;
             
         default:
-            logDebug(`Tab ${contentType} selected`);
+            console.log(`Tab ${contentType} selected`);
     }
 }
 
@@ -578,11 +578,11 @@ function showNotification(title, message, type = 'info', duration = 5000) {
             finalMessage.includes("'#' is not a valid selector") ||
             finalMessage.includes("An unexpected error occurred")
         )) {
-            logDebug('Suppressed notification for handled error:', finalMessage);
+            console.log('Suppressed notification for handled error:', finalMessage);
             return;
         }
         
-        logDebug(`${type.toUpperCase()}: ${finalMessage}`);
+        console.log(`${type.toUpperCase()}: ${finalMessage}`);
         const toastContainer = document.createElement('div');
         toastContainer.className = `fixed top-20 right-5 z-50`;
         const toast = document.createElement('div');
@@ -605,7 +605,7 @@ function showNotification(title, message, type = 'info', duration = 5000) {
 window.switchToTab = function(tabSelector) {
     try {
         if (!tabSelector || tabSelector === '#') {
-            console.warn('Invalid tab selector:', tabSelector);
+            console.log('Invalid tab selector:', tabSelector);
             return;
         }
         
@@ -621,7 +621,7 @@ window.switchToTab = function(tabSelector) {
 };
 
 function triggerAnalysis(clusterId) {
-    logDebug(`🚀 Triggering analysis for ${clusterId || 'demo cluster'}`);
+    console.log(`🚀 Triggering analysis for ${clusterId || 'demo cluster'}`);
     const analyzeButton = document.querySelector(`button[onclick*="triggerAnalysis"]`);
     if (analyzeButton) {
         analyzeButton.disabled = true;
@@ -695,16 +695,16 @@ function initializeTheme() {
 }
 
 // Keep ALL existing functions available globally
-window.updateCpuWorkloadDisplay = window.updateCpuWorkloadDisplay || function(data) { logDebug('CPU workload display updated', data); };
-window.initializeCharts = window.initializeCharts || function() { logDebug('Charts initialized'); };
-window.refreshCharts = window.refreshCharts || function() { logDebug('Charts refreshed'); };
-window.updateAllCharts = window.updateAllCharts || function(data) { logDebug('All charts updated', data); };
+window.updateCpuWorkloadDisplay = window.updateCpuWorkloadDisplay || function(data) { console.log('CPU workload display updated', data); };
+window.initializeCharts = window.initializeCharts || function() { console.log('Charts initialized'); };
+window.refreshCharts = window.refreshCharts || function() { console.log('Charts refreshed'); };
+window.updateAllCharts = window.updateAllCharts || function(data) { console.log('All charts updated', data); };
 
 // Enhanced insights rendering function to override dynamic-insights.js
 window.updateInsightsDisplay = function(insights) {
-    logDebug('🔧 Updating insights with compact bullet-point style');
-    logDebug('🔧 Received insights:', insights);
-    logDebug('🔧 Insight keys:', Object.keys(insights));
+    console.log('🔧 Updating insights with compact bullet-point style');
+    console.log('🔧 Received insights:', insights);
+    console.log('🔧 Insight keys:', Object.keys(insights));
     
     const container = document.getElementById('insights-container');
     if (!container || !insights) return;
@@ -857,7 +857,7 @@ if (typeof window.updateRealDynamicInsights === 'function') {
 
 // Initialize when DOM is ready - PRESERVE BACKEND INTEGRATION
 document.addEventListener('DOMContentLoaded', () => {
-    logDebug('🚀 Initializing Enhanced KubeVista Dashboard...');
+    console.log('🚀 Initializing Enhanced KubeVista Dashboard...');
     
     try {
         initializeTheme();
@@ -871,7 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             try {
                 if (typeof window.initializeCharts === 'function') {
-                    logDebug('🔄 Calling existing backend chart initialization...');
+                    console.log('🔄 Calling existing backend chart initialization...');
                     window.initializeCharts();
                 }
             } catch (error) {
@@ -942,7 +942,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error setting up delete confirmation:', error);
         }
         
-        logDebug('✅ Enhanced dashboard initialization complete - Backend ready');
+        console.log('✅ Enhanced dashboard initialization complete - Backend ready');
         
     } catch (error) {
         console.error('❌ Critical error during dashboard initialization:', error);

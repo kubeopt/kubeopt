@@ -12,7 +12,7 @@
 export function formatValue(value, format) {
     const num = parseFloat(value) || 0;
     if (isNaN(num)) {
-        console.warn('⚠️ Invalid number for formatting:', value);
+        console.log('⚠️ Invalid number for formatting:', value);
         return '0';
     }
     
@@ -163,9 +163,9 @@ export function testAPIConnectivity() {
     return fetch(`${API_BASE_URL}/clusters`)
         .then(response => response.json())
         .then(data => {
-            logDebug('✅ API connectivity test passed');
+            console.log('✅ API connectivity test passed');
             if (data.clusters?.length > 0) {
-                logDebug('📊 Found existing clusters');
+                console.log('📊 Found existing clusters');
             }
             return { success: true, data };
         })

@@ -3759,11 +3759,13 @@ class ComplianceFrameworkEngine:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT OR REPLACE INTO audit_trail 
-                (audit_id, timestamp, event_type, user, resource_type, resource_name,
+                (audit_id, cluster_name, timestamp, event_type, user_name, resource_type, resource_name,
                 action, before_state, after_state, compliance_impact, source_system, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                audit_entry.audit_id, audit_entry.timestamp.isoformat(),  # Convert to ISO format
+                audit_entry.audit_id, 
+                self.cluster_config.get('name', 'unknown'),
+                audit_entry.timestamp.isoformat(),  # Convert to ISO format
                 audit_entry.event_type, audit_entry.user, audit_entry.resource_type, 
                 audit_entry.resource_name, audit_entry.action,
                 json.dumps(audit_entry.before_state) if audit_entry.before_state else None,
@@ -3798,13 +3800,20 @@ class ComplianceFrameworkEngine:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT OR REPLACE INTO compliance_assessments
-                (assessment_id, framework, overall_compliance, compliance_grade,
-                assessment_data, assessed_at, assessor, valid_until)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (assessment_id, cluster_name, framework_id, control_id, compliance_status,
+                assessment_method, evidence_collected, assessor, assessment_notes, assessed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                report.report_id, report.framework, report.overall_compliance,
-                report.compliance_grade, assessment_data_json,
-                report.generated_at, report.certified_by, report.valid_until
+                report.report_id, 
+                self.cluster_config.get('name', 'unknown'),
+                report.framework, 
+                'OVERALL_ASSESSMENT',
+                'COMPLIANT' if report.overall_compliance >= 80 else 'NON_COMPLIANT',
+                'automated',
+                assessment_data_json,
+                report.certified_by,
+                f'Overall compliance: {report.overall_compliance}% (Grade: {report.compliance_grade})',
+                report.generated_at
             ))
             conn.commit()
     

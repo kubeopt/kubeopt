@@ -24,9 +24,9 @@ class FeatureLockManager {
                 const data = await response.json();
                 this.featureFlags = data.feature_flags;
                 this.licenseInfo = data.license;
-                logDebug('✅ License info loaded:', data);
+                console.log('✅ License info loaded:', data);
             } else {
-                console.warn('⚠️ Could not load license info');
+                console.log('⚠️ Could not load license info');
                 this.featureFlags = {};
                 this.licenseInfo = { tier: 'free' };
             }

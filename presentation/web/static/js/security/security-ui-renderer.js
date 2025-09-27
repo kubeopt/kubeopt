@@ -18,7 +18,7 @@ class SecurityUIRenderer {
     }
 
     async init() {
-        logDebug('🔒 Initializing Security UI Renderer...');
+        console.log('🔒 Initializing Security UI Renderer...');
         
         // Check if we're on the security posture page
         if (document.getElementById('securityposture-content')) {
@@ -28,7 +28,7 @@ class SecurityUIRenderer {
             });
         }
         
-        logDebug('✅ Security UI Renderer initialized');
+        console.log('✅ Security UI Renderer initialized');
     }
 
     async initializeSecurityDashboard() {
@@ -71,7 +71,7 @@ class SecurityUIRenderer {
     createDashboardLayout() {
         const container = document.getElementById('securityposture-content');
         if (!container) {
-            console.warn('Security posture content container not found');
+            console.log('Security posture content container not found');
             return;
         }
 
@@ -723,7 +723,7 @@ class SecurityUIRenderer {
             // Add critical findings summary
             this.updateCriticalFindings(posture.alerts, policyCompliance.violations);
 
-            logDebug('✅ Enhanced security overview updated successfully');
+            console.log('✅ Enhanced security overview updated successfully');
             
         } catch (error) {
             console.error('❌ Failed to update enhanced security overview:', error);
@@ -773,7 +773,7 @@ class SecurityUIRenderer {
         const container = document.getElementById('critical-findings-summary');
         if (!container) return;
 
-        logDebug('🔍 Critical Findings Debug:', {
+        console.log('🔍 Critical Findings Debug:', {
             totalAlerts: alerts?.length || 0,
             totalViolations: violations?.length || 0,
             alertSeverities: alerts?.map(a => a.severity).slice(0, 5) || [],
@@ -784,7 +784,7 @@ class SecurityUIRenderer {
         const criticalAlerts = (alerts || []).filter(a => a.severity === 'CRITICAL' || a.severity === 'HIGH');
         const criticalViolations = (violations || []).filter(v => v.severity === 'CRITICAL' || v.severity === 'HIGH');
         
-        logDebug('🔥 Filtered Critical/High Items:', {
+        console.log('🔥 Filtered Critical/High Items:', {
             criticalAlerts: criticalAlerts.length,
             criticalViolations: criticalViolations.length
         });
@@ -1548,7 +1548,7 @@ class SecurityUIRenderer {
     }
 
     updateCriticalFindingsForIssuesTab(container, alerts, violations) {
-        logDebug('🔍 Issues Tab Critical Findings Debug:', {
+        console.log('🔍 Issues Tab Critical Findings Debug:', {
             totalAlerts: alerts?.length || 0,
             totalViolations: violations?.length || 0,
             alertSeverities: alerts?.map(a => a.severity).slice(0, 5) || [],
@@ -1559,7 +1559,7 @@ class SecurityUIRenderer {
         const criticalAlerts = (alerts || []).filter(a => a.severity === 'CRITICAL' || a.severity === 'HIGH');
         const criticalViolations = (violations || []).filter(v => v.severity === 'CRITICAL' || v.severity === 'HIGH');
         
-        logDebug('🔥 Issues Tab Filtered Critical/High Items:', {
+        console.log('🔥 Issues Tab Filtered Critical/High Items:', {
             criticalAlerts: criticalAlerts.length,
             criticalViolations: criticalViolations.length
         });
@@ -1829,7 +1829,7 @@ class SecurityUIRenderer {
     }
 
     async forceRefresh() {
-        logDebug('🔄 Force refreshing security dashboard...');
+        console.log('🔄 Force refreshing security dashboard...');
         const data = await this.dataManager.loadSecurityOverview();
         if (data) {
             this.updateDashboardFromData(data);
@@ -1846,7 +1846,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const match = urlPath.match(/\/cluster\/([^\/\?]+)/);
         if (match && match[1]) {
             const clusterId = decodeURIComponent(match[1]);
-            logDebug(`🚀 Initializing with Cluster ID: ${clusterId}`);
+            console.log(`🚀 Initializing with Cluster ID: ${clusterId}`);
             
             window.currentCluster = {
                 id: clusterId,
@@ -1897,7 +1897,7 @@ window.securityDebug = {
     }
 };
 
-logDebug('💡 Enhanced Security UI Renderer Ready');
-logDebug('   window.securityDebug.test()     - Test cluster ID and APIs');
-logDebug('   window.securityDebug.refresh()  - Force refresh dashboard');
-logDebug('   window.securityDebug.getData()  - View cached security data');
+console.log('💡 Enhanced Security UI Renderer Ready');
+console.log('   window.securityDebug.test()     - Test cluster ID and APIs');
+console.log('   window.securityDebug.refresh()  - Force refresh dashboard');
+console.log('   window.securityDebug.getData()  - View cached security data');
