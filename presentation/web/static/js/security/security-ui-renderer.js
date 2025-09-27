@@ -773,21 +773,10 @@ class SecurityUIRenderer {
         const container = document.getElementById('critical-findings-summary');
         if (!container) return;
 
-        console.log('🔍 Critical Findings Debug:', {
-            totalAlerts: alerts?.length || 0,
-            totalViolations: violations?.length || 0,
-            alertSeverities: alerts?.map(a => a.severity).slice(0, 5) || [],
-            violationSeverities: violations?.map(v => v.severity).slice(0, 5) || []
-        });
-
         // Filter for critical and high severity items for better visibility
         const criticalAlerts = (alerts || []).filter(a => a.severity === 'CRITICAL' || a.severity === 'HIGH');
         const criticalViolations = (violations || []).filter(v => v.severity === 'CRITICAL' || v.severity === 'HIGH');
         
-        console.log('🔥 Filtered Critical/High Items:', {
-            criticalAlerts: criticalAlerts.length,
-            criticalViolations: criticalViolations.length
-        });
         
         if (criticalAlerts.length === 0 && criticalViolations.length === 0) {
             // Show a message that analysis found items but none are critical
@@ -1548,21 +1537,10 @@ class SecurityUIRenderer {
     }
 
     updateCriticalFindingsForIssuesTab(container, alerts, violations) {
-        console.log('🔍 Issues Tab Critical Findings Debug:', {
-            totalAlerts: alerts?.length || 0,
-            totalViolations: violations?.length || 0,
-            alertSeverities: alerts?.map(a => a.severity).slice(0, 5) || [],
-            violationSeverities: violations?.map(v => v.severity).slice(0, 5) || []
-        });
 
         // Filter for critical and high severity items
         const criticalAlerts = (alerts || []).filter(a => a.severity === 'CRITICAL' || a.severity === 'HIGH');
         const criticalViolations = (violations || []).filter(v => v.severity === 'CRITICAL' || v.severity === 'HIGH');
-        
-        console.log('🔥 Issues Tab Filtered Critical/High Items:', {
-            criticalAlerts: criticalAlerts.length,
-            criticalViolations: criticalViolations.length
-        });
         
         if (criticalAlerts.length === 0 && criticalViolations.length === 0) {
             // Show summary even if no critical/high items
@@ -1898,6 +1876,3 @@ window.securityDebug = {
 };
 
 console.log('💡 Enhanced Security UI Renderer Ready');
-console.log('   window.securityDebug.test()     - Test cluster ID and APIs');
-console.log('   window.securityDebug.refresh()  - Force refresh dashboard');
-console.log('   window.securityDebug.getData()  - View cached security data');

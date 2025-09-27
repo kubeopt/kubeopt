@@ -33,8 +33,6 @@ import { initializeDashboard } from './main.js';
  * This replaces the original DOMContentLoaded handler
  */
 function initializeApplication() {
-    console.log('🚀 Starting AKS Cost Intelligence Dashboard');
-    console.log('📦 All modules loaded and ready');
     
     try {
         // Show loading notification
@@ -42,9 +40,8 @@ function initializeApplication() {
         
         // ✅ Verify cluster isolation is working
         if (typeof window.validateClusterContext === 'function') {
-            console.log('✅ Cluster isolation functions available');
             const clusterId = window.getCurrentClusterId();
-            console.log(`🎯 Current cluster: ${clusterId}`);
+            
         } else {
             console.log('⚠️ Cluster isolation functions not found');
         }
@@ -91,5 +88,3 @@ export {
     initializeApplication,
     showNotification 
 };
-
-console.log('🎯 AKS Cost Intelligence - All modules loaded successfully');

@@ -242,7 +242,6 @@ class AutoAnalysisScheduler {
             window.showNotification('Scheduler', message, type);
         } else {
             // Fallback notification
-            console.log(`[${type.toUpperCase()}] ${message}`);
             alert(message);
         }
     }

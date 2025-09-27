@@ -187,7 +187,6 @@ function actualInitializeCharts() {
     
     makeClusterAwareAPICall('/api/chart-data')
         .then(response => {
-            console.log('📡 Enhanced chart data response status:', response.status);
             if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             return response.json();
         })
@@ -270,7 +269,6 @@ export function refreshChartsSmooth() {
  * Update dashboard metrics including CPU workload data
  */
 export function updateDashboardMetricsWithCPU(metrics, cpuWorkloadMetrics) {
-    console.log('📊 Updating metrics with CPU workload data:', { metrics, cpuWorkloadMetrics });
     
     // Standard metrics update
     updateDashboardMetrics(metrics);
@@ -840,7 +838,7 @@ window.generateCPUOptimizationPlan = async function() {
         console.log('Calling optimization plan API:', apiUrl);
         
         const response = await fetch(apiUrl);
-        console.log('API response status:', response.status, response.statusText);
+        
         
         if (!response.ok) {
             const errorText = await response.text();
@@ -850,11 +848,11 @@ window.generateCPUOptimizationPlan = async function() {
         }
         
         const result = await response.json();
-        console.log('API result:', result);
+        
         
         if (result.status === 'success') {
             if (result.data && result.data.optimization_commands) {
-                console.log('Showing optimization plan modal with', result.data.optimization_commands.length, 'commands');
+                
                 showOptimizationPlanModal(result.data);
                 showNotification('Success', `Generated ${result.data.optimization_commands.length} optimization commands`, 'success');
             } else {
@@ -872,37 +870,6 @@ window.generateCPUOptimizationPlan = async function() {
     }
 };
 
-// Debug function to test the optimization plan
-window.testCPUOptimizationPlan = async function() {
-    console.log('🔧 Testing CPU optimization plan...');
-    console.log('Current URL:', window.location.href);
-    console.log('Current cluster state:', window.currentClusterState);
-    
-    // Try with a test cluster ID
-    const testClusterId = 'test-cluster-123';
-    
-    try {
-        const apiUrl = `/api/clusters/${encodeURIComponent(testClusterId)}/cpu-optimization-plan`;
-        console.log('Testing API URL:', apiUrl);
-        
-        const response = await fetch(apiUrl);
-        console.log('Test API response:', response.status, response.statusText);
-        
-        const result = await response.json();
-        console.log('Test API result:', result);
-        
-        if (result.status === 'success') {
-            console.log('✅ API working! Commands:', result.data.optimization_commands.length);
-            showNotification('Success', 'API test successful!', 'success');
-        } else {
-            console.log('❌ API returned error:', result.message);
-            showNotification('Error', result.message, 'error');
-        }
-    } catch (error) {
-        console.error('❌ API test failed:', error);
-        showNotification('Error', `API test failed: ${error.message}`, 'error');
-    }
-};
 
 window.exportCPUReport = async function(format = 'pdf') {
     const clusterId = getCurrentClusterId();
@@ -954,7 +921,6 @@ window.exportCPUReport = async function(format = 'pdf') {
 
 // Function to display optimization plan in a modal
 function showOptimizationPlanModal(planData) {
-    console.log('🔧 showOptimizationPlanModal called with:', planData);
     
     if (!planData) {
         console.error('❌ No plan data provided to modal');
@@ -2521,7 +2487,7 @@ export function updateDashboardMetrics(metrics) {
     
     // Log each update for debugging
     metricUpdates.forEach((metric, index) => {
-        console.log(`📊 Updating metric ${index} (${metric.label}):`, metric.selectors[0], '=', metric.value);
+        
         animateMetricUpdate(metric, index * 100);
     });
     
@@ -2538,7 +2504,7 @@ export function updateDashboardMetrics(metrics) {
  * Update specific savings elements
  */
 function updateSpecificSavingsElements(metrics) {
-    console.log('🔧 Updating specific savings elements');
+    
     
     // Update monthly savings in multiple locations
     const monthlySavingsElements = [
@@ -2551,7 +2517,7 @@ function updateSpecificSavingsElements(metrics) {
         const element = document.querySelector(selector);
         if (element) {
             element.textContent = formatValue(metrics.total_savings || 0, 'currency');
-            console.log(`Updated ${selector} to: ${element.textContent}`);
+            
         }
     });
     
@@ -2572,7 +2538,7 @@ function updateSpecificSavingsElements(metrics) {
  * Update savings breakdown mini elements
  */
 function updateSavingsBreakdownMini(metrics) {
-    console.log('🔧 Updating savings breakdown mini elements');
+    
     
     const hpaElement = document.getElementById('hpa-savings-mini');
     const rightsizingElement = document.getElementById('rightsizing-savings-mini');
@@ -2711,7 +2677,7 @@ function updateInsightsWithCPU(insights) {
     });
     
     container.innerHTML = insightElements.join('');
-    console.log('✅ Insights updated with CPU workload considerations');
+    
 }
 
 /**
@@ -2774,7 +2740,7 @@ function updatePodCostMetrics(data) {
         else accuracy = 'Limited';
     }
     
-    console.log('Updating metrics display');
+    
     
     // Update the metrics
     const updates = [
@@ -3084,7 +3050,7 @@ export function createCostBreakdownChart(data, isRealData) {
 
     AppState.chartInstances['costBreakdownChart'] = new Chart(ctx, config);
     
-    console.log('✅ Cost breakdown chart created with animations');
+    
 }
 
 /**
@@ -3132,7 +3098,7 @@ export function createMainTrendChart(data, isRealData) {
                     index === 0 ? 'cost' : 'optimized'
                 );
                 
-                console.log(`📊 Generated trend data for ${dataset.name} from flat value ${baseValue}`);
+                
             }
         }
 
@@ -3392,7 +3358,7 @@ export function createMainTrendChart(data, isRealData) {
 
     AppState.chartInstances['mainTrendChart'] = new Chart(ctx, config);
     
-    console.log('✅ Main trend chart created with dynamic data');
+    
 }
 
 /**
@@ -4349,4 +4315,3 @@ if (typeof window !== 'undefined') {
     // window.testCPUOptimizationPlan - already defined above
 }
 
-console.log('✅ Enhanced AKS Cost Intelligence charts.js with comprehensive CPU workload support and cluster isolation loaded');

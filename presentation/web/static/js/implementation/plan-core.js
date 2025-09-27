@@ -186,7 +186,6 @@ function showLockedImplementationMessage() {
 }
 
 export function displayImplementationPlan(planData) {
-    console.log('🎨 Displaying complete implementation plan with ALL real data');
     
     try {
         PLAN_DATA_CACHE = planData;
@@ -208,7 +207,7 @@ export function displayImplementationPlan(planData) {
  * PROCESS COMPLETE IMPLEMENTATION DATA - All real data, no fallbacks
  */
 export function processCompleteImplementationData(planData) {
-    console.log('🔄 Processing COMPLETE implementation data - ALL REAL DATA');
+    console.log('🔄 Processing COMPLETE implementation data');
     
     if (!planData) {
         console.error('❌ No plan data provided');
@@ -233,14 +232,6 @@ export function processCompleteImplementationData(planData) {
     const timeline = planData.timeline_optimization || {};
     const risk = planData.risk_mitigation || {};
     const metadata = planData.metadata || planData.api_metadata || {};
-    
-    console.log('📊 Found phases:', phases.map(p => ({
-        title: p.title,
-        type: p.type,
-        start_week: p.start_week,
-        end_week: p.end_week,
-        phase_number: p.phase_number
-    })));
     
     // Calculate real financial metrics
     const totalSavings = phases.reduce((sum, phase) => sum + (phase.projected_savings || 0), 0);
@@ -468,12 +459,7 @@ export function extractPhaseCommands(phase, fullData) {
             }
         });
     }
-    
-    // NO FALLBACK COMMANDS - Return only what we actually have
-    console.log(`   📊 Final result: ${commandGroups.length} command groups for "${phase.title}"`);
-    commandGroups.forEach((group, i) => {
-        console.log(`     ${i+1}. ${group.title} (${group.commands.length} commands, source: ${group.source})`);
-    });
+   
     
     return commandGroups;
 }
@@ -485,8 +471,6 @@ export function shouldIncludeCommandsInPhase(phase, area) {
     const phaseTitle = (phase.title || '').toLowerCase();
     const phaseType = Array.isArray(phase.type) ? phase.type : [phase.type || ''];
     const areaType = (area.type || '').toLowerCase();
-    
-    console.log(`🔍 MATCHING: Phase "${phase.title}" vs Area "${area.type}"`);
     
     // Direct type matching first
     if (phaseType.some(pType => pType.toLowerCase() === areaType)) {
@@ -535,13 +519,13 @@ export function shouldIncludeCommandsInPhase(phase, area) {
         );
         
         if (phaseMatches && rule.areaTypes.includes(areaType)) {
-            console.log(`   ✅ RULE MATCH: ${rule.reason} - ${areaType}`);
+            console.log(`✅ RULE MATCH: ${rule.reason} - ${areaType}`);
             return true;
         }
     }
     
     if (phaseTitle.includes('optimization') && areaType.includes('optimization')) {
-        console.log(`   ✅ OPTIMIZATION FALLBACK: Both contain 'optimization'`);
+        console.log(` Both contain 'optimization'`);
         return true;
     }
     

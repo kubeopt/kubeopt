@@ -207,7 +207,7 @@ function showContent(contentType, element) {
             
         case 'securityposture':
             // Load security posture data with reinitialization
-            console.log('Security Posture tab selected');
+            
             // Reinitialize security dashboard when switching to it
             if (window.securityDashboard) {
                 setTimeout(() => {
@@ -218,7 +218,6 @@ function showContent(contentType, element) {
             
         case 'compliance':
             // Load compliance data
-            console.log('Compliance tab selected');
             break;
             
         case 'vulnerabilities':
@@ -695,16 +694,14 @@ function initializeTheme() {
 }
 
 // Keep ALL existing functions available globally
-window.updateCpuWorkloadDisplay = window.updateCpuWorkloadDisplay || function(data) { console.log('CPU workload display updated', data); };
+window.updateCpuWorkloadDisplay = window.updateCpuWorkloadDisplay || function(data) { console.log('CPU workload display updated'); };
 window.initializeCharts = window.initializeCharts || function() { console.log('Charts initialized'); };
 window.refreshCharts = window.refreshCharts || function() { console.log('Charts refreshed'); };
-window.updateAllCharts = window.updateAllCharts || function(data) { console.log('All charts updated', data); };
+window.updateAllCharts = window.updateAllCharts || function(data) { console.log('All charts updated'); };
 
 // Enhanced insights rendering function to override dynamic-insights.js
 window.updateInsightsDisplay = function(insights) {
-    console.log('🔧 Updating insights with compact bullet-point style');
-    console.log('🔧 Received insights:', insights);
-    console.log('🔧 Insight keys:', Object.keys(insights));
+    
     
     const container = document.getElementById('insights-container');
     if (!container || !insights) return;

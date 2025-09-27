@@ -35,19 +35,13 @@ class SecurityCharts {
 
     // Initialize all security charts
     initializeSecurityCharts(data) {
-        console.log('🔍 Initializing security charts with data:', data);
+        
         const analysis = data.analysis || data;
         const posture = analysis.security_posture || {};
         const violations = analysis.policy_compliance?.violations || [];
         const compliance = analysis.compliance_frameworks || {};
         const alerts = posture.alerts || [];
 
-        console.log('📊 Chart data extracted:');
-        console.log('  - Violations:', violations.length);
-        console.log('  - Alerts:', alerts.length);
-        console.log('  - Compliance frameworks:', Object.keys(compliance).length);
-        console.log('  - Security score:', posture.overall_score);
-        
         // Debug cluster-specific data
         const clusterId = window.currentClusterState?.clusterId || 'unknown';
         console.log('🏷️ Current cluster:', clusterId);
@@ -280,8 +274,7 @@ class SecurityCharts {
     }
 
     createRiskDistributionChart(violations, alerts = []) {
-        console.log('🍩 Creating enhanced risk distribution chart with violations:', violations);
-        console.log('🚨 Including security alerts:', alerts);
+        
         const canvas = document.getElementById('risk-donut-chart');
         if (!canvas) {
             console.log('❌ Risk donut chart canvas not found!');
@@ -294,7 +287,7 @@ class SecurityCharts {
 
         // Combine violations and alerts for total risk calculation
         const allRiskItems = [...(violations || []), ...(alerts || [])];
-        console.log('🔍 Combined risk items (violations + alerts):', allRiskItems.length);
+        
         
         // Helper function to get severity level from an item
         const getSeverityLevel = (item) => {
@@ -336,7 +329,7 @@ class SecurityCharts {
             Low: allRiskItems.filter(item => getSeverityLevel(item) === 'low').length
         };
 
-        console.log('📊 Enhanced risk counts calculated:', riskCounts);
+        
         
         // Add detailed debugging for each item
         console.group('🔍 Detailed Risk Item Analysis');
@@ -344,7 +337,7 @@ class SecurityCharts {
             const rawSeverity = item.severity || item.risk_level || item.level || 'unknown';
             const normalizedSeverity = getSeverityLevel(item);
             const title = item.title || item.policy_name || item.name || 'unnamed';
-            console.log(`Item ${index + 1}: "${title}" - Raw: "${rawSeverity}" → Normalized: "${normalizedSeverity}"`);
+            
         });
         console.groupEnd();
         
@@ -352,30 +345,16 @@ class SecurityCharts {
         const unknownSeverityItems = allRiskItems.filter(item => getSeverityLevel(item) === 'unknown');
         if (unknownSeverityItems.length > 0) {
             console.log('⚠️ Items with unknown severity:', unknownSeverityItems.length);
-            console.log('Unknown severity items:', unknownSeverityItems.map(item => ({
-                title: item.title || item.policy_name || 'unnamed',
-                severity: item.severity,
-                risk_level: item.risk_level,
-                level: item.level,
-                priority: item.priority
-            })));
         }
         
         // Handle empty data case with better UX
         const totalRisks = Object.values(riskCounts).reduce((a, b) => a + b, 0);
-        console.log('🔢 Total risks calculated:', totalRisks, '(from', violations?.length || 0, 'violations +', alerts?.length || 0, 'alerts)');
-        console.log('🎯 Individual counts:', Object.entries(riskCounts));
         
         // Debug missing high severity items specifically
         const highSeverityItems = allRiskItems.filter(item => getSeverityLevel(item) === 'high');
-        console.log('🚨 High severity items found:', highSeverityItems.length);
+        
         if (highSeverityItems.length > 0) {
-            console.log('High severity details:', highSeverityItems.map(item => ({
-                title: item.title || item.policy_name || 'unnamed',
-                rawSeverity: item.severity || item.risk_level || item.level,
-                normalizedSeverity: getSeverityLevel(item),
-                source: item.hasOwnProperty('policy_name') ? 'violation' : 'alert'
-            })));
+            console.log('High severity details found');
         } else {
             console.log('❌ No high severity items found! Check data structure.');
         }
@@ -395,7 +374,7 @@ class SecurityCharts {
             return;
         }
         
-        console.log(`🔧 Processing ${filteredData.length} risk categories:`, filteredData);
+        
         
         // Clean static color palette for risk levels
         const colorMap = {
@@ -605,7 +584,7 @@ class SecurityCharts {
         // Enhanced risk distribution summary
         this.updateRiskDistributionSummary(riskCounts, totalRisks);
         
-        console.log('✅ Enhanced risk distribution chart created successfully with gradients and animations');
+        
     }
     
     showNoRisksVisualization(canvas) {
@@ -753,7 +732,7 @@ class SecurityCharts {
     }
 
     createComplianceChart(compliance) {
-        console.log('📊 Creating enhanced compliance chart with data:', compliance);
+        
         const canvas = document.getElementById('compliance-bar-chart');
         if (!canvas) {
             console.log('❌ Compliance bar chart canvas not found!');
@@ -767,7 +746,7 @@ class SecurityCharts {
         const frameworks = Object.keys(compliance);
         const scores = frameworks.map(f => compliance[f].overall_compliance || compliance[f].score || 0);
         
-        console.log('📋 Enhanced frameworks and scores:', { frameworks, scores });
+        
         
         // Handle empty data case with better UX
         if (frameworks.length === 0) {

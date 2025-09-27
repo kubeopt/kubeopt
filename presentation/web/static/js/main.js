@@ -36,9 +36,8 @@ function ensureGlobalFunctions() {
         
         // These should be available from other modules
         if (typeof window.switchToTab !== 'function') {
-            console.log('⚠️ switchToTab not found, defining fallback...');
+            
             window.switchToTab = function(selector) {
-                console.log('🔄 Fallback switchToTab called for:', selector);
                 
                 // Simple tab switching logic
                 const tabButton = document.querySelector(`[data-bs-target="${selector}"]`);
@@ -391,7 +390,7 @@ function initializeActiveTabContent() {
  * ✅  Main initialization function without module loading timeout
  */
 async function initializeDashboard() {
-    console.log('🚀 Initializing AKS Cost Intelligence Dashboard (FIXED VERSION)');
+    console.log('🚀 Initializing AKS Cost Intelligence Dashboard');
     
     const progress = showProgressNotification([
         'Loading configuration...',
@@ -445,7 +444,7 @@ async function initializeDashboard() {
         // Show welcome message for new users
         showWelcomeMessage();
         
-        console.log('✅ Dashboard initialization completed successfully (FIXED VERSION)');
+        console.log('✅ Dashboard initialization completed successfully');
         
     } catch (error) {
         console.error('❌ Error during initialization:', error);
@@ -515,6 +514,6 @@ if (document.readyState === 'loading') {
     initializeDashboard();
 }
 
-console.log('✅ AKS Cost Intelligence Dashboard main module loaded (FIXED VERSION)');
+console.log('✅ AKS Cost Intelligence Dashboard main module loaded');
 
 export { initializeDashboard };

@@ -15,7 +15,6 @@ window.toggleCompletePhase = function(phaseId) {
     const content = document.getElementById(`complete-content-${phaseId}`);
     if (content) {
         const isExpanded = content.style.maxHeight !== '0px' && content.style.maxHeight !== '';
-        console.log(`   Current state: ${isExpanded ? 'expanded' : 'collapsed'}`);
         
         if (isExpanded) {
             content.style.maxHeight = '0px';

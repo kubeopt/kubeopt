@@ -26,8 +26,8 @@ class AKSDashboard {
     }
     
     init() {
-        console.log('Initializing AKS Dashboard...');
-        console.log(`API Base URL: ${this.apiBaseUrl}`);
+        
+        
         
         // Test backend connectivity
         this.testBackendConnection();
@@ -48,7 +48,7 @@ class AKSDashboard {
             const response = await fetch(healthUrl);
             if (response.ok) {
                 const data = await response.json();
-                console.log('✅ Backend connection successful:', data);
+                
                 this.updateConnectionStatus('online', 'Connected');
                 
                 // Check if frontend files are available on backend
@@ -114,11 +114,11 @@ class AKSDashboard {
                 wsUrl = `${protocol}//${baseUrl}/ws/analytics/default`;
             }
             
-            console.log(`Connecting to WebSocket: ${wsUrl}`);
+            
             this.websocket = new WebSocket(wsUrl);
             
             this.websocket.onopen = () => {
-                console.log('WebSocket connected');
+                
                 this.updateWebSocketStatus('online', 'Connected');
             };
             
@@ -133,7 +133,7 @@ class AKSDashboard {
             };
             
             this.websocket.onclose = () => {
-                console.log('WebSocket disconnected');
+                
                 this.updateWebSocketStatus('warning', 'Disconnected');
                 
                 // Attempt to reconnect after 5 seconds
@@ -161,7 +161,7 @@ class AKSDashboard {
     }
     
     handleWebSocketMessage(data) {
-        console.log('WebSocket message received:', data);
+        
         
         if (data.type === 'metrics_update') {
             // Handle real-time metrics updates
@@ -311,7 +311,7 @@ class AKSDashboard {
     }
     
     displayAnalysisResults(result) {
-        console.log('Displaying analysis results:', result);
+        
         
         // Show results dashboard
         const resultsDiv = document.getElementById('results-dashboard');

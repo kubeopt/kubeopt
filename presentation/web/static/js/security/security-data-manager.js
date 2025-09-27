@@ -26,7 +26,6 @@ class SecurityDataManager {
         
         if (match && match[1]) {
             const clusterId = decodeURIComponent(match[1]);
-            console.log(`🎯 SECURITY: Extracted Cluster ID from URL: ${clusterId}`);
             
             // Validate the format (should contain underscore between RG and AKS name)
             if (clusterId.includes('_')) {
@@ -319,28 +318,6 @@ class SecurityDataManager {
         console.log('ℹ️ Auto-refresh stopped');
     }
 
-    async debugClusterAndAPIs() {
-        console.log('🔍 === SECURITY DASHBOARD DEBUG ===');
-        
-        const clusterId = this.getCurrentClusterId();
-        console.log('📌 Current Cluster ID:', clusterId);
-        console.log('📌 Global State:', window.currentClusterState);
-        console.log('📌 Cached Data Available:', !!this.cachedData);
-        
-        if (this.cachedData) {
-            console.log('📌 Cached Data Structure:', Object.keys(this.cachedData));
-            
-            if (this.cachedData.analysis) {
-                const analysis = this.cachedData.analysis;
-                console.log('📊 Security Score:', analysis.security_posture?.overall_score);
-                console.log('📊 Total Alerts:', analysis.security_posture?.alerts?.length);
-                console.log('📊 Total Violations:', analysis.policy_compliance?.violations?.length);
-                console.log('📊 Compliance Frameworks:', Object.keys(analysis.compliance_frameworks || {}));
-            }
-        }
-        
-        return clusterId;
-    }
 }
 
 // Export for use by UI renderer

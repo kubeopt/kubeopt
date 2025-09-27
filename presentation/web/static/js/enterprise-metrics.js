@@ -34,7 +34,7 @@ class EnterpriseMetricsManager {
         
         // Check if enterprise metrics features are enabled
         if (window.checkFeatureAccess && !window.checkFeatureAccess('enterprise_metrics')) {
-            console.log('🔒 Enterprise metrics features are locked - skipping API call');
+            
             this.showLockedMessage();
             return;
         }
@@ -66,7 +66,7 @@ class EnterpriseMetricsManager {
             }
 
             const result = await response.json();
-            console.log('📊 API Response:', result);
+            
             
             if (result.status === 'error') {
                 throw new Error(result.message || 'Failed to load enterprise metrics');
@@ -87,59 +87,14 @@ class EnterpriseMetricsManager {
             this.showMainContent();
 
             console.log('✅ Enterprise metrics loaded successfully');
-            console.log('📊 Data structure:', {
-                hasEnterpriseMaturity: !!result.data.enterprise_maturity,
-                hasOperationalMetrics: !!result.data.operational_metrics,
-                metricsCount: result.data.operational_metrics ? Object.keys(result.data.operational_metrics).length : 0,
-                hasActionItems: !!result.data.action_items,
-                source: result.source
-            });
             
-            // Debug metric scores to identify zero values
-            if (result.data.operational_metrics) {
-                console.log('🔍 Metric Scores Debug:');
-                Object.entries(result.data.operational_metrics).forEach(([key, metric]) => {
-                    console.log(`  Metric processed: score=${metric.score}`);
-                    if (metric.score === 0) {
-                        console.log(`⚠️ Zero score for ${key}:`, metric);
-                    }
-                    if (typeof metric.details === 'string') {
-                        console.log('✅ String details processed');
-                    }
-                });
-            }
+            
 
         } catch (error) {
             console.error('❌ Failed to load enterprise metrics:', error);
             
             // Show the real error with detailed troubleshooting
             let errorMessage = `Failed to load enterprise metrics: ${error.message}`;
-            
-            // Add specific troubleshooting based on error type
-            if (error.message.includes('No analysis data available') || error.message.includes('Please run cluster analysis first')) {
-                errorMessage = '📊 Latest Analysis Not Available Yet\n\n' +
-                             '🔄 To view Enterprise Metrics, please run an analysis first:\n\n' +
-                             '📋 Quick Steps:\n' +
-                             '1. Click the "Run Analysis" button on this cluster\n' +
-                             '2. Wait for the analysis to complete\n' +
-                             '3. Return to this tab to view your metrics\n\n' +
-                             '💡 Enterprise Metrics provide deep insights after analyzing your cluster data.';
-            } else if (error.message.includes('No specific cluster selected')) {
-                errorMessage = '🏠 Enterprise Metrics requires a specific cluster to be selected.\n\n' +
-                             '📋 Steps to view metrics:\n' +
-                             '1. Go to the home page\n' +
-                             '2. Select a specific cluster from the list\n' +
-                             '3. Navigate to the Enterprise Metrics tab\n\n' +
-                             '💡 Enterprise Metrics analyzes real cluster data and requires a specific cluster context.';
-            } else if (error.message.includes('cluster_id parameter required')) {
-                errorMessage += '\n\nPlease ensure you are viewing this from a specific cluster page.';
-            } else if (error.message.includes('not found')) {
-                errorMessage += '\n\nThe cluster may need to be re-registered or may not be accessible.';
-            } else if (error.message.includes('subscription')) {
-                errorMessage += '\n\nCheck that the Azure subscription is properly configured and accessible.';
-            } else if (error.message.includes('timeout') || error.message.includes('calculation failed')) {
-                errorMessage += '\n\nThe cluster analysis is taking longer than expected. This may indicate connectivity issues.';
-            }
             
             this.showError(errorMessage);
             this.hideLoading();
@@ -178,16 +133,10 @@ class EnterpriseMetricsManager {
     }
 
     updateMaturityOverview(maturity) {
-        console.log('🔍 DEBUG: updateMaturityOverview called with:', maturity);
+        
         const levelEl = document.getElementById('maturity-level');
         const scoreEl = document.getElementById('maturity-score');
         const progressEl = document.getElementById('maturity-progress');
-        
-        console.log('🔍 DEBUG: DOM elements found:', {
-            levelEl: !!levelEl,
-            scoreEl: !!scoreEl,
-            progressEl: !!progressEl
-        });
 
         if (levelEl) levelEl.textContent = maturity.level;
         if (scoreEl) scoreEl.textContent = Math.round(maturity.score);
@@ -200,17 +149,17 @@ class EnterpriseMetricsManager {
     }
 
     updateIndividualMetrics(metrics) {
-        console.log('🔍 DEBUG: updateIndividualMetrics called with:', metrics);
+        
         for (const [metricKey, metricData] of Object.entries(metrics)) {
-            console.log('🔍 DEBUG: Processing metric');
+            
             this.updateMetricCard(metricKey, metricData);
         }
     }
 
     updateMetricCard(metricKey, data) {
-        console.log('🔍 DEBUG: updateMetricCard called');
+        
         const card = document.querySelector(`[data-metric="${metricKey}"]`);
-        console.log('🔍 DEBUG: Card lookup completed');
+        
         if (!card) {
             console.error(`❌ DEBUG: No card found for metric ${metricKey}`);
             return;
@@ -486,14 +435,7 @@ class EnterpriseMetricsManager {
         
         const match = path.match(/\/cluster\/([^\/]+)/);
         const clusterId = match ? match[1] : 'default';
-        
-        console.log('🔍 Cluster ID extracted');
-        
-        // If we're on the home page, try to get cluster from registered clusters
-        if (clusterId === 'default' && path === '/') {
-            console.log('⚠️ On home page - no specific cluster selected');
-            console.log('💡 Please navigate to a specific cluster page to view Enterprise Metrics');
-        }
+
         
         return clusterId;
     }
@@ -1136,7 +1078,6 @@ class EnterpriseMetricsManager {
 
     exportMetricReport(metricKey) {
         // Export functionality disabled to prevent data exposure
-        console.log('📊 Metric report export requested but disabled for security:', metricKey);
         alert('Metric export has been disabled for security purposes');
     }
 
