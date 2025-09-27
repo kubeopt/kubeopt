@@ -1593,7 +1593,7 @@ export function createHPAComparisonChart(data, isRealData) {
             },
             plugins: {
                 legend: { 
-                    display: true,
+                    display: false,
                     position: 'top',
                     align: 'center',
                     labels: { 
@@ -1734,6 +1734,11 @@ export function createHPAComparisonChart(data, isRealData) {
 
     AppState.chartInstances['hpaComparisonChart'] = new Chart(ctx, config);
     
+    // Update metrics display below chart with dynamic data
+    if (typeof updateHpaMetricsDisplay === 'function') {
+        updateHpaMetricsDisplay(data);
+    }
+    
     // Update ML workload badge with enhanced CPU info
     updateMLWorkloadBadgeWithCPU(data);
     
@@ -1741,7 +1746,7 @@ export function createHPAComparisonChart(data, isRealData) {
     updateHPARecommendationTextWithCPU(data);
     
     // Display HPA type distribution if available
-    displayHPATypeDistribution(data);
+    //displayHPATypeDistribution(data);
     
     logDebug('✅ Enhanced HPA chart created with purple/coral color scheme and improved positioning');
 }
@@ -1787,285 +1792,285 @@ function updateMLWorkloadBadgeWithCPU(data) {
 /**
  * Display enhanced HPA type distribution including strategy and version info
  */
-function displayHPATypeDistribution(data) {
-    if (!data.hpa_type_distribution && !data.hpa_strategy_distribution) return;
+// function displayHPATypeDistribution(data) {
+//     if (!data.hpa_type_distribution && !data.hpa_strategy_distribution) return;
     
-    const typeDist = data.hpa_type_distribution || {};
-    const strategyDist = data.hpa_strategy_distribution || {};
-    const versionDist = data.hpa_version_distribution || {};
+//     const typeDist = data.hpa_type_distribution || {};
+//     const strategyDist = data.hpa_strategy_distribution || {};
+//     const versionDist = data.hpa_version_distribution || {};
     
-    const typeTotal = (typeDist.cpu || 0) + (typeDist.memory || 0) + (typeDist.mixed || 0) + (typeDist.custom || 0);
-    const hasStrategyData = Object.keys(strategyDist).length > 0;
-    const hasVersionData = Object.keys(versionDist).length > 0;
+//     const typeTotal = (typeDist.cpu || 0) + (typeDist.memory || 0) + (typeDist.mixed || 0) + (typeDist.custom || 0);
+//     const hasStrategyData = Object.keys(strategyDist).length > 0;
+//     const hasVersionData = Object.keys(versionDist).length > 0;
     
-    if (typeTotal === 0 && !hasStrategyData) return;
+//     if (typeTotal === 0 && !hasStrategyData) return;
     
-    // Find or create HPA distribution display element
-    let distributionElement = document.getElementById('hpa-type-distribution');
-    if (!distributionElement) {
-        // Try to add it near the HPA chart
-        const hpaChartContainer = document.querySelector('.hpa-chart-container, #hpaComparisonChart')?.parentElement;
-        if (hpaChartContainer) {
-            distributionElement = document.createElement('div');
-            distributionElement.id = 'hpa-type-distribution';
-            distributionElement.className = 'hpa-type-distribution mt-3';
-            hpaChartContainer.appendChild(distributionElement);
-        }
-    }
+//     // Find or create HPA distribution display element
+//     let distributionElement = document.getElementById('hpa-type-distribution');
+//     if (!distributionElement) {
+//         // Try to add it near the HPA chart
+//         const hpaChartContainer = document.querySelector('.hpa-chart-container, #hpaComparisonChart')?.parentElement;
+//         if (hpaChartContainer) {
+//             distributionElement = document.createElement('div');
+//             distributionElement.id = 'hpa-type-distribution';
+//             distributionElement.className = 'hpa-type-distribution mt-3';
+//             hpaChartContainer.appendChild(distributionElement);
+//         }
+//     }
     
-    if (distributionElement) {
-        let htmlContent = '';
+//     if (distributionElement) {
+//         let htmlContent = '';
         
-        // Legacy type distribution (backward compatibility)
-        if (typeTotal > 0) {
-            const cpuPercent = ((typeDist.cpu || 0) / typeTotal * 100).toFixed(0);
-            const memoryPercent = ((typeDist.memory || 0) / typeTotal * 100).toFixed(0);
-            const mixedPercent = ((typeDist.mixed || 0) / typeTotal * 100).toFixed(0);
-            const customPercent = ((typeDist.custom || 0) / typeTotal * 100).toFixed(0);
+//         // Legacy type distribution (backward compatibility)
+//         if (typeTotal > 0) {
+//             const cpuPercent = ((typeDist.cpu || 0) / typeTotal * 100).toFixed(0);
+//             const memoryPercent = ((typeDist.memory || 0) / typeTotal * 100).toFixed(0);
+//             const mixedPercent = ((typeDist.mixed || 0) / typeTotal * 100).toFixed(0);
+//             const customPercent = ((typeDist.custom || 0) / typeTotal * 100).toFixed(0);
             
-            htmlContent += `
-                <div class="card border-0 shadow-sm mb-3">
-                    <div class="card-body p-3">
-                        <h6 class="card-title mb-3">
-                            <i class="fas fa-chart-pie me-2"></i>HPA Type Distribution
-                        </h6>
-                        <div class="hpa-type-badges d-flex flex-wrap gap-2 mb-3">
-                            ${typeDist.cpu > 0 ? `<span class="badge bg-info">CPU: ${typeDist.cpu} (${cpuPercent}%)</span>` : ''}
-                            ${typeDist.memory > 0 ? `<span class="badge bg-warning">Memory: ${typeDist.memory} (${memoryPercent}%)</span>` : ''}
-                            ${typeDist.mixed > 0 ? `<span class="badge bg-success">Mixed: ${typeDist.mixed} (${mixedPercent}%)</span>` : ''}
-                            ${typeDist.custom > 0 ? `<span class="badge bg-secondary">Custom: ${typeDist.custom} (${customPercent}%)</span>` : ''}
-                        </div>`;
+//             htmlContent += `
+//                 <div class="card border-0 shadow-sm mb-3">
+//                     <div class="card-body p-3">
+//                         <h6 class="card-title mb-3">
+//                             <i class="fas fa-chart-pie me-2"></i>HPA Type Distribution
+//                         </h6>
+//                         <div class="hpa-type-badges d-flex flex-wrap gap-2 mb-3">
+//                             ${typeDist.cpu > 0 ? `<span class="badge bg-info">CPU: ${typeDist.cpu} (${cpuPercent}%)</span>` : ''}
+//                             ${typeDist.memory > 0 ? `<span class="badge bg-warning">Memory: ${typeDist.memory} (${memoryPercent}%)</span>` : ''}
+//                             ${typeDist.mixed > 0 ? `<span class="badge bg-success">Mixed: ${typeDist.mixed} (${mixedPercent}%)</span>` : ''}
+//                             ${typeDist.custom > 0 ? `<span class="badge bg-secondary">Custom: ${typeDist.custom} (${customPercent}%)</span>` : ''}
+//                         </div>`;
             
-            // Add progress bars for type distribution
-            if (typeTotal > 1) {
-                htmlContent += `
-                    <div class="progress mb-3" style="height: 20px;">
-                        ${typeDist.cpu > 0 ? `<div class="progress-bar bg-info" role="progressbar" style="width: ${cpuPercent}%">${typeDist.cpu} CPU</div>` : ''}
-                        ${typeDist.memory > 0 ? `<div class="progress-bar bg-warning" role="progressbar" style="width: ${memoryPercent}%">${typeDist.memory} Mem</div>` : ''}
-                        ${typeDist.mixed > 0 ? `<div class="progress-bar bg-success" role="progressbar" style="width: ${mixedPercent}%">${typeDist.mixed} Mix</div>` : ''}
-                        ${typeDist.custom > 0 ? `<div class="progress-bar bg-secondary" role="progressbar" style="width: ${customPercent}%">${typeDist.custom} Custom</div>` : ''}
-                    </div>`;
-            }
+//             // Add progress bars for type distribution
+//             if (typeTotal > 1) {
+//                 htmlContent += `
+//                     <div class="progress mb-3" style="height: 20px;">
+//                         ${typeDist.cpu > 0 ? `<div class="progress-bar bg-info" role="progressbar" style="width: ${cpuPercent}%">${typeDist.cpu} CPU</div>` : ''}
+//                         ${typeDist.memory > 0 ? `<div class="progress-bar bg-warning" role="progressbar" style="width: ${memoryPercent}%">${typeDist.memory} Mem</div>` : ''}
+//                         ${typeDist.mixed > 0 ? `<div class="progress-bar bg-success" role="progressbar" style="width: ${mixedPercent}%">${typeDist.mixed} Mix</div>` : ''}
+//                         ${typeDist.custom > 0 ? `<div class="progress-bar bg-secondary" role="progressbar" style="width: ${customPercent}%">${typeDist.custom} Custom</div>` : ''}
+//                     </div>`;
+//             }
             
-            htmlContent += `</div></div>`;
-        }
+//             htmlContent += `</div></div>`;
+//         }
         
-        // Enhanced strategy distribution
-        if (hasStrategyData) {
-            const strategyTotal = Object.values(strategyDist).reduce((sum, count) => sum + count, 0);
-            const strategyColors = {
-                'cpu-based': 'info',
-                'memory-based': 'warning', 
-                'balanced': 'success',
-                'hybrid': 'primary',
-                'custom-metrics': 'secondary',
-                'unknown': 'light'
-            };
+//         // Enhanced strategy distribution
+//         if (hasStrategyData) {
+//             const strategyTotal = Object.values(strategyDist).reduce((sum, count) => sum + count, 0);
+//             const strategyColors = {
+//                 'cpu-based': 'info',
+//                 'memory-based': 'warning', 
+//                 'balanced': 'success',
+//                 'hybrid': 'primary',
+//                 'custom-metrics': 'secondary',
+//                 'unknown': 'light'
+//             };
             
-            htmlContent += `
-                <div class="card border-0 shadow-sm mb-3">
-                    <div class="card-body p-3">
-                        <h6 class="card-title mb-3">
-                            <i class="fas fa-cogs me-2"></i>HPA Scaling Strategies
-                        </h6>
-                        <div class="hpa-strategy-badges d-flex flex-wrap gap-2 mb-2">`;
+//             htmlContent += `
+//                 <div class="card border-0 shadow-sm mb-3">
+//                     <div class="card-body p-3">
+//                         <h6 class="card-title mb-3">
+//                             <i class="fas fa-cogs me-2"></i>HPA Scaling Strategies
+//                         </h6>
+//                         <div class="hpa-strategy-badges d-flex flex-wrap gap-2 mb-2">`;
             
-            Object.entries(strategyDist).forEach(([strategy, count]) => {
-                if (count > 0) {
-                    const percent = ((count / strategyTotal) * 100).toFixed(0);
-                    const colorClass = strategyColors[strategy] || 'secondary';
-                    const displayName = strategy.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    htmlContent += `<span class="badge bg-${colorClass}">${displayName}: ${count} (${percent}%)</span>`;
-                }
-            });
+//             Object.entries(strategyDist).forEach(([strategy, count]) => {
+//                 if (count > 0) {
+//                     const percent = ((count / strategyTotal) * 100).toFixed(0);
+//                     const colorClass = strategyColors[strategy] || 'secondary';
+//                     const displayName = strategy.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+//                     htmlContent += `<span class="badge bg-${colorClass}">${displayName}: ${count} (${percent}%)</span>`;
+//                 }
+//             });
             
-            htmlContent += `</div></div></div>`;
-        }
+//             htmlContent += `</div></div></div>`;
+//         }
         
-        // Enhanced version distribution
-        if (hasVersionData) {
-            const versionTotal = Object.values(versionDist).reduce((sum, count) => sum + count, 0);
-            const versionColors = {
-                'v2': 'success',
-                'v2beta2': 'primary',
-                'v2beta1': 'info',
-                'v1': 'warning',
-                'unknown': 'secondary'
-            };
+//         // Enhanced version distribution
+//         if (hasVersionData) {
+//             const versionTotal = Object.values(versionDist).reduce((sum, count) => sum + count, 0);
+//             const versionColors = {
+//                 'v2': 'success',
+//                 'v2beta2': 'primary',
+//                 'v2beta1': 'info',
+//                 'v1': 'warning',
+//                 'unknown': 'secondary'
+//             };
             
-            htmlContent += `
-                <div class="card border-0 shadow-sm mb-3">
-                    <div class="card-body p-3">
-                        <h6 class="card-title mb-3">
-                            <i class="fas fa-code-branch me-2"></i>HPA API Versions
-                        </h6>
-                        <div class="hpa-version-badges d-flex flex-wrap gap-2 mb-2">`;
+//             htmlContent += `
+//                 <div class="card border-0 shadow-sm mb-3">
+//                     <div class="card-body p-3">
+//                         <h6 class="card-title mb-3">
+//                             <i class="fas fa-code-branch me-2"></i>HPA API Versions
+//                         </h6>
+//                         <div class="hpa-version-badges d-flex flex-wrap gap-2 mb-2">`;
             
-            Object.entries(versionDist).forEach(([version, count]) => {
-                if (count > 0) {
-                    const percent = ((count / versionTotal) * 100).toFixed(0);
-                    const colorClass = versionColors[version] || 'secondary';
-                    htmlContent += `<span class="badge bg-${colorClass}">${version}: ${count} (${percent}%)</span>`;
-                }
-            });
+//             Object.entries(versionDist).forEach(([version, count]) => {
+//                 if (count > 0) {
+//                     const percent = ((count / versionTotal) * 100).toFixed(0);
+//                     const colorClass = versionColors[version] || 'secondary';
+//                     htmlContent += `<span class="badge bg-${colorClass}">${version}: ${count} (${percent}%)</span>`;
+//                 }
+//             });
             
-            htmlContent += `</div></div></div>`;
-        }
+//             htmlContent += `</div></div></div>`;
+//         }
         
-        // Summary information
-        if (data.hpa_state_summary) {
-            const summary = data.hpa_state_summary;
-            htmlContent += `
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body p-3">
-                        <h6 class="card-title mb-3">
-                            <i class="fas fa-chart-bar me-2"></i>HPA Summary
-                        </h6>
-                        <div class="row text-center">
-                            <div class="col-3">
-                                <div class="h5 mb-0 text-primary">${summary.existing_hpas || 0}</div>
-                                <small class="text-muted">Active HPAs</small>
-                            </div>
-                            <div class="col-3">
-                                <div class="h5 mb-0 text-success">${(summary.hpa_coverage_percent || 0).toFixed(1)}%</div>
-                                <small class="text-muted">Coverage</small>
-                            </div>
-                            <div class="col-3">
-                                <div class="h5 mb-0 text-warning">${summary.missing_candidates || 0}</div>
-                                <small class="text-muted">Candidates</small>
-                            </div>
-                            <div class="col-3">
-                                <div class="h5 mb-0 ${summary.optimization_potential > 0 ? 'text-danger' : 'text-success'}">${summary.optimization_potential || 0}</div>
-                                <small class="text-muted">Issues</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
-        }
+//         // Summary information
+//         if (data.hpa_state_summary) {
+//             const summary = data.hpa_state_summary;
+//             htmlContent += `
+//                 <div class="card border-0 shadow-sm">
+//                     <div class="card-body p-3">
+//                         <h6 class="card-title mb-3">
+//                             <i class="fas fa-chart-bar me-2"></i>HPA Summary
+//                         </h6>
+//                         <div class="row text-center">
+//                             <div class="col-3">
+//                                 <div class="h5 mb-0 text-primary">${summary.existing_hpas || 0}</div>
+//                                 <small class="text-muted">Active HPAs</small>
+//                             </div>
+//                             <div class="col-3">
+//                                 <div class="h5 mb-0 text-success">${(summary.hpa_coverage_percent || 0).toFixed(1)}%</div>
+//                                 <small class="text-muted">Coverage</small>
+//                             </div>
+//                             <div class="col-3">
+//                                 <div class="h5 mb-0 text-warning">${summary.missing_candidates || 0}</div>
+//                                 <small class="text-muted">Candidates</small>
+//                             </div>
+//                             <div class="col-3">
+//                                 <div class="h5 mb-0 ${summary.optimization_potential > 0 ? 'text-danger' : 'text-success'}">${summary.optimization_potential || 0}</div>
+//                                 <small class="text-muted">Issues</small>
+//                             </div>
+//                         </div>
+//                     </div>
+//                 </div>`;
+//         }
         
-        distributionElement.innerHTML = htmlContent;
-    }
+//         distributionElement.innerHTML = htmlContent;
+//     }
     
-    // Also display individual HPA details if available
-    if (data.existing_hpas && data.existing_hpas.length > 0) {
-        displayIndividualHPAs(data.existing_hpas);
-    }
-}
+//     //Also display individual HPA details if available
+//     if (data.existing_hpas && data.existing_hpas.length > 0) {
+//         displayIndividualHPAs(data.existing_hpas);
+//     }
+// }
 
 /**
  * Display individual HPA details
  */
-function displayIndividualHPAs(hpas) {
-    let hpaListElement = document.getElementById('hpa-details-list');
-    if (!hpaListElement) {
-        const hpaContainer = document.querySelector('.hpa-chart-container, #hpaComparisonChart')?.parentElement;
-        if (hpaContainer) {
-            hpaListElement = document.createElement('div');
-            hpaListElement.id = 'hpa-details-list';
-            hpaListElement.className = 'hpa-details-list mt-3';
-            hpaContainer.appendChild(hpaListElement);
-        }
-    }
+// function displayIndividualHPAs(hpas) {
+//     let hpaListElement = document.getElementById('hpa-details-list');
+//     if (!hpaListElement) {
+//         const hpaContainer = document.querySelector('.hpa-chart-container, #hpaComparisonChart')?.parentElement;
+//         if (hpaContainer) {
+//             hpaListElement = document.createElement('div');
+//             hpaListElement.id = 'hpa-details-list';
+//             hpaListElement.className = 'hpa-details-list mt-3';
+//             hpaContainer.appendChild(hpaListElement);
+//         }
+//     }
     
-    if (hpaListElement && hpas.length > 0) {
-        const hpaItems = hpas.slice(0, 5).map(hpa => {
-            // Enhanced type detection with strategy info
-            const strategy = hpa.metrics_info?.scaling_strategy || hpa.hpa_type || 'unknown';
-            const version = hpa.hpa_version || 'unknown';
+//     if (hpaListElement && hpas.length > 0) {
+//         const hpaItems = hpas.slice(0, 5).map(hpa => {
+//             // Enhanced type detection with strategy info
+//             const strategy = hpa.metrics_info?.scaling_strategy || hpa.hpa_type || 'unknown';
+//             const version = hpa.hpa_version || 'unknown';
             
-            // Strategy-based icons and colors
-            let typeIcon, typeColor, displayStrategy;
-            switch (strategy) {
-                case 'cpu-based':
-                case 'cpu':
-                    typeIcon = '⚡'; typeColor = 'info'; displayStrategy = 'CPU-Based'; break;
-                case 'memory-based':
-                case 'memory':
-                    typeIcon = '💾'; typeColor = 'warning'; displayStrategy = 'Memory-Based'; break;
-                case 'balanced':
-                case 'mixed':
-                    typeIcon = '🔄'; typeColor = 'success'; displayStrategy = 'Balanced'; break;
-                case 'hybrid':
-                    typeIcon = '🔀'; typeColor = 'primary'; displayStrategy = 'Hybrid'; break;
-                case 'custom-metrics':
-                case 'custom':
-                    typeIcon = '⚙️'; typeColor = 'secondary'; displayStrategy = 'Custom'; break;
-                default:
-                    typeIcon = '❓'; typeColor = 'light'; displayStrategy = 'Unknown'; break;
-            }
+//             // Strategy-based icons and colors
+//             let typeIcon, typeColor, displayStrategy;
+//             switch (strategy) {
+//                 case 'cpu-based':
+//                 case 'cpu':
+//                     typeIcon = '⚡'; typeColor = 'info'; displayStrategy = 'CPU-Based'; break;
+//                 case 'memory-based':
+//                 case 'memory':
+//                     typeIcon = '💾'; typeColor = 'warning'; displayStrategy = 'Memory-Based'; break;
+//                 case 'balanced':
+//                 case 'mixed':
+//                     typeIcon = '🔄'; typeColor = 'success'; displayStrategy = 'Balanced'; break;
+//                 case 'hybrid':
+//                     typeIcon = '🔀'; typeColor = 'primary'; displayStrategy = 'Hybrid'; break;
+//                 case 'custom-metrics':
+//                 case 'custom':
+//                     typeIcon = '⚙️'; typeColor = 'secondary'; displayStrategy = 'Custom'; break;
+//                 default:
+//                     typeIcon = '❓'; typeColor = 'light'; displayStrategy = 'Unknown'; break;
+//             }
             
-            // Version badge color
-            const versionColor = version === 'v2' ? 'success' : 
-                               version.includes('v2') ? 'primary' : 
-                               version === 'v1' ? 'warning' : 'secondary';
+//             // Version badge color
+//             const versionColor = version === 'v2' ? 'success' : 
+//                                version.includes('v2') ? 'primary' : 
+//                                version === 'v1' ? 'warning' : 'secondary';
             
-            // Enhanced metrics display
-            let metricsDisplay = '';
-            const metricsInfo = hpa.metrics_info;
-            if (metricsInfo) {
-                if (metricsInfo.cpu) {
-                    metricsDisplay += `<div class="text-muted small">CPU Target: ${metricsInfo.cpu.target}</div>`;
-                }
-                if (metricsInfo.memory) {
-                    metricsDisplay += `<div class="text-muted small">Memory Target: ${metricsInfo.memory.target}</div>`;
-                }
-                if (metricsInfo.custom && metricsInfo.custom.length > 0) {
-                    const customCount = metricsInfo.custom.length;
-                    metricsDisplay += `<div class="text-muted small">Custom Metrics: ${customCount} configured</div>`;
-                }
-            } else {
-                // Fallback to legacy format
-                if (hpa.cpu_target) {
-                    metricsDisplay += `<div class="text-muted small">CPU Target: ${hpa.cpu_target}%</div>`;
-                }
-                if (hpa.memory_target) {
-                    metricsDisplay += `<div class="text-muted small">Memory Target: ${hpa.memory_target}%</div>`;
-                }
-            }
+//             // Enhanced metrics display
+//             let metricsDisplay = '';
+//             const metricsInfo = hpa.metrics_info;
+//             if (metricsInfo) {
+//                 if (metricsInfo.cpu) {
+//                     metricsDisplay += `<div class="text-muted small">CPU Target: ${metricsInfo.cpu.target}</div>`;
+//                 }
+//                 if (metricsInfo.memory) {
+//                     metricsDisplay += `<div class="text-muted small">Memory Target: ${metricsInfo.memory.target}</div>`;
+//                 }
+//                 if (metricsInfo.custom && metricsInfo.custom.length > 0) {
+//                     const customCount = metricsInfo.custom.length;
+//                     metricsDisplay += `<div class="text-muted small">Custom Metrics: ${customCount} configured</div>`;
+//                 }
+//             } else {
+//                 // Fallback to legacy format
+//                 if (hpa.cpu_target) {
+//                     metricsDisplay += `<div class="text-muted small">CPU Target: ${hpa.cpu_target}%</div>`;
+//                 }
+//                 if (hpa.memory_target) {
+//                     metricsDisplay += `<div class="text-muted small">Memory Target: ${hpa.memory_target}%</div>`;
+//                 }
+//             }
             
-            // Optimization score display
-            const score = hpa.optimization_score || 0;
-            const scoreColor = score >= 0.8 ? 'success' : score >= 0.6 ? 'warning' : 'danger';
-            const scorePercent = (score * 100).toFixed(0);
+//             // Optimization score display
+//             const score = hpa.optimization_score || 0;
+//             const scoreColor = score >= 0.8 ? 'success' : score >= 0.6 ? 'warning' : 'danger';
+//             const scorePercent = (score * 100).toFixed(0);
             
-            return `
-                <div class="hpa-item mb-3 p-3 border rounded">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div class="flex-grow-1">
-                            <strong>${hpa.name}</strong>
-                            <div class="mt-1">
-                                <span class="badge bg-${typeColor} me-1">${typeIcon} ${displayStrategy}</span>
-                                <span class="badge bg-${versionColor} me-1">${version}</span>
-                                <span class="badge bg-${scoreColor}">${scorePercent}% optimized</span>
-                            </div>
-                        </div>
-                        <div class="text-end">
-                            <div class="text-muted small">Target: ${hpa.target || 'unknown'}</div>
-                            <div class="h6 mb-0">${hpa.current_replicas || 0}/${hpa.desired_replicas || 0}</div>
-                            <small class="text-muted">current/desired</small>
-                        </div>
-                    </div>
-                    ${metricsDisplay}
-                    <div class="text-muted small">
-                        Range: ${hpa.min_replicas || 1} - ${hpa.max_replicas || 10} replicas
-                    </div>
-                </div>
-            `;
-        }).join('');
+//             return `
+//                 <div class="hpa-item mb-3 p-3 border rounded">
+//                     <div class="d-flex justify-content-between align-items-start mb-2">
+//                         <div class="flex-grow-1">
+//                             <strong>${hpa.name}</strong>
+//                             <div class="mt-1">
+//                                 <span class="badge bg-${typeColor} me-1">${typeIcon} ${displayStrategy}</span>
+//                                 <span class="badge bg-${versionColor} me-1">${version}</span>
+//                                 <span class="badge bg-${scoreColor}">${scorePercent}% optimized</span>
+//                             </div>
+//                         </div>
+//                         <div class="text-end">
+//                             <div class="text-muted small">Target: ${hpa.target || 'unknown'}</div>
+//                             <div class="h6 mb-0">${hpa.current_replicas || 0}/${hpa.desired_replicas || 0}</div>
+//                             <small class="text-muted">current/desired</small>
+//                         </div>
+//                     </div>
+//                     ${metricsDisplay}
+//                     <div class="text-muted small">
+//                         Range: ${hpa.min_replicas || 1} - ${hpa.max_replicas || 10} replicas
+//                     </div>
+//                 </div>
+//             `;
+//         }).join('');
         
-        hpaListElement.innerHTML = `
-            <div class="card border-0 shadow-sm">
-                <div class="card-body p-3">
-                    <h6 class="card-title mb-3">
-                        <i class="fas fa-list me-2"></i>Active HPAs (Top 5)
-                    </h6>
-                    ${hpaItems}
-                    ${hpas.length > 5 ? `<div class="text-muted small mt-2 text-center">...and ${hpas.length - 5} more HPAs</div>` : ''}
-                </div>
-            </div>
-        `;
-    }
-}
+//         hpaListElement.innerHTML = `
+//             <div class="card border-0 shadow-sm">
+//                 <div class="card-body p-3">
+//                     <h6 class="card-title mb-3">
+//                         <i class="fas fa-list me-2"></i>Active HPAs (Top 5)
+//                     </h6>
+//                     ${hpaItems}
+//                     ${hpas.length > 5 ? `<div class="text-muted small mt-2 text-center">...and ${hpas.length - 5} more HPAs</div>` : ''}
+//                 </div>
+//             </div>
+//         `;
+//     }
+// }
 
 /**
  * Update HPA recommendation with comprehensive CPU considerations
@@ -3001,7 +3006,7 @@ export function createCostBreakdownChart(data, isRealData) {
             },
             plugins: {
                 legend: {
-                    position: 'bottom',  // Keep bottom position as per original
+                    position: 'right',  // Move to right side
                     labels: {
                         color: 'white',
                         padding: 15,
@@ -3183,8 +3188,7 @@ export function createMainTrendChart(data, isRealData) {
             
             plugins: {
                 legend: {
-                    display: true,
-                    position: 'top',
+                    display: false,
                     align: 'start',
                     labels: {
                         color: 'white',
@@ -3553,7 +3557,7 @@ export function createSavingsBreakdownChart(data, isRealData) {
             },
             plugins: {
                 legend: {
-                    position: 'bottom',
+                    position: 'right',
                     labels: {
                         color: 'white',
                         padding: 10,

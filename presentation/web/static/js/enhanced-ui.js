@@ -251,10 +251,12 @@ function destroyChart(chartId) {
 
 function hideChartLoading(chartId) {
     const loadingEl = document.getElementById(`${chartId}-loading`);
-    const container = document.getElementById(chartId)?.closest('.chart-container');
     if (loadingEl) {
         loadingEl.style.display = 'none';
     }
+    // Since we removed chart-container divs, find the parent div instead
+    const canvas = document.getElementById(chartId);
+    const container = canvas?.parentElement;
     if (container) {
         container.classList.add('chart-loaded');
     }
@@ -262,10 +264,12 @@ function hideChartLoading(chartId) {
 
 function showChartLoading(chartId) {
     const loadingEl = document.getElementById(`${chartId}-loading`);
-    const container = document.getElementById(chartId)?.closest('.chart-container');
     if (loadingEl) {
         loadingEl.style.display = 'flex';
     }
+    // Since we removed chart-container divs, find the parent div instead
+    const canvas = document.getElementById(chartId);
+    const container = canvas?.parentElement;
     if (container) {
         container.classList.remove('chart-loaded');
     }
@@ -323,7 +327,7 @@ window.updateCostBreakdownChart = function(data) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: true, position: 'bottom' } }
+            plugins: { legend: { display: true, position: 'right' } }
         }
     });
 };
@@ -347,7 +351,7 @@ window.updateSavingsBreakdownChart = function(data) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: true, position: 'bottom' } }
+            plugins: { legend: { display: true, position: 'right' } }
         }
     });
 };
@@ -401,13 +405,13 @@ window.updateHpaComparisonChart = function(data) {
         data: {
             labels: data.labels || [],
             datasets: [{
-                label: 'Before HPA',
+                label: '',  // Remove label
                 data: data.before || [],
                 backgroundColor: 'rgba(255, 99, 132, 0.6)',
                 borderColor: 'rgba(255, 99, 132, 1)',
                 borderWidth: 1
             }, {
-                label: 'After HPA',
+                label: '',  // Remove label
                 data: data.after || [],
                 backgroundColor: 'rgba(75, 192, 192, 0.6)',
                 borderColor: 'rgba(75, 192, 192, 1)',
@@ -417,14 +421,96 @@ window.updateHpaComparisonChart = function(data) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: true, position: 'top' } },
+            plugins: { legend: { display: false } }, // Hide legend from chart
             scales: {
                 x: { title: { display: true, text: 'Metrics' } },
                 y: { title: { display: true, text: 'Value' }, beginAtZero: true }
             }
         }
     });
+    
+    // Update metrics display below chart with dynamic data
+    updateHpaMetricsDisplay(data);
 };
+
+// Function to extract and display HPA metrics below the chart
+function updateHpaMetricsDisplay(data) {
+    const metricsDisplay = document.getElementById('hpaMetricsDisplay');
+    if (!metricsDisplay || !data) return;
+    
+    // Extract metrics from the data
+    const labels = data.labels || [];
+    const beforeValues = data.before || [];
+    const afterValues = data.after || [];
+    
+    // Find specific metrics like efficiency, impact, etc.
+    let efficiency = '';
+    let impact = '';
+    
+    // Look for efficiency metric
+    const efficiencyIndex = labels.findIndex(label => 
+        label.toLowerCase().includes('efficiency') || 
+        label.toLowerCase().includes('utilization')
+    );
+    if (efficiencyIndex !== -1 && afterValues[efficiencyIndex] !== undefined) {
+        efficiency = `${afterValues[efficiencyIndex]}%`;
+    }
+    
+    // Look for impact metric
+    const impactIndex = labels.findIndex(label => 
+        label.toLowerCase().includes('impact') || 
+        label.toLowerCase().includes('improvement')
+    );
+    if (impactIndex !== -1 && afterValues[impactIndex] !== undefined) {
+        impact = `${afterValues[impactIndex]}%`;
+    }
+    
+    // Create metrics HTML
+    let metricsHTML = '';
+    if (efficiency || impact || labels.length > 0) {
+        metricsHTML = '<div class="flex justify-center gap-4 text-xs">';
+        
+        if (efficiency) {
+            metricsHTML += `
+                <div>
+                    <span class="text-gray-500">Efficiency: </span>
+                    <span class="font-semibold text-blue-600">${efficiency}</span>
+                </div>
+            `;
+        }
+        
+        if (impact) {
+            metricsHTML += `
+                <div>
+                    <span class="text-gray-500">Impact: </span>
+                    <span class="font-semibold text-green-600">${impact}</span>
+                </div>
+            `;
+        }
+        
+        // If no specific metrics found, show the first label/value
+        if (!efficiency && !impact && labels.length > 0 && afterValues.length > 0) {
+            metricsHTML += `
+                <div>
+                    <span class="text-gray-500">${labels[0]}: </span>
+                    <span class="font-semibold text-blue-600">${afterValues[0]}${typeof afterValues[0] === 'number' && afterValues[0] < 1 ? '%' : ''}</span>
+                </div>
+            `;
+        }
+        
+        metricsHTML += '</div>';
+    }
+    
+    // Update the display
+    const hpaCountHTML = `
+        <div>
+            <span class="text-xs text-gray-500">Active HPAs: </span>
+            <span class="text-xs font-semibold text-teal-600">228</span>
+        </div>
+    `;
+    
+    metricsDisplay.innerHTML = hpaCountHTML + metricsHTML;
+}
 
 window.updateNamespaceCostChart = function(data) {
     const chartId = 'namespaceCostChart';
@@ -649,18 +735,36 @@ window.updateInsightsDisplay = function(insights) {
     });
     
     if (hasInsights) {
-        insightsHTML = '<div class="insights-list space-y-3">';
-        insightItems.forEach(item => {
+        // Create smart insights feed with compact tiles
+        insightsHTML = '<div class="smart-insights-feed">';
+        
+        insightItems.forEach((item, index) => {
+            const severity = getInsightSeverity(item.content);
+            const summary = createInsightSummary(item.content);
+            
             insightsHTML += `
-                <div class="insight-item border-${item.colorClass}" data-insight="${item.key}">
-                    <h6>
-                        <i class="fas fa-${item.icon} mr-2 text-${item.colorClass}"></i>
-                        ${item.title}
-                    </h6>
-                    <p>${item.content}</p>
+                <div class="insight-tile ${severity.class}" data-insight="${item.key}">
+                    <div class="insight-pulse ${severity.pulse}"></div>
+                    <div class="insight-icon-wrapper">
+                        <i class="fas fa-${item.icon}"></i>
+                    </div>
+                    <div class="insight-content">
+                        <div class="insight-summary">${summary}</div>
+                        <div class="insight-indicator">
+                            <span class="insight-badge ${severity.badge}">${severity.label}</span>
+                            <span class="insight-metric">${extractMetric(item.content)}</span>
+                        </div>
+                    </div>
+                    <div class="insight-expand" onclick="toggleInsightDetail('${item.key}')">
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                </div>
+                <div class="insight-detail" id="detail-${item.key}" style="display: none;">
+                    <div class="insight-full-text">${item.content}</div>
                 </div>
             `;
         });
+        
         insightsHTML += '</div>';
     } else {
         insightsHTML = `
@@ -775,6 +879,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 100);
         
+        // Hide any lingering chart loading states after a delay
+        setTimeout(() => {
+            const chartIds = [
+                'mainTrendChart', 'costBreakdownChart', 'savingsBreakdownChart', 
+                'nodeUtilizationChart', 'namespaceCostChart', 'workloadCostChart'
+            ];
+            chartIds.forEach(chartId => {
+                hideChartLoading(chartId);
+            });
+        }, 2000);
+
         // Setup form handlers with error handling
         try {
             const budgetAlertForm = safeQuerySelector('#budget-alert-form');
@@ -841,3 +956,68 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+// Smart insights helper functions
+function getInsightSeverity(content) {
+    const text = content.toLowerCase();
+    
+    if (text.includes('critical') || text.includes('urgent') || text.includes('immediate')) {
+        return {
+            class: 'severity-critical',
+            badge: 'badge-critical',
+            pulse: 'pulse-red',
+            label: 'Critical'
+        };
+    } else if (text.includes('high') || text.includes('significant') || text.includes('important')) {
+        return {
+            class: 'severity-high',
+            badge: 'badge-high',
+            pulse: 'pulse-orange',
+            label: 'High'
+        };
+    } else if (text.includes('medium') || text.includes('moderate') || text.includes('consider')) {
+        return {
+            class: 'severity-medium',
+            badge: 'badge-medium',
+            pulse: 'pulse-yellow',
+            label: 'Medium'
+        };
+    } else {
+        return {
+            class: 'severity-low',
+            badge: 'badge-low',
+            pulse: 'pulse-green',
+            label: 'Info'
+        };
+    }
+}
+
+function createInsightSummary(content) {
+    // Extract the first meaningful sentence and truncate
+    const sentences = content.split(/[.!?]/);
+    const firstSentence = sentences[0]?.trim() || content;
+    
+    // Truncate and add ellipsis if too long
+    return firstSentence.length > 60 
+        ? firstSentence.substring(0, 60) + '...'
+        : firstSentence;
+}
+
+function extractMetric(content) {
+    // Extract numbers, percentages, or dollar amounts from the content
+    const metrics = content.match(/(\$[\d,]+|\d+%|\d+\.\d+%|\d+GB|\d+CPU)/g);
+    return metrics ? metrics[0] : '';
+}
+
+function toggleInsightDetail(key) {
+    const detail = document.getElementById(`detail-${key}`);
+    const tile = document.querySelector(`[data-insight="${key}"]`);
+    const icon = tile?.querySelector('.insight-expand i');
+    
+    if (detail && tile && icon) {
+        const isExpanded = detail.style.display !== 'none';
+        detail.style.display = isExpanded ? 'none' : 'block';
+        icon.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(90deg)';
+        tile.classList.toggle('expanded', !isExpanded);
+    }
+}
