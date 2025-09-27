@@ -46,7 +46,7 @@ const Utils = {
     safeGetElement(id, context = 'Unknown') {
         const element = document.getElementById(id);
         if (!element && AppState.debugMode) {
-            console.warn(`⚠️ Element '${id}' not found in context: ${context}`);
+            console.log(`⚠️ Element '${id}' not found in context: ${context}`);
         }
         return element;
     },
@@ -175,7 +175,7 @@ const LoadingManager = {
     // ✅ ENHANCED: Better button loading state management
     button(button, loading = true) {
         if (!button) {
-            console.warn('⚠️ LoadingManager.button: button element is null');
+            console.log('⚠️ LoadingManager.button: button element is null');
             return;
         }
         
@@ -235,7 +235,7 @@ async function loadSubscriptionsForDropdown() {
             });
             
             AppState.subscriptions = data.subscriptions;
-            logDebug(`✅ Loaded ${data.subscriptions.length} subscriptions`);
+            console.log(`✅ Loaded ${data.subscriptions.length} subscriptions`);
         } else {
             throw new Error(data.message || 'Invalid response format');
         }
@@ -263,14 +263,14 @@ async function loadSubscriptionsForDropdown() {
 // ===== ENHANCED ANALYSIS STATE MANAGEMENT =====
 const AnalysisStateManager = {
     setAnalyzing(clusterId, analyzing = true) {
-        logDebug(`🔄 Setting analysis state for ${clusterId}: ${analyzing ? 'START' : 'END'}`);
+        console.log(`🔄 Setting analysis state for ${clusterId}: ${analyzing ? 'START' : 'END'}`);
         
         const clusterCard = document.querySelector(`[data-cluster-id="${clusterId}"]`);
         const analyzeBtn = document.querySelector(`.analyze-btn[data-cluster-id="${clusterId}"]`);
         const statusInfo = document.querySelector(`.status-info[data-cluster-id="${clusterId}"]`);
         
         if (!clusterCard) {
-            console.warn(`⚠️ AnalysisStateManager: Cluster card not found for ID: ${clusterId}`);
+            console.log(`⚠️ AnalysisStateManager: Cluster card not found for ID: ${clusterId}`);
             return;
         }
 
@@ -303,7 +303,7 @@ const AnalysisStateManager = {
                     analyzeBtn.appendChild(newSpinner);
                 }
                 
-                logDebug(`✅ Button state set to analyzing for ${clusterId}`);
+                console.log(`✅ Button state set to analyzing for ${clusterId}`);
             }
             
             // ✅  Better status info management
@@ -340,7 +340,7 @@ const AnalysisStateManager = {
                 analyzingText.style.display = 'inline-block';
                 analyzingText.textContent = 'Analyzing...';
                 
-                logDebug(`✅ Status info set to analyzing for ${clusterId}`);
+                console.log(`✅ Status info set to analyzing for ${clusterId}`);
             }
             
         } else {
@@ -363,7 +363,7 @@ const AnalysisStateManager = {
                     spinner.style.display = 'none';
                 }
                 
-                logDebug(`✅ Button state reset for ${clusterId}`);
+                console.log(`✅ Button state reset for ${clusterId}`);
             }
             
             // ✅  Reset status info
@@ -396,7 +396,7 @@ const AnalysisStateManager = {
                 statusText.style.display = 'inline-block';
                 statusText.textContent = 'Analyzed';
                 
-                logDebug(`✅ Status info reset to analyzed for ${clusterId}`);
+                console.log(`✅ Status info reset to analyzed for ${clusterId}`);
             }
         }
     }
@@ -626,7 +626,7 @@ const DeleteFormManager = {
                                 e.preventDefault();
                                 checkbox.checked = !checkbox.checked;
                                 
-                                logDebug('📋 Checkbox toggled:', checkbox.checked);
+                                console.log('📋 Checkbox toggled:', checkbox.checked);
                                 
                                 if (checkbox.checked) {
                                     checkmark.style.background = '#10b981';
@@ -743,7 +743,7 @@ const DeleteFormManager = {
             document.body.style.overflow = 'hidden';
         }
 
-        logDebug(`🗑️ Delete confirmation shown for cluster: ${clusterName}`);
+        console.log(`🗑️ Delete confirmation shown for cluster: ${clusterName}`);
     },
 
     hide() {
@@ -756,7 +756,7 @@ const DeleteFormManager = {
             
             if (checkbox) {
                 checkbox.checked = false;
-                logDebug('📋 Checkbox reset to unchecked');
+                console.log('📋 Checkbox reset to unchecked');
             }
             
             if (checkmark) {
@@ -781,7 +781,7 @@ const DeleteFormManager = {
             document.body.style.overflow = '';
         }
 
-        logDebug('🗑️ Delete confirmation hidden');
+        console.log('🗑️ Delete confirmation hidden');
     }
 };
 
@@ -793,7 +793,7 @@ function setupDeleteFormHandlers() {
     const submitBtn = Utils.safeGetElement('confirmDeleteBtn', 'setupDeleteFormHandlers');
     
     if (!form) {
-        console.warn('⚠️ Delete form not found - handlers not initialized');
+        console.log('⚠️ Delete form not found - handlers not initialized');
         return;
     }
 
@@ -982,8 +982,8 @@ const NotificationManager = {
     show(title, message, type = 'info', duration = 4000) {
         const container = Utils.safeGetElement('notificationContainer', 'NotificationManager.show');
         if (!container) {
-            console.warn('⚠️ Notification container not found, using logDebug');
-            logDebug(`${type.toUpperCase()}: ${title} - ${message}`);
+            console.log('⚠️ Notification container not found, using console.log');
+            console.log(`${type.toUpperCase()}: ${title} - ${message}`);
             return null;
         }
         
@@ -1407,7 +1407,7 @@ const ViewManager = {
             container.style.gridTemplateColumns = 'repeat(auto-fill, minmax(280px, 1fr))';
         }
 
-        logDebug(`👀 View switched to: ${view}`);
+        console.log(`👀 View switched to: ${view}`);
     }
 };
 
@@ -1613,7 +1613,7 @@ const ClusterManager = {
         const clusterCard = document.querySelector(`[data-cluster-id="${clusterId}"]`);
         const clusterName = clusterCard?.querySelector('.cluster-name')?.textContent?.trim() || 'cluster';
 
-        logDebug(`🚀 Starting analysis for cluster: ${clusterName} (ID: ${clusterId})`);
+        console.log(`🚀 Starting analysis for cluster: ${clusterName} (ID: ${clusterId})`);
 
         // ✅  Set analyzing state IMMEDIATELY
         AnalysisStateManager.setAnalyzing(clusterId, true);
@@ -1644,18 +1644,18 @@ const ClusterManager = {
             const data = await response.json();
             
             if (data.status === 'success') {
-                logDebug(`✅ Analysis completed successfully for ${clusterName}`);
+                console.log(`✅ Analysis completed successfully for ${clusterName}`);
                 
                 // ✅  Complete the analysis state FIRST
                 AnalysisStateManager.setAnalyzing(clusterId, false);
                 LoadingManager.hide();
                 
                 // ✅ REFRESH NOTIFICATIONS: Analysis may have triggered new alerts
-                logDebug('🔔 Analysis complete - refreshing notifications for new alerts...');
+                console.log('🔔 Analysis complete - refreshing notifications for new alerts...');
                 if (typeof window.refreshNotificationsManually === 'function') {
                     window.refreshNotificationsManually();
                 } else {
-                    console.warn('⚠️ refreshNotificationsManually function not available');
+                    console.log('⚠️ refreshNotificationsManually function not available');
                 }
                 
                 // ✅ ENHANCED: Show completion notification
@@ -1899,7 +1899,7 @@ document.addEventListener('keydown', (e) => {
 
 // ===== ENHANCED INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
-    logDebug('🌐 Enhanced Multi-Subscription AKS Dashboard Loading...');
+    console.log('🌐 Enhanced Multi-Subscription AKS Dashboard Loading...');
     
     // ✅ ENHANCED: Initialize with comprehensive error handling
     const initTasks = [
@@ -1911,7 +1911,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTasks.forEach(task => {
         try {
             task.fn();
-            logDebug(`✅ ${task.name} initialized successfully`);
+            console.log(`✅ ${task.name} initialized successfully`);
         } catch (error) {
             console.error(`❌ ${task.name} initialization failed:`, error);
         }
@@ -1983,10 +1983,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // ✅ NEW: Debug mode detection
     AppState.debugMode = window.location.search.includes('debug=true');
     if (AppState.debugMode) {
-        logDebug('🐛 Debug mode enabled');
+        console.log('🐛 Debug mode enabled');
     }
     
-    logDebug('✨ Enhanced multi-subscription dashboard fully loaded!');
+    console.log('✨ Enhanced multi-subscription dashboard fully loaded!');
 });
 
 // ===== ENHANCED PERFORMANCE OPTIMIZATIONS =====
@@ -1994,7 +1994,7 @@ if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').m
     if (document.documentElement?.style) {
         document.documentElement.style.setProperty('--transition', '0.01ms');
         document.documentElement.style.setProperty('--transition-slow', '0.01ms');
-        logDebug('♿ Reduced motion preferences applied');
+        console.log('♿ Reduced motion preferences applied');
     }
 }
 
@@ -2008,13 +2008,13 @@ window.AKSDebug = {
             'loadingToast', 'notificationContainer', 'validationStatus'
         ];
         
-        logDebug('🔍 Enhanced Element Check:');
+        console.log('🔍 Enhanced Element Check:');
         const results = {};
         elements.forEach(id => {
             const el = document.getElementById(id);
             const exists = !!el;
             results[id] = exists;
-            logDebug(`  ${id}: ${exists ? '✅' : '❌'}`);
+            console.log(`  ${id}: ${exists ? '✅' : '❌'}`);
         });
         return results;
     },
@@ -2066,8 +2066,8 @@ window.AKSDebug = {
     }
 };
 
-logDebug('  - window.AKSDebug.checkElements() - Check all form elements');
-logDebug('  - window.AKSDebug.testNotification(type) - Test notifications');
-logDebug('  - window.AKSDebug.simulateAnalysis(id) - Test analysis states');
-logDebug('  - window.AKSDebug.getPerformanceMetrics() - View load performance');
-logDebug('  - Add ?debug=true to URL for enhanced logging');
+console.log('  - window.AKSDebug.checkElements() - Check all form elements');
+console.log('  - window.AKSDebug.testNotification(type) - Test notifications');
+console.log('  - window.AKSDebug.simulateAnalysis(id) - Test analysis states');
+console.log('  - window.AKSDebug.getPerformanceMetrics() - View load performance');
+console.log('  - Add ?debug=true to URL for enhanced logging');

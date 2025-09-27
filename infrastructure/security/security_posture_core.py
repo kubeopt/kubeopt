@@ -2603,25 +2603,34 @@ class SecurityPostureEngine:
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Use real scores, no defaults
-        rbac_score = results[0] if not isinstance(results[0], Exception) else 0.0
-        network_score = results[1] if not isinstance(results[1], Exception) else 0.0
-        encryption_score = results[2] if not isinstance(results[2], Exception) else 0.0
-        vulnerability_score = results[3] if not isinstance(results[3], Exception) else 0.0
-        compliance_score = results[4] if not isinstance(results[4], Exception) else 0.0
-        drift_score = results[5] if not isinstance(results[5], Exception) else 0.0
+        # Use real scores, no defaults - with proper null handling
+        rbac_score = results[0] if not isinstance(results[0], Exception) and results[0] is not None else 0.0
+        network_score = results[1] if not isinstance(results[1], Exception) and results[1] is not None else 0.0
+        encryption_score = results[2] if not isinstance(results[2], Exception) and results[2] is not None else 0.0
+        vulnerability_score = results[3] if not isinstance(results[3], Exception) and results[3] is not None else 0.0
+        compliance_score = results[4] if not isinstance(results[4], Exception) and results[4] is not None else 0.0
+        drift_score = results[5] if not isinstance(results[5], Exception) and results[5] is not None else 0.0
         
         # FIXED: Calculate DYNAMIC weights based on actual cluster state
         weights = self._calculate_dynamic_weights_from_cluster_state()
         
-        # Calculate overall score with dynamic weights
+        # Ensure weights are not None
+        if weights is None:
+            weights = {"rbac": 0.2, "network": 0.2, "encryption": 0.15, "vulnerability": 0.2, "compliance": 0.15, "drift": 0.1}
+        
+        # Ensure all weight values are not None
+        for key in ["rbac", "network", "encryption", "vulnerability", "compliance", "drift"]:
+            if weights.get(key) is None:
+                weights[key] = 0.15  # Default weight
+        
+        # Calculate overall score with dynamic weights - ensure no None values
         overall_score = (
-            rbac_score * weights["rbac"] +
-            network_score * weights["network"] +
-            encryption_score * weights["encryption"] +
-            vulnerability_score * weights["vulnerability"] +
-            compliance_score * weights["compliance"] +
-            drift_score * weights["drift"]
+            (rbac_score or 0.0) * (weights["rbac"] or 0.0) +
+            (network_score or 0.0) * (weights["network"] or 0.0) +
+            (encryption_score or 0.0) * (weights["encryption"] or 0.0) +
+            (vulnerability_score or 0.0) * (weights["vulnerability"] or 0.0) +
+            (compliance_score or 0.0) * (weights["compliance"] or 0.0) +
+            (drift_score or 0.0) * (weights["drift"] or 0.0)
         )
         
         # Calculate grade from real score
@@ -3484,11 +3493,11 @@ class SecurityPostureEngine:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT OR REPLACE INTO security_alerts 
-                (alert_id, severity, category, title, description, resource_type, 
+                (alert_id, cluster_name, severity, category, title, description, resource_type, 
                  resource_name, namespace, remediation, risk_score, detected_at, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                alert.alert_id, alert.severity, alert.category, alert.title,
+                alert.alert_id, self.cluster_config.get('name', 'unknown'), alert.severity, alert.category, alert.title,
                 alert.description, alert.resource_type, alert.resource_name,
                 alert.namespace, alert.remediation, alert.risk_score,
                 alert.detected_at, json.dumps(alert.metadata)
@@ -3566,10 +3575,11 @@ class SecurityPostureEngine:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO security_scores 
-                (overall_score, grade, rbac_score, network_score, encryption_score,
+                (cluster_name, overall_score, grade, rbac_score, network_score, encryption_score,
                  vulnerability_score, compliance_score, drift_score, trends, assessed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
+                self.cluster_config.get('name', 'unknown'),
                 score.overall_score, score.grade, score.rbac_score,
                 score.network_score, score.encryption_score, score.vulnerability_score,
                 score.compliance_score, score.drift_score, json.dumps(score.trends),

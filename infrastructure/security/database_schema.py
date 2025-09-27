@@ -60,13 +60,13 @@ class SecurityDatabaseManager:
                 # Create schema version table
                 self._create_schema_version_table(cursor)
                 
-                # Create core security tables
+                # Create core security tables - order matters for foreign keys!
+                self._create_reporting_tables(cursor)  # Must be first - creates clusters table
                 self._create_security_posture_tables(cursor)
                 self._create_policy_tables(cursor)
                 self._create_compliance_tables(cursor)
                 self._create_vulnerability_tables(cursor)
                 self._create_audit_tables(cursor)
-                self._create_reporting_tables(cursor)
                 
                 # Create indexes for performance
                 self._create_indexes(cursor)
@@ -163,6 +163,45 @@ class SecurityDatabaseManager:
                 created_by TEXT DEFAULT 'system',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(cluster_name, baseline_name)
+            )
+        """)
+        
+        # Security scan results (for operational data integration)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS security_scan_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                scan_id TEXT UNIQUE NOT NULL,
+                cluster_name TEXT NOT NULL,
+                scan_type TEXT NOT NULL,
+                scan_status TEXT NOT NULL,
+                total_findings INTEGER DEFAULT 0,
+                critical_findings INTEGER DEFAULT 0,
+                high_findings INTEGER DEFAULT 0,
+                medium_findings INTEGER DEFAULT 0,
+                low_findings INTEGER DEFAULT 0,
+                scan_duration REAL,
+                scan_metadata TEXT,
+                scan_results TEXT,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                FOREIGN KEY (cluster_name) REFERENCES clusters(name)
+            )
+        """)
+        
+        # Security assessments (for security analytics integration)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS security_assessments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cluster_id TEXT NOT NULL,
+                assessment_id TEXT UNIQUE NOT NULL,
+                overall_score REAL NOT NULL,
+                grade TEXT NOT NULL,
+                framework TEXT,
+                score_breakdown TEXT,
+                confidence REAL DEFAULT 0.8,
+                based_on_real_data BOOLEAN DEFAULT FALSE,
+                trends_data TEXT,
+                assessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         
@@ -377,7 +416,7 @@ class SecurityDatabaseManager:
                 business_impact TEXT,
                 remediated_by TEXT,
                 remediated_at TIMESTAMP,
-                references TEXT, -- JSON array
+                vulnerability_references TEXT, -- JSON array
                 metadata TEXT, -- JSON
                 detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -426,7 +465,7 @@ class SecurityDatabaseManager:
                 cvss_v2_vector TEXT,
                 severity TEXT,
                 affected_products TEXT, -- JSON array
-                references TEXT, -- JSON array
+                cve_references TEXT, -- JSON array
                 exploit_available BOOLEAN DEFAULT FALSE,
                 patch_available BOOLEAN DEFAULT FALSE,
                 threat_intelligence TEXT, -- JSON

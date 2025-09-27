@@ -149,13 +149,97 @@ def initialize_database():
         # Run multi-subscription schema enhancement
         enhance_database_schema_for_multi_subscription()
         
+        # Initialize security database tables
+        try:
+            from infrastructure.security.database_schema import initialize_security_database
+            logger.info("🔒 Initializing security database schema...")
+            security_init_success = initialize_security_database()
+            if security_init_success:
+                logger.info("✅ Security database initialization completed")
+            else:
+                logger.warning("⚠️ Security database initialization failed - using existing tables")
+        except Exception as security_e:
+            logger.warning(f"⚠️ Security database initialization error: {security_e}")
+        
+        # Initialize operational database tables
+        try:
+            logger.info("📊 Initializing operational database schema...")
+            from infrastructure.persistence.database_config import DatabaseConfig
+            import sqlite3
+            
+            operational_db_path = DatabaseConfig.get_database_path('operational_data')
+            with sqlite3.connect(operational_db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Create security_scan_results table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS security_scan_results (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        result_id TEXT UNIQUE NOT NULL,
+                        cluster_id TEXT NOT NULL,
+                        resource_group TEXT,
+                        cluster_name TEXT NOT NULL,
+                        scan_timestamp TEXT NOT NULL,
+                        analysis_data TEXT,
+                        confidence REAL DEFAULT 0.0,
+                        frameworks_analyzed TEXT,
+                        based_on_real_data BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # Create cost_analysis_history table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS cost_analysis_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cluster_id TEXT NOT NULL,
+                        analysis_date TEXT NOT NULL,
+                        total_cost REAL NOT NULL,
+                        compute_cost REAL DEFAULT 0.0,
+                        storage_cost REAL DEFAULT 0.0,
+                        network_cost REAL DEFAULT 0.0,
+                        potential_savings REAL DEFAULT 0.0,
+                        optimization_opportunities TEXT,
+                        cost_breakdown TEXT,
+                        currency TEXT DEFAULT 'USD',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # Create performance_metrics table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS performance_metrics (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cluster_id TEXT NOT NULL,
+                        metric_name TEXT NOT NULL,
+                        metric_value REAL NOT NULL,
+                        metric_unit TEXT,
+                        timestamp TEXT NOT NULL,
+                        metadata TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # Create indexes for performance
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_security_scan_results_cluster ON security_scan_results(cluster_name, scan_timestamp)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_cost_analysis_cluster ON cost_analysis_history(cluster_id, analysis_date)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_performance_metrics_cluster ON performance_metrics(cluster_id, timestamp)')
+                
+                conn.commit()
+                
+            logger.info("✅ Operational database initialization completed")
+        except Exception as operational_e:
+            logger.warning(f"⚠️ Operational database initialization error: {operational_e}")
+        
         # Initialize subscription tracking
         enhanced_cluster_manager.initialize_subscription_tracking()
         
         logger.info("✅ Multi-subscription database initialization completed")
+        return True
         
     except Exception as e:
         logger.error(f"❌ Multi-subscription database initialization failed: {e}")
+        return False
 
 def setup_subscription_aware_analysis_engine():
     """Setup the multi-subscription analysis engine"""

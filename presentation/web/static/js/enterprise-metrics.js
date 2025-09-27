@@ -10,7 +10,7 @@ class EnterpriseMetricsManager {
         this.initialized = false;
         
         this.bindEvents();
-        logDebug('🏢 Enterprise Metrics Manager initialized');
+        console.log('🏢 Enterprise Metrics Manager initialized');
     }
 
     bindEvents() {
@@ -30,11 +30,11 @@ class EnterpriseMetricsManager {
     }
 
     async loadEnterpriseMetrics() {
-        logDebug('📊 Loading enterprise metrics...');
+        console.log('📊 Loading enterprise metrics...');
         
         // Check if enterprise metrics features are enabled
         if (window.checkFeatureAccess && !window.checkFeatureAccess('enterprise_metrics')) {
-            logDebug('🔒 Enterprise metrics features are locked - skipping API call');
+            console.log('🔒 Enterprise metrics features are locked - skipping API call');
             this.showLockedMessage();
             return;
         }
@@ -46,7 +46,7 @@ class EnterpriseMetricsManager {
         try {
             // Get cluster information from current page context
             const clusterId = this.getClusterIdFromUrl();
-            logDebug('🔍 Loading metrics for cluster');
+            console.log('🔍 Loading metrics for cluster');
             
             // Check if we have a valid cluster ID
             if (clusterId === 'default') {
@@ -66,7 +66,7 @@ class EnterpriseMetricsManager {
             }
 
             const result = await response.json();
-            logDebug('📊 API Response:', result);
+            console.log('📊 API Response:', result);
             
             if (result.status === 'error') {
                 throw new Error(result.message || 'Failed to load enterprise metrics');
@@ -78,7 +78,7 @@ class EnterpriseMetricsManager {
 
             // Validate that we have the expected data structure
             if (!result.data.operational_metrics) {
-                console.warn('⚠️ No operational metrics in response, but will try to render anyway');
+                console.log('⚠️ No operational metrics in response, but will try to render anyway');
             }
 
             this.currentData = result.data;
@@ -86,8 +86,8 @@ class EnterpriseMetricsManager {
             this.hideLoading();
             this.showMainContent();
 
-            logDebug('✅ Enterprise metrics loaded successfully');
-            logDebug('📊 Data structure:', {
+            console.log('✅ Enterprise metrics loaded successfully');
+            console.log('📊 Data structure:', {
                 hasEnterpriseMaturity: !!result.data.enterprise_maturity,
                 hasOperationalMetrics: !!result.data.operational_metrics,
                 metricsCount: result.data.operational_metrics ? Object.keys(result.data.operational_metrics).length : 0,
@@ -97,14 +97,14 @@ class EnterpriseMetricsManager {
             
             // Debug metric scores to identify zero values
             if (result.data.operational_metrics) {
-                logDebug('🔍 Metric Scores Debug:');
+                console.log('🔍 Metric Scores Debug:');
                 Object.entries(result.data.operational_metrics).forEach(([key, metric]) => {
-                    logDebug(`  Metric processed: score=${metric.score}`);
+                    console.log(`  Metric processed: score=${metric.score}`);
                     if (metric.score === 0) {
-                        console.warn(`⚠️ Zero score for ${key}:`, metric);
+                        console.log(`⚠️ Zero score for ${key}:`, metric);
                     }
                     if (typeof metric.details === 'string') {
-                        logDebug('✅ String details processed');
+                        console.log('✅ String details processed');
                     }
                 });
             }
@@ -152,38 +152,38 @@ class EnterpriseMetricsManager {
             return;
         }
 
-        logDebug('🎨 Starting to render enterprise metrics...');
+        console.log('🎨 Starting to render enterprise metrics...');
 
         // Update overall maturity
-        logDebug('🎯 Updating maturity overview...');
+        console.log('🎯 Updating maturity overview...');
         this.updateMaturityOverview(data.enterprise_maturity);
 
         // Update individual metrics
-        logDebug('📊 Updating individual metrics...');
+        console.log('📊 Updating individual metrics...');
         this.updateIndividualMetrics(data.operational_metrics);
 
         // Update action items
-        logDebug('📋 Updating action items...');
+        console.log('📋 Updating action items...');
         this.updateActionItems(data.action_items || []);
 
         // Update timestamp
-        logDebug('⏰ Updating timestamp...');
+        console.log('⏰ Updating timestamp...');
         this.updateTimestamp(data.enterprise_maturity.timestamp);
         
         // Update Quick Actions with specific issues
-        logDebug('⚡ Updating quick actions...');
+        console.log('⚡ Updating quick actions...');
         this.updateQuickActions(data);
         
-        logDebug('✅ Finished rendering enterprise metrics');
+        console.log('✅ Finished rendering enterprise metrics');
     }
 
     updateMaturityOverview(maturity) {
-        logDebug('🔍 DEBUG: updateMaturityOverview called with:', maturity);
+        console.log('🔍 DEBUG: updateMaturityOverview called with:', maturity);
         const levelEl = document.getElementById('maturity-level');
         const scoreEl = document.getElementById('maturity-score');
         const progressEl = document.getElementById('maturity-progress');
         
-        logDebug('🔍 DEBUG: DOM elements found:', {
+        console.log('🔍 DEBUG: DOM elements found:', {
             levelEl: !!levelEl,
             scoreEl: !!scoreEl,
             progressEl: !!progressEl
@@ -200,17 +200,17 @@ class EnterpriseMetricsManager {
     }
 
     updateIndividualMetrics(metrics) {
-        logDebug('🔍 DEBUG: updateIndividualMetrics called with:', metrics);
+        console.log('🔍 DEBUG: updateIndividualMetrics called with:', metrics);
         for (const [metricKey, metricData] of Object.entries(metrics)) {
-            logDebug('🔍 DEBUG: Processing metric');
+            console.log('🔍 DEBUG: Processing metric');
             this.updateMetricCard(metricKey, metricData);
         }
     }
 
     updateMetricCard(metricKey, data) {
-        logDebug('🔍 DEBUG: updateMetricCard called');
+        console.log('🔍 DEBUG: updateMetricCard called');
         const card = document.querySelector(`[data-metric="${metricKey}"]`);
-        logDebug('🔍 DEBUG: Card lookup completed');
+        console.log('🔍 DEBUG: Card lookup completed');
         if (!card) {
             console.error(`❌ DEBUG: No card found for metric ${metricKey}`);
             return;
@@ -482,17 +482,17 @@ class EnterpriseMetricsManager {
 
     getClusterIdFromUrl() {
         const path = window.location.pathname;
-        logDebug('🔍 Current URL path processed');
+        console.log('🔍 Current URL path processed');
         
         const match = path.match(/\/cluster\/([^\/]+)/);
         const clusterId = match ? match[1] : 'default';
         
-        logDebug('🔍 Cluster ID extracted');
+        console.log('🔍 Cluster ID extracted');
         
         // If we're on the home page, try to get cluster from registered clusters
         if (clusterId === 'default' && path === '/') {
-            logDebug('⚠️ On home page - no specific cluster selected');
-            logDebug('💡 Please navigate to a specific cluster page to view Enterprise Metrics');
+            console.log('⚠️ On home page - no specific cluster selected');
+            console.log('💡 Please navigate to a specific cluster page to view Enterprise Metrics');
         }
         
         return clusterId;
@@ -500,7 +500,7 @@ class EnterpriseMetricsManager {
 
     async exportMetrics() {
         if (!this.currentData) {
-            console.warn('⚠️ No metrics data to export');
+            console.log('⚠️ No metrics data to export');
             return;
         }
 
@@ -524,7 +524,7 @@ class EnterpriseMetricsManager {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            logDebug('📄 Enterprise metrics exported successfully');
+            console.log('📄 Enterprise metrics exported successfully');
 
         } catch (error) {
             console.error('❌ Failed to export metrics:', error);
@@ -533,7 +533,7 @@ class EnterpriseMetricsManager {
 
     showRecommendationsModal() {
         if (!this.currentData || !this.currentData.data) {
-            console.warn('⚠️ No metrics data available for recommendations');
+            console.log('⚠️ No metrics data available for recommendations');
             return;
         }
 
@@ -1136,12 +1136,12 @@ class EnterpriseMetricsManager {
 
     exportMetricReport(metricKey) {
         // Export functionality disabled to prevent data exposure
-        logDebug('📊 Metric report export requested but disabled for security:', metricKey);
+        console.log('📊 Metric report export requested but disabled for security:', metricKey);
         alert('Metric export has been disabled for security purposes');
     }
 
     loadDemoData() {
-        logDebug('🎭 Loading demo enterprise metrics...');
+        console.log('🎭 Loading demo enterprise metrics...');
         
         const demoData = {
             enterprise_maturity: {
@@ -1328,7 +1328,7 @@ class EnterpriseMetricsManager {
         this.hideLoading();
         this.showMainContent();
         
-        logDebug('🎭 Demo enterprise metrics loaded successfully');
+        console.log('🎭 Demo enterprise metrics loaded successfully');
     }
 
     showLoading() {
@@ -1387,7 +1387,7 @@ class EnterpriseMetricsManager {
         this.stopAutoRefresh();
         this.refreshInterval = setInterval(() => {
             if (this.initialized) {
-                logDebug('🔄 Auto-refreshing enterprise metrics...');
+                console.log('🔄 Auto-refreshing enterprise metrics...');
                 this.loadEnterpriseMetrics();
             }
         }, intervalMinutes * 60 * 1000);
@@ -1420,7 +1420,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    logDebug('🏢 Enterprise Metrics Manager ready');
+    console.log('🏢 Enterprise Metrics Manager ready');
 });
 
 // Export for global access

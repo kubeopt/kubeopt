@@ -16,7 +16,7 @@ export function startEnhancedProgressAnimation() {
     const text = document.getElementById('progressText');
     
     if (!fill || !text) {
-        console.warn('⚠️ Progress elements not found');
+        console.log('⚠️ Progress elements not found');
         return;
     }
     
@@ -731,4 +731,4 @@ if (typeof window !== 'undefined') {
     window.slideUp = slideUp;
 }
 
-logDebug('✅ Progress animation functions loaded successfully');
+console.log('✅ Progress animation functions loaded successfully');

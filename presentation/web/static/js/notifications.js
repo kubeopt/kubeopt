@@ -73,7 +73,7 @@ class NotificationManager {
                     delay: numericDuration // This must be a number, not a string
                 };
                 
-                logDebug(`Creating Bootstrap Toast with options:`, toastOptions);
+                console.log(`Creating Bootstrap Toast with options:`, toastOptions);
                 
                 const toast = new bootstrap.Toast(toastElement, toastOptions);
                 toast.show();
@@ -85,7 +85,7 @@ class NotificationManager {
                 });
                 
             } catch (error) {
-                logError('Bootstrap Toast error:', error);
+                console.error('Bootstrap Toast error:', error);
                 // Fallback if Bootstrap Toast fails
                 this.fallbackToast(toastElement, numericDuration);
             }
@@ -171,7 +171,7 @@ export function showNotification(message, type = 'info', duration = AppConfig.NO
         }
     }
     
-    logDebug(`Showing notification: ${message} (type: ${type}, duration: ${numericDuration})`);
+    console.log(`Showing notification: ${message} (type: ${type}, duration: ${numericDuration})`);
     notificationManager.show(message, type, numericDuration);
 }
 
@@ -378,7 +378,7 @@ function createGlobalShowNotification() {
             }
         }
         
-        logDebug(`Global showNotification called: ${finalMessage} (type: ${type}, duration: ${numericDuration})`);
+        console.log(`Global showNotification called: ${finalMessage} (type: ${type}, duration: ${numericDuration})`);
         
         // Use the notification manager
         notificationManager.show(finalMessage, type, numericDuration);
@@ -394,5 +394,5 @@ if (typeof window !== 'undefined') {
     window.showProgressNotification = showProgressNotification;
     window.notificationManager = notificationManager;
     
-    logDebug('✅ Fixed notification system loaded - Bootstrap Toast compatible');
+    console.log('✅ Fixed notification system loaded - Bootstrap Toast compatible');
 }

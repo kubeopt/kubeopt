@@ -769,9 +769,32 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>
+    <!-- Make cluster information available to JavaScript -->
+    <script>
+        // Cluster information for alerts and other JavaScript modules
+        {% if cluster %}
+        window.clusterInfo = {
+            id: '{{ cluster.id }}',
+            name: '{{ cluster.name }}',
+            cluster_name: '{{ cluster.name }}',
+            resource_group: '{{ cluster.resource_group }}',
+            environment: '{{ cluster.environment }}',
+            region: '{{ cluster.region }}',
+            subscription_id: '{{ cluster.subscription_id }}'
+        };
+        
+        // For backward compatibility
+        window.currentClusterId = '{{ cluster.id }}';
+        window.currentClusterName = '{{ cluster.name }}';
+        window.currentResourceGroup = '{{ cluster.resource_group }}';
+        
+        console.log('🏗️ Cluster info loaded for JavaScript:', window.clusterInfo);
+        {% else %}
+        console.warn('⚠️ No cluster information available');
+        {% endif %}
+    </script>
 
-</script>
+    <script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>
 
 <!-- User Dropdown Menu - At end of body for maximum visibility -->
 <div id="userDropdownMenu" class="user-dropdown hidden" style="position: fixed; right: 20px; top: 70px; width: 200px; background: #1f2937; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); border: 1px solid #374151; overflow: hidden;">

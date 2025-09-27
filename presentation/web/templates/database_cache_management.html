@@ -960,7 +960,7 @@
                         `${healthyComponents}/3`;
                 }
             } catch (error) {
-                logError('Error loading database overview:', error);
+                console.error('Error loading database overview:', error);
             }
         }
 
@@ -1382,7 +1382,7 @@
                         </div>
                     `;
                 } catch (error) {
-                    logError('Error processing cluster analysis data:', error);
+                    console.error('Error processing cluster analysis data:', error);
                 }
             });
             
@@ -1669,7 +1669,7 @@
                         </div>
                     `;
                 } catch (error) {
-                    logError('Error processing implementation plan:', error);
+                    console.error('Error processing implementation plan:', error);
                 }
             });
             
@@ -1847,7 +1847,7 @@
                     totalTests += tests.length;
                     passedTests += tests.filter(t => t.status === 'pass').length;
                 } catch (error) {
-                    logError('Error testing plan for cluster:', cluster.id, error);
+                    console.error('Error testing plan for cluster:', cluster.id, error);
                 }
             }
             
@@ -1915,7 +1915,7 @@
                         totalCount > 0 ? `${(validCount/totalCount*100).toFixed(1)}%` : '0%';
                 }
             } catch (error) {
-                logError('Error loading cache overview:', error);
+                console.error('Error loading cache overview:', error);
             }
         }
 

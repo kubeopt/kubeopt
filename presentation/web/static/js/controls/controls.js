@@ -694,7 +694,7 @@ let projectControlsManager;
 
 document.addEventListener('DOMContentLoaded', function() {
     projectControlsManager = new ProjectControlsManager();
-    logDebug('✅ Project Controls Manager initialized');
+    console.log('✅ Project Controls Manager initialized');
 });
 
 // Global function for tab loading
@@ -707,8 +707,8 @@ function loadProjectControlsTab() {
 // Debug function
 window.debugProjectControls = function() {
     if (projectControlsManager?.frameworkData) {
-        logDebug('Project Controls Data:', projectControlsManager.frameworkData);
+        console.log('Project Controls Data:', projectControlsManager.frameworkData);
     } else {
-        console.warn('No project controls data available');
+        console.log('No project controls data available');
     }
 };

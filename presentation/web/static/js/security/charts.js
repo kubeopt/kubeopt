@@ -24,7 +24,7 @@ function safeDestroySecurityChart(chartId) {
             }
         }
     } catch (error) {
-        console.warn(`Failed to destroy security chart ${chartId}:`, error);
+        console.log(`Failed to destroy security chart ${chartId}:`, error);
     }
 }
 
@@ -35,29 +35,29 @@ class SecurityCharts {
 
     // Initialize all security charts
     initializeSecurityCharts(data) {
-        logDebug('🔍 Initializing security charts with data:', data);
+        console.log('🔍 Initializing security charts with data:', data);
         const analysis = data.analysis || data;
         const posture = analysis.security_posture || {};
         const violations = analysis.policy_compliance?.violations || [];
         const compliance = analysis.compliance_frameworks || {};
         const alerts = posture.alerts || [];
 
-        logDebug('📊 Chart data extracted:');
-        logDebug('  - Violations:', violations.length);
-        logDebug('  - Alerts:', alerts.length);
-        logDebug('  - Compliance frameworks:', Object.keys(compliance).length);
-        logDebug('  - Security score:', posture.overall_score);
+        console.log('📊 Chart data extracted:');
+        console.log('  - Violations:', violations.length);
+        console.log('  - Alerts:', alerts.length);
+        console.log('  - Compliance frameworks:', Object.keys(compliance).length);
+        console.log('  - Security score:', posture.overall_score);
         
         // Debug cluster-specific data
         const clusterId = window.currentClusterState?.clusterId || 'unknown';
-        logDebug('🏷️ Current cluster:', clusterId);
+        console.log('🏷️ Current cluster:', clusterId);
         
         // Sample a few items to check data structure
         if (violations.length > 0) {
-            logDebug('📋 Sample violation:', violations[0]);
+            console.log('📋 Sample violation:', violations[0]);
         }
         if (alerts.length > 0) {
-            logDebug('🚨 Sample alert:', alerts[0]);
+            console.log('🚨 Sample alert:', alerts[0]);
         }
 
         // Initialize Overview Charts
@@ -280,11 +280,11 @@ class SecurityCharts {
     }
 
     createRiskDistributionChart(violations, alerts = []) {
-        logDebug('🍩 Creating enhanced risk distribution chart with violations:', violations);
-        logDebug('🚨 Including security alerts:', alerts);
+        console.log('🍩 Creating enhanced risk distribution chart with violations:', violations);
+        console.log('🚨 Including security alerts:', alerts);
         const canvas = document.getElementById('risk-donut-chart');
         if (!canvas) {
-            console.warn('❌ Risk donut chart canvas not found!');
+            console.log('❌ Risk donut chart canvas not found!');
             return;
         }
         
@@ -294,7 +294,7 @@ class SecurityCharts {
 
         // Combine violations and alerts for total risk calculation
         const allRiskItems = [...(violations || []), ...(alerts || [])];
-        logDebug('🔍 Combined risk items (violations + alerts):', allRiskItems.length);
+        console.log('🔍 Combined risk items (violations + alerts):', allRiskItems.length);
         
         // Helper function to get severity level from an item
         const getSeverityLevel = (item) => {
@@ -336,7 +336,7 @@ class SecurityCharts {
             Low: allRiskItems.filter(item => getSeverityLevel(item) === 'low').length
         };
 
-        logDebug('📊 Enhanced risk counts calculated:', riskCounts);
+        console.log('📊 Enhanced risk counts calculated:', riskCounts);
         
         // Add detailed debugging for each item
         console.group('🔍 Detailed Risk Item Analysis');
@@ -344,15 +344,15 @@ class SecurityCharts {
             const rawSeverity = item.severity || item.risk_level || item.level || 'unknown';
             const normalizedSeverity = getSeverityLevel(item);
             const title = item.title || item.policy_name || item.name || 'unnamed';
-            logDebug(`Item ${index + 1}: "${title}" - Raw: "${rawSeverity}" → Normalized: "${normalizedSeverity}"`);
+            console.log(`Item ${index + 1}: "${title}" - Raw: "${rawSeverity}" → Normalized: "${normalizedSeverity}"`);
         });
         console.groupEnd();
         
         // Count unknown/unmapped severity items
         const unknownSeverityItems = allRiskItems.filter(item => getSeverityLevel(item) === 'unknown');
         if (unknownSeverityItems.length > 0) {
-            console.warn('⚠️ Items with unknown severity:', unknownSeverityItems.length);
-            logDebug('Unknown severity items:', unknownSeverityItems.map(item => ({
+            console.log('⚠️ Items with unknown severity:', unknownSeverityItems.length);
+            console.log('Unknown severity items:', unknownSeverityItems.map(item => ({
                 title: item.title || item.policy_name || 'unnamed',
                 severity: item.severity,
                 risk_level: item.risk_level,
@@ -363,21 +363,21 @@ class SecurityCharts {
         
         // Handle empty data case with better UX
         const totalRisks = Object.values(riskCounts).reduce((a, b) => a + b, 0);
-        logDebug('🔢 Total risks calculated:', totalRisks, '(from', violations?.length || 0, 'violations +', alerts?.length || 0, 'alerts)');
-        logDebug('🎯 Individual counts:', Object.entries(riskCounts));
+        console.log('🔢 Total risks calculated:', totalRisks, '(from', violations?.length || 0, 'violations +', alerts?.length || 0, 'alerts)');
+        console.log('🎯 Individual counts:', Object.entries(riskCounts));
         
         // Debug missing high severity items specifically
         const highSeverityItems = allRiskItems.filter(item => getSeverityLevel(item) === 'high');
-        logDebug('🚨 High severity items found:', highSeverityItems.length);
+        console.log('🚨 High severity items found:', highSeverityItems.length);
         if (highSeverityItems.length > 0) {
-            logDebug('High severity details:', highSeverityItems.map(item => ({
+            console.log('High severity details:', highSeverityItems.map(item => ({
                 title: item.title || item.policy_name || 'unnamed',
                 rawSeverity: item.severity || item.risk_level || item.level,
                 normalizedSeverity: getSeverityLevel(item),
                 source: item.hasOwnProperty('policy_name') ? 'violation' : 'alert'
             })));
         } else {
-            console.warn('❌ No high severity items found! Check data structure.');
+            console.log('❌ No high severity items found! Check data structure.');
         }
         if (totalRisks === 0) {
             // Show a "no risks" visualization instead of hiding
@@ -395,7 +395,7 @@ class SecurityCharts {
             return;
         }
         
-        logDebug(`🔧 Processing ${filteredData.length} risk categories:`, filteredData);
+        console.log(`🔧 Processing ${filteredData.length} risk categories:`, filteredData);
         
         // Clean static color palette for risk levels
         const colorMap = {
@@ -605,7 +605,7 @@ class SecurityCharts {
         // Enhanced risk distribution summary
         this.updateRiskDistributionSummary(riskCounts, totalRisks);
         
-        logDebug('✅ Enhanced risk distribution chart created successfully with gradients and animations');
+        console.log('✅ Enhanced risk distribution chart created successfully with gradients and animations');
     }
     
     showNoRisksVisualization(canvas) {
@@ -753,10 +753,10 @@ class SecurityCharts {
     }
 
     createComplianceChart(compliance) {
-        logDebug('📊 Creating enhanced compliance chart with data:', compliance);
+        console.log('📊 Creating enhanced compliance chart with data:', compliance);
         const canvas = document.getElementById('compliance-bar-chart');
         if (!canvas) {
-            console.warn('❌ Compliance bar chart canvas not found!');
+            console.log('❌ Compliance bar chart canvas not found!');
             return;
         }
         
@@ -767,7 +767,7 @@ class SecurityCharts {
         const frameworks = Object.keys(compliance);
         const scores = frameworks.map(f => compliance[f].overall_compliance || compliance[f].score || 0);
         
-        logDebug('📋 Enhanced frameworks and scores:', { frameworks, scores });
+        console.log('📋 Enhanced frameworks and scores:', { frameworks, scores });
         
         // Handle empty data case with better UX
         if (frameworks.length === 0) {
@@ -1137,13 +1137,13 @@ class SecurityCharts {
     createDynamicAlertsChart(alerts) {
         const canvas = document.getElementById('dynamic-alerts-chart');
         if (!canvas) {
-            console.warn('❌ Dynamic alerts chart canvas not found!');
+            console.log('❌ Dynamic alerts chart canvas not found!');
             return;
         }
 
         // Handle empty data case
         if (alerts.length === 0) {
-            console.warn('⚠️ No alerts found, hiding chart');
+            console.log('⚠️ No alerts found, hiding chart');
             canvas.style.display = 'none';
             const parentContainer = canvas.closest('.p-6');
             if (parentContainer) {

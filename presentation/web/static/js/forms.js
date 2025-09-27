@@ -166,7 +166,7 @@ export function handleEnhancedClusterFormSubmission(event) {
     event.preventDefault();
     event.stopPropagation();
     
-    logDebug('📝 Enhanced cluster form submission started');
+    console.log('📝 Enhanced cluster form submission started');
     
     const form = event.target;
     const formData = new FormData(form);
@@ -182,7 +182,7 @@ export function handleEnhancedClusterFormSubmission(event) {
         subscription_id: (formData.get('subscription_id') || '').trim()
     };
     
-    logDebug('📋 Form data collected:', clusterData);
+    console.log('📋 Form data collected:', clusterData);
     
     // Enhanced validation
     const validation = validateClusterForm(clusterData);
@@ -196,7 +196,7 @@ export function handleEnhancedClusterFormSubmission(event) {
     // Get submit button
     const submitBtn = form.querySelector('button[type="submit"]');
     if (!submitBtn) {
-        logError('❌ Submit button not found');
+        console.error('❌ Submit button not found');
         return;
     }
     
@@ -210,7 +210,7 @@ export function handleEnhancedClusterFormSubmission(event) {
         input.disabled = true;
     });
     
-    logDebug('📤 Sending API request...');
+    console.log('📤 Sending API request...');
     
     // Make API call
     fetch('/api/clusters', {
@@ -223,7 +223,7 @@ export function handleEnhancedClusterFormSubmission(event) {
         body: JSON.stringify(clusterData)
     })
     .then(response => {
-        logDebug('📡 API response status:', response.status);
+        console.log('📡 API response status:', response.status);
         
         if (!response.ok) {
             return response.text().then(text => {
@@ -239,7 +239,7 @@ export function handleEnhancedClusterFormSubmission(event) {
         return response.json();
     })
     .then(data => {
-        logDebug('✅ API success response:', data);
+        console.log('✅ API success response:', data);
         
         // Success notification
         const clusterId = data.cluster_id || data.id;
@@ -276,7 +276,7 @@ export function handleEnhancedClusterFormSubmission(event) {
         
     })
     .catch(error => {
-        logError('❌ API error:', error);
+        console.error('❌ API error:', error);
         showNotification(`Failed to add cluster: ${error.message}`, 'error');
     })
     .finally(() => {
@@ -295,7 +295,7 @@ export function handleEnhancedClusterFormSubmission(event) {
  * Sets up form event handlers
  */
 export function setupFormHandlers() {
-    logDebug('🔧 Setting up enhanced form handlers');
+    console.log('🔧 Setting up enhanced form handlers');
     
     // Handle analysis form ONLY ONCE
     const analysisForm = document.getElementById('analysisForm');
@@ -306,10 +306,10 @@ export function setupFormHandlers() {
         
         // Add ONLY the fixed handler
         newForm.addEventListener('submit', handleAnalysisSubmit);
-        logDebug('✅ Analysis form handler attached (fixed version)');
+        console.log('✅ Analysis form handler attached (fixed version)');
     }
     
-    logDebug('✅ Form handlers setup complete - cluster validation will use enhanced validateForm()');
+    console.log('✅ Form handlers setup complete - cluster validation will use enhanced validateForm()');
 }
 
 /**
@@ -320,7 +320,7 @@ export function handleAnalysisSubmit(event) {
     
     if (!validateAnalysisForm()) return;
     
-    logDebug('📊 Starting FIXED analysis with guaranteed completion');
+    console.log('📊 Starting FIXED analysis with guaranteed completion');
     
     const btn = document.getElementById('analyzeBtn');
     const progress = document.getElementById('analysisProgress');
@@ -351,7 +351,7 @@ export function handleAnalysisSubmit(event) {
         return response.text();
     })
     .then(() => {
-        logDebug('✅ Analysis completed successfully');
+        console.log('✅ Analysis completed successfully');
         
         // Complete progress
         if (typeof completeProgressWithSuccess === 'function') {
@@ -375,7 +375,7 @@ export function handleAnalysisSubmit(event) {
         }, 2000);
     })
     .catch(error => {
-        logError('❌ Analysis failed:', error);
+        console.error('❌ Analysis failed:', error);
         showNotification(`Analysis failed: ${error.message}`, 'error');
         resetAnalysisForm();
     });
@@ -385,7 +385,7 @@ export function handleAnalysisSubmit(event) {
  * Resets analysis form to initial state
  */
 export function resetAnalysisForm() {
-    logDebug('🧹 Resetting analysis form to initial state');
+    console.log('🧹 Resetting analysis form to initial state');
     
     const btn = document.getElementById('analyzeBtn');
     const progress = document.getElementById('analysisProgress');
@@ -425,7 +425,7 @@ export function resetAnalysisForm() {
         text.textContent = 'Initializing analysis...';
     }
     
-    logDebug('✅ Analysis form reset completed');
+    console.log('✅ Analysis form reset completed');
 }
 
 /**
