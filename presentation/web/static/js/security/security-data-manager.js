@@ -116,7 +116,7 @@ class SecurityDataManager {
             this.cachedData = data;
             
             console.log('📊 Security data received from:', successfulEndpoint);
-            console.log('Data structure:', Object.keys(data));
+            
             
             return data;
             
@@ -139,7 +139,7 @@ class SecurityDataManager {
                 const analysis = this.cachedData.analysis || this.cachedData;
                 const alerts = analysis.security_posture?.alerts || [];
                 
-                console.log(`✅ Retrieved ${alerts.length} security alerts from cache`);
+                
                 return alerts;
             }
 

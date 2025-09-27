@@ -6,7 +6,7 @@
 
 // Global function - needed for inline onclick handlers
 window.toggleUserMenu = function(event) {
-    console.log('🔹 toggleUserMenu called!', event);
+    
     
     if (event) {
         event.preventDefault();
@@ -14,7 +14,7 @@ window.toggleUserMenu = function(event) {
     }
     
     const menu = document.getElementById('userDropdownMenu');
-    console.log('🔹 Menu element found:', !!menu);
+    
     
     if (!menu) {
         console.error('❌ User dropdown menu not found!');
@@ -23,8 +23,8 @@ window.toggleUserMenu = function(event) {
 
     // Pure Tailwind implementation - toggle hidden class
     const isVisible = !menu.classList.contains('hidden');
-    console.log('🔹 Menu currently visible:', isVisible);
-    console.log('🔹 Menu classes:', menu.className);
+    
+    
     
     if (isVisible) {
         // Hide menu
@@ -40,7 +40,7 @@ window.toggleUserMenu = function(event) {
 };
 
 // Test that the function is available
-console.log('🔹 User menu script loaded, toggleUserMenu available:', typeof window.toggleUserMenu);
+
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, initializing user menu...');
@@ -61,7 +61,7 @@ function initializeUserMenu() {
         
         // Test if menu exists
         const menu = document.getElementById('userDropdownMenu');
-        console.log('User dropdown menu found:', !!menu);
+        
         
         
         // Find user buttons and add event listeners as backup

@@ -13,14 +13,14 @@ import { AppState } from './config.js';
  * Switches to specified tab with enhanced navigation
  */
 export function switchToTab(selector) {
-    console.log('🔄 Switching to tab:', selector);
+    
     
     try {
         // Method 1: Find and click the tab button
         const tabButton = document.querySelector(`[data-bs-target="${selector}"]`);
         if (tabButton) {
             tabButton.click();
-            console.log('✅ Tab switched via button click');
+            
             updateAppState('smoothTransitions.currentTab', selector);
             return;
         }
@@ -62,7 +62,7 @@ export function switchToTab(selector) {
                 navLink.classList.add('active');
             }
             
-            console.log('✅ Tab switched manually');
+            
             updateAppState('smoothTransitions.currentTab', selector);
             return;
         }
@@ -94,7 +94,7 @@ function switchToDashboard() {
         if (dashboardTabBtn) dashboardTabBtn.classList.add('active');
         
         
-        console.log('✅ Switched to dashboard tab');
+        
         updateAppState('smoothTransitions.currentTab', '#dashboard');
     }
 }
@@ -117,7 +117,7 @@ function switchToAnalysis() {
         analysisTab.classList.add('show', 'active');
         if (analysisTabBtn) analysisTabBtn.classList.add('active');
         
-        console.log('✅ Switched to analysis tab');
+        
         updateAppState('smoothTransitions.currentTab', '#analysis');
     }
 }
@@ -131,7 +131,7 @@ function switchToImplementation() {
         // Switch tab
         switchToTab('#implementation');
         
-        console.log('✅ Switched to implementation tab');
+        
         updateAppState('smoothTransitions.currentTab', '#implementation');
         updateAppState('smoothTransitions.implementationLoaded', true);
     }
@@ -279,7 +279,7 @@ export function handleResponsiveNavigation() {
  * Tab navigation with history support
  */
 export function initializeTabNavigation() {
-    console.log('🧭 Initializing tab navigation with history support');
+    
     
     // Handle browser back/forward buttons
     window.addEventListener('popstate', (event) => {
@@ -529,4 +529,3 @@ if (typeof window !== 'undefined') {
     window.initializeNavigation = initializeNavigation;
 }
 
-console.log('✅ UI Navigation module loaded successfully');

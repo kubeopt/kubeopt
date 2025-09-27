@@ -1875,4 +1875,4 @@ window.securityDebug = {
     }
 };
 
-console.log('💡 Enhanced Security UI Renderer Ready');
+
