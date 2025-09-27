@@ -914,9 +914,7 @@ function displayAlerts() {
                                     <i class="fas fa-ellipsis-v"></i>
                                 </button>
                                 <div class="dropdown-menu absolute right-0 mt-1 w-48 rounded border z-10 hidden" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1);" id="simple-menu-${alert.id}">
-                                    <button class="dropdown-item w-full text-left px-4 py-2 text-sm flex items-center" style="color: rgb(203, 213, 225);" onclick="testAlert('${alert.id}'); closeMenu('${alert.id}');">
-                                        <i class="fas fa-paper-plane mr-2 text-blue-400"></i>Test Alert
-                                    </button>
+                                   
                                     <button class="dropdown-item w-full text-left px-4 py-2 text-sm flex items-center" style="color: rgb(203, 213, 225);" onclick="showEditAlertModal('${alert.id}'); closeMenu('${alert.id}');">
                                         <i class="fas fa-edit mr-2 text-emerald-400"></i>Edit Alert
                                     </button>
@@ -2242,7 +2240,7 @@ function initializeEnhancedAlerts() {
     
     // Add debug helpers to window
     //window.debugNotificationSystem = debugNotificationSystem;
-    window.testBellIconClick = testBellIconClick;
+    
     window.forceReloadNotifications = forceReloadNotifications;
     window.checkDropdownVisibility = checkDropdownVisibility;
     window.reinitializeBellIcon = reinitializeBellIcon;
@@ -2256,7 +2254,6 @@ window.filterAlerts = filterAlerts;
 window.toggleSimpleMenu = toggleSimpleMenu;
 window.closeMenu = closeMenu;
 window.handleToggleAlert = handleToggleAlert;
-window.testAlert = testAlert;
 window.showCreateAlertModal = showCreateAlertModal;
 window.showEditAlertModal = showEditAlertModal;
 window.showDeleteAlertModal = showDeleteAlertModal;

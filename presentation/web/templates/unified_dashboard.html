@@ -164,7 +164,7 @@
         <!-- Enhanced Sidebar -->
         <aside class="w-64 bg-gradient-dark text-white flex-shrink-0 rounded-xl flex flex-col shadow-2xl">
             <div class="flex items-center p-6 border-b border-gray-700/30">
-                <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-4">
+                <div>
                     <img src="{{ url_for('static', filename='images/kubevista_eyecon.png') }}" alt="KUBEVISTA Eye Icon" class="w-8 h-8 sidebar-eye-icon">
                 </div>
                 <h1 class="text-xl font-bold text-white tracking-wider">KUBEVISTA</h1>
@@ -200,12 +200,9 @@
                 {% if cluster %}
                 <div class="flex-grow">
                     <div class="flex items-center mb-2">
-                        <!-- <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-4">
-                            <img src="{{ url_for('static', filename='images/kubevista_eyecon.png') }}" alt="KUBEVISTA Eye Icon" class="w-9 h-9 card-eye-icon">
-                        </div> -->
                         <div>
                             <h4 class="font-bold text-2xl text-gray-800 mb-0">
-                                <span class="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{{ cluster.name }}</span>
+                                <span class="text-transparent">{{ cluster.name }}</span>
                             </h4>
                         </div>
                     </div>
@@ -222,29 +219,7 @@
                         {% endif %}
                     </div>
                 </div>
-                {% else %}
-                <div class="flex-grow">
-                    <div class="flex items-center mb-2">
-                        <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-4">
-                            <img src="{{ url_for('static', filename='images/kubevista_eyecon.png') }}" alt="KUBEVISTA Eye Icon" class="w-9 h-9 card-eye-icon">
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-2xl text-gray-800">
-                                <span class="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Demo Cluster</span>
-                            </h4>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-3 ml-16">
-                        <span class="status-badge bg-blue-100 text-blue-700 border border-blue-200">
-                            <i class="fas fa-circle mr-2 text-xs text-blue-500"></i>
-                            DEVELOPMENT
-                        </span>
-                        <span class="status-badge text-gray-600 bg-gray-100 border border-gray-200">
-                            <i class="fas fa-map-marker-alt mr-2 text-xs"></i>
-                            North Europe
-                        </span>
-                    </div>
-                </div>
+        
                 {% endif %}
 
                 <div class="header-actions">
@@ -787,6 +762,7 @@
         window.currentClusterId = '{{ cluster.id }}';
         window.currentClusterName = '{{ cluster.name }}';
         window.currentResourceGroup = '{{ cluster.resource_group }}';
+        {% endif %}
         
     </script>
 
