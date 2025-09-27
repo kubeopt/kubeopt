@@ -106,7 +106,7 @@ export function copyCommand(elementId, buttonElement = null) {
  */
 function showCopySuccess(buttonElement, message = 'Copied!') {
     if (!buttonElement) {
-        console.log('✅ Copy successful (no button element for feedback)');
+        console.log('✅ Copy successful');
         return;
     }
     
@@ -134,7 +134,6 @@ function showCopySuccess(buttonElement, message = 'Copied!') {
         buttonElement.innerHTML = originalHTML;
         buttonElement.style.background = '';
         buttonElement.style.transform = '';
-        console.log('🔄 Button state reset');
     }, 2000);
 }
 

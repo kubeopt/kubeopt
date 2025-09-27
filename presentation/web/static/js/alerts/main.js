@@ -23,11 +23,7 @@ function initializeAlertsStateWithClusterInfo() {
         window.AlertsState.currentClusterId = window.clusterInfo.id;
         window.AlertsState.currentClusterName = window.clusterInfo.name;
         window.AlertsState.currentResourceGroup = window.clusterInfo.resource_group;
-        console.log('🏗️ AlertsState initialized with cluster info:', {
-            clusterId: window.AlertsState.currentClusterId,
-            clusterName: window.AlertsState.currentClusterName,
-            resourceGroup: window.AlertsState.currentResourceGroup
-        });
+        
         return true;
     }
     return false;
@@ -84,8 +80,6 @@ function loadAlerts() {
     // Basic alert loading is always available - only specific features may be locked
     // This allows users to see existing alerts even if they can't create new ones with certain channels
     
-    console.log('🔄 Loading alerts from API...');
-    
     // Use your dynamic cluster detection
     const detectedCluster = detectCurrentCluster();
     if (detectedCluster) {
@@ -96,9 +90,7 @@ function loadAlerts() {
         ? `/api/alerts?cluster_id=${encodeURIComponent(window.AlertsState.currentClusterId)}` 
         : '/api/alerts';
     
-    console.log(`📡 Loading alerts from: ${url}`);
-    console.log(`📡 Cluster ID: ${window.AlertsState.currentClusterId || 'all clusters'}`);
-    
+ 
     fetch(url)
         .then(response => response.json())
         .then(data => {
@@ -136,12 +128,10 @@ function loadNotifications() {
         url += `&cluster_id=${encodeURIComponent(clusterId)}`;
     }
     
-    console.log(`📡 Loading notifications from: ${url}`);
-    console.log(`🎯 Cluster ID: ${clusterId || 'all clusters'}`);
     
     fetch(url)
         .then(response => {
-            console.log(`📡 Notifications API response: ${response.status} ${response.statusText}`);
+            
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -153,11 +143,7 @@ function loadNotifications() {
             if (data.status === 'success') {
                 window.AlertsState.notifications = data.notifications || [];
                 window.AlertsState.unreadNotificationsCount = data.unread_count || 0;
-                
-                console.log(`✅ Loaded ${window.AlertsState.notifications.length} notifications`);
-                console.log(`📬 Unread count: ${window.AlertsState.unreadNotificationsCount}`);
-                console.log('📋 Loaded notifications data');
-                
+               
                 updateNotificationBadge();
                 
                 // If we're on the notifications tab, refresh the display
@@ -186,7 +172,7 @@ function loadNotifications() {
 function loadGlobalNotifications() {
     // Basic notification loading is always available - core functionality
     
-    console.log('🔔 Loading cluster-specific notifications for bell icon...');
+    
     
     const clusterId = window.AlertsState.currentClusterId;
     
@@ -205,15 +191,11 @@ function loadGlobalNotifications() {
             return response.json();
         })
         .then(data => {
-            console.log('🔔 Cluster notifications API response received');
+            
             
             if (data.status === 'success') {
                 window.AlertsState.globalNotifications = data.notifications || [];
                 window.AlertsState.globalUnreadCount = data.unread_count || 0;
-                
-                console.log(`🔔 Loaded ${window.AlertsState.globalNotifications.length} cluster-specific notifications`);
-                console.log(`🔔 Cluster unread count: ${window.AlertsState.globalUnreadCount}`);
-                console.log(`🎯 Filtered for cluster: ${clusterId || 'all clusters'}`);
                 
                 // Update header bell with cluster-specific count
                 updateGlobalNotificationBadge();
@@ -236,7 +218,7 @@ function loadGlobalNotifications() {
  * FIXED NOTIFICATION BADGE UPDATE - TARGETS HEADER BELL ICON
  */
 function updateNotificationBadge() {
-    console.log(`📬 Updating notification badges with count: ${window.AlertsState.unreadNotificationsCount}`);
+    
     
     // TARGET THE HEADER BELL ICON SPECIFICALLY - Updated to match your HTML
     const headerBellIcon = document.querySelector('#global-notification-badge, .fa-regular.fa-bell');
@@ -262,7 +244,7 @@ function updateNotificationBadge() {
             `;
             
             headerBellContainer.appendChild(badge);
-            console.log(`✅ Header bell badge updated: ${window.AlertsState.unreadNotificationsCount}`);
+            
         } else {
             // Show static dot when no count (optional - remove if you don't want this)
             const staticBadge = document.createElement('span');
@@ -303,7 +285,7 @@ function updateNotificationBadge() {
  */
 function updateGlobalNotificationBadge() {
     const globalCount = window.AlertsState.globalUnreadCount || 0;
-    console.log(`🔔 Updating cluster notification badge with count: ${globalCount}`);
+    
     
     // Target the specific bell icon by ID or class
     const headerBellIcon = document.querySelector('#global-notification-badge, .fa-regular.fa-bell');
@@ -352,7 +334,7 @@ function setupBellIconInteraction() {
                           document.querySelector('.fa-bell');
     
     if (headerBellIcon) {
-        console.log('✅ Found bell icon:', headerBellIcon);
+        
         
         // Make bell clickable with better styling
         headerBellIcon.style.cursor = 'pointer';
@@ -362,7 +344,7 @@ function setupBellIconInteraction() {
         headerBellIcon.removeEventListener('click', bellClickHandler);
         headerBellIcon.addEventListener('click', bellClickHandler);
         
-        console.log('✅ Bell icon interaction setup complete');
+        
     } else {
         console.error('❌ Bell icon not found! Selectors tried: #global-notification-badge, .fa-regular.fa-bell, .fa-bell');
         
@@ -380,11 +362,6 @@ function setupBellIconInteraction() {
 function bellClickHandler(event) {
     event.preventDefault();
     event.stopPropagation();
-    
-    console.log('🔔 Bell icon clicked - showing cluster notifications');
-    console.log('🔔 Cluster notifications count:', window.AlertsState.globalNotifications?.length || 0);
-    console.log('🔔 Cluster unread count:', window.AlertsState.globalUnreadCount || 0);
-    console.log('🎯 Current cluster:', window.AlertsState.currentClusterId || 'all clusters');
     
     // Show cluster notifications dropdown
     showGlobalNotificationsDropdown(event);
@@ -639,26 +616,16 @@ function handleNotificationClick(notificationId) {
  * MARK ALL GLOBAL NOTIFICATIONS AS READ
  */
 function markAllGlobalAsRead() {
-    console.log('📖 Marking all global notifications as read (DROPDOWN function)...');
-    console.log('📊 Current state check:');
-    console.log('  - notifications array length:', window.AlertsState.notifications?.length || 0);
-    console.log('  - globalNotifications array length:', window.AlertsState.globalNotifications?.length || 0);
-    console.log('  - unreadNotificationsCount:', window.AlertsState.unreadNotificationsCount || 0);
-    console.log('  - globalUnreadCount:', window.AlertsState.globalUnreadCount || 0);
-    
     // Check both notification arrays for unread notifications
     const unreadNotifications = window.AlertsState.notifications?.filter(n => !n.read) || [];
     const unreadGlobalNotifications = window.AlertsState.globalNotifications?.filter(n => !n.read) || [];
-    
-    console.log('  - unread in notifications array:', unreadNotifications.length);
-    console.log('  - unread in globalNotifications array:', unreadGlobalNotifications.length);
     
     // Use the array with more unread notifications, prefer globalNotifications for dropdown
     const notificationsToMark = unreadGlobalNotifications.length > 0 ? unreadGlobalNotifications : unreadNotifications;
     
     if (notificationsToMark.length === 0) {
-        console.log('⚠️ No unread notifications found in either array');
-        showToast('info', 'No unread notifications');
+        
+        showAlertToast('info', 'No unread notifications');
         return;
     }
     
@@ -670,7 +637,7 @@ function markAllGlobalAsRead() {
         button.style.opacity = '0.6';
     }
     
-    console.log(`📖 Marking ${notificationsToMark.length} global notifications as read individually`);
+    
     
     // Mark each notification as read
     const markPromises = notificationsToMark.map(notification => 
@@ -688,7 +655,7 @@ function markAllGlobalAsRead() {
             const successful = results.filter(r => r.status === 'success').length;
             
             if (successful > 0) {
-                showToast('success', `${successful} notifications marked as read`);
+                showAlertToast('success', `${successful} notifications marked as read`);
                 
                 // Immediately update counts and mark all notifications as read locally
                 window.AlertsState.unreadNotificationsCount = 0;
@@ -730,7 +697,7 @@ function markAllGlobalAsRead() {
         })
         .catch(error => {
             console.error('❌ Error marking all as read:', error);
-            showToast('error', 'Failed to mark notifications as read');
+            showAlertToast('error', 'Failed to mark notifications as read');
             
             // Re-enable button on error
             if (button) {
@@ -1140,50 +1107,65 @@ function closeMenu(alertId) {
  */
 function showCreateAlertModal() {
     const modalHTML = `
-        <div class="modal" id="createAlertModal" style="background: rgba(0,0,0,0.8);">
-            <div class="modal-content" style="background: rgb(30, 41, 59); color: white; border: 1px solid rgba(255,255,255,0.1);">
-                <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <h3 class="modal-title" style="color: white;">Create New Alert</h3>
-                    <button class="modal-close" onclick="closeModal('createAlertModal')" style="background: rgba(255,255,255,0.1); color: white;">&times;</button>
+        <div class="modal" id="createAlertModal" style="background: rgba(0,0,0,0.8); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: flex; align-items: center; justify-content: center;">
+            <div class="modal-content" style="background: white; color: #1f2937; border: 1px solid #e5e7eb; border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.25); position: relative;">
+                <div class="modal-header" style="border-bottom: 1px solid #e5e7eb; padding: 1.5rem 1.5rem 1rem;">
+                    <h3 class="modal-title" style="color: #1f2937; margin: 0; font-size: 1.25rem; font-weight: 600;">Create New Alert</h3>
+                    <button class="modal-close" onclick="closeModal('createAlertModal')" style="position: absolute; top: 1rem; right: 1rem; background: #f3f4f6; color: #374151; border: none; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#e5e7eb'" onmouseout="this.style.backgroundColor='#f3f4f6'">&times;</button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body" style="padding: 1.5rem;">
+                    <!-- Validation Error Container -->
+                    <div id="alertValidationErrors" style="display: none; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                        <div style="display: flex; align-items: center; margin-bottom: 0.5rem;">
+                            <i class="fas fa-exclamation-triangle" style="margin-right: 0.5rem;"></i>
+                            <strong>Please fix the following errors:</strong>
+                        </div>
+                        <ul id="alertValidationList" style="margin: 0; padding-left: 1.5rem;"></ul>
+                    </div>
+                    
                     <form id="createAlertForm">
-                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                             <div class="form-group">
-                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Alert Name *</label>
+                                <label class="form-label" style="color: #374151; font-weight: 500; margin-bottom: 0.5rem; display: block;">Alert Name *</label>
                                 <input type="text" class="form-control" name="name" required 
-                                       style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;"
-                                       placeholder="Budget Alert - $1,400">
+                                       style="background: white; border: 2px solid #d1d5db; color: #1f2937; padding: 0.75rem; border-radius: 8px; width: 100%; box-sizing: border-box; font-size: 14px; transition: border-color 0.2s;"
+                                       placeholder="Budget Alert - $1,400"
+                                       onblur="validateField(this)"
+                                       onfocus="clearFieldError(this)">
                             </div>
                             <div class="form-group">
-                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Email Address *</label>
+                                <label class="form-label" style="color: #374151; font-weight: 500; margin-bottom: 0.5rem; display: block;">Email Address *</label>
                                 <input type="email" class="form-control" name="email" required 
                                        autocomplete="email"
-                                       style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;"
-                                       placeholder="admin@company.com">
+                                       style="background: white; border: 2px solid #d1d5db; color: #1f2937; padding: 0.75rem; border-radius: 8px; width: 100%; box-sizing: border-box; font-size: 14px; transition: border-color 0.2s;"
+                                       placeholder="admin@company.com"
+                                       onblur="validateField(this)"
+                                       onfocus="clearFieldError(this)">
                             </div>
                         </div>
                         
-                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                             <div class="form-group">
-                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Threshold Amount ($) *</label>
+                                <label class="form-label" style="color: #374151; font-weight: 500; margin-bottom: 0.5rem; display: block;">Threshold Amount ($) *</label>
                                 <input type="number" class="form-control" name="threshold_amount" required 
-                                       style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;"
-                                       min="0" step="0.01" placeholder="1400">
+                                       style="background: white; border: 2px solid #d1d5db; color: #1f2937; padding: 0.75rem; border-radius: 8px; width: 100%; box-sizing: border-box; font-size: 14px; transition: border-color 0.2s;"
+                                       min="0" step="0.01" placeholder="1400"
+                                       onblur="validateField(this)"
+                                       onfocus="clearFieldError(this)">
                             </div>
                             <div class="form-group">
-                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Threshold Percentage (%)</label>
+                                <label class="form-label" style="color: #374151; font-weight: 500; margin-bottom: 0.5rem; display: block;">Threshold Percentage (%)</label>
                                 <input type="number" class="form-control" name="threshold_percentage" 
-                                       style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;"
+                                       style="background: white; border: 2px solid #d1d5db; color: #1f2937; padding: 0.75rem; border-radius: 8px; width: 100%; box-sizing: border-box; font-size: 14px; transition: border-color 0.2s;"
                                        min="0" max="100" placeholder="80">
                             </div>
                         </div>
                         
                         <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
-                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Notification Frequency</label>
+                                <label class="form-label" style="color: #374151; font-weight: 500; margin-bottom: 0.5rem; display: block;">Notification Frequency</label>
                                 <select class="form-control" name="notification_frequency" 
-                                        style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;">
+                                        style="background: white; border: 2px solid #d1d5db; color: #1f2937; padding: 0.75rem; border-radius: 8px; width: 100%; box-sizing: border-box; font-size: 14px;">
                                     <option value="immediate">🚨 Immediate - Send right away</option>
                                     <option value="hourly">⏰ Hourly - Every hour</option>
                                     <option value="daily" selected>📅 Daily - Once per day</option>
@@ -1191,9 +1173,9 @@ function showCreateAlertModal() {
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label class="form-label" style="color: rgb(203, 213, 225); font-weight: 500; margin-bottom: 0.5rem;">Alert Type</label>
+                                <label class="form-label" style="color: #374151; font-weight: 500; margin-bottom: 0.5rem; display: block;">Alert Type</label>
                                 <select class="form-control" name="alert_type" 
-                                        style="background: rgba(51, 65, 85, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.75rem; border-radius: 8px;">
+                                        style="background: white; border: 2px solid #d1d5db; color: #1f2937; padding: 0.75rem; border-radius: 8px; width: 100%; box-sizing: border-box; font-size: 14px;">
                                     <option value="cost_threshold">💰 Cost Threshold Alert</option>
                                     <option value="performance">⚡ Performance Alert</option>
                                     <option value="optimization">🎯 Optimization Alert</option>
@@ -1203,13 +1185,15 @@ function showCreateAlertModal() {
                         </div>
                     </form>
                 </div>
-                <div class="modal-footer" style="border-top: 1px solid rgba(255,255,255,0.1); padding: 1rem 1.25rem; display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <div class="modal-footer" style="border-top: 1px solid #e5e7eb; padding: 1rem 1.5rem; display: flex; gap: 0.75rem; justify-content: flex-end; background: #f9fafb;">
                     <button class="btn btn-secondary" onclick="closeModal('createAlertModal')" 
-                            style="background: rgba(75, 85, 99, 0.8); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 0.5rem 1rem; border-radius: 6px;">
+                            style="background: #f3f4f6; border: 1px solid #d1d5db; color: #374151; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; transition: background-color 0.2s;"
+                            onmouseover="this.style.backgroundColor='#e5e7eb'" onmouseout="this.style.backgroundColor='#f3f4f6'">
                         <i class="fas fa-times"></i> Cancel
                     </button>
                     <button class="btn btn-primary" onclick="createAlert()" 
-                            style="background: linear-gradient(135deg, #07080d, #07080d); border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500;">
+                            style="background: #3b82f6; border: none; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500; cursor: pointer; transition: background-color 0.2s;"
+                            onmouseover="this.style.backgroundColor='#2563eb'" onmouseout="this.style.backgroundColor='#3b82f6'">
                         <i class="fas fa-plus"></i> Create Alert
                     </button>
                 </div>
@@ -1225,6 +1209,84 @@ function showCreateAlertModal() {
     if (alertTypeSelect) {
         alertTypeSelect.addEventListener('change', updateCreateFormFields);
         updateCreateFormFields(); // Initialize with default values
+    }
+}
+
+// Validation functions for visual feedback
+function validateField(field) {
+    const fieldName = field.name;
+    const value = field.value.trim();
+    let isValid = true;
+    let errorMessage = '';
+    
+    // Clear previous error state
+    field.style.borderColor = '#d1d5db';
+    
+    // Check required fields
+    if (field.required && !value) {
+        isValid = false;
+        errorMessage = `${getFieldDisplayName(fieldName)} is required`;
+    }
+    
+    // Email validation
+    if (fieldName === 'email' && value) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(value)) {
+            isValid = false;
+            errorMessage = 'Please enter a valid email address';
+        }
+    }
+    
+    // Number validation
+    if (fieldName === 'threshold_amount' && value) {
+        const amount = parseFloat(value);
+        if (isNaN(amount) || amount < 0) {
+            isValid = false;
+            errorMessage = 'Threshold amount must be a positive number';
+        }
+    }
+    
+    if (!isValid) {
+        field.style.borderColor = '#dc2626';
+        field.style.boxShadow = '0 0 0 3px rgba(220, 38, 38, 0.1)';
+    }
+    
+    return isValid;
+}
+
+function clearFieldError(field) {
+    field.style.borderColor = '#3b82f6';
+    field.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+}
+
+function getFieldDisplayName(fieldName) {
+    const displayNames = {
+        'name': 'Alert Name',
+        'email': 'Email Address',
+        'threshold_amount': 'Threshold Amount'
+    };
+    return displayNames[fieldName] || fieldName;
+}
+
+function showValidationErrors(errors) {
+    const errorContainer = document.getElementById('alertValidationErrors');
+    const errorList = document.getElementById('alertValidationList');
+    
+    if (errors.length > 0) {
+        errorList.innerHTML = errors.map(error => `<li>${error}</li>`).join('');
+        errorContainer.style.display = 'block';
+        
+        // Scroll to error container
+        errorContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+        errorContainer.style.display = 'none';
+    }
+}
+
+function hideValidationErrors() {
+    const errorContainer = document.getElementById('alertValidationErrors');
+    if (errorContainer) {
+        errorContainer.style.display = 'none';
     }
 }
 
@@ -1384,7 +1446,7 @@ function closeModal(modalId) {
  * ALERT ACTIONS
  */
 function handleToggleAlert(alertId, shouldActivate) {
-    console.log(`🔄 Toggling alert ${alertId} to ${shouldActivate ? 'active' : 'paused'}`);
+    
     
     const alert = window.AlertsState.alerts.find(a => a.id == alertId);
     if (!alert) return;
@@ -1406,36 +1468,20 @@ function handleToggleAlert(alertId, shouldActivate) {
     .then(result => {
         if (result.status === 'success') {
             console.log(`✅ Alert ${alertId} ${action}d successfully`);
-            showToast('success', `Alert ${action}d successfully`);
+            showAlertToast('success', `Alert ${action}d successfully`);
         } else {
             alert.status = shouldActivate ? 'paused' : 'active';
             displayAlerts(); // Revert and refresh
-            showToast('error', `Failed to ${action} alert`);
+            showAlertToast('error', `Failed to ${action} alert`);
         }
     })
     .catch(error => {
         alert.status = shouldActivate ? 'paused' : 'active';
         displayAlerts(); // Revert and refresh
-        showToast('error', `Error: ${error.message}`);
+        showAlertToast('error', `Error: ${error.message}`);
     });
 }
 
-function testAlert(alertId) {
-    console.log('🧪 Testing alert:', alertId);
-    
-    fetch(`/api/alerts/${alertId}/test`, { method: 'POST' })
-        .then(response => response.json())
-        .then(result => {
-            if (result.status === 'success') {
-                showToast('success', 'Test notification sent successfully!');
-            } else {
-                showToast('error', 'Failed to send test notification');
-            }
-        })
-        .catch(error => {
-            showToast('error', `Error: ${error.message}`);
-        });
-}
 
 /**
  * ALERT ACTIONS - UPDATED WITH FREQUENCY
@@ -1444,13 +1490,43 @@ function createAlert() {
     const form = document.getElementById('createAlertForm');
     const formData = new FormData(form);
     
-    // Validate required fields
+    // Hide previous validation errors
+    hideValidationErrors();
+    
+    // Validate required fields with visual feedback
     const name = formData.get('name');
     const email = formData.get('email');
     const thresholdAmount = formData.get('threshold_amount');
     
-    if (!name || !email || !thresholdAmount) {
-        showToast('error', 'Please fill in all required fields');
+    const errors = [];
+    const nameField = form.querySelector('input[name="name"]');
+    const emailField = form.querySelector('input[name="email"]');
+    const thresholdField = form.querySelector('input[name="threshold_amount"]');
+    
+    // Validate each field and collect errors
+    if (!validateField(nameField)) {
+        errors.push(getFieldDisplayName('name') + ' is required');
+    }
+    
+    if (!validateField(emailField)) {
+        if (!email) {
+            errors.push(getFieldDisplayName('email') + ' is required');
+        } else {
+            errors.push('Please enter a valid email address');
+        }
+    }
+    
+    if (!validateField(thresholdField)) {
+        if (!thresholdAmount) {
+            errors.push(getFieldDisplayName('threshold_amount') + ' is required');
+        } else {
+            errors.push('Threshold amount must be a positive number');
+        }
+    }
+    
+    // Show validation errors if any
+    if (errors.length > 0) {
+        showValidationErrors(errors);
         return;
     }
     
@@ -1509,7 +1585,7 @@ function createAlert() {
     
     // Validate we have required information
     if (!clusterId) {
-        showToast('error', 'Cannot create alert: No cluster selected. Please refresh the page and try again.');
+        showAlertToast('error', 'Cannot create alert: No cluster selected. Please refresh the page and try again.');
         return;
     }
     
@@ -1522,29 +1598,10 @@ function createAlert() {
         alertData.resource_group = resourceGroup;
     }
     
-    // DIRECT CONSOLE LOGGING - BYPASS CUSTOM LOGGER
-    console.log('=== ALERT CREATION DEBUG START ===');
-    console.log('📤 Creating alert with data:', JSON.stringify(alertData, null, 2));
-    console.log('🔍 Cluster info debug:', {
-        'AlertsState.currentClusterId': window.AlertsState?.currentClusterId,
-        'window.currentClusterId': window.currentClusterId,
-        'window.clusterInfo': window.clusterInfo,
-        'URL params': Object.fromEntries(new URLSearchParams(window.location.search)),
-        'Final alertData': alertData
-    });
-    console.log('🌐 Current URL:', window.location.href);
-    console.log('📋 Form data check:', {
-        name: document.querySelector('#createAlertModal input[name="name"]')?.value,
-        email: document.querySelector('#createAlertModal input[name="email"]')?.value,
-        threshold: document.querySelector('#createAlertModal input[name="threshold_amount"]')?.value
-    });
-    
     const createBtn = document.querySelector('#createAlertModal .btn-primary');
     const originalText = createBtn.innerHTML;
     createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
     createBtn.disabled = true;
-    
-    console.log('🚀 About to send POST request to /api/alerts');
     
     fetch('/api/alerts', {
         method: 'POST',
@@ -1555,9 +1612,9 @@ function createAlert() {
         body: JSON.stringify(alertData)
     })
     .then(response => {
-        console.log('📡 Response received - Status:', response.status);
-        console.log('📡 Response OK:', response.ok);
-        console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+        
+        
+        
         
         if (!response.ok) {
             return response.text().then(text => {
@@ -1574,11 +1631,11 @@ function createAlert() {
         return response.json();
     })
     .then(result => {
-        console.log('📥 Create alert response received:', JSON.stringify(result, null, 2));
+        
         
         if (result.status === 'success') {
             console.log('✅ Alert created successfully');
-            showToast('success', 'Alert created successfully!');
+            showAlertToast('success', 'Alert created successfully!');
             closeModal('createAlertModal');
             loadAlerts(); // Reload alerts to get the new one
         } else {
@@ -1596,12 +1653,12 @@ function createAlert() {
         
         // Show detailed error in toast for debugging
         const errorMessage = error.message || 'Unknown error';
-        showToast('error', `Alert Creation Failed: ${errorMessage}`);
+        showAlertToast('error', `Alert Creation Failed: ${errorMessage}`);
         
         // GUARANTEED VISIBLE ERROR - Browser alert popup
         alert(`🚨 ALERT CREATION ERROR 🚨\n\nError: ${errorMessage}\n\nDetailed info in browser console (F12)`);
         
-        console.log('=== ALERT CREATION DEBUG END ===');
+        
     })
     .finally(() => {
         createBtn.innerHTML = originalText;
@@ -1620,7 +1677,7 @@ function updateAlert() {
     const thresholdAmount = formData.get('threshold_amount');
     
     if (!name || !email || !thresholdAmount) {
-        showToast('error', 'Please fill in all required fields');
+        showAlertToast('error', 'Please fill in all required fields');
         return;
     }
     
@@ -1633,7 +1690,7 @@ function updateAlert() {
         alert_type: formData.get('alert_type') || 'cost_threshold'
     };
     
-    console.log('📤 Updating alert with data:', updateData);
+    
     
     const saveBtn = document.querySelector('#editAlertModal .btn-primary');
     const originalText = saveBtn.innerHTML;
@@ -1657,11 +1714,11 @@ function updateAlert() {
         return response.json();
     })
     .then(result => {
-        console.log('📥 Update alert response:', result);
+        
         
         if (result.status === 'success') {
-            console.log('✅ Alert updated successfully');
-            showToast('success', 'Alert updated successfully!');
+            
+            showAlertToast('success', 'Alert updated successfully!');
             closeModal('editAlertModal');
             loadAlerts(); // Reload alerts to get the updated data
         } else {
@@ -1670,7 +1727,7 @@ function updateAlert() {
     })
     .catch(error => {
         console.error('❌ Error updating alert:', error);
-        showToast('error', `Failed to update alert: ${error.message}`);
+        showAlertToast('error', `Failed to update alert: ${error.message}`);
     })
     .finally(() => {
         saveBtn.innerHTML = originalText;
@@ -1701,13 +1758,13 @@ function confirmDeleteAlert(alertId) {
         return response.json();
     })
     .then(result => {
-        console.log('📥 Delete alert response:', result);
+        
         
         if (result.status === 'success') {
             // Remove from local state immediately
             window.AlertsState.alerts = window.AlertsState.alerts.filter(a => a.id != alertId);
             displayAlerts();
-            showToast('success', 'Alert deleted successfully!');
+            showAlertToast('success', 'Alert deleted successfully!');
             closeModal('deleteAlertModal');
         } else {
             throw new Error(result.message || 'Failed to delete alert');
@@ -1715,7 +1772,7 @@ function confirmDeleteAlert(alertId) {
     })
     .catch(error => {
         console.error('❌ Error deleting alert:', error);
-        showToast('error', `Failed to delete alert: ${error.message}`);
+        showAlertToast('error', `Failed to delete alert: ${error.message}`);
     })
     .finally(() => {
         deleteBtn.innerHTML = originalText;
@@ -1727,7 +1784,7 @@ function confirmDeleteAlert(alertId) {
  * NOTIFICATION FUNCTIONS - REAL API CALLS
  */
 function markAsRead(notificationId) {
-    console.log('📖 Marking notification as read via API:', notificationId);
+    
     
     return fetch(`/api/notifications/${notificationId}/mark-read`, {
         method: 'POST',
@@ -1772,13 +1829,13 @@ function markAsRead(notificationId) {
             return result;
         } else {
             console.error('❌ Failed to mark notification as read:', result.message);
-            showToast('error', 'Failed to mark notification as read');
+            showAlertToast('error', 'Failed to mark notification as read');
             throw new Error(result.message || 'Failed to mark notification as read');
         }
     })
     .catch(error => {
         console.error('❌ Error marking notification as read:', error);
-        showToast('error', `Error: ${error.message}`);
+        showAlertToast('error', `Error: ${error.message}`);
         throw error;
     });
 }
@@ -1806,40 +1863,40 @@ function dismissNotification(notificationId) {
             }
         } else {
             console.error('❌ Failed to dismiss notification:', result.message);
-            showToast('error', 'Failed to dismiss notification');
+            showAlertToast('error', 'Failed to dismiss notification');
         }
     })
     .catch(error => {
         console.error('❌ Error dismissing notification:', error);
-        showToast('error', `Error: ${error.message}`);
+        showAlertToast('error', `Error: ${error.message}`);
     });
 }
 
 function markAllAsRead() {
-    console.log('📖 Marking all notifications as read via API (TAB function)');
-    console.log('📊 Current state check:');
-    console.log('  - notifications array length:', window.AlertsState.notifications?.length || 0);
-    console.log('  - globalNotifications array length:', window.AlertsState.globalNotifications?.length || 0);
-    console.log('  - unreadNotificationsCount:', window.AlertsState.unreadNotificationsCount || 0);
-    console.log('  - globalUnreadCount:', window.AlertsState.globalUnreadCount || 0);
+    
+    
+    
+    
+    
+    
     
     // Check both notification arrays for unread notifications
     const unreadNotifications = window.AlertsState.notifications?.filter(n => !n.read) || [];
     const unreadGlobalNotifications = window.AlertsState.globalNotifications?.filter(n => !n.read) || [];
     
-    console.log('  - unread in notifications array:', unreadNotifications.length);
-    console.log('  - unread in globalNotifications array:', unreadGlobalNotifications.length);
+    
+    
     
     // Use the array with more unread notifications
     const notificationsToMark = unreadNotifications.length > 0 ? unreadNotifications : unreadGlobalNotifications;
     
     if (notificationsToMark.length === 0) {
         console.log('⚠️ No unread notifications found in either array');
-        showToast('info', 'No unread notifications to mark');
+        showAlertToast('info', 'No unread notifications to mark');
         return;
     }
     
-    console.log(`📖 Marking ${notificationsToMark.length} notifications as read individually`);
+    
     
     // Mark each notification as read individually
     const markPromises = notificationsToMark.map(notification => 
@@ -1859,7 +1916,7 @@ function markAllAsRead() {
             
             if (failed === 0) {
                 console.log('✅ All notifications marked as read via individual API calls');
-                showToast('success', `All ${successful} notifications marked as read`);
+                showAlertToast('success', `All ${successful} notifications marked as read`);
                 
                 // Immediately update counts and mark all notifications as read locally
                 window.AlertsState.unreadNotificationsCount = 0;
@@ -1881,7 +1938,7 @@ function markAllAsRead() {
                 updateGlobalNotificationBadge();
             } else {
                 console.log(`⚠️ ${successful} notifications marked as read, ${failed} failed`);
-                showToast('warning', `${successful} marked as read, ${failed} failed`);
+                showAlertToast('warning', `${successful} marked as read, ${failed} failed`);
             }
             
             // Reload notifications to get updated state from backend
@@ -1894,7 +1951,7 @@ function markAllAsRead() {
         })
         .catch(error => {
             console.error('❌ Error marking notifications as read:', error);
-            showToast('error', `Error: ${error.message}`);
+            showAlertToast('error', `Error: ${error.message}`);
         });
 }
 
@@ -1902,7 +1959,7 @@ function markAllAsRead() {
  * HELPER FUNCTIONS FOR GLOBAL NOTIFICATIONS
  */
 function markAsReadAndUpdateGlobal(notificationId) {
-    console.log('📖 Marking notification as read and updating global state:', notificationId);
+    
     
     // Disable the button to prevent double-clicking
     const button = document.getElementById(`mark-read-${notificationId}`);
@@ -1954,14 +2011,14 @@ function navigateToAlertsTab() {
 }
 
 /**
- * TOAST NOTIFICATIONS
+ * ALERT-SPECIFIC TOAST NOTIFICATIONS - POSITIONED AT TOP
  */
-function showToast(type, message) {
+function showAlertToast(type, message) {
     const colors = {
-        'success': '#28a745',
-        'error': '#dc3545', 
-        'warning': '#ffc107',
-        'info': '#17a2b8'
+        'success': '#10b981',
+        'error': '#ef4444', 
+        'warning': '#f59e0b',
+        'info': '#3b82f6'
     };
     
     const icons = {
@@ -1972,29 +2029,70 @@ function showToast(type, message) {
     };
     
     const toastHTML = `
-        <div class="toast" id="toast-${Date.now()}" style="
+        <div class="alert-toast" id="alert-toast-${Date.now()}" style="
             position: fixed; 
             top: 20px; 
             right: 20px; 
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 500px;
             background: ${colors[type] || colors.info}; 
-            color: ${type === 'warning' ? '#000' : 'white'}; 
-            padding: 15px 20px; 
-            border-radius: 4px; 
-            z-index: 3000;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            color: white; 
+            padding: 16px 24px; 
+            border-radius: 12px; 
+            z-index: 9999;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            animation: slideInFade 0.3s ease-out forwards;
         ">
-            <i class="fas ${icons[type] || icons.info}"></i>
-            ${message}
+            <i class="fas ${icons[type] || icons.info}" style="font-size: 18px;"></i>
+            <span>${message}</span>
         </div>
     `;
+    
+    // Add animation styles if not already present
+    if (!document.getElementById('alert-toast-styles')) {
+        const styles = document.createElement('style');
+        styles.id = 'alert-toast-styles';
+        styles.textContent = `
+            @keyframes slideInFade {
+                from {
+                    opacity: 0;
+                    transform: translateX(-50%) translateY(-20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(-50%) translateY(0);
+                }
+            }
+            
+            @keyframes slideOutFade {
+                from {
+                    opacity: 1;
+                    transform: translateX(-50%) translateY(0);
+                }
+                to {
+                    opacity: 0;
+                    transform: translateX(-50%) translateY(-20px);
+                }
+            }
+        `;
+        document.head.appendChild(styles);
+    }
     
     document.body.insertAdjacentHTML('beforeend', toastHTML);
     
     const toast = document.body.lastElementChild;
+    
+    // Auto remove after 4 seconds with fade out animation
     setTimeout(() => {
-        toast.style.opacity = '0';
+        toast.style.animation = 'slideOutFade 0.3s ease-in forwards';
         setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    }, 4000);
 }
 
 /**
@@ -2047,85 +2145,9 @@ function setupClickHandlers() {
     });
 }
 
-/**
- * DEBUGGING FUNCTIONS FOR NOTIFICATION SYSTEM
- */
-function debugNotificationSystem() {
-    console.log('🔍 === NOTIFICATION SYSTEM DEBUG ===');
-    
-    // Check if bell icon exists
-    const bellIcon = document.querySelector('#global-notification-badge');
-    console.log('🔔 Bell icon found:', !!bellIcon, bellIcon);
-    
-    if (bellIcon) {
-        console.log('🔔 Bell icon details:');
-        console.log('- ID:', bellIcon.id);
-        console.log('- Classes:', bellIcon.className);
-        console.log('- Parent:', bellIcon.parentElement);
-        console.log('- Click listeners:', 'Check in DevTools with getEventListeners(bellIcon)');
-    }
-    
-    // Check notifications data
-    console.log('📊 Notifications data:');
-    console.log('- Global notifications:', window.AlertsState.globalNotifications?.length || 0);
-    console.log('- Global unread count:', window.AlertsState.globalUnreadCount || 0);
-    console.log('- Regular notifications:', window.AlertsState.notifications?.length || 0);
-    console.log('- Regular unread count:', window.AlertsState.unreadNotificationsCount || 0);
-    
-    // Check API endpoints
-    console.log('🌐 Testing API endpoints...');
-    fetch('/api/notifications/in-app?unread_only=false&limit=100')
-        .then(r => r.json())
-        .then(data => {
-            console.log('✅ Global notifications API response received');
-            if (data.notifications) {
-                console.log('📝 Sample notification received');
-            }
-        })
-        .catch(e => console.error('❌ Global notifications API error:', e));
-    
-    // Check current cluster notifications
-    if (window.AlertsState.currentClusterId) {
-        fetch(`/api/notifications/in-app?cluster_id=${window.AlertsState.currentClusterId}&limit=50`)
-            .then(r => r.json())
-            .then(data => console.log('✅ Cluster notifications API response received'))
-            .catch(e => console.error('❌ Cluster notifications API error:', e));
-    }
-    
-    return {
-        bellIconFound: !!bellIcon,
-        globalNotifications: window.AlertsState.globalNotifications?.length || 0,
-        unreadCount: window.AlertsState.globalUnreadCount || 0,
-        clusterId: window.AlertsState.currentClusterId
-    };
-}
-
-function testBellIconClick() {
-    console.log('🧪 Testing bell icon click...');
-    
-    const bellIcon = document.querySelector('#global-notification-badge') || 
-                    document.querySelector('.fa-regular.fa-bell') ||
-                    document.querySelector('.fa-bell');
-    
-    if (bellIcon) {
-        console.log('✅ Found bell icon, triggering click...');
-        
-        // Create a fake event
-        const fakeEvent = {
-            target: bellIcon,
-            preventDefault: () => {},
-            stopPropagation: () => {}
-        };
-        
-        // Call the dropdown function directly
-        showGlobalNotificationsDropdown(fakeEvent);
-    } else {
-        console.error('❌ Bell icon not found for testing');
-    }
-}
 
 function forceReloadNotifications() {
-    console.log('🔄 Force reloading all notifications...');
+    
     
     // Load global notifications
     loadGlobalNotifications();
@@ -2145,15 +2167,6 @@ function checkDropdownVisibility() {
     const dropdown = document.getElementById('global-notifications-dropdown');
     
     if (dropdown) {
-        console.log('🔍 Dropdown exists but might be hidden:');
-        console.log('- Display:', window.getComputedStyle(dropdown).display);
-        console.log('- Visibility:', window.getComputedStyle(dropdown).visibility);
-        console.log('- Opacity:', window.getComputedStyle(dropdown).opacity);
-        console.log('- Z-index:', window.getComputedStyle(dropdown).zIndex);
-        console.log('- Position:', window.getComputedStyle(dropdown).position);
-        console.log('- Top:', window.getComputedStyle(dropdown).top);
-        console.log('- Right:', window.getComputedStyle(dropdown).right);
-        
         // Try to make it visible
         dropdown.style.cssText = `
             position: fixed !important;
@@ -2197,10 +2210,6 @@ function reinitializeBellIcon() {
  */
 function initializeEnhancedAlerts() {
     // Allow basic alerts functionality even if specific channels are locked
-    // Only block if alerts are completely disabled (which shouldn't happen for core functionality)
-    console.log('🔔 Initializing alerts system (core functionality always available)...');
-    
-    console.log('🔔 Initializing alerts system...');
     
     // Detect cluster using your URL structure
     const detectedCluster = detectCurrentCluster();
@@ -2232,15 +2241,13 @@ function initializeEnhancedAlerts() {
     }, 200);
     
     // Add debug helpers to window
-    window.debugNotificationSystem = debugNotificationSystem;
+    //window.debugNotificationSystem = debugNotificationSystem;
     window.testBellIconClick = testBellIconClick;
     window.forceReloadNotifications = forceReloadNotifications;
     window.checkDropdownVisibility = checkDropdownVisibility;
     window.reinitializeBellIcon = reinitializeBellIcon;
     
     console.log('✅ Alerts system initialized');
-    console.log('💡 Available debug commands: debugNotificationSystem(), testBellIconClick(), refreshNotificationsManually()');
-    console.log('ℹ️ Notifications auto-refresh only when analysis runs - no background polling');
 }
 
 // Global exports - COMPREHENSIVE MERGED SYSTEM

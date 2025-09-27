@@ -182,8 +182,6 @@ export function handleEnhancedClusterFormSubmission(event) {
         subscription_id: (formData.get('subscription_id') || '').trim()
     };
     
-    console.log('📋 Form data collected:', clusterData);
-    
     // Enhanced validation
     const validation = validateClusterForm(clusterData);
     if (!validation.isValid) {
@@ -223,7 +221,6 @@ export function handleEnhancedClusterFormSubmission(event) {
         body: JSON.stringify(clusterData)
     })
     .then(response => {
-        console.log('📡 API response status:', response.status);
         
         if (!response.ok) {
             return response.text().then(text => {
@@ -239,7 +236,6 @@ export function handleEnhancedClusterFormSubmission(event) {
         return response.json();
     })
     .then(data => {
-        console.log('✅ API success response:', data);
         
         // Success notification
         const clusterId = data.cluster_id || data.id;
@@ -295,7 +291,6 @@ export function handleEnhancedClusterFormSubmission(event) {
  * Sets up form event handlers
  */
 export function setupFormHandlers() {
-    console.log('🔧 Setting up enhanced form handlers');
     
     // Handle analysis form ONLY ONCE
     const analysisForm = document.getElementById('analysisForm');
@@ -306,10 +301,10 @@ export function setupFormHandlers() {
         
         // Add ONLY the fixed handler
         newForm.addEventListener('submit', handleAnalysisSubmit);
-        console.log('✅ Analysis form handler attached (fixed version)');
+        
     }
     
-    console.log('✅ Form handlers setup complete - cluster validation will use enhanced validateForm()');
+    console.log('✅ Form handlers setup complete');
 }
 
 /**

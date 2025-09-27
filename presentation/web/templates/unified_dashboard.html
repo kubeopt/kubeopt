@@ -788,10 +788,6 @@
         window.currentClusterName = '{{ cluster.name }}';
         window.currentResourceGroup = '{{ cluster.resource_group }}';
         
-        console.log('🏗️ Cluster info loaded for JavaScript:', window.clusterInfo);
-        {% else %}
-        console.warn('⚠️ No cluster information available');
-        {% endif %}
     </script>
 
     <script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>

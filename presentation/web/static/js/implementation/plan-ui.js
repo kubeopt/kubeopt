@@ -12,7 +12,7 @@ let UI_STABLE = false;
  * COMPLETE UI INJECTION - All data sections, no fallbacks
  */
 export function injectCompleteUI(planData) {
-    console.log('🎨 Injecting complete UI with ALL real data');
+    
     
     const container = document.getElementById('implementation-plan-container');
     if (!container) {
@@ -22,7 +22,7 @@ export function injectCompleteUI(planData) {
     
     // Process real data first
     const processedData = processCompleteImplementationData(planData);
-    console.log('📊 Processed complete data:', processedData);
+    
     
     // Inject complete HTML with all sections
     container.innerHTML = getCompleteHTML(processedData);
@@ -30,13 +30,13 @@ export function injectCompleteUI(planData) {
     // Use setTimeout pattern for stable initialization
     setTimeout(() => {
         const uiExists = !!container.querySelector('.complete-implementation-ui');
-        console.log('⏰ UI check after 100ms:', uiExists);
+        
         
         if (uiExists) {
             initializeCompleteUI(processedData);
             UI_STABLE = true;
         } else {
-            console.log('🚨 UI disappeared, retrying...');
+            
             setTimeout(() => injectCompleteUI(planData), 200);
         }
     }, 100);
@@ -1204,18 +1204,6 @@ export function renderEnhancedCompleteTimeline(data) {
         });
     });
     
-    console.log('🔍 Phase alignment check:');
-    console.log(`   📊 Tile shows: ${data.totalPhases} phases`);
-    console.log(`   💻 Commands show: ${actualPhaseCount} phases with commands`);
-    console.log(`   📂 Categories: ${Object.keys(commandsByCategory).length} command categories`);
-    Object.entries(commandsByCategory).forEach(([cat, catData]) => {
-        console.log(`     - ${cat}: ${catData.totalCount} commands from ${catData.phaseCount} phases`);
-    });
-    
-    // Warn if there's a mismatch
-    if (data.totalPhases !== actualPhaseCount) {
-        console.log(`⚠️ PHASE MISMATCH: Tiles show ${data.totalPhases} but only ${actualPhaseCount} phases have commands!`);
-    }
 
     if (totalCommands === 0) {
         return `
@@ -1389,7 +1377,6 @@ export function initializeCompleteUI(data) {
         
         setTimeout(() => {
             console.log('🔧 Setting up Timeline UI handlers...');
-            console.log('✅ Timeline UI ready - all existing functions preserved');
         }, 100);
         
         console.log('✅ Complete Timeline UI initialized successfully');

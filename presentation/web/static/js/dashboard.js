@@ -37,7 +37,7 @@ export function setupDashboardPolling() {
             makeClusterAwareAPICall('/api/cache/status')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('✅ Cache status for current cluster:', data);
+                    
                     updateCacheStatusIndicator(data);
                 })
                 .catch(error => {
@@ -170,7 +170,6 @@ export function handleAnalysisCompletion() {
  */
 export function handleVisibilityChange() {
     if (document.hidden) {
-        console.log('📱 Page hidden - pausing cluster polling');
         
         // Pause timers when page is hidden
         if (window.dashboardTimers) {
@@ -180,7 +179,6 @@ export function handleVisibilityChange() {
             });
         }
     } else {
-        console.log('📱 Page visible - resuming cluster polling');
         
         // Resume polling when page becomes visible
         const clusterId = getCurrentClusterId();
@@ -214,29 +212,6 @@ export function cleanupDashboard() {
     }
 }
 
-/**
- * Debug function to check current state
- */
-export function debugClusterState() {
-    const clusterId = getCurrentClusterId();
-    const state = window.currentClusterState;
-    
-    console.log('🔍 Current cluster state:', {
-        urlClusterId: clusterId,
-        stateClusterId: state?.clusterId,
-        validated: state?.validated,
-        lastUpdated: state?.lastUpdated,
-        activeTimers: window.dashboardTimers?.length || 0,
-        currentUrl: window.location.href
-    });
-    
-    return {
-        clusterId,
-        state,
-        valid: validateClusterContext('debug')
-    };
-}
-
 // Event listeners
 document.addEventListener('visibilitychange', handleVisibilityChange);
 window.addEventListener('beforeunload', cleanupDashboard);
@@ -247,8 +222,6 @@ if (typeof window !== 'undefined') {
     window.setupDashboardPolling = setupDashboardPolling;
     window.refreshCurrentCluster = refreshCurrentCluster;
     window.handleAnalysisCompletion = handleAnalysisCompletion;
-    window.debugClusterState = debugClusterState;
+    //window.debugClusterState = debugClusterState;
     window.validatePageState = validatePageState;
 }
-
-console.log('✅ Dashboard management module loaded');

@@ -63,24 +63,20 @@ function initializeUserMenu() {
         const menu = document.getElementById('userDropdownMenu');
         console.log('User dropdown menu found:', !!menu);
         
-        if (menu) {
-            console.log('Menu classes:', menu.className);
-            console.log('Menu style:', menu.style.cssText);
-        }
         
         // Find user buttons and add event listeners as backup
         const allButtons = document.querySelectorAll('div[onclick*="toggleUserMenu"], .user-menu-trigger, [class*="bg-blue-600"], [class*="bg-gradient-to-r"]');
-        console.log('Found potential user buttons:', allButtons.length);
+        // console.log('Found potential user buttons:', allButtons.length);
         
-        allButtons.forEach((btn, i) => {
-            console.log(`Button ${i}:`, btn.tagName, btn.className);
+        // allButtons.forEach((btn, i) => {
+        //     console.log(`Button ${i}:`, btn.tagName, btn.className);
             
-            // Add click event listener as backup to onclick
-            btn.addEventListener('click', function(event) {
-                console.log('Event listener triggered for button', i);
-                window.toggleUserMenu(event);
-            });
-        });
+        //     // Add click event listener as backup to onclick
+        //     btn.addEventListener('click', function(event) {
+        //         console.log('Event listener triggered for button', i);
+        //         window.toggleUserMenu(event);
+        //     });
+        // });
         
         
         console.log('User menu initialization completed');

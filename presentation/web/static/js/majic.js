@@ -357,7 +357,6 @@ function addPerformanceMonitor() {
 
 // ========== INITIALIZE ALL MAGIC ========== 
 function initializeLightweightMagic() {
-    console.log('🪄 Initializing lightweight dashboard magic...');
     
     // Add CSS for kbd styling
     const style = document.createElement('style');
@@ -393,9 +392,6 @@ function initializeLightweightMagic() {
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             addPerformanceMonitor();
         }
-        
-        console.log('✨ Lightweight magic activated!');
-        showMiniToast('✨ Dashboard enhanced with magic!');
         
         // Show shortcuts hint after 5 seconds
         setTimeout(() => {

@@ -235,7 +235,7 @@ async function loadSubscriptionsForDropdown() {
             });
             
             AppState.subscriptions = data.subscriptions;
-            console.log(`✅ Loaded ${data.subscriptions.length} subscriptions`);
+            
         } else {
             throw new Error(data.message || 'Invalid response format');
         }
@@ -2066,8 +2066,3 @@ window.AKSDebug = {
     }
 };
 
-console.log('  - window.AKSDebug.checkElements() - Check all form elements');
-console.log('  - window.AKSDebug.testNotification(type) - Test notifications');
-console.log('  - window.AKSDebug.simulateAnalysis(id) - Test analysis states');
-console.log('  - window.AKSDebug.getPerformanceMetrics() - View load performance');
-console.log('  - Add ?debug=true to URL for enhanced logging');
