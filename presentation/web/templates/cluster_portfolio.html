@@ -34,7 +34,7 @@
                     <i class="fas fa-dollar-sign"></i>
                 </div>
                 <div class="metric-data">
-                    <div class="metric-value" data-target="{{ portfolio_summary.total_monthly_cost|round(2) if portfolio_summary.total_monthly_cost else 3176 }}">$0</div>
+                    <div class="metric-value" data-target="{{ portfolio_summary.total_monthly_cost|round(2) if portfolio_summary.total_monthly_cost else 0 }}">$0</div>
                     <div class="metric-label">Total Monthly Cost</div>
                     <div class="metric-trend up">
                         <i class="fas fa-arrow-up"></i>
@@ -48,7 +48,7 @@
                     <i class="fas fa-piggy-bank"></i>
                 </div>
                 <div class="metric-data">
-                    <div class="metric-value" data-target="{{ portfolio_summary.total_potential_savings|round(2) if portfolio_summary.total_potential_savings else 925 }}">$0</div>
+                    <div class="metric-value" data-target="{{ portfolio_summary.total_potential_savings|round(2) if portfolio_summary.total_potential_savings else 0 }}">$0</div>
                     <div class="metric-label">Potential Savings</div>
                     <div class="metric-trend up">
                         <i class="fas fa-arrow-up"></i>
