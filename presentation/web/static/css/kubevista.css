@@ -150,7 +150,7 @@ header {
 #hpa-efficiency, 
 #optimization-score,
 .metric-value {
-    font-size: 2.25rem !important;
+    font-size: 1.25rem !important;
     font-weight: 800 !important;
     line-height: 1.1 !important;
     background: linear-gradient(135deg, #48bb78, #48bb78) !important;
@@ -609,7 +609,7 @@ input[type="number"], input[type="time"], .form-control {
 }
 
 .cpu-metric-item .metric-value {
-    font-size: 1.75rem !important;
+    font-size: 1.25rem !important;
     font-weight: 800 !important;
     line-height: 1 !important;
     margin-bottom: 0.25rem !important;
@@ -1090,23 +1090,21 @@ button:focus, input:focus, select:focus {
     margin-top: 2rem;
 }
 
-/* FIXED: Convert insights from cards to clean bullet points */
+/* Simple text styling for insights */
 .insight-item {
-    margin-bottom: 0.75rem !important;
-    padding: 0.75rem 1rem !important;
-    border-radius: 8px !important;
+    margin-bottom: 0.5rem !important;
+    padding: 0 !important;
     border: none !important;
-    border-left: 3px solid #48bb78 !important;
-    background: rgb(34 40 63) !important;
-    transition: all 0.2s ease !important;
+    background: transparent !important;
     font-size: 0.875rem;
     line-height: 1.4;
+    color: inherit;
 }
 
 .insight-item:hover {
-    transform: translateX(4px) !important;
-    background: rgba(30, 39, 58, 0.12) !important;
-    box-shadow: 0 2px 8px rgba(38, 46, 61, 0.2) !important;
+    transform: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 .insight-item h6 {
@@ -1832,7 +1830,7 @@ position: relative;
 
 .text-3xl {
     font-size: 1.875rem;
-    line-height: 2.25rem;
+    line-height: 1.25rem;
     color: #48bb78;
 }
 
