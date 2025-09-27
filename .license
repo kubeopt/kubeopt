@@ -1,12 +1,20 @@
 {
-  "tier": "free",
-  "expires": "2026-03-26",
+  "tier": "enterprise",
+  "expires": "2027-03-26",
   "features": [
     "dashboard",
-    "manual_analysis"
+    "manual_analysis",
+    "implementation_plan",
+    "auto_analysis",
+    "email_alerts",
+    "slack_alerts",
+    "enterprise_metrics",
+    "security_posture",
+    "advanced_alerts",
+    "multi_subscription"
   ],
-  "license_key": "F3M-KFV8FZA2-260326",
-  "tier_display": "Free",
+  "license_key": "E12M-DCRHRF1AQOQCZKKX-270326-F-2F4F",
+  "tier_display": "Enterprise",
   "algorithm": "simple_generator",
   "is_trial": false,
   "is_lifetime": false
