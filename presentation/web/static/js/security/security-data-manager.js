@@ -116,7 +116,13 @@ class SecurityDataManager {
             this.cachedData = data;
             
             console.log('📊 Security data received from:', successfulEndpoint);
-            
+            console.log('🔍 Data structure preview:', {
+                keys: Object.keys(data),
+                hasAnalysis: !!data.analysis,
+                analysisKeys: data.analysis ? Object.keys(data.analysis) : null,
+                securityPosture: data.analysis?.security_posture ? Object.keys(data.analysis.security_posture) : null,
+                policyCompliance: data.analysis?.policy_compliance ? Object.keys(data.analysis.policy_compliance) : null
+            });
             
             return data;
             

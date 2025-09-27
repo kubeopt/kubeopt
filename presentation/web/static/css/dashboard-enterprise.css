@@ -58,11 +58,11 @@ aside .flex.items-center.p-6 {
     border-bottom: 1px solid var(--dashboard-border);
 }
 
-aside .w-10.h-10.bg-gradient-to-r {
+/* aside .w-10.h-10.bg-gradient-to-r {
     width: 1.5rem;
     height: 1.5rem;
     background: var(--dashboard-accent) !important;
-}
+} */
 
 aside h1 {
     font-size: 0.875rem !important;
