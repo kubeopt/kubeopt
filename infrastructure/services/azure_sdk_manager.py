@@ -211,8 +211,9 @@ class AzureSDKManager:
         except Exception as e:
             logger.debug(f"Could not get subscription from Azure SDK: {e}")
         
-        logger.error("❌ No subscription ID available. Set AZURE_SUBSCRIPTION_ID environment variable")
-        raise RuntimeError("Azure subscription ID not available - set AZURE_SUBSCRIPTION_ID environment variable")
+        # No subscription ID needed at startup - will be set dynamically during analysis
+        logger.info("ℹ️ No subscription ID set at startup - will be set dynamically during analysis from cluster context")
+        self.subscription_id = None
     
     def is_authenticated(self) -> bool:
         """Check if Azure credentials are available and valid - optimized"""
@@ -301,6 +302,11 @@ class AzureSDKManager:
     def get_subscription_id(self) -> Optional[str]:
         """Get current Azure subscription ID"""
         return self.subscription_id
+    
+    def set_subscription_context(self, subscription_id: str):
+        """Set subscription ID dynamically for analysis context"""
+        self.subscription_id = subscription_id
+        logger.debug(f"🔄 Set subscription context to: {subscription_id[:8]}...")
     
     def clear_clients(self, subscription_id: Optional[str] = None):
         """Clear cached clients (useful for subscription switches)"""
