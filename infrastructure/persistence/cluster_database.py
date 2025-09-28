@@ -478,12 +478,21 @@ class EnhancedMultiSubscriptionClusterManager:
                 stale_clusters = [row[0] for row in cursor.fetchall()]
                 
                 if stale_clusters:
-                    # Update stale cluster analyses
+                    # Update stale cluster analyses but preserve previous analysis data
                     conn.execute('''
                         UPDATE clusters 
-                        SET analysis_status = 'failed',
-                            analysis_progress = 0,
-                            analysis_message = 'Analysis timed out and was cleaned up'
+                        SET analysis_status = CASE 
+                                WHEN last_analyzed IS NOT NULL THEN 'completed'
+                                ELSE 'failed'
+                            END,
+                            analysis_progress = CASE 
+                                WHEN last_analyzed IS NOT NULL THEN 100
+                                ELSE 0
+                            END,
+                            analysis_message = CASE 
+                                WHEN last_analyzed IS NOT NULL THEN 'Previous analysis restored after interruption'
+                                ELSE 'Analysis timed out and was cleaned up'
+                            END
                         WHERE analysis_status IN ('running', 'analyzing', 'pending') 
                         AND analysis_started_at < ?
                     ''', (cutoff_time.isoformat(),))
@@ -1441,7 +1450,7 @@ class EnhancedMultiSubscriptionClusterManager:
             # CRITICAL: Generate implementation plan BEFORE serialization
             if 'implementation_plan' not in enhanced_analysis_data:
                 try:
-                    from machine_learning.implementation_generator import AKSImplementationGenerator
+                    from machine_learning.core.implementation_generator import AKSImplementationGenerator
                     implementation_generator = AKSImplementationGenerator()
                     implementation_plan = implementation_generator.generate_implementation_plan(enhanced_analysis_data)
                     enhanced_analysis_data['implementation_plan'] = implementation_plan
@@ -1624,6 +1633,13 @@ class EnhancedMultiSubscriptionClusterManager:
         """Update analysis status for a cluster"""
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # DEBUG: Check data before update
+                cursor = conn.execute('SELECT last_cost, last_savings, last_analyzed FROM clusters WHERE id = ?', (cluster_id,))
+                before_data = cursor.fetchone()
+                if before_data:
+                    self.logger.info(f"🔍 BEFORE UPDATE: {cluster_id} → cost: ${before_data[0]}, savings: ${before_data[1]}, analyzed: {before_data[2]}")
+                else:
+                    self.logger.info(f"🔍 BEFORE UPDATE: {cluster_id} → cluster not found")
                 if status == 'analyzing' and progress <= 10:
                     # First time starting analysis
                     conn.execute('''
@@ -1808,11 +1824,14 @@ class EnhancedMultiSubscriptionClusterManager:
                 cursor = conn.execute('''
                     SELECT 
                         COUNT(*) as total_clusters,
-                        SUM(last_cost) as total_monthly_cost,
-                        SUM(last_savings) as total_potential_savings,
-                        AVG(CASE WHEN last_cost > 0 THEN (last_savings/last_cost)*100 ELSE 0 END) as avg_optimization_pct
-                    FROM clusters 
-                    WHERE status = 'active'
+                        SUM(CASE WHEN (analysis_status = 'completed' OR (analysis_status IN ('analyzing', 'running') AND last_analyzed IS NOT NULL)) AND last_cost > 0 THEN last_cost ELSE 0 END) as total_monthly_cost,
+                        SUM(CASE WHEN (analysis_status = 'completed' OR (analysis_status IN ('analyzing', 'running') AND last_analyzed IS NOT NULL)) AND last_savings > 0 THEN last_savings ELSE 0 END) as total_potential_savings,
+                        AVG(CASE WHEN (analysis_status = 'completed' OR (analysis_status IN ('analyzing', 'running') AND last_analyzed IS NOT NULL)) AND last_cost > 0 THEN (last_savings/last_cost)*100 ELSE 0 END) as avg_optimization_pct,
+                        COUNT(CASE WHEN analysis_status = 'completed' THEN 1 END) as analyzed_clusters,
+                        COUNT(CASE WHEN analysis_status = 'pending' THEN 1 END) as pending_clusters,
+                        COUNT(CASE WHEN analysis_status IN ('analyzing', 'running') THEN 1 END) as analyzing_clusters,
+                        COUNT(CASE WHEN analysis_status = 'failed' THEN 1 END) as failed_clusters
+                    FROM clusters
                 ''')
                 
                 row = cursor.fetchone()
@@ -1821,10 +1840,27 @@ class EnhancedMultiSubscriptionClusterManager:
                     summary['total_monthly_cost'] = summary['total_monthly_cost'] or 0
                     summary['total_potential_savings'] = summary['total_potential_savings'] or 0
                     summary['avg_optimization_pct'] = summary['avg_optimization_pct'] or 0
+                    summary['analyzed_clusters'] = summary['analyzed_clusters'] or 0
+                    summary['pending_clusters'] = summary['pending_clusters'] or 0
+                    summary['analyzing_clusters'] = summary['analyzing_clusters'] or 0
+                    summary['failed_clusters'] = summary['failed_clusters'] or 0
                     summary['last_updated'] = datetime.now().isoformat()
                     
+                    # DEBUG: Log what we found
+                    self.logger.info(f"🔍 Portfolio Summary Debug:")
+                    self.logger.info(f"   Total clusters: {summary['total_clusters']}")
+                    self.logger.info(f"   Total cost: ${summary['total_monthly_cost']}")
+                    self.logger.info(f"   Total savings: ${summary['total_potential_savings']}")
+                    self.logger.info(f"   Analyzed: {summary['analyzed_clusters']}, Pending: {summary['pending_clusters']}, Analyzing: {summary['analyzing_clusters']}, Failed: {summary['failed_clusters']}")
+                    
+                    # DEBUG: Show actual cluster data
+                    debug_cursor = conn.execute('SELECT id, name, status, analysis_status, last_cost, last_savings, last_analyzed, LENGTH(analysis_data) as data_size FROM clusters LIMIT 5')
+                    self.logger.info(f"🔍 Actual cluster data:")
+                    for row in debug_cursor.fetchall():
+                        self.logger.info(f"   Cluster: {row[1]}, status: {row[2]}, analysis_status: {row[3]}, cost: ${row[4]}, savings: ${row[5]}, analyzed: {row[6]}, data_size: {row[7]} bytes")
+                    
                     # Get environments
-                    env_cursor = conn.execute('SELECT DISTINCT environment FROM clusters WHERE status = "active"')
+                    env_cursor = conn.execute('SELECT DISTINCT environment FROM clusters')
                     summary['environments'] = [row[0] for row in env_cursor.fetchall()]
                     
                     return summary
@@ -1834,6 +1870,10 @@ class EnhancedMultiSubscriptionClusterManager:
                 'total_monthly_cost': 0,
                 'total_potential_savings': 0,
                 'avg_optimization_pct': 0,
+                'analyzed_clusters': 0,
+                'pending_clusters': 0,
+                'analyzing_clusters': 0,
+                'failed_clusters': 0,
                 'environments': [],
                 'last_updated': datetime.now().isoformat()
             }
@@ -1845,6 +1885,10 @@ class EnhancedMultiSubscriptionClusterManager:
                 'total_monthly_cost': 0,
                 'total_potential_savings': 0,
                 'avg_optimization_pct': 0,
+                'analyzed_clusters': 0,
+                'pending_clusters': 0,
+                'analyzing_clusters': 0,
+                'failed_clusters': 0,
                 'environments': [],
                 'last_updated': datetime.now().isoformat()
             }

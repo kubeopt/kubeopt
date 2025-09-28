@@ -38,7 +38,7 @@
                     <div class="metric-label">Total Monthly Cost</div>
                     <div class="metric-trend up">
                         <i class="fas fa-arrow-up"></i>
-                        <span>+12%</span>
+                        <span>+0%</span>
                     </div>
                 </div>
             </div>
@@ -52,7 +52,7 @@
                     <div class="metric-label">Potential Savings</div>
                     <div class="metric-trend up">
                         <i class="fas fa-arrow-up"></i>
-                        <span>+28%</span>
+                        <span>+0%</span>
                     </div>
                 </div>
             </div>
@@ -200,16 +200,19 @@
                 <!-- Card Footer -->
                 <div class="card-footer">
                     <div class="status-info" data-cluster-id="{{ cluster.id }}">
-                        {% if cluster.last_analyzed %}
+                        {% if cluster.analysis_status == 'completed' %}
                         <i class="fas fa-check-circle success-icon"></i>
                         <span class="status-text">Analyzed</span>
+                        {% elif cluster.analysis_status == 'analyzing' or cluster.analysis_status == 'running' %}
+                        <i class="fas fa-cog fa-spin analyzing-icon"></i>
+                        <span class="analyzing-text">Analyzing...</span>
+                        {% elif cluster.analysis_status == 'failed' %}
+                        <i class="fas fa-exclamation-triangle error-icon"></i>
+                        <span class="status-text">Failed</span>
                         {% else %}
                         <i class="fas fa-clock warning-icon"></i>
                         <span class="status-text">Pending</span>
                         {% endif %}
-                        <!-- Analyzing state (hidden by default) -->
-                        <i class="fas fa-cog fa-spin analyzing-icon" style="display: none;"></i>
-                        <span class="analyzing-text" style="display: none;">Analyzing...</span>
                     </div>
                 </div>
                 
