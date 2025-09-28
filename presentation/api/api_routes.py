@@ -1225,6 +1225,141 @@ def register_api_routes(app):
                 'analysis_status': 'error'
             }), 500
 
+    @app.route('/api/portfolio/summary', methods=['GET'])
+    @auth_manager.require_auth  
+    def api_portfolio_summary():
+        """API endpoint to get updated portfolio summary (for auto-refresh during analysis)"""
+        try:
+            # Get fresh portfolio summary with previous results during analysis
+            portfolio_summary = enhanced_cluster_manager.get_portfolio_summary()
+            
+            logger.info(f"📊 Portfolio summary API called - Cost: ${portfolio_summary.get('total_monthly_cost', 0):.2f}, "
+                       f"Savings: ${portfolio_summary.get('total_potential_savings', 0):.2f}, "
+                       f"Analyzing: {portfolio_summary.get('analyzing_clusters', 0)} clusters")
+            
+            return jsonify({
+                'status': 'success',
+                'portfolio_summary': portfolio_summary,
+                'timestamp': datetime.now().isoformat(),
+                'cache_used': False  # Always fresh data for metrics
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting portfolio summary: {e}")
+            return jsonify({
+                'status': 'error', 
+                'message': str(e),
+                'portfolio_summary': {
+                    'total_monthly_cost': 0,
+                    'total_potential_savings': 0,
+                    'avg_optimization_pct': 0,
+                    'total_clusters': 0,
+                    'analyzing_clusters': 0
+                }
+            }), 500
+
+    @app.route('/api/dashboard/overview', methods=['GET'])
+    @auth_manager.require_auth  
+    def api_dashboard_overview():
+        """API endpoint for dashboard overview data (for auto-refresh)"""
+        try:
+            # Get comprehensive dashboard data
+            portfolio_summary = enhanced_cluster_manager.get_portfolio_summary()
+            clusters = enhanced_cluster_manager.get_clusters_with_subscription_info()
+            
+            # Calculate dashboard-specific metrics
+            recent_analyses = []
+            alerts_count = 0
+            
+            try:
+                # Get recent analysis results
+                recent_analyses = get_recent_analysis_results(limit=5)
+            except Exception as e:
+                logger.warning(f"Could not get recent analyses: {e}")
+            
+            try:
+                # Get alerts count if alerts system is available
+                if 'alerts_manager' in globals():
+                    alerts_count = len(alerts_manager.get_active_alerts())
+            except Exception as e:
+                logger.warning(f"Could not get alerts count: {e}")
+            
+            dashboard_data = {
+                'portfolio_summary': portfolio_summary,
+                'clusters_overview': {
+                    'total_clusters': len(clusters),
+                    'analyzing_clusters': len([c for c in clusters if c.get('analysis_status') in ['analyzing', 'running']]),
+                    'completed_clusters': len([c for c in clusters if c.get('analysis_status') == 'completed']),
+                    'failed_clusters': len([c for c in clusters if c.get('analysis_status') == 'failed'])
+                },
+                'recent_analyses': recent_analyses,
+                'alerts_count': alerts_count,
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            return jsonify({
+                'status': 'success',
+                'dashboard_data': dashboard_data,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting dashboard overview: {e}")
+            return jsonify({
+                'status': 'error', 
+                'message': str(e)
+            }), 500
+
+    @app.route('/api/dashboard/recent-analysis', methods=['GET'])
+    @auth_manager.require_auth  
+    def api_dashboard_recent_analysis():
+        """API endpoint for recent analysis data (for auto-refresh)"""
+        try:
+            recent_analyses = get_recent_analysis_results(limit=10)
+            
+            return jsonify({
+                'status': 'success',
+                'recent_analyses': recent_analyses,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting recent analysis: {e}")
+            return jsonify({
+                'status': 'error', 
+                'message': str(e),
+                'recent_analyses': []
+            }), 500
+
+    @app.route('/api/security/status', methods=['GET'])
+    @auth_manager.require_auth  
+    def api_security_status():
+        """API endpoint for security posture status (for auto-refresh)"""
+        try:
+            # Get security-related data
+            clusters = enhanced_cluster_manager.get_clusters_with_subscription_info()
+            
+            security_status = {
+                'total_clusters': len(clusters),
+                'secure_clusters': len([c for c in clusters if c.get('security_score', 0) >= 80]),
+                'at_risk_clusters': len([c for c in clusters if c.get('security_score', 0) < 60]),
+                'security_scans_completed': len([c for c in clusters if c.get('last_security_scan')]),
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            return jsonify({
+                'status': 'success',
+                'security_status': security_status,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting security status: {e}")
+            return jsonify({
+                'status': 'error', 
+                'message': str(e)
+            }), 500
+
     @app.route('/api/debug-analysis')
     def debug_analysis():
         """Debug endpoint to check analysis results with subscription info"""
@@ -2128,3 +2263,45 @@ def ensure_float(value):
         return float(value)
     except (ValueError, TypeError):
         return 0.0
+
+def get_recent_analysis_results(limit=5):
+    """Get recent analysis results for dashboard display"""
+    try:
+        import sqlite3
+        from shared.config.config import enhanced_cluster_manager
+        
+        with sqlite3.connect(enhanced_cluster_manager.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute('''
+                SELECT 
+                    ar.cluster_id,
+                    ar.analysis_date,
+                    ar.total_cost,
+                    ar.total_savings,
+                    ar.confidence_level,
+                    c.name as cluster_name,
+                    c.environment
+                FROM analysis_results ar
+                JOIN clusters c ON ar.cluster_id = c.id
+                ORDER BY ar.analysis_date DESC
+                LIMIT ?
+            ''', (limit,))
+            
+            results = []
+            for row in cursor.fetchall():
+                results.append({
+                    'cluster_id': row['cluster_id'],
+                    'cluster_name': row['cluster_name'],
+                    'environment': row['environment'],
+                    'analysis_date': row['analysis_date'],
+                    'total_cost': row['total_cost'],
+                    'total_savings': row['total_savings'],
+                    'confidence_level': row['confidence_level'],
+                    'optimization_pct': (row['total_savings'] / row['total_cost'] * 100) if row['total_cost'] > 0 else 0
+                })
+            
+            return results
+            
+    except Exception as e:
+        logger.error(f"❌ Error getting recent analysis results: {e}")
+        return []

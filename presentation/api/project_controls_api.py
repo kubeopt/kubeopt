@@ -482,6 +482,7 @@ def get_enterprise_metrics_sync():
         subscription_id = cluster_info.get('subscription_id')
         
         logger.info(f"📊 Got cluster info: {cluster_name} in {resource_group} (Sub: {subscription_id[:8] if subscription_id else 'None'})")
+        logger.info(f"🔍 ENTERPRISE METRICS DEBUG: Cluster ID={cluster_id}, Name={cluster_name}, RG={resource_group}")
         
         # Find subscription if not already available
         if not subscription_id:
@@ -529,10 +530,13 @@ def get_enterprise_metrics_sync():
                     # Extract relevant data from analysis_data
                     if 'total_cost' in analysis_data:
                         cost_history = [{'total_cost': analysis_data.get('total_cost', 0)}]
+                        logger.info(f"🔍 CLUSTER {cluster_id}: Using fresh cost data: ${analysis_data.get('total_cost', 0)}")
                     if 'hpa_recommendations' in analysis_data:
                         optimization_history = analysis_data.get('hpa_recommendations', [])
+                        logger.info(f"🔍 CLUSTER {cluster_id}: Using fresh HPA data: {len(optimization_history)} recommendations")
                     if 'node_metrics' in analysis_data:
                         performance_metrics = analysis_data.get('node_metrics', [])
+                        logger.info(f"🔍 CLUSTER {cluster_id}: Using fresh node metrics: {len(performance_metrics)} nodes")
             
             # Use database if fresh data is not available or incomplete  
             if use_database:
@@ -569,7 +573,8 @@ def get_enterprise_metrics_sync():
                     memory_avg = memory_optimization_potential  
                     cost_savings = monthly_savings
                     
-                    logger.info(f"📈 Fresh metrics: CPU={cpu_avg}%, Memory={memory_avg}%, Savings=${cost_savings}, HPAs={hpa_count}")
+                    logger.info(f"📈 CLUSTER {cluster_id} Fresh metrics: CPU={cpu_avg}%, Memory={memory_avg}%, Savings=${cost_savings}, HPAs={hpa_count}")
+                    logger.info(f"📈 CLUSTER {cluster_id} Analysis source: {data_source}, Total cost: ${total_cost}")
                 else:
                     # Use database data for metrics calculation
                     cpu_optimizations = [r for r in optimization_history if r.get('optimization_type') == 'cpu']
@@ -592,6 +597,7 @@ def get_enterprise_metrics_sync():
                 cost_score = min(10, cost_savings / 100)  # Up to 10 points for cost savings
                 
                 overall_score = base_score + optimization_score + performance_score + cost_score
+                logger.info(f"🎯 CLUSTER {cluster_id} SCORES: Base={base_score}, Opt={optimization_score}, Perf={performance_score}, Cost={cost_score}, Total={overall_score}")
                 
                 # Determine maturity level
                 if overall_score >= 80:

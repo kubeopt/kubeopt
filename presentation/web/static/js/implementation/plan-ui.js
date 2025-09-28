@@ -753,10 +753,7 @@ export function renderEnhancedMainHeader(data) {
             <div class="header-content" style="background: #2d3748; border-radius: 12px; padding: 25px; margin-bottom: 20px; border: 1px solid #4a5568;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
                     <div>
-                        <h2 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 15px;">
-                            <span style="font-size: 40px;">🚀</span>
-                            Implementation Plan Ready!
-                        </h2>
+                    
                         <p style="margin: 0; opacity: 0.9; font-size: 18px; color: #e2e8f0;">
                             <strong>Cluster:</strong> ${data.clusterName} • 
                             <strong>Resource Group:</strong> ${data.resourceGroup}

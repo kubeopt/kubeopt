@@ -230,6 +230,14 @@
         
     </script>
     
+    <!-- Global Auto-Refresh Manager -->
+    <script src="{{ url_for('static', filename='js/global-refresh-manager.js') }}"></script>
+    
+    <!-- Page-specific update functions -->
+    {% if request.endpoint and 'dashboard' in request.endpoint %}
+    <script src="{{ url_for('static', filename='js/dashboard-updates.js') }}"></script>
+    {% endif %}
+    
     {% block scripts %}{% endblock %}
     
     <footer class="footer mt-auto py-3 text-center text-muted">

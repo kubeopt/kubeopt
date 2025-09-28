@@ -1126,12 +1126,37 @@ class EnhancedMultiSubscriptionClusterManager:
             cluster_id = f"{cluster_config['resource_group']}_{cluster_config['cluster_name']}"
             
             with sqlite3.connect(self.db_path) as conn:
-                conn.execute('''
-                    INSERT OR REPLACE INTO clusters 
-                    (id, name, resource_group, environment, region, description, status, 
-                    subscription_id, subscription_name, subscription_context_verified, 
-                    subscription_last_validated, created_at, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                # Check if cluster already exists to preserve analysis data
+                cursor = conn.execute('SELECT id, last_cost, last_savings, last_analyzed FROM clusters WHERE id = ?', (cluster_id,))
+                existing_cluster = cursor.fetchone()
+                
+                if existing_cluster:
+                    # Cluster exists - only update subscription-related fields to preserve analysis data
+                    self.logger.info(f"🔄 Cluster exists, updating subscription info only (preserving analysis data): {cluster_id}")
+                    conn.execute('''
+                        UPDATE clusters 
+                        SET subscription_id = ?, subscription_name = ?, subscription_context_verified = ?, 
+                            subscription_last_validated = ?, environment = ?, region = ?, resource_group = ?
+                        WHERE id = ?
+                    ''', (
+                        subscription_id,
+                        subscription_name,
+                        validation_result['valid'],
+                        datetime.now().isoformat() if validation_result['valid'] else None,
+                        cluster_config.get('environment', 'unknown'),
+                        cluster_config.get('region', 'unknown'),
+                        cluster_config['resource_group'],
+                        cluster_id
+                    ))
+                else:
+                    # New cluster - insert with full data
+                    self.logger.info(f"➕ Creating new cluster: {cluster_id}")
+                    conn.execute('''
+                        INSERT INTO clusters 
+                        (id, name, resource_group, environment, region, description, status, 
+                        subscription_id, subscription_name, subscription_context_verified, 
+                        subscription_last_validated, created_at, metadata)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     cluster_id,
                     cluster_config['cluster_name'],
@@ -1845,13 +1870,7 @@ class EnhancedMultiSubscriptionClusterManager:
                     summary['analyzing_clusters'] = summary['analyzing_clusters'] or 0
                     summary['failed_clusters'] = summary['failed_clusters'] or 0
                     summary['last_updated'] = datetime.now().isoformat()
-                    
-                    # DEBUG: Log what we found
-                    self.logger.info(f"🔍 Portfolio Summary Debug:")
-                    self.logger.info(f"   Total clusters: {summary['total_clusters']}")
-                    self.logger.info(f"   Total cost: ${summary['total_monthly_cost']}")
-                    self.logger.info(f"   Total savings: ${summary['total_potential_savings']}")
-                    self.logger.info(f"   Analyzed: {summary['analyzed_clusters']}, Pending: {summary['pending_clusters']}, Analyzing: {summary['analyzing_clusters']}, Failed: {summary['failed_clusters']}")
+                
                     
                     # DEBUG: Show actual cluster data
                     debug_cursor = conn.execute('SELECT id, name, status, analysis_status, last_cost, last_savings, last_analyzed, LENGTH(analysis_data) as data_size FROM clusters LIMIT 5')

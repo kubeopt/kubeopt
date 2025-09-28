@@ -2158,7 +2158,7 @@ from-gray-100.to-gray-200 {
 /* Consistent card styling across all security tabs */
 .security-tab-content .bg-slate-800\/40,
 .security-tab-content [style*="background: #171d33"] {
-    background: rgba(51, 65, 85, 0.4) !important;
+    background: rgb(33 41 72) !important;
     border: 1px solid rgba(71, 85, 105, 0.5) !important;
     border-radius: 0.5rem !important;
     transition: all 0.2s ease !important;
@@ -2295,7 +2295,7 @@ from-gray-100.to-gray-200 {
 }
 
 .bg-red-900\/20 {
-    background-color: rgb(32 38 61) !important;
+    background-color: rgb(33 41 72) !important;
 }
 
 .border-red-700 {
