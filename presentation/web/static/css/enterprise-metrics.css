@@ -5,18 +5,44 @@
     color: #ffffff;
 }
 
+/* Force override Tailwind classes with !important */
 .metric-card {
-    background: rgba(31, 41, 55, 0.8);
-    color: #ffffff;
+    background: rgba(31, 41, 55, 0.95) !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    padding: 0.875rem !important; /* Much more compact padding */
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(75, 85, 99, 0.2) !important;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12) !important;
+    margin-bottom: 0 !important;
 }
 
-.metric-card h3,
+/* Compact text styling with !important to override Tailwind */
+.metric-card h3 {
+    color: #ffffff !important;
+    font-size: 0.75rem !important; /* Smaller title */
+    font-weight: 600 !important;
+    margin-bottom: 0.5rem !important; /* Less spacing */
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    line-height: 1.2 !important;
+}
+
 .metric-card .metric-score {
     color: #ffffff !important;
+    font-size: 1.5rem !important; /* Smaller score */
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    margin-bottom: 0.375rem !important; /* Less spacing */
 }
 
-.metric-card p {
-    color: #d1d5db;
+.metric-card p,
+.metric-card .metric-details {
+    color: #d1d5db !important;
+    font-size: 0.6875rem !important; /* Even smaller details */
+    line-height: 1.3 !important;
+    margin-bottom: 0.25rem !important; /* Minimal spacing */
+    margin-top: 0 !important;
 }
 
 .enterprise-metrics-container {
@@ -25,22 +51,33 @@
 }
 
 .metric-card {
-    transition: all 0.3s ease;
-    border: 1px solid rgba(75, 85, 99, 0.3);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
 }
 
 .metric-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-    border-color: rgba(34, 197, 94, 0.5);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.4);
+    background: rgba(31, 41, 55, 1);
 }
 
+/* Ultra-thin progress bar */
 .metric-progress {
-    transition: all 0.6s ease-in-out;
+    height: 2px !important; /* Very thin */
+    background: rgba(75, 85, 99, 0.3) !important;
+    border-radius: 1px !important;
+    margin-top: 0.5rem !important; /* Less top spacing */
+    margin-bottom: 0 !important;
+    overflow: hidden !important;
+    transition: all 0.3s ease !important;
 }
 
 .metric-progress div {
-    transition: width 1s ease-in-out;
+    height: 100% !important;
+    border-radius: 1px !important;
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    background: linear-gradient(90deg, #22c55e, #4ade80) !important;
 }
 
 /* Maturity Level Styling */
@@ -92,14 +129,21 @@
 /* Action Items Styling - Dark Theme */
 .action-item {
     animation: slideInUp 0.3s ease-out;
-    background: rgba(31, 41, 55, 0.6);
+    background: rgba(31, 41, 55, 0.8);
     border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
     color: #ffffff;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    transition: all 0.2s ease;
 }
 
 .action-item:hover {
     border-color: rgba(34, 197, 94, 0.4);
     background: rgba(34, 197, 94, 0.1);
+    transform: translateX(4px);
 }
 
 /* Enterprise metrics titles and labels */
@@ -193,50 +237,156 @@
     background: linear-gradient(90deg, #22c55e, #4ade80);
 }
 
+/* Compact Grid Layout - Override Tailwind grid */
+#enterprise-main-content .grid {
+    gap: 0.75rem !important; /* Reduce gap between cards */
+}
+
+.enterprise-metrics-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)) !important; /* Smaller minimum width */
+    gap: 0.75rem !important; /* Smaller gaps */
+    margin-bottom: 1rem !important;
+}
+
+/* Specific overrides for Tailwind classes in enterprise metrics */
+#enterprise-metrics-content .bg-gray-800 {
+    background: rgb(33 41 72) !important;
+    padding: 0.875rem !important; /* Override p-6 */
+    border-radius: 8px !important; /* Override rounded-lg */
+    margin-bottom: 0.75rem !important;
+}
+
+#enterprise-metrics-content .grid.grid-cols-1.lg\\:grid-cols-2.xl\\:grid-cols-3 {
+    gap: 0.75rem !important; /* Override gap-6 */
+}
+
+/* Override the flex layout inside cards */
+#enterprise-metrics-content .metric-card .flex.items-center.justify-between {
+    margin-bottom: 0.5rem !important; /* Override mb-4 */
+}
+
+#enterprise-metrics-content .metric-card .text-lg {
+    font-size: 0.75rem !important; /* Override text-lg */
+    font-weight: 600 !important;
+}
+
+#enterprise-metrics-content .metric-card .text-2xl {
+    font-size: 1.5rem !important; /* Override text-2xl */
+    font-weight: 700 !important;
+}
+
+/* Override all spacing inside enterprise metrics content */
+#enterprise-metrics-content .space-y-6 > * + * {
+    margin-top: 1rem !important; /* Override space-y-6 */
+}
+
+#enterprise-metrics-content .space-y-4 > * + * {
+    margin-top: 0.5rem !important; /* Override space-y-4 */
+}
+
+/* Make maturity overview section compact */
+#enterprise-main-content .bg-gradient-to-br {
+    padding: 1rem !important; /* Override large padding */
+}
+
+#enterprise-main-content .text-4xl {
+    font-size: 2rem !important; /* Override text-4xl */
+}
+
+#enterprise-main-content .text-6xl {
+    font-size: 3rem !important; /* Override text-6xl */
+}
+
+/* Compact spacing */
+.enterprise-metrics-container {
+    padding: 1rem;
+}
+
+.enterprise-metrics-container > * + * {
+    margin-top: 1.5rem;
+}
+
 /* Responsive Design */
 @media (max-width: 1024px) {
     .enterprise-metrics-grid {
         grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+    
+    .metric-card {
+        padding: 1rem;
+    }
+    
+    .metric-card .metric-score {
+        font-size: 1.75rem;
     }
 }
 
 @media (max-width: 768px) {
     .enterprise-metrics-grid {
         grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+    
+    .enterprise-metrics-container {
+        padding: 0.75rem;
     }
     
     .metric-card {
-        margin-bottom: 1rem;
+        padding: 0.875rem;
+    }
+    
+    .metric-card .metric-score {
+        font-size: 1.5rem;
+    }
+    
+    .metric-card h3 {
+        font-size: 0.8125rem;
+        margin-bottom: 0.5rem;
     }
 }
 
-/* Export Button Styling */
+/* Modern Button Styling */
+.export-btn, .refresh-btn {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .export-btn {
-    background: linear-gradient(135deg, #374151, #4b5563);
-    border: 1px solid rgba(75, 85, 99, 0.5);
-    transition: all 0.3s ease;
+    background: rgba(75, 85, 99, 0.8);
+    border: 1px solid rgba(156, 163, 175, 0.3);
+    color: #ffffff;
+    backdrop-filter: blur(10px);
 }
 
 .export-btn:hover {
-    background: linear-gradient(135deg, #4b5563, #6b7280);
-    border-color: rgba(156, 163, 175, 0.8);
+    background: rgba(107, 114, 128, 0.9);
+    border-color: rgba(156, 163, 175, 0.6);
     transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* Refresh Button Styling */
 .refresh-btn {
-    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    background: linear-gradient(135deg, #22c55e, #16a34a);
     border: none;
-    transition: all 0.3s ease;
+    color: #ffffff;
 }
 
 .refresh-btn:hover {
-    background: linear-gradient(135deg, #1d4ed8, #2563eb);
+    background: linear-gradient(135deg, #16a34a, #15803d);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
 }
 
-.refresh-btn:active {
+.refresh-btn:active, .export-btn:active {
     transform: translateY(0);
 }
 
@@ -244,12 +394,16 @@
 .overview-card {
     background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
     border: 1px solid rgba(75, 85, 99, 0.3);
-    transition: all 0.3s ease;
+    border-radius: 12px;
+    padding: 1rem;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
 }
 
 .overview-card:hover {
     border-color: rgba(59, 130, 246, 0.5);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+    transform: translateY(-1px);
 }
 
 /* Maturity Progress Bar */
@@ -263,6 +417,54 @@
 .enterprise-error {
     border-left: 4px solid #ef4444;
     background: rgba(239, 68, 68, 0.1);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+/* Loading State Styling */
+.enterprise-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    min-height: 200px;
+}
+
+.enterprise-loading-spinner {
+    width: 2rem;
+    height: 2rem;
+    margin-bottom: 1rem;
+}
+
+/* Compact Status Indicators */
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-indicator.success {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.status-indicator.warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.status-indicator.danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 /* Success Animations */

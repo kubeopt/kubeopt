@@ -46,11 +46,11 @@ class EnterpriseMetricsManager {
         try {
             // Get cluster information from current page context
             const clusterId = this.getClusterIdFromUrl();
-            console.log('🔍 Loading metrics for cluster');
+            console.log('🔍 Loading metrics for cluster:', clusterId);
             
             // Check if we have a valid cluster ID
-            if (clusterId === 'default') {
-                throw new Error('No specific cluster selected. Please navigate to a cluster page first.');
+            if (!clusterId) {
+                throw new Error('No cluster found. Please navigate to a specific cluster page or ensure clusters are loaded.');
             }
             
             const response = await fetch(`/api/enterprise-metrics?cluster_id=${clusterId}&force_refresh=true`, {
@@ -431,13 +431,34 @@ class EnterpriseMetricsManager {
 
     getClusterIdFromUrl() {
         const path = window.location.pathname;
-        console.log('🔍 Current URL path processed');
+        console.log('🔍 Current URL path:', path);
         
+        // Try to get cluster ID from URL path first
         const match = path.match(/\/cluster\/([^\/]+)/);
-        const clusterId = match ? match[1] : 'default';
-
+        if (match) {
+            console.log('✅ Found cluster ID from URL:', match[1]);
+            return match[1];
+        }
         
-        return clusterId;
+        // If we're on clusters portfolio page, try to get from selected cluster
+        const selectedCluster = document.querySelector('.cluster-card.selected [data-cluster-id]');
+        if (selectedCluster) {
+            const clusterId = selectedCluster.getAttribute('data-cluster-id');
+            console.log('✅ Found cluster ID from selected card:', clusterId);
+            return clusterId;
+        }
+        
+        // Try to get first available cluster from the page
+        const firstCluster = document.querySelector('[data-cluster-id]');
+        if (firstCluster) {
+            const clusterId = firstCluster.getAttribute('data-cluster-id');
+            console.log('✅ Using first available cluster ID:', clusterId);
+            return clusterId;
+        }
+        
+        // If no cluster found, show error
+        console.log('❌ No cluster ID found');
+        return null;
     }
 
     async exportMetrics() {

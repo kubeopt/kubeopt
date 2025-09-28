@@ -1618,6 +1618,16 @@ const ClusterManager = {
         // ✅  Set analyzing state IMMEDIATELY
         AnalysisStateManager.setAnalyzing(clusterId, true);
         
+        // ✅  Update the status-info element immediately to show analyzing state
+        const statusInfoElement = clusterCard?.querySelector('.status-info');
+        if (statusInfoElement) {
+            statusInfoElement.innerHTML = `
+                <i class="fas fa-cog fa-spin analyzing-icon"></i>
+                <span class="analyzing-text">Analyzing...</span>
+            `;
+            console.log(`✅ Updated status-info for ${clusterId} to show analyzing state`);
+        }
+        
         // ✅  Show loading after a brief delay to let UI update
         setTimeout(() => {
             LoadingManager.show(`Analyzing "${clusterName}"...`);
@@ -1648,6 +1658,17 @@ const ClusterManager = {
                 
                 // ✅  Complete the analysis state FIRST
                 AnalysisStateManager.setAnalyzing(clusterId, false);
+                
+                // ✅  Update the status-info element immediately to show completed state
+                const statusInfoElement = clusterCard?.querySelector('.status-info');
+                if (statusInfoElement) {
+                    statusInfoElement.innerHTML = `
+                        <i class="fas fa-check-circle success-icon"></i>
+                        <span class="status-text">Analyzed</span>
+                    `;
+                    console.log(`✅ Updated status-info for ${clusterId} to show completed state`);
+                }
+                
                 LoadingManager.hide();
                 
                 // ✅ REFRESH NOTIFICATIONS: Analysis may have triggered new alerts
@@ -1721,6 +1742,17 @@ const ClusterManager = {
             
             // ✅  Reset state on error
             AnalysisStateManager.setAnalyzing(clusterId, false);
+            
+            // ✅  Update the status-info element to show failed state
+            const statusInfoElement = clusterCard?.querySelector('.status-info');
+            if (statusInfoElement) {
+                statusInfoElement.innerHTML = `
+                    <i class="fas fa-exclamation-triangle error-icon"></i>
+                    <span class="status-text">Failed</span>
+                `;
+                console.log(`✅ Updated status-info for ${clusterId} to show failed state`);
+            }
+            
             LoadingManager.hide();
             
             NotificationManager.show(
@@ -1986,8 +2018,186 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('🐛 Debug mode enabled');
     }
     
+    // ✅ NEW: Global auto-refresh is now handled by GlobalRefreshManager
+    console.log('✅ Global auto-refresh system active for clusters page');
+
     console.log('✨ Enhanced multi-subscription dashboard fully loaded!');
 });
+
+// ===== UPDATE FUNCTIONS (Called by Global Refresh Manager) =====
+
+function updatePortfolioMetricsUI(portfolioSummary) {
+    // Update total monthly cost
+    const costElement = document.querySelector('.cost-card .metric-value');
+    if (costElement) {
+        const currentCost = portfolioSummary.total_monthly_cost || 0;
+        animateValueUpdate(costElement, currentCost, true); // true for dollar format
+    }
+    
+    // Update potential savings
+    const savingsElement = document.querySelector('.savings-card .metric-value');
+    if (savingsElement) {
+        const currentSavings = portfolioSummary.total_potential_savings || 0;
+        animateValueUpdate(savingsElement, currentSavings, true); // true for dollar format
+    }
+    
+    // Update average optimization percentage
+    const optimizationElement = document.querySelector('.optimization-card .metric-value');
+    if (optimizationElement) {
+        const currentOptimization = portfolioSummary.avg_optimization_pct || 0;
+        animateValueUpdate(optimizationElement, currentOptimization, false, true); // false for dollar, true for percent
+    }
+    
+    // Update environment count if needed
+    const environmentsElement = document.querySelector('.environments-card .metric-value');
+    if (environmentsElement && portfolioSummary.environments) {
+        const envCount = portfolioSummary.environments.length || 0;
+        animateValueUpdate(environmentsElement, envCount, false, false); // no formatting
+    }
+    
+    console.log(`📊 Updated metrics: Cost=$${portfolioSummary.total_monthly_cost || 0}, Savings=$${portfolioSummary.total_potential_savings || 0}, Optimization=${portfolioSummary.avg_optimization_pct || 0}%`);
+}
+
+function animateValueUpdate(element, newValue, isDollar = false, isPercent = false) {
+    if (!element) return;
+    
+    // Get current value from element
+    const currentText = element.textContent.replace(/[$%,]/g, '');
+    const currentValue = parseFloat(currentText) || 0;
+    
+    // Only animate if value changed significantly (avoid micro-updates)
+    if (Math.abs(newValue - currentValue) < 0.01) return;
+    
+    // Animate the change
+    const duration = 1000; // 1 second animation
+    const startTime = performance.now();
+    
+    function animate(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Smooth easing
+        const eased = progress < 0.5 
+            ? 2 * progress * progress 
+            : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+        
+        const current = currentValue + (newValue - currentValue) * eased;
+        
+        // Format the value
+        let formattedValue;
+        if (isDollar) {
+            formattedValue = `$${Math.round(current)}`;
+        } else if (isPercent) {
+            formattedValue = `${current.toFixed(1)}%`;
+        } else {
+            formattedValue = Math.round(current).toString();
+        }
+        
+        element.textContent = formattedValue;
+        
+        // Add visual feedback for updates
+        element.style.color = '#10b981'; // Green color during update
+        element.style.transition = 'color 0.3s ease';
+        
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            // Reset color after animation
+            setTimeout(() => {
+                element.style.color = '';
+            }, 500);
+        }
+    }
+    
+    requestAnimationFrame(animate);
+}
+
+function updateClusterCardsStatus(clusters) {
+    // Update each cluster card's status without full page reload
+    console.log('🔄 updateClusterCardsStatus called with clusters:', clusters.length);
+    clusters.forEach(cluster => {
+        console.log(`🔄 Updating cluster ${cluster.id} status: ${cluster.analysis_status}`);
+        const clusterCard = document.querySelector(`[data-cluster-id="${cluster.id}"]`);
+        if (!clusterCard) {
+            console.log(`❌ Cluster card not found for ${cluster.id}`);
+            return;
+        }
+        console.log(`✅ Found cluster card for ${cluster.id}`);
+        
+        // Update status info (matches actual HTML structure)
+        const statusElement = clusterCard.querySelector('.status-info');
+        if (statusElement) {
+            updateClusterStatusDisplay(statusElement, cluster);
+        }
+        
+        // Update cost metric (matches actual HTML structure)
+        const costElements = clusterCard.querySelectorAll('.metric-info .metric-value');
+        if (costElements[0] && cluster.last_cost !== undefined) {
+            animateValueUpdate(costElements[0], cluster.last_cost, true); // Dollar format
+        }
+        
+        // Update savings metric (matches actual HTML structure)
+        if (costElements[1] && cluster.last_savings !== undefined) {
+            animateValueUpdate(costElements[1], cluster.last_savings, true); // Dollar format
+        }
+        
+        // Update optimization percentage (matches actual HTML structure)
+        if (costElements[2] && cluster.last_cost > 0) {
+            const optimizationPct = (cluster.last_savings / cluster.last_cost) * 100;
+            animateValueUpdate(costElements[2], optimizationPct, false, true); // Percent format
+        }
+        
+        // Update status dot color
+        const statusDot = clusterCard.querySelector('.status-dot');
+        if (statusDot) {
+            statusDot.className = 'status-dot ' + (cluster.analysis_status === 'completed' ? 
+                (cluster.last_savings && cluster.last_savings > 100 ? 'healthy' : 'warning') : 'inactive');
+        }
+    });
+}
+
+function updateClusterStatusDisplay(statusContainer, cluster) {
+    const analysisStatus = cluster.analysis_status || 'pending';
+    
+    // Clear existing status content
+    statusContainer.innerHTML = '';
+    
+    if (analysisStatus === 'completed') {
+        statusContainer.innerHTML = `
+            <i class="fas fa-check-circle success-icon"></i>
+            <span class="status-text">Analyzed</span>
+        `;
+        
+        // Remove from analyzing clusters tracking
+        if (AppState.analyzingClusters.has(cluster.id)) {
+            AppState.analyzingClusters.delete(cluster.id);
+        }
+        
+    } else if (analysisStatus === 'analyzing' || analysisStatus === 'running') {
+        const progress = cluster.analysis_progress || 0;
+        statusContainer.innerHTML = `
+            <i class="fas fa-cog fa-spin analyzing-icon"></i>
+            <span class="analyzing-text">Analyzing...</span>
+        `;
+        
+        // Add to analyzing clusters tracking
+        AppState.analyzingClusters.add(cluster.id);
+        
+    } else if (analysisStatus === 'failed') {
+        statusContainer.innerHTML = `
+            <i class="fas fa-exclamation-triangle error-icon"></i>
+            <span class="status-text">Failed</span>
+        `;
+        
+    } else {
+        statusContainer.innerHTML = `
+            <i class="fas fa-clock warning-icon"></i>
+            <span class="status-text">Pending</span>
+        `;
+    }
+    
+    console.log(`✅ Updated status for cluster ${cluster.id}: ${analysisStatus}`);
+}
 
 // ===== ENHANCED PERFORMANCE OPTIMIZATIONS =====
 if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -2063,6 +2273,29 @@ window.AKSDebug = {
             };
         }
         return null;
+    }
+};
+
+// ===== GLOBAL EXPORTS FOR AUTO-REFRESH =====
+// Make functions available globally for the GlobalRefreshManager
+window.updateClusterCardsStatus = updateClusterCardsStatus;
+window.updatePortfolioMetricsUI = function(portfolioData) {
+    // Update portfolio metrics in the header
+    if (portfolioData) {
+        const totalCostEl = document.querySelector('[data-metric="total-cost"]');
+        const totalSavingsEl = document.querySelector('[data-metric="total-savings"]'); 
+        const avgOptimizationEl = document.querySelector('[data-metric="avg-optimization"]');
+        
+        if (totalCostEl && portfolioData.total_cost !== undefined) {
+            animateValueUpdate(totalCostEl, portfolioData.total_cost, true);
+        }
+        if (totalSavingsEl && portfolioData.total_savings !== undefined) {
+            animateValueUpdate(totalSavingsEl, portfolioData.total_savings, true);
+        }
+        if (avgOptimizationEl && portfolioData.total_cost > 0) {
+            const optimizationPct = portfolioData.total_savings / portfolioData.total_cost * 100;
+            animateValueUpdate(avgOptimizationEl, optimizationPct, false, '%');
+        }
     }
 };
 
