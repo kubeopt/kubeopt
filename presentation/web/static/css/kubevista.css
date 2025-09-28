@@ -1313,7 +1313,7 @@ canvas {
     max-width: 100% !important;
 }
 .bg-gradient-dark{
-background: linear-gradient(135deg, #0f1729 0%, #1a1f36 100%) !important;
+background: #212948 !important;
 box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 border: 1px solid rgba(255, 255, 255, 0.05);
 position: relative;

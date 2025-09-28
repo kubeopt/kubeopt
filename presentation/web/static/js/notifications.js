@@ -391,7 +391,7 @@ if (typeof window !== 'undefined') {
     window.showToast = showToast;
     window.showNotificationFixed = showNotificationFixed;
     window.showLoadingNotification = showLoadingNotification;
-    window.showProgressNotification = showProgressNotification;
+    //window.showProgressNotification = showProgressNotification;
     window.notificationManager = notificationManager;
     
     console.log('✅ Fixed notification system loaded - Bootstrap Toast compatible');
