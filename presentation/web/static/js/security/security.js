@@ -248,9 +248,7 @@ class SecurityPostureDashboard {
                                 <div class="chart-container" style="height: 250px;">
                                     <canvas id="compliance-bar-chart"></canvas>
                                 </div>
-                                <div id="compliance-details" class="mt-6">
-                                    <div class="text-center text-slate-400 text-sm">Loading compliance data...</div>
-                                </div>
+                               
                             </div>
                         </div>
 
