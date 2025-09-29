@@ -49,93 +49,38 @@ export function injectCompleteUI(planData) {
  */
 export function getCompleteHTML(data) {
     return `
-        <div class="complete-implementation-ui">
-            <!-- Main Header with Real Data -->
-            ${renderEnhancedMainHeader(data)}
-            
-            <!-- Main Content - Timeline Only -->
-            <div class="main-timeline-container">
-                <div id="completeTimelineContent">${renderEnhancedCompleteTimeline(data)}</div>
+        <!-- Cluster details within implementation tab -->
+        <div style="margin-bottom: 2rem; padding: 1rem; background: var(--bg-white); border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h3 style="margin: 0 0 0.25rem 0; color: var(--text-primary); font-size: 1.125rem; font-weight: 600;">
+                        ${data.clusterName}
+                    </h3>
+                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
+                        <strong>Resource Group:</strong> ${data.resourceGroup}
+                        ${data.intelligenceLevel && data.intelligenceLevel !== 'Unknown' ? ` • <strong>Intelligence:</strong> ${data.intelligenceLevel}` : ''}
+                    </p>
+                </div>
+                <div style="text-align: right;">
+                    <small style="color: var(--text-secondary); font-size: 0.75rem; display: block;">
+                        Generated: ${new Date(data.generatedAt).toLocaleDateString()}
+                    </small>
+                    ${data.strategyType && data.strategyType !== 'Unknown' ? `
+                        <small style="color: var(--text-secondary); font-size: 0.75rem;">
+                            Strategy: ${data.strategyType}
+                        </small>
+                    ` : ''}
+                </div>
             </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-timeline-container">
+            <div id="completeTimelineContent">${renderEnhancedCompleteTimeline(data)}</div>
         </div>
     `;
 }
 
-export function renderEnhancedMainHeader(data) {
-    // Calculate phases with actual commands for alignment
-    let phasesWithCommands = 0;
-    if (data.weeks) {
-        data.weeks.forEach(weekGroup => {
-            weekGroup.phases.forEach(phase => {
-                if (phase.commands && phase.commands.length > 0) {
-                    phasesWithCommands++;
-                }
-            });
-        });
-    }
-    
-    return `
-        <div class="enhanced-header">
-            <div class="header-content">
-                <div style="text-align: center;">
-                    <h1 style="margin: 0 0 0.5rem 0; font-size: 1.75rem; font-weight: 700; color: white;">
-                        Implementation Plan
-                    </h1>
-                    <p style="margin: 0; opacity: 0.9; font-size: 1rem; color: white;">
-                        <strong>Cluster:</strong> ${data.clusterName} • 
-                        <strong>Resource Group:</strong> ${data.resourceGroup}
-                        ${data.intelligenceLevel && data.intelligenceLevel !== 'Unknown' ? ` • <strong>Intelligence:</strong> ${data.intelligenceLevel}` : ''}
-                    </p>
-                    <small style="opacity: 0.75; font-size: 0.875rem; color: rgba(255,255,255,0.8); display: block; margin-top: 0.25rem;">
-                        Generated: ${new Date(data.generatedAt).toLocaleDateString()}
-                        ${data.strategyType && data.strategyType !== 'Unknown' ? ` • Strategy: ${data.strategyType}` : ''}
-                    </small>
-                </div>
-            </div>
-            <div class="enhanced-stats-grid">
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${(() => {
-                            // Calculate phases with commands on the fly
-                            let phasesWithCommands = 0;
-                            if (data.weeks && Array.isArray(data.weeks)) {
-                                data.weeks.forEach(weekGroup => {
-                                    if (weekGroup.phases && Array.isArray(weekGroup.phases)) {
-                                        weekGroup.phases.forEach(phase => {
-                                            if (phase.commands && Array.isArray(phase.commands) && phase.commands.length > 0) {
-                                                phasesWithCommands++;
-                                            }
-                                        });
-                                    }
-                                });
-                            }
-                            return phasesWithCommands > 0 ? phasesWithCommands : (data.totalPhases || 0);
-                        })()}</div>
-                        <div class="stat-label">Implementation Phases</div>
-                    </div>
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${data.totalWeeks}</div>
-                        <div class="stat-label">Timeline (Weeks)</div>
-                    </div>
-                    <div class="enhanced-stat-card">
-                        <div class="stat-value">${data.totalCommands}</div>
-                        <div class="stat-label">Ready Commands</div>
-                    </div>
-                    ${data.totalSavings > 0 ? `
-                        <div class="enhanced-stat-card">
-                            <div class="stat-value">$${Math.round(data.totalSavings).toLocaleString()}</div>
-                            <div class="stat-label">Monthly Savings</div>
-                        </div>
-                    ` : ''}
-                    ${data.avgProgress > 0 ? `
-                        <div class="enhanced-stat-card">
-                            <div class="stat-value">${data.avgProgress}%</div>
-                            <div class="stat-label">Confidence Level</div>
-                        </div>
-                    ` : ''}
-                </div>
-        </div>
-    `;
-}
 
 // Executive Summary functionality has been integrated into the header tiles above
 // This reduces duplication and provides a cleaner overview
@@ -529,14 +474,6 @@ export function renderEnhancedCompleteTimeline(data) {
     let stepCounter = 0;
     let html = `
         <div class="single-window-container" style="counter-reset: step-counter;">
-            <div style="margin-bottom: 2rem;">
-                <h2 style="margin: 0 0 0.5rem 0; font-size: 1.5rem; font-weight: 600; color: var(--text-primary);">
-                    Implementation Guide
-                </h2>
-                <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">
-                    ${Object.keys(commandsByCategory).length} optimization categories • ${totalCommands} commands ready to execute
-                </p>
-            </div>
             
             ${Object.entries(commandsByCategory).map(([category, categoryData]) => {
                 stepCounter++;
@@ -668,11 +605,11 @@ window.copyStoredCommand = function(commandId, commandNumber, button) {
             if (button) {
                 const originalText = button.innerHTML;
                 button.innerHTML = 'Copied!';
-                button.style.background = '#2b6e63';
+                button.style.backgroundColor = '#2b6e63';
                 setTimeout(() => {
                     button.innerHTML = originalText;
-                    button.style.background = 'var(--primary-green)';
-                }, 2000);
+                    button.style.backgroundColor = '';
+                }, 1500);
             }
             console.log(`✅ Command ${commandNumber} copied to clipboard`);
         }).catch(err => {

@@ -32,7 +32,7 @@ class SecurityUIRenderer {
     }
 
     async initializeSecurityDashboard() {
-        // Create dashboard layout if it doesn't exist
+        // Create dashboard layout with clean white theme
         this.createDashboardLayout();
         
         // Load initial data

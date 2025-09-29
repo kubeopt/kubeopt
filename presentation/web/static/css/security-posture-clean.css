@@ -1,0 +1,589 @@
+/*
+ * Security Posture Clean Theme
+ * ============================
+ * Aligned with clean-minimal.css design system
+ */
+
+/* Security Posture Clean Theme Variables - Green Theme */
+#securityposture-content {
+    --security-primary: #7FB069;
+    --security-light: #9CC584;
+    --security-dark: #5A8A4A;
+    --security-bg: #ffffff;
+    --security-card-bg: #ffffff;
+    --security-text: #2d3748;
+    --security-text-secondary: #4a5568;
+    --security-border: #e2e8f0;
+    --security-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --security-accent: #7FB069;
+}
+
+/* Override JavaScript-generated dark theme */
+#securityposture-content .security-dashboard-layout {
+    background: var(--security-bg) !important;
+    color: var(--security-text) !important;
+    padding: 0 !important;
+    min-height: unset !important;
+}
+
+/* Security Tab Navigation - Clean Theme */
+#securityposture-content .security-tab-btn {
+    background: var(--security-card-bg) !important;
+    color: var(--security-text) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: var(--security-shadow) !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+}
+
+#securityposture-content .security-tab-btn:hover {
+    background: var(--security-light) !important;
+    color: white !important;
+    border-color: var(--security-light) !important;
+    transform: translateY(-1px) !important;
+}
+
+#securityposture-content .security-tab-btn.active {
+    background: var(--security-accent) !important;
+    color: white !important;
+    border-color: var(--security-accent) !important;
+    box-shadow: 0 4px 12px rgba(127, 176, 105, 0.3) !important;
+}
+
+/* Security Metrics Cards - Clean White Theme */
+#securityposture-content .security-metric-card {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: 8px !important;
+    box-shadow: var(--security-shadow) !important;
+    color: var(--security-text) !important;
+    padding: 1rem !important;
+    transition: all 0.2s ease !important;
+}
+
+#securityposture-content .security-metric-card:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1) !important;
+    border-color: var(--security-accent) !important;
+}
+
+#securityposture-content .security-metric-title {
+    color: var(--security-text-secondary) !important;
+    font-weight: 500 !important;
+}
+
+#securityposture-content .security-metric-value {
+    color: var(--security-text) !important;
+    font-weight: 700 !important;
+}
+
+#securityposture-content .security-metric-icon {
+    background: rgba(127, 176, 105, 0.1) !important;
+    color: var(--security-accent) !important;
+}
+
+/* Security Chart Containers - Clean Theme */
+#securityposture-content .security-chart-container {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: var(--security-shadow) !important;
+    color: var(--security-text) !important;
+}
+
+#securityposture-content .security-chart-title {
+    color: var(--security-text) !important;
+    font-weight: 600 !important;
+}
+
+#securityposture-content .security-chart-header {
+    border-bottom: 1px solid var(--security-border) !important;
+}
+
+/* Security Info Boxes - Clean Theme */
+#securityposture-content .security-info-box {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: var(--border-radius) !important;
+    color: var(--security-text) !important;
+}
+
+#securityposture-content .security-info-box.info {
+    background: rgba(59, 130, 246, 0.05) !important;
+    border-color: var(--security-accent) !important;
+    color: var(--security-text) !important;
+}
+
+#securityposture-content .security-info-box.warning {
+    background: rgba(245, 158, 11, 0.1) !important;
+    border-color: #f59e0b !important;
+    color: var(--security-text) !important;
+}
+
+#securityposture-content .security-info-box.error {
+    background: rgba(239, 68, 68, 0.1) !important;
+    border-color: #ef4444 !important;
+    color: var(--security-text) !important;
+}
+
+/* Security Form Elements - Clean Theme */
+#securityposture-content .security-select,
+#securityposture-content .security-input,
+#securityposture-content .security-textarea {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    color: var(--security-text) !important;
+    border-radius: var(--border-radius) !important;
+}
+
+#securityposture-content .security-select:focus,
+#securityposture-content .security-input:focus,
+#securityposture-content .security-textarea:focus {
+    border-color: var(--security-primary) !important;
+    box-shadow: 0 0 0 3px rgba(127, 176, 105, 0.1) !important;
+}
+
+/* Security Buttons - Clean Theme */
+#securityposture-content .security-btn-primary {
+    background: var(--security-primary) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: var(--border-radius) !important;
+}
+
+#securityposture-content .security-btn-primary:hover {
+    background: var(--security-dark) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(127, 176, 105, 0.3) !important;
+}
+
+#securityposture-content .security-btn-secondary {
+    background: var(--security-card-bg) !important;
+    color: var(--security-text) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: var(--border-radius) !important;
+}
+
+#securityposture-content .security-btn-secondary:hover {
+    background: var(--security-primary) !important;
+    color: white !important;
+    border-color: var(--security-primary) !important;
+}
+
+/* Security Lists and Items - Clean Theme */
+#securityposture-content .security-list-item {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: var(--border-radius) !important;
+    color: var(--security-text) !important;
+}
+
+#securityposture-content .security-list-item:hover {
+    background: rgba(127, 176, 105, 0.05) !important;
+    border-color: var(--security-primary) !important;
+}
+
+#securityposture-content .security-item-title {
+    color: var(--security-text) !important;
+}
+
+/* Security Severity Badges - Clean Theme */
+#securityposture-content .security-severity-badge.critical {
+    background: rgba(239, 68, 68, 0.1) !important;
+    color: #dc2626 !important;
+    border: 1px solid rgba(239, 68, 68, 0.2) !important;
+}
+
+#securityposture-content .security-severity-badge.high {
+    background: rgba(245, 158, 11, 0.1) !important;
+    color: #d97706 !important;
+    border: 1px solid rgba(245, 158, 11, 0.2) !important;
+}
+
+#securityposture-content .security-severity-badge.medium {
+    background: rgba(59, 130, 246, 0.1) !important;
+    color: #2563eb !important;
+    border: 1px solid rgba(59, 130, 246, 0.2) !important;
+}
+
+#securityposture-content .security-severity-badge.low {
+    background: rgba(34, 197, 94, 0.1) !important;
+    color: #16a34a !important;
+    border: 1px solid rgba(34, 197, 94, 0.2) !important;
+}
+
+/* Override any dark backgrounds from JavaScript */
+#securityposture-content div[style*="#171d33"],
+#securityposture-content div[style*="#1e2447"],
+#securityposture-content div[style*="#232a4a"] {
+    background: var(--security-card-bg) !important;
+}
+
+/* Override dark text colors from JavaScript */
+#securityposture-content div[style*="color: #ffffff"],
+#securityposture-content div[style*="color: #b8c5ef"],
+#securityposture-content span[style*="color: #ffffff"] {
+    color: var(--security-text) !important;
+}
+
+/* Compliance frameworks - Clean Theme */
+#securityposture-content #compliance-frameworks > div {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: var(--border-radius) !important;
+    color: var(--security-text) !important;
+}
+
+#securityposture-content #compliance-frameworks details summary {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    color: var(--security-text) !important;
+}
+
+#securityposture-content #compliance-frameworks details summary:hover {
+    background: rgba(59, 130, 246, 0.05) !important;
+    border-color: var(--security-accent) !important;
+}
+
+/* Force white background for entire security posture section */
+#securityposture-content {
+    background: #ffffff !important;
+    color: #1f2937 !important;
+}
+
+/* Override any JavaScript-injected dark styling */
+#securityposture-content * {
+    background-color: unset !important;
+}
+
+#securityposture-content div,
+#securityposture-content section,
+#securityposture-content nav {
+    background: #ffffff !important;
+    color: #1f2937 !important;
+}
+
+/* Style JavaScript-generated security content to match clean theme */
+#securityposture-content .security-dashboard-layout {
+    background: #ffffff !important;
+    color: #1f2937 !important;
+    padding: 1rem !important;
+}
+
+#securityposture-content .security-dashboard-layout nav {
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    padding: 1rem !important;
+    margin-bottom: 1.5rem !important;
+}
+
+/* Style the metric containers that JavaScript creates */
+#securityposture-content .security-metrics-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
+    gap: 1rem !important;
+    margin-bottom: 1.5rem !important;
+}
+
+/* Style individual security metrics to look like clean-metric-card */
+#securityposture-content .security-metric-card {
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    padding: 1.5rem !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    transition: all 0.2s ease !important;
+}
+
+#securityposture-content .security-metric-card:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+    border-color: #3b82f6 !important;
+}
+
+/* Style the dynamically created content areas */
+#securityposture-content .security-tab-pane {
+    background: #ffffff !important;
+    color: #1f2937 !important;
+    padding: 0 !important;
+}
+
+/* Style the dashboard tab content that's visible by default */
+#securityposture-content #dashboard-tab {
+    background: #ffffff !important;
+    padding: 0 !important;
+}
+
+/* Override any dark background containers */
+#securityposture-content div[style*="background: var(--security-bg-card)"],
+#securityposture-content div[style*="background: #232a4a"],
+#securityposture-content div[style*="background: #1e2447"],
+#securityposture-content div[style*="background: #171d33"] {
+    background: #ffffff !important;
+}
+
+/* Make sure charts container has proper styling */
+#securityposture-content .security-chart-container {
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    padding: 1rem !important;
+    margin-bottom: 1rem !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Enhanced Tab Button Styling to Match Clean Theme */
+#securityposture-content .security-tab-btn {
+    background: #ffffff !important;
+    color: var(--security-text) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: 8px !important;
+    padding: 0.75rem 1.5rem !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    transition: all 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.5rem !important;
+    min-height: 44px !important;
+}
+
+#securityposture-content .security-tab-btn:hover {
+    background: var(--security-light) !important;
+    color: white !important;
+    border-color: var(--security-light) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+}
+
+#securityposture-content .security-tab-btn.active {
+    background: var(--security-primary) !important;
+    color: white !important;
+    border-color: var(--security-primary) !important;
+    box-shadow: 0 4px 12px rgba(127, 176, 105, 0.3) !important;
+    font-weight: 600 !important;
+}
+
+/* Style the metric values to be more prominent */
+#securityposture-content .security-metric-value {
+    font-size: 2rem !important;
+    font-weight: 700 !important;
+    color: var(--security-text) !important;
+    line-height: 1 !important;
+}
+
+/* Style metric descriptions/trends */
+#securityposture-content .security-metric-description,
+#securityposture-content .metric-trend {
+    color: var(--security-text-secondary) !important;
+    font-size: 0.875rem !important;
+}
+
+/* Simplify and compact compliance frameworks */
+#securityposture-content #compliance-frameworks {
+    padding: 0 !important;
+    max-height: none !important;
+}
+
+#securityposture-content #compliance-frameworks > div {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+}
+
+/* Hide compliance framework cards and show only as simple text */
+#securityposture-content #compliance-frameworks > div > div:first-child,
+#securityposture-content #compliance-frameworks > div > div:nth-child(2),
+#securityposture-content #compliance-frameworks > div > div:nth-child(3),
+#securityposture-content #compliance-frameworks > div > details {
+    display: none !important;
+}
+
+/* Show compliance frameworks as simple text under chart */
+#securityposture-content .chart-container canvas + div {
+    text-align: center !important;
+    margin-top: 1rem !important;
+    padding: 0.75rem !important;
+    background: rgba(127, 176, 105, 0.05) !important;
+    border-radius: 4px !important;
+    font-size: 0.875rem !important;
+    color: var(--security-text-secondary) !important;
+}
+
+/* Compact Overall Compliance - show as simple metrics */
+#securityposture-content div[style*="51.9%"] {
+    background: transparent !important;
+    border: none !important;
+    padding: 0.5rem !important;
+    margin: 0.5rem 0 !important;
+    text-align: center !important;
+}
+
+/* Style compliance percentage as simple text */
+#securityposture-content div[style*="51.9%"] div {
+    display: inline-block !important;
+    margin: 0 1rem !important;
+    padding: 0.25rem 0.5rem !important;
+    background: rgba(127, 176, 105, 0.1) !important;
+    border-radius: 4px !important;
+    font-size: 0.875rem !important;
+}
+
+/* Hide unnecessary compliance sections */
+#securityposture-content div[style*="Overall Compliance"] {
+    background: transparent !important;
+    border: none !important;
+    padding: 0.5rem !important;
+    margin: 0.5rem 0 !important;
+}
+
+/* Compact the main compliance status container */
+#securityposture-content div[style*="Compliance Status"] {
+    padding: 1rem !important;
+    margin-bottom: 1rem !important;
+}
+
+/* Hide the complex compliance framework containers */
+#securityposture-content #compliance-frameworks > div > div {
+    display: none !important;
+}
+
+#securityposture-content #compliance-frameworks > div > details {
+    display: none !important;
+}
+
+/* Hide Overall Compliance separate block */
+#securityposture-content div[style*="Overall Compliance"] > div:not(:first-child) {
+    display: none !important;
+}
+
+/* Simplify compliance display - just show the chart with simple text below */
+#securityposture-content .security-chart-container + div {
+    display: none !important;
+}
+
+/* Make compliance frameworks appear as simple text under the chart */
+#securityposture-content canvas[id*="compliance"] {
+    margin-bottom: 0.5rem !important;
+}
+
+/* Add simple compliance framework labels under chart */
+#securityposture-content .chart-container::after {
+    /* content: "CIS • NIST • SOC2" !important; */
+    display: block !important;
+    text-align: center !important;
+    margin-top: 0.75rem !important;
+    padding: 0.5rem !important;
+    background: rgba(127, 176, 105, 0.1) !important;
+    border-radius: 4px !important;
+    font-size: 0.75rem !important;
+    color: var(--security-text-secondary) !important;
+    font-weight: 500 !important;
+}
+
+/* Hide redundant sections */
+#securityposture-content div[style*="grid-template-columns: 2fr 1fr"] > div:last-child {
+    display: none !important;
+}
+
+/* Compact grid layout */
+#securityposture-content div[style*="grid-template-columns: 2fr 1fr"] {
+    grid-template-columns: 1fr !important;
+}
+
+/* Hide only the compliance detail blocks, keep charts visible */
+#securityposture-content #dashboard-tab #compliance-details {
+    display: none !important;
+}
+
+/* Hide the overall compliance summary block */
+#securityposture-content #dashboard-tab div.bg-slate-800\/50.rounded-lg.p-4.mb-4 {
+    display: none !important;
+}
+
+/* Hide Security Components section but keep charts */
+#securityposture-content #dashboard-tab div:has(h3:contains("Security Components")) {
+    display: none !important;
+}
+
+/* Keep the chart container but hide the details below it */
+#securityposture-content #dashboard-tab .chart-container {
+    display: block !important;
+}
+
+#securityposture-content #dashboard-tab .chart-container + div {
+    display: none !important;
+}
+
+/* Hide framework cards but keep main compliance chart - ONLY in dashboard tab */
+#securityposture-content #dashboard-tab #compliance-frameworks > div {
+    display: none !important;
+}
+
+/* Override for compliance tab - ensure frameworks are visible */
+#securityposture-content #compliance-tab #compliance-frameworks > div {
+    display: block !important;
+    visibility: visible !important;
+}
+
+/* Show just the chart, hide everything else under Compliance Status */
+#securityposture-content #dashboard-tab div:has(> h3:contains("Compliance Status")) > div:not(.chart-container) {
+    display: none !important;
+}
+
+/* FORCE compliance frameworks to be visible in compliance tab */
+#securityposture-content #compliance-tab {
+    display: block !important;
+}
+
+#securityposture-content #compliance-tab #compliance-frameworks {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    background: transparent !important;
+}
+
+#securityposture-content #compliance-tab #compliance-frameworks .space-y-6 {
+    display: block !important;
+    visibility: visible !important;
+}
+
+#securityposture-content #compliance-tab #compliance-frameworks > div {
+    display: block !important;
+    visibility: visible !important;
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: 8px !important;
+    padding: 1rem !important;
+    margin-bottom: 1rem !important;
+    box-shadow: var(--security-shadow) !important;
+    color: var(--security-text) !important;
+}
+
+/* Restore metrics and compliance tab functionality */
+#securityposture-content #compliance-tab .security-metrics-grid {
+    display: grid !important;
+}
+
+#securityposture-content #compliance-tab .security-metric-card {
+    display: block !important;
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    color: var(--security-text) !important;
+}
+
+/* Ensure chart containers are visible */
+#securityposture-content .security-chart-container {
+    display: block !important;
+}
+
+#securityposture-content .security-metrics-grid {
+    display: grid !important;
+}
