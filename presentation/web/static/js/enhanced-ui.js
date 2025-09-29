@@ -148,7 +148,7 @@ function showContent(contentType, element) {
     
     // Remove active class from all nav links
     document.querySelectorAll('.nav-link').forEach(link => {
-        link.classList.remove('active-nav-link');
+        link.classList.remove('active');
     });
     
     // Show the selected content panel
@@ -165,7 +165,7 @@ function showContent(contentType, element) {
     
     // Add active class to clicked nav link
     if (element) {
-        element.classList.add('active-nav-link');
+        element.classList.add('active');
     }
     
     // Handle specific tab logic

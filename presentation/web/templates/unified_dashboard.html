@@ -50,6 +50,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/clean-minimal.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/brand-icons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/implementation-plan.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/security-posture-clean.css') }}">
     
     <style>
         /* Prevent FOUC (Flash of Unstyled Content) */
@@ -145,6 +146,7 @@
 .scheduler-indicator:hover {
     opacity: 0.8;
 }
+
     </style>
     <script>
         // Show body once page is loaded to prevent flickering
@@ -423,11 +425,11 @@
                             <div class="clean-metric-card">
                                 <div class="metric-header">
                                     <div class="metric-icon">
-                                        <i class="fas fa-tasks"></i>
+                                        <i class="fas fa-shield-alt"></i>
                                     </div>
-                                    <h3 class="metric-title">Workloads Found</h3>
+                                    <h3 class="metric-title">Security Score</h3>
                                 </div>
-                                <div class="metric-value" id="total-workloads" data-metric="workloads">0</div>
+                                <div class="metric-value" id="security-score">--</div>
                             </div>
                             <div class="clean-metric-card">
                                 <div class="metric-header">
@@ -656,36 +658,10 @@
                         </div>
                     </div>
 
-                    <div id="securityposture-content" class="tab-content hidden">
-                        <div class="clean-chart-card">
-                            <div class="chart-header">
-                                <div class="chart-icon">
-                                    <i class="fas fa-shield-alt"></i>
-                                </div>
-                                <h2 class="chart-title">Security Posture</h2>
-                            </div>
-                            <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">
-                                <div style="font-size: 3rem; margin-bottom: 1rem; color: var(--primary-green);">
-                                    <i class="fas fa-shield-alt"></i>
-                                </div>
-                                <h4 style="margin: 0 0 0.5rem 0; color: var(--text-primary);">Security Dashboard</h4>
-                                <p style="margin: 0;">Security posture and compliance monitoring will be displayed here</p>
-                            </div>
-                        </div>
-                        
-                        <div class="clean-chart-card" style="margin-top: 2rem;">
-                            <div class="chart-header">
-                                <div class="chart-icon">
-                                    <i class="fas fa-chart-line"></i>
-                                </div>
-                                <h3 class="chart-title">Dynamic Alerts Trend</h3>
-                            </div>
-                            <div class="chart-container">
-                                <canvas id="dynamic-alerts-chart"></canvas>
-                                <div id="dynamic-alerts-chart-loading" class="chart-loading">
-                                    <p>Loading alerts trend...</p>
-                                </div>
-                            </div>
+                    <div id="securityposture-content" class="tab-content hidden" style="background: white; padding: 0;">
+                        <!-- Security Analysis Results Container -->
+                        <div id="security-analysis-results" style="background: white;">
+                            <!-- Dynamic security analysis content will be injected here -->
                         </div>
                     </div>
 
@@ -837,7 +813,7 @@
 
     <script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>
 
-<!-- User Dropdown Menu - At end of body for maximum visibility -->
+    <!-- User Dropdown Menu - At end of body for maximum visibility -->
 <div id="userDropdownMenu" class="user-dropdown hidden" style="position: fixed; right: 20px; top: 70px; width: 200px; background: #1f2937; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); border: 1px solid #374151; overflow: hidden;">
     <div style="padding: 8px 0;">
         <div style="padding: 8px 16px; border-bottom: 1px solid #374151; margin-bottom: 4px;">
