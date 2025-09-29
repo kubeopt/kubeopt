@@ -462,7 +462,7 @@ class SecurityCharts {
                     legend: {
                         position: 'bottom',
                         labels: {
-                            color: 'white',
+                            color: '#2d3748',
                             padding: 10,
                             usePointStyle: true,
                             font: {

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/cluster-portfolio.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/clean-portfolio.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -91,7 +91,6 @@
         <div class="header-content">
             <div class="header-title">
                 <h1>
-                    <span class="title-emoji">⚡</span>
                     Cluster Portfolio
                     <span class="cluster-count">{{ clusters|length }}</span>
                 </h1>
