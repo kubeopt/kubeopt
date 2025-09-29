@@ -206,9 +206,9 @@
 .chart-card {
     background: var(--security-card-bg);
     border: 1px solid var(--security-border);
-    border-radius: 6px;
+    border-radius: 4px;
     box-shadow: var(--security-shadow);
-    padding: 0.5rem;
+    padding: 0.25rem;
     transition: all 0.3s ease;
     position: relative;
 }
@@ -225,8 +225,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.5rem;
-    padding-bottom: 0.25rem;
+    margin-bottom: 0.25rem;
+    padding: 0.25rem 0.5rem;
     border-bottom: 1px solid var(--security-border);
 }
 
@@ -254,16 +254,16 @@
 
 .chart-container {
     position: relative;
-    height: 180px;
+    height: 140px;
     width: 100%;
 }
 
 .chart-container.small {
-    height: 150px;
+    height: 120px;
 }
 
 .chart-container.large {
-    height: 200px;
+    height: 160px;
 }
 
 /* Interactive Chart Indicators */
@@ -892,6 +892,125 @@
     .chart-container.large {
         height: 200px;
     }
+}
+
+/* Modal Styles - Centered */
+.security-details-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.security-details-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.security-details-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    width: 90%;
+    max-width: 800px;
+    max-height: 80vh;
+    background: var(--security-card-bg);
+    border-radius: 8px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    z-index: 1001;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.security-details-modal.active {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--security-border);
+    background: var(--security-bg);
+}
+
+.modal-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--security-text);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    color: var(--security-text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background: var(--security-border);
+    color: var(--security-text);
+}
+
+.modal-content {
+    padding: 1rem;
+    max-height: calc(80vh - 80px);
+    overflow-y: auto;
+}
+
+/* Compact modal content styles */
+.issues-section {
+    margin-bottom: 1rem;
+}
+
+.section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--security-text);
+    margin: 0 0 0.5rem 0;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--security-border);
+}
+
+.violation-item, .alert-item {
+    background: var(--security-bg);
+    border: 1px solid var(--security-border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.violation-item.critical, .alert-item.critical {
+    border-left: 4px solid #EF4444;
+}
+
+.violation-item.high, .alert-item.high {
+    border-left: 4px solid #F97316;
+}
+
+.violation-item.medium, .alert-item.medium {
+    border-left: 4px solid #EAB308;
+}
+
+.violation-item.low, .alert-item.low {
+    border-left: 4px solid #22C55E;
 }
 
 /* Animation Classes */
