@@ -116,6 +116,26 @@ div, section, article, main, header, footer, nav, aside {
     /* Animation comes from brand-icons.css */
 }
 
+.brand-head {
+    display: flex !important;
+    flex-direction: column !important;
+    line-height: 1.2 !important;
+    color: var(--text-white) !important;
+}
+
+.brand-head-name {
+    font-size: 1.125rem !important;
+    font-weight: 700 !important;
+    color: var(--text-white) !important;
+    margin: 0 !important;
+}
+
+.brand-head-subtitle {
+    font-size: 0.75rem !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    margin: 0 !important;
+}
+
 .brand-text {
     display: flex !important;
     flex-direction: column !important;
@@ -1945,7 +1965,7 @@ body * {
 }
 
 /* Exception for icons */
-*:not(.brand-icon):not([class*="fa-"]):not(.metric-icon):not(.cost-icon):not(.savings-icon):not(.optimization-icon):not(.environments-icon) {
+*:not(.brand-icon):not([class*="fa-"]):not(.metric-icon):not(.cost-icon):not(.savings-icon):not(.optimization-icon):not(.environments-icon):not(.brand-head-name):not(.brand-head-subtitle) {
     color: inherit !important;
 }
 

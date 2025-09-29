@@ -1,10 +1,10 @@
 /*
  * Security Posture Clean Theme
  * ============================
- * Modern medical/healthcare dashboard design with circular metrics and clean cards
+ * Modern dashboard design with circular metrics and clean cards
  */
 
-/* Security Posture Clean Theme Variables - Green Medical Theme */
+/* Security Posture Clean Theme Variables - Green Theme */
 #securityposture-content {
     --security-primary: #7FB069;
     --security-light: #9CC584;
@@ -46,7 +46,7 @@
     color: #2d3748 !important;
 }
 
-/* Medical Dashboard Navigation - Full Width */
+/* Dashboard Navigation - Full Width */
 #securityposture-content nav {
     background: var(--security-card-bg) !important;
     border: 1px solid var(--security-border) !important;
@@ -57,7 +57,7 @@
     width: 100% !important;
 }
 
-/* Medical Dashboard Tab Buttons - Full Width Distribution */
+/*  Dashboard Tab Buttons - Full Width Distribution */
 #securityposture-content .security-tab-btn {
     background: var(--security-card-bg) !important;
     color: var(--security-text) !important;
@@ -92,32 +92,35 @@
     transform: translateY(-1px) !important;
 }
 
-/* Compact Medical Dashboard Metrics Grid */
-#securityposture-content .security-metrics-grid {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
-    gap: 1rem !important;
-    margin-bottom: 2rem !important;
+/* Compact Dashboard Metrics Grid */
+#securityposture-content .security-metrics-grid,
+#securityposture-content .security-metrics-row {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 0.75rem !important;
+    margin-bottom: 1.5rem !important;
     max-width: 100% !important;
+    overflow-x: auto !important;
 }
 
-/* Security Metric Cards - Slightly Wider Sleek Style */
+/* Security Metric Cards - Compact Style */
 #securityposture-content .security-metric-card {
     background: var(--security-card-bg) !important;
     border: 1px solid var(--security-border) !important;
-    border-radius: 8px !important;
+    border-radius: 6px !important;
     box-shadow: var(--security-shadow) !important;
     color: var(--security-text) !important;
-    padding: 0.75rem !important;
+    padding: 0.5rem !important;
     transition: all 0.3s ease !important;
     position: relative !important;
     overflow: hidden !important;
-    max-width: 260px !important;
-    min-width: 200px !important;
+    flex: 1 !important;
+    min-width: 150px !important;
+    max-width: 200px !important;
 }
 
 #securityposture-content .security-metric-card:hover {
-    transform: translateY(-4px) !important;
+    transform: translateY(-2px) !important;
     box-shadow: var(--security-shadow-hover) !important;
     border-color: var(--security-primary) !important;
 }
@@ -141,19 +144,19 @@
 }
 
 #securityposture-content .security-metric-icon {
-    width: 28px !important;
-    height: 28px !important;
+    width: 24px !important;
+    height: 24px !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
     background: rgba(127, 176, 105, 0.1) !important;
     border-radius: 50% !important;
-    font-size: 0.875rem !important;
+    font-size: 0.75rem !important;
 }
 
 /* Security Metric Values - Compact Display */
 #securityposture-content .security-metric-value {
-    font-size: 1.5rem !important;
+    font-size: 1.25rem !important;
     font-weight: 700 !important;
     color: var(--security-text) !important;
     margin: 0.25rem 0 !important;
@@ -214,7 +217,7 @@
     color: var(--security-text) !important;
 }
 
-/* Medical Dashboard Chart Containers - Compact */
+/*  Dashboard Chart Containers - Compact */
 #securityposture-content .security-chart-container {
     background: var(--security-card-bg) !important;
     border: 1px solid var(--security-border) !important;
@@ -233,7 +236,7 @@
     margin-bottom: 1.5rem !important;
 }
 
-/* Events Section - Compact Medical Dashboard Style */
+/* Events Section - Compact  Dashboard Style */
 #securityposture-content .events-section {
     background: var(--security-card-bg) !important;
     border: 1px solid var(--security-border) !important;
@@ -330,7 +333,7 @@
     color: #6b7280 !important;
 }
 
-/* Medical Dashboard Tables and Lists */
+/*  Dashboard Tables and Lists */
 #securityposture-content table {
     width: 100% !important;
     background: var(--security-card-bg) !important;
@@ -451,7 +454,7 @@
     color: #dc2626 !important;
 }
 
-/* Medical Dashboard Header */
+/*  Dashboard Header */
 #securityposture-content .dashboard-header {
     background: var(--security-card-bg) !important;
     border: 1px solid var(--security-border) !important;
@@ -573,7 +576,7 @@
     background: rgba(127, 176, 105, 0.1) !important;
 }
 
-/* Medical Dashboard Badges */
+/*  Dashboard Badges */
 #securityposture-content .security-badge {
     display: inline-flex !important;
     align-items: center !important;
@@ -604,7 +607,7 @@
     border: 1px solid rgba(239, 68, 68, 0.2) !important;
 }
 
-/* Medical Dashboard Buttons */
+/*  Dashboard Buttons */
 #securityposture-content .security-btn {
     background: var(--security-primary) !important;
     color: white !important;
@@ -637,7 +640,7 @@
     border-color: var(--security-primary) !important;
 }
 
-/* Medical Dashboard Loading States */
+/*  Dashboard Loading States */
 #securityposture-content .security-loading {
     display: flex !important;
     flex-direction: column !important;
@@ -718,14 +721,21 @@
     background: var(--security-dark) !important;
 }
 
-/* Medical Dashboard Responsive Design */
+/*  Dashboard Responsive Design */
 @media (max-width: 768px) {
     #securityposture-content {
         padding: 1rem !important;
     }
     
-    #securityposture-content .security-metrics-grid {
-        grid-template-columns: 1fr !important;
+    #securityposture-content .security-metrics-grid,
+    #securityposture-content .security-metrics-row {
+        flex-wrap: wrap !important;
+        gap: 0.5rem !important;
+    }
+    
+    #securityposture-content .security-metric-card {
+        min-width: 120px !important;
+        max-width: 150px !important;
     }
     
     #securityposture-content .analytics-grid {
