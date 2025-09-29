@@ -582,7 +582,7 @@ class SecurityCharts {
         window.securityChartInstances['risk-donut-chart'] = new Chart(ctx, config);
 
         // Enhanced risk distribution summary
-        this.updateRiskDistributionSummary(riskCounts, totalRisks);
+        //this.updateRiskDistributionSummary(riskCounts, totalRisks);
         
         
     }
@@ -659,77 +659,77 @@ class SecurityCharts {
         parentContainer.appendChild(overlay);
     }
     
-    updateRiskDistributionSummary(riskCounts, totalRisks) {
-        const riskContainer = document.getElementById('risk-distribution');
-        if (!riskContainer) return;
+    // updateRiskDistributionSummary(riskCounts, totalRisks) {
+    //     const riskContainer = document.getElementById('risk-distribution');
+    //     if (!riskContainer) return;
 
-        // Calculate risk score (weighted)
-        const riskScore = (
-            (riskCounts.Critical * 10) + 
-            (riskCounts.High * 7) + 
-            (riskCounts.Medium * 4) + 
-            (riskCounts.Low * 1)
-        );
+    //     // Calculate risk score (weighted)
+    //     const riskScore = (
+    //         (riskCounts.Critical * 10) + 
+    //         (riskCounts.High * 7) + 
+    //         (riskCounts.Medium * 4) + 
+    //         (riskCounts.Low * 1)
+    //     );
         
-        const maxPossibleScore = totalRisks * 10;
-        const riskPercentage = maxPossibleScore > 0 ? ((riskScore / maxPossibleScore) * 100).toFixed(1) : 0;
+    //     const maxPossibleScore = totalRisks * 10;
+    //     const riskPercentage = maxPossibleScore > 0 ? ((riskScore / maxPossibleScore) * 100).toFixed(1) : 0;
         
-        riskContainer.innerHTML = `
-            <!-- Risk Summary Card -->
-            <div class="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700">
-                <div class="flex items-center justify-between mb-3">
-                    <h4 class="text-sm font-semibold text-slate-200">Risk Assessment</h4>
-                    <div class="text-right">
-                        <div class="text-lg font-bold ${riskPercentage > 70 ? 'text-red-400' : riskPercentage > 40 ? 'text-yellow-400' : 'text-green-400'}">
-                            ${riskPercentage}%
-                        </div>
-                        <div class="text-xs text-slate-500">Risk Level</div>
-                    </div>
-                </div>
-                <div class="w-full bg-slate-700 rounded-full h-2 mb-3">
-                    <div class="h-2 rounded-full transition-all duration-300 ${riskPercentage > 70 ? 'bg-red-500' : riskPercentage > 40 ? 'bg-yellow-500' : 'bg-green-500'}" 
-                         style="width: ${riskPercentage}%"></div>
-                </div>
-            </div>
+    //     riskContainer.innerHTML = `
+    //         <!-- Risk Summary Card -->
+    //         <div class="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700">
+    //             <div class="flex items-center justify-between mb-3">
+    //                 <h4 class="text-sm font-semibold text-slate-200">Risk Assessment</h4>
+    //                 <div class="text-right">
+    //                     <div class="text-lg font-bold ${riskPercentage > 70 ? 'text-red-400' : riskPercentage > 40 ? 'text-yellow-400' : 'text-green-400'}">
+    //                         ${riskPercentage}%
+    //                     </div>
+    //                     <div class="text-xs text-slate-500">Risk Level</div>
+    //                 </div>
+    //             </div>
+    //             <div class="w-full bg-slate-700 rounded-full h-2 mb-3">
+    //                 <div class="h-2 rounded-full transition-all duration-300 ${riskPercentage > 70 ? 'bg-red-500' : riskPercentage > 40 ? 'bg-yellow-500' : 'bg-green-500'}" 
+    //                      style="width: ${riskPercentage}%"></div>
+    //             </div>
+    //         </div>
             
-            <!-- Risk Breakdown -->
-            <div class="space-y-3">
-                ${Object.entries(riskCounts).map(([level, count]) => {
-                    // Show all levels, including zero counts for complete visualization
-                    const percentage = totalRisks > 0 ? ((count / totalRisks) * 100).toFixed(1) : '0.0';
-                    const colors = {
-                        Critical: { text: 'text-red-400', bg: 'bg-red-500' },
-                        High: { text: 'text-orange-400', bg: 'bg-orange-500' },
-                        Medium: { text: 'text-yellow-400', bg: 'bg-yellow-500' },
-                        Low: { text: 'text-green-400', bg: 'bg-green-500' }
-                    };
-                    const color = colors[level] || { text: 'text-slate-400', bg: 'bg-slate-500' };
+    //         <!-- Risk Breakdown -->
+    //         <div class="space-y-3">
+    //             ${Object.entries(riskCounts).map(([level, count]) => {
+    //                 // Show all levels, including zero counts for complete visualization
+    //                 const percentage = totalRisks > 0 ? ((count / totalRisks) * 100).toFixed(1) : '0.0';
+    //                 const colors = {
+    //                     Critical: { text: 'text-red-400', bg: 'bg-red-500' },
+    //                     High: { text: 'text-orange-400', bg: 'bg-orange-500' },
+    //                     Medium: { text: 'text-yellow-400', bg: 'bg-yellow-500' },
+    //                     Low: { text: 'text-green-400', bg: 'bg-green-500' }
+    //                 };
+    //                 const color = colors[level] || { text: 'text-slate-400', bg: 'bg-slate-500' };
                     
-                    return `
-                        <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-3 h-3 ${color.bg} rounded-full"></div>
-                                <span class="text-sm font-medium text-slate-200">${level}</span>
-                            </div>
-                            <div class="flex items-center space-x-3">
-                                <span class="${color.text} text-sm font-bold">${count}</span>
-                                <span class="text-xs text-slate-500">${percentage}%</span>
-                            </div>
-                        </div>
-                    `;
-                }).filter(Boolean).join('')}
+    //                 return `
+    //                     <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors">
+    //                         <div class="flex items-center space-x-3">
+    //                             <div class="w-3 h-3 ${color.bg} rounded-full"></div>
+    //                             <span class="text-sm font-medium text-slate-200">${level}</span>
+    //                         </div>
+    //                         <div class="flex items-center space-x-3">
+    //                             <span class="${color.text} text-sm font-bold">${count}</span>
+    //                             <span class="text-xs text-slate-500">${percentage}%</span>
+    //                         </div>
+    //                     </div>
+    //                 `;
+    //             }).filter(Boolean).join('')}
                 
-                <!-- Total Summary -->
-                <div class="flex items-center justify-between p-3 bg-blue-900/20 rounded-lg border border-blue-700/50 mt-4">
-                    <div class="flex items-center space-x-3">
-                        <i class="fas fa-chart-pie text-blue-400"></i>
-                        <span class="text-sm font-semibold text-blue-200">Total Issues</span>
-                    </div>
-                    <span class="text-lg font-bold text-blue-400">${totalRisks}</span>
-                </div>
-            </div>
-        `;
-    }
+    //             <!-- Total Summary -->
+    //             <div class="flex items-center justify-between p-3 bg-blue-900/20 rounded-lg border border-blue-700/50 mt-4">
+    //                 <div class="flex items-center space-x-3">
+    //                     <i class="fas fa-chart-pie text-blue-400"></i>
+    //                     <span class="text-sm font-semibold text-blue-200">Total Issues</span>
+    //                 </div>
+    //                 <span class="text-lg font-bold text-blue-400">${totalRisks}</span>
+    //             </div>
+    //         </div>
+    //     `;
+    // }
 
     createComplianceChart(compliance) {
         
@@ -991,7 +991,7 @@ class SecurityCharts {
         window.securityChartInstances['compliance-bar-chart'] = new Chart(ctx, config);
 
         // Update compliance details summary
-        this.updateComplianceDetails(compliance, frameworks, scores);
+        //this.updateComplianceDetails(compliance, frameworks, scores);
     }
     
     showNoComplianceVisualization(canvas) {
@@ -1042,75 +1042,75 @@ class SecurityCharts {
         }
     }
     
-    updateComplianceDetails(compliance, frameworks, scores) {
-        const detailsContainer = document.getElementById('compliance-details');
-        if (!detailsContainer) return;
+    // updateComplianceDetails(compliance, frameworks, scores) {
+    //     const detailsContainer = document.getElementById('compliance-details');
+    //     if (!detailsContainer) return;
 
-        const avgCompliance = frameworks.length > 0 ? (scores.reduce((a, b) => a + b, 0) / frameworks.length).toFixed(1) : 0;
-        const totalPassed = frameworks.reduce((sum, f) => sum + (compliance[f].passed_controls || 0), 0);
-        const totalFailed = frameworks.reduce((sum, f) => sum + (compliance[f].failed_controls || 0), 0);
-        const totalControls = totalPassed + totalFailed;
+    //     const avgCompliance = frameworks.length > 0 ? (scores.reduce((a, b) => a + b, 0) / frameworks.length).toFixed(1) : 0;
+    //     const totalPassed = frameworks.reduce((sum, f) => sum + (compliance[f].passed_controls || 0), 0);
+    //     const totalFailed = frameworks.reduce((sum, f) => sum + (compliance[f].failed_controls || 0), 0);
+    //     const totalControls = totalPassed + totalFailed;
 
-        detailsContainer.innerHTML = `
-            <!-- Overall Compliance Summary -->
-            <div class="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700">
-                <div class="flex items-center justify-between mb-3">
-                    <h4 class="text-sm font-semibold text-slate-200">Overall Compliance</h4>
-                    <div class="text-right">
-                        <div class="text-lg font-bold ${avgCompliance >= 80 ? 'text-green-400' : avgCompliance >= 60 ? 'text-yellow-400' : 'text-red-400'}">
-                            ${avgCompliance}%
-                        </div>
-                        <div class="text-xs text-slate-500">Average Score</div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-3 gap-3 text-center">
-                    <div class="bg-slate-900/50 rounded p-2">
-                        <div class="text-green-400 font-bold">${totalPassed}</div>
-                        <div class="text-xs text-slate-500">Passed</div>
-                    </div>
-                    <div class="bg-slate-900/50 rounded p-2">
-                        <div class="text-red-400 font-bold">${totalFailed}</div>
-                        <div class="text-xs text-slate-500">Failed</div>
-                    </div>
-                    <div class="bg-slate-900/50 rounded p-2">
-                        <div class="text-blue-400 font-bold">${totalControls}</div>
-                        <div class="text-xs text-slate-500">Total</div>
-                    </div>
-                </div>
-            </div>
+    //     detailsContainer.innerHTML = `
+    //         <!-- Overall Compliance Summary -->
+    //         <div class="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700">
+    //             <div class="flex items-center justify-between mb-3">
+    //                 <h4 class="text-sm font-semibold text-slate-200">Overall Compliance</h4>
+    //                 <div class="text-right">
+    //                     <div class="text-lg font-bold ${avgCompliance >= 80 ? 'text-green-400' : avgCompliance >= 60 ? 'text-yellow-400' : 'text-red-400'}">
+    //                         ${avgCompliance}%
+    //                     </div>
+    //                     <div class="text-xs text-slate-500">Average Score</div>
+    //                 </div>
+    //             </div>
+    //             <div class="grid grid-cols-3 gap-3 text-center">
+    //                 <div class="bg-slate-900/50 rounded p-2">
+    //                     <div class="text-green-400 font-bold">${totalPassed}</div>
+    //                     <div class="text-xs text-slate-500">Passed</div>
+    //                 </div>
+    //                 <div class="bg-slate-900/50 rounded p-2">
+    //                     <div class="text-red-400 font-bold">${totalFailed}</div>
+    //                     <div class="text-xs text-slate-500">Failed</div>
+    //                 </div>
+    //                 <div class="bg-slate-900/50 rounded p-2">
+    //                     <div class="text-blue-400 font-bold">${totalControls}</div>
+    //                     <div class="text-xs text-slate-500">Total</div>
+    //                 </div>
+    //             </div>
+    //         </div>
             
-            <!-- Framework Breakdown -->
-            <div class="space-y-2">
-                ${frameworks.map((framework, index) => {
-                    const score = scores[index];
-                    const data = compliance[framework];
-                    const grade = score >= 90 ? 'A+' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : 'F';
-                    const gradeColor = score >= 80 ? 'text-green-400' : score >= 60 ? 'text-yellow-400' : 'text-red-400';
+    //         <!-- Framework Breakdown -->
+    //         <div class="space-y-2">
+    //             ${frameworks.map((framework, index) => {
+    //                 const score = scores[index];
+    //                 const data = compliance[framework];
+    //                 const grade = score >= 90 ? 'A+' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : 'F';
+    //                 const gradeColor = score >= 80 ? 'text-green-400' : score >= 60 ? 'text-yellow-400' : 'text-red-400';
                     
-                    return `
-                        <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors">
-                            <div class="flex items-center space-x-3">
-                                <div class="text-sm font-medium text-slate-200">${framework.toUpperCase()}</div>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${gradeColor} bg-slate-800 border border-slate-600">
-                                    ${grade}
-                                </span>
-                            </div>
-                            <div class="flex items-center space-x-3">
-                                <div class="text-right">
-                                    <div class="text-sm font-bold text-white">${score.toFixed(1)}%</div>
-                                    <div class="text-xs text-slate-500">${data?.passed_controls || 0}/${(data?.passed_controls || 0) + (data?.failed_controls || 0)} controls</div>
-                                </div>
-                                <div class="w-16 bg-slate-700 rounded-full h-2">
-                                    <div class="h-2 rounded-full transition-all duration-300 ${score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-yellow-500' : 'bg-red-500'}" 
-                                         style="width: ${score}%"></div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-        `;
-    }
+    //                 return `
+    //                     <div class="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors">
+    //                         <div class="flex items-center space-x-3">
+    //                             <div class="text-sm font-medium text-slate-200">${framework.toUpperCase()}</div>
+    //                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${gradeColor} bg-slate-800 border border-slate-600">
+    //                                 ${grade}
+    //                             </span>
+    //                         </div>
+    //                         <div class="flex items-center space-x-3">
+    //                             <div class="text-right">
+    //                                 <div class="text-sm font-bold text-white">${score.toFixed(1)}%</div>
+    //                                 <div class="text-xs text-slate-500">${data?.passed_controls || 0}/${(data?.passed_controls || 0) + (data?.failed_controls || 0)} controls</div>
+    //                             </div>
+    //                             <div class="w-16 bg-slate-700 rounded-full h-2">
+    //                                 <div class="h-2 rounded-full transition-all duration-300 ${score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-yellow-500' : 'bg-red-500'}" 
+    //                                      style="width: ${score}%"></div>
+    //                             </div>
+    //                         </div>
+    //                     </div>
+    //                 `;
+    //             }).join('')}
+    //         </div>
+    //     `;
+    // }
 
     // Dynamic Alerts Chart
     createDynamicAlertsChart(alerts) {

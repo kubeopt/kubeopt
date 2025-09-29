@@ -1,40 +1,80 @@
 /*
  * Security Posture Clean Theme
  * ============================
- * Aligned with clean-minimal.css design system
+ * Modern medical/healthcare dashboard design with circular metrics and clean cards
  */
 
-/* Security Posture Clean Theme Variables - Green Theme */
+/* Security Posture Clean Theme Variables - Green Medical Theme */
 #securityposture-content {
     --security-primary: #7FB069;
     --security-light: #9CC584;
     --security-dark: #5A8A4A;
-    --security-bg: #ffffff;
+    --security-bg: #f8f9fa;
     --security-card-bg: #ffffff;
     --security-text: #2d3748;
     --security-text-secondary: #4a5568;
+    --security-text-muted: #718096;
     --security-border: #e2e8f0;
     --security-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --security-shadow-hover: 0 10px 15px rgba(0, 0, 0, 0.1);
     --security-accent: #7FB069;
+    --security-spacing: 1.5rem;
 }
 
-/* Override JavaScript-generated dark theme */
+/* Force clean background for entire security posture section */
+#securityposture-content {
+    background: var(--security-bg) !important;
+    color: var(--security-text) !important;
+    padding: var(--security-spacing) !important;
+    min-height: 100vh !important;
+}
+
+/* Override JavaScript-generated dark theme backgrounds */
 #securityposture-content .security-dashboard-layout {
     background: var(--security-bg) !important;
     color: var(--security-text) !important;
     padding: 0 !important;
-    min-height: unset !important;
 }
 
-/* Security Tab Navigation - Clean Theme */
+/* Convert all dark slate backgrounds to white theme */
+#securityposture-content div[class*="bg-slate-800"],
+#securityposture-content div[class*="bg-slate-900"],
+#securityposture-content .bg-slate-800\/40,
+#securityposture-content .bg-slate-800\/50 {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    color: #2d3748 !important;
+}
+
+/* Medical Dashboard Navigation - Full Width */
+#securityposture-content nav {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: 10px !important;
+    box-shadow: var(--security-shadow) !important;
+    padding: 1.25rem !important;
+    margin-bottom: 1.5rem !important;
+    width: 100% !important;
+}
+
+/* Medical Dashboard Tab Buttons - Full Width Distribution */
 #securityposture-content .security-tab-btn {
     background: var(--security-card-bg) !important;
     color: var(--security-text) !important;
     border: 1px solid var(--security-border) !important;
-    border-radius: var(--border-radius) !important;
+    border-radius: 10px !important;
     box-shadow: var(--security-shadow) !important;
+    padding: 1rem 2rem !important;
+    font-size: 1rem !important;
     font-weight: 500 !important;
     transition: all 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    flex: 1 !important;
+    justify-content: center !important;
 }
 
 #securityposture-content .security-tab-btn:hover {
@@ -45,545 +85,672 @@
 }
 
 #securityposture-content .security-tab-btn.active {
-    background: var(--security-accent) !important;
+    background: var(--security-primary) !important;
     color: white !important;
-    border-color: var(--security-accent) !important;
+    border-color: var(--security-primary) !important;
     box-shadow: 0 4px 12px rgba(127, 176, 105, 0.3) !important;
+    transform: translateY(-1px) !important;
 }
 
-/* Security Metrics Cards - Clean White Theme */
+/* Compact Medical Dashboard Metrics Grid */
+#securityposture-content .security-metrics-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+    gap: 1rem !important;
+    margin-bottom: 2rem !important;
+    max-width: 100% !important;
+}
+
+/* Security Metric Cards - Slightly Wider Sleek Style */
 #securityposture-content .security-metric-card {
     background: var(--security-card-bg) !important;
     border: 1px solid var(--security-border) !important;
     border-radius: 8px !important;
     box-shadow: var(--security-shadow) !important;
     color: var(--security-text) !important;
-    padding: 1rem !important;
-    transition: all 0.2s ease !important;
+    padding: 0.75rem !important;
+    transition: all 0.3s ease !important;
+    position: relative !important;
+    overflow: hidden !important;
+    max-width: 260px !important;
+    min-width: 200px !important;
 }
 
 #securityposture-content .security-metric-card:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1) !important;
-    border-color: var(--security-accent) !important;
+    transform: translateY(-4px) !important;
+    box-shadow: var(--security-shadow-hover) !important;
+    border-color: var(--security-primary) !important;
+}
+
+/* Security Metric Header */
+#securityposture-content .security-metric-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-bottom: 0.5rem !important;
 }
 
 #securityposture-content .security-metric-title {
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    color: var(--security-text-secondary) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.3px !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
+}
+
+#securityposture-content .security-metric-icon {
+    width: 28px !important;
+    height: 28px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(127, 176, 105, 0.1) !important;
+    border-radius: 50% !important;
+    font-size: 0.875rem !important;
+}
+
+/* Security Metric Values - Compact Display */
+#securityposture-content .security-metric-value {
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    color: var(--security-text) !important;
+    margin: 0.25rem 0 !important;
+    line-height: 1 !important;
+}
+
+/* Security Metric Descriptions */
+#securityposture-content .security-metric-description {
+    font-size: 0.75rem !important;
+    color: var(--security-text-secondary) !important;
+    margin-bottom: 0.375rem !important;
+}
+
+/* Security Metric Trends */
+#securityposture-content .security-metric-trend {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    font-size: 0.75rem !important;
+    color: var(--security-text-muted) !important;
+}
+
+/* Circular Progress Indicators - Compact */
+#securityposture-content .circular-progress {
+    position: relative !important;
+    width: 50px !important;
+    height: 50px !important;
+    margin: 0.5rem auto !important;
+}
+
+#securityposture-content .circular-progress svg {
+    width: 100% !important;
+    height: 100% !important;
+    transform: rotate(-90deg) !important;
+}
+
+#securityposture-content .circular-progress .progress-ring {
+    fill: none !important;
+    stroke: var(--security-border) !important;
+    stroke-width: 8 !important;
+}
+
+#securityposture-content .circular-progress .progress-ring-fill {
+    fill: none !important;
+    stroke: var(--security-primary) !important;
+    stroke-width: 8 !important;
+    stroke-linecap: round !important;
+    transition: stroke-dasharray 0.5s ease !important;
+}
+
+#securityposture-content .circular-progress .progress-text {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    color: var(--security-text) !important;
+}
+
+/* Medical Dashboard Chart Containers - Compact */
+#securityposture-content .security-chart-container {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: 8px !important;
+    box-shadow: var(--security-shadow) !important;
+    color: var(--security-text) !important;
+    padding: 0.75rem !important;
+    margin-bottom: 1rem !important;
+}
+
+/* Analytics Section Styling - Compact */
+#securityposture-content .analytics-grid {
+    display: grid !important;
+    grid-template-columns: 1.5fr 1fr !important;
+    gap: 1rem !important;
+    margin-bottom: 1.5rem !important;
+}
+
+/* Events Section - Compact Medical Dashboard Style */
+#securityposture-content .events-section {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: 8px !important;
+    box-shadow: var(--security-shadow) !important;
+    padding: 0.75rem !important;
+}
+
+#securityposture-content .events-section h3 {
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    color: var(--security-text) !important;
+    margin: 0 0 0.5rem 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+}
+
+/* Security Events List - Compact */
+#securityposture-content .security-event-item {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: 6px !important;
+    padding: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+    transition: all 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+}
+
+#securityposture-content .security-event-item:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: var(--security-shadow-hover) !important;
+    border-color: var(--security-primary) !important;
+}
+
+#securityposture-content .security-event-item .event-time {
+    font-size: 0.875rem !important;
     color: var(--security-text-secondary) !important;
     font-weight: 500 !important;
 }
 
-#securityposture-content .security-metric-value {
+#securityposture-content .security-event-item .event-details {
+    flex: 1 !important;
+    margin-left: 1rem !important;
+}
+
+#securityposture-content .security-event-item .event-title {
+    font-weight: 600 !important;
     color: var(--security-text) !important;
-    font-weight: 700 !important;
+    margin: 0 0 0.25rem 0 !important;
 }
 
-#securityposture-content .security-metric-icon {
-    background: rgba(127, 176, 105, 0.1) !important;
-    color: var(--security-accent) !important;
+#securityposture-content .security-event-item .event-description {
+    font-size: 0.875rem !important;
+    color: var(--security-text-secondary) !important;
+    margin: 0 !important;
 }
 
-/* Security Chart Containers - Clean Theme */
-#securityposture-content .security-chart-container {
+/* Status Indicators */
+#securityposture-content .status-indicator {
+    width: 8px !important;
+    height: 8px !important;
+    border-radius: 50% !important;
+    display: inline-block !important;
+    margin-right: 0.5rem !important;
+}
+
+#securityposture-content .status-indicator.critical {
+    background: #ef4444 !important;
+}
+
+#securityposture-content .status-indicator.warning {
+    background: #f59e0b !important;
+}
+
+#securityposture-content .status-indicator.success {
+    background: var(--security-primary) !important;
+}
+
+/* Update text colors from dark theme to light theme */
+#securityposture-content .text-white {
+    color: #2d3748 !important;
+}
+
+#securityposture-content .text-slate-200,
+#securityposture-content .text-slate-300,
+#securityposture-content .text-slate-400 {
+    color: #4a5568 !important;
+}
+
+#securityposture-content .text-slate-500 {
+    color: #6b7280 !important;
+}
+
+/* Medical Dashboard Tables and Lists */
+#securityposture-content table {
+    width: 100% !important;
     background: var(--security-card-bg) !important;
     border: 1px solid var(--security-border) !important;
-    border-radius: var(--border-radius) !important;
+    border-radius: 12px !important;
     box-shadow: var(--security-shadow) !important;
-    color: var(--security-text) !important;
+    overflow: hidden !important;
 }
 
-#securityposture-content .security-chart-title {
-    color: var(--security-text) !important;
+#securityposture-content table thead {
+    background: rgba(127, 176, 105, 0.05) !important;
+}
+
+#securityposture-content table th {
+    padding: 1rem !important;
     font-weight: 600 !important;
-}
-
-#securityposture-content .security-chart-header {
+    color: var(--security-text) !important;
+    font-size: 0.875rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
     border-bottom: 1px solid var(--security-border) !important;
 }
 
-/* Security Info Boxes - Clean Theme */
-#securityposture-content .security-info-box {
+#securityposture-content table td {
+    padding: 1rem !important;
+    color: var(--security-text-secondary) !important;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.5) !important;
+}
+
+#securityposture-content table tbody tr:hover {
+    background: rgba(127, 176, 105, 0.02) !important;
+}
+
+/* Compliance Framework Cards - Minimal Height Style */
+#securityposture-content #compliance-frameworks > div {
     background: var(--security-card-bg) !important;
     border: 1px solid var(--security-border) !important;
-    border-radius: var(--border-radius) !important;
+    border-radius: 6px !important;
+    padding: 0.375rem 0.5rem !important;
+    margin-bottom: 0.25rem !important;
+    box-shadow: var(--security-shadow) !important;
     color: var(--security-text) !important;
+    transition: all 0.3s ease !important;
 }
 
-#securityposture-content .security-info-box.info {
-    background: rgba(59, 130, 246, 0.05) !important;
-    border-color: var(--security-accent) !important;
-    color: var(--security-text) !important;
-}
-
-#securityposture-content .security-info-box.warning {
-    background: rgba(245, 158, 11, 0.1) !important;
-    border-color: #f59e0b !important;
-    color: var(--security-text) !important;
-}
-
-#securityposture-content .security-info-box.error {
-    background: rgba(239, 68, 68, 0.1) !important;
-    border-color: #ef4444 !important;
-    color: var(--security-text) !important;
-}
-
-/* Security Form Elements - Clean Theme */
-#securityposture-content .security-select,
-#securityposture-content .security-input,
-#securityposture-content .security-textarea {
-    background: var(--security-card-bg) !important;
-    border: 1px solid var(--security-border) !important;
-    color: var(--security-text) !important;
-    border-radius: var(--border-radius) !important;
-}
-
-#securityposture-content .security-select:focus,
-#securityposture-content .security-input:focus,
-#securityposture-content .security-textarea:focus {
-    border-color: var(--security-primary) !important;
-    box-shadow: 0 0 0 3px rgba(127, 176, 105, 0.1) !important;
-}
-
-/* Security Buttons - Clean Theme */
-#securityposture-content .security-btn-primary {
-    background: var(--security-primary) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: var(--border-radius) !important;
-}
-
-#securityposture-content .security-btn-primary:hover {
-    background: var(--security-dark) !important;
-    transform: translateY(-1px) !important;
-    box-shadow: 0 4px 12px rgba(127, 176, 105, 0.3) !important;
-}
-
-#securityposture-content .security-btn-secondary {
-    background: var(--security-card-bg) !important;
-    color: var(--security-text) !important;
-    border: 1px solid var(--security-border) !important;
-    border-radius: var(--border-radius) !important;
-}
-
-#securityposture-content .security-btn-secondary:hover {
-    background: var(--security-primary) !important;
-    color: white !important;
+#securityposture-content #compliance-frameworks > div:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: var(--security-shadow-hover) !important;
     border-color: var(--security-primary) !important;
 }
 
-/* Security Lists and Items - Clean Theme */
-#securityposture-content .security-list-item {
-    background: var(--security-card-bg) !important;
-    border: 1px solid var(--security-border) !important;
-    border-radius: var(--border-radius) !important;
+/* Minimal compliance framework headers */
+#securityposture-content #compliance-frameworks h3 {
     color: var(--security-text) !important;
+    font-weight: 500 !important;
+    font-size: 0.8rem !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
 }
 
-#securityposture-content .security-list-item:hover {
+/* Minimal compliance details sections */
+#securityposture-content #compliance-frameworks details {
     background: rgba(127, 176, 105, 0.05) !important;
-    border-color: var(--security-primary) !important;
+    border: 1px solid rgba(127, 176, 105, 0.2) !important;
+    border-radius: 3px !important;
+    padding: 0.25rem !important;
+    margin-top: 0.25rem !important;
 }
 
-#securityposture-content .security-item-title {
+#securityposture-content #compliance-frameworks details summary {
     color: var(--security-text) !important;
+    font-weight: 400 !important;
+    cursor: pointer !important;
+    padding: 0.125rem !important;
+    border-radius: 2px !important;
+    font-size: 0.7rem !important;
+    line-height: 1.1 !important;
 }
 
-/* Security Severity Badges - Clean Theme */
-#securityposture-content .security-severity-badge.critical {
-    background: rgba(239, 68, 68, 0.1) !important;
+#securityposture-content #compliance-frameworks details summary:hover {
+    background: rgba(127, 176, 105, 0.1) !important;
+}
+
+/* Minimal compliance metrics layout */
+#securityposture-content #compliance-frameworks .grid {
+    gap: 0.375rem !important;
+}
+
+#securityposture-content #compliance-frameworks .grid > div {
+    background: rgba(127, 176, 105, 0.05) !important;
+    border: 1px solid rgba(127, 176, 105, 0.2) !important;
+    border-radius: 3px !important;
+    padding: 0.25rem 0.375rem !important;
+    text-align: center !important;
+    font-size: 0.65rem !important;
+    line-height: 1.2 !important;
+}
+
+/* Fix progress bars */
+#securityposture-content .bg-slate-700 {
+    background: #e5e7eb !important;
+}
+
+#securityposture-content .bg-green-500 {
+    background: #7FB069 !important;
+}
+
+/* Fix badge colors */
+#securityposture-content .text-green-400 {
+    color: #16a34a !important;
+}
+
+#securityposture-content .text-yellow-400 {
+    color: #d97706 !important;
+}
+
+#securityposture-content .text-red-400 {
     color: #dc2626 !important;
-    border: 1px solid rgba(239, 68, 68, 0.2) !important;
 }
 
-#securityposture-content .security-severity-badge.high {
+/* Medical Dashboard Header */
+#securityposture-content .dashboard-header {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: 12px !important;
+    box-shadow: var(--security-shadow) !important;
+    padding: 1.5rem !important;
+    margin-bottom: 2rem !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+}
+
+#securityposture-content .dashboard-header h1 {
+    font-size: 1.875rem !important;
+    font-weight: 700 !important;
+    color: var(--security-text) !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+}
+
+#securityposture-content .dashboard-header .header-date {
+    font-size: 0.875rem !important;
+    color: var(--security-text-secondary) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+}
+
+/* Security Items List - Compact Patient List Style */
+#securityposture-content .security-items-list {
+    background: var(--security-card-bg) !important;
+    border: 1px solid var(--security-border) !important;
+    border-radius: 8px !important;
+    box-shadow: var(--security-shadow) !important;
+    padding: 0.75rem !important;
+    max-width: 400px !important;
+}
+
+#securityposture-content .security-items-list h3 {
+    font-size: 1.125rem !important;
+    font-weight: 600 !important;
+    color: var(--security-text) !important;
+    margin: 0 0 1rem 0 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+}
+
+#securityposture-content .security-item {
+    display: flex !important;
+    align-items: center !important;
+    padding: 1rem !important;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.5) !important;
+    transition: all 0.2s ease !important;
+}
+
+#securityposture-content .security-item:last-child {
+    border-bottom: none !important;
+}
+
+#securityposture-content .security-item:hover {
+    background: rgba(127, 176, 105, 0.02) !important;
+    border-radius: 8px !important;
+}
+
+#securityposture-content .security-item .item-time {
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    color: var(--security-text) !important;
+    min-width: 80px !important;
+}
+
+#securityposture-content .security-item .item-avatar {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 50% !important;
+    margin: 0 1rem !important;
+    background: var(--security-primary) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: white !important;
+    font-weight: 600 !important;
+    font-size: 0.875rem !important;
+}
+
+#securityposture-content .security-item .item-details {
+    flex: 1 !important;
+}
+
+#securityposture-content .security-item .item-name {
+    font-weight: 600 !important;
+    color: var(--security-text) !important;
+    margin: 0 0 0.25rem 0 !important;
+}
+
+#securityposture-content .security-item .item-description {
+    font-size: 0.875rem !important;
+    color: var(--security-text-secondary) !important;
+    margin: 0 !important;
+}
+
+#securityposture-content .security-item .item-actions {
+    margin-left: 1rem !important;
+}
+
+#securityposture-content .security-item .item-actions .fas {
+    color: var(--security-text-muted) !important;
+    cursor: pointer !important;
+    padding: 0.5rem !important;
+    border-radius: 4px !important;
+    transition: all 0.2s ease !important;
+}
+
+#securityposture-content .security-item .item-actions .fas:hover {
+    color: var(--security-text) !important;
+    background: rgba(127, 176, 105, 0.1) !important;
+}
+
+/* Medical Dashboard Badges */
+#securityposture-content .security-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.375rem !important;
+    padding: 0.375rem 0.75rem !important;
+    border-radius: 20px !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+#securityposture-content .security-badge.badge-success {
+    background: rgba(127, 176, 105, 0.1) !important;
+    color: var(--security-primary) !important;
+    border: 1px solid rgba(127, 176, 105, 0.2) !important;
+}
+
+#securityposture-content .security-badge.badge-warning {
     background: rgba(245, 158, 11, 0.1) !important;
     color: #d97706 !important;
     border: 1px solid rgba(245, 158, 11, 0.2) !important;
 }
 
-#securityposture-content .security-severity-badge.medium {
-    background: rgba(59, 130, 246, 0.1) !important;
-    color: #2563eb !important;
-    border: 1px solid rgba(59, 130, 246, 0.2) !important;
+#securityposture-content .security-badge.badge-error {
+    background: rgba(239, 68, 68, 0.1) !important;
+    color: #dc2626 !important;
+    border: 1px solid rgba(239, 68, 68, 0.2) !important;
 }
 
-#securityposture-content .security-severity-badge.low {
-    background: rgba(34, 197, 94, 0.1) !important;
-    color: #16a34a !important;
-    border: 1px solid rgba(34, 197, 94, 0.2) !important;
-}
-
-/* Override any dark backgrounds from JavaScript */
-#securityposture-content div[style*="#171d33"],
-#securityposture-content div[style*="#1e2447"],
-#securityposture-content div[style*="#232a4a"] {
-    background: var(--security-card-bg) !important;
-}
-
-/* Override dark text colors from JavaScript */
-#securityposture-content div[style*="color: #ffffff"],
-#securityposture-content div[style*="color: #b8c5ef"],
-#securityposture-content span[style*="color: #ffffff"] {
-    color: var(--security-text) !important;
-}
-
-/* Compliance frameworks - Clean Theme */
-#securityposture-content #compliance-frameworks > div {
-    background: var(--security-card-bg) !important;
-    border: 1px solid var(--security-border) !important;
-    border-radius: var(--border-radius) !important;
-    color: var(--security-text) !important;
-}
-
-#securityposture-content #compliance-frameworks details summary {
-    background: var(--security-card-bg) !important;
-    border: 1px solid var(--security-border) !important;
-    color: var(--security-text) !important;
-}
-
-#securityposture-content #compliance-frameworks details summary:hover {
-    background: rgba(59, 130, 246, 0.05) !important;
-    border-color: var(--security-accent) !important;
-}
-
-/* Force white background for entire security posture section */
-#securityposture-content {
-    background: #ffffff !important;
-    color: #1f2937 !important;
-}
-
-/* Override any JavaScript-injected dark styling */
-#securityposture-content * {
-    background-color: unset !important;
-}
-
-#securityposture-content div,
-#securityposture-content section,
-#securityposture-content nav {
-    background: #ffffff !important;
-    color: #1f2937 !important;
-}
-
-/* Style JavaScript-generated security content to match clean theme */
-#securityposture-content .security-dashboard-layout {
-    background: #ffffff !important;
-    color: #1f2937 !important;
-    padding: 1rem !important;
-}
-
-#securityposture-content .security-dashboard-layout nav {
-    background: #ffffff !important;
-    border: 1px solid #e5e7eb !important;
-    border-radius: 8px !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
-    padding: 1rem !important;
-    margin-bottom: 1.5rem !important;
-}
-
-/* Style the metric containers that JavaScript creates */
-#securityposture-content .security-metrics-grid {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
-    gap: 1rem !important;
-    margin-bottom: 1.5rem !important;
-}
-
-/* Style individual security metrics to look like clean-metric-card */
-#securityposture-content .security-metric-card {
-    background: #ffffff !important;
-    border: 1px solid #e5e7eb !important;
-    border-radius: 8px !important;
-    padding: 1.5rem !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
-    transition: all 0.2s ease !important;
-}
-
-#securityposture-content .security-metric-card:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
-    border-color: #3b82f6 !important;
-}
-
-/* Style the dynamically created content areas */
-#securityposture-content .security-tab-pane {
-    background: #ffffff !important;
-    color: #1f2937 !important;
-    padding: 0 !important;
-}
-
-/* Style the dashboard tab content that's visible by default */
-#securityposture-content #dashboard-tab {
-    background: #ffffff !important;
-    padding: 0 !important;
-}
-
-/* Override any dark background containers */
-#securityposture-content div[style*="background: var(--security-bg-card)"],
-#securityposture-content div[style*="background: #232a4a"],
-#securityposture-content div[style*="background: #1e2447"],
-#securityposture-content div[style*="background: #171d33"] {
-    background: #ffffff !important;
-}
-
-/* Make sure charts container has proper styling */
-#securityposture-content .security-chart-container {
-    background: #ffffff !important;
-    border: 1px solid #e5e7eb !important;
-    border-radius: 8px !important;
-    padding: 1rem !important;
-    margin-bottom: 1rem !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
-}
-
-/* Enhanced Tab Button Styling to Match Clean Theme */
-#securityposture-content .security-tab-btn {
-    background: #ffffff !important;
-    color: var(--security-text) !important;
-    border: 1px solid var(--security-border) !important;
-    border-radius: 8px !important;
-    padding: 0.75rem 1.5rem !important;
-    font-weight: 500 !important;
-    font-size: 0.875rem !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
-    transition: all 0.2s ease !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 0.5rem !important;
-    min-height: 44px !important;
-}
-
-#securityposture-content .security-tab-btn:hover {
-    background: var(--security-light) !important;
-    color: white !important;
-    border-color: var(--security-light) !important;
-    transform: translateY(-1px) !important;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
-}
-
-#securityposture-content .security-tab-btn.active {
+/* Medical Dashboard Buttons */
+#securityposture-content .security-btn {
     background: var(--security-primary) !important;
     color: white !important;
-    border-color: var(--security-primary) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 0.75rem 1.5rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+}
+
+#securityposture-content .security-btn:hover {
+    background: var(--security-dark) !important;
+    transform: translateY(-1px) !important;
     box-shadow: 0 4px 12px rgba(127, 176, 105, 0.3) !important;
-    font-weight: 600 !important;
 }
 
-/* Style the metric values to be more prominent */
-#securityposture-content .security-metric-value {
-    font-size: 2rem !important;
-    font-weight: 700 !important;
+#securityposture-content .security-btn.btn-secondary {
+    background: var(--security-card-bg) !important;
     color: var(--security-text) !important;
-    line-height: 1 !important;
+    border: 1px solid var(--security-border) !important;
 }
 
-/* Style metric descriptions/trends */
-#securityposture-content .security-metric-description,
-#securityposture-content .metric-trend {
-    color: var(--security-text-secondary) !important;
-    font-size: 0.875rem !important;
+#securityposture-content .security-btn.btn-secondary:hover {
+    background: var(--security-bg) !important;
+    border-color: var(--security-primary) !important;
 }
 
-/* Simplify and compact compliance frameworks */
-#securityposture-content #compliance-frameworks {
-    padding: 0 !important;
-    max-height: none !important;
-}
-
-#securityposture-content #compliance-frameworks > div {
-    background: transparent !important;
-    border: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    box-shadow: none !important;
-}
-
-/* Hide compliance framework cards and show only as simple text */
-#securityposture-content #compliance-frameworks > div > div:first-child,
-#securityposture-content #compliance-frameworks > div > div:nth-child(2),
-#securityposture-content #compliance-frameworks > div > div:nth-child(3),
-#securityposture-content #compliance-frameworks > div > details {
-    display: none !important;
-}
-
-/* Show compliance frameworks as simple text under chart */
-#securityposture-content .chart-container canvas + div {
-    text-align: center !important;
-    margin-top: 1rem !important;
-    padding: 0.75rem !important;
-    background: rgba(127, 176, 105, 0.05) !important;
-    border-radius: 4px !important;
-    font-size: 0.875rem !important;
+/* Medical Dashboard Loading States */
+#securityposture-content .security-loading {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 3rem !important;
     color: var(--security-text-secondary) !important;
 }
 
-/* Compact Overall Compliance - show as simple metrics */
-#securityposture-content div[style*="51.9%"] {
-    background: transparent !important;
-    border: none !important;
-    padding: 0.5rem !important;
-    margin: 0.5rem 0 !important;
-    text-align: center !important;
-}
-
-/* Style compliance percentage as simple text */
-#securityposture-content div[style*="51.9%"] div {
-    display: inline-block !important;
-    margin: 0 1rem !important;
-    padding: 0.25rem 0.5rem !important;
-    background: rgba(127, 176, 105, 0.1) !important;
-    border-radius: 4px !important;
-    font-size: 0.875rem !important;
-}
-
-/* Hide unnecessary compliance sections */
-#securityposture-content div[style*="Overall Compliance"] {
-    background: transparent !important;
-    border: none !important;
-    padding: 0.5rem !important;
-    margin: 0.5rem 0 !important;
-}
-
-/* Compact the main compliance status container */
-#securityposture-content div[style*="Compliance Status"] {
-    padding: 1rem !important;
+#securityposture-content .security-loading .loading-spinner {
+    width: 40px !important;
+    height: 40px !important;
+    border: 3px solid var(--security-border) !important;
+    border-top: 3px solid var(--security-primary) !important;
+    border-radius: 50% !important;
+    animation: spin 1s linear infinite !important;
     margin-bottom: 1rem !important;
 }
 
-/* Hide the complex compliance framework containers */
-#securityposture-content #compliance-frameworks > div > div {
-    display: none !important;
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
-#securityposture-content #compliance-frameworks > div > details {
-    display: none !important;
-}
-
-/* Hide Overall Compliance separate block */
-#securityposture-content div[style*="Overall Compliance"] > div:not(:first-child) {
-    display: none !important;
-}
-
-/* Simplify compliance display - just show the chart with simple text below */
-#securityposture-content .security-chart-container + div {
-    display: none !important;
-}
-
-/* Make compliance frameworks appear as simple text under the chart */
-#securityposture-content canvas[id*="compliance"] {
-    margin-bottom: 0.5rem !important;
-}
-
-/* Add simple compliance framework labels under chart */
-#securityposture-content .chart-container::after {
-    /* content: "CIS • NIST • SOC2" !important; */
-    display: block !important;
-    text-align: center !important;
-    margin-top: 0.75rem !important;
-    padding: 0.5rem !important;
-    background: rgba(127, 176, 105, 0.1) !important;
-    border-radius: 4px !important;
-    font-size: 0.75rem !important;
-    color: var(--security-text-secondary) !important;
-    font-weight: 500 !important;
-}
-
-/* Hide redundant sections */
-#securityposture-content div[style*="grid-template-columns: 2fr 1fr"] > div:last-child {
-    display: none !important;
-}
-
-/* Compact grid layout */
-#securityposture-content div[style*="grid-template-columns: 2fr 1fr"] {
-    grid-template-columns: 1fr !important;
-}
-
-/* Hide only the compliance detail blocks, keep charts visible */
-#securityposture-content #dashboard-tab #compliance-details {
-    display: none !important;
-}
-
-/* Hide the overall compliance summary block */
-#securityposture-content #dashboard-tab div.bg-slate-800\/50.rounded-lg.p-4.mb-4 {
-    display: none !important;
-}
-
-/* Hide Security Components section but keep charts */
-#securityposture-content #dashboard-tab div:has(h3:contains("Security Components")) {
-    display: none !important;
-}
-
-/* Keep the chart container but hide the details below it */
-#securityposture-content #dashboard-tab .chart-container {
-    display: block !important;
-}
-
-#securityposture-content #dashboard-tab .chart-container + div {
-    display: none !important;
-}
-
-/* Hide framework cards but keep main compliance chart - ONLY in dashboard tab */
-#securityposture-content #dashboard-tab #compliance-frameworks > div {
-    display: none !important;
-}
-
-/* Override for compliance tab - ensure frameworks are visible */
-#securityposture-content #compliance-tab #compliance-frameworks > div {
-    display: block !important;
-    visibility: visible !important;
-}
-
-/* Show just the chart, hide everything else under Compliance Status */
-#securityposture-content #dashboard-tab div:has(> h3:contains("Compliance Status")) > div:not(.chart-container) {
-    display: none !important;
-}
-
-/* FORCE compliance frameworks to be visible in compliance tab */
-#securityposture-content #compliance-tab {
-    display: block !important;
-}
-
-#securityposture-content #compliance-tab #compliance-frameworks {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    background: transparent !important;
-}
-
-#securityposture-content #compliance-tab #compliance-frameworks .space-y-6 {
-    display: block !important;
-    visibility: visible !important;
-}
-
-#securityposture-content #compliance-tab #compliance-frameworks > div {
-    display: block !important;
-    visibility: visible !important;
+/* Policy Violations Scrollable Container */
+#securityposture-content .violations-container,
+#securityposture-content [id*="violations"],
+#securityposture-content .policy-violations-section {
+    max-height: 400px !important;
+    overflow-y: auto !important;
     background: var(--security-card-bg) !important;
     border: 1px solid var(--security-border) !important;
     border-radius: 8px !important;
-    padding: 1rem !important;
-    margin-bottom: 1rem !important;
     box-shadow: var(--security-shadow) !important;
-    color: var(--security-text) !important;
+    padding: 0.75rem !important;
 }
 
-/* Restore metrics and compliance tab functionality */
-#securityposture-content #compliance-tab .security-metrics-grid {
-    display: grid !important;
-}
-
-#securityposture-content #compliance-tab .security-metric-card {
-    display: block !important;
+/* Violations List Items */
+#securityposture-content .violation-item {
     background: var(--security-card-bg) !important;
     border: 1px solid var(--security-border) !important;
-    color: var(--security-text) !important;
+    border-radius: 6px !important;
+    padding: 0.75rem !important;
+    margin-bottom: 0.5rem !important;
+    transition: all 0.2s ease !important;
 }
 
-/* Ensure chart containers are visible */
-#securityposture-content .security-chart-container {
-    display: block !important;
+#securityposture-content .violation-item:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: var(--security-shadow-hover) !important;
+    border-color: var(--security-primary) !important;
 }
 
-#securityposture-content .security-metrics-grid {
-    display: grid !important;
+/* Custom Scrollbar for Violations */
+#securityposture-content .violations-container::-webkit-scrollbar,
+#securityposture-content [id*="violations"]::-webkit-scrollbar,
+#securityposture-content .policy-violations-section::-webkit-scrollbar {
+    width: 6px !important;
+}
+
+#securityposture-content .violations-container::-webkit-scrollbar-track,
+#securityposture-content [id*="violations"]::-webkit-scrollbar-track,
+#securityposture-content .policy-violations-section::-webkit-scrollbar-track {
+    background: var(--security-border) !important;
+    border-radius: 3px !important;
+}
+
+#securityposture-content .violations-container::-webkit-scrollbar-thumb,
+#securityposture-content [id*="violations"]::-webkit-scrollbar-thumb,
+#securityposture-content .policy-violations-section::-webkit-scrollbar-thumb {
+    background: var(--security-primary) !important;
+    border-radius: 3px !important;
+}
+
+#securityposture-content .violations-container::-webkit-scrollbar-thumb:hover,
+#securityposture-content [id*="violations"]::-webkit-scrollbar-thumb:hover,
+#securityposture-content .policy-violations-section::-webkit-scrollbar-thumb:hover {
+    background: var(--security-dark) !important;
+}
+
+/* Medical Dashboard Responsive Design */
+@media (max-width: 768px) {
+    #securityposture-content {
+        padding: 1rem !important;
+    }
+    
+    #securityposture-content .security-metrics-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    #securityposture-content .analytics-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    #securityposture-content nav {
+        grid-template-columns: 1fr !important;
+        gap: 0.5rem !important;
+    }
+    
+    #securityposture-content .security-tab-btn {
+        padding: 0.5rem 1rem !important;
+        font-size: 0.75rem !important;
+    }
+    
+    #securityposture-content .dashboard-header {
+        flex-direction: column !important;
+        gap: 1rem !important;
+        text-align: center !important;
+    }
+    
+    #securityposture-content .violations-container,
+    #securityposture-content [id*="violations"],
+    #securityposture-content .policy-violations-section {
+        max-height: 300px !important;
+    }
 }

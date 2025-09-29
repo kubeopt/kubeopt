@@ -193,9 +193,7 @@ class SecurityUIRenderer {
                                 <div class="chart-container">
                                     <canvas id="risk-donut-chart"></canvas>
                                 </div>
-                                <div id="risk-distribution" style="margin-top: 1.5rem;">
-                                    <div style="text-align: center; color: var(--security-text-muted); font-size: 0.8rem;">Loading risk data...</div>
-                                </div>
+                                
                             </div>
                         </div>
 
@@ -213,9 +211,7 @@ class SecurityUIRenderer {
                                 <div class="chart-container">
                                     <canvas id="compliance-bar-chart" style="width: 100%; height: 200px;"></canvas>
                                 </div>
-                                <div id="compliance-details" class="mt-4 space-y-2">
-                                    <div class="text-center text-slate-500 text-xs">Loading compliance data...</div>
-                                </div>
+                               
                             </div>
                         </div>
 
