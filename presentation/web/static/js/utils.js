@@ -36,7 +36,7 @@ export function formatValue(value, format) {
 export function getChartColors() {
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     return {
-        textColor: '#f7fafc',
+        textColor: '#2d3748',
         gridColor: '#e2e8f0',
         backgroundColor: '#ffffff'
     };

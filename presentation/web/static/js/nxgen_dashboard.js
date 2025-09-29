@@ -421,7 +421,7 @@ class AKSDashboard {
                 scales: {
                     x: {
                         ticks: {
-                            color: 'white'
+                            color: '#2d3748'
                         },
                         grid: {
                             color: 'rgba(255, 255, 255, 0.1)'
@@ -429,7 +429,7 @@ class AKSDashboard {
                     },
                     y: {
                         ticks: {
-                            color: 'white',
+                            color: '#2d3748',
                             callback: function(value) {
                                 return '$' + value.toFixed(2);
                             }
@@ -481,7 +481,7 @@ class AKSDashboard {
                     legend: {
                         position: 'bottom',
                         labels: {
-                            color: 'white',
+                            color: '#2d3748',
                             padding: 20
                         }
                     },

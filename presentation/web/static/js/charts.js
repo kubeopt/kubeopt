@@ -1446,7 +1446,7 @@ export function createHPAComparisonChart(data, isRealData) {
                     ctx.stroke();
                     
                     // Badge text
-                    ctx.fillStyle = 'white';
+                    ctx.fillStyle = '#2d3748';
                     ctx.font = '600 11px Arial';
                     ctx.textAlign = 'center';
                     ctx.fillText(`${efficiency.toFixed(0)}% Eff`, badgeX + 35, badgeY + 14);
@@ -1471,7 +1471,7 @@ export function createHPAComparisonChart(data, isRealData) {
                     ctx.stroke();
                     
                     // ML text
-                    ctx.fillStyle = 'white';
+                    ctx.fillStyle = '#2d3748';
                     ctx.font = '600 10px Arial';
                     ctx.textAlign = 'center';
                     ctx.fillText(`🤖 ${data.ml_workload_type}`, mlX + 60, mlY + 14);
@@ -1563,7 +1563,7 @@ export function createHPAComparisonChart(data, isRealData) {
                     position: 'top',
                     align: 'center',
                     labels: { 
-                        color: 'white',
+                        color: '#2d3748',
                         padding: 15,
                         usePointStyle: true,
                         pointStyle: 'rectRounded',
@@ -1582,7 +1582,7 @@ export function createHPAComparisonChart(data, isRealData) {
                                     const avg = dataset.data.reduce((a, b) => a + b, 0) / dataset.data.length;
                                     label.text = `${label.text} (Avg: ${avg.toFixed(1)})`;
                                 }
-                                label.fontColor = 'white';
+                                label.fontColor = '#2d3748';
                             });
                             
                             return labels;
@@ -1592,9 +1592,9 @@ export function createHPAComparisonChart(data, isRealData) {
                 tooltip: {
                     enabled: true,
                     backgroundColor: 'rgba(20, 20, 30, 0.95)',
-                    titleColor: 'white',
-                    bodyColor: 'white',
-                    footerColor: 'rgba(255, 255, 255, 0.7)',
+                    titleColor: '#2d3748',
+                    bodyColor: '#2d3748',
+                    footerColor: 'rgba(45, 55, 72, 0.7)',
                     borderColor: 'rgba(255, 138, 101, 0.3)',
                     borderWidth: 1,
                     cornerRadius: 10,
@@ -1653,20 +1653,20 @@ export function createHPAComparisonChart(data, isRealData) {
             scales: {
                 x: {
                     ticks: { 
-                        color: 'white',
+                        color: '#2d3748',
                         font: {
                             size: 11,
                             weight: '400'
                         }
                     },
                     grid: { 
-                        color: 'rgba(255, 255, 255, 0.08)',
+                        color: '#e2e8f0',
                         lineWidth: 0.5
                     }
                 },
                 y: {
                     ticks: { 
-                        color: 'white',
+                        color: '#2d3748',
                         font: {
                             size: 11,
                             weight: '400'
@@ -1676,14 +1676,14 @@ export function createHPAComparisonChart(data, isRealData) {
                         }
                     },
                     grid: { 
-                        color: 'rgba(255, 255, 255, 0.08)',
+                        color: '#e2e8f0',
                         lineWidth: 0.5
                     },
                     beginAtZero: true,
                     title: {
                         display: true,
                         text: 'Replica Count',
-                        color: 'white',
+                        color: '#2d3748',
                         font: {
                             size: 12,
                             weight: '500'
@@ -2256,8 +2256,8 @@ export function createNodeUtilizationChart(data, isRealData) {
                 tooltip: {
                     enabled: true,
                     backgroundColor: 'rgba(10, 10, 20, 0.95)',
-                    titleColor: '#ffffff',
-                    bodyColor: '#f0f0f0',
+                    titleColor: '#2d3748',
+                    bodyColor: '#2d3748',
                     borderColor: 'rgba(255, 255, 255, 0.2)',
                     borderWidth: 1,
                     cornerRadius: 10,
@@ -2361,7 +2361,7 @@ export function createNodeUtilizationChart(data, isRealData) {
                         }
                     },
                     grid: { 
-                        color: 'rgba(255, 255, 255, 0.03)', // Very subtle horizontal lines
+                        color: '#e2e8f0', // Very subtle horizontal lines
                         borderDash: false,
                         drawBorder: false,
                         drawOnChartArea: true,
@@ -2908,13 +2908,13 @@ export function createCostBreakdownChart(data, isRealData) {
                 
                 // Draw total text
                 ctx.font = 'bold 22px Arial';
-                ctx.fillStyle = 'white';
+                ctx.fillStyle = '#2d3748';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText('$' + total.toLocaleString(), centerX, centerY - 8);
                 
                 ctx.font = '13px Arial';
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.fillStyle = '#2d3748';
                 ctx.fillText('Total', centerX, centerY + 12);
                 
                 // Add data source indicator if needed
@@ -2974,7 +2974,7 @@ export function createCostBreakdownChart(data, isRealData) {
                 legend: {
                     position: 'right',  // Move to right side
                     labels: {
-                        color: 'white',
+                        color: '#2d3748',
                         padding: 15,
                         usePointStyle: true,
                         font: {
@@ -2994,7 +2994,7 @@ export function createCostBreakdownChart(data, isRealData) {
                                     return {
                                         text: `${label}: $${value.toLocaleString()} (${percentage}%)`,
                                         fillStyle: isHidden ? 'rgba(150, 150, 150, 0.3)' : baseColors[i % baseColors.length],
-                                        fontColor: isHidden ? 'rgba(255, 255, 255, 0.3)' : 'white',
+                                        fontColor: isHidden ? 'rgba(45, 55, 72, 0.3)' : '#2d3748',
                                         textDecoration: isHidden ? 'line-through' : '',  // Strike-through
                                         strokeStyle: isHidden ? 'rgba(255, 255, 255, 0.3)' : undefined,
                                         hidden: isHidden,
@@ -3020,8 +3020,8 @@ export function createCostBreakdownChart(data, isRealData) {
                 tooltip: {
                     enabled: true,
                     backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                    titleColor: 'white',
-                    bodyColor: 'white',
+                    titleColor: '#2d3748',
+                    bodyColor: '#2d3748',
                     borderColor: 'rgba(255, 255, 255, 0.3)',
                     borderWidth: 1,
                     cornerRadius: 8,
@@ -3157,7 +3157,7 @@ export function createMainTrendChart(data, isRealData) {
                     display: false,
                     align: 'start',
                     labels: {
-                        color: 'white',
+                        color: '#2d3748',
                         usePointStyle: true,
                         padding: 15,
                         font: {
@@ -3177,7 +3177,7 @@ export function createMainTrendChart(data, isRealData) {
                                     text: `${dataset.label}: $${stat.avg.toFixed(0).toLocaleString()} ${trendIcon} ${stat.trendPercent}%`,
                                     fillStyle: dataset.borderColor,
                                     strokeStyle: dataset.borderColor,
-                                    fontColor: meta.hidden ? 'rgba(255, 255, 255, 0.3)' : 'white',
+                                    fontColor: meta.hidden ? 'rgba(45, 55, 72, 0.3)' : '#2d3748',
                                     hidden: meta.hidden,
                                     lineCap: 'round',
                                     lineDash: [],
@@ -3199,12 +3199,12 @@ export function createMainTrendChart(data, isRealData) {
                 tooltip: {
                     enabled: true,
                     backgroundColor: 'rgba(0, 0, 0, 0.95)',
-                    titleColor: 'white',
+                    titleColor: '#2d3748',
                     titleFont: {
                         size: 13,
                         weight: 'bold'
                     },
-                    bodyColor: 'white',
+                    bodyColor: '#2d3748',
                     bodyFont: {
                         size: 12
                     },
@@ -3290,7 +3290,7 @@ export function createMainTrendChart(data, isRealData) {
                         drawBorder: false
                     },
                     ticks: {
-                        color: 'rgba(255, 255, 255, 0.7)',
+                        color: '#2d3748',
                         font: {
                             size: 10
                         },
@@ -3305,11 +3305,11 @@ export function createMainTrendChart(data, isRealData) {
                     position: 'left',
                     grid: {
                         display: true,
-                        color: 'rgba(255, 255, 255, 0.03)',
+                        color: '#e2e8f0',
                         drawBorder: false
                     },
                     ticks: {
-                        color: 'rgba(255, 255, 255, 0.7)',
+                        color: '#2d3748',
                         font: {
                             size: 10
                         },
@@ -3459,7 +3459,7 @@ export function createSavingsBreakdownChart(data, isRealData) {
                 ctx.fillText('$' + totalSavings.toLocaleString(), centerX, centerY - 8);
                 
                 ctx.font = '13px Arial';
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.fillStyle = '#2d3748';
                 ctx.fillText('Potential Savings', centerX, centerY + 12);
                 
                 // Add data source indicator with savings icon
@@ -3525,7 +3525,7 @@ export function createSavingsBreakdownChart(data, isRealData) {
                 legend: {
                     position: 'right',
                     labels: {
-                        color: 'white',
+                        color: '#2d3748',
                         padding: 10,
                         usePointStyle: true,
                         font: {
@@ -3545,7 +3545,7 @@ export function createSavingsBreakdownChart(data, isRealData) {
                                     return {
                                         text: `${label}: $${value.toLocaleString()} (${percentage}%)`,
                                         fillStyle: isHidden ? 'rgba(150, 150, 150, 0.3)' : baseColors[i % baseColors.length],
-                                        fontColor: isHidden ? 'rgba(255, 255, 255, 0.3)' : 'white',
+                                        fontColor: isHidden ? 'rgba(45, 55, 72, 0.3)' : '#2d3748',
                                         textDecoration: isHidden ? 'line-through' : '',  // Strike-through
                                         strokeStyle: isHidden ? 'rgba(255, 255, 255, 0.3)' : undefined,
                                         hidden: isHidden,
@@ -3571,8 +3571,8 @@ export function createSavingsBreakdownChart(data, isRealData) {
                 tooltip: {
                     enabled: true,
                     backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                    titleColor: 'white',
-                    bodyColor: 'white',
+                    titleColor: '#2d3748',
+                    bodyColor: '#2d3748',
                     borderColor: 'rgba(46, 204, 113, 0.3)',  // Green border for savings
                     borderWidth: 1,
                     cornerRadius: 8,
@@ -3704,13 +3704,13 @@ export function createNamespaceCostChart(data) {
                 
                 // Draw total text
                 ctx.font = 'bold 24px Arial';
-                ctx.fillStyle = 'white';
+                ctx.fillStyle = '#2d3748';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText('$' + total.toLocaleString(), centerX, centerY - 10);
                 
                 ctx.font = '14px Arial';
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.fillStyle = '#2d3748';
                 ctx.fillText('Total Cost', centerX, centerY + 15);
                 
                 ctx.restore();
@@ -3764,7 +3764,7 @@ export function createNamespaceCostChart(data) {
                 legend: {
                     position: 'right',
                     labels: {
-                        color: 'white',
+                        color: '#2d3748',
                         padding: 15,
                         usePointStyle: true,
                         font: {
@@ -3785,7 +3785,7 @@ export function createNamespaceCostChart(data) {
                                         text: `${label}: $${value.toLocaleString()} (${percentage}%)`,
                                         // Keep the color solid for legend items
                                         fillStyle: isHidden ? 'rgba(150, 150, 150, 0.3)' : baseColors[i % baseColors.length],
-                                        fontColor: isHidden ? 'rgba(255, 255, 255, 0.3)' : 'white',
+                                        fontColor: isHidden ? 'rgba(45, 55, 72, 0.3)' : '#2d3748',
                                         // Add strike-through
                                         textDecoration: isHidden ? 'line-through' : '',
                                         strokeStyle: isHidden ? 'rgba(255, 255, 255, 0.3)' : undefined,
@@ -3813,8 +3813,8 @@ export function createNamespaceCostChart(data) {
                 tooltip: {
                     enabled: true,
                     backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                    titleColor: 'white',
-                    bodyColor: 'white',
+                    titleColor: '#2d3748',
+                    bodyColor: '#2d3748',
                     borderColor: 'rgba(255, 255, 255, 0.3)',
                     borderWidth: 1,
                     cornerRadius: 8,
@@ -3963,7 +3963,7 @@ export function createWorkloadCostChart(data) {
                 ctx.fill();
                 ctx.stroke();
                 
-                ctx.fillStyle = 'white';
+                ctx.fillStyle = '#2d3748';
                 ctx.font = '600 11px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText(`Total: $${(totalCost/1000).toFixed(1)}k/month`, totalX + 70, totalY + 16);
@@ -3978,7 +3978,7 @@ export function createWorkloadCostChart(data) {
                 ctx.fill();
                 ctx.stroke();
                 
-                ctx.fillStyle = 'white';
+                ctx.fillStyle = '#2d3748';
                 ctx.fillText(`Top ${filteredData.costs.length} Workloads`, countX + 60, countY + 16);
                 
                 ctx.restore();
@@ -4037,7 +4037,7 @@ export function createWorkloadCostChart(data) {
                                 pointStyle: 'rectRounded'
                             }));
                         },
-                        color: 'white',
+                        color: '#2d3748',
                         padding: 15,
                         font: {
                             size: 12,
@@ -4049,8 +4049,8 @@ export function createWorkloadCostChart(data) {
                 tooltip: {
                     enabled: true,
                     backgroundColor: 'rgba(20, 20, 30, 0.95)',
-                    titleColor: 'white',
-                    bodyColor: 'white',
+                    titleColor: '#2d3748',
+                    bodyColor: '#2d3748',
                     borderColor: 'rgba(123, 97, 255, 0.3)',
                     borderWidth: 1,
                     cornerRadius: 10,
@@ -4096,7 +4096,7 @@ export function createWorkloadCostChart(data) {
                 x: {
                     beginAtZero: true,
                     ticks: {
-                        color: 'white',
+                        color: '#2d3748',
                         font: {
                             size: 11,
                             weight: '500'
@@ -4109,13 +4109,13 @@ export function createWorkloadCostChart(data) {
                         }
                     },
                     grid: { 
-                        color: 'rgba(255, 255, 255, 0.05)',
+                        color: '#e2e8f0',
                         lineWidth: 0.5
                     },
                     title: {
                         display: true,
                         text: 'Monthly Cost (USD)',
-                        color: 'white',
+                        color: '#2d3748',
                         font: {
                             size: 12,
                             weight: '600'
@@ -4124,7 +4124,7 @@ export function createWorkloadCostChart(data) {
                 },
                 y: {
                     ticks: { 
-                        color: 'white',
+                        color: '#2d3748',
                         font: {
                             size: 10,
                             weight: '500'
