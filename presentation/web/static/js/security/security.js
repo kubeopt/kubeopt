@@ -222,9 +222,7 @@ class SecurityPostureDashboard {
                                 <div class="chart-container" style="height: 200px;">
                                     <canvas id="risk-donut-chart"></canvas>
                                 </div>
-                                <div id="risk-distribution" class="mt-6">
-                                    <div class="text-center text-slate-400 text-sm">Loading risk data...</div>
-                                </div>
+                               
                             </div>
                         </div>
 
@@ -986,7 +984,7 @@ class SecurityPostureDashboard {
             this.updateEnhancedBreakdown(posture.breakdown);
             
             // Update risk distribution
-            this.updateRiskDistribution(policyCompliance, posture.alerts);
+            //this.updateRiskDistribution(policyCompliance, posture.alerts);
             
             // Add critical findings summary
             this.updateCriticalFindings(posture.alerts, policyCompliance.violations);
@@ -1037,58 +1035,58 @@ class SecurityPostureDashboard {
         breakdownContainer.innerHTML = breakdownHtml;
     }
 
-    updateRiskDistribution(policyCompliance, alerts) {
-        const riskContainer = document.getElementById('risk-distribution');
-        if (!riskContainer) return;
+    // updateRiskDistribution(policyCompliance, alerts) {
+    //     const riskContainer = document.getElementById('risk-distribution');
+    //     if (!riskContainer) return;
 
-        const violations = policyCompliance?.violations || [];
-        const allAlerts = alerts || [];
+    //     const violations = policyCompliance?.violations || [];
+    //     const allAlerts = alerts || [];
         
-        // Calculate risk metrics
-        const riskMetrics = {
-            'Critical Issues': (policyCompliance?.violations_by_severity?.CRITICAL || 0) + 
-                               allAlerts.filter(a => a.severity === 'CRITICAL').length,
-            'High Risk': (policyCompliance?.violations_by_severity?.HIGH || 0) + 
-                         allAlerts.filter(a => a.severity === 'HIGH').length,
-            'Medium Risk': (policyCompliance?.violations_by_severity?.MEDIUM || 0) + 
-                           allAlerts.filter(a => a.severity === 'MEDIUM').length,
-            'Low Risk': (policyCompliance?.violations_by_severity?.LOW || 0) + 
-                        allAlerts.filter(a => a.severity === 'LOW').length
-        };
+    //     // Calculate risk metrics
+    //     const riskMetrics = {
+    //         'Critical Issues': (policyCompliance?.violations_by_severity?.CRITICAL || 0) + 
+    //                            allAlerts.filter(a => a.severity === 'CRITICAL').length,
+    //         'High Risk': (policyCompliance?.violations_by_severity?.HIGH || 0) + 
+    //                      allAlerts.filter(a => a.severity === 'HIGH').length,
+    //         'Medium Risk': (policyCompliance?.violations_by_severity?.MEDIUM || 0) + 
+    //                        allAlerts.filter(a => a.severity === 'MEDIUM').length,
+    //         'Low Risk': (policyCompliance?.violations_by_severity?.LOW || 0) + 
+    //                     allAlerts.filter(a => a.severity === 'LOW').length
+    //     };
 
-        const total = Object.values(riskMetrics).reduce((a, b) => a + b, 0);
+    //     const total = Object.values(riskMetrics).reduce((a, b) => a + b, 0);
         
-        const riskHtml = `
-            <div class="space-y-3">
-                ${Object.entries(riskMetrics).map(([label, count]) => {
-                    const percentage = total > 0 ? (count / total * 100).toFixed(1) : 0;
-                    const color = label.includes('Critical') ? 'red' : 
-                                  label.includes('High') ? 'orange' : 
-                                  label.includes('Medium') ? 'yellow' : 'blue';
+    //     const riskHtml = `
+    //         <div class="space-y-3">
+    //             ${Object.entries(riskMetrics).map(([label, count]) => {
+    //                 const percentage = total > 0 ? (count / total * 100).toFixed(1) : 0;
+    //                 const color = label.includes('Critical') ? 'red' : 
+    //                               label.includes('High') ? 'orange' : 
+    //                               label.includes('Medium') ? 'yellow' : 'blue';
                     
-                    return `
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm text-slate-300">${label}</span>
-                            <div class="flex items-center space-x-2">
-                                <div class="w-24 bg-slate-700 rounded-full h-2">
-                                    <div class="bg-${color}-500 h-2 rounded-full" style="width: ${percentage}%"></div>
-                                </div>
-                                <span class="text-sm text-${color}-400 font-medium w-16 text-right">${count}</span>
-                            </div>
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-            <div class="mt-4 pt-4 border-t border-slate-700">
-                <div class="flex justify-between items-center">
-                    <span class="text-sm text-slate-400">Total Issues</span>
-                    <span class="text-lg font-bold text-white">${total}</span>
-                </div>
-            </div>
-        `;
+    //                 return `
+    //                     <div class="flex items-center justify-between">
+    //                         <span class="text-sm text-slate-300">${label}</span>
+    //                         <div class="flex items-center space-x-2">
+    //                             <div class="w-24 bg-slate-700 rounded-full h-2">
+    //                                 <div class="bg-${color}-500 h-2 rounded-full" style="width: ${percentage}%"></div>
+    //                             </div>
+    //                             <span class="text-sm text-${color}-400 font-medium w-16 text-right">${count}</span>
+    //                         </div>
+    //                     </div>
+    //                 `;
+    //             }).join('')}
+    //         </div>
+    //         <div class="mt-4 pt-4 border-t border-slate-700">
+    //             <div class="flex justify-between items-center">
+    //                 <span class="text-sm text-slate-400">Total Issues</span>
+    //                 <span class="text-lg font-bold text-white">${total}</span>
+    //             </div>
+    //         </div>
+    //     `;
         
-        riskContainer.innerHTML = riskHtml;
-    }
+    //     riskContainer.innerHTML = riskHtml;
+    // }
 
     updateCriticalFindings(alerts, violations) {
         const container = document.getElementById('critical-findings-summary');
