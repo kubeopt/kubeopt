@@ -175,7 +175,9 @@ class PureBackendSecurityDashboard {
             console.log('📊 Loaded real backend data:', {
                 alerts: alerts.length,
                 violations: violations.length,
-                frameworks: Object.keys(data.analysis?.compliance_frameworks || {}).length
+                frameworks: Object.keys(data.analysis?.compliance_frameworks || {}).length,
+                sampleViolation: violations[0],
+                dataStructure: data.analysis
             });
             
             await this.updateDashboardWithRealData(data);
@@ -403,8 +405,22 @@ class PureBackendSecurityDashboard {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        top: 5,
+                        bottom: 5,
+                        left: 5,
+                        right: 5
+                    }
+                },
                 plugins: {
-                    legend: { position: 'bottom' },
+                    legend: { 
+                        position: 'bottom',
+                        labels: {
+                            font: { size: 10 },
+                            padding: 8
+                        }
+                    },
                     tooltip: {
                         callbacks: {
                             afterBody: () => ['', '💡 Click to view controls']
@@ -477,11 +493,25 @@ class PureBackendSecurityDashboard {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        top: 5,
+                        bottom: 5,
+                        left: 5,
+                        right: 5
+                    }
+                },
                 scales: {
+                    x: {
+                        ticks: {
+                            font: { size: 10 }
+                        }
+                    },
                     y: { 
                         beginAtZero: true,
                         ticks: {
-                            precision: 0
+                            precision: 0,
+                            font: { size: 10 }
                         }
                     }
                 },
@@ -583,15 +613,30 @@ class PureBackendSecurityDashboard {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        top: 5,
+                        bottom: 5,
+                        left: 5,
+                        right: 5
+                    }
+                },
                 scales: {
                     r: {
                         beginAtZero: true,
                         max: 100,
                         ticks: {
                             stepSize: 20,
+                            font: { size: 9 },
                             callback: function(value) {
                                 return value + '%';
                             }
+                        },
+                        grid: {
+                            lineWidth: 1
+                        },
+                        angleLines: {
+                            lineWidth: 1
                         }
                     }
                 },
@@ -619,6 +664,11 @@ class PureBackendSecurityDashboard {
         const canvas = document.getElementById('violations-chart');
         if (!canvas) return;
 
+        console.log('🔍 Creating violations chart with data:', {
+            violationsCount: violations.length,
+            violationsData: violations.slice(0, 3)
+        });
+
         if (violations.length === 0) {
             this.showEmptyChart(canvas, 'No policy violations');
             return;
@@ -635,6 +685,8 @@ class PureBackendSecurityDashboard {
             categoryCounts[category] = (categoryCounts[category] || 0) + 1;
         });
 
+        console.log('📊 Violations by category:', categoryCounts);
+
         const chart = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -650,11 +702,42 @@ class PureBackendSecurityDashboard {
                 responsive: true,
                 maintainAspectRatio: false,
                 indexAxis: 'y',
-                plugins: { legend: { display: false } },
+                layout: {
+                    padding: {
+                        top: 5,
+                        bottom: 5,
+                        left: 5,
+                        right: 5
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            font: { size: 10 }
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            font: { size: 10 }
+                        }
+                    }
+                },
+                plugins: { 
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            afterBody: () => ['', '💡 Click to view violations']
+                        }
+                    }
+                },
+                onHover: (event, elements) => {
+                    canvas.style.cursor = elements.length > 0 ? 'pointer' : 'default';
+                },
                 onClick: (event, elements) => {
                     if (elements.length > 0) {
                         const index = elements[0].index;
                         const category = Object.keys(categoryCounts)[index];
+                        console.log(`🔍 Clicked ${category} violations, showing ${violations.length} total violations`);
                         this.showViolationsByCategory(category, violations);
                     }
                 }
@@ -698,7 +781,23 @@ class PureBackendSecurityDashboard {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom' } }
+                layout: {
+                    padding: {
+                        top: 5,
+                        bottom: 5,
+                        left: 5,
+                        right: 5
+                    }
+                },
+                plugins: { 
+                    legend: { 
+                        position: 'bottom',
+                        labels: {
+                            font: { size: 10 },
+                            padding: 8
+                        }
+                    }
+                }
             }
         });
 

@@ -277,6 +277,14 @@ body {
     overflow: hidden;
 }
 
+/* Keep tier badge visible during collapse - override hiding behavior */
+.expandable-sidebar.collapsed .tier-badge {
+    opacity: 1 !important;
+    visibility: visible !important;
+    width: auto !important;
+    overflow: visible !important;
+}
+
 .expandable-sidebar.collapsed .nav-link {
     justify-content: center;
     padding: var(--spacing-md);
@@ -338,65 +346,78 @@ body {
 
 /* ===== TIER BADGE STYLING ===== */
 .tier-badge {
-    transition: all 0.3s ease;
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: var(--spacing-xs) var(--spacing-sm) !important;
+    border-radius: var(--border-radius-lg) !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    margin-left: var(--spacing-md) !important;
+    background: rgba(59, 130, 246, 0.1) !important; /* Light blue background for all tiers */
+    color: #3b82f6 !important; /* Light blue text for all tiers */
+    border: 1px solid rgba(59, 130, 246, 0.2) !important;
+    transition: all 0.3s ease !important;
+    gap: var(--spacing-xs) !important;
 }
 
-/* Hide tier badge text in collapsed mode and show only icon */
+.tier-badge:hover {
+    background: rgba(59, 130, 246, 0.15) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* Hide text content and show only icons */
+.tier-badge {
+    font-size: 0 !important; /* Hide text */
+    text-indent: -9999px !important; /* Hide text completely */
+    width: auto !important;
+    min-width: 32px !important;
+    height: 28px !important;
+    justify-content: center !important;
+}
+
+/* Show icons using pseudo-elements */
+.tier-badge::before {
+    font-family: 'Font Awesome 5 Free' !important;
+    font-size: 14px !important;
+    font-weight: 900 !important;
+    text-indent: 0 !important;
+    color: #3b82f6 !important;
+    display: block !important;
+}
+
+/* FREE tier - User icon */
+.tier-badge[style*="background: rgb(243, 244, 246)"]::before,
+.tier-badge[style*="background: #f3f4f6"]::before {
+    content: "\f007" !important; /* fa-user */
+}
+
+/* PRO tier - Rocket icon */  
+.tier-badge[style*="background: rgb(219, 234, 254)"]::before,
+.tier-badge[style*="background: #dbeafe"]::before {
+    content: "\f135" !important; /* fa-rocket */
+}
+
+/* ENTERPRISE tier - Building icon */
+.tier-badge[style*="background: rgb(243, 232, 255)"]::before,
+.tier-badge[style*="background: #f3e8ff"]::before {
+    content: "\f1ad" !important; /* fa-building */
+}
+
+/* Collapsed sidebar tier badge - stays visible and compact */
 .expandable-sidebar.collapsed .tier-badge {
     width: 32px !important;
     height: 32px !important;
     border-radius: 50% !important;
     padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    margin: var(--spacing-xs) !important;
+    min-width: 32px !important;
+    position: relative !important; /* Changed from absolute to relative */
+    transform: none !important; /* Remove transform to keep it in flow */
+}
+
+.expandable-sidebar.collapsed .tier-badge::before {
     font-size: 14px !important;
-    margin: var(--spacing-sm) auto !important;
-    position: absolute !important;
-    bottom: var(--spacing-lg) !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    overflow: hidden !important;
-}
-
-/* Hide the original text content completely */
-.expandable-sidebar.collapsed .tier-badge {
-    font-size: 0 !important;
-    text-indent: -9999px !important;
-}
-
-/* Show icon representations using pseudo-elements for different tiers */
-.expandable-sidebar.collapsed .tier-badge::after {
-    position: absolute !important;
-    top: 50% !important;
-    left: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    font-family: 'Font Awesome 5 Free' !important;
-    font-size: 14px !important;
-    font-weight: 900 !important;
-    text-indent: 0 !important;
-    display: block !important;
-}
-
-/* FREE tier - User icon with gray background */
-.expandable-sidebar.collapsed .tier-badge[style*="background: #f3f4f6"]::after {
-    content: "\f007" !important; /* fa-user */
-    color: #4b5563 !important;
-    font-weight: 400 !important;
-}
-
-/* PRO tier - Rocket icon with blue background */  
-.expandable-sidebar.collapsed .tier-badge[style*="background: #dbeafe"]::after {
-    content: "\f135" !important; /* fa-rocket */
-    color: #1d4ed8 !important;
-    font-weight: 900 !important;
-}
-
-/* ENTERPRISE tier - Building icon with purple background */
-.expandable-sidebar.collapsed .tier-badge[style*="background: #f3e8ff"]::after {
-    content: "\f1ad" !important; /* fa-building */
-    color: #7c3aed !important;
-    font-weight: 400 !important;
 }
 
 .sidebar-header {
@@ -852,6 +873,310 @@ body {
     transform: scale(1.05);
 }
 
+/* ===== USER DROPDOWN MENU STYLING ===== */
+#userDropdownMenu {
+    position: fixed !important;
+    right: 20px !important;
+    top: 70px !important;
+    width: 200px !important;
+    background: var(--bg-white) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: var(--shadow-lg) !important;
+    overflow: hidden !important;
+    z-index: 1050 !important;
+}
+
+#userDropdownMenu .menu-item {
+    display: flex !important;
+    align-items: center !important;
+    padding: var(--spacing-sm) var(--spacing-md) !important;
+    font-size: 0.875rem !important;
+    color: var(--text-primary) !important;
+    text-decoration: none !important;
+    transition: background-color 0.2s ease !important;
+    border: none !important;
+    background: none !important;
+}
+
+#userDropdownMenu .menu-item:hover {
+    background: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+}
+
+#userDropdownMenu .menu-item i {
+    width: 16px !important;
+    margin-right: var(--spacing-md) !important;
+    color: var(--text-muted) !important;
+}
+
+#userDropdownMenu .menu-item:last-child {
+    color: #dc2626 !important;
+}
+
+#userDropdownMenu .menu-item:last-child:hover {
+    background: rgba(220, 38, 38, 0.1) !important;
+    color: #dc2626 !important;
+}
+
+/* User info section in dropdown */
+#userDropdownMenu > div > div:first-child {
+    padding: var(--spacing-sm) var(--spacing-md) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    margin-bottom: var(--spacing-xs) !important;
+    background: var(--bg-primary) !important;
+}
+
+#userDropdownMenu p {
+    color: var(--text-muted) !important;
+    margin: 0 !important;
+}
+
+#userDropdownMenu p:last-child {
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+}
+
+/* ===== GLOBAL NOTIFICATIONS DROPDOWN STYLING ===== */
+#global-notifications-dropdown {
+    position: fixed !important;
+    background: var(--bg-white) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius-lg) !important;
+    box-shadow: var(--shadow-lg) !important;
+    z-index: 1060 !important;
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    transition: all 0.2s ease !important;
+    max-height: 500px !important;
+    overflow-y: auto !important;
+    width: 350px !important;
+}
+
+/* Notification dropdown header */
+#global-notifications-dropdown h3 {
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    margin: 0 !important;
+    padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-md) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+/* Individual notification items */
+.notification-item {
+    background: var(--bg-white) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    padding: var(--spacing-md) var(--spacing-lg) !important;
+    transition: background-color 0.2s ease !important;
+    cursor: pointer !important;
+}
+
+.notification-item:hover {
+    background: var(--bg-primary) !important;
+}
+
+.notification-item:last-child {
+    border-bottom: none !important;
+}
+
+.notification-item h5 {
+    color: var(--text-primary) !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    margin: 0 0 var(--spacing-xs) 0 !important;
+    line-height: 1.4 !important;
+}
+
+.notification-item p {
+    color: var(--text-secondary) !important;
+    font-size: 0.75rem !important;
+    margin: 0 !important;
+    line-height: 1.3 !important;
+}
+
+.notification-item small {
+    color: var(--text-muted) !important;
+    font-size: 0.7rem !important;
+}
+
+/* Notification badge (unread indicator) */
+.global-notification-badge {
+    background: #dc2626 !important;
+    color: var(--text-white) !important;
+    border-radius: 50% !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    min-width: 18px !important;
+    height: 18px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    position: absolute !important;
+    top: -6px !important;
+    right: -6px !important;
+    z-index: 10 !important;
+    animation: pulse 2s infinite !important;
+}
+
+/* Bell icon styling */
+#global-notification-badge {
+    color: var(--text-secondary) !important;
+    font-size: 1.25rem !important;
+    cursor: pointer !important;
+    transition: color 0.2s ease !important;
+    position: relative !important;
+}
+
+#global-notification-badge:hover {
+    color: var(--primary-green) !important;
+}
+
+/* Notification dropdown footer actions */
+.notification-actions {
+    padding: var(--spacing-md) var(--spacing-lg) !important;
+    border-top: 1px solid var(--border-color) !important;
+    background: var(--bg-primary) !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+}
+
+.notification-actions button {
+    background: var(--primary-green) !important;
+    color: var(--text-white) !important;
+    border: none !important;
+    border-radius: var(--border-radius) !important;
+    padding: var(--spacing-xs) var(--spacing-md) !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s ease !important;
+}
+
+.notification-actions button:hover {
+    background: var(--dark-green) !important;
+}
+
+.notification-actions a {
+    color: var(--text-secondary) !important;
+    text-decoration: none !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    transition: color 0.2s ease !important;
+}
+
+.notification-actions a:hover {
+    color: var(--primary-green) !important;
+}
+
+/* ===== GLOBAL NOTIFICATIONS DROPDOWN CONTENT OVERRIDE ===== */
+/* Main dropdown container - Fixed positioning */
+#global-notifications-dropdown {
+    position: fixed !important;
+    top: 70px !important; /* Fixed position below top bar */
+    right: 20px !important; /* Fixed position from right edge */
+    width: 350px !important;
+    max-width: 90vw !important;
+    max-height: 500px !important;
+    background: var(--bg-white) !important;
+    border-radius: var(--border-radius-lg) !important;
+    box-shadow: var(--shadow-lg) !important;
+    z-index: 99999 !important;
+    overflow: hidden !important;
+    border: 1px solid var(--border-color) !important;
+    transform: translateY(0px) !important;
+    opacity: 1 !important;
+    transition: 0.2s ease-out !important;
+}
+
+/* Dropdown header section */
+#global-notifications-dropdown > div:first-child {
+    padding: var(--spacing-lg) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    background: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+}
+
+#global-notifications-dropdown > div:first-child > div {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+}
+
+#global-notifications-dropdown h3 {
+    margin: 0 !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+}
+
+/* Close button in header */
+#global-notifications-dropdown button {
+    background: var(--border-color) !important;
+    border: none !important;
+    color: var(--text-secondary) !important;
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 50% !important;
+    font-size: 16px !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.2s ease !important;
+}
+
+#global-notifications-dropdown button:hover {
+    background: var(--primary-green) !important;
+    color: var(--text-white) !important;
+}
+
+/* Cluster info paragraphs in header */
+#global-notifications-dropdown > div:first-child p {
+    margin: 4px 0 0 0 !important;
+    font-size: 0.75rem !important;
+    color: var(--text-secondary) !important;
+}
+
+#global-notifications-dropdown > div:first-child p:last-child {
+    margin: 8px 0 0 0 !important;
+    font-size: 0.875rem !important;
+    color: var(--text-primary) !important;
+}
+
+/* Notifications content area */
+#global-notifications-dropdown > div:last-child {
+    max-height: 400px !important;
+    overflow-y: auto !important;
+    background: var(--bg-white) !important;
+}
+
+/* Empty state content */
+#global-notifications-dropdown > div:last-child > div {
+    padding: 40px 20px !important;
+    text-align: center !important;
+    color: var(--text-secondary) !important;
+}
+
+#global-notifications-dropdown > div:last-child > div > div:first-child {
+    font-size: 48px !important;
+    margin-bottom: 16px !important;
+}
+
+#global-notifications-dropdown > div:last-child h4 {
+    margin: 0 0 8px 0 !important;
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+}
+
+#global-notifications-dropdown > div:last-child p {
+    margin: 0 !important;
+    font-size: 0.875rem !important;
+    color: var(--text-secondary) !important;
+}
+
 /* ===== CLEAN TAB SYSTEM ===== */
 .clean-tabs {
     border-bottom: 1px solid var(--border-color);
@@ -1205,6 +1530,280 @@ img[src*="kubevista_eyecon"] {
 /* Modal styling fixes */
 #deleteCurrentClusterModal:not(.hidden) {
     display: flex !important;
+}
+
+/* ===== ALERTS TAB CONTENT STYLING ===== */
+.alerts-tab-content {
+    background: var(--bg-white) !important;
+    border-radius: var(--border-radius) !important;
+    padding: var(--spacing-lg) !important;
+    margin-top: var(--spacing-md) !important;
+}
+
+.alerts-tab-content.hidden {
+    display: none !important;
+}
+
+.alerts-tab-content:not(.hidden) {
+    display: block !important;
+}
+
+/* Alerts list container */
+#alerts-list-container {
+    background: var(--bg-white) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: var(--spacing-md) !important;
+}
+
+/* Fix modal z-index and positioning for alerts */
+.modal[id*="Alert"] {
+    z-index: 10000 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: rgba(0, 0, 0, 0.5) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.modal[id*="Alert"] .modal-content {
+    background: var(--bg-white) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius-lg) !important;
+    box-shadow: var(--shadow-lg) !important;
+    max-width: 600px !important;
+    width: 90% !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    position: relative !important;
+}
+
+/* ===== ALERTS MODAL FORM STYLING ===== */
+.modal[id*="Alert"] input,
+.modal[id*="Alert"] select,
+.modal[id*="Alert"] textarea {
+    background: var(--bg-white) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: var(--spacing-md) !important;
+    width: 100% !important;
+    font-size: 0.875rem !important;
+}
+
+.modal[id*="Alert"] input:focus,
+.modal[id*="Alert"] select:focus,
+.modal[id*="Alert"] textarea:focus {
+    outline: none !important;
+    border-color: var(--primary-green) !important;
+    box-shadow: 0 0 0 3px rgba(127, 176, 105, 0.1) !important;
+}
+
+.modal[id*="Alert"] label {
+    color: var(--text-primary) !important;
+    font-weight: 500 !important;
+    margin-bottom: var(--spacing-sm) !important;
+    display: block !important;
+}
+
+.modal[id*="Alert"] button {
+    background: var(--primary-green) !important;
+    color: var(--text-white) !important;
+    border: none !important;
+    border-radius: var(--border-radius) !important;
+    padding: var(--spacing-md) var(--spacing-lg) !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.modal[id*="Alert"] button:hover {
+    background: var(--dark-green) !important;
+    transform: translateY(-1px) !important;
+}
+
+.modal[id*="Alert"] button.modal-close {
+    background: var(--bg-primary) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+.modal[id*="Alert"] button.modal-close:hover {
+    background: var(--border-color) !important;
+}
+
+/* ===== ALERTS LIST STYLING ===== */
+.alerts-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: var(--spacing-md) !important;
+}
+
+.alert-item {
+    background: var(--bg-white) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: var(--spacing-lg) !important;
+    box-shadow: var(--shadow-sm) !important;
+    transition: all 0.2s ease !important;
+}
+
+.alert-item:hover {
+    box-shadow: var(--shadow-md) !important;
+    transform: translateY(-1px) !important;
+}
+
+.alert-id {
+    font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace !important;
+    font-size: 0.875rem !important;
+    color: var(--text-muted) !important;
+}
+
+.alert-item h4 {
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+    margin: 0 !important;
+}
+
+.status-badge {
+    background: rgba(127, 176, 105, 0.2) !important;
+    color: var(--primary-green) !important;
+    padding: var(--spacing-xs) var(--spacing-sm) !important;
+    border-radius: 9999px !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+}
+
+.alert-item .grid {
+    color: var(--text-secondary) !important;
+}
+
+.alert-item .font-medium {
+    color: var(--text-primary) !important;
+    font-weight: 500 !important;
+}
+
+/* Alert toggle switch styling - Fixed for proper functionality */
+.alert-toggle-container {
+    display: inline-flex !important;
+    align-items: center !important;
+}
+
+.alert-toggle-container input[type="checkbox"] {
+    position: absolute !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.alert-toggle-container label {
+    position: relative !important;
+    cursor: pointer !important;
+}
+
+/* Toggle track background */
+.alert-toggle-container label > div {
+    width: 2.75rem !important;
+    height: 1.5rem !important;
+    background: #d1d5db !important; /* Default unchecked state */
+    border-radius: 9999px !important;
+    position: relative !important;
+    transition: background-color 0.2s ease !important;
+}
+
+/* Toggle track background when checked */
+.alert-toggle-container input:checked + div {
+    background: var(--primary-green) !important;
+}
+
+/* Toggle switch circle */
+.alert-toggle-container label > div > div {
+    position: absolute !important;
+    top: 2px !important;
+    left: 2px !important;
+    width: 20px !important;
+    height: 20px !important;
+    background: var(--bg-white) !important;
+    border-radius: 50% !important;
+    transition: transform 0.2s ease !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Move circle to right when checked */
+.alert-toggle-container input:checked + div > div {
+    transform: translateX(20px) !important;
+}
+
+/* Alert action button styling */
+.action-btn {
+    background: var(--bg-primary) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: var(--spacing-sm) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.action-btn:hover {
+    background: var(--primary-green) !important;
+    color: var(--text-white) !important;
+    border-color: var(--primary-green) !important;
+}
+
+/* Dropdown menu styling */
+.dropdown-menu {
+    background: var(--bg-white) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: var(--shadow-lg) !important;
+    position: absolute !important;
+    right: 0 !important;
+    margin-top: var(--spacing-xs) !important;
+    width: 12rem !important;
+    z-index: 1000 !important;
+}
+
+.dropdown-menu.hidden {
+    display: none !important;
+}
+
+.dropdown-item {
+    width: 100% !important;
+    text-align: left !important;
+    padding: var(--spacing-md) var(--spacing-lg) !important;
+    font-size: 0.875rem !important;
+    display: flex !important;
+    align-items: center !important;
+    color: var(--text-primary) !important;
+    background: none !important;
+    border: none !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s ease !important;
+}
+
+.dropdown-item:hover {
+    background: var(--bg-primary) !important;
+}
+
+.dropdown-item i {
+    margin-right: var(--spacing-sm) !important;
+    width: 16px !important;
+    text-align: center !important;
+}
+
+.dropdown-item:last-child {
+    color: #dc2626 !important;
+}
+
+.dropdown-item:last-child:hover {
+    background: rgba(220, 38, 38, 0.1) !important;
 }
 
 /* Filter button active states */
