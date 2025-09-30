@@ -291,7 +291,7 @@
         </div>
 
         <!-- ===== MODAL BODY ===== -->
-        <div class="modal-body" style="padding: 32px;">
+        <div class="modal-body">
             <form id="clusterForm" class="enhanced-form" novalidate action="javascript:void(0)" method="post">
                 
                 <!-- ===== CLUSTER DETAILS ROW ===== -->
@@ -441,24 +441,22 @@
         </div>
         
         <!-- ===== MODAL FOOTER ===== -->
-        <div class="modal-footer" style="padding: 24px 32px; border-top: 1px solid #e5e7eb; background: #f9fafb; border-radius: 0 0 20px 20px; margin-top: 0;">
+        <div class="modal-footer">
             <button 
-                class="btn btn-outline-secondary" 
+                class="btn secondary" 
                 onclick="closeModal()" 
                 type="button"
                 aria-label="Cancel adding cluster"
-                style="padding: 12px 24px; font-weight: 600; border-radius: 8px; margin-right: 12px;"
             >
                 <i class="fas fa-times me-2"></i>
                 Cancel
             </button>
             
             <button 
-                class="btn btn-primary enhanced-btn" 
+                class="btn enhanced-btn" 
                 id="addClusterBtn"
                 type="button"
                 aria-describedby="addClusterStatus"
-                style="padding: 12px 32px; font-weight: 600; border-radius: 8px; font-size: 15px;"
             >
                 <span class="btn-content">
                     <i class="fas fa-plus me-2"></i>
