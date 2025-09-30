@@ -12,7 +12,7 @@ class GlobalRefreshManager {
         this.isRefreshing = false;
         this.refreshHandlers = new Map();
         this.currentPage = this.detectCurrentPage();
-        this.refreshIntervalMs = 15000; // 15 seconds default
+        this.refreshIntervalMs = 60000; // 60 seconds default
         this.isAnalysisActive = false;
         
         this.init();

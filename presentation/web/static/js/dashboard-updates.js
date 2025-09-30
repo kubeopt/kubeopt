@@ -31,28 +31,35 @@ function updateDashboardOverview(data) {
 }
 
 function updateDashboardPortfolioMetrics(portfolioSummary) {
-    // Update total cost
-    const totalCostElement = document.querySelector('.dashboard-total-cost, [data-metric="total-cost"]');
-    if (totalCostElement) {
-        animateValueUpdate(totalCostElement, portfolioSummary.total_monthly_cost || 0, true);
+    // Update current cost
+    const currentCostElement = document.querySelector('#current-cost, [data-metric="current-cost"]');
+    if (currentCostElement) {
+        animateValueUpdate(currentCostElement, portfolioSummary.total_monthly_cost || 0, true);
     }
     
-    // Update total savings
-    const totalSavingsElement = document.querySelector('.dashboard-total-savings, [data-metric="total-savings"]');
-    if (totalSavingsElement) {
-        animateValueUpdate(totalSavingsElement, portfolioSummary.total_potential_savings || 0, true);
+    // Update potential savings
+    const potentialSavingsElement = document.querySelector('#potential-savings, [data-metric="potential-savings"]');
+    if (potentialSavingsElement) {
+        animateValueUpdate(potentialSavingsElement, portfolioSummary.total_potential_savings || 0, true);
     }
     
-    // Update optimization percentage
-    const optimizationElement = document.querySelector('.dashboard-optimization, [data-metric="optimization"]');
-    if (optimizationElement) {
-        animateValueUpdate(optimizationElement, portfolioSummary.avg_optimization_pct || 0, false, true);
+    // Update savings percentage
+    const savingsPercentageElement = document.querySelector('#savings-percentage');
+    if (savingsPercentageElement && portfolioSummary.total_monthly_cost > 0) {
+        const savingsPercentage = ((portfolioSummary.total_potential_savings || 0) / portfolioSummary.total_monthly_cost) * 100;
+        savingsPercentageElement.textContent = `${savingsPercentage.toFixed(1)}%`;
     }
     
-    // Update total clusters
-    const totalClustersElement = document.querySelector('.dashboard-total-clusters, [data-metric="total-clusters"]');
-    if (totalClustersElement) {
-        animateValueUpdate(totalClustersElement, portfolioSummary.total_clusters || 0);
+    // Update HPA efficiency
+    const hpaEfficiencyElement = document.querySelector('#hpa-efficiency, [data-metric="hpa-efficiency"]');
+    if (hpaEfficiencyElement) {
+        animateValueUpdate(hpaEfficiencyElement, portfolioSummary.hpa_efficiency || 85, false, true);
+    }
+    
+    // Update optimization score
+    const optimizationScoreElement = document.querySelector('#optimization-score, [data-metric="optimization-score"]');
+    if (optimizationScoreElement) {
+        animateValueUpdate(optimizationScoreElement, portfolioSummary.avg_optimization_pct || 0, false, true);
     }
 }
 

@@ -262,8 +262,8 @@
                     <!-- Simple Metrics Grid -->
                     <div class="metrics-grid-simple">
                         {% for metric in [
-                            {'id': 'current-cost', 'icon': 'fa-dollar-sign', 'label': 'Current Monthly Cost', 'trend_label': 'Limited optimization'},
-                            {'id': 'potential-savings', 'icon': 'fa-piggy-bank', 'label': 'Predicted Savings', 'trend_label': '0.0%'},
+                            {'id': 'current-cost', 'icon': 'fa-dollar-sign', 'label': 'Current Monthly Cost', 'trend_id': 'cost-trend', 'trend_label': 'Limited optimization'},
+                            {'id': 'potential-savings', 'icon': 'fa-piggy-bank', 'label': 'Predicted Savings', 'trend_id': 'savings-percentage', 'trend_label': '0.0%'},
                             {'id': 'hpa-efficiency', 'icon': 'fa-tachometer-alt', 'label': 'HPA Efficiency', 'trend_label': 'Optimized scaling'},
                             {'id': 'optimization-score', 'icon': 'fa-star', 'label': 'Optimization Score', 'trend_label': 'Overall efficiency'}
                         ] %}
@@ -276,7 +276,11 @@
                                 </div>
                                 <div class="metric-value" id="{{ metric.id }}">--</div>
                                 <div class="metric-trend">
+                                    {% if metric.trend_id %}
+                                    <span id="{{ metric.trend_id }}">{{ metric.trend_label }}</span>
+                                    {% else %}
                                     <span>{{ metric.trend_label }}</span>
+                                    {% endif %}
                                 </div>
                             </div>
                         {% endfor %}
@@ -425,9 +429,9 @@
                                     <div class="metric-icon">
                                         <i class="fas fa-shield-alt"></i>
                                     </div>
-                                    <h3 class="metric-title">Security Score</h3>
+                                    <h3 class="metric-title">Workloads Found</h3>
                                 </div>
-                                <div class="metric-value" id="security-score">--</div>
+                                <div class="metric-value" id="total-workloads">--</div>
                             </div>
                             <div class="clean-metric-card">
                                 <div class="metric-header">
@@ -810,6 +814,12 @@
     </script>
 
     <script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>
+    
+    <!-- Global Auto-Refresh Manager -->
+    <script src="{{ url_for('static', filename='js/global-refresh-manager.js') }}"></script>
+    
+    <!-- Dashboard-specific update functions -->
+    <script src="{{ url_for('static', filename='js/dashboard-updates.js') }}"></script>
 
     <!-- User Dropdown Menu - At end of body for maximum visibility -->
 <div id="userDropdownMenu" class="user-dropdown hidden" style="position: fixed; right: 20px; top: 70px; width: 200px; background: #1f2937; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); border: 1px solid #374151; overflow: hidden;">
@@ -834,7 +844,7 @@
 <footer class="footer mt-auto py-3 text-center text-muted">
   <div class="container">
     <small class="d-block mb-1">
-      © {{ current_year }} <strong>KUBEVISTA</strong> · Built for Kubernetes · Intelligent. Insightful. Efficient.
+      © {{ current_year }} <strong>KUBEVISTA</strong> · Built for Kubernetes · Intelligent. Insightful. Illuminating.
     </small>
     <small class="d-block">
       All rights reserved by <strong>Nivaya Technologies</strong>

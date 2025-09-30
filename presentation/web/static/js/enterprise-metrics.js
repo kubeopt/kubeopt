@@ -53,7 +53,7 @@ class EnterpriseMetricsManager {
                 throw new Error('No cluster found. Please navigate to a specific cluster page or ensure clusters are loaded.');
             }
             
-            const response = await fetch(`/api/enterprise-metrics?cluster_id=${clusterId}&force_refresh=true`, {
+            const response = await fetch(`/api/enterprise-metrics?cluster_id=${clusterId}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
@@ -433,7 +433,18 @@ class EnterpriseMetricsManager {
         const path = window.location.pathname;
         console.log('🔍 Current URL path:', path);
         
-        // Try to get cluster ID from URL path first
+        // FIXED: Check for cluster context set by unified dashboard first
+        if (window.currentClusterId) {
+            console.log('✅ Found cluster ID from window context:', window.currentClusterId);
+            return window.currentClusterId;
+        }
+        
+        if (window.clusterInfo && window.clusterInfo.id) {
+            console.log('✅ Found cluster ID from clusterInfo:', window.clusterInfo.id);
+            return window.clusterInfo.id;
+        }
+        
+        // Try to get cluster ID from URL path (for individual cluster pages)
         const match = path.match(/\/cluster\/([^\/]+)/);
         if (match) {
             console.log('✅ Found cluster ID from URL:', match[1]);
@@ -448,11 +459,11 @@ class EnterpriseMetricsManager {
             return clusterId;
         }
         
-        // Try to get first available cluster from the page
+        // LAST RESORT: Try to get first available cluster from the page
         const firstCluster = document.querySelector('[data-cluster-id]');
         if (firstCluster) {
             const clusterId = firstCluster.getAttribute('data-cluster-id');
-            console.log('✅ Using first available cluster ID:', clusterId);
+            console.log('⚠️ Using first available cluster ID as fallback:', clusterId);
             return clusterId;
         }
         
