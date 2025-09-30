@@ -88,9 +88,15 @@ class AutoAnalysisScheduler:
                     break
                 
                 # Get interval and check if it's time to run
-                interval_hours = self._get_analysis_interval()
-                if self._should_run_analysis(interval_hours):
-                    logger.info(f"⏰ Starting scheduled analysis (interval: {interval_hours}h)")
+                interval_minutes = self._get_analysis_interval()
+                if self._should_run_analysis(interval_minutes):
+                    # Format interval for display
+                    if interval_minutes >= 60:
+                        interval_display = f"{interval_minutes // 60}h {interval_minutes % 60}m" if interval_minutes % 60 else f"{interval_minutes // 60}h"
+                    else:
+                        interval_display = f"{interval_minutes}m"
+                    
+                    logger.info(f"⏰ Starting scheduled analysis (interval: {interval_display})")
                     self._run_scheduled_analysis()
                     self.last_analysis_time = datetime.now()
                 
@@ -106,36 +112,49 @@ class AutoAnalysisScheduler:
         logger.info("🔄 Auto analysis scheduler loop ended")
         
     def _is_auto_analysis_enabled(self) -> bool:
-        """Check if automatic analysis is enabled"""
-        # Check environment setting
-        enabled = os.getenv('AUTO_ANALYSIS_ENABLED', 'false').lower()
-        env_enabled = enabled in ['true', '1', 'yes', 'on']
+        """Auto-analysis is always enabled - this is a mandatory system feature"""
+        # Auto-analysis is now mandatory and always enabled
+        # Only check if it's explicitly disabled for testing/debugging
+        disabled_for_testing = os.getenv('DISABLE_AUTO_ANALYSIS_FOR_TESTING', 'false').lower()
+        if disabled_for_testing in ['true', '1', 'yes', 'on']:
+            logger.info("🧪 Auto-analysis disabled for testing purposes")
+            return False
         
-        # Check license feature access
-        try:
-            from infrastructure.services.license_manager import license_manager, FeatureFlag
-            feature_enabled = license_manager.is_feature_enabled(FeatureFlag.AUTO_ANALYSIS)
-            return env_enabled and feature_enabled
-        except Exception as e:
-            logger.warning(f"Could not check license for auto-analysis: {e}")
-            return env_enabled
+        # Always enabled for production
+        return True
         
     def _get_analysis_interval(self) -> int:
-        """Get the analysis interval in hours"""
+        """Get the analysis interval in minutes"""
         try:
-            interval = int(os.getenv('AUTO_ANALYSIS_INTERVAL', '1'))
-            return max(1, min(interval, 168))  # Between 1 hour and 1 week
-        except (ValueError, TypeError):
-            logger.warning("Invalid AUTO_ANALYSIS_INTERVAL value, using default: 1 hour")
-            return 1
+            # Support both old format (hours) and new format (minutes with suffix)
+            interval_str = os.getenv('AUTO_ANALYSIS_INTERVAL', '60m')
             
-    def _should_run_analysis(self, interval_hours: int) -> bool:
+            if interval_str.endswith('m') or interval_str.endswith('min'):
+                # Minutes format: "30m" or "30min"
+                interval_value = int(interval_str.rstrip('min').rstrip('m'))
+                # Between 5 minutes and 7 days (10080 minutes)
+                return max(5, min(interval_value, 10080))
+            elif interval_str.endswith('h') or interval_str.endswith('hour'):
+                # Hours format: "1h" or "1hour"
+                interval_value = int(interval_str.rstrip('hour').rstrip('h'))
+                # Convert hours to minutes
+                return max(5, min(interval_value * 60, 10080))
+            else:
+                # Legacy format (assume hours for backward compatibility)
+                interval_value = int(interval_str)
+                logger.info(f"Legacy interval format detected, treating {interval_value} as hours")
+                return max(60, min(interval_value * 60, 10080))  # Convert to minutes
+        except (ValueError, TypeError):
+            logger.warning("Invalid AUTO_ANALYSIS_INTERVAL value, using default: 60 minutes")
+            return 60
+            
+    def _should_run_analysis(self, interval_minutes: int) -> bool:
         """Check if it's time to run analysis"""
         if self.last_analysis_time is None:
             # First run - check if we should run immediately or wait
             return True
             
-        next_run_time = self.last_analysis_time + timedelta(hours=interval_hours)
+        next_run_time = self.last_analysis_time + timedelta(minutes=interval_minutes)
         return datetime.now() >= next_run_time
         
     def _run_scheduled_analysis(self):
@@ -219,13 +238,22 @@ class AutoAnalysisScheduler:
             
     def get_scheduler_status(self) -> Dict[str, Any]:
         """Get current scheduler status"""
+        interval_minutes = self._get_analysis_interval()
+        
+        # Format interval display
+        if interval_minutes >= 60:
+            interval_display = f"{interval_minutes // 60}h {interval_minutes % 60}m" if interval_minutes % 60 else f"{interval_minutes // 60}h"
+        else:
+            interval_display = f"{interval_minutes}m"
+        
         return {
             'is_running': self.is_running,
             'is_enabled': self._is_auto_analysis_enabled(),
-            'interval_hours': self._get_analysis_interval(),
+            'interval_minutes': interval_minutes,
+            'interval_display': interval_display,
             'last_analysis_time': self.last_analysis_time.isoformat() if self.last_analysis_time else None,
             'next_analysis_time': (
-                self.last_analysis_time + timedelta(hours=self._get_analysis_interval())
+                self.last_analysis_time + timedelta(minutes=interval_minutes)
             ).isoformat() if self.last_analysis_time else "Soon",
         }
         

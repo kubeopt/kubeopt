@@ -200,8 +200,10 @@ function showContent(contentType, element) {
             
         case 'enterprise-metrics':
             // Load enterprise metrics data
-            if (typeof window.EnterpriseMetrics !== 'undefined' && window.EnterpriseMetrics.loadData) {
-                window.EnterpriseMetrics.loadData();
+            if (typeof enterpriseMetricsManager !== 'undefined' && enterpriseMetricsManager.loadEnterpriseMetrics) {
+                enterpriseMetricsManager.loadEnterpriseMetrics();
+            } else if (typeof window.enterpriseMetricsManager !== 'undefined' && window.enterpriseMetricsManager.loadEnterpriseMetrics) {
+                window.enterpriseMetricsManager.loadEnterpriseMetrics();
             }
             break;
             

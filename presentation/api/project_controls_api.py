@@ -173,8 +173,8 @@ def register_project_controls_api(app):
     @app.route('/api/enterprise-metrics', methods=['GET'])
     @require_feature(FeatureFlag.ENTERPRISE_METRICS, api_response=True)
     def api_enterprise_metrics():
-        """Get enterprise operational metrics"""
-        return get_enterprise_metrics_sync()
+        """Get enterprise operational metrics - clean implementation"""
+        return get_enterprise_metrics_clean()
 
 def _generate_dynamic_action_items(analysis_data, optimization_history, performance_metrics, cpu_avg, memory_avg, cost_savings):
     """Generate dynamic action items using existing implementation"""
@@ -278,7 +278,17 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
             action_items.append(f"🟡 LOW: Implement Identified Optimizations - ${monthly_savings:.0f}/month in verified savings available. Execute optimization recommendations.")
         
         # Return top 8 most relevant action items based on actual data
-        return action_items[:8]
+        # Ensure all action items are strings, not objects
+        string_action_items = []
+        for item in action_items[:8]:
+            if isinstance(item, str):
+                string_action_items.append(item)
+            else:
+                # Convert any non-string objects to strings
+                string_action_items.append(str(item))
+                logger.warning(f"⚠️ Non-string action item converted: {type(item)} -> {item}")
+        
+        return string_action_items
         
     except Exception as e:
         logger.error(f"❌ Failed to generate dynamic action items: {e}")
@@ -383,91 +393,20 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
             }), 500
 
 
-def get_enterprise_metrics_sync():
-    """Get enterprise operational metrics data - sync version with improved fallbacks"""
+def get_enterprise_metrics_clean():
+    """Clean enterprise metrics API - no fallback logic, use proper Implementation Generator"""
     try:
-        logger.info("🏢 Fetching enterprise operational metrics (sync)...")
+        logger.info("🏢 Clean enterprise metrics API called")
         
         # Get cluster information from request
         cluster_id = request.args.get('cluster_id')
         force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
+        
         if not cluster_id:
             return jsonify({
                 'status': 'error',
                 'message': 'cluster_id parameter required'
             }), 400
-        
-        # Try to get enterprise metrics from cached implementation plan first
-        analysis_data, data_source = _get_analysis_data(cluster_id)
-        logger.info(f"🔍 Analysis data source: {data_source}")
-        logger.info(f"🔍 Force refresh requested: {force_refresh}")
-        
-        # FIXED: Always check for existing enterprise metrics first, regardless of force_refresh
-        if analysis_data:
-            logger.info(f"🔍 Analysis data keys: {list(analysis_data.keys())[:15]}")
-            logger.info(f"🔍 CRITICAL DEBUG: Looking for implementation_plan in {data_source} data")
-            
-            # Deep debug of the data structure
-            if 'implementation_plan' in analysis_data:
-                logger.info(f"✅ implementation_plan found in analysis_data")
-                impl_plan = analysis_data['implementation_plan']
-                if isinstance(impl_plan, dict):
-                    logger.info(f"✅ implementation_plan is dict with keys: {list(impl_plan.keys())[:10]}")
-                    if 'enterprise_metrics' in impl_plan:
-                        logger.info(f"🎯 enterprise_metrics found in implementation_plan!")
-                    else:
-                        logger.error(f"❌ enterprise_metrics NOT in implementation_plan keys: {list(impl_plan.keys())}")
-                else:
-                    logger.error(f"❌ implementation_plan is not dict: {type(impl_plan)}")
-            else:
-                logger.error(f"❌ implementation_plan NOT found in {data_source} analysis_data")
-                logger.error(f"❌ Available keys ({len(analysis_data.keys())}): {list(analysis_data.keys())[:20]}")
-                
-                # Check if there's an implementation_plan_error
-                if 'implementation_plan_error' in analysis_data:
-                    error_info = analysis_data['implementation_plan_error']
-                    logger.error(f"❌ IMPLEMENTATION PLAN ERROR FOUND: {error_info}")
-                else:
-                    logger.error(f"❌ No implementation_plan_error field either - implementation plan generation likely failed silently")
-            
-            # Check for implementation plan errors first - THIS IS WHY ENTERPRISE METRICS BROKE AFTER DATABASE MIGRATION
-            if 'implementation_plan_error' in analysis_data:
-                error_info = analysis_data['implementation_plan_error']
-                logger.error(f"❌ FOUND THE ISSUE! Implementation plan generation failed: {error_info}")
-                logger.error(f"❌ This is why enterprise metrics are not working after database migration!")
-                
-            # Check if implementation plan has enterprise metrics
-            implementation_plan = analysis_data.get('implementation_plan', {})
-            logger.info(f"🔍 Implementation plan type: {type(implementation_plan)}")
-            if isinstance(implementation_plan, dict):
-                logger.info(f"🔍 Implementation plan keys: {list(implementation_plan.keys())}")
-                if 'enterprise_metrics' in implementation_plan:
-                    logger.info(f"🎯 ENTERPRISE METRICS FOUND IN IMPLEMENTATION PLAN!")
-                    ent_metrics = implementation_plan['enterprise_metrics']
-                    if isinstance(ent_metrics, dict):
-                        maturity_score = ent_metrics.get('enterprise_maturity', {}).get('score', 'N/A')
-                        logger.info(f"✅ Enterprise metrics maturity score: {maturity_score}")
-                    
-                    # Check if force_refresh is requested
-                    if force_refresh:
-                        logger.info(f"🔄 Force refresh requested - will regenerate enterprise metrics even though they exist")
-                    else:
-                        logger.info("✅ Using existing enterprise metrics from implementation plan")
-                        enterprise_data = implementation_plan['enterprise_metrics']
-                        
-                        return jsonify({
-                            'status': 'success',
-                            'timestamp': datetime.now().isoformat(),
-                            'data': enterprise_data,
-                            'source': 'implementation_plan_database'
-                        })
-                else:
-                    logger.info("❌ No enterprise_metrics found in implementation plan")
-            else:
-                logger.info(f"❌ Implementation plan is not dict: {implementation_plan}")
-        else:
-            logger.info(f"❌ No implementation plan or enterprise metrics found - will generate fresh metrics")
-        
         
         # Get cluster info from cluster manager
         cluster_info = enhanced_cluster_manager.get_cluster(cluster_id)
@@ -481,288 +420,79 @@ def get_enterprise_metrics_sync():
         cluster_name = cluster_info.get('name')
         subscription_id = cluster_info.get('subscription_id')
         
-        logger.info(f"📊 Got cluster info: {cluster_name} in {resource_group} (Sub: {subscription_id[:8] if subscription_id else 'None'})")
-        logger.info(f"🔍 ENTERPRISE METRICS DEBUG: Cluster ID={cluster_id}, Name={cluster_name}, RG={resource_group}")
+        logger.info(f"📊 Clean enterprise metrics for: {cluster_name} in {resource_group}")
         
-        # Find subscription if not already available
-        if not subscription_id:
-            try:
-                from infrastructure.services.subscription_manager import azure_subscription_manager
-                subscription_id = azure_subscription_manager.find_cluster_subscription(resource_group, cluster_name)
-            except Exception as sub_error:
-                return jsonify({
-                    'status': 'error',
-                    'message': f'Could not find subscription for cluster {cluster_name}: {str(sub_error)}'
-                }), 404
-            
-        if not subscription_id:
-            return jsonify({
-                'status': 'error',
-                'message': f'No subscription found for cluster {cluster_name} in resource group {resource_group}'
-            }), 404
-            
-        try:
-            # FIXED: Use fresh analysis data when available, fallback to database
-            logger.info(f"🏢 Generating enterprise metrics for {cluster_name}")
-            
-            # Initialize data collections
-            optimization_history = []
-            performance_metrics = []
-            cost_history = []
-            
-            # Try to use fresh analysis data first, fall back to database if incomplete
-            use_database = True
-            
-            if analysis_data and data_source in ['fresh_session', 'enterprise_cache']:
-                logger.info(f"✅ Fresh analysis data available ({data_source}) - checking completeness")
-                
-                # Check if analysis_data has sufficient fields for enterprise metrics
-                required_fields = ['total_cost', 'hpa_recommendations', 'current_cpu_utilization', 'current_memory_utilization']
-                missing_fields = [field for field in required_fields if field not in analysis_data]
-                
-                if missing_fields:
-                    logger.warning(f"⚠️ Fresh session data missing key fields: {missing_fields}")
-                    logger.info(f"🔄 Will fall back to database for complete enterprise metrics data")
-                else:
-                    logger.info(f"✅ Fresh session data has all required fields - using for enterprise metrics")
-                    use_database = False
-                    
-                    # Extract relevant data from analysis_data
-                    if 'total_cost' in analysis_data:
-                        cost_history = [{'total_cost': analysis_data.get('total_cost', 0)}]
-                        logger.info(f"🔍 CLUSTER {cluster_id}: Using fresh cost data: ${analysis_data.get('total_cost', 0)}")
-                    if 'hpa_recommendations' in analysis_data:
-                        optimization_history = analysis_data.get('hpa_recommendations', [])
-                        logger.info(f"🔍 CLUSTER {cluster_id}: Using fresh HPA data: {len(optimization_history)} recommendations")
-                    if 'node_metrics' in analysis_data:
-                        performance_metrics = analysis_data.get('node_metrics', [])
-                        logger.info(f"🔍 CLUSTER {cluster_id}: Using fresh node metrics: {len(performance_metrics)} nodes")
-            
-            # Use database if fresh data is not available or incomplete  
-            if use_database:
-                logger.info(f"🔄 Attempting enterprise metrics from database for {cluster_name}")
-                try:
-                    from infrastructure.persistence.ml_analytics_db import ml_analytics_db
-                    from infrastructure.persistence.operational_data_db import operational_data_db
-                    
-                    # Get optimization results and performance data from database
-                    optimization_history = ml_analytics_db.get_optimization_history(cluster_id)
-                    performance_metrics = operational_data_db.get_performance_metrics(cluster_id, hours_back=24)
-                    cost_history = operational_data_db.get_cost_analysis_history(cluster_id, days_back=30)
-                except Exception as db_error:
-                    logger.warning(f"⚠️ Database access failed: {db_error}")
-                    optimization_history = []
-                    performance_metrics = []
-                    cost_history = []
-            
-            # Generate enterprise metrics from available data (fresh analysis or database)
-            if analysis_data or optimization_history or performance_metrics or cost_history:
-                # Calculate maturity score based on available data
-                if analysis_data and data_source in ['fresh_session', 'enterprise_cache']:
-                    # Use fresh analysis data for metrics calculation
-                    logger.info("📊 Calculating enterprise metrics from fresh analysis data")
-                    
-                    # Extract optimization metrics from fresh analysis data
-                    cpu_optimization_potential = analysis_data.get('cpu_optimization_potential', 0)
-                    memory_optimization_potential = analysis_data.get('memory_optimization_potential', 0)
-                    total_cost = analysis_data.get('total_cost', 0)
-                    monthly_savings = analysis_data.get('monthly_savings', 0)
-                    hpa_count = len(analysis_data.get('hpa_recommendations', []))
-                    
-                    cpu_avg = cpu_optimization_potential
-                    memory_avg = memory_optimization_potential  
-                    cost_savings = monthly_savings
-                    
-                    logger.info(f"📈 CLUSTER {cluster_id} Fresh metrics: CPU={cpu_avg}%, Memory={memory_avg}%, Savings=${cost_savings}, HPAs={hpa_count}")
-                    logger.info(f"📈 CLUSTER {cluster_id} Analysis source: {data_source}, Total cost: ${total_cost}")
-                else:
-                    # Use database data for metrics calculation
-                    cpu_optimizations = [r for r in optimization_history if r.get('optimization_type') == 'cpu']
-                    memory_optimizations = [r for r in optimization_history if r.get('optimization_type') == 'memory']
-                    
-                    cpu_avg = sum(r.get('improvement_percentage', 0) for r in cpu_optimizations) / max(len(cpu_optimizations), 1)
-                    memory_avg = sum(r.get('improvement_percentage', 0) for r in memory_optimizations) / max(len(memory_optimizations), 1)
-                    cost_savings = sum(r.get('estimated_savings', 0) for r in optimization_history)
-                
-                # Calculate overall maturity score (0-100)
-                base_score = 50  # Base score for having data
-                
-                if analysis_data and data_source in ['fresh_session', 'enterprise_cache']:
-                    # Score based on fresh analysis data
-                    optimization_score = min(25, hpa_count * 5)  # Up to 25 points for HPA implementations
-                else:
-                    # Score based on database data
-                    optimization_score = min(25, len(optimization_history) * 3)  # Up to 25 points for optimizations
-                performance_score = min(15, cpu_avg + memory_avg) / 2  # Up to 15 points for performance
-                cost_score = min(10, cost_savings / 100)  # Up to 10 points for cost savings
-                
-                overall_score = base_score + optimization_score + performance_score + cost_score
-                logger.info(f"🎯 CLUSTER {cluster_id} SCORES: Base={base_score}, Opt={optimization_score}, Perf={performance_score}, Cost={cost_score}, Total={overall_score}")
-                
-                # Determine maturity level
-                if overall_score >= 80:
-                    maturity_level = "Optimized"
-                elif overall_score >= 65:
-                    maturity_level = "Advanced"
-                elif overall_score >= 50:
-                    maturity_level = "Intermediate"
-                else:
-                    maturity_level = "Basic"
-                
-                # Generate enterprise metrics in the expected frontend format
-                dashboard_data = {
-                    'enterprise_maturity': {
-                        'level': maturity_level,
-                        'score': overall_score,
-                        'timestamp': datetime.now().isoformat()
-                    },
-                    'operational_metrics': {
-                        'kubernetes_upgrade_readiness': {
-                            'score': min(85, 60 + (cost_savings / 10)),  # Score based on cost optimization insights
-                            'trend': 'positive' if cost_savings > 0 else 'neutral',
-                            'unit': 'percent',
-                            'details': {
-                                'current_version': analysis_data.get('cluster_version', 'Unknown') if analysis_data else 'Unknown',
-                                'total_workloads': len(performance_metrics),
-                                'blocking_issues': max(0, len(optimization_history) - 5),  # Issues decrease as optimizations increase
-                                'compatibility_check': 'passed' if len(optimization_history) > 3 else 'needs_review',
-                                'summary': f'Cluster shows upgrade readiness with {len(optimization_history)} optimizations completed'
-                            }
-                        },
-                            'disaster_recovery_score': {
-                                'score': min(90, 70 + len(performance_metrics) * 2),  # Score based on metrics availability
-                                'trend': 'positive' if performance_metrics else 'neutral',
-                                'unit': 'percent',
-                                'details': {
-                                    'backup_solutions': ['Azure Backup'] if analysis_data and analysis_data.get('total_cost', 0) > 100 else [],
-                                    'monitored_components': len(performance_metrics),
-                                    'cluster_backups': 'enabled' if len(optimization_history) > 2 else 'review_needed',
-                                    'rpo_hours': 24 if len(performance_metrics) < 5 else 1,
-                                    'summary': f'DR readiness based on {len(performance_metrics)} monitored components and backup configuration'
-                                }
-                            },
-                            'operational_maturity': {
-                                'score': (cpu_avg + memory_avg) / 2 if (cpu_avg + memory_avg) > 0 else 65,
-                                'trend': 'positive' if cpu_avg > 0 or memory_avg > 0 else 'neutral',
-                                'unit': 'percent',
-                                'details': {
-                                    'cpu_utilization_pct': cpu_avg,
-                                    'memory_utilization_pct': memory_avg,
-                                    'total_workloads': len(performance_metrics),
-                                    'automation_level': 'intermediate',
-                                    'summary': f'Operational practices show {(cpu_avg + memory_avg) / 2:.1f}% efficiency in resource management'
-                                }
-                            },
-                            'capacity_planning': {
-                                'score': min(95, 75 + (cost_savings / 20)),
-                                'trend': 'positive' if cost_savings > 50 else 'neutral',
-                                'unit': 'percent',
-                                'details': {
-                                    'requested_cpu_cores': analysis_data.get('total_cpu_cores', len(performance_metrics) * 2) if analysis_data else len(performance_metrics) * 2,
-                                    'requested_memory_gb': analysis_data.get('total_memory_gb', len(performance_metrics) * 4) if analysis_data else len(performance_metrics) * 4,
-                                    'cpu_utilization_pct': cpu_avg,
-                                    'memory_utilization_pct': memory_avg,
-                                    'capacity_utilization': (cpu_avg + memory_avg) / 2 if (cpu_avg + memory_avg) > 0 else 50,
-                                    'summary': f'Capacity planning based on current utilization: CPU {cpu_avg:.1f}%, Memory {memory_avg:.1f}%'
-                                }
-                            },
-                            'compliance_readiness': {
-                                'score': min(95, 65 + len(optimization_history) * 5),  # Score improves with optimization maturity
-                                'trend': 'positive' if len(optimization_history) > 2 else 'neutral',
-                                'unit': 'percent',
-                                'details': {
-                                    'policies_active': max(8, len(performance_metrics) + 3),  # Ensure we always have policies
-                                    'compliance_score': min(95, 65 + len(optimization_history) * 5),
-                                    'last_audit': datetime.now().strftime('%Y-%m-%d'),
-                                    'violations_found': max(0, 5 - len(optimization_history)),
-                                    'passed_controls': max(15, 12 + len(optimization_history) * 2),  # Controls passing
-                                    'total_controls': 20,  # Total CIS controls
-                                    'critical_issues': [f'Security issue {i+1}' for i in range(max(0, 3 - len(optimization_history)))],  # Critical issues list
-                                    'summary': f'Compliance monitoring {max(8, len(performance_metrics) + 3)} policies with {max(0, 5 - len(optimization_history))} violations'
-                                }
-                            },
-                            'team_velocity': {
-                                'score': min(88, 60 + len(optimization_history) * 3),
-                                'trend': 'positive' if optimization_history else 'neutral',
-                                'unit': 'percent',
-                                'details': {
-                                    'release_frequency_per_week': len(optimization_history) / 4.0 if optimization_history else 0.1,  # Assume optimizations spread over 4 weeks
-                                    'deployment_frequency_per_day': len(performance_metrics) / 7.0 if performance_metrics else 0.1,  # Daily deployment rate
-                                    'change_failure_rate': max(0.01, 0.15 - (len(optimization_history) * 0.02)),  # Improves with more optimizations
-                                    'active_deployments': len(performance_metrics),
-                                    'stable_deployments': max(0, len(performance_metrics) - max(0, 3 - len(optimization_history))),
-                                    'summary': f'Team velocity: {len(optimization_history)} optimizations, {len(performance_metrics)} active workloads'
-                                }
-                            }
-                        },
-                        'action_items': _generate_dynamic_action_items(
-                            analysis_data, optimization_history, performance_metrics, 
-                            cpu_avg, memory_avg, cost_savings
-                        )
-                    }
-                
-                logger.info(f"✅ Enterprise metrics generated from database for {cluster_name}")
-                
-                # FIXED: Save generated enterprise metrics back to implementation plan
-                try:
-                    if analysis_data and 'implementation_plan' in analysis_data:
-                        analysis_data['implementation_plan']['enterprise_metrics'] = dashboard_data
-                        enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_data)
-                        logger.info(f"✅ FIXED: Saved generated enterprise metrics to implementation plan for {cluster_name}")
-                    else:
-                        logger.warning(f"⚠️ Could not save enterprise metrics - no analysis data or implementation plan for {cluster_name}")
-                except Exception as save_error:
-                    logger.error(f"❌ Failed to save enterprise metrics to implementation plan: {save_error}")
-                    # Continue anyway - save failure shouldn't prevent response
+        # Get analysis data
+        analysis_data, data_source = _get_analysis_data(cluster_id)
+        
+        # Check for cached enterprise metrics first (unless force refresh)
+        if not force_refresh and analysis_data:
+            implementation_plan = analysis_data.get('implementation_plan', {})
+            if isinstance(implementation_plan, dict) and 'enterprise_metrics' in implementation_plan:
+                logger.info("✅ Using existing enterprise metrics from implementation plan")
+                enterprise_data = implementation_plan['enterprise_metrics']
                 
                 return jsonify({
                     'status': 'success',
                     'timestamp': datetime.now().isoformat(),
-                    'data': dashboard_data,
-                    'source': 'database_analytics_fresh',
-                    'cluster_info': {
-                        'cluster_name': cluster_name,
-                        'resource_group': resource_group
-                    }
+                    'data': enterprise_data,
+                    'source': 'implementation_plan_cached'
                 })
-            else:
-                logger.error("❌ No database data available for enterprise metrics generation")
-                return jsonify({
-                    'status': 'error',
-                    'message': 'No analysis data available for enterprise metrics. Please run cluster analysis first.',
-                    'cluster_info': {
-                        'cluster_name': cluster_name,
-                        'resource_group': resource_group
-                    }
-                }), 404
-            
-            # If we reach here, it means no data was found
-            logger.error(f"❌ Unable to generate enterprise metrics for {cluster_name} - no valid data source")
+        
+        # Generate fresh enterprise metrics using Implementation Generator
+        if not analysis_data or not isinstance(analysis_data, dict):
             return jsonify({
                 'status': 'error',
-                'message': 'Unable to generate enterprise metrics. No valid analysis data found.',
+                'message': f'No analysis data available for cluster {cluster_name}. Please run cluster analysis first.',
                 'cluster_info': {
                     'cluster_name': cluster_name,
                     'resource_group': resource_group
                 }
-            }), 404
-            
-        except Exception as calculation_error:
-            logger.error(f"❌ Enterprise metrics calculation failed for {cluster_name}: {calculation_error}")
-            return jsonify({
-                'status': 'error',
-                'message': f'Enterprise metrics calculation failed: {str(calculation_error)}',
-                'cluster_info': {
-                    'cluster_name': cluster_name,
-                    'resource_group': resource_group
-                }
-            }), 500
+            }), 400
+        
+        # Use the Implementation Generator (proper engine)
+        from machine_learning.core.implementation_generator import AKSImplementationGenerator
+        impl_generator = AKSImplementationGenerator()
+        
+        # Generate enterprise metrics using real analysis data
+        import asyncio
+        enterprise_metrics = asyncio.run(impl_generator._calculate_enterprise_metrics(
+            analysis_data,  # analysis_results
+            None,  # cluster_dna - can be added if needed  
+            analysis_data.get('ml_session', {}),  # ml_session
+            analysis_data.get('cluster_config', {})  # cluster_config
+        ))
+        
+        logger.info(f"✅ Enterprise metrics generated using Implementation Generator for {cluster_name}")
+        
+        # Save to implementation plan
+        try:
+            if 'implementation_plan' in analysis_data:
+                analysis_data['implementation_plan']['enterprise_metrics'] = enterprise_metrics
+                enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_data)
+                logger.info(f"✅ Saved enterprise metrics to implementation plan for {cluster_name}")
+        except Exception as save_error:
+            logger.warning(f"⚠️ Failed to save enterprise metrics to implementation plan: {save_error}")
+        
+        return jsonify({
+            'status': 'success',
+            'timestamp': datetime.now().isoformat(),
+            'data': enterprise_metrics,
+            'source': 'implementation_generator_fresh',
+            'cluster_info': {
+                'cluster_name': cluster_name,
+                'resource_group': resource_group
+            }
+        })
         
     except Exception as e:
-        logger.error(f"❌ Enterprise metrics sync error: {e}")
+        logger.error(f"❌ Clean enterprise metrics failed: {e}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        
         return jsonify({
             'status': 'error',
-            'message': f'Enterprise metrics error: {str(e)}'
+            'message': f'Enterprise metrics calculation failed: {str(e)}'
         }), 500
 
 async def get_enterprise_metrics():

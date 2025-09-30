@@ -2329,40 +2329,57 @@ class EnterpriseOperationalMetricsEngine:
         """Get prioritized action items based on actual findings and business impact"""
         priority_actions = []
         
-        # Priority 1: CRITICAL security and compliance issues
-        compliance_metric = next((m for m in metrics if "compliance" in m.metric_name.lower()), None)
-        if compliance_metric and compliance_metric.score < 60:
-            critical_issues = compliance_metric.details.get('critical_issues', [])
-            if critical_issues:
-                priority_actions.append(f"🚨 CRITICAL: Fix {len(critical_issues)} security violations: {', '.join(critical_issues[:2])}")
-        
-        # Priority 2: Resource governance (affects cost and stability)
-        capacity_metric = next((m for m in metrics if "capacity" in m.metric_name.lower()), None)
-        if capacity_metric and capacity_metric.details.get('requested_cpu_cores', 0) == 0:
-            priority_actions.append("🚨 CRITICAL: Add resource requests to all workloads - no resource governance detected")
-        
-        # Priority 3: Disaster recovery (data protection)
-        disaster_metric = next((m for m in metrics if "disaster" in m.metric_name.lower()), None)
-        if disaster_metric and disaster_metric.details.get('backup_solution_count', 0) == 0:
-            priority_actions.append("🔴 HIGH: Deploy backup solution (Velero) - no data protection found")
-        
-        # Priority 4: Kubernetes upgrade blockers
-        upgrade_metric = next((m for m in metrics if "upgrade" in m.metric_name.lower()), None)
-        if upgrade_metric:
-            deprecated_apis = upgrade_metric.details.get('deprecated_api_count', 0)
-            if deprecated_apis > 0:
-                priority_actions.append(f"🟡 MEDIUM: Update {deprecated_apis} deprecated APIs before Kubernetes upgrade")
-        
-        # Priority 5: Operational maturity issues
-        ops_metric = next((m for m in metrics if "operational" in m.metric_name.lower()), None)
-        if ops_metric and ops_metric.details.get('deployment_frequency_per_day', 0) < 0.1:
-            priority_actions.append("🟡 MEDIUM: Implement GitOps/CI-CD pipeline - manual deployments detected")
-        
-        # If no specific issues found, indicate good state
-        if not priority_actions:
-            priority_actions.append("✅ No critical issues detected - cluster appears well-configured")
-        
-        return priority_actions[:5]  # Max 5 items
+        try:
+            # Priority 1: CRITICAL security and compliance issues
+            compliance_metric = next((m for m in metrics if "compliance" in m.metric_name.lower()), None)
+            if compliance_metric and compliance_metric.score < 60:
+                critical_issues = compliance_metric.details.get('critical_issues', [])
+                if critical_issues:
+                    # Ensure we return strings only
+                    issues_str = ', '.join(str(issue) for issue in critical_issues[:2])
+                    priority_actions.append(f"🚨 CRITICAL: Fix {len(critical_issues)} security violations: {issues_str}")
+            
+            # Priority 2: Resource governance (affects cost and stability)
+            capacity_metric = next((m for m in metrics if "capacity" in m.metric_name.lower()), None)
+            if capacity_metric and capacity_metric.details.get('requested_cpu_cores', 0) == 0:
+                priority_actions.append("🚨 CRITICAL: Add resource requests to all workloads - no resource governance detected")
+            
+            # Priority 3: Disaster recovery (data protection)
+            disaster_metric = next((m for m in metrics if "disaster" in m.metric_name.lower()), None)
+            if disaster_metric and disaster_metric.details.get('backup_solution_count', 0) == 0:
+                priority_actions.append("🔴 HIGH: Deploy backup solution (Velero) - no data protection found")
+            
+            # Priority 4: Kubernetes upgrade blockers
+            upgrade_metric = next((m for m in metrics if "upgrade" in m.metric_name.lower()), None)
+            if upgrade_metric:
+                deprecated_apis = upgrade_metric.details.get('deprecated_api_count', 0)
+                if deprecated_apis > 0:
+                    priority_actions.append(f"🟡 MEDIUM: Update {deprecated_apis} deprecated APIs before Kubernetes upgrade")
+            
+            # Priority 5: Operational maturity issues
+            ops_metric = next((m for m in metrics if "operational" in m.metric_name.lower()), None)
+            if ops_metric and ops_metric.details.get('deployment_frequency_per_day', 0) < 0.1:
+                priority_actions.append("🟡 MEDIUM: Implement GitOps/CI-CD pipeline - manual deployments detected")
+            
+            # If no specific issues found, indicate good state
+            if not priority_actions:
+                priority_actions.append("✅ No critical issues detected - cluster appears well-configured")
+            
+            # Ensure all items are strings and not objects
+            string_actions = []
+            for action in priority_actions[:5]:
+                if isinstance(action, str):
+                    string_actions.append(action)
+                else:
+                    # Convert any non-string objects to strings
+                    string_actions.append(str(action))
+                    logger.warning(f"⚠️ Non-string action item converted: {type(action)} -> {action}")
+            
+            return string_actions
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating top recommendations: {e}")
+            return ["⚠️ Error generating action items - see logs for details"]
     
     def _generate_compliance_status(self, metrics: List[OperationalMetric]) -> Dict[str, str]:
         """Generate compliance status summary"""

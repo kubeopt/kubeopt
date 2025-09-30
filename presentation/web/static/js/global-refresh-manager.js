@@ -30,7 +30,10 @@ class GlobalRefreshManager {
         // Setup cleanup on page unload
         window.addEventListener('beforeunload', () => this.cleanup());
         
-        console.log('✅ Global Refresh Manager initialized');
+        // Start auto-refresh immediately (always on, not just during analysis)
+        this.startAutoRefresh();
+        
+        console.log('✅ Global Refresh Manager initialized with auto-refresh active');
     }
     
     detectCurrentPage() {
@@ -48,6 +51,8 @@ class GlobalRefreshManager {
             return 'security';
         } else if (path.includes('/alerts')) {
             return 'alerts';
+        } else if (path.includes('/settings')) {
+            return 'settings';
         } else {
             return 'unknown';
         }
@@ -103,6 +108,17 @@ class GlobalRefreshManager {
                 return await this.refreshAlertsStatus();
             });
         }
+        
+        // Settings page refresh handlers
+        if (this.currentPage === 'settings') {
+            this.addRefreshHandler('settings-status', async () => {
+                return await this.refreshSettingsStatus();
+            });
+            
+            this.addRefreshHandler('license-status', async () => {
+                return await this.refreshLicenseStatus();
+            });
+        }
     }
     
     addRefreshHandler(name, handler) {
@@ -116,10 +132,18 @@ class GlobalRefreshManager {
             try {
                 const hasActiveAnalysis = await this.checkForActiveAnalysis();
                 
-                if (hasActiveAnalysis && !this.isRefreshing) {
-                    this.startAutoRefresh();
-                } else if (!hasActiveAnalysis && this.isRefreshing) {
-                    this.stopAutoRefresh();
+                if (hasActiveAnalysis) {
+                    // During analysis: refresh every 30 seconds
+                    if (this.refreshIntervalMs !== 30000) {
+                        this.setRefreshInterval(30000);
+                        console.log('🔄 Analysis active: switched to 30s refresh interval');
+                    }
+                } else {
+                    // No active analysis: refresh every 60 seconds  
+                    if (this.refreshIntervalMs !== 60000) {
+                        this.setRefreshInterval(60000);
+                        console.log('⏸️ Analysis complete: switched to 60s refresh interval');
+                    }
                 }
             } catch (error) {
                 console.error('❌ Error checking analysis status:', error);
@@ -434,6 +458,64 @@ class GlobalRefreshManager {
             return false;
         } catch (error) {
             console.error('❌ Failed to refresh alerts status:', error);
+            return false;
+        }
+    }
+    
+    async refreshSettingsStatus() {
+        try {
+            const response = await fetch('/api/settings/status', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // Update settings status if the function exists
+                if (typeof updateSettingsStatus === 'function') {
+                    updateSettingsStatus(data);
+                }
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('❌ Failed to refresh settings status:', error);
+            return false;
+        }
+    }
+    
+    async refreshLicenseStatus() {
+        try {
+            const response = await fetch('/api/license/status', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // Update license status if the function exists
+                if (typeof updateLicenseStatus === 'function') {
+                    updateLicenseStatus(data);
+                }
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('❌ Failed to refresh license status:', error);
             return false;
         }
     }

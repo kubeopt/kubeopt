@@ -46,13 +46,15 @@ class EnterpriseMetricsManager {
         try {
             // Get cluster information from current page context
             const clusterId = this.getClusterIdFromUrl();
-            console.log('🔍 Loading metrics for cluster:', clusterId);
+            console.log('🔍 ENTERPRISE METRICS: Loading metrics for cluster:', clusterId);
+            console.log('🔍 ENTERPRISE METRICS: Current page URL:', window.location.href);
             
             // Check if we have a valid cluster ID
             if (!clusterId) {
                 throw new Error('No cluster found. Please navigate to a specific cluster page or ensure clusters are loaded.');
             }
             
+            console.log('🚀 ENTERPRISE METRICS: Making API call for cluster:', clusterId);
             const response = await fetch(`/api/enterprise-metrics?cluster_id=${clusterId}`, {
                 method: 'GET',
                 headers: {
@@ -103,11 +105,15 @@ class EnterpriseMetricsManager {
 
     renderMetrics(data) {
         if (!data) {
-            console.error('❌ No data provided to renderMetrics');
+            console.log('📊 No enterprise metrics data available - showing empty state');
+            this.showNoDataMessage();
             return;
         }
 
         console.log('🎨 Starting to render enterprise metrics...');
+        console.log('🔍 CLUSTER-SPECIFIC VERIFICATION: Rendering metrics for cluster:', this.getClusterIdFromUrl());
+        console.log('🔍 CLUSTER-SPECIFIC VERIFICATION: Maturity score:', data.enterprise_maturity?.score);
+        console.log('🔍 CLUSTER-SPECIFIC VERIFICATION: Metrics count:', data.operational_metrics?.length || 0);
 
         // Update overall maturity
         console.log('🎯 Updating maturity overview...');
@@ -149,9 +155,7 @@ class EnterpriseMetricsManager {
     }
 
     updateIndividualMetrics(metrics) {
-        
         for (const [metricKey, metricData] of Object.entries(metrics)) {
-            
             this.updateMetricCard(metricKey, metricData);
         }
     }
@@ -344,10 +348,6 @@ class EnterpriseMetricsManager {
                 if (cpuUtil === 0 && memUtil === 0) return 'Resource governance missing';
                 return `${Math.round((cpuUtil + memUtil) / 2)}% utilization`;
                 
-            case 'compliance_readiness':
-                const criticalIssues = details.critical_issues || [];
-                if (criticalIssues.length > 0) return `${criticalIssues.length} critical issues`;
-                return score >= 81 ? 'CIS compliant' : 'Some gaps found';
                 
             case 'operational_maturity':
                 const deployFreq = details.deployment_frequency_per_day || 0;
@@ -401,13 +401,6 @@ class EnterpriseMetricsManager {
                 if (hasRequests && (cpuUtil > 5 || memUtil > 5)) return '<span class="text-yellow-500">→</span>';
                 return '<span class="text-red-500">↘</span>';
                 
-            case 'compliance_readiness':
-                const passedControls = details.passed_controls || 0;
-                const totalControls = details.total_controls || 1;
-                const passRate = passedControls / totalControls;
-                if (passRate >= 0.9) return '<span class="text-green-500">↗</span>';
-                if (passRate >= 0.7) return '<span class="text-yellow-500">→</span>';
-                return '<span class="text-red-500">↘</span>';
                 
             case 'team_velocity':
                 const releaseFreq = details.release_frequency_per_week || 0;
@@ -436,6 +429,7 @@ class EnterpriseMetricsManager {
         // FIXED: Check for cluster context set by unified dashboard first
         if (window.currentClusterId) {
             console.log('✅ Found cluster ID from window context:', window.currentClusterId);
+            console.log('🔍 CLUSTER-SPECIFIC METRICS: Loading enterprise metrics for cluster:', window.currentClusterId);
             return window.currentClusterId;
         }
         
@@ -814,14 +808,6 @@ class EnterpriseMetricsManager {
                 });
             }
             
-            if (key === 'compliance_readiness' && (details.critical_issues || []).length > 0) {
-                actions.push({
-                    text: '🛡️ Fix Critical Security Issues',
-                    description: `${details.critical_issues.length} CIS violations found`,
-                    urgency: 'critical',
-                    onClick: () => this.showComplianceGuide()
-                });
-            }
         });
         
         // Sort by urgency and show top 3
@@ -912,7 +898,7 @@ class EnterpriseMetricsManager {
         this.showGuideModal('⚡ Setup GitOps Pipeline', `
             <div class="space-y-4 text-sm">
                 <div class="bg-gray-800 border border-green-600 rounded p-3">
-                    <strong>IMPROVEMENT:</strong> Manual deployments detected (0.00/day frequency)
+                    <strong>IMPROVEMENT:</strong> Deployment automation can be enhanced with GitOps
                 </div>
                 <div>
                     <h4 class="font-semibold text-white mb-2">Automation Steps:</h4>
@@ -991,13 +977,19 @@ class EnterpriseMetricsManager {
             case 'disaster_recovery_score':
                 if (details.backup_solution_count === 0) {
                     insights.push(`🚨 No backup solutions detected - critical data loss risk`);
-                } else {
+                } else if (details.backup_solution_count && !isNaN(details.backup_solution_count)) {
                     insights.push(`💾 ${details.backup_solution_count} backup solution(s) configured`);
+                } else {
+                    insights.push(`💾 Backup configuration analysis in progress`);
                 }
                 if (details.snapshot_coverage_pct < 50) {
                     insights.push(`📸 Only ${Math.round(details.snapshot_coverage_pct)}% of persistent volumes have snapshots`);
                 }
-                insights.push(`⏱️ Estimated recovery time: ${details.estimated_rto_hours || 'unknown'} hours`);
+                if (details.estimated_rto_hours) {
+                    insights.push(`⏱️ Estimated recovery time: ${details.estimated_rto_hours} hours`);
+                } else {
+                    insights.push(`⏱️ Recovery time assessment requires backup configuration`);
+                }
                 break;
                 
             case 'capacity_planning':
@@ -1013,32 +1005,34 @@ class EnterpriseMetricsManager {
                 }
                 break;
                 
-            case 'compliance_readiness':
-                const criticalIssues = details.critical_issues || [];
-                if (criticalIssues.length > 0) {
-                    insights.push(`🛡️ ${criticalIssues.length} critical security issues require immediate attention`);
-                }
-                const passRate = details.passed_controls / (details.total_controls || 1);
-                insights.push(`📋 ${Math.round(passRate * 100)}% of CIS controls are passing`);
-                break;
                 
             case 'operational_maturity':
-                const deployFreq = details.deployment_frequency_per_day || 0;
-                if (deployFreq < 0.1) {
-                    insights.push(`🐌 Low deployment frequency (${deployFreq.toFixed(2)}/day) indicates manual processes`);
+                const deployFreq = details.deployment_frequency_per_day;
+                if (deployFreq !== undefined && !isNaN(deployFreq)) {
+                    if (deployFreq < 0.1) {
+                        insights.push(`🐌 Low deployment frequency (${deployFreq.toFixed(2)}/day) indicates manual processes`);
+                    } else {
+                        insights.push(`🚀 Good deployment frequency (${deployFreq.toFixed(2)}/day) shows automated CI/CD`);
+                    }
                 } else {
-                    insights.push(`🚀 Good deployment frequency (${deployFreq.toFixed(2)}/day) shows automated CI/CD`);
+                    insights.push(`🔧 Deployment automation analysis based on HPA coverage and monitoring`);
                 }
-                const failureRate = details.change_failure_rate || 0;
-                insights.push(`📈 Change failure rate: ${(failureRate * 100).toFixed(1)}%`);
+                const failureRate = details.change_failure_rate;
+                if (failureRate !== undefined && !isNaN(failureRate)) {
+                    insights.push(`📈 Change failure rate: ${(failureRate * 100).toFixed(1)}%`);
+                }
                 break;
                 
             case 'team_velocity':
-                const releaseFreq = details.release_frequency_per_week || 0;
-                insights.push(`📦 Release frequency: ${releaseFreq.toFixed(1)} releases per week`);
-                const activeDeployments = details.active_deployments || 0;
-                const stableDeployments = details.stable_deployments || 0;
-                if (activeDeployments > 0) {
+                const releaseFreq = details.release_frequency_per_week;
+                if (releaseFreq !== undefined && !isNaN(releaseFreq)) {
+                    insights.push(`📦 Release frequency: ${releaseFreq.toFixed(1)} releases per week`);
+                } else {
+                    insights.push(`📦 Team velocity based on cost optimization efficiency and deployment stability`);
+                }
+                const activeDeployments = details.active_deployments;
+                const stableDeployments = details.stable_deployments;
+                if (activeDeployments > 0 && stableDeployments !== undefined) {
                     insights.push(`📊 ${stableDeployments}/${activeDeployments} deployments are stable`);
                 }
                 break;
@@ -1113,196 +1107,6 @@ class EnterpriseMetricsManager {
         alert('Metric export has been disabled for security purposes');
     }
 
-    loadDemoData() {
-        console.log('🎭 Loading demo enterprise metrics...');
-        
-        const demoData = {
-            enterprise_maturity: {
-                score: 68,
-                level: 'INTERMEDIATE',
-                timestamp: new Date().toISOString()
-            },
-            operational_metrics: {
-                kubernetes_upgrade_readiness: {
-                    metric_name: 'Kubernetes Upgrade Readiness',
-                    score: 75,
-                    risk_level: 'MEDIUM',
-                    key_details: {
-                        current_version: 'v1.28.0',
-                        latest_version: 'v1.31.0',
-                        version_gap: 3,
-                        deprecated_api_count: 2,
-                        upgrade_blockers: ['Deprecated networking.k8s.io/v1beta1 Ingress', 'Old HPA apiVersion']
-                    },
-                    details: {
-                        current_version: 'v1.28.0',
-                        latest_version: 'v1.31.0',
-                        version_gap: 3,
-                        deprecated_api_count: 2,
-                        upgrade_blockers: ['Deprecated networking.k8s.io/v1beta1 Ingress', 'Old HPA apiVersion']
-                    },
-                    recommendations: [
-                        'Update Ingress resources to use networking.k8s.io/v1',
-                        'Migrate HorizontalPodAutoscaler to autoscaling/v2',
-                        'Test upgrade in staging environment first'
-                    ],
-                    benchmark_source: 'CIS Kubernetes Benchmark',
-                    calculated_at: new Date().toISOString()
-                },
-                disaster_recovery_score: {
-                    metric_name: 'Disaster Recovery Score',
-                    score: 46,
-                    risk_level: 'HIGH',
-                    key_details: {
-                        backup_solution_count: 0,
-                        snapshot_coverage_pct: 0,
-                        estimated_rto_hours: 24,
-                        multi_az_deployment: false
-                    },
-                    details: {
-                        backup_solution_count: 0,
-                        snapshot_coverage_pct: 0,
-                        estimated_rto_hours: 24,
-                        multi_az_deployment: false,
-                        backup_solutions: [],
-                        persistent_volumes: 5,
-                        critical_data_protection: 'none'
-                    },
-                    recommendations: [
-                        'Deploy Velero for cluster backup and restore',
-                        'Configure automated snapshots for persistent volumes',
-                        'Implement multi-AZ deployment for high availability',
-                        'Test disaster recovery procedures monthly'
-                    ],
-                    benchmark_source: 'NIST Cybersecurity Framework',
-                    calculated_at: new Date().toISOString()
-                },
-                operational_maturity: {
-                    metric_name: 'Operational Maturity',
-                    score: 68,
-                    risk_level: 'MEDIUM',
-                    key_details: {
-                        deployment_frequency_per_day: 0.3,
-                        change_failure_rate: 0.15,
-                        lead_time_hours: 48,
-                        mttr_hours: 4
-                    },
-                    details: {
-                        deployment_frequency_per_day: 0.3,
-                        change_failure_rate: 0.15,
-                        lead_time_hours: 48,
-                        mttr_hours: 4,
-                        gitops_tools: ['FluxCD'],
-                        monitoring_tools: ['Prometheus', 'Grafana'],
-                        automation_coverage: 70
-                    },
-                    recommendations: [
-                        'Increase deployment frequency to improve DORA metrics',
-                        'Implement automated testing to reduce change failure rate',
-                        'Add chaos engineering practices',
-                        'Set up automated rollback procedures'
-                    ],
-                    benchmark_source: 'DORA State of DevOps Report',
-                    calculated_at: new Date().toISOString()
-                },
-                capacity_planning: {
-                    metric_name: 'Capacity Planning',
-                    score: 34,
-                    risk_level: 'HIGH',
-                    key_details: {
-                        cpu_utilization_pct: 0,
-                        memory_utilization_pct: 0,
-                        requested_cpu_cores: 0,
-                        total_cpu_cores: 12
-                    },
-                    details: {
-                        cpu_utilization_pct: 0,
-                        memory_utilization_pct: 0,
-                        requested_cpu_cores: 0,
-                        total_cpu_cores: 12,
-                        total_requested_memory: 0,
-                        total_memory_gb: 48,
-                        workloads_without_requests: 15,
-                        resource_governance: 'missing'
-                    },
-                    recommendations: [
-                        'Add resource requests to all Deployments and StatefulSets',
-                        'Implement ResourceQuotas for each namespace',
-                        'Set up Vertical Pod Autoscaler for optimization',
-                        'Create monitoring alerts for resource exhaustion'
-                    ],
-                    benchmark_source: 'Kubernetes Resource Management Best Practices',
-                    calculated_at: new Date().toISOString()
-                },
-                compliance_readiness: {
-                    metric_name: 'Compliance Readiness',
-                    score: 52,
-                    risk_level: 'MEDIUM',
-                    key_details: {
-                        passed_controls: 26,
-                        total_controls: 50,
-                        critical_issues: ['Privileged containers detected', 'Missing network policies']
-                    },
-                    details: {
-                        passed_controls: 26,
-                        total_controls: 50,
-                        critical_issues: ['Privileged containers detected', 'Missing network policies'],
-                        compliance_frameworks: ['CIS Kubernetes', 'PCI DSS'],
-                        pod_security_standards: 'baseline',
-                        network_policies_coverage: 30
-                    },
-                    recommendations: [
-                        'Remove privileged containers or add security contexts',
-                        'Implement network policies for all namespaces',
-                        'Upgrade to restricted Pod Security Standards',
-                        'Enable audit logging for compliance tracking'
-                    ],
-                    benchmark_source: 'CIS Kubernetes Benchmark v1.23',
-                    calculated_at: new Date().toISOString()
-                },
-                team_velocity: {
-                    metric_name: 'Team Velocity',
-                    score: 71,
-                    risk_level: 'MEDIUM',
-                    key_details: {
-                        release_frequency_per_week: 1.2,
-                        active_deployments: 25,
-                        stable_deployments: 20
-                    },
-                    details: {
-                        release_frequency_per_week: 1.2,
-                        active_deployments: 25,
-                        stable_deployments: 20,
-                        deployment_success_rate: 0.8,
-                        average_lead_time_days: 3,
-                        team_productivity_score: 75
-                    },
-                    recommendations: [
-                        'Improve deployment success rate through better testing',
-                        'Reduce lead time with more automation',
-                        'Implement feature flags for safer releases',
-                        'Add deployment health checks and monitoring'
-                    ],
-                    benchmark_source: 'DORA Metrics Benchmarks',
-                    calculated_at: new Date().toISOString()
-                }
-            },
-            action_items: [
-                '🚨 CRITICAL: Fix 2 security violations: Privileged containers detected, Missing network policies',
-                '🚨 CRITICAL: Add resource requests to all workloads - no resource governance detected',
-                '🔴 HIGH: Deploy backup solution (Velero) - no data protection found',
-                '🟡 MEDIUM: Update 2 deprecated APIs before Kubernetes upgrade',
-                '🟡 MEDIUM: Implement GitOps/CI-CD pipeline - manual deployments detected'
-            ]
-        };
-
-        this.currentData = demoData;
-        this.renderMetrics(demoData);
-        this.hideLoading();
-        this.showMainContent();
-        
-        console.log('🎭 Demo enterprise metrics loaded successfully');
-    }
 
     showLoading() {
         const loadingEl = document.getElementById('enterprise-loading');
@@ -1312,6 +1116,30 @@ class EnterpriseMetricsManager {
     hideLoading() {
         const loadingEl = document.getElementById('enterprise-loading');
         if (loadingEl) loadingEl.classList.add('hidden');
+    }
+
+    showNoDataMessage() {
+        // Clear all existing content and show no-data message
+        const container = document.getElementById('enterprise-metrics-content');
+        if (container) {
+            container.innerHTML = `
+                <div class="no-data-message text-center py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-chart-line fa-3x text-muted"></i>
+                    </div>
+                    <h4 class="text-muted">No Enterprise Metrics Data</h4>
+                    <p class="text-muted">
+                        No analysis data is available for this cluster yet.
+                        <br>
+                        Please run a cluster analysis to populate enterprise metrics.
+                    </p>
+                    <button class="btn btn-primary mt-3" onclick="window.location.reload()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+            `;
+        }
+        this.hideLoading();
     }
 
     showError(message) {
@@ -1379,6 +1207,8 @@ let enterpriseMetricsManager;
 
 document.addEventListener('DOMContentLoaded', () => {
     enterpriseMetricsManager = new EnterpriseMetricsManager();
+    // Make it globally accessible for showContent function
+    window.enterpriseMetricsManager = enterpriseMetricsManager;
     
     // Bind tab click handler with proper context
     const enterpriseTab = document.querySelector('[onclick*="enterprise-metrics"]');
