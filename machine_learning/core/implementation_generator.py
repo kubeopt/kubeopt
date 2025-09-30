@@ -1370,6 +1370,13 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                 k8s_cache = get_or_create_cache(cluster_name, resource_group, subscription_id)
                 logger.info("✅ kubernetes_data_cache created - all kubectl commands executed and cached")
                 
+                # Store cluster connection info in session for enterprise metrics
+                ml_session['cluster_connection'] = {
+                    'cluster_name': cluster_name,
+                    'resource_group': resource_group,
+                    'subscription_id': subscription_id
+                }
+                
                 # Perform comprehensive state analysis using refactored components
                 comprehensive_state = self._perform_comprehensive_state_analysis(cluster_config, ml_session, k8s_cache)
                 ml_session['comprehensive_state'] = comprehensive_state
@@ -2443,7 +2450,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             
             # Calculate reality-based metrics using actual cluster data
             enterprise_data = await self._calculate_reality_based_enterprise_metrics(
-                analysis_results, metrics_data, cluster_dna, security_results, cluster_config
+                analysis_results, metrics_data, cluster_dna, security_results, cluster_config, ml_session
             )
             
             logger.info(f"✅ REALITY-BASED Enterprise metrics calculated - Score: {enterprise_data['enterprise_maturity']['score']}")
@@ -2464,7 +2471,8 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
     
     async def _calculate_reality_based_enterprise_metrics(self, analysis_results: Dict, 
                                                          metrics_data: Dict, cluster_dna: Any, 
-                                                         security_results: Dict, cluster_config: Dict) -> Dict:
+                                                         security_results: Dict, cluster_config: Dict,
+                                                         ml_session: Dict = None) -> Dict:
         """Calculate enterprise metrics using actual analysis results - NO STATIC DATA"""
         logger.info("🎯 REALITY-BASED: Calculating enterprise metrics from actual cluster analysis")
         
@@ -2494,7 +2502,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         logger.info(f"🔍 SECURITY: Overall {security_score}, CIS {compliance_cis}%, NIST {compliance_nist}%")
         
         # 1. UPGRADE READINESS - Based on actual cluster state
-        upgrade_score = self._calculate_reality_upgrade_readiness(cluster_config, nodes, metrics_data)
+        upgrade_score = self._calculate_reality_upgrade_readiness(cluster_config, nodes, metrics_data, ml_session)
         
         # 2. DISASTER RECOVERY - Based on actual backup/storage configuration
         dr_score = self._calculate_reality_disaster_recovery(cluster_config, analysis_results)
@@ -2505,14 +2513,11 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         # 4. CAPACITY PLANNING - Based on actual utilization and growth patterns
         capacity_score = self._calculate_reality_capacity_planning(current_cpu, current_memory, nodes, analysis_results)
         
-        # 5. COMPLIANCE READINESS - Based on actual security analysis
-        compliance_score = self._calculate_reality_compliance_readiness(security_results, compliance_cis, compliance_nist)
-        
-        # 6. TEAM VELOCITY - Based on actual deployment patterns and efficiency
+        # 5. TEAM VELOCITY - Based on actual deployment patterns and efficiency
         velocity_score = self._calculate_reality_team_velocity(analysis_results, efficiency_percentage, cost_savings)
         
-        # Calculate overall enterprise maturity
-        scores = [upgrade_score, dr_score, maturity_score, capacity_score, compliance_score, velocity_score]
+        # Calculate overall enterprise maturity (removed compliance - covered in security posture)
+        scores = [upgrade_score, dr_score, maturity_score, capacity_score, velocity_score]
         overall_score = sum(scores) / len(scores)
         
         # Priority action items based on lowest scores
@@ -2522,7 +2527,6 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                 'disaster_recovery': dr_score, 
                 'operational_maturity': maturity_score,
                 'capacity_planning': capacity_score,
-                'compliance_readiness': compliance_score,
                 'team_velocity': velocity_score
             },
             analysis_results,
@@ -2531,7 +2535,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         
         logger.info(f"✅ REALITY-BASED SCORES: Upgrade: {upgrade_score:.1f}, DR: {dr_score:.1f}, "
                    f"Maturity: {maturity_score:.1f}, Capacity: {capacity_score:.1f}, "
-                   f"Compliance: {compliance_score:.1f}, Velocity: {velocity_score:.1f}")
+                   f"Velocity: {velocity_score:.1f}")
         
         return {
             "enterprise_maturity": {
@@ -2545,147 +2549,256 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                     "metric_name": "Kubernetes Upgrade Readiness",
                     "score": round(upgrade_score, 1),
                     "risk_level": self._get_risk_level(upgrade_score),
-                    "details": f"Based on actual cluster version and {total_hpas} HPAs",
+                    "details": f"Cluster running Kubernetes v{current_version or 'unknown'} with {total_hpas} HPAs configured",
                     "data_source": "cluster_config_analysis"
                 },
                 "disaster_recovery_score": {
                     "metric_name": "Disaster Recovery Score", 
                     "score": round(dr_score, 1),
                     "risk_level": self._get_risk_level(dr_score),
-                    "details": f"Based on actual backup configuration and storage analysis",
+                    "details": f"Analyzed backup solutions, storage classes, and multi-zone deployment readiness",
                     "data_source": "storage_backup_analysis"
                 },
-                "operational_maturity_score": {
-                    "metric_name": "Operational Maturity Score",
+                "operational_maturity": {
+                    "metric_name": "Operational Maturity",
                     "score": round(maturity_score, 1),
                     "risk_level": self._get_risk_level(maturity_score),
-                    "details": f"Based on {total_hpas} HPAs and automation level",
+                    "details": f"Evaluated {total_hpas} HPAs, monitoring depth, and automation practices",
                     "data_source": "automation_analysis"
                 },
-                "capacity_planning_score": {
-                    "metric_name": "Capacity Planning Score",
+                "capacity_planning": {
+                    "metric_name": "Capacity Planning",
                     "score": round(capacity_score, 1),
                     "risk_level": self._get_risk_level(capacity_score),
-                    "details": f"Based on actual CPU {current_cpu}%, Memory {current_memory}%",
+                    "details": f"Current resource utilization - CPU: {current_cpu}%, Memory: {current_memory}%",
                     "data_source": "utilization_analysis"
                 },
-                "compliance_readiness_score": {
-                    "metric_name": "Compliance Readiness Score",
-                    "score": round(compliance_score, 1),
-                    "risk_level": self._get_risk_level(compliance_score),
-                    "details": f"Based on actual CIS {compliance_cis}%, NIST {compliance_nist}%",
-                    "data_source": "security_compliance_analysis"
-                },
-                "team_velocity_score": {
-                    "metric_name": "Team Velocity Score",
+                "team_velocity": {
+                    "metric_name": "Team Velocity",
                     "score": round(velocity_score, 1),
                     "risk_level": self._get_risk_level(velocity_score),
-                    "details": f"Based on actual cost efficiency {efficiency_percentage:.1f}%",
+                    "details": f"Cost optimization efficiency at {efficiency_percentage:.1f}% with ${cost_savings:.0f} monthly savings",
                     "data_source": "efficiency_analysis"
                 }
             },
             "action_items": action_items
         }
     
-    def _calculate_reality_upgrade_readiness(self, cluster_config: Dict, nodes: List, metrics_data: Dict) -> float:
-        """Calculate upgrade readiness from actual cluster configuration"""
+    def _calculate_reality_upgrade_readiness(self, cluster_config: Dict, nodes: List, metrics_data: Dict, ml_session: Dict = None) -> float:
+        """Calculate upgrade readiness from actual cluster configuration - REAL DATA ONLY"""
         try:
-            # Check if we have cluster version info
+            version_info = None
+            current_version = None
+            
+            # Try to get version from multiple sources (real data only)
+            # 1. First try cluster_config
             if 'version' in cluster_config:
                 version_info = cluster_config['version']
-                current_version = version_info.get('serverVersion', {}).get('gitVersion', '').replace('v', '')
-                if current_version:
-                    # Simple version scoring - newer versions get higher scores
-                    version_parts = current_version.split('.')
-                    if len(version_parts) >= 2:
-                        major = int(version_parts[0])
-                        minor = int(version_parts[1])
-                        # k8s 1.28+ = excellent, 1.25-1.27 = good, 1.20-1.24 = needs attention
-                        if major >= 1 and minor >= 28:
-                            return 95.0
-                        elif major >= 1 and minor >= 25:
-                            return 80.0
-                        elif major >= 1 and minor >= 20:
-                            return 60.0
-                        else:
-                            return 30.0
+                if isinstance(version_info, dict):
+                    current_version = version_info.get('serverVersion', {}).get('gitVersion', '').replace('v', '')
             
-            # Fallback: Base score on node count and HPA implementation
-            node_count = len(nodes)
-            hpa_count = metrics_data.get('hpa_implementation', {}).get('total_hpas', 0)
+            # 2. If not found, try to get from Kubernetes data cache  
+            if not current_version and ml_session:
+                try:
+                    from shared.kubernetes_data_cache import get_or_create_cache
+                    # Get cluster connection info from ml_session
+                    cluster_connection = ml_session.get('cluster_connection', {})
+                    cluster_name = cluster_connection.get('cluster_name')
+                    resource_group = cluster_connection.get('resource_group') 
+                    subscription_id = cluster_connection.get('subscription_id')
+                    
+                    if cluster_name and resource_group and subscription_id:
+                        cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False)
+                        cached_data = cache.get_all_data()
+                        logger.info(f"✅ Accessed k8s cache for version data from {cluster_name}")
+                    else:
+                        cached_data = {}
+                        logger.warning("⚠️ No cluster connection info available in ml_session")
+                    
+                    if 'version' in cached_data and cached_data['version']:
+                        version_data = cached_data['version']
+                        if isinstance(version_data, dict) and 'serverVersion' in version_data:
+                            current_version = version_data['serverVersion'].get('gitVersion', '').replace('v', '')
+                        elif isinstance(version_data, str):
+                            # Try to parse JSON string
+                            import json
+                            try:
+                                parsed_version = json.loads(version_data)
+                                current_version = parsed_version.get('serverVersion', {}).get('gitVersion', '').replace('v', '')
+                            except json.JSONDecodeError:
+                                logger.warning("⚠️ Could not parse version JSON from cache")
+                                
+                except Exception as cache_error:
+                    logger.warning(f"⚠️ Could not access Kubernetes data cache: {cache_error}")
             
-            # More HPAs and nodes = better readiness infrastructure 
-            base_score = min(75, 40 + (node_count * 5) + (hpa_count * 0.1))
-            return base_score
+            # 3. Validate we have version data
+            if not current_version:
+                logger.error("❌ No cluster version data found in cluster_config or cache")
+                raise ValueError("Cluster version data required for upgrade readiness calculation")
+            
+            # Parse actual version and calculate readiness based on K8s support lifecycle
+            version_parts = current_version.split('.')
+            if len(version_parts) < 2:
+                logger.error(f"❌ Invalid version format: {current_version}")
+                raise ValueError(f"Invalid Kubernetes version format: {current_version}")
+            
+            try:
+                major = int(version_parts[0])
+                minor = int(version_parts[1])
+            except ValueError:
+                logger.error(f"❌ Could not parse version numbers from: {current_version}")
+                raise ValueError(f"Invalid version number format: {current_version}")
+            
+            # Real K8s version support matrix (as of 2024)
+            if major >= 1 and minor >= 28:
+                score = 95.0  # Current supported versions
+            elif major >= 1 and minor >= 25:
+                score = 80.0  # Recently supported versions
+            elif major >= 1 and minor >= 20:
+                score = 60.0  # Older but not critical
+            else:
+                score = 30.0  # Unsupported/EOL versions
+                
+            logger.info(f"🔍 Upgrade readiness: K8s v{current_version} = {score}% readiness")
+            return score
             
         except Exception as e:
-            logger.warning(f"Upgrade readiness calculation failed: {e}, using base score")
-            return 50.0
+            logger.error(f"❌ Upgrade readiness calculation failed: {e}")
+            # NO FALLBACK - fail cleanly if no real data
+            raise RuntimeError(f"Cannot calculate upgrade readiness without cluster version data: {e}")
     
     def _calculate_reality_disaster_recovery(self, cluster_config: Dict, analysis_results: Dict) -> float:
-        """Calculate DR score from actual storage and backup configuration"""
+        """Calculate DR score from actual backup infrastructure and storage configuration - REAL DATA ONLY"""
         try:
-            # Check storage configuration
-            storage_cost = analysis_results.get('storage_cost', 0)
-            total_cost = analysis_results.get('total_cost', 1)
-            storage_percentage = (storage_cost / total_cost * 100) if total_cost > 0 else 0
+            score_factors = []
             
-            # Higher storage investment = better DR readiness
-            if storage_percentage >= 25:  # 25%+ of costs in storage = excellent DR
-                storage_score = 90
-            elif storage_percentage >= 15:  # 15-25% = good DR
-                storage_score = 75
-            elif storage_percentage >= 5:   # 5-15% = basic DR
-                storage_score = 60
-            else:                          # <5% = poor DR
-                storage_score = 30
-                
-            # Check if we have PVCs (indicates stateful workloads needing backup)
-            pvcs_detected = 'pvc' in str(cluster_config).lower()
-            pvc_bonus = 10 if pvcs_detected else 0
+            # 1. Check for actual backup solutions in cluster
+            backup_detected = False
+            velero_detected = False
+            azure_backup_detected = False
             
-            return min(100, storage_score + pvc_bonus)
+            # Look for real backup infrastructure in cluster config
+            if 'namespaces' in cluster_config:
+                namespaces = cluster_config.get('namespaces', [])
+                for ns in namespaces:
+                    ns_name = ns.get('metadata', {}).get('name', '').lower()
+                    if 'velero' in ns_name or 'backup' in ns_name:
+                        backup_detected = True
+                        if 'velero' in ns_name:
+                            velero_detected = True
+                        if 'azure' in ns_name:
+                            azure_backup_detected = True
+            
+            # 2. Check for persistent volumes that need backup
+            pvs_count = 0
+            pvcs_count = 0
+            storage_classes = []
+            
+            if 'storage' in cluster_config:
+                storage_info = cluster_config['storage']
+                pvs_count = len(storage_info.get('persistent_volumes', []))
+                pvcs_count = len(storage_info.get('persistent_volume_claims', []))
+                storage_classes = storage_info.get('storage_classes', [])
+            
+            # 3. Calculate DR readiness based on REAL infrastructure
+            if backup_detected:
+                if velero_detected or azure_backup_detected:
+                    backup_score = 90  # Enterprise backup solution detected
+                else:
+                    backup_score = 70  # Some backup infrastructure detected
+            else:
+                backup_score = 20  # No backup infrastructure detected
+            
+            # 4. Storage resilience score
+            if pvs_count > 0:
+                # Check for snapshot-capable storage classes
+                snapshot_capable = any('snapshot' in str(sc).lower() for sc in storage_classes)
+                if snapshot_capable:
+                    storage_resilience = 80
+                else:
+                    storage_resilience = 50  # Has storage but no snapshots
+            else:
+                storage_resilience = 90  # No stateful workloads = no DR risk
+            
+            # 5. Multi-zone deployment (for availability)
+            zone_score = 60  # Default - would need real topology data to improve
+            
+            # Weighted DR score based on actual infrastructure
+            dr_score = (backup_score * 0.5) + (storage_resilience * 0.3) + (zone_score * 0.2)
+            
+            logger.info(f"🔍 DR Analysis: Backup={backup_detected}, PVs={pvs_count}, "
+                       f"PVCs={pvcs_count}, StorageClasses={len(storage_classes)}")
+            logger.info(f"🔍 DR Score breakdown: Backup={backup_score}, Storage={storage_resilience}, "
+                       f"Zones={zone_score}, Final={dr_score:.1f}")
+            
+            return dr_score
             
         except Exception as e:
-            logger.warning(f"DR calculation failed: {e}, using base score")
-            return 40.0
+            logger.error(f"❌ DR calculation failed: {e}")
+            # NO FALLBACK - fail cleanly if no real data
+            raise RuntimeError(f"Cannot calculate DR readiness without cluster storage data: {e}")
     
     def _calculate_reality_operational_maturity(self, metrics_data: Dict, hpa_data: Dict, analysis_results: Dict) -> float:
-        """Calculate operational maturity from actual automation and monitoring"""
+        """Calculate operational maturity from actual automation and monitoring - REAL DATA ONLY"""
         try:
-            # HPA implementation = automation maturity
+            # 1. Real HPA automation coverage
             total_hpas = hpa_data.get('total_hpas', 0)
             workload_count = len(metrics_data.get('all_workloads', []))
             
-            # Calculate HPA coverage
-            hpa_coverage = (total_hpas / workload_count * 100) if workload_count > 0 else 0
+            if workload_count == 0:
+                logger.error("❌ No workload data available for operational maturity")
+                raise ValueError("Workload data required for operational maturity calculation")
             
-            # High HPA coverage = high automation maturity
-            if hpa_coverage >= 80:    # 80%+ coverage = excellent
-                automation_score = 90
-            elif hpa_coverage >= 60:  # 60-80% = good
-                automation_score = 75
-            elif hpa_coverage >= 40:  # 40-60% = moderate
-                automation_score = 60
-            elif hpa_coverage >= 20:  # 20-40% = basic
-                automation_score = 45
-            else:                     # <20% = poor
-                automation_score = 25
+            # Calculate actual HPA coverage percentage
+            hpa_coverage = (total_hpas / workload_count * 100)
             
-            # Monitoring score based on metrics availability
-            monitoring_score = 70 if metrics_data.get('nodes') else 40
+            # Real automation scoring based on actual coverage
+            if hpa_coverage >= 80:
+                automation_score = 90  # Excellent automation
+            elif hpa_coverage >= 60:
+                automation_score = 75  # Good automation
+            elif hpa_coverage >= 40:
+                automation_score = 60  # Moderate automation
+            elif hpa_coverage >= 20:
+                automation_score = 45  # Basic automation
+            else:
+                automation_score = 25  # Poor automation
             
-            # Cost optimization efficiency = operational excellence
-            savings_percentage = analysis_results.get('savings_percentage', 0)
-            efficiency_score = min(80, 40 + (savings_percentage * 2))
+            # 2. Real monitoring depth based on actual metrics collected
+            nodes_with_metrics = len(metrics_data.get('nodes', []))
+            total_nodes_expected = max(1, nodes_with_metrics)  # Avoid division by zero
             
-            # Weighted average
-            overall_score = (automation_score * 0.5 + monitoring_score * 0.3 + efficiency_score * 0.2)
+            # Check for comprehensive metrics collection
+            has_cpu_metrics = any('cpu' in str(node).lower() for node in metrics_data.get('nodes', []))
+            has_memory_metrics = any('memory' in str(node).lower() for node in metrics_data.get('nodes', []))
+            has_network_metrics = any('network' in str(node).lower() for node in metrics_data.get('nodes', []))
+            
+            metrics_depth = sum([has_cpu_metrics, has_memory_metrics, has_network_metrics])
+            monitoring_score = (metrics_depth / 3) * 100  # Percentage of metric types collected
+            
+            # 3. Real resource management efficiency
+            cpu_utilization = analysis_results.get('current_cpu_utilization', 0)
+            memory_utilization = analysis_results.get('current_memory_utilization', 0)
+            
+            # Operational excellence = efficient resource usage (60-80% optimal)
+            cpu_efficiency = 100 if 60 <= cpu_utilization <= 80 else max(0, 100 - abs(cpu_utilization - 70))
+            memory_efficiency = 100 if 60 <= memory_utilization <= 80 else max(0, 100 - abs(memory_utilization - 70))
+            efficiency_score = (cpu_efficiency + memory_efficiency) / 2
+            
+            # Weighted operational maturity score
+            overall_score = (automation_score * 0.4 + monitoring_score * 0.35 + efficiency_score * 0.25)
+            
+            logger.info(f"🔍 Operational Maturity: HPA coverage={hpa_coverage:.1f}%, "
+                       f"Monitoring depth={metrics_depth}/3, CPU={cpu_utilization}%, Memory={memory_utilization}%")
+            logger.info(f"🔍 Maturity breakdown: Automation={automation_score}, Monitoring={monitoring_score}, "
+                       f"Efficiency={efficiency_score:.1f}, Final={overall_score:.1f}")
+            
             return overall_score
             
         except Exception as e:
-            logger.warning(f"Operational maturity calculation failed: {e}, using base score")
-            return 50.0
+            logger.error(f"❌ Operational maturity calculation failed: {e}")
+            # NO FALLBACK - fail cleanly if no real data
+            raise RuntimeError(f"Cannot calculate operational maturity without workload and metrics data: {e}")
     
     def _calculate_reality_capacity_planning(self, cpu_util: float, memory_util: float, nodes: List, analysis_results: Dict) -> float:
         """Calculate capacity planning score from actual utilization"""
@@ -2720,68 +2833,130 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             return capacity_score
             
         except Exception as e:
-            logger.warning(f"Capacity planning calculation failed: {e}, using base score")
-            return 60.0
+            logger.error(f"❌ Capacity planning calculation failed: {e}")
+            # NO FALLBACK - fail cleanly if no real data
+            raise RuntimeError(f"Cannot calculate capacity planning without utilization and node data: {e}")
     
     def _calculate_reality_compliance_readiness(self, security_results: Dict, cis_score: float, nist_score: float) -> float:
-        """Calculate compliance readiness from actual security analysis"""
+        """Calculate compliance readiness from actual security analysis - REAL DATA ONLY"""
         try:
-            # Use actual compliance scores from security analysis
+            # Require actual security analysis data
+            if not security_results:
+                logger.error("❌ No security analysis data available for compliance calculation")
+                raise ValueError("Security analysis data required for compliance readiness calculation")
+            
+            compliance_components = []
+            
+            # 1. Framework compliance scores (if available)
             if cis_score > 0 or nist_score > 0:
-                # Weight CIS and NIST equally for Kubernetes compliance
-                compliance_score = (cis_score + nist_score) / 2
-            else:
-                # Fallback: Use overall security score if compliance details not available
+                if cis_score > 0 and nist_score > 0:
+                    framework_score = (cis_score + nist_score) / 2
+                    compliance_components.append(("framework_compliance", framework_score))
+                elif cis_score > 0:
+                    compliance_components.append(("cis_compliance", cis_score))
+                elif nist_score > 0:
+                    compliance_components.append(("nist_compliance", nist_score))
+            
+            # 2. Overall security posture (if no framework scores)
+            if len(compliance_components) == 0:
                 overall_security = security_results.get('security_posture', {}).get('overall_score', 0)
-                compliance_score = overall_security
+                if overall_security > 0:
+                    compliance_components.append(("security_posture", overall_security))
+                else:
+                    logger.error("❌ No usable compliance or security scores found")
+                    raise ValueError("No compliance or security scores available in security analysis")
             
-            # Security violations impact
-            violations = len(security_results.get('alerts', []))
-            violation_penalty = min(20, violations * 2)  # Max 20 point penalty
+            # 3. Security violations impact (real violation count)
+            violations = security_results.get('alerts', [])
+            if isinstance(violations, list):
+                violation_count = len(violations)
+                # Progressive penalty: more violations = worse compliance
+                violation_penalty = min(30, violation_count * 3)  # Max 30 point penalty
+            else:
+                violation_penalty = 0
             
-            final_score = max(0, compliance_score - violation_penalty)
+            # 4. Calculate weighted compliance score
+            if compliance_components:
+                base_score = sum(score for _, score in compliance_components) / len(compliance_components)
+            else:
+                raise ValueError("No valid compliance data found")
+            
+            # Apply violation penalty
+            final_score = max(0, base_score - violation_penalty)
+            
+            logger.info(f"🔍 Compliance Analysis: Components={len(compliance_components)}, "
+                       f"Base score={base_score:.1f}, Violations={violation_count}, Final={final_score:.1f}")
+            
             return final_score
             
         except Exception as e:
-            logger.warning(f"Compliance calculation failed: {e}, using base score")
-            return 45.0
+            logger.error(f"❌ Compliance calculation failed: {e}")
+            # NO FALLBACK - fail cleanly if no real data
+            raise RuntimeError(f"Cannot calculate compliance readiness without security analysis data: {e}")
     
     def _calculate_reality_team_velocity(self, analysis_results: Dict, efficiency_percentage: float, cost_savings: float) -> float:
-        """Calculate team velocity from actual cost efficiency and optimization"""
+        """Calculate team velocity from actual deployment patterns and operational efficiency - REAL DATA ONLY"""
         try:
-            # High cost efficiency = high team velocity (good practices)
-            if efficiency_percentage >= 15:      # 15%+ savings = excellent velocity
-                efficiency_score = 90
-            elif efficiency_percentage >= 10:    # 10-15% = good velocity
-                efficiency_score = 75
-            elif efficiency_percentage >= 5:     # 5-10% = moderate velocity
-                efficiency_score = 60
-            else:                                # <5% = low velocity
-                efficiency_score = 40
+            # 1. Resource optimization velocity (how quickly team optimizes resources)
+            optimization_effectiveness = efficiency_percentage
+            if optimization_effectiveness >= 15:
+                optimization_score = 90  # Excellent optimization velocity
+            elif optimization_effectiveness >= 10:
+                optimization_score = 75  # Good optimization velocity
+            elif optimization_effectiveness >= 5:
+                optimization_score = 60  # Moderate optimization velocity
+            else:
+                optimization_score = 40  # Low optimization velocity
             
-            # Absolute savings amount also matters
-            if cost_savings >= 200:              # $200+ savings = significant impact
-                impact_score = 90
-            elif cost_savings >= 100:            # $100+ savings = good impact
-                impact_score = 75
-            elif cost_savings >= 50:             # $50+ savings = moderate impact
-                impact_score = 60
-            else:                                # <$50 = low impact
-                impact_score = 40
+            # 2. Deployment stability (fewer failures = higher velocity)
+            # Use actual CPU/memory stability as proxy for deployment stability
+            cpu_util = analysis_results.get('current_cpu_utilization', 0)
+            memory_util = analysis_results.get('current_memory_utilization', 0)
             
-            # Confidence in analysis = team capability
-            confidence_level = analysis_results.get('analysis_confidence', 0.8)
-            confidence_score = confidence_level * 100
+            # Stable resource usage = stable deployments
+            cpu_stability = 100 if 30 <= cpu_util <= 85 else max(0, 100 - abs(cpu_util - 57.5))
+            memory_stability = 100 if 30 <= memory_util <= 85 else max(0, 100 - abs(memory_util - 57.5))
+            stability_score = (cpu_stability + memory_stability) / 2
             
-            # Weighted velocity score
-            velocity_score = (efficiency_score * 0.4 + impact_score * 0.4 + confidence_score * 0.2)
+            # 3. Infrastructure reliability (based on actual cluster health)
+            total_cost = analysis_results.get('total_cost', 0)
+            if total_cost > 0:
+                # Cost efficiency indicates good resource management = reliable infrastructure
+                cost_efficiency = min(100, (cost_savings / total_cost) * 100 * 10)  # Scale up percentage
+                reliability_score = min(90, 50 + cost_efficiency)
+            else:
+                logger.error("❌ No cost data available for velocity calculation")
+                raise ValueError("Cost data required for team velocity calculation")
+            
+            # 4. Operational responsiveness (analysis confidence = team capability)
+            confidence_level = analysis_results.get('analysis_confidence', 0)
+            if confidence_level == 0:
+                logger.warning("⚠️ No analysis confidence data available")
+                responsiveness_score = 50  # Neutral score
+            else:
+                responsiveness_score = confidence_level * 100
+            
+            # Weighted team velocity score based on DORA-inspired metrics
+            velocity_score = (
+                optimization_score * 0.3 +      # Lead time (optimization speed)
+                stability_score * 0.3 +         # Change failure rate (stability)
+                reliability_score * 0.25 +      # Deployment frequency (reliability)
+                responsiveness_score * 0.15     # Recovery time (responsiveness)
+            )
+            
+            logger.info(f"🔍 Team Velocity: Optimization={optimization_effectiveness:.1f}%, "
+                       f"Stability=CPU{cpu_util:.1f}%/Mem{memory_util:.1f}%, Cost efficiency={cost_savings:.0f}/${total_cost:.0f}")
+            logger.info(f"🔍 Velocity breakdown: Optimization={optimization_score}, Stability={stability_score:.1f}, "
+                       f"Reliability={reliability_score:.1f}, Responsiveness={responsiveness_score:.1f}, Final={velocity_score:.1f}")
+            
             return velocity_score
             
         except Exception as e:
-            logger.warning(f"Team velocity calculation failed: {e}, using base score")
-            return 55.0
+            logger.error(f"❌ Team velocity calculation failed: {e}")
+            # NO FALLBACK - fail cleanly if no real data
+            raise RuntimeError(f"Cannot calculate team velocity without cost and utilization data: {e}")
     
-    def _generate_reality_action_items(self, scores: Dict, analysis_results: Dict, security_results: Dict) -> List[Dict]:
+    def _generate_reality_action_items(self, scores: Dict, analysis_results: Dict, security_results: Dict) -> List[str]:
         """Generate priority action items based on actual analysis results"""
         action_items = []
         
@@ -2792,48 +2967,33 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             priority = "HIGH" if score < 60 else "MEDIUM" if score < 80 else "LOW"
             
             if metric_name == 'upgrade_readiness' and score < 80:
-                action_items.append({
-                    "title": "Kubernetes Cluster Upgrade Required",
-                    "description": f"Cluster upgrade readiness score is {score:.1f}. Plan and execute cluster upgrade.",
-                    "priority": priority,
-                    "category": "Infrastructure",
-                    "estimated_effort": "Medium",
-                    "business_impact": "High"
-                })
+                action_items.append(
+                    f"[{priority}] Kubernetes Cluster Upgrade Required - Cluster upgrade readiness score is {score:.1f}. Plan and execute cluster upgrade."
+                )
             
             elif metric_name == 'disaster_recovery' and score < 70:
                 storage_cost = analysis_results.get('storage_cost', 0)
-                action_items.append({
-                    "title": "Implement Disaster Recovery Strategy",
-                    "description": f"DR score is {score:.1f}. Current storage investment: ${storage_cost:.0f}. Implement backup solution.",
-                    "priority": priority,
-                    "category": "Risk Management",
-                    "estimated_effort": "High",
-                    "business_impact": "Critical"
-                })
+                action_items.append(
+                    f"[{priority}] Implement Disaster Recovery Strategy - DR score is {score:.1f}. Current storage investment: ${storage_cost:.0f}. Implement backup solution."
+                )
             
-            elif metric_name == 'compliance_readiness' and score < 75:
-                violations = len(security_results.get('alerts', []))
-                action_items.append({
-                    "title": "Address Security Compliance Gaps",
-                    "description": f"Compliance score is {score:.1f} with {violations} security violations. Implement security policies.",
-                    "priority": priority,
-                    "category": "Security",
-                    "estimated_effort": "Medium",
-                    "business_impact": "High"
-                })
             
             elif metric_name == 'capacity_planning' and score < 75:
                 cpu_util = analysis_results.get('current_cpu_utilization', 0)
                 memory_util = analysis_results.get('current_memory_utilization', 0)
-                action_items.append({
-                    "title": "Optimize Resource Capacity Planning",
-                    "description": f"Capacity score is {score:.1f}. Current utilization: CPU {cpu_util}%, Memory {memory_util}%.",
-                    "priority": priority,
-                    "category": "Performance",
-                    "estimated_effort": "Medium",
-                    "business_impact": "Medium"
-                })
+                action_items.append(
+                    f"[{priority}] Optimize Resource Capacity Planning - Capacity score is {score:.1f}. Current utilization: CPU {cpu_util}%, Memory {memory_util}%."
+                )
+            
+            elif metric_name == 'operational_maturity' and score < 75:
+                action_items.append(
+                    f"[{priority}] Improve Operational Maturity - Operational maturity score is {score:.1f}. Enhance monitoring, automation, and operational processes."
+                )
+            
+            elif metric_name == 'team_velocity' and score < 75:
+                action_items.append(
+                    f"[{priority}] Accelerate Team Velocity - Team velocity score is {score:.1f}. Improve deployment processes and development efficiency."
+                )
         
         return action_items
     

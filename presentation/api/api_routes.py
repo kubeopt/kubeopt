@@ -1284,6 +1284,9 @@ def register_api_routes(app):
             except Exception as e:
                 logger.warning(f"Could not get alerts count: {e}")
             
+            # Calculate node efficiency score
+            node_efficiency_score = calculate_node_efficiency_score(clusters)
+            
             dashboard_data = {
                 'portfolio_summary': portfolio_summary,
                 'clusters_overview': {
@@ -1292,6 +1295,7 @@ def register_api_routes(app):
                     'completed_clusters': len([c for c in clusters if c.get('analysis_status') == 'completed']),
                     'failed_clusters': len([c for c in clusters if c.get('analysis_status') == 'failed'])
                 },
+                'node_efficiency_score': node_efficiency_score,
                 'recent_analyses': recent_analyses,
                 'alerts_count': alerts_count,
                 'last_updated': datetime.now().isoformat()
@@ -1879,7 +1883,6 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/scheduler/start', methods=['POST'])
-    @require_feature(FeatureFlag.AUTO_ANALYSIS, api_response=True)
     def start_scheduler():
         """Start the automatic analysis scheduler"""
         try:
@@ -1897,7 +1900,6 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/scheduler/stop', methods=['POST'])
-    @require_feature(FeatureFlag.AUTO_ANALYSIS, api_response=True)
     def stop_scheduler():
         """Stop the automatic analysis scheduler"""
         try:
@@ -1915,7 +1917,6 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/scheduler/force-analysis', methods=['POST'])
-    @require_feature(FeatureFlag.AUTO_ANALYSIS, api_response=True)
     def force_immediate_analysis():
         """Force an immediate analysis run"""
         try:

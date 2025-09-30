@@ -19,6 +19,7 @@ class MLAnalyticsDB:
     def __init__(self):
         self.db_path = DatabaseConfig.get_database_path('ml_analytics')
         self.logger = logging.getLogger(__name__)
+        self._initialize_database()
     
     def store_learning_data(self, cluster_id: str, workload_name: str, 
                            feature_vector: Dict, target_values: Dict, 
@@ -224,6 +225,67 @@ class MLAnalyticsDB:
         except Exception as e:
             self.logger.error(f"❌ Failed to get cluster patterns: {e}")
             return []
+    
+    def _initialize_database(self):
+        """Initialize database with required tables for enterprise metrics"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # Create optimization_results table
+                conn.execute('''
+                    CREATE TABLE IF NOT EXISTS optimization_results (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cluster_id TEXT NOT NULL,
+                        optimization_type TEXT NOT NULL,
+                        original_value REAL NOT NULL,
+                        optimized_value REAL NOT NULL,
+                        improvement_percentage REAL NOT NULL,
+                        confidence_level TEXT DEFAULT 'medium',
+                        estimated_savings REAL DEFAULT 0.0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # Create pattern_analysis table
+                conn.execute('''
+                    CREATE TABLE IF NOT EXISTS pattern_analysis (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cluster_id TEXT NOT NULL,
+                        pattern_type TEXT NOT NULL,
+                        pattern_data TEXT NOT NULL,
+                        similarity_score REAL DEFAULT 0.0,
+                        is_active BOOLEAN DEFAULT 1,
+                        detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # Create learning_data table if not exists
+                conn.execute('''
+                    CREATE TABLE IF NOT EXISTS learning_data (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cluster_id TEXT NOT NULL,
+                        workload_name TEXT NOT NULL,
+                        namespace TEXT,
+                        feature_vector TEXT NOT NULL,
+                        target_values TEXT NOT NULL,
+                        confidence_score REAL DEFAULT 0.0,
+                        metadata TEXT DEFAULT '{}',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # Create indexes for performance
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_optimization_cluster_id ON optimization_results(cluster_id)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_optimization_type ON optimization_results(optimization_type)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_pattern_cluster_id ON pattern_analysis(cluster_id)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_pattern_type ON pattern_analysis(pattern_type)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_learning_cluster_id ON learning_data(cluster_id)')
+                
+                conn.commit()
+                self.logger.info("✅ ML Analytics database initialized with all required tables")
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to initialize ML Analytics database: {e}")
 
 # Global instance
 ml_analytics_db = MLAnalyticsDB()

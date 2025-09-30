@@ -313,8 +313,48 @@ function showNotification(message, type = 'info') {
     });
 }
 
+// Update functions for auto-refresh
+function updateSettingsStatus(data) {
+    // Refresh any status indicators on the settings page
+    console.log('🔄 Settings status updated via auto-refresh');
+    
+    // Update feature availability if needed
+    if (window.featureLockManager && data.features) {
+        window.featureLockManager.updateFeatureStatus(data.features);
+    }
+    
+    // Update any status indicators
+    const statusElements = document.querySelectorAll('.status-indicator');
+    statusElements.forEach(el => {
+        el.classList.add('updated');
+        setTimeout(() => el.classList.remove('updated'), 1000);
+    });
+}
+
+function updateLicenseStatus(data) {
+    // Update license information if displayed
+    console.log('🔄 License status updated via auto-refresh');
+    
+    if (data.license) {
+        // Update license info in any displayed elements
+        const licenseElements = document.querySelectorAll('[data-license-info]');
+        licenseElements.forEach(el => {
+            const info = el.getAttribute('data-license-info');
+            if (data.license[info]) {
+                el.textContent = data.license[info];
+                el.classList.add('updated');
+                setTimeout(() => el.classList.remove('updated'), 1000);
+            }
+        });
+    }
+}
+
 // Global functions for button clicks
 window.showSection = showSection;
 window.testEmail = testEmail;
 window.testSlack = testSlack;
 window.testAzure = testAzure;
+
+// Global functions for auto-refresh
+window.updateSettingsStatus = updateSettingsStatus;
+window.updateLicenseStatus = updateLicenseStatus;

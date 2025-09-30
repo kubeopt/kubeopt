@@ -720,14 +720,7 @@ function markAllGlobalAsRead() {
  * 
  * NO automatic polling - notifications only update when analysis runs!
  */
-function refreshNotificationsManually() {
-    console.log('🔄 Manually refreshing notifications (triggered by user action or analysis)...');
-    
-    if (window.AlertsState) {
-        loadNotifications();
-        loadGlobalNotifications();
-    }
-}
+
 
 /**
  * FIXED TAB SWITCHING - MATCHES YOUR ACTUAL HTML STRUCTURE
@@ -2270,7 +2263,7 @@ window.markAllAsRead = markAllAsRead;
 window.detectCurrentCluster = detectCurrentCluster;
 window.loadNotifications = loadNotifications;
 window.loadGlobalNotifications = loadGlobalNotifications;
-window.refreshNotificationsManually = refreshNotificationsManually;
+
 window.updateNotificationBadge = updateNotificationBadge;
 window.updateGlobalNotificationBadge = updateGlobalNotificationBadge;
 window.setupBellIconInteraction = setupBellIconInteraction;
