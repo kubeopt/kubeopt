@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 """
 
@@ -30,8 +30,8 @@ class AuthManager:
     def __init__(self):
         self.session_timeout = timedelta(hours=8)  # 8-hour session timeout
         self.default_users = {
-            'kubevista': {
-                'password_hash': self._hash_password('kubevista'),
+            'kubeopt': {
+                'password_hash': self._hash_password('kubeopt'),
                 'role': 'admin',
                 'created': datetime.now()
             }
@@ -40,7 +40,7 @@ class AuthManager:
     
     def _hash_password(self, password: str) -> str:
         """Hash password using SHA-256 with salt"""
-        salt = b'kubevista_aks_optimizer_2024'  # Static salt for simplicity
+        salt = b'kubeopt_aks_optimizer_2024'  # Static salt for simplicity
         return hashlib.sha256(salt + password.encode()).hexdigest()
     
     def authenticate_user(self, username: str, password: str) -> bool:

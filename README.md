@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![AKS Cost Optimizer](nivaya_kubevista.png)
+![AKS Cost Optimizer](nivaya_kubeopt.png)
 
 **Enterprise-Grade Azure Kubernetes Service Cost Optimization Tool**
 
@@ -11,7 +11,7 @@
 [![Python](https://img.shields.io/badge/python-3.11+-3776ab.svg)](https://python.org/)
 [![Docker](https://img.shields.io/badge/docker-ready-2496ed.svg)](https://docker.com/)
 
-*Developed by **Srinivas Kondepudi** for **Nivaya Technologies & KubeVista***
+*Developed by **Srinivas Kondepudi** for **Nivaya Technologies & kubeopt***
 
 </div>
 
@@ -677,9 +677,9 @@ tests/
 
 ### **Contact**
 - **Developer:** Srinivas Kondepudi
-- **Organization:** Nivaya Technologies & KubeVista
+- **Organization:** Nivaya Technologies & kubeopt
 - **Email:** [Contact through GitHub issues]
-- **Website:** KubeVista.io
+- **Website:** kubeopt.io
 
 ---
 
@@ -715,6 +715,6 @@ tests/
 
 **⭐ Star this repository if you find it useful!**
 
-**Built with ❤️ by the Nivaya Technologies & KubeVista team**
+**Built with ❤️ by the Nivaya Technologies & kubeopt team**
 
 </div>

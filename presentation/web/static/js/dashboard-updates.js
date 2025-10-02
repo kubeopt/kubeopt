@@ -2,7 +2,7 @@
  * Dashboard-specific update functions for Global Auto-Refresh Manager
  * 
  * Developer: Srinivas Kondepudi
- * Organization: Nivaya Technologies & KubeVista
+ * Organization: Nivaya Technologies & kubeopt
  */
 
 // ===== DASHBOARD UPDATE FUNCTIONS =====

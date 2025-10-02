@@ -13,34 +13,34 @@ class AutoAnalysisScheduler {
         if (this.isInitialized) return;
         
         console.log('🕐 Initializing Auto-Analysis Scheduler UI');
-        this.addSchedulerStatusToUI();
+        //this.addSchedulerStatusToUI();
         this.startStatusChecking();
         this.isInitialized = true;
     }
 
-    addSchedulerStatusToUI() {
-        // Find the analyze button and add scheduler status next to it
-        const analyzeButton = document.querySelector('button[onclick*="triggerAnalysis"]');
-        if (!analyzeButton) return;
+    // addSchedulerStatusToUI() {
+    //     // Find the analyze button and add scheduler status next to it
+    //     const analyzeButton = document.querySelector('button[onclick*="triggerAnalysis"]');
+    //     if (!analyzeButton) return;
 
-        // Create scheduler status element as a small indicator
-        const schedulerElement = document.createElement('div');
-        schedulerElement.className = 'scheduler-status flex items-center gap-1 ml-2';
-        schedulerElement.innerHTML = `
-            <div class="scheduler-indicator">
-                <span id="scheduler-status-badge" class="flex items-center gap-1 px-2 py-1 rounded text-xs bg-gray-100 text-gray-600 cursor-pointer transition-colors hover:bg-gray-200">
-                    <div id="scheduler-status-dot" class="w-2 h-2 bg-gray-400 rounded-full"></div>
-                    <span id="scheduler-status-text">Manual</span>
-                </span>
-            </div>
-        `;
+    //     // Create scheduler status element as a small indicator
+    //     const schedulerElement = document.createElement('div');
+    //     schedulerElement.className = 'scheduler-status flex items-center gap-1 ml-2';
+    //     schedulerElement.innerHTML = `
+    //         <div class="scheduler-indicator">
+    //             <span id="scheduler-status-badge" class="flex items-center gap-1 px-2 py-1 rounded text-xs bg-gray-100 text-gray-600 cursor-pointer transition-colors hover:bg-gray-200">
+    //                 <div id="scheduler-status-dot" class="w-2 h-2 bg-gray-400 rounded-full"></div>
+    //                 <span id="scheduler-status-text">Manual</span>
+    //             </span>
+    //         </div>
+    //     `;
 
-        // Insert right after the analyze button
-        analyzeButton.parentNode.insertBefore(schedulerElement, analyzeButton.nextSibling);
+    //     // Insert right after the analyze button
+    //     analyzeButton.parentNode.insertBefore(schedulerElement, analyzeButton.nextSibling);
 
-        // Add event listeners
-        this.attachEventListeners();
-    }
+    //     // Add event listeners
+    //     this.attachEventListeners();
+    // }
 
     attachEventListeners() {
         const statusBadge = document.getElementById('scheduler-status-badge');

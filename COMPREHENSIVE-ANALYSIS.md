@@ -1,7 +1,7 @@
 # AKS Cost Optimizer - Complete Technical Analysis
 
 **Developer:** Srinivas Kondepudi  
-**Organization:** Nivaya Technologies & KubeVista  
+**Organization:** Nivaya Technologies & kubeopt  
 **Analysis Date:** September 2025  
 **Tool Version:** Enterprise Grade  
 
@@ -519,4 +519,4 @@ With proper testing and security hardening, this tool is **ready for enterprise 
 
 **Analysis Completed:** September 2025  
 **Next Review Recommended:** After Phase 1 completion (2 weeks)  
-**Contact:** Srinivas Kondepudi - Nivaya Technologies & KubeVista  
+**Contact:** Srinivas Kondepudi - Nivaya Technologies & kubeopt  

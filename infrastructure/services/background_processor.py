@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 """
 
@@ -290,6 +290,14 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             logger.info(f"DEBUG: From BackgroundProcessor - HPA efficiency: {analysis_results_data.get('hpa_efficiency', 0):.1f}%")
             logger.info(f"✅ Subscription-aware background analysis completed for {cluster_id} in {subscription_name}")
             
+            # Clear kubernetes data cache after analysis completion
+            try:
+                from shared.kubernetes_data_cache import clear_cluster_cache
+                clear_cluster_cache(cluster_name, resource_group, subscription_id)
+                logger.info(f"🗑️ Cleared kubernetes data cache for {cluster_name} after analysis completion")
+            except Exception as cache_error:
+                logger.warning(f"⚠️ Failed to clear cache for {cluster_name}: {cache_error}")
+            
             # Check alerts after successful analysis
             check_subscription_aware_alerts_after_analysis(cluster_id, analysis_results_data, subscription_id)
             
@@ -323,6 +331,14 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             
             logger.error(f"❌ Subscription-aware background analysis failed for {cluster_id} in {subscription_name}: {error_message}")
             
+            # Clear kubernetes data cache after failed analysis to ensure fresh data on retry
+            try:
+                from shared.kubernetes_data_cache import clear_cluster_cache
+                clear_cluster_cache(cluster_name, resource_group, subscription_id)
+                logger.info(f"🗑️ Cleared kubernetes data cache for {cluster_name} after failed analysis")
+            except Exception as cache_error:
+                logger.warning(f"⚠️ Failed to clear cache for {cluster_name}: {cache_error}")
+            
     except Exception as e:
         error_message = f'Subscription-aware analysis error: {str(e)}'
         logger.error(f"❌ Subscription-aware background analysis exception for {cluster_id}: {e}")
@@ -336,6 +352,14 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             })
         
         enhanced_cluster_manager.update_analysis_status(cluster_id, 'failed', 0, error_message)
+        
+        # Clear kubernetes data cache after exception to ensure fresh data on retry
+        try:
+            from shared.kubernetes_data_cache import clear_cluster_cache
+            clear_cluster_cache(cluster_name, resource_group, subscription_id)
+            logger.info(f"🗑️ Cleared kubernetes data cache for {cluster_name} after exception")
+        except Exception as cache_error:
+            logger.warning(f"⚠️ Failed to clear cache for {cluster_name}: {cache_error}")
         
         with threading.Lock():
             analysis_status_tracker[cluster_id] = {

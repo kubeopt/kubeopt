@@ -5,7 +5,7 @@ AKS Cost Optimizer - Production Entry Point
 Production-ready version with proper WSGI server support.
 
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer - Clean Architecture Version
 """
 
@@ -17,22 +17,36 @@ from flask import Flask
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-# Load development environment if available
-def load_dev_env():
-    """Load development environment variables"""
-    env_file = os.path.join(current_dir, '.env.development')
-    if os.path.exists(env_file):
-        print("🔧 Loading development environment...")
-        with open(env_file, 'r') as f:
+# Load environment variables
+def load_env_files():
+    """Load environment variables from .env files"""
+    
+    # First load main .env file
+    main_env_file = os.path.join(current_dir, '.env')
+    if os.path.exists(main_env_file):
+        print("🔧 Loading main environment (.env)...")
+        with open(main_env_file, 'r') as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith('#') and '=' in line:
                     key, value = line.split('=', 1)
                     os.environ[key] = value
-        print("✅ Development environment loaded")
+        print("✅ Main environment (.env) loaded")
+    
+    # Then load development overrides if available
+    dev_env_file = os.path.join(current_dir, '.env.development')
+    if os.path.exists(dev_env_file):
+        print("🔧 Loading development environment (.env.development)...")
+        with open(dev_env_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key] = value
+        print("✅ Development environment (.env.development) loaded")
 
 # Load environment variables
-load_dev_env()
+load_env_files()
 
 def create_app():
     """

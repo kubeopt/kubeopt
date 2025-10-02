@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 """
 
 """
-Enhanced Cost Data Processing for AKS Cost Optimization - kubevista
+Enhanced Cost Data Processing for AKS Cost Optimization - kubeopt
 ==================================================================
 Comprehensive cost processing with advanced allocation methods based on Azure best practices.
 Includes all cost components: networking, system pods, idle resources, add-ons, etc.
@@ -1505,7 +1505,7 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
                     'queries_executed': ['aks_resources', 'additional_services'],
                     'cost_completeness': 'comprehensive',
                     'enhancement_version': '2.0',
-                    'kubevista_comprehensive': True,
+                    'kubeopt_comprehensive': True,
                     'cli_free': True
                 })
                 

@@ -1,4 +1,4 @@
-# 🔒 KUBEVISTA Feature Lock System
+# 🔒 kubeopt Feature Lock System
 
 ## 📋 Overview
 
@@ -132,7 +132,7 @@ print(f"Enterprise Trial: {enterprise_trial}")
 ### **Environment Variables:**
 ```bash
 # Set license via environment
-export KUBEVISTA_LICENSE_KEY="PRO-xxxxxxxx-20251201"
+export kubeopt_LICENSE_KEY="PRO-xxxxxxxx-20251201"
 ```
 
 ## 🔗 Integration Points

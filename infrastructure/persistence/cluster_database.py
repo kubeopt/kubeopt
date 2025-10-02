@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 """
 
@@ -1281,12 +1281,10 @@ class EnhancedMultiSubscriptionClusterManager:
                     cluster = dict(row)
                     cluster['metadata'] = json.loads(cluster.get('metadata', '{}'))
                     
-                    # DEBUG: Log environment retrieval
-                    self.logger.info(f"🔍 Retrieved cluster '{cluster.get('name')}': environment='{cluster.get('environment', 'MISSING_FROM_DB')}'")
-                    
                     clusters.append(cluster)
                 
-                self.logger.info(f"📋 Retrieved {len(clusters)} clusters with subscription info")
+                # Only log cluster retrieval in debug mode
+                self.logger.debug(f"📋 Retrieved {len(clusters)} clusters with subscription info")
                 return clusters
                 
         except Exception as e:
@@ -1665,12 +1663,12 @@ class EnhancedMultiSubscriptionClusterManager:
                     self.logger.info(f"🔍 BEFORE UPDATE: {cluster_id} → cost: ${before_data[0]}, savings: ${before_data[1]}, analyzed: {before_data[2]}")
                 else:
                     self.logger.info(f"🔍 BEFORE UPDATE: {cluster_id} → cluster not found")
-                if status == 'analyzing' and progress <= 10:
-                    # First time starting analysis
+                if status == 'analyzing':
+                    # Starting analysis - always set start time if not already set
                     conn.execute('''
                         UPDATE clusters 
                         SET analysis_status = ?, analysis_progress = ?, analysis_message = ?, 
-                            analysis_started_at = ?
+                            analysis_started_at = COALESCE(analysis_started_at, ?)
                         WHERE id = ?
                     ''', (status, progress, message, datetime.now().isoformat(), cluster_id))
                 else:
@@ -1872,11 +1870,11 @@ class EnhancedMultiSubscriptionClusterManager:
                     summary['last_updated'] = datetime.now().isoformat()
                 
                     
-                    # DEBUG: Show actual cluster data
+                    # DEBUG: Show actual cluster data (debug level only)
                     debug_cursor = conn.execute('SELECT id, name, status, analysis_status, last_cost, last_savings, last_analyzed, LENGTH(analysis_data) as data_size FROM clusters LIMIT 5')
-                    self.logger.info(f"🔍 Actual cluster data:")
+                    self.logger.debug(f"🔍 Actual cluster data:")
                     for row in debug_cursor.fetchall():
-                        self.logger.info(f"   Cluster: {row[1]}, status: {row[2]}, analysis_status: {row[3]}, cost: ${row[4]}, savings: ${row[5]}, analyzed: {row[6]}, data_size: {row[7]} bytes")
+                        self.logger.debug(f"   Cluster: {row[1]}, status: {row[2]}, analysis_status: {row[3]}, cost: ${row[4]}, savings: ${row[5]}, analyzed: {row[6]}, data_size: {row[7]} bytes")
                     
                     # Get environments
                     env_cursor = conn.execute('SELECT DISTINCT environment FROM clusters')

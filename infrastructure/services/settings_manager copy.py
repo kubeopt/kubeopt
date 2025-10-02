@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 """
 
@@ -281,7 +281,7 @@ class SettingsManager:
                 <p><strong>Server:</strong> {smtp_server}:{smtp_port}</p>
                 <p>If you received this email, your email configuration is working correctly!</p>
                 <hr>
-                <p><em>Powered by KubeVista & Nivaya Technologies</em></p>
+                <p><em>Powered by kubeopt & Nivaya Technologies</em></p>
             </body>
             </html>
             """
@@ -394,7 +394,7 @@ class SettingsManager:
                     </table>
                     <p>Please review your cluster resources and consider optimization recommendations.</p>
                     <hr>
-                    <p><em>AKS Cost Optimizer by KubeVista & Nivaya Technologies</em></p>
+                    <p><em>AKS Cost Optimizer by kubeopt & Nivaya Technologies</em></p>
                 </body>
                 </html>
                 """

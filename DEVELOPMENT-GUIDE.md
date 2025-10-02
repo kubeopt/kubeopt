@@ -68,20 +68,20 @@ python3 dev-mode.py disable
 ### **Manual Override:**
 ```bash
 # Set specific license key
-export KUBEVISTA_LICENSE_KEY="PRO-test1234-NEVER"
+export kubeopt_LICENSE_KEY="PRO-test1234-NEVER"
 
 # Force development mode
-export KUBEVISTA_DEV_MODE="true"
+export kubeopt_DEV_MODE="true"
 
 # Bypass all licensing (full access)
-export KUBEVISTA_BYPASS_LICENSE="true"
+export kubeopt_BYPASS_LICENSE="true"
 ```
 
 ### **File-based (.env.development):**
 ```bash
 # The dev-mode.py script creates this automatically
-KUBEVISTA_LICENSE_KEY=ENT-dev12345-NEVER
-KUBEVISTA_DEV_MODE=true
+kubeopt_LICENSE_KEY=ENT-dev12345-NEVER
+kubeopt_DEV_MODE=true
 ```
 
 ## 🧪 **Testing License Keys:**

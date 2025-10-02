@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 """
 
@@ -2502,7 +2502,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         logger.info(f"🔍 SECURITY: Overall {security_score}, CIS {compliance_cis}%, NIST {compliance_nist}%")
         
         # 1. UPGRADE READINESS - Based on actual cluster state
-        upgrade_score = self._calculate_reality_upgrade_readiness(cluster_config, nodes, metrics_data, ml_session)
+        upgrade_score, current_version = self._calculate_reality_upgrade_readiness(cluster_config, nodes, metrics_data, ml_session)
         
         # 2. DISASTER RECOVERY - Based on actual backup/storage configuration
         dr_score = self._calculate_reality_disaster_recovery(cluster_config, analysis_results)
@@ -2584,20 +2584,36 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             "action_items": action_items
         }
     
-    def _calculate_reality_upgrade_readiness(self, cluster_config: Dict, nodes: List, metrics_data: Dict, ml_session: Dict = None) -> float:
+    def _calculate_reality_upgrade_readiness(self, cluster_config: Dict, nodes: List, metrics_data: Dict, ml_session: Dict = None) -> Tuple[float, str]:
         """Calculate upgrade readiness from actual cluster configuration - REAL DATA ONLY"""
         try:
             version_info = None
             current_version = None
             
             # Try to get version from multiple sources (real data only)
-            # 1. First try cluster_config
+            # 1. First try cluster_config (multiple possible locations)
             if 'version' in cluster_config:
                 version_info = cluster_config['version']
                 if isinstance(version_info, dict):
                     current_version = version_info.get('serverVersion', {}).get('gitVersion', '').replace('v', '')
+                elif isinstance(version_info, str):
+                    current_version = version_info.replace('v', '')
             
-            # 2. If not found, try to get from Kubernetes data cache  
+            # 2. Try kubernetes_version field if present
+            if not current_version and 'kubernetes_version' in cluster_config:
+                current_version = str(cluster_config['kubernetes_version']).replace('v', '')
+                
+            # 3. Try control plane version from nodes
+            if not current_version and nodes:
+                for node in nodes:
+                    node_info = node.get('status', {}).get('nodeInfo', {})
+                    kube_version = node_info.get('kubeletVersion', '').replace('v', '')
+                    if kube_version:
+                        current_version = kube_version
+                        logger.info(f"📋 Found version from node kubelet: {current_version}")
+                        break
+            
+            # 4. If not found, try to get from Kubernetes data cache  
             if not current_version and ml_session:
                 try:
                     from shared.kubernetes_data_cache import get_or_create_cache
@@ -2611,43 +2627,39 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                         cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False)
                         cached_data = cache.get_all_data()
                         logger.info(f"✅ Accessed k8s cache for version data from {cluster_name}")
+                        
+                        # Get cluster version via reliable Azure SDK method
+                        if 'cluster_version_sdk' in cached_data and cached_data['cluster_version_sdk']:
+                            cluster_version = cached_data['cluster_version_sdk']
+                            logger.info(f"📋 Got cluster version via SDK: {cluster_version}")
+                            current_version = cluster_version.replace('v', '') if cluster_version else None
+                        else:
+                            logger.warning("⚠️ No cluster version found via SDK")
                     else:
-                        cached_data = {}
                         logger.warning("⚠️ No cluster connection info available in ml_session")
-                    
-                    if 'version' in cached_data and cached_data['version']:
-                        version_data = cached_data['version']
-                        if isinstance(version_data, dict) and 'serverVersion' in version_data:
-                            current_version = version_data['serverVersion'].get('gitVersion', '').replace('v', '')
-                        elif isinstance(version_data, str):
-                            # Try to parse JSON string
-                            import json
-                            try:
-                                parsed_version = json.loads(version_data)
-                                current_version = parsed_version.get('serverVersion', {}).get('gitVersion', '').replace('v', '')
-                            except json.JSONDecodeError:
-                                logger.warning("⚠️ Could not parse version JSON from cache")
                                 
                 except Exception as cache_error:
                     logger.warning(f"⚠️ Could not access Kubernetes data cache: {cache_error}")
             
-            # 3. Validate we have version data
+            # 5. Validate we have version data - no static fallbacks
+            logger.info(f"🔍 DEBUG: current_version value before validation: '{current_version}' (type: {type(current_version)})")
             if not current_version:
-                logger.error("❌ No cluster version data found in cluster_config or cache")
-                raise ValueError("Cluster version data required for upgrade readiness calculation")
+                logger.error("❌ No cluster version data found in cluster_config, cache, or nodes")
+                logger.error("❌ Cannot calculate upgrade readiness without real version data")
+                return 0.0, "unknown"  # Return 0 and unknown version when no real data available
             
             # Parse actual version and calculate readiness based on K8s support lifecycle
             version_parts = current_version.split('.')
             if len(version_parts) < 2:
                 logger.error(f"❌ Invalid version format: {current_version}")
-                raise ValueError(f"Invalid Kubernetes version format: {current_version}")
+                return 0.0, current_version  # Return 0 for invalid format
             
             try:
                 major = int(version_parts[0])
                 minor = int(version_parts[1])
             except ValueError:
                 logger.error(f"❌ Could not parse version numbers from: {current_version}")
-                raise ValueError(f"Invalid version number format: {current_version}")
+                return 0.0, current_version  # Return 0 for parsing errors
             
             # Real K8s version support matrix (as of 2024)
             if major >= 1 and minor >= 28:
@@ -2660,12 +2672,13 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                 score = 30.0  # Unsupported/EOL versions
                 
             logger.info(f"🔍 Upgrade readiness: K8s v{current_version} = {score}% readiness")
-            return score
+            return score, current_version
             
         except Exception as e:
             logger.error(f"❌ Upgrade readiness calculation failed: {e}")
-            # NO FALLBACK - fail cleanly if no real data
-            raise RuntimeError(f"Cannot calculate upgrade readiness without cluster version data: {e}")
+            # Return 0 when calculation fails - no static data
+            logger.error("❌ Cannot calculate upgrade readiness due to errors")
+            return 0.0, "unknown"  # Return 0 when calculation fails
     
     def _calculate_reality_disaster_recovery(self, cluster_config: Dict, analysis_results: Dict) -> float:
         """Calculate DR score from actual backup infrastructure and storage configuration - REAL DATA ONLY"""

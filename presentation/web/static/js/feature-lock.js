@@ -291,7 +291,7 @@ class FeatureLockManager {
                 </div>
                 
                 <div class="space-y-3">
-                    <button onclick="window.open('https://kubevista.io/pricing', '_blank')" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+                    <button onclick="window.open('https://kubeopt.io/pricing', '_blank')" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors">
                         <i class="fas fa-arrow-up mr-2"></i>
                         Upgrade to ${requiredTier}
                     </button>
@@ -310,7 +310,7 @@ class FeatureLockManager {
                 </div>
                 
                 <p class="text-xs text-gray-500 mt-6">
-                    Questions? <a href="mailto:support@kubevista.com" class="text-blue-600 hover:underline">Contact Support</a>
+                    Questions? <a href="mailto:support@kubeopt.com" class="text-blue-600 hover:underline">Contact Support</a>
                 </p>
             </div>
         `;
@@ -409,7 +409,7 @@ class FeatureLockManager {
                 <button onclick="window.location.href='/'" class="bg-white text-blue-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors">
                     Start Free Trial
                 </button>
-                <button onclick="window.open('https://kubevista.io/pricing', '_blank')" class="bg-white text-purple-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors">
+                <button onclick="window.open('https://kubeopt.io/pricing', '_blank')" class="bg-white text-purple-600 px-4 py-1 rounded-full text-sm font-medium hover:bg-gray-100 transition-colors">
                     Upgrade to Pro
                 </button>
                 <button onclick="this.parentElement.parentElement.remove()" class="text-white hover:text-gray-200 ml-2">

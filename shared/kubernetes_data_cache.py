@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 
 Centralized Kubernetes Data Cache Manager
@@ -15,6 +15,7 @@ import json
 import logging
 import subprocess
 import time
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 
 logger = logging.getLogger(__name__)
@@ -124,6 +125,7 @@ class KubernetesDataCache:
             "aks_cluster_info": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --output json",
             "aks_nodepool_list": f"az aks nodepool list --resource-group {self.resource_group} --cluster-name {self.cluster_name} --subscription {self.subscription_id} --output json", 
             "aks_managed_identity": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query identity --output json",
+            "cluster_version_sdk": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query currentKubernetesVersion --output tsv",
             
             # === SYSTEM COMPONENTS (Broader queries - always work) ===
             "kube_system_deployments": "kubectl get deployment -n kube-system",  # Alternative to specific deployments - filter results
@@ -144,12 +146,14 @@ class KubernetesDataCache:
             cmd_start = time.time()
             
             # Handle Azure CLI commands through direct SDK calls
-            if cmd.startswith('az aks show'):
+            if cmd.startswith('az aks show') and '--query currentKubernetesVersion' in cmd:
+                result_output = self._execute_aks_cluster_version_via_sdk()
+            elif cmd.startswith('az aks show') and '--query identity' in cmd:
+                result_output = self._execute_aks_identity_via_sdk()
+            elif cmd.startswith('az aks show'):
                 result_output = self._execute_aks_show_via_sdk()
             elif cmd.startswith('az aks nodepool list'):
                 result_output = self._execute_aks_nodepool_list_via_sdk()
-            elif 'az aks show' in cmd and '--query identity' in cmd:
-                result_output = self._execute_aks_identity_via_sdk()
             else:
                 # Handle kubectl commands through server-side execution
                 # Smart timeout based on command type
@@ -308,6 +312,33 @@ class KubernetesDataCache:
             
         except Exception as e:
             logger.error(f"❌ {self.cluster_name}: Failed to get AKS identity via SDK: {e}")
+            return None
+    
+    def _execute_aks_cluster_version_via_sdk(self) -> Optional[str]:
+        """Execute 'az aks show --query currentKubernetesVersion' command via Azure SDK"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            
+            # Get AKS client
+            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
+            if not aks_client:
+                logger.error(f"❌ Cannot get AKS client for {self.cluster_name}")
+                return None
+            
+            # Get cluster information
+            cluster = aks_client.managed_clusters.get(self.resource_group, self.cluster_name)
+            
+            # Extract Kubernetes version directly
+            kubernetes_version = cluster.kubernetes_version
+            if kubernetes_version:
+                logger.info(f"✅ {self.cluster_name}: Got Kubernetes version via SDK: {kubernetes_version}")
+                return kubernetes_version
+            else:
+                logger.warning(f"⚠️ {self.cluster_name}: No Kubernetes version found in cluster info")
+                return None
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to get Kubernetes version via SDK: {e}")
             return None
     
     def _extract_kubectl_output_from_azure_text(self, azure_output: str, cmd: str) -> Optional[str]:
@@ -1398,6 +1429,16 @@ def clear_all_caches():
     global _active_caches
     _active_caches.clear()
     logger.info("🗑️ All caches cleared")
+
+def clear_cluster_cache(cluster_name: str, resource_group: str, subscription_id: str):
+    """Clear cache for a specific cluster after analysis completion"""
+    cache_key = f"{subscription_id}:{resource_group}:{cluster_name}"
+    
+    if cache_key in _active_caches:
+        del _active_caches[cache_key]
+        logger.info(f"🗑️ Cleared cache for {cluster_name}")
+    else:
+        logger.debug(f"🗑️ No cache found for {cluster_name} (already cleared or never created)")
 
 def execute_cluster_command(cluster_name: str, resource_group: str, subscription_id: str, kubectl_cmd: str) -> Optional[str]:
     """

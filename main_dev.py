@@ -5,7 +5,7 @@ AKS Cost Optimizer - Clean Architecture Main Entry Point
 Clean architecture implementation with proper separation of concerns.
 
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer - Clean Architecture Version
 """
 

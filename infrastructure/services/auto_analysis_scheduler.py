@@ -1,30 +1,33 @@
 #!/usr/bin/env python3
 """
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
-Project: AKS Cost Optimizer
+Organization: Nivaya Technologies & kubeopt
+Project: AKS Cost Optimizer - KubeOpt
 """
 
 """
-Auto Analysis Scheduler for AKS Cost Optimizer
-=============================================
+Auto Analysis Scheduler for KubeOpt
+===================================
 
-Manages automatic analysis scheduling and execution at configurable intervals.
+Robust automatic analysis scheduler with:
+- Intelligent cluster detection and validation
+- Stale status cleanup and recovery
+- Comprehensive error handling and logging
+- No fallback/static logic - production ready
 """
 
 import os
 import logging
 import threading
 import time
-import requests
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
 class AutoAnalysisScheduler:
     """
-    Automatic analysis scheduler that runs analysis at configured intervals
+    Production-ready automatic analysis scheduler with robust error handling
     """
     
     def __init__(self, app=None):
@@ -77,35 +80,47 @@ class AutoAnalysisScheduler:
         logger.info("✅ Auto analysis scheduler stopped")
         
     def _scheduler_loop(self):
-        """Main scheduler loop"""
+        """Main scheduler loop with robust error handling"""
         logger.info("🔄 Auto analysis scheduler loop started")
         
         while not self.stop_event.is_set():
             try:
-                # Check if auto analysis is still enabled
-                if not self._is_auto_analysis_enabled():
-                    logger.info("Auto analysis has been disabled, stopping scheduler")
-                    break
+                # Validate prerequisites
+                if not self._validate_scheduler_prerequisites():
+                    logger.warning("📋 Scheduler prerequisites not met, waiting...")
+                    self.stop_event.wait(60)
+                    continue
                 
-                # Get interval and check if it's time to run
+                # Periodic cleanup of stale statuses (every 10 minutes)
+                if not hasattr(self, '_last_cleanup_time') or \
+                   (datetime.now() - self._last_cleanup_time).total_seconds() > 600:
+                    self._cleanup_stale_analysis_statuses()
+                    self._last_cleanup_time = datetime.now()
+                
+                # Check if it's time to run analysis
                 interval_minutes = self._get_analysis_interval()
                 if self._should_run_analysis(interval_minutes):
                     # Format interval for display
-                    if interval_minutes >= 60:
-                        interval_display = f"{interval_minutes // 60}h {interval_minutes % 60}m" if interval_minutes % 60 else f"{interval_minutes // 60}h"
-                    else:
-                        interval_display = f"{interval_minutes}m"
+                    interval_display = self._format_interval_display(interval_minutes)
                     
                     logger.info(f"⏰ Starting scheduled analysis (interval: {interval_display})")
-                    self._run_scheduled_analysis()
-                    self.last_analysis_time = datetime.now()
+                    
+                    # Run analysis with comprehensive error handling
+                    success = self._run_scheduled_analysis()
+                    
+                    if success:
+                        self.last_analysis_time = datetime.now()
+                        logger.info(f"✅ Scheduled analysis completed successfully")
+                    else:
+                        logger.error(f"❌ Scheduled analysis failed")
                 
                 # Wait for 1 minute before checking again
                 self.stop_event.wait(60)
                 
             except Exception as e:
-                logger.error(f"❌ Error in scheduler loop: {e}")
-                # Wait a bit before continuing to avoid rapid errors
+                logger.error(f"❌ Critical error in scheduler loop: {e}")
+                logger.error(f"📋 Exception details: {type(e).__name__}: {str(e)}")
+                # Wait longer before continuing to avoid rapid errors
                 self.stop_event.wait(300)  # 5 minutes
                 
         self.is_running = False
@@ -127,13 +142,16 @@ class AutoAnalysisScheduler:
         """Get the analysis interval in minutes"""
         try:
             # Support both old format (hours) and new format (minutes with suffix)
-            interval_str = os.getenv('AUTO_ANALYSIS_INTERVAL', '60m')
+            interval_str = os.getenv('AUTO_ANALYSIS_INTERVAL', '1m')
+            logger.info(f"🔍 DEBUG: Reading AUTO_ANALYSIS_INTERVAL = '{interval_str}'")
             
             if interval_str.endswith('m') or interval_str.endswith('min'):
                 # Minutes format: "30m" or "30min"
                 interval_value = int(interval_str.rstrip('min').rstrip('m'))
+                final_minutes = max(1, min(interval_value, 10080))  # Allow 1-minute minimum for testing
+                logger.info(f"🔍 DEBUG: Parsed {interval_str} as {interval_value} minutes, final: {final_minutes} minutes")
                 # Between 5 minutes and 7 days (10080 minutes)
-                return max(5, min(interval_value, 10080))
+                return final_minutes
             elif interval_str.endswith('h') or interval_str.endswith('hour'):
                 # Hours format: "1h" or "1hour"
                 interval_value = int(interval_str.rstrip('hour').rstrip('h'))
@@ -157,84 +175,190 @@ class AutoAnalysisScheduler:
         next_run_time = self.last_analysis_time + timedelta(minutes=interval_minutes)
         return datetime.now() >= next_run_time
         
-    def _run_scheduled_analysis(self):
-        """Run the analysis for all available clusters"""
+    def _run_scheduled_analysis(self) -> bool:
+        """Run analysis for all available clusters with comprehensive error handling"""
         try:
-            # Check if app context is available
+            # Validate app context
             if not self.app:
                 logger.error("❌ Flask app not available for scheduled analysis")
-                return
+                return False
                 
             with self.app.app_context():
-                # Get list of clusters to analyze
+                # Get and validate clusters
                 clusters = self._get_available_clusters()
                 
                 if not clusters:
-                    logger.info("📋 No clusters available for automatic analysis")
-                    return
+                    logger.warning("📋 No clusters available for automatic analysis")
+                    return False
+                
+                logger.info(f"📋 Found {len(clusters)} cluster(s) for automatic analysis")
+                
+                # Track analysis results
+                successful_analyses = 0
+                failed_analyses = 0
+                skipped_analyses = 0
                 
                 # Run analysis for each cluster
-                for cluster_id in clusters:
+                for cluster_data in clusters:
+                    cluster_id = cluster_data.get('id')
+                    cluster_name = cluster_data.get('name', cluster_id)
+                    analysis_status = cluster_data.get('analysis_status', 'unknown')
+                    
                     try:
-                        logger.info(f"🚀 Running automatic analysis for cluster: {cluster_id}")
-                        success = self._trigger_cluster_analysis(cluster_id)
+                        logger.info(f"🚀 Running automatic analysis for cluster: {cluster_name} (ID: {cluster_id})")
+                        logger.info(f"📋 Current status: {analysis_status}")
                         
-                        if success:
-                            logger.info(f"✅ Automatic analysis started successfully for cluster: {cluster_id}")
+                        result = self._trigger_cluster_analysis(cluster_id)
+                        
+                        if result == 'success':
+                            successful_analyses += 1
+                            logger.info(f"✅ Automatic analysis started successfully for cluster: {cluster_name}")
+                        elif result == 'skipped':
+                            skipped_analyses += 1
+                            logger.info(f"⏸️ Analysis skipped for cluster: {cluster_name} (already in progress)")
                         else:
-                            logger.error(f"❌ Failed to start automatic analysis for cluster: {cluster_id}")
+                            failed_analyses += 1
+                            logger.error(f"❌ Failed to start automatic analysis for cluster: {cluster_name}")
                             
                     except Exception as e:
-                        logger.error(f"❌ Error analyzing cluster {cluster_id}: {e}")
+                        failed_analyses += 1
+                        logger.error(f"❌ Error analyzing cluster {cluster_name}: {e}")
                         continue
+                
+                # Log summary
+                total_clusters = len(clusters)
+                logger.info(f"📊 Analysis summary: {successful_analyses} started, {skipped_analyses} skipped, {failed_analyses} failed (total: {total_clusters})")
+                
+                # Consider successful if at least some analyses were started or skipped
+                return (successful_analyses + skipped_analyses) > 0
                         
         except Exception as e:
             logger.error(f"❌ Error running scheduled analysis: {e}")
+            logger.error(f"📋 Exception details: {type(e).__name__}: {str(e)}")
+            return False
             
-    def _get_available_clusters(self) -> list:
-        """Get list of available clusters"""
+    def _get_available_clusters(self) -> List[Dict[str, Any]]:
+        """Get list of available clusters with full metadata"""
         try:
-            # Try to get clusters from the application
-            # This is a simplified approach - adjust based on your cluster management logic
+            # Get clusters from the enhanced cluster manager
             from shared.config.config import enhanced_cluster_manager
             
-            if enhanced_cluster_manager and hasattr(enhanced_cluster_manager, 'get_all_clusters'):
-                clusters = enhanced_cluster_manager.get_all_clusters()
-                return [cluster.get('id', 'demo') for cluster in clusters if cluster.get('id')]
+            if not enhanced_cluster_manager:
+                logger.error("❌ Enhanced cluster manager not available")
+                return []
+                
+            if not hasattr(enhanced_cluster_manager, 'get_clusters_with_subscription_info'):
+                logger.error("❌ Cluster manager missing required method")
+                return []
+            
+            # Get all clusters with subscription info
+            all_clusters = enhanced_cluster_manager.get_clusters_with_subscription_info()
+            
+            if not all_clusters:
+                logger.warning("⚠️ No clusters found in database")
+                return []
+            
+            # Filter and validate clusters for auto-analysis
+            valid_clusters = []
+            for cluster in all_clusters:
+                cluster_id = cluster.get('id')
+                cluster_name = cluster.get('name')
+                cluster_status = cluster.get('status', 'unknown')
+                
+                if not cluster_id:
+                    logger.warning(f"⚠️ Skipping cluster without ID: {cluster}")
+                    continue
+                    
+                if cluster_status not in ['active', 'pending']:
+                    logger.info(f"📋 Skipping inactive cluster: {cluster_name} (status: {cluster_status})")
+                    continue
+                
+                # Add cluster to valid list
+                valid_clusters.append(cluster)
+                logger.info(f"📋 Found valid cluster: {cluster_name} (ID: {cluster_id}, status: {cluster_status})")
+            
+            if valid_clusters:
+                cluster_names = [c.get('name', c.get('id')) for c in valid_clusters]
+                logger.info(f"✅ Auto-analysis will monitor {len(valid_clusters)} cluster(s): {', '.join(cluster_names)}")
             else:
-                # Fallback to demo cluster
-                logger.info("Using demo cluster for automatic analysis")
-                return ['demo']
+                logger.warning("⚠️ No valid clusters found for auto-analysis")
+            
+            return valid_clusters
                 
         except Exception as e:
-            logger.error(f"Error getting available clusters: {e}")
-            return ['demo']  # Fallback to demo cluster
+            logger.error(f"❌ Error getting available clusters: {e}")
+            logger.error(f"📋 Exception details: {type(e).__name__}: {str(e)}")
+            return []
             
-    def _trigger_cluster_analysis(self, cluster_id: str) -> bool:
-        """Trigger analysis for a specific cluster"""
+    def _trigger_cluster_analysis(self, cluster_id: str) -> str:
+        """
+        Trigger analysis for a specific cluster
+        
+        Returns:
+            'success': Analysis started successfully
+            'skipped': Analysis skipped (already running)
+            'failed': Analysis failed to start
+        """
         try:
+            if not cluster_id:
+                logger.error("❌ Cannot trigger analysis: cluster_id is empty")
+                return 'failed'
+            
+            # Clean up any stale analysis statuses before triggering
+            self._cleanup_stale_analysis_statuses()
+            
             # Use internal API call to trigger analysis
             with self.app.test_client() as client:
+                payload = {
+                    'days': 30,
+                    'enable_pod_analysis': True,
+                    'auto_triggered': True,
+                    'force_refresh': False  # Don't force refresh unless necessary
+                }
+                
+                logger.info(f"📤 Triggering analysis for cluster {cluster_id} with payload: {payload}")
+                
                 response = client.post(
                     f'/api/clusters/{cluster_id}/analyze',
-                    json={
-                        'days': 30,
-                        'enable_pod_analysis': True,
-                        'auto_triggered': True
-                    },
+                    json=payload,
                     headers={'Content-Type': 'application/json'}
                 )
                 
+                logger.info(f"📥 API response: status={response.status_code}")
+                
                 if response.status_code == 200:
                     data = response.get_json()
-                    return data.get('status') == 'success'
+                    status = data.get('status')
+                    message = data.get('message', 'No message')
+                    
+                    logger.info(f"📋 API response data: status={status}, message={message}")
+                    
+                    if status == 'success':
+                        return 'success'
+                    elif status == 'skipped':
+                        logger.info(f"⏸️ Analysis skipped for {cluster_id}: {message}")
+                        return 'skipped'
+                    else:
+                        logger.warning(f"❓ Unexpected API status: {status} - {message}")
+                        return 'failed'
+                        
+                elif response.status_code == 409:
+                    logger.info(f"⏸️ Analysis already running for {cluster_id}, skipping this interval")
+                    return 'skipped'
                 else:
-                    logger.error(f"Analysis API returned status code: {response.status_code}")
-                    return False
+                    try:
+                        error_data = response.get_json()
+                        error_message = error_data.get('message', 'Unknown error')
+                    except:
+                        error_message = f"HTTP {response.status_code}"
+                    
+                    logger.error(f"❌ Analysis API error: {error_message}")
+                    return 'failed'
                     
         except Exception as e:
-            logger.error(f"Error triggering cluster analysis: {e}")
-            return False
+            logger.error(f"❌ Exception while triggering cluster analysis: {e}")
+            logger.error(f"📋 Exception details: {type(e).__name__}: {str(e)}")
+            return 'failed'
             
     def get_scheduler_status(self) -> Dict[str, Any]:
         """Get current scheduler status"""
@@ -271,6 +395,71 @@ class AutoAnalysisScheduler:
         except Exception as e:
             logger.error(f"❌ Error forcing immediate analysis: {e}")
             return False
+            
+    def _validate_scheduler_prerequisites(self) -> bool:
+        """Validate that all prerequisites for running the scheduler are met"""
+        try:
+            # Check if auto analysis is enabled
+            if not self._is_auto_analysis_enabled():
+                logger.info("Auto analysis has been disabled, stopping scheduler")
+                return False
+            
+            # Check if Flask app is available
+            if not self.app:
+                logger.error("❌ Flask app not available")
+                return False
+            
+            # Check if cluster manager is available
+            from shared.config.config import enhanced_cluster_manager
+            if not enhanced_cluster_manager:
+                logger.error("❌ Enhanced cluster manager not available")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error validating prerequisites: {e}")
+            return False
+    
+    def _format_interval_display(self, interval_minutes: int) -> str:
+        """Format interval for display"""
+        if interval_minutes >= 60:
+            hours = interval_minutes // 60
+            minutes = interval_minutes % 60
+            if minutes > 0:
+                return f"{hours}h {minutes}m"
+            else:
+                return f"{hours}h"
+        else:
+            return f"{interval_minutes}m"
+    
+    def _cleanup_stale_analysis_statuses(self):
+        """Cleanup stale analysis statuses"""
+        try:
+            from shared.config.config import enhanced_cluster_manager
+            if enhanced_cluster_manager and hasattr(enhanced_cluster_manager, 'cleanup_stale_analysis_statuses'):
+                stale_count = enhanced_cluster_manager.cleanup_stale_analysis_statuses(max_analysis_hours=1)  # 1 hour
+                if stale_count > 0:
+                    logger.info(f"🧹 Cleaned up {stale_count} stale analysis statuses")
+            else:
+                logger.debug("🧹 Stale cleanup method not available")
+        except Exception as e:
+            logger.error(f"❌ Error during stale cleanup: {e}")
+    
+    def cleanup_stale_statuses(self):
+        """Manually cleanup stale analysis statuses"""
+        try:
+            from shared.config.config import enhanced_cluster_manager
+            if enhanced_cluster_manager and hasattr(enhanced_cluster_manager, 'cleanup_stale_analysis_statuses'):
+                stale_count = enhanced_cluster_manager.cleanup_stale_analysis_statuses(max_analysis_hours=0.5)  # 30 minutes
+                logger.info(f"🧹 Manual cleanup: Reset {stale_count} stale analysis statuses")
+                return stale_count
+            else:
+                logger.error("❌ Enhanced cluster manager not available")
+                return 0
+        except Exception as e:
+            logger.error(f"❌ Error during manual cleanup: {e}")
+            return 0
 
 # Global scheduler instance
 auto_scheduler = AutoAnalysisScheduler()

@@ -64,7 +64,7 @@ def render_feature_locked_page(feature: FeatureFlag):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Feature Locked - KUBEVISTA</title>
+        <title>Feature Locked - kubeopt</title>
         <link rel="stylesheet" href="/static/css/tailwind.css">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     </head>
@@ -125,7 +125,7 @@ def render_feature_locked_page(feature: FeatureFlag):
                 
                 <!-- Contact -->
                 <p class="text-xs text-gray-500 mt-6">
-                    Questions? <a href="mailto:support@kubevista.com" class="text-blue-600 hover:underline">Contact Support</a>
+                    Questions? <a href="mailto:support@kubeopt.com" class="text-blue-600 hover:underline">Contact Support</a>
                 </p>
             </div>
         </div>

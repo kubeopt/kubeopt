@@ -856,7 +856,7 @@ if (typeof window.updateRealDynamicInsights === 'function') {
 
 // Initialize when DOM is ready - PRESERVE BACKEND INTEGRATION
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 Initializing Enhanced KubeVista Dashboard...');
+    console.log('🚀 Initializing Enhanced kubeopt Dashboard...');
     
     try {
         initializeTheme();

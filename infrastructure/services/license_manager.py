@@ -81,7 +81,7 @@ class LicenseManager:
         """Load license from file or environment"""
         try:
             # Development mode override
-            if os.getenv('KUBEVISTA_DEV_MODE') == 'true' or os.getenv('KUBEVISTA_BYPASS_LICENSE') == 'true':
+            if os.getenv('kubeopt_DEV_MODE') == 'true' or os.getenv('kubeopt_BYPASS_LICENSE') == 'true':
                 logger.info("🔧 DEVELOPMENT MODE: Using full Enterprise features")
                 return {
                     'tier': LicenseTier.ENTERPRISE.value,
@@ -91,7 +91,7 @@ class LicenseManager:
                 }
             
             # Check environment variable first
-            license_key = os.getenv('KUBEVISTA_LICENSE_KEY')
+            license_key = os.getenv('kubeopt_LICENSE_KEY')
             if license_key:
                 return self.validate_license_key(license_key)
             
