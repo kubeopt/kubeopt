@@ -5,7 +5,7 @@ AKS Cost Optimizer - Production Entry Point
 Production-ready version with proper WSGI server support.
 
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer - Clean Architecture Version
 """
 

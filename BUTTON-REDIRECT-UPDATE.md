@@ -6,18 +6,18 @@
 
 #### **1. Settings Page Upgrade Prompts** (`settings.html`)
 **🔒 Slack Integration Section:**
-- **"Upgrade to Pro"** → `https://kubevista.io/pricing` (opens in new tab)
+- **"Upgrade to Pro"** → `https://kubeopt.io/pricing` (opens in new tab)
 - **"Start Free Trial"** → `/` (clusters dashboard page)
 
 **🔒 Email Settings Section:**
-- **"Upgrade to Pro"** → `https://kubevista.io/pricing` (opens in new tab) 
+- **"Upgrade to Pro"** → `https://kubeopt.io/pricing` (opens in new tab) 
 - **"Start Free Trial"** → `/` (clusters dashboard page)
 
 #### **2. Feature Lock JavaScript** (`feature-lock.js`)
 **📱 Upgrade Modal Prompts:**
 ```javascript
 // Upgrade button opens external pricing page
-window.open('https://kubevista.io/pricing', '_blank')
+window.open('https://kubeopt.io/pricing', '_blank')
 
 // Trial button goes to clusters dashboard
 window.location.href='/'
@@ -27,7 +27,7 @@ window.location.href='/'
 ```javascript
 // Added both trial and upgrade buttons
 <button onclick="window.location.href='/'">Start Free Trial</button>
-<button onclick="window.open('https://kubevista.io/pricing', '_blank')">Upgrade to Pro</button>
+<button onclick="window.open('https://kubeopt.io/pricing', '_blank')">Upgrade to Pro</button>
 ```
 
 ## 🎯 **User Journey Now:**
@@ -37,10 +37,10 @@ window.location.href='/'
 1. **Sees locked feature** (Slack/Email integration)
 2. **Clicks "Start Free Trial"** → Redirects to clusters dashboard (`/`)
    - User can immediately start using dashboard features
-   - Begins experiencing the value of KUBEVISTA
+   - Begins experiencing the value of kubeopt
    - Natural onboarding flow
 
-3. **Clicks "Upgrade to Pro"** → Opens `https://kubevista.io/pricing` in new tab
+3. **Clicks "Upgrade to Pro"** → Opens `https://kubeopt.io/pricing` in new tab
    - User stays in the app (original tab remains open)
    - Can review pricing and purchase options
    - Seamless conversion process
@@ -53,7 +53,7 @@ window.location.href='/'
 ✅ **Reduces Friction** - No complex trial signup process
 ✅ **Engagement First** - User experiences value before committing
 
-#### **"Upgrade to Pro" → KubeVista.io (`https://kubevista.io/pricing`):**
+#### **"Upgrade to Pro" → kubeopt.io (`https://kubeopt.io/pricing`):**
 ✅ **Professional Sales Process** - Dedicated marketing site
 ✅ **Detailed Pricing Info** - Full feature comparison and pricing
 ✅ **Payment Processing** - Secure external payment flow
@@ -65,14 +65,14 @@ window.location.href='/'
 ### **Settings Page:**
 ```
 [🔒 Slack Integration Locked]
-[   Upgrade to Pro   ] ← Opens kubevista.io/pricing in new tab
+[   Upgrade to Pro   ] ← Opens kubeopt.io/pricing in new tab
 [ Start Free Trial  ] ← Goes to clusters dashboard (/)
 ```
 
 ### **Feature Lock Modal:**
 ```
 [Feature Locked Modal]
-[   Upgrade to Pro   ] ← Opens kubevista.io/pricing in new tab  
+[   Upgrade to Pro   ] ← Opens kubeopt.io/pricing in new tab  
 [ Start Free Trial  ] ← Goes to clusters dashboard (/)
 [      Close         ] ← Closes modal
 ```
@@ -82,7 +82,7 @@ window.location.href='/'
 🚀 Unlock Implementation Plans, Auto-Analysis & More!
 [ Start Free Trial ] [ Upgrade to Pro ] [✕]
         ↓                    ↓
-   Clusters Page    kubevista.io/pricing
+   Clusters Page    kubeopt.io/pricing
 ```
 
 ## 🚀 **Perfect for Your Business Model:**

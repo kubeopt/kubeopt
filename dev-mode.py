@@ -20,12 +20,12 @@ def set_dev_mode(enabled=True):
 # This file enables full Enterprise features for development
 
 # Development License - Full Enterprise Access
-KUBEVISTA_LICENSE_KEY=ENT-dev12345-NEVER
-KUBEVISTA_DEV_MODE=true
+kubeopt_LICENSE_KEY=ENT-dev12345-NEVER
+kubeopt_DEV_MODE=true
 
 # Optional: Override specific features for testing
-# KUBEVISTA_FORCE_FREE_TIER=false
-# KUBEVISTA_BYPASS_LICENSE=true"""
+# kubeopt_FORCE_FREE_TIER=false
+# kubeopt_BYPASS_LICENSE=true"""
         
         with open(env_file, 'w') as f:
             f.write(env_content)
@@ -61,8 +61,8 @@ def set_specific_tier(tier):
 # ====================================
 # Testing {tier.upper()} tier
 
-KUBEVISTA_LICENSE_KEY={tier_map[tier]}
-KUBEVISTA_DEV_MODE=true"""
+kubeopt_LICENSE_KEY={tier_map[tier]}
+kubeopt_DEV_MODE=true"""
     
     with open('.env.development', 'w') as f:
         f.write(env_content)
@@ -112,7 +112,7 @@ def show_current_status():
         print(f"❌ Error checking status: {e}")
 
 def main():
-    parser = argparse.ArgumentParser(description='KUBEVISTA Development Mode Utility')
+    parser = argparse.ArgumentParser(description='kubeopt Development Mode Utility')
     parser.add_argument('action', choices=['enable', 'disable', 'status', 'tier'], 
                        help='Action to perform')
     parser.add_argument('--tier', choices=['free', 'pro', 'enterprise'],
@@ -120,7 +120,7 @@ def main():
     
     args = parser.parse_args()
     
-    print("🔧 KUBEVISTA Development Mode Utility")
+    print("🔧 kubeopt Development Mode Utility")
     print("=" * 40)
     
     if args.action == 'enable':

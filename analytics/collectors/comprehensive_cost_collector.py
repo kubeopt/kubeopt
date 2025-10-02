@@ -4,7 +4,7 @@ Comprehensive Cost Collector - Enhanced Azure Cost Data Collection
 ================================================================
 
 Developer: Srinivas Kondepudi  
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 
 Extends existing cost collection to capture comprehensive Azure cost data

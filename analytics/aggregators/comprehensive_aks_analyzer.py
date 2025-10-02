@@ -4,7 +4,7 @@ Comprehensive AKS Analyzer - Industry Standards Assessment
 =========================================================
 
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 
 Comprehensive analysis engine that assesses AKS clusters against international

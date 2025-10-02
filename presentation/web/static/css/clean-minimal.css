@@ -317,7 +317,7 @@ body {
     color: rgba(255, 255, 255, 0.9) !important;
 }
 
-.expandable-sidebar.collapsed .kubevista-eye {
+.expandable-sidebar.collapsed .kubeopt-eye {
     opacity: 1 !important;
     visibility: visible !important;
     display: block !important;
@@ -474,8 +474,8 @@ body {
     background: rgba(255, 255, 255, 0.2);
 }
 
-/* Preserve spinning kubevista eye icon - match brand-icon styling */
-.kubevista-eye {
+/* Preserve spinning kubeopt eye icon - match brand-icon styling */
+.kubeopt-eye {
     width: 48px !important;
     height: 48px !important;
     margin-right: var(--spacing-sm) !important;
@@ -1500,8 +1500,8 @@ main {
 /* Keep the spinning eye icon animation exactly as it was */
 .sidebar-eye-icon,
 .brand-icon,
-.kubevista-eye,
-img[src*="kubevista_eyecon"] {
+.kubeopt-eye,
+img[src*="kubeopt_eyecon"] {
     animation: continuous-spin 8s linear infinite !important;
     filter: brightness(0) invert(1) drop-shadow(0 0 8px #3b82f6) drop-shadow(0 0 4px #1d4ed8) !important;
 }

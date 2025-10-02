@@ -6,7 +6,7 @@
  * Respects LOG_LEVEL environment setting and production mode.
  * 
  * Developer: Srinivas Kondepudi
- * Organization: Nivaya Technologies & KubeVista
+ * Organization: Nivaya Technologies & kubeopt
  */
 
 (function() {

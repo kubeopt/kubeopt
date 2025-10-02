@@ -81,7 +81,7 @@ Your enhanced license manager should automatically:
 ### Settings Page should:
 - Show all sections to all users
 - Lock Slack/Email integration for FREE tier
-- Show upgrade buttons pointing to kubevista.io
+- Show upgrade buttons pointing to kubeopt.io
 - Display current license info correctly
 
 ## 🚀 Perfect for Testing Your Business Model

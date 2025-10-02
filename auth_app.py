@@ -99,7 +99,7 @@ def main():
     
     print("✅ Authentication system is ready!")
     print("🌐 Access the application at: http://localhost:5002")
-    print("🔑 Default credentials: kubevista / kubevista")
+    print("🔑 Default credentials: kubeopt / kubeopt")
     print("=" * 60)
     
     # Start the application

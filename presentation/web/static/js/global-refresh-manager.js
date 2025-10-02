@@ -3,7 +3,7 @@
  * Provides silent refresh functionality across all pages
  * 
  * Developer: Srinivas Kondepudi
- * Organization: Nivaya Technologies & KubeVista
+ * Organization: Nivaya Technologies & kubeopt
  */
 
 class GlobalRefreshManager {
@@ -14,6 +14,7 @@ class GlobalRefreshManager {
         this.currentPage = this.detectCurrentPage();
         this.refreshIntervalMs = 60000; // 60 seconds default
         this.isAnalysisActive = false;
+        this.lastUserActivity = Date.now();
         
         this.init();
     }
@@ -29,6 +30,9 @@ class GlobalRefreshManager {
         
         // Setup cleanup on page unload
         window.addEventListener('beforeunload', () => this.cleanup());
+        
+        // Track user activity to avoid interrupting them
+        this.setupUserActivityTracking();
         
         // Start auto-refresh immediately (always on, not just during analysis)
         this.startAutoRefresh();
@@ -58,15 +62,27 @@ class GlobalRefreshManager {
         }
     }
     
+    setupUserActivityTracking() {
+        // Track user activity to avoid interrupting them during refresh
+        const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+        
+        const updateActivity = () => {
+            this.lastUserActivity = Date.now();
+        };
+        
+        activityEvents.forEach(event => {
+            document.addEventListener(event, updateActivity, { passive: true });
+        });
+        
+        console.log('👂 User activity tracking enabled');
+    }
+    
     registerRefreshHandlers() {
         // Clusters page refresh handlers
         if (this.currentPage === 'clusters') {
-            this.addRefreshHandler('portfolio-metrics', async () => {
-                return await this.refreshPortfolioData();
-            });
-            
-            this.addRefreshHandler('cluster-status', async () => {
-                return await this.refreshClusterStatus();
+            // Use silent page refresh instead of API polling
+            this.addRefreshHandler('silent-page-refresh', async () => {
+                return await this.silentPageRefresh();
             });
         }
         
@@ -127,28 +143,9 @@ class GlobalRefreshManager {
     }
     
     async startAnalysisMonitoring() {
-        // Check for active analysis every 5 seconds
-        setInterval(async () => {
-            try {
-                const hasActiveAnalysis = await this.checkForActiveAnalysis();
-                
-                if (hasActiveAnalysis) {
-                    // During analysis: refresh every 30 seconds
-                    if (this.refreshIntervalMs !== 30000) {
-                        this.setRefreshInterval(30000);
-                        console.log('🔄 Analysis active: switched to 30s refresh interval');
-                    }
-                } else {
-                    // No active analysis: refresh every 60 seconds  
-                    if (this.refreshIntervalMs !== 60000) {
-                        this.setRefreshInterval(60000);
-                        console.log('⏸️ Analysis complete: switched to 60s refresh interval');
-                    }
-                }
-            } catch (error) {
-                console.error('❌ Error checking analysis status:', error);
-            }
-        }, 5000);
+        // Disabled API-based analysis monitoring to reduce server load
+        // Auto-refresh will use a fixed interval with silent page refresh
+        console.log('📴 Analysis monitoring disabled - using fixed refresh interval');
     }
     
     async checkForActiveAnalysis() {
@@ -256,31 +253,23 @@ class GlobalRefreshManager {
         }
     }
     
-    async refreshClusterStatus() {
+    async silentPageRefresh() {
         try {
-            const response = await fetch('/api/clusters', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
+            // Only refresh if user hasn't interacted recently (to avoid interrupting them)
+            const timeSinceLastActivity = Date.now() - (this.lastUserActivity || 0);
+            const minInactivityTime = 30000; // 30 seconds
             
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            
-            const data = await response.json();
-            
-            if (data.status === 'success' && data.clusters) {
-                // Update cluster cards if the function exists
-                if (typeof updateClusterCardsStatus === 'function') {
-                    updateClusterCardsStatus(data.clusters);
-                }
-                return true;
+            if (timeSinceLastActivity < minInactivityTime) {
+                console.log('🔄 Skipping refresh - user recently active');
+                return false;
             }
             
-            return false;
+            // Silent page refresh - reloads content without full page reload
+            console.log('🔄 Performing silent page refresh...');
+            window.location.reload();
+            return true;
         } catch (error) {
-            console.error('❌ Failed to refresh cluster status:', error);
+            console.error('❌ Failed to perform silent refresh:', error);
             return false;
         }
     }

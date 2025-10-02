@@ -16,9 +16,9 @@ class TestLicenseGenerator:
     
     # Secret keys for different algorithms
     SECRETS = {
-        '3M': 'kubevista_3month_secret_2025_v1',
-        '6M': 'kubevista_6month_secret_2025_v2', 
-        '12M': 'kubevista_12month_secret_2025_v3'
+        '3M': 'kubeopt_3month_secret_2025_v1',
+        '6M': 'kubeopt_6month_secret_2025_v2', 
+        '12M': 'kubeopt_12month_secret_2025_v3'
     }
     
     @staticmethod
@@ -108,7 +108,7 @@ class TestLicenseGenerator:
 def main():
     """Generate and display test licenses"""
     
-    print("🎯 KUBEVISTA Test Licenses")
+    print("🎯 kubeopt Test Licenses")
     print("=" * 60)
     print()
     

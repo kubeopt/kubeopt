@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 """
 
@@ -1128,6 +1128,23 @@ def register_api_routes(app):
             force_refresh = data.get('force_refresh', False)
             
             logger.info(f"🚀 Analysis parameters: days={days}, pod_analysis={enable_pod_analysis}, force_refresh={force_refresh}")
+            
+            # Check if analysis is already running for this cluster
+            current_status = enhanced_cluster_manager.get_analysis_status(cluster_id)
+            if current_status and current_status.get('status') == 'analyzing':
+                auto_triggered = data.get('auto_triggered', False)
+                if auto_triggered:
+                    logger.info(f"⏸️ Auto-triggered analysis skipped - cluster {cluster_id} is already being analyzed")
+                    return jsonify({
+                        'status': 'skipped',
+                        'message': f'Analysis already in progress for cluster {cluster_id}'
+                    }), 200
+                else:
+                    logger.warning(f"⚠️ Analysis already running for cluster {cluster_id}")
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'Analysis already in progress for cluster {cluster_id}. Please wait for current analysis to complete.'
+                    }), 409
             
             # Clear cache for fresh analysis requests
             logger.info(f"🔄 Analysis requested - clearing cache for {cluster_id}")

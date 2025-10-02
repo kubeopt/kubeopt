@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 """
 
@@ -34,7 +34,7 @@ def register_license_routes(app):
     def upgrade_page():
         """Redirect to external pricing page"""
         flash('Visit our pricing page to upgrade your license.', 'info')
-        return redirect('https://kubevista.io/pricing')
+        return redirect('https://kubeopt.io/pricing')
     
     @app.route('/license/trial')
     @auth_manager.require_auth  

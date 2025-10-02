@@ -1,4 +1,4 @@
-# 🔑 KUBEVISTA License Management Guide
+# 🔑 kubeopt License Management Guide
 
 ## 📋 **License Key Expiry System**
 
@@ -234,7 +234,7 @@ python3 generate_license.py --tier enterprise --days 60 --type trial --batch 20
 ### **Generated Files:**
 - `license_database.json` - Customer license records
 - `revoked_licenses.json` - Revoked license tracking
-- `kubevista_licenses_*.txt` - Batch generated keys
+- `kubeopt_licenses_*.txt` - Batch generated keys
 
 ### **Backup Strategy:**
 ```bash

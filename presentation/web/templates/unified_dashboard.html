@@ -6,7 +6,7 @@
     <title>{% if cluster %}{{ cluster.name }} - {% endif %}AKS Cost Intelligence</title>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/nivaya_fevicon.png') }}" />
 
-    <meta name="description" content="KUBEVISTA is an intelligent AKS cost optimization platform leveraging ML insights for actionable cloud savings.">
+    <meta name="description" content="kubeopt is an intelligent AKS cost optimization platform leveraging ML insights for actionable cloud savings.">
     <meta name="author" content="NIVAYA">
     <meta name="theme-color" content="#0d6efd" />
     <meta name="log-level" content="{{ config.get('LOG_LEVEL', 'INFO') }}">
@@ -159,8 +159,8 @@
         <aside class="expandable-sidebar" id="sidebar">
             <div class="sidebar-header">
                 <div class="brand-section">
-                    <img src="{{ url_for('static', filename='images/kubevista_eyecon.png') }}" alt="KUBEVISTA Eye Icon" class="kubevista-eye">
-                    <h1 class="sidebar-brand">KUBEVISTA</h1>
+                    <img src="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" alt="kubeopt Eye Icon" class="kubeopt-eye">
+                    <h1 class="sidebar-brand">kubeopt</h1>
                 </div>
                 <button class="sidebar-toggle" onclick="toggleSidebar()">
                     <i class="fas fa-bars"></i>
@@ -237,10 +237,10 @@
 
                 <div class="top-bar-actions">
                     {% if cluster %}
-                    <button onclick="triggerAnalysis('{{ cluster.id }}')" class="clean-btn clean-btn-primary">
+                    <!-- <button onclick="triggerAnalysis('{{ cluster.id }}')" class="clean-btn clean-btn-primary">
                         <i class="fas fa-play"></i>
                         <span>Analyze</span>
-                    </button>
+                    </button> -->
                     {% endif %}
                     
                     <div class="relative">
@@ -828,7 +828,7 @@
 <footer class="footer mt-auto py-3 text-center text-muted">
   <div class="container">
     <small class="d-block mb-1">
-      © {{ current_year }} <strong>KUBEVISTA</strong> · Built for Kubernetes · Intelligent. Insightful. Illuminating.
+      © {{ current_year }} <strong>kubeopt</strong> · Built for Kubernetes · Intelligent. Insightful. Illuminating.
     </small>
     <small class="d-block">
       All rights reserved by <strong>Nivaya Technologies</strong>

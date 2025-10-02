@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Developer: Srinivas Kondepudi
-Organization: Nivaya Technologies & KubeVista
+Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 """
 
@@ -56,7 +56,7 @@ def register_auth_routes(app):
         username = user.get('username', 'Unknown')
         
         auth_manager.destroy_session()
-        flash(f'Session ended for {username}. Thank you for using KubeVista.', 'success')
+        flash(f'Session ended for {username}. Thank you for using kubeopt.', 'success')
         return redirect(url_for('login'))
     
     @app.route('/settings')
