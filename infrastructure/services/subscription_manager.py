@@ -75,7 +75,11 @@ class AzureSubscriptionManager:
             
             if not azure_sdk_manager.is_authenticated():
                 logger.error("❌ Azure SDK not authenticated")
+                logger.debug(f"❌ Credential available: {azure_sdk_manager.credential is not None}")
+                logger.debug(f"❌ Auth time: {azure_sdk_manager._auth_time}")
                 return []
+            else:
+                logger.info("✅ Azure SDK is authenticated, proceeding with subscription fetch")
             
             from azure.mgmt.resource import SubscriptionClient
             

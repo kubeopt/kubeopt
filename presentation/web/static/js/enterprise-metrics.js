@@ -524,27 +524,27 @@ class EnterpriseMetricsManager {
         // Create modal content
         const modalHtml = `
             <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="recommendations-modal">
-                <div class="bg-gray-800 rounded-lg p-6 max-w-4xl max-h-96 overflow-y-auto m-4">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-xl font-bold text-white">📋 Enterprise Recommendations</h2>
+                <div class="bg-white rounded-lg p-5 max-w-3xl max-h-[80vh] overflow-y-auto m-4 shadow-xl" style="border: 1px solid var(--border-color);">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-lg font-bold" style="color: var(--text-primary);">📋 Enterprise Recommendations</h2>
                         <button onclick="document.getElementById('recommendations-modal').remove()" 
-                                class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                                class="text-xl" style="color: var(--text-secondary); transition: color 0.2s ease;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-secondary)'">&times;</button>
                     </div>
-                    <div class="space-y-4">
+                    <div class="space-y-3">
                         ${allRecommendations.map(item => `
-                            <div class="border border-gray-600 rounded-lg p-4">
+                            <div class="rounded-lg p-3" style="border: 1px solid var(--border-color); background: var(--bg-white);">
                                 <div class="flex items-center justify-between mb-2">
-                                    <h3 class="font-semibold text-white">${item.metric}</h3>
-                                    <span class="px-2 py-1 rounded text-xs font-medium 
-                                        ${item.risk === 'LOW' ? 'bg-green-600 text-green-100' : 
-                                          item.risk === 'MEDIUM' ? 'bg-yellow-600 text-yellow-100' : 
-                                          'bg-red-600 text-red-100'}">
-                                        Score: ${Math.round(item.score)} | ${item.risk} Risk
+                                    <h3 class="font-medium text-sm" style="color: var(--text-primary);">${item.metric}</h3>
+                                    <span class="px-2 py-1 rounded text-xs font-medium" style="
+                                        background: ${item.risk === 'LOW' ? 'var(--primary-green)' : 
+                                                   item.risk === 'MEDIUM' ? '#f59e0b' : '#dc2626'};
+                                        color: white;">
+                                        ${Math.round(item.score)} | ${item.risk}
                                     </span>
                                 </div>
                                 <ul class="space-y-1">
-                                    ${item.recommendations.map(rec => `
-                                        <li class="text-gray-300 text-sm">• ${rec}</li>
+                                    ${item.recommendations.slice(0, 3).map(rec => `
+                                        <li class="text-xs" style="color: var(--text-primary);">• ${rec}</li>
                                     `).join('')}
                                 </ul>
                             </div>
@@ -569,95 +569,80 @@ class EnterpriseMetricsManager {
         // Create comprehensive modal content
         const modalHtml = `
             <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" id="metric-details-modal">
-                <div class="bg-gray-800 rounded-xl p-8 max-w-6xl max-h-[90vh] overflow-y-auto m-4 border border-gray-600">
-                    <div class="flex justify-between items-start mb-6">
+                <div class="bg-white rounded-xl p-6 max-w-4xl max-h-[85vh] overflow-y-auto m-4 shadow-2xl" style="border: 1px solid var(--border-color);">
+                    <div class="flex justify-between items-start mb-4">
                         <div>
-                            <h2 class="text-2xl font-bold text-white mb-2">📊 ${metricName}</h2>
-                            <p class="text-gray-400">Enterprise Operational Intelligence Report</p>
+                            <h2 class="text-xl font-bold mb-1" style="color: var(--text-primary);">📊 ${metricName}</h2>
+                            <p class="text-sm" style="color: var(--text-secondary);">Enterprise Intelligence Report</p>
                         </div>
                         <button onclick="document.getElementById('metric-details-modal').remove()" 
-                                class="text-gray-400 hover:text-white text-3xl font-bold leading-none">&times;</button>
+                                class="text-2xl font-bold leading-none" style="color: var(--text-secondary); transition: color 0.2s ease;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-secondary)'">&times;</button>
                     </div>
                     
                     <!-- Score Header -->
-                    <div class="bg-gradient-to-r from-gray-800 to-gray-900 rounded-lg p-6 mb-6 text-center border border-green-500">
-                        <div class="text-6xl font-bold ${this.getScoreColor(score)} mb-2">${score}</div>
-                        <div class="text-xl text-white mb-1">Overall Score</div>
-                        <div class="inline-block px-4 py-2 rounded-full ${this.getRiskBadgeClass(riskLevel)} font-semibold">
+                    <div class="rounded-lg p-4 mb-4 text-center" style="background: var(--bg-primary); border: 1px solid var(--primary-green);">
+                        <div class="text-4xl font-bold ${this.getScoreColor(score)} mb-1">${score}</div>
+                        <div class="text-lg mb-1" style="color: var(--text-primary);">Overall Score</div>
+                        <div class="inline-block px-3 py-1 rounded-full ${this.getRiskBadgeClass(riskLevel)} font-medium text-sm">
                             ${riskLevel} RISK
                         </div>
                     </div>
                     
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <!-- Key Insights -->
-                        <div class="bg-gray-700 rounded-lg p-6">
-                            <h3 class="font-semibold text-white mb-4 flex items-center">
-                                <i class="fas fa-lightbulb text-yellow-400 mr-2"></i>
+                        <div class="rounded-lg p-4" style="background: var(--bg-white); border: 1px solid var(--border-color);">
+                            <h3 class="font-semibold mb-3 flex items-center text-sm" style="color: var(--text-primary);">
+                                <i class="fas fa-lightbulb mr-2" style="color: var(--primary-green);"></i>
                                 Key Insights
                             </h3>
-                            <div class="space-y-3">
-                                ${insights.map(insight => `
+                            <div class="space-y-2">
+                                ${insights.slice(0, 4).map(insight => `
                                     <div class="flex items-start">
-                                        <span class="text-green-400 mr-3 mt-1">•</span>
-                                        <span class="text-gray-300">${insight}</span>
+                                        <span class="mr-2 mt-1 text-xs" style="color: var(--primary-green);">•</span>
+                                        <span class="text-sm" style="color: var(--text-primary);">${insight}</span>
                                     </div>
                                 `).join('')}
                             </div>
                         </div>
                         
                         <!-- Action Items -->
-                        <div class="bg-gray-700 rounded-lg p-6">
-                            <h3 class="font-semibold text-white mb-4 flex items-center">
-                                <i class="fas fa-tasks text-green-400 mr-2"></i>
+                        <div class="rounded-lg p-4" style="background: var(--bg-white); border: 1px solid var(--border-color);">
+                            <h3 class="font-semibold mb-3 flex items-center text-sm" style="color: var(--text-primary);">
+                                <i class="fas fa-tasks mr-2" style="color: var(--primary-green);"></i>
                                 Action Items
                             </h3>
-                            <div class="space-y-3">
-                                ${(data.recommendations || ['No specific recommendations available']).map((rec, index) => `
+                            <div class="space-y-2">
+                                ${(data.recommendations || ['No specific recommendations available']).slice(0, 3).map((rec, index) => `
                                     <div class="flex items-start">
-                                        <span class="flex-shrink-0 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-xs font-bold text-white mr-3">
+                                        <span class="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white mr-2" style="background: var(--primary-green);">
                                             ${index + 1}
                                         </span>
-                                        <span class="text-gray-300">${rec}</span>
+                                        <span class="text-sm" style="color: var(--text-primary);">${rec}</span>
                                     </div>
                                 `).join('')}
                             </div>
                         </div>
                         
                         <!-- Technical Analysis -->
-                        <div class="bg-gray-700 rounded-lg p-6 lg:col-span-2">
-                            <h3 class="font-semibold text-white mb-4 flex items-center">
-                                <i class="fas fa-cogs text-green-400 mr-2"></i>
-                                Technical Analysis
+                        <div class="rounded-lg p-4 lg:col-span-2" style="background: var(--bg-white); border: 1px solid var(--border-color);">
+                            <h3 class="font-semibold mb-3 flex items-center text-sm" style="color: var(--text-primary);">
+                                <i class="fas fa-cogs mr-2" style="color: var(--primary-green);"></i>
+                                Technical Details
                             </h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                 ${this.formatDetailedBreakdown(data.details || data.key_details)}
-                            </div>
-                        </div>
-                        
-                        <!-- Benchmark Comparison -->
-                        <div class="bg-gray-700 rounded-lg p-6 lg:col-span-2">
-                            <h3 class="font-semibold text-white mb-4 flex items-center">
-                                <i class="fas fa-chart-bar text-orange-400 mr-2"></i>
-                                Industry Benchmark Comparison
-                            </h3>
-                            <div class="space-y-4">
-                                ${this.getBenchmarkComparison(metricKey, score)}
                             </div>
                         </div>
                     </div>
                     
                     <!-- Footer Actions -->
-                    <div class="mt-8 pt-6 border-t border-gray-600 flex justify-between items-center">
-                        <div class="text-sm text-gray-400">
-                            📅 Last Updated: ${data.calculated_at || new Date().toLocaleString()}
+                    <div class="mt-4 pt-3 flex justify-between items-center" style="border-top: 1px solid var(--border-color);">
+                        <div class="text-xs" style="color: var(--text-secondary);">
+                            📅 Updated: ${data.calculated_at || new Date().toLocaleString()}
                         </div>
-                        <div class="space-x-3">
-                            <button onclick="enterpriseMetricsManager.exportMetricReport('${metricKey}')" 
-                                    class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors">
-                                <i class="fas fa-download mr-2"></i>Export Report
-                            </button>
+                        <div class="space-x-2">
                             <button onclick="document.getElementById('metric-details-modal').remove()" 
-                                    class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors">
+                                    class="px-3 py-1.5 rounded text-sm transition-colors" style="background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-color);" onmouseover="this.style.background='var(--primary-green)'; this.style.color='white'" onmouseout="this.style.background='var(--bg-primary)'; this.style.color='var(--text-primary)'">
                                 Close
                             </button>
                         </div>

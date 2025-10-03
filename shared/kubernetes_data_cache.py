@@ -201,6 +201,10 @@ class KubernetesDataCache:
                     # Resource doesn't exist - this is expected for optional resources
                     logger.debug(f"📋 {self.cluster_name}: Optional resource not found: {cmd[:60]}...")
                     return None
+                elif "server doesn't have a resource type" in str(result_output).lower():
+                    # Resource type not available (e.g., ArgoCD applications, custom CRDs)
+                    logger.debug(f"📋 {self.cluster_name}: Resource type not available: {cmd[:60]}...")
+                    return None
                 elif "podsecuritypolicies" in cmd:
                     # PSP deprecated in k8s 1.25+
                     logger.debug(f"📋 {self.cluster_name}: PodSecurityPolicy deprecated/removed: {cmd[:60]}...")
@@ -229,6 +233,10 @@ class KubernetesDataCache:
             elif "NotFound" in str(e) or "not found" in str(e):
                 # Resource doesn't exist - this is expected for optional resources
                 logger.debug(f"📋 {self.cluster_name}: Optional resource not found (exception): {cmd[:60]}...")
+                return None
+            elif "server doesn't have a resource type" in str(e).lower():
+                # Resource type not available (e.g., ArgoCD applications, custom CRDs)
+                logger.debug(f"📋 {self.cluster_name}: Resource type not available (exception): {cmd[:60]}...")
                 return None
             elif "podsecuritypolicies" in cmd:
                 # PSP deprecated in k8s 1.25+
@@ -317,22 +325,24 @@ class KubernetesDataCache:
     def _execute_aks_cluster_version_via_sdk(self) -> Optional[str]:
         """Execute 'az aks show --query currentKubernetesVersion' command via Azure SDK"""
         try:
+            logger.info(f"🔍 {self.cluster_name}: Executing cluster_version_sdk via Azure SDK...")
             from infrastructure.services.azure_sdk_manager import azure_sdk_manager
             
             # Get AKS client
             aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
             if not aks_client:
-                logger.error(f"❌ Cannot get AKS client for {self.cluster_name}")
+                logger.error(f"❌ {self.cluster_name}: Cannot get AKS client")
                 return None
             
             # Get cluster information
+            logger.debug(f"🔍 {self.cluster_name}: Getting cluster info from Azure API...")
             cluster = aks_client.managed_clusters.get(self.resource_group, self.cluster_name)
             
             # Extract Kubernetes version directly
             kubernetes_version = cluster.kubernetes_version
             if kubernetes_version:
-                logger.info(f"✅ {self.cluster_name}: Got Kubernetes version via SDK: {kubernetes_version}")
-                return kubernetes_version
+                logger.info(f"✅ {self.cluster_name}: Got Kubernetes version via SDK: {kubernetes_version} (type: {type(kubernetes_version)})")
+                return str(kubernetes_version)  # Ensure it's a string
             else:
                 logger.warning(f"⚠️ {self.cluster_name}: No Kubernetes version found in cluster info")
                 return None
@@ -485,7 +495,9 @@ class KubernetesDataCache:
             'hpa_custom', 'hpa_high_cpu', 'deployments_text', 'pods_all', 'cluster_utilization',
             # New broader query commands (all return text)
             'namespaces_with_labels', 'all_namespaces_list', 'all_networkpolicies', 
-            'all_storageclasses_list', 'kube_system_deployments', 'kube_system_configmaps'
+            'all_storageclasses_list', 'kube_system_deployments', 'kube_system_configmaps',
+            # Azure SDK commands that return text/version strings
+            'cluster_version_sdk'
         }
         return key in text_commands
     

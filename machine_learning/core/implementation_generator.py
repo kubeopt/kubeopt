@@ -2632,7 +2632,29 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                         if 'cluster_version_sdk' in cached_data and cached_data['cluster_version_sdk']:
                             cluster_version = cached_data['cluster_version_sdk']
                             logger.info(f"📋 Got cluster version via SDK: {cluster_version}")
-                            current_version = cluster_version.replace('v', '') if cluster_version else None
+                            
+                            # Handle different data types returned by SDK
+                            if isinstance(cluster_version, str):
+                                current_version = cluster_version.replace('v', '')
+                                logger.info(f"📋 Extracted version string: {current_version}")
+                            elif isinstance(cluster_version, dict):
+                                logger.warning(f"⚠️ SDK returned dict instead of version string: {cluster_version}")
+                                # Try to get version from kubectl cache as fallback
+                                if 'version' in cached_data and cached_data['version']:
+                                    version_data = cached_data['version']
+                                    if isinstance(version_data, dict) and 'serverVersion' in version_data:
+                                        server_version = version_data['serverVersion']
+                                        if isinstance(server_version, dict) and 'gitVersion' in server_version:
+                                            current_version = server_version['gitVersion'].replace('v', '')
+                                            logger.info(f"📋 Fallback: extracted version from kubectl: {current_version}")
+                                        else:
+                                            logger.error("❌ kubectl version data malformed")
+                                    else:
+                                        logger.error("❌ kubectl version data not available")
+                                else:
+                                    logger.error("❌ No fallback version data available")
+                            else:
+                                logger.error(f"❌ Unexpected version data type: {type(cluster_version)}")
                         else:
                             logger.warning("⚠️ No cluster version found via SDK")
                     else:

@@ -92,11 +92,30 @@ class AzureSDKManager:
             credential_chain = []
             import os
             
-            # 1. Check for username/password testing credentials
-            username = os.getenv('AZURE_USERNAME')
-            password = os.getenv('AZURE_PASSWORD') 
+            # Get environment variables for service principal
             tenant_id = os.getenv('AZURE_TENANT_ID', '')
+            client_id = os.getenv('AZURE_CLIENT_ID', '')
+            client_secret = os.getenv('AZURE_CLIENT_SECRET', '')
+            username = os.getenv('AZURE_USERNAME')
+            password = os.getenv('AZURE_PASSWORD')
             
+            # 1. PRIORITY: Environment credentials (for service principals)
+            if tenant_id and not tenant_id.startswith('your-') and 'placeholder' not in tenant_id.lower():
+                try:
+                    env_credential = EnvironmentCredential()
+                    credential_chain.append(env_credential)
+                    logger.info("✅ Added environment credential to chain (PRIORITY)")
+                    
+                    # Test if service principal env vars are set
+                    if client_id and client_secret:
+                        logger.info(f"🔑 Service principal detected: {client_id[:8]}...")
+                    
+                except Exception as e:
+                    logger.debug(f"Environment credential not available: {e}")
+            else:
+                logger.debug("Skipping environment credential due to placeholder/missing tenant ID")
+            
+            # 2. Username/password testing credentials (secondary)
             if username and password and tenant_id:
                 try:
                     user_pass_credential = UsernamePasswordCredential(
@@ -109,27 +128,19 @@ class AzureSDKManager:
                 except Exception as e:
                     logger.warning(f"⚠️ Username/password credential failed: {e}")
             
-            # 2. Interactive browser credential for testing (only with valid tenant ID)
+            # 3. Interactive browser credential ONLY if no other credentials worked
             if not credential_chain and tenant_id and not tenant_id.startswith('your-') and 'placeholder' not in tenant_id.lower():
                 try:
                     browser_credential = InteractiveBrowserCredential(tenant_id=tenant_id)
                     credential_chain.append(browser_credential)
-                    logger.info("✅ Added interactive browser credential for testing")
+                    logger.info("✅ Added interactive browser credential as fallback")
                 except Exception as e:
                     logger.debug(f"Interactive browser credential not available: {e}")
             else:
-                logger.debug("Skipping interactive browser credential due to placeholder/missing tenant ID")
-            
-            # 3. Environment credentials (for CI/CD, service principals)
-            if tenant_id and not tenant_id.startswith('your-') and 'placeholder' not in tenant_id.lower():
-                try:
-                    env_credential = EnvironmentCredential()
-                    credential_chain.append(env_credential)
-                    logger.info("✅ Added environment credential to chain")
-                except Exception as e:
-                    logger.debug(f"Environment credential not available: {e}")
-            else:
-                logger.debug("Skipping environment credential due to placeholder/missing tenant ID")
+                if credential_chain:
+                    logger.debug("Skipping interactive browser credential - other credentials available")
+                else:
+                    logger.debug("Skipping interactive browser credential due to placeholder/missing tenant ID")
             
             # 2. Managed identity (for Azure-hosted applications)
             try:

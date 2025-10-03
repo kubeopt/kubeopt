@@ -287,10 +287,17 @@ def register_auth_routes(app):
             
             if refresh_success and azure_sdk_manager.is_authenticated():
                 subscription_id = azure_sdk_manager.get_subscription_id()
-                return jsonify({
-                    'success': True, 
-                    'message': f'Azure authentication successful! Connected to subscription: {subscription_id[:8] if subscription_id else "unknown"}...'
-                })
+                if subscription_id:
+                    return jsonify({
+                        'success': True, 
+                        'message': f'Azure authentication successful! Connected to subscription: {subscription_id[:8]}...'
+                    })
+                else:
+                    # Organization-wide access - show capability instead of specific subscription
+                    return jsonify({
+                        'success': True, 
+                        'message': 'Azure authentication successful! Organization-wide access enabled. Ready to discover subscriptions and clusters.'
+                    })
             else:
                 return jsonify({
                     'success': False, 
