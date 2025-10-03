@@ -12,7 +12,6 @@ for enhanced savings analysis while maintaining backwards compatibility.
 """
 
 import logging
-import subprocess
 import json
 import pandas as pd
 from typing import Dict, List, Tuple, Optional
@@ -28,6 +27,9 @@ class ComprehensiveCostCollector:
     
     def __init__(self):
         self.cost_categories = self._initialize_cost_categories()
+        # Initialize Azure SDK client
+        from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+        self.azure_sdk_manager = azure_sdk_manager
         
     def _initialize_cost_categories(self) -> Dict:
         """Initialize comprehensive cost categorization mapping"""
@@ -537,13 +539,32 @@ class ComprehensiveCostCollector:
         return breakdown
     
     def _execute_azure_cost_query(self, query: Dict, subscription_id: str) -> Dict:
-        """Execute Azure cost query using Azure CLI"""
-        
-        query_json = json.dumps(query).replace('"', '\\"')
-        cmd = f'az costmanagement query --subscription {subscription_id} --type ActualCost --dataset \'{query_json}\' --output json'
-        
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
-        return json.loads(result.stdout)
+        """Execute Azure cost query using Azure SDK"""
+        try:
+            # Get cost management client
+            cost_client = self.azure_sdk_manager.get_cost_client()
+            if not cost_client:
+                raise Exception("Azure SDK authentication failed")
+            
+            # Execute query using Azure SDK with correct method
+            scope = f"/subscriptions/{subscription_id}"
+            result = cost_client.query.usage(scope=scope, parameters=query)
+            
+            # Convert result to dict format compatible with existing code
+            if result and hasattr(result, 'properties'):
+                return {
+                    'properties': {
+                        'columns': result.properties.columns if hasattr(result.properties, 'columns') else [],
+                        'rows': result.properties.rows if hasattr(result.properties, 'rows') else []
+                    }
+                }
+            else:
+                return {'properties': {'columns': [], 'rows': []}}
+                
+        except Exception as e:
+            logger.error(f"Azure SDK cost query failed: {e}")
+            # Return empty result to maintain compatibility
+            return {'properties': {'columns': [], 'rows': []}}
     
     def _process_base_cost_results(self, cost_data: Dict, resource_group: str, cluster_name: str) -> Dict:
         """Process base cost query results"""

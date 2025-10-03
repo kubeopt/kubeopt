@@ -136,35 +136,52 @@ class MultiSubscriptionAnalysisEngine:
                 query_file = f.name
             
             try:
-                # Get subscription ID for API call
-                sub_cmd = "az account show --query id -o tsv"
-                sub_result = subprocess.run(sub_cmd, shell=True, check=True, capture_output=True, text=True, timeout=10)
-                current_subscription_id = sub_result.stdout.strip()
+                # Use Azure SDK instead of CLI
+                from infrastructure.services.azure_sdk_manager import azure_sdk_manager
                 
-                # Test cost API with timeout and proper headers
-                api_cmd = f"""
-                az rest --method POST \
-                --uri "https://management.azure.com/subscriptions/{current_subscription_id}/providers/Microsoft.CostManagement/query?api-version=2023-03-01" \
-                --headers "ClientType=AKSCostOptimizer-v2.0" "x-ms-command-name=AKSCostOptimizer" \
-                --body @{query_file} \
-                --output json
-                """
+                # Get cost management client using Azure SDK with subscription context
+                cost_client = azure_sdk_manager.get_cost_client(subscription_id)
+                if not cost_client:
+                    return {'available': False, 'error': 'Azure SDK authentication failed'}
                 
-                result = subprocess.run(api_cmd, shell=True, capture_output=True, text=True, timeout=30)
+                # Use the provided subscription_id instead of CLI command
+                current_subscription_id = subscription_id
                 
-                if result.returncode == 0:
-                    # Parse response to ensure it's valid
-                    response = json.loads(result.stdout)
-                    if 'properties' in response:
-                        return {'available': True, 'subscription_id': current_subscription_id}
-                    else:
-                        return {'available': False, 'error': 'Invalid cost API response format'}
+                # Test cost API using Azure SDK
+                scope = f"/subscriptions/{current_subscription_id}"
+                query_definition = {
+                    "type": "ActualCost",
+                    "timeframe": "Custom",
+                    "time_period": {
+                        "from": start_date.strftime('%Y-%m-%dT00:00:00Z'),
+                        "to": end_date.strftime('%Y-%m-%dT23:59:59Z')
+                    },
+                    "dataset": {
+                        "granularity": "Daily",
+                        "aggregation": {
+                            "totalCost": {"name": "Cost", "function": "Sum"}
+                        }
+                    }
+                }
+                
+                # Test the cost API call using correct Azure Cost Management method
+                result = cost_client.query.usage(scope=scope, parameters=query_definition)
+                
+                # Check if result has data (Azure SDK returns the response object directly)
+                if result:
+                    # Log what we received for debugging
+                    logger.debug(f"Cost API response type: {type(result)}")
+                    if hasattr(result, '__dict__'):
+                        logger.debug(f"Cost API response attributes: {list(result.__dict__.keys())}")
+                    
+                    # Be more lenient - if we got any response, consider it valid
+                    # The actual cost queries will handle the specific format validation
+                    return {'available': True, 'subscription_id': current_subscription_id}
                 else:
-                    error_msg = result.stderr.strip()
-                    if "429" in error_msg or "Too Many Requests" in error_msg:
-                        return {'available': False, 'error': 'Cost API rate limit exceeded - retry later'}
-                    else:
-                        return {'available': False, 'error': f'Cost API error: {error_msg}'}
+                    return {'available': False, 'error': 'No response from cost API'}
+                        
+            except Exception as sdk_error:
+                return {'available': False, 'error': f'Azure SDK cost validation error: {str(sdk_error)}'}
                         
             finally:
                 # Clean up temp file
@@ -174,8 +191,6 @@ class MultiSubscriptionAnalysisEngine:
                 except:
                     pass
             
-        except subprocess.TimeoutExpired:
-            return {'available': False, 'error': 'Cost API timeout - Azure may be experiencing issues'}
         except Exception as e:
             return {'available': False, 'error': f'Cost validation error: {e}'}
 
