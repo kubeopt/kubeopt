@@ -399,7 +399,7 @@ class MultiSubscriptionAnalysisEngine:
             final_results = self._compile_results_with_cluster_config_support(
                 consistent_results, cost_label, total_period_cost, days,
                 real_node_metrics, pod_data, resource_group, cluster_name,
-                session_id, config, self.session_metadata[config.analysis_type]
+                session_id, config, self.session_metadata[config.analysis_type], cost_df
             )
             
             # CRITICAL: Add metrics_data to final_results for implementation_generator
@@ -433,7 +433,7 @@ class MultiSubscriptionAnalysisEngine:
     def _compile_results_with_cluster_config_support(self, consistent_results: Dict, cost_label: str, 
                         total_period_cost: float, days: int, real_node_metrics: List,
                         pod_data: Optional[Dict], resource_group: str, cluster_name: str,
-                        session_id: str, config: AnalysisConfig, metadata: Dict) -> Dict:
+                        session_id: str, config: AnalysisConfig, metadata: Dict, cost_df) -> Dict:
         """
         Compile comprehensive analysis results with cluster config support
         ENHANCED: Includes all metadata needed by implementation generator for cluster config fetching
@@ -450,6 +450,15 @@ class MultiSubscriptionAnalysisEngine:
             'real_node_data': real_node_metrics.copy(),
             'has_real_node_data': True
         })
+        
+        # CRITICAL: Save the original detailed cost DataFrame for accurate cache restoration
+        if cost_df is not None and not cost_df.empty:
+            # Convert DataFrame to serializable format for database storage
+            cost_data_for_storage = cost_df.to_dict('records')
+            final_results['cost_data'] = cost_data_for_storage
+            final_results['cost_data_columns'] = list(cost_df.columns)
+            final_results['cost_data_shape'] = cost_df.shape
+            logger.info(f"✅ Saved detailed cost DataFrame to analysis results: {cost_df.shape[0]} rows, {cost_df.shape[1]} columns")
         
         # ENHANCED: Add subscription-aware ML metadata with cluster config support
         ml_metadata = {

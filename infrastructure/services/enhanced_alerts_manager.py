@@ -21,16 +21,22 @@ import logging
 
 # Import the alerts database
 from infrastructure.persistence.alerts_database import alerts_db
+from shared.standards.implementation_cost_calculator import implementation_cost_calculator
 
 logger = logging.getLogger(__name__)
 
 class EnhancedAlertsManager:
-    """Complete alerts manager with database backend and multi-channel notifications"""
+    """Complete alerts manager with database backend and multi-channel notifications using standards"""
     
     def __init__(self, cluster_manager=None):
         self.cluster_manager = cluster_manager
         self.db = alerts_db
         self.logger = logging.getLogger(__name__)
+        
+        # Load standards for configuration
+        self.standards = implementation_cost_calculator.load_standards()
+        monitoring_config = self.standards.get('monitoring_alerting', {})
+        notification_config = monitoring_config.get('notifications', {})
         
         # Email configuration
         self.smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
@@ -42,7 +48,12 @@ class EnhancedAlertsManager:
         # Slack configuration
         self.slack_webhook_url = os.getenv('SLACK_WEBHOOK_URL', '')
         
-        self.logger.info("✅ Enhanced alerts manager initialized")
+        # Load notification settings from standards
+        self.notification_retry_attempts = notification_config.get('retry_attempts', 3)
+        self.notification_timeout = notification_config.get('timeout_seconds', 10)
+        self.default_channels = notification_config.get('default_channels', ['email', 'inapp'])
+        
+        self.logger.info("✅ Enhanced alerts manager initialized with standards")
 
     def get_alerts_route(self, cluster_id: Optional[str] = None) -> Dict:
         """Get all alerts (API route handler)"""
@@ -93,11 +104,11 @@ class EnhancedAlertsManager:
                     alert_data['subscription_id'] = cluster.get('subscription_id')
                     alert_data['subscription_name'] = cluster.get('subscription_name')
             
-            # Set defaults
+            # Set defaults using standards
             alert_data.setdefault('status', 'active')
             alert_data.setdefault('alert_type', 'cost_threshold')
             alert_data.setdefault('threshold_type', 'monthly')
-            alert_data.setdefault('notification_channels', ['email', 'inapp'])
+            alert_data.setdefault('notification_channels', self.default_channels)
             alert_data.setdefault('created_by', 'user')
             
             alert_id = self.db.create_alert(alert_data)
@@ -419,11 +430,12 @@ class EnhancedAlertsManager:
                 
                 cpu_triggers = []
                 
-                # Check high CPU usage
+                # Check high CPU usage using standards
                 if conditions.get('high_cpu_usage', False):
                     avg_cpu = cpu_metrics.get('average_cpu_utilization', 0)
-                    warning_threshold = thresholds.get('cpu_warning', 75)
-                    critical_threshold = thresholds.get('cpu_critical', 90)
+                    cpu_monitoring = self.standards.get('monitoring_alerting', {}).get('cpu_monitoring', {})
+                    warning_threshold = thresholds.get('cpu_warning', cpu_monitoring.get('warning_threshold', 75))
+                    critical_threshold = thresholds.get('cpu_critical', cpu_monitoring.get('critical_threshold', 90))
                     
                     if avg_cpu >= critical_threshold:
                         cpu_triggers.append({
@@ -438,10 +450,11 @@ class EnhancedAlertsManager:
                             'severity': 'warning'
                         })
                 
-                # Check low efficiency
+                # Check low efficiency using standards
                 if conditions.get('low_efficiency', False):
                     efficiency = cpu_metrics.get('cpu_efficiency', 0)
-                    min_efficiency = thresholds.get('efficiency_minimum', 40)
+                    cpu_monitoring = self.standards.get('monitoring_alerting', {}).get('cpu_monitoring', {})
+                    min_efficiency = thresholds.get('efficiency_minimum', cpu_monitoring.get('efficiency_minimum', 40))
                     
                     if efficiency < min_efficiency:
                         cpu_triggers.append({

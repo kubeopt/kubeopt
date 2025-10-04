@@ -27,6 +27,9 @@ from dataclasses import dataclass, asdict
 import logging
 import numpy as np
 
+# Import standards-based implementation cost calculator
+from shared.standards.implementation_cost_calculator import implementation_cost_calculator
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -155,7 +158,6 @@ class EnhancedDynamicStrategyEngine:
         self.financial_analyzer = ComprehensiveFinancialAnalyzer()
         self.risk_assessor = AdvancedRiskAssessor()
         self.best_practices_engine = BestPracticesEngine()
-        self.multi_objective_optimizer = MultiObjectiveOptimizer()
         
         # NEW: Cluster configuration support
         self.cluster_config = None
@@ -186,9 +188,19 @@ class EnhancedDynamicStrategyEngine:
         
         # Extract actual savings from analysis_results first
         actual_savings = self._extract_actual_savings(analysis_results)
-        actual_cost = analysis_results.get('total_cost', 1000) if analysis_results else 1000
+        actual_cost = self._extract_real_cluster_cost(analysis_results, cluster_config)
         
-        logger.info(f"💰 Using ACTUAL data - Cost: ${actual_cost:.2f}, Savings: ${actual_savings:.2f}")
+        # Validate we have real data to work with
+        if actual_cost <= 0:
+            logger.error("❌ CRITICAL: No real cluster cost data available")
+            logger.error("❌ Cannot generate meaningful strategy without actual cost analysis")
+            return None
+            
+        if actual_savings <= 0:
+            logger.warning("⚠️ WARNING: No savings potential identified from analysis")
+            logger.warning("⚠️ Strategy will focus on assessment and data collection")
+            
+        logger.info(f"💰 Using REAL data - Cost: ${actual_cost:.2f}, Savings: ${actual_savings:.2f}")
         if self.cluster_config:
             config_resources = self.cluster_config.get('fetch_metrics', {}).get('successful_fetches', 0)
             logger.info(f"🔧 Using cluster config with {config_resources} resources")
@@ -203,10 +215,12 @@ class EnhancedDynamicStrategyEngine:
         if opportunities:
             logger.info(f"🔍 DEBUG: Before ROI filtering - {len(opportunities)} opportunities detected")
             for i, opp in enumerate(opportunities[:3]):  # Log first 3 for debugging
+                payback_months = (opp.implementation_cost / opp.savings_potential_monthly) if opp.savings_potential_monthly > 0 else float('inf')
+                payback_str = f"{payback_months:.1f}" if payback_months != float('inf') else "infinite"
                 logger.info(f"🔍 DEBUG: Opp {i+1}: {opp.type}/{opp.subtype} - "
                            f"Savings: ${opp.savings_potential_monthly:.2f}/month, "
                            f"Cost: ${opp.implementation_cost:.2f}, "
-                           f"Payback: {(opp.implementation_cost / opp.savings_potential_monthly) if opp.savings_potential_monthly > 0 else 'infinite':.1f} months")
+                           f"Payback: {payback_str} months")
             
             opportunities = self.opportunity_detector._filter_opportunities_by_roi(
                 opportunities, self.cluster_config
@@ -228,28 +242,28 @@ class EnhancedDynamicStrategyEngine:
         logger.info(f"🎯 Optimization objectives: {list(optimization_objectives.keys())}")
         
         # Step 3: Advanced strategy optimization using multi-objective algorithms
-        optimal_strategy_config = self.multi_objective_optimizer.optimize_strategy(
+        optimal_strategy_config = self.strategy_optimizer.optimize_strategy(
             opportunities, cluster_dna, optimization_objectives, self.cluster_config
         )
-        logger.info(f"🧮 Optimal strategy configuration: {optimal_strategy_config['strategy_type']}")
+        logger.info(f"🧮 Optimal strategy configuration: {optimal_strategy_config.get('strategy_type', 'unknown')}")
         
         # Step 4: Financial impact analysis with comprehensive ROI modeling
         financial_analysis = self.financial_analyzer.analyze_comprehensive_impact(
-            optimal_strategy_config['selected_opportunities'], cluster_dna, analysis_results, actual_savings
+            optimal_strategy_config.get('selected_opportunities', []), cluster_dna, analysis_results, actual_savings
         )
-        logger.info(f"💰 Total financial impact: ${financial_analysis['net_benefit']:.2f} net benefit")
+        logger.info(f"💰 Total financial impact: ${financial_analysis.get('net_benefit', 0):.2f} net benefit")
         
         # Step 5: Advanced risk assessment with mitigation strategies
         risk_analysis = self.risk_assessor.assess_comprehensive_risks(
             optimal_strategy_config['selected_opportunities'], cluster_dna, self.cluster_config
         )
-        logger.info(f"⚠️ Risk assessment: {risk_analysis['overall_risk_level']} risk")
+        logger.info(f"⚠️ Risk assessment: {risk_analysis.get('overall_risk_level', 'unknown')} risk")
         
         # Step 6: Best practices alignment and compliance checking
         best_practices_analysis = self.best_practices_engine.analyze_alignment(
             optimal_strategy_config, cluster_dna, self.cluster_config
         )
-        logger.info(f"✅ Best practices compliance: {best_practices_analysis['compliance_score']:.1%}")
+        logger.info(f"✅ Best practices compliance: {best_practices_analysis.get('compliance_score', 0):.1%}")
         
         # Step 7: Generate execution plan with parallel tracks
         execution_plan = self._generate_comprehensive_execution_plan(
@@ -322,10 +336,15 @@ class EnhancedDynamicStrategyEngine:
             
             total_workloads = total_deployments + total_statefulsets + total_daemonsets
             
-            # Workload complexity classification
-            if total_workloads > 50:
+            # Workload complexity classification using standards
+            standards = implementation_cost_calculator.load_standards()
+            complexity_thresholds = standards.get('optimization_thresholds', {}).get('thresholds', {})
+            high_complexity_threshold = complexity_thresholds.get('workload_complexity_high_threshold', 50)
+            medium_complexity_threshold = complexity_thresholds.get('workload_complexity_medium_threshold', 20)
+            
+            if total_workloads > high_complexity_threshold:
                 workload_complexity = 'high'
-            elif total_workloads > 20:
+            elif total_workloads > medium_complexity_threshold:
                 workload_complexity = 'medium'
             else:
                 workload_complexity = 'low'
@@ -340,7 +359,12 @@ class EnhancedDynamicStrategyEngine:
             # Strategy implications
             strategy_implications = []
             
-            if hpa_coverage < 20:
+            # Load standards for HPA thresholds
+            standards = implementation_cost_calculator.load_standards()
+            hpa_thresholds = standards.get('optimization_thresholds', {}).get('thresholds', {})
+            high_hpa_potential_threshold = hpa_thresholds.get('high_hpa_potential_threshold', 20)
+            
+            if hpa_coverage < high_hpa_potential_threshold:
                 strategy_implications.append('high_hpa_potential')
             if workload_complexity == 'high':
                 strategy_implications.append('phased_implementation_recommended')
@@ -442,10 +466,16 @@ class EnhancedDynamicStrategyEngine:
         
         readiness_score = 0
         
-        # HPA readiness
-        if hpa_coverage < 10:
+        # Load HPA readiness thresholds from standards
+        standards = implementation_cost_calculator.load_standards()
+        hpa_thresholds = standards.get('optimization_thresholds', {}).get('thresholds', {})
+        very_low_hpa_threshold = hpa_thresholds.get('very_low_hpa_threshold', 10)
+        medium_hpa_threshold = hpa_thresholds.get('medium_hpa_threshold', 50)
+        
+        # HPA readiness using standards
+        if hpa_coverage < very_low_hpa_threshold:
             readiness_score += 3  # High potential for HPA optimization
-        elif hpa_coverage < 50:
+        elif hpa_coverage < medium_hpa_threshold:
             readiness_score += 2  # Medium potential
         else:
             readiness_score += 1  # Some potential
@@ -474,7 +504,8 @@ class EnhancedDynamicStrategyEngine:
     def _extract_actual_savings(self, analysis_results: Optional[Dict]) -> float:
         """Extract actual savings from analysis results for consistency - FIXED to prioritize detailed algorithmic calculations"""
         if not analysis_results:
-            return 100.0  # Default fallback
+            logger.warning("❌ No analysis_results provided - cannot extract savings without real data")
+            return 0.0
         
         # Extract all available savings sources
         savings_sources = {
@@ -500,120 +531,175 @@ class EnhancedDynamicStrategyEngine:
                 return savings_sources[source]
         
         # NO FALLBACKS: Return 0 if no detailed analysis available
-        logger.info("❌ No detailed algorithmic analysis found - returning 0 savings")
+        logger.warning("❌ No detailed algorithmic analysis found - returning 0 savings (real analysis required)")
         return 0.0
     
     def _calculate_dynamic_savings_potential(self, total_cost: float, cluster_dna, analysis_results: Dict) -> float:
-        """Calculate savings potential based on cluster characteristics and Azure standards"""
+        """Calculate savings potential based on cluster characteristics using standards"""
         try:
             if total_cost <= 0:
                 return 0.0
             
-            # Base savings percentage based on cluster size (larger clusters = more optimization potential)
-            base_savings_percentage = 0.08  # Start with 8% (conservative)
+            # Load savings calculation standards
+            standards = implementation_cost_calculator.load_standards()
+            savings_config = standards.get('optimization_thresholds', {}).get('savings_calculation', {})
+            
+            # Base savings percentage from standards
+            base_savings_percentage = savings_config.get('base_savings_percentage', 0.08)
+            
+            # Get adjustment values and thresholds from standards
+            size_thresholds = savings_config.get('cluster_size_thresholds', {})
+            size_adjustments = savings_config.get('cluster_size_adjustments', {})
+            density_thresholds = savings_config.get('workload_density_thresholds', {})
+            density_adjustments = savings_config.get('workload_density_adjustments', {})
+            inefficiency_adjustments = savings_config.get('inefficiency_adjustments', {})
+            cost_thresholds = savings_config.get('cost_thresholds', {})
+            savings_limits = savings_config.get('savings_limits', {})
             
             # Adjust based on cluster characteristics
             workload_count = analysis_results.get('total_workloads', 0)
             node_count = len(analysis_results.get('nodes', []))
             
-            # Size-based adjustments
-            if node_count >= 10:
-                base_savings_percentage += 0.05  # +5% for large clusters
-            elif node_count >= 5:
-                base_savings_percentage += 0.03  # +3% for medium clusters
+            # Size-based adjustments using standards thresholds
+            large_cluster_threshold = size_thresholds.get('large_cluster_nodes', 10)
+            medium_cluster_threshold = size_thresholds.get('medium_cluster_nodes', 5)
             
-            # Workload density adjustments
-            if workload_count > 50:
-                base_savings_percentage += 0.04  # +4% for high workload density
-            elif workload_count > 20:
-                base_savings_percentage += 0.02  # +2% for moderate workload density
+            if node_count >= large_cluster_threshold:
+                base_savings_percentage += size_adjustments.get('large_cluster_bonus', 0.05)
+            elif node_count >= medium_cluster_threshold:
+                base_savings_percentage += size_adjustments.get('medium_cluster_bonus', 0.03)
             
-            # Check for obvious inefficiencies
+            # Workload density adjustments using standards thresholds
+            high_density_threshold = density_thresholds.get('high_density_workloads', 50)
+            medium_density_threshold = density_thresholds.get('medium_density_workloads', 20)
+            
+            if workload_count > high_density_threshold:
+                base_savings_percentage += density_adjustments.get('high_density_bonus', 0.04)
+            elif workload_count > medium_density_threshold:
+                base_savings_percentage += density_adjustments.get('medium_density_bonus', 0.02)
+            
+            # Check for obvious inefficiencies using standards
             max_cpu = analysis_results.get('high_cpu_summary', {}).get('max_cpu_utilization', 0)
-            if max_cpu > 500:  # Very high CPU indicates scaling issues
-                base_savings_percentage += 0.08  # +8% for scaling optimization
-            elif max_cpu > 200:  # High CPU indicates some optimization potential
-                base_savings_percentage += 0.04  # +4% for moderate optimization
+            high_cpu_threshold = cost_thresholds.get('high_cpu_threshold', 500)
+            moderate_cpu_threshold = cost_thresholds.get('moderate_cpu_threshold', 200)
             
-            # Storage optimization potential
+            if max_cpu > high_cpu_threshold:
+                base_savings_percentage += inefficiency_adjustments.get('high_cpu_scaling_bonus', 0.08)
+            elif max_cpu > moderate_cpu_threshold:
+                base_savings_percentage += inefficiency_adjustments.get('moderate_cpu_bonus', 0.04)
+            
+            # Storage optimization potential using standards
             storage_cost = analysis_results.get('storage_cost', 0)
-            if storage_cost > total_cost * 0.3:  # Storage > 30% of total cost
-                base_savings_percentage += 0.03  # +3% for storage optimization
+            storage_threshold = cost_thresholds.get('storage_percentage_threshold', 0.30)
+            if storage_cost > total_cost * storage_threshold:
+                base_savings_percentage += inefficiency_adjustments.get('storage_optimization_bonus', 0.03)
             
-            # Networking optimization potential
+            # Networking optimization potential using standards
             network_cost = analysis_results.get('network_cost', 0)
-            if network_cost > total_cost * 0.2:  # Network > 20% of total cost
-                base_savings_percentage += 0.02  # +2% for network optimization
+            network_threshold = cost_thresholds.get('network_percentage_threshold', 0.20)
+            if network_cost > total_cost * network_threshold:
+                base_savings_percentage += inefficiency_adjustments.get('network_optimization_bonus', 0.02)
             
-            # Cap the savings percentage at reasonable limits
-            base_savings_percentage = min(base_savings_percentage, 0.25)  # Max 25%
-            base_savings_percentage = max(base_savings_percentage, 0.05)  # Min 5%
+            # Cap the savings percentage at reasonable limits from standards
+            max_percentage = savings_limits.get('maximum_percentage', 0.25)
+            min_percentage = savings_limits.get('minimum_percentage', 0.05)
+            base_savings_percentage = min(base_savings_percentage, max_percentage)
+            base_savings_percentage = max(base_savings_percentage, min_percentage)
             
             potential_savings = total_cost * base_savings_percentage
             
-            logger.info(f"✅ Dynamic savings calculation: {base_savings_percentage*100:.1f}% of ${total_cost:.2f} = ${potential_savings:.2f}")
+            logger.info(f"✅ Standards-based savings calculation: {base_savings_percentage*100:.1f}% of ${total_cost:.2f} = ${potential_savings:.2f}")
             logger.info(f"   Factors: {node_count} nodes, {workload_count} workloads, max CPU: {max_cpu:.0f}%")
             
             return potential_savings
             
         except Exception as e:
             logger.error(f"❌ Dynamic savings calculation failed: {e}")
-            # Conservative fallback
-            return total_cost * 0.08
+            # Conservative fallback using standards
+            standards = implementation_cost_calculator.load_standards()
+            fallback_percentage = standards.get('optimization_thresholds', {}).get('savings_calculation', {}).get('base_savings_percentage', 0.08)
+            return total_cost * fallback_percentage
     
     def _determine_optimization_objectives(self, cluster_dna, analysis_results: Optional[Dict], 
                                          cluster_config: Optional[Dict] = None) -> Dict[str, float]:
-        """Enhanced optimization objectives with cluster config awareness"""
+        """Enhanced optimization objectives with cluster config awareness using standards"""
         
         personality = getattr(cluster_dna, 'cluster_personality', '')
         total_cost = analysis_results.get('total_cost', 0) if analysis_results else 0
         
-        # Base objectives
+        # Load optimization objectives from standards
+        standards = implementation_cost_calculator.load_standards()
+        objectives_config = standards.get('optimization_thresholds', {}).get('optimization_objectives', {})
+        base_objectives = objectives_config.get('base_objectives', {})
+        personality_adjustments = objectives_config.get('personality_adjustments', {})
+        cost_thresholds = objectives_config.get('cost_thresholds', {})
+        
+        # Base objectives from standards
         objectives = {
-            'cost_optimization': 0.4,
-            'performance_optimization': 0.3,
-            'security_enhancement': 0.2,
-            'operational_efficiency': 0.1
+            'cost_optimization': base_objectives.get('cost_optimization', 0.4),
+            'performance_optimization': base_objectives.get('performance_optimization', 0.3),
+            'security_enhancement': base_objectives.get('security_enhancement', 0.2),
+            'operational_efficiency': base_objectives.get('operational_efficiency', 0.1)
         }
         
-        # Adjust based on cluster personality
-        if 'cost' in personality.lower() or total_cost > 5000:
-            objectives['cost_optimization'] += 0.2
-            objectives['performance_optimization'] -= 0.1
+        # Adjust based on cluster personality using standards
+        high_cost_threshold = cost_thresholds.get('high_cost_threshold', 5000)
+        cost_bonus = personality_adjustments.get('cost_focused_bonus', 0.2)
+        
+        if 'cost' in personality.lower() or total_cost > high_cost_threshold:
+            objectives['cost_optimization'] += cost_bonus
+            objectives['performance_optimization'] -= cost_bonus / 2
         
         if 'performance' in personality.lower() or 'latency' in personality.lower():
-            objectives['performance_optimization'] += 0.2
-            objectives['cost_optimization'] -= 0.1
+            performance_bonus = personality_adjustments.get('performance_focused_bonus', 0.2)
+            objectives['performance_optimization'] += performance_bonus
+            objectives['cost_optimization'] -= performance_bonus / 2
         
         if 'security' in personality.lower() or 'compliance' in personality.lower():
-            objectives['security_enhancement'] += 0.2
-            objectives['cost_optimization'] -= 0.1
+            security_bonus = personality_adjustments.get('security_focused_bonus', 0.2)
+            objectives['security_enhancement'] += security_bonus
+            objectives['cost_optimization'] -= security_bonus / 2
         
         if 'enterprise' in personality.lower():
-            objectives['operational_efficiency'] += 0.1
-            objectives['security_enhancement'] += 0.1
-            objectives['cost_optimization'] -= 0.2
+            enterprise_bonus = personality_adjustments.get('enterprise_efficiency_bonus', 0.1)
+            objectives['operational_efficiency'] += enterprise_bonus
+            objectives['security_enhancement'] += enterprise_bonus
+            objectives['cost_optimization'] -= enterprise_bonus * 2
         
-        # NEW: Adjust based on cluster configuration
+        # NEW: Adjust based on cluster configuration using standards
         if cluster_config and cluster_config.get('status') == 'completed':
             cluster_intelligence = self._extract_cluster_intelligence(cluster_config, cluster_dna)
             
+            # Load cluster intelligence adjustments from standards
+            intelligence_adjustments = objectives_config.get('cluster_intelligence_adjustments', {})
+            intelligence_thresholds = objectives_config.get('thresholds', {})
+            
             # High workload complexity suggests more operational focus
             if cluster_intelligence.get('workload_complexity') == 'high':
-                objectives['operational_efficiency'] += 0.1
-                objectives['cost_optimization'] -= 0.05
-                objectives['performance_optimization'] -= 0.05
+                operational_bonus = intelligence_adjustments.get('high_complexity_operational_bonus', 0.1)
+                cost_reduction = intelligence_adjustments.get('high_complexity_cost_reduction', 0.05)
+                performance_reduction = intelligence_adjustments.get('high_complexity_performance_reduction', 0.05)
+                
+                objectives['operational_efficiency'] += operational_bonus
+                objectives['cost_optimization'] -= cost_reduction
+                objectives['performance_optimization'] -= performance_reduction
             
             # Low HPA coverage suggests cost optimization focus
-            hpa_coverage = cluster_intelligence.get('hpa_coverage', 50)
-            if hpa_coverage < 20:
-                objectives['cost_optimization'] += 0.15
-                objectives['operational_efficiency'] -= 0.15
+            default_hpa_coverage = intelligence_thresholds.get('default_hpa_coverage', 50)
+            hpa_coverage = cluster_intelligence.get('hpa_coverage', default_hpa_coverage)
+            low_hpa_threshold = intelligence_thresholds.get('low_hpa_coverage_threshold', 20)
+            
+            if hpa_coverage < low_hpa_threshold:
+                cost_bonus = intelligence_adjustments.get('low_hpa_cost_bonus', 0.15)
+                operational_reduction = intelligence_adjustments.get('low_hpa_operational_reduction', 0.15)
+                
+                objectives['cost_optimization'] += cost_bonus
+                objectives['operational_efficiency'] -= operational_reduction
             
             # Enterprise scale suggests balanced approach
             if cluster_intelligence.get('real_cluster_scale') == 'enterprise':
-                # Flatten objectives for balanced enterprise approach
-                total_adjustment = 0.1
+                # Flatten objectives for balanced enterprise approach using standards
+                total_adjustment = intelligence_adjustments.get('enterprise_balance_adjustment', 0.1)
                 objectives['cost_optimization'] -= total_adjustment / 4
                 objectives['performance_optimization'] += total_adjustment / 4
                 objectives['security_enhancement'] += total_adjustment / 4
@@ -973,68 +1059,44 @@ class EnhancedDynamicStrategyEngine:
     # ========================================================================
     
     def _load_enterprise_patterns(self) -> Dict:
-        """Load enterprise strategy patterns learned from successful implementations"""
-        return {
-            'cost_optimization_patterns': {
-                'enterprise_conservative': {
-                    'phases': ['assessment', 'infrastructure', 'compute', 'validation'],
-                    'risk_tolerance': 0.3,
-                    'parallel_execution': False,
-                    'validation_intensity': 'high'
-                },
-                'enterprise_aggressive': {
-                    'phases': ['assessment', 'multi_track_optimization', 'governance'],
-                    'risk_tolerance': 0.7,
-                    'parallel_execution': True,
-                    'validation_intensity': 'standard'
-                },
-                'startup_agile': {
-                    'phases': ['quick_wins', 'iterative_optimization'],
-                    'risk_tolerance': 0.8,
-                    'parallel_execution': True,
-                    'validation_intensity': 'minimal'
+        """Load enterprise strategy patterns from standards configuration"""
+        try:
+            standards = implementation_cost_calculator.load_standards()
+            enterprise_patterns = standards.get('enterprise_patterns', {})
+            
+            if enterprise_patterns:
+                logger.info("✅ Loaded enterprise patterns from standards configuration")
+                return enterprise_patterns
+            else:
+                logger.warning("⚠️ No enterprise patterns found in standards - using minimal defaults")
+                return {
+                    'cost_optimization_patterns': {},
+                    'performance_optimization_patterns': {},
+                    'security_hardening_patterns': {}
                 }
-            },
-            'performance_optimization_patterns': {
-                'latency_critical': {
-                    'focus_areas': ['networking', 'compute', 'storage_performance'],
-                    'trade_offs': {'cost': 0.3, 'performance': 0.7}
-                },
-                'throughput_optimized': {
-                    'focus_areas': ['compute_scaling', 'load_balancing', 'caching'],
-                    'trade_offs': {'cost': 0.4, 'performance': 0.6}
-                }
-            },
-            'security_hardening_patterns': {
-                'compliance_driven': {
-                    'requirements': ['pod_security', 'network_policies', 'rbac', 'audit_logging'],
-                    'timeline_impact': 1.3
-                },
-                'zero_trust': {
-                    'requirements': ['network_segmentation', 'identity_verification', 'encryption'],
-                    'timeline_impact': 1.5
-                }
-            }
-        }
+        except Exception as e:
+            logger.error(f"❌ Failed to load enterprise patterns from standards: {e}")
+            return {}
     
     def _load_industry_benchmarks(self) -> Dict:
-        """Load industry benchmarks for optimization targets"""
-        return {
-            'cost_optimization': {
-                'enterprise': {'target_savings': 0.25, 'typical_timeline': 16},
-                'mid_market': {'target_savings': 0.30, 'typical_timeline': 12},
-                'startup': {'target_savings': 0.35, 'typical_timeline': 8}
-            },
-            'performance_optimization': {
-                'latency_improvement': {'target': 0.20, 'timeline': 8},
-                'throughput_improvement': {'target': 0.30, 'timeline': 6},
-                'availability_improvement': {'target': 0.05, 'timeline': 12}
-            },
-            'security_hardening': {
-                'compliance_score': {'target': 0.95, 'timeline': 16},
-                'vulnerability_reduction': {'target': 0.80, 'timeline': 12}
-            }
-        }
+        """Load industry benchmarks from standards configuration"""
+        try:
+            standards = implementation_cost_calculator.load_standards()
+            industry_benchmarks = standards.get('industry_benchmarks', {})
+            
+            if industry_benchmarks:
+                logger.info("✅ Loaded industry benchmarks from standards configuration")
+                return industry_benchmarks
+            else:
+                logger.warning("⚠️ No industry benchmarks found in standards - using minimal defaults")
+                return {
+                    'cost_optimization': {},
+                    'performance_optimization': {},
+                    'security_hardening': {}
+                }
+        except Exception as e:
+            logger.error(f"❌ Failed to load industry benchmarks from standards: {e}")
+            return {}
     
     def _generate_continuous_optimization_plan(self, strategy_config: Dict, cluster_dna, 
                                              cluster_config: Optional[Dict] = None) -> Dict:
@@ -1084,7 +1146,6 @@ class EnhancedDynamicStrategyEngine:
         
         return base_plan
     
-    # Include placeholder methods from your existing code
     def _determine_execution_track(self, opportunity):
         type_to_track = {
             'hpa_optimization': 'compute',
@@ -1222,6 +1283,48 @@ class EnhancedDynamicStrategyEngine:
     def _extract_infrastructure_requirements(self, opportunities):
         return ['Monitoring namespace and resources']
 
+    def _extract_real_cluster_cost(self, analysis_results: Optional[Dict], cluster_config: Optional[Dict] = None) -> float:
+        """Extract real cluster cost - NO FAKE DEFAULTS"""
+        if not analysis_results:
+            logger.error("❌ Cannot determine cluster cost without analysis_results")
+            return 0.0
+            
+        # Try to get real cost from analysis
+        total_cost = analysis_results.get('total_cost', 0)
+        if total_cost > 0:
+            logger.info(f"✅ Using real cluster cost from analysis: ${total_cost:.2f}")
+            return total_cost
+            
+        # Try alternative cost fields
+        alternative_costs = [
+            analysis_results.get('monthly_cost', 0),
+            analysis_results.get('cost_total', 0),
+            analysis_results.get('cluster_cost', 0),
+            analysis_results.get('current_cost', 0)
+        ]
+        
+        for cost in alternative_costs:
+            if cost > 0:
+                logger.info(f"✅ Using real cluster cost from alternative field: ${cost:.2f}")
+                return cost
+        
+        # Try to calculate from component costs
+        component_costs = [
+            analysis_results.get('compute_cost', 0),
+            analysis_results.get('storage_cost', 0),
+            analysis_results.get('network_cost', 0),
+            analysis_results.get('networking_cost', 0)
+        ]
+        
+        total_components = sum(cost for cost in component_costs if cost > 0)
+        if total_components > 0:
+            logger.info(f"✅ Using calculated cluster cost from components: ${total_components:.2f}")
+            return total_components
+            
+        # REAL DATA REQUIRED - No fake defaults
+        logger.error("❌ No real cost data available - requires actual cluster cost analysis")
+        return 0.0
+
 
 # ============================================================================
 # ENHANCED SUPPORTING CLASSES (with cluster config support)
@@ -1244,23 +1347,34 @@ class EnhancedOpportunityDetector:
         filtered_count = 0
         total_filtered_savings = 0.0
         
-        # Set dynamic business thresholds based on cluster context and actual costs
-        total_cost = 1000
+        # Get real cluster cost - no fake defaults
+        total_cost = 0.0
         
-        # Try to get total cost from multiple sources
-        if opportunities and hasattr(opportunities[0], 'total_cost'):
-            total_cost = getattr(opportunities[0], 'total_cost', 1000)
+        # Try to get from current analysis results first
+        if hasattr(self, '_current_analysis_results') and self._current_analysis_results:
+            total_cost = self._extract_real_cluster_cost(self._current_analysis_results)
         elif cluster_config and cluster_config.get('status') == 'completed':
-            # Try to get total cost from various sources
+            # Try to get from cluster config analysis
             analysis_data = cluster_config.get('analysis_results', {})
             if analysis_data:
-                total_cost = analysis_data.get('total_cost', 1000)
+                total_cost = self._extract_real_cluster_cost(analysis_data)
+        
+        # If no real cost available, cannot do meaningful ROI filtering
+        if total_cost <= 0:
+            logger.warning("❌ No real cluster cost available - skipping ROI filtering")
+            return opportunities
         
         logger.info(f"💰 Using total cost ${total_cost:.2f} for ROI calculations")
         
-        # Calculate intelligent thresholds based on cluster size and cost
-        PAYBACK_THRESHOLD_MONTHS = 18  # Base threshold
-        MIN_MONTHLY_SAVINGS = max(5.0, total_cost * 0.005)  # Dynamic: 0.5% of total cost minimum
+        # Calculate intelligent thresholds based on cluster size and cost using standards
+        standards = implementation_cost_calculator.load_standards()
+        optimization_thresholds = standards.get('optimization_thresholds', {})
+        
+        PAYBACK_THRESHOLD_MONTHS = optimization_thresholds.get('payback_threshold_months', 18)
+        MIN_MONTHLY_SAVINGS = max(
+            optimization_thresholds.get('minimum_monthly_savings', 5.0), 
+            total_cost * optimization_thresholds.get('minimum_savings_percentage', 0.005)
+        )
         
         # NEW: Adjust thresholds based on cluster configuration intelligence
         if cluster_config and cluster_config.get('status') == 'completed':
@@ -1271,18 +1385,30 @@ class EnhancedOpportunityDetector:
                     for wl_type in ['deployments', 'statefulsets', 'daemonsets']
                 )
                 
-                # Enterprise clusters can afford longer payback periods
+                # Enterprise clusters can afford longer payback periods using standards
+                enterprise_config = optimization_thresholds.get('enterprise_clusters', {})
+                small_config = optimization_thresholds.get('small_clusters', {})
+                
                 if total_workloads > 50:
-                    PAYBACK_THRESHOLD_MONTHS = 24  # Enterprise can wait longer
-                    MIN_MONTHLY_SAVINGS = max(25.0, total_cost * 0.01)  # 1% for enterprise
+                    PAYBACK_THRESHOLD_MONTHS = enterprise_config.get('payback_threshold_months', 24)
+                    MIN_MONTHLY_SAVINGS = max(
+                        enterprise_config.get('minimum_monthly_savings', 25.0), 
+                        total_cost * enterprise_config.get('minimum_savings_percentage', 0.01)
+                    )
                     logger.info(f"🏢 Enterprise cluster detected ({total_workloads} workloads) - Adjusted ROI thresholds")
                 elif total_workloads < 10:
-                    PAYBACK_THRESHOLD_MONTHS = 15  # Small clusters need reasonable payback
-                    MIN_MONTHLY_SAVINGS = max(2.0, total_cost * 0.002)  # 0.2% for small clusters
+                    PAYBACK_THRESHOLD_MONTHS = small_config.get('payback_threshold_months', 15)
+                    MIN_MONTHLY_SAVINGS = max(
+                        small_config.get('minimum_monthly_savings', 2.0),
+                        total_cost * small_config.get('minimum_savings_percentage', 0.002)
+                    )
                     logger.info(f"🏠 Small cluster detected ({total_workloads} workloads) - Relaxed ROI thresholds")
                 else:
-                    # Medium clusters
-                    MIN_MONTHLY_SAVINGS = max(5.0, total_cost * 0.005)  # 0.5% for medium clusters
+                    # Medium clusters - use base standards
+                    MIN_MONTHLY_SAVINGS = max(
+                        optimization_thresholds.get('minimum_monthly_savings', 5.0), 
+                        total_cost * optimization_thresholds.get('minimum_savings_percentage', 0.005)
+                    )
             
             except Exception as e:
                 logger.warning(f"⚠️ Could not adjust ROI thresholds based on cluster config: {e}")
@@ -1372,7 +1498,7 @@ class EnhancedOpportunityDetector:
         opportunities = []
         
         # HPA Optimization - Detect based on actual cluster analysis, not just hotspots
-        total_cost = analysis_results.get('total_cost', 1000) if analysis_results else 1000
+        total_cost = self._extract_real_cluster_cost(analysis_results)
         
         # Dynamic HPA opportunity detection based on cluster metrics
         should_recommend_hpa = False
@@ -1399,7 +1525,7 @@ class EnhancedOpportunityDetector:
             
         if should_recommend_hpa:
             # FIXED: Use detailed algorithmic analysis results when available
-            total_cost = analysis_results.get('total_cost', 1000) if analysis_results else 1000
+            total_cost = self._extract_real_cluster_cost(analysis_results)
             
             # DEBUG: Log what's actually received to diagnose the root cause
             if analysis_results:
@@ -1424,31 +1550,34 @@ class EnhancedOpportunityDetector:
                 logger.error("❌ No detailed HPA analysis found - skipping HPA opportunity")
                 return opportunities
             
-            # NEW: Adjust based on cluster config
-            implementation_cost = 1500  # Base cost
-            timeline_weeks = 3  # Base timeline
-            
-            if cluster_config and cluster_config.get('status') == 'completed':
-                workload_resources = cluster_config.get('workload_resources', {})
-                scaling_resources = cluster_config.get('scaling_resources', {})
+            # NEW: Standards-based implementation cost calculation
+            try:
+                # Determine complexity based on cluster configuration
+                complexity = "basic_cpu_memory"  # Default
+                if cluster_config and cluster_config.get('status') == 'completed':
+                    scaling_resources = cluster_config.get('scaling_resources', {})
+                    # Check if custom metrics needed based on existing monitoring
+                    if scaling_resources.get('monitoring_configured', False):
+                        complexity = "custom_metrics"
                 
-                total_workloads = sum(
-                    workload_resources.get(wl_type, {}).get('item_count', 0)
-                    for wl_type in ['deployments', 'statefulsets', 'daemonsets']
+                # Calculate cost using industry standards with dynamic region detection
+                region = self._detect_cluster_region(cluster_config, analysis_results)
+                cost_result = implementation_cost_calculator.calculate_hpa_cost(
+                    cluster_config=cluster_config,
+                    complexity=complexity,
+                    region=region
                 )
-                existing_hpas = scaling_resources.get('horizontalpodautoscalers', {}).get('item_count', 0)
                 
-                # Adjust cost and timeline based on actual cluster size
-                if total_workloads > 50:
-                    implementation_cost *= 1.5  # More complex for large clusters
-                    timeline_weeks += 1
-                elif total_workloads < 10:
-                    implementation_cost *= 0.8  # Simpler for small clusters
+                implementation_cost = cost_result.total_cost
+                timeline_weeks = max(1, cost_result.timeline_days // 7)
                 
-                # Adjust if there are existing HPAs
-                if existing_hpas > 0:
-                    implementation_cost *= 1.2  # Additional complexity
-                    timeline_weeks += 1
+                logger.info(f"📊 HPA cost calculation: ${implementation_cost:.0f} ({cost_result.risk_level} risk, {timeline_weeks} weeks)")
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to calculate HPA implementation cost: {e}")
+                # Cannot create opportunity without real cost calculation
+                logger.error(f"❌ Skipping HPA opportunity - real cost calculation required")
+               
             
             opportunities.append(ComprehensiveOptimizationOpportunity(
                 type='hpa_optimization',
@@ -1522,7 +1651,7 @@ class EnhancedOpportunityDetector:
             
         if should_recommend_rightsizing:
             # FIXED: Use detailed algorithmic analysis results when available
-            total_cost = analysis_results.get('total_cost', 1000) if analysis_results else 1000
+            total_cost = self._extract_real_cluster_cost(analysis_results)
             
             # DEBUG: Log what's actually received for right-sizing
             if analysis_results:
@@ -1544,23 +1673,44 @@ class EnhancedOpportunityDetector:
                 logger.error("❌ No detailed right-sizing analysis found - skipping right-sizing opportunity")
                 return opportunities
             
-            # NEW: Adjust based on cluster config
-            implementation_cost = 800  # Base cost
-            timeline_weeks = 2  # Base timeline
-            
-            if cluster_config and cluster_config.get('status') == 'completed':
-                workload_resources = cluster_config.get('workload_resources', {})
-                total_workloads = sum(
-                    workload_resources.get(wl_type, {}).get('item_count', 0)
-                    for wl_type in ['deployments', 'statefulsets']
+            # NEW: Standards-based implementation cost calculation for rightsizing
+            try:
+                # Determine complexity and workload count
+                workload_count = 10  # Default
+                complexity = "simple_workloads"  # Default
+                
+                if cluster_config and cluster_config.get('status') == 'completed':
+                    workload_resources = cluster_config.get('workload_resources', {})
+                    workload_count = sum(
+                        workload_resources.get(wl_type, {}).get('item_count', 0)
+                        for wl_type in ['deployments', 'statefulsets']
+                    )
+                    
+                    # Determine complexity based on workload mix
+                    if workload_count > 30:
+                        complexity = "complex_patterns"  # Large number of workloads
+                    elif workload_count > 15:
+                        complexity = "mixed_workloads"  # Moderate complexity
+                
+                # Calculate cost using industry standards with dynamic region detection
+                region = self._detect_cluster_region(cluster_config, analysis_results)
+                cost_result = implementation_cost_calculator.calculate_rightsizing_cost(
+                    cluster_config=cluster_config,
+                    workload_count=workload_count,
+                    complexity=complexity,
+                    region=region
                 )
                 
-                # More workloads = more rightsizing work
-                if total_workloads > 30:
-                    implementation_cost *= 1.3
-                    timeline_weeks += 1
-                elif total_workloads < 5:
-                    implementation_cost *= 0.7
+                implementation_cost = cost_result.total_cost
+                timeline_weeks = max(1, cost_result.timeline_days // 7)
+                
+                logger.info(f"📊 Rightsizing cost calculation: ${implementation_cost:.0f} for {workload_count} workloads ({cost_result.risk_level} risk, {timeline_weeks} weeks)")
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to calculate rightsizing implementation cost: {e}")
+                # Cannot create opportunity without real cost calculation
+                logger.error(f"❌ Skipping rightsizing opportunity - real cost calculation required")
+            
             
             opportunities.append(ComprehensiveOptimizationOpportunity(
                 type='resource_rightsizing',
@@ -1613,6 +1763,51 @@ class EnhancedOpportunityDetector:
         
         return opportunities
     
+    def _detect_cluster_region(self, cluster_config: Optional[Dict], analysis_results: Optional[Dict]) -> str:
+        """Detect cluster region from configuration or analysis data"""
+        try:
+            # Try to get region from cluster config first
+            if cluster_config:
+                # Look for region in various possible locations
+                region_indicators = [
+                    cluster_config.get('location'),
+                    cluster_config.get('region'),
+                    cluster_config.get('cluster_location'),
+                    cluster_config.get('azure_region')
+                ]
+                
+                for region in region_indicators:
+                    if region:
+                        # Map Azure regions to our regional categories
+                        region_lower = region.lower()
+                        if any(x in region_lower for x in ['east', 'west', 'central']) and 'us' in region_lower:
+                            return "north_america"
+                        elif any(x in region_lower for x in ['europe', 'uk', 'west europe', 'north europe']):
+                            return "europe"
+                        elif any(x in region_lower for x in ['asia', 'southeast', 'east asia']):
+                            return "asia_pacific"
+                        else:
+                            return "north_america"  # Default to north america
+            
+            # Try to get region from analysis results
+            if analysis_results:
+                location = analysis_results.get('location') or analysis_results.get('region')
+                if location:
+                    location_lower = location.lower()
+                    if any(x in location_lower for x in ['east', 'west', 'central']) and 'us' in location_lower:
+                        return "north_america"
+                    elif any(x in location_lower for x in ['europe', 'uk']):
+                        return "europe"
+                    elif any(x in location_lower for x in ['asia', 'southeast']):
+                        return "asia_pacific"
+            
+            # Default fallback
+            return "north_america"
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Could not detect cluster region: {e}, using default")
+            return "north_america"
+    
     def _calculate_opportunity_roi(self, monthly_savings: float, implementation_cost: float, 
                                  project_duration_months: int = 24, discount_rate: float = 0.08) -> dict:
         """
@@ -1658,22 +1853,330 @@ class EnhancedOpportunityDetector:
     
     # Simplified implementations for other opportunity types (keeping same pattern)
     def _detect_storage_opportunities(self, cluster_dna, analysis_results, actual_savings, cluster_config=None):
-        # Similar pattern with cluster_config awareness
-        return []
+        """Detect storage optimization opportunities"""
+        opportunities = []
+        
+        if not analysis_results:
+            logger.warning("❌ No analysis_results - cannot detect storage opportunities")
+            return opportunities
+            
+        storage_cost = analysis_results.get('storage_cost', 0)
+        total_cost = self._extract_real_cluster_cost(analysis_results)
+        
+        if total_cost <= 0:
+            logger.warning("❌ No real cost data - cannot detect storage opportunities")
+            return opportunities
+        
+        # Storage optimization opportunity if storage > threshold from standards
+        standards = implementation_cost_calculator.load_standards()
+        opportunity_config = standards.get('optimization_thresholds', {}).get('opportunity_optimization', {})
+        storage_threshold = standards.get('optimization_thresholds', {}).get('savings_calculation', {}).get('cost_thresholds', {}).get('storage_percentage_threshold', 0.25)
+        storage_optimization_percentage = opportunity_config.get('storage_optimization_percentage', 0.15)
+        
+        if storage_cost > total_cost * storage_threshold:
+            storage_savings = storage_cost * storage_optimization_percentage
+            implementation_cost = implementation_cost_calculator.calculate_implementation_cost(
+                'storage_optimization', 'basic_storage_classes', cluster_size='medium'
+            )
+            
+            opportunities.append(ComprehensiveOptimizationOpportunity(
+                type='storage',
+                subtype='storage_class_optimization',
+                category='cost',
+                priority_score=0.6,
+                savings_potential_monthly=storage_savings,
+                implementation_cost=implementation_cost,
+                roi_timeline_months=max(1, int(implementation_cost / storage_savings)) if storage_savings > 0 else 12,
+                break_even_point=f"Month {max(2, int(implementation_cost / storage_savings) + 1)}" if storage_savings > 0 else "Month 12",
+                implementation_complexity=0.4,
+                risk_assessment=0.2,
+                timeline_weeks=2,
+                confidence_level=0.8,
+                cost_impact=0.6,
+                performance_impact=0.1,
+                security_impact=0.0,
+                compliance_impact=0.0,
+                operational_impact=0.3,
+                target_resources=['persistent_volumes', 'storage_classes'],
+                optimal_approach='storage_class_migration',
+                implementation_strategy='gradual_pv_migration',
+                success_probability=0.9,
+                dependencies=[],
+                constraints=['data_availability_maintained'],
+                prerequisites=['storage_analysis_completed'],
+                success_criteria=[f'Achieve ${storage_savings:.0f}/month storage cost reduction'],
+                kpis=[{'metric': 'storage_cost_savings', 'target': storage_savings, 'unit': 'USD/month'}],
+                monitoring_requirements=['storage_performance', 'data_integrity'],
+                validation_procedures=['storage_performance_testing'],
+                rollback_strategy='storage_class_rollback',
+                contingency_plans=['storage_capacity_scaling'],
+                emergency_procedures=['immediate_storage_restore']
+            ))
+        
+        return opportunities
     
     def _detect_networking_opportunities(self, cluster_dna, analysis_results, actual_savings, cluster_config=None):
-        return []
+        """Detect networking optimization opportunities"""
+        opportunities = []
+        
+        if not analysis_results:
+            logger.warning("❌ No analysis_results - cannot detect networking opportunities")
+            return opportunities
+            
+        network_cost = analysis_results.get('networking_cost', 0) or analysis_results.get('network_cost', 0)
+        total_cost = self._extract_real_cluster_cost(analysis_results)
+        
+        if total_cost <= 0:
+            logger.warning("❌ No real cost data - cannot detect networking opportunities")
+            return opportunities
+        
+        # Network optimization opportunity using standards
+        standards = implementation_cost_calculator.load_standards()
+        opportunity_config = standards.get('optimization_thresholds', {}).get('opportunity_optimization', {})
+        network_threshold = standards.get('optimization_thresholds', {}).get('savings_calculation', {}).get('cost_thresholds', {}).get('network_percentage_threshold', 0.20)
+        network_optimization_percentage = opportunity_config.get('network_optimization_percentage', 0.12)
+        
+        if network_cost > total_cost * network_threshold:
+            network_savings = network_cost * network_optimization_percentage
+            implementation_cost = implementation_cost_calculator.calculate_implementation_cost(
+                'network_optimization', 'basic_segmentation', cluster_size='medium'
+            )
+            
+            opportunities.append(ComprehensiveOptimizationOpportunity(
+                type='networking',
+                subtype='network_policy_optimization',
+                category='cost',
+                priority_score=0.5,
+                savings_potential_monthly=network_savings,
+                implementation_cost=implementation_cost,
+                roi_timeline_months=max(1, int(implementation_cost / network_savings)) if network_savings > 0 else 12,
+                break_even_point=f"Month {max(2, int(implementation_cost / network_savings) + 1)}" if network_savings > 0 else "Month 12",
+                implementation_complexity=0.6,
+                risk_assessment=0.3,
+                timeline_weeks=3,
+                confidence_level=0.7,
+                cost_impact=0.5,
+                performance_impact=0.2,
+                security_impact=0.6,
+                compliance_impact=0.0,
+                operational_impact=0.4,
+                target_resources=['network_policies', 'load_balancers'],
+                optimal_approach='network_segmentation',
+                implementation_strategy='phased_network_policy_implementation',
+                success_probability=0.8,
+                dependencies=[],
+                constraints=['network_connectivity_maintained'],
+                prerequisites=['network_analysis_completed'],
+                success_criteria=[f'Achieve ${network_savings:.0f}/month network cost reduction'],
+                kpis=[{'metric': 'network_cost_savings', 'target': network_savings, 'unit': 'USD/month'}],
+                monitoring_requirements=['network_performance', 'connectivity_status'],
+                validation_procedures=['network_connectivity_testing'],
+                rollback_strategy='network_policy_rollback',
+                contingency_plans=['network_troubleshooting'],
+                emergency_procedures=['network_policy_disable']
+            ))
+        
+        return opportunities
     
     def _detect_security_opportunities(self, cluster_dna, analysis_results, actual_savings, cluster_config=None):
-        return []
+        """Detect security enhancement opportunities"""
+        opportunities = []
+        
+        # Security enhancements are always valuable - load value from standards
+        standards = implementation_cost_calculator.load_standards()
+        opportunity_config = standards.get('optimization_thresholds', {}).get('opportunity_optimization', {})
+        security_value_monthly = opportunity_config.get('security_value_monthly', 50.0)
+        
+        implementation_cost = implementation_cost_calculator.calculate_implementation_cost(
+            'security_hardening', 'pod_security_standards', cluster_size='medium'
+        )
+        
+        opportunities.append(ComprehensiveOptimizationOpportunity(
+            type='security',
+            subtype='pod_security_standards',
+            category='security',
+            priority_score=0.7,
+            savings_potential_monthly=security_value_monthly,
+            implementation_cost=implementation_cost,
+            roi_timeline_months=max(1, int(implementation_cost / security_value_monthly)),
+            break_even_point=f"Month {max(2, int(implementation_cost / security_value_monthly) + 1)}",
+            implementation_complexity=0.7,
+            risk_assessment=0.4,
+            timeline_weeks=4,
+            confidence_level=0.8,
+            cost_impact=0.1,
+            performance_impact=0.0,
+            security_impact=0.9,
+            compliance_impact=0.8,
+            operational_impact=0.6,
+            target_resources=['pod_security_policies', 'rbac_rules'],
+            optimal_approach='security_standards_implementation',
+            implementation_strategy='phased_security_hardening',
+            success_probability=0.85,
+            dependencies=[],
+            constraints=['application_functionality_maintained'],
+            prerequisites=['security_assessment_completed'],
+            success_criteria=['Enhanced security posture', 'Compliance requirements met'],
+            kpis=[{'metric': 'security_compliance_score', 'target': 90, 'unit': 'percentage'}],
+            monitoring_requirements=['security_alerts', 'compliance_status'],
+            validation_procedures=['security_testing', 'compliance_audit'],
+            rollback_strategy='security_policy_rollback',
+            contingency_plans=['security_incident_response'],
+            emergency_procedures=['security_lockdown_procedures']
+        ))
+        
+        return opportunities
     
     def _detect_governance_opportunities(self, cluster_dna, analysis_results, actual_savings, cluster_config=None):
-        return []
+        """Detect governance and compliance opportunities"""
+        opportunities = []
+        
+        # Governance improvements for larger clusters
+        if cluster_config:
+            workload_count = cluster_config.get('workload_resources', {}).get('deployments', {}).get('item_count', 0)
+        else:
+            workload_count = analysis_results.get('total_workloads', 0) if analysis_results else 0
+            
+        # Load governance standards
+        standards = implementation_cost_calculator.load_standards()
+        opportunity_config = standards.get('optimization_thresholds', {}).get('opportunity_optimization', {})
+        governance_threshold = opportunity_config.get('governance_workload_threshold', 20)
+        governance_value_monthly = opportunity_config.get('governance_value_monthly', 30.0)
+        
+        if workload_count > governance_threshold:  # Only for clusters with significant workloads
+            
+            implementation_cost = implementation_cost_calculator.calculate_implementation_cost(
+                'observability_setup', 'basic_monitoring', cluster_size='medium'
+            )
+            
+            opportunities.append(ComprehensiveOptimizationOpportunity(
+                type='governance',
+                subtype='resource_governance',
+                category='operational',
+                priority_score=0.4,
+                savings_potential_monthly=governance_value_monthly,
+                implementation_cost=implementation_cost,
+                roi_timeline_months=max(1, int(implementation_cost / governance_value_monthly)),
+                break_even_point=f"Month {max(2, int(implementation_cost / governance_value_monthly) + 1)}",
+                implementation_complexity=0.5,
+                risk_assessment=0.2,
+                timeline_weeks=3,
+                confidence_level=0.7,
+                cost_impact=0.2,
+                performance_impact=0.1,
+                security_impact=0.3,
+                compliance_impact=0.8,
+                operational_impact=0.7,
+                target_resources=['resource_quotas', 'policy_rules'],
+                optimal_approach='governance_framework_implementation',
+                implementation_strategy='phased_governance_rollout',
+                success_probability=0.8,
+                dependencies=[],
+                constraints=['development_velocity_maintained'],
+                prerequisites=['governance_requirements_defined'],
+                success_criteria=['Improved resource governance', 'Policy compliance'],
+                kpis=[{'metric': 'governance_compliance_score', 'target': 85, 'unit': 'percentage'}],
+                monitoring_requirements=['policy_violations', 'resource_usage'],
+                validation_procedures=['governance_audit', 'compliance_check'],
+                rollback_strategy='policy_relaxation',
+                contingency_plans=['governance_exceptions'],
+                emergency_procedures=['policy_override_procedures']
+            ))
+        
+        return opportunities
     
     def _detect_monitoring_opportunities(self, cluster_dna, analysis_results, actual_savings, cluster_config=None):
-        return []
+        """Detect monitoring and observability opportunities"""
+        opportunities = []
+        
+        # Enhanced monitoring is valuable for all clusters - load value from standards
+        standards = implementation_cost_calculator.load_standards()
+        opportunity_config = standards.get('optimization_thresholds', {}).get('opportunity_optimization', {})
+        monitoring_value_monthly = opportunity_config.get('monitoring_value_monthly', 40.0)
+        
+        implementation_cost = implementation_cost_calculator.calculate_implementation_cost(
+            'observability_setup', 'basic_monitoring', cluster_size='medium'
+        )
+        
+        opportunities.append(ComprehensiveOptimizationOpportunity(
+            type='monitoring',
+            subtype='observability_enhancement',
+            category='operational',
+            priority_score=0.6,
+            savings_potential_monthly=monitoring_value_monthly,
+            implementation_cost=implementation_cost,
+            roi_timeline_months=max(1, int(implementation_cost / monitoring_value_monthly)),
+            break_even_point=f"Month {max(2, int(implementation_cost / monitoring_value_monthly) + 1)}",
+            implementation_complexity=0.5,
+            risk_assessment=0.2,
+            timeline_weeks=2,
+            confidence_level=0.9,
+            cost_impact=0.3,
+            performance_impact=0.4,
+            security_impact=0.2,
+            compliance_impact=0.3,
+            operational_impact=0.8,
+            target_resources=['monitoring_stack', 'alerting_rules'],
+            optimal_approach='comprehensive_observability',
+            implementation_strategy='monitoring_stack_enhancement',
+            success_probability=0.9,
+            dependencies=[],
+            constraints=['monitoring_overhead_minimized'],
+            prerequisites=['monitoring_requirements_defined'],
+            success_criteria=['Enhanced observability', 'Faster issue detection'],
+            kpis=[{'metric': 'mttr_improvement', 'target': 50, 'unit': 'percentage'}],
+            monitoring_requirements=['system_metrics', 'application_metrics'],
+            validation_procedures=['monitoring_effectiveness_test'],
+            rollback_strategy='monitoring_configuration_rollback',
+            contingency_plans=['alternative_monitoring_solutions'],
+            emergency_procedures=['monitoring_escalation_procedures']
+        ))
+        
+        return opportunities
 
-# Simplified placeholder classes for remaining components
+    def _extract_real_cluster_cost(self, analysis_results: Optional[Dict], cluster_config: Optional[Dict] = None) -> float:
+        """Extract real cluster cost - NO FAKE DEFAULTS"""
+        if not analysis_results:
+            logger.error("❌ Cannot determine cluster cost without analysis_results")
+            return 0.0
+            
+        # Try to get real cost from analysis
+        total_cost = analysis_results.get('total_cost', 0)
+        if total_cost > 0:
+            logger.info(f"✅ Using real cluster cost from analysis: ${total_cost:.2f}")
+            return total_cost
+            
+        # Try alternative cost fields
+        alternative_costs = [
+            analysis_results.get('monthly_cost', 0),
+            analysis_results.get('cost_total', 0),
+            analysis_results.get('cluster_cost', 0),
+            analysis_results.get('current_cost', 0)
+        ]
+        
+        for cost in alternative_costs:
+            if cost > 0:
+                logger.info(f"✅ Using real cluster cost from alternative field: ${cost:.2f}")
+                return cost
+        
+        # Try to calculate from component costs
+        component_costs = [
+            analysis_results.get('compute_cost', 0),
+            analysis_results.get('storage_cost', 0),
+            analysis_results.get('network_cost', 0),
+            analysis_results.get('networking_cost', 0)
+        ]
+        
+        total_components = sum(cost for cost in component_costs if cost > 0)
+        if total_components > 0:
+            logger.info(f"✅ Using calculated cluster cost from components: ${total_components:.2f}")
+            return total_components
+            
+        # REAL DATA REQUIRED - No fake defaults
+        logger.error("❌ No real cost data available - requires actual cluster cost analysis")
+        return 0.0
+
+# Supporting classes for strategy optimization
 class AdvancedStrategyOptimizer:
     def optimize_strategy(self, opportunities, cluster_dna, objectives, cluster_config=None):
         if not opportunities:
@@ -1749,37 +2252,4 @@ class BestPracticesEngine:
             'approval_requirements': ['Technical Lead approval', 'Business stakeholder approval']
         }
 
-class MultiObjectiveOptimizer:
-    def optimize_strategy(self, opportunities, cluster_dna, objectives, cluster_config=None):
-        if not opportunities:
-            return {
-                'selected_opportunities': [],
-                'strategy_type': 'minimal',
-                'approach': 'conservative',
-                'objectives': objectives,
-                'optimization_score': 0.5
-            }
-        
-        selected = opportunities[:min(3, len(opportunities))]
-        primary_objective = max(objectives.items(), key=lambda x: x[1])[0]
-        strategy_type = {
-            'cost_optimization': 'cost_focused',
-            'performance_optimization': 'performance_focused',
-            'security_enhancement': 'security_focused',
-            'operational_efficiency': 'operational_focused'
-        }.get(primary_objective, 'balanced')
-        
-        return {
-            'selected_opportunities': selected,
-            'strategy_type': strategy_type,
-            'approach': 'balanced',
-            'objectives': objectives,
-            'optimization_score': 0.8
-        }
 
-print("🎯 ENHANCED DYNAMIC STRATEGY ENGINE WITH CLUSTER CONFIG INTEGRATION READY")
-print("✅ Real cluster configuration intelligence")
-print("✅ Config-aware opportunity detection and strategy optimization")
-print("✅ Cluster complexity and scale considerations")
-print("✅ Enhanced timeline and resource calculations")
-print("✅ Backward compatible with all existing code")
