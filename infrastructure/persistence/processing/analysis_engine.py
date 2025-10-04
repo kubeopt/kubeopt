@@ -665,10 +665,19 @@ class MultiSubscriptionAnalysisEngine:
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
         
-        # PASS SUBSCRIPTION ID to cost fetching
-        cost_df = get_aks_specific_cost_data(
-            resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id
-        )
+        # PASS SUBSCRIPTION ID to cost fetching with 12-hour cache
+        try:
+            # Cost processor now handles all caching internally
+            cost_df = get_aks_specific_cost_data(
+                resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id
+            )
+                    
+        except Exception as e:
+            if '429' in str(e) or 'rate limit' in str(e).lower():
+                logger.error(f"⚠️ Rate limited for {cluster_name}, cache fallback failed: {e}")
+            else:
+                logger.error(f"❌ Cost fetch failed for {cluster_name}: {e}")
+            raise
         
         if cost_df is None or cost_df.empty:
             error_msg = f"No cost data available for {cluster_name} in current subscription context"

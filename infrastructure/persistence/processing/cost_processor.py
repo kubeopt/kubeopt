@@ -1242,15 +1242,54 @@ def _merge_cost_data(aks_cost_data: Dict, additional_cost_data: Dict, thread_id:
 def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_date, 
                               subscription_id, cluster_id=None):
     """
-    Comprehensive AKS cost collection - captures ACTUAL cluster costs across entire subscription.
+    Comprehensive AKS cost collection with intelligent caching - captures ACTUAL cluster costs across entire subscription.
     
     Uses dual-query approach:
     1. Direct AKS resources (cluster, nodes, disks in resource groups)
     2. Supporting services (networking, monitoring, security, storage across subscription)
     
-    No backward compatibility - this is the definitive cost collection method.
+    Features:
+    - Intelligent caching to avoid 429 rate limit errors
+    - DataFrame serialization support
+    - Network error handling and retries
     """
+    from infrastructure.services.cost_cache import cached_cost_fetch
+    
     logger.info(f"💰 COMPREHENSIVE: Fetching actual cluster costs for {cluster_name} in subscription {subscription_id[:8]}")
+    
+    # Create cache key components
+    date_range = f"{start_date} to {end_date}"
+    
+    def _fetch_cost_data_internal(cluster_id, subscription_id, date_range):
+        """Internal function that does the actual Azure SDK cost fetching"""
+        return _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id)
+    
+    # Use cached cost fetch with DataFrame support
+    try:
+        cost_df = cached_cost_fetch(
+            cluster_id=cluster_name,
+            subscription_id=subscription_id,
+            fetch_func=_fetch_cost_data_internal,
+            date_range=date_range
+        )
+        
+        # Log cache status
+        cache_status = "🎯 CACHE HIT" if hasattr(cost_df, '_from_cache') and cost_df._from_cache else "❌ CACHE MISS - API CALL"
+        if hasattr(cost_df, '_stale') and cost_df._stale:
+            cache_status += " (STALE - 429 FALLBACK)"
+        logger.info(f"{cache_status} for {cluster_name}")
+        
+        return cost_df
+        
+    except Exception as e:
+        logger.error(f"❌ Cached cost fetch failed for {cluster_name}: {e}")
+        raise
+
+def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, end_date, subscription_id, cluster_id=None):
+    """
+    Execute the actual comprehensive cost query (internal function for caching)
+    """
+    logger.info(f"🔄 EXECUTING: Azure Cost API query for {cluster_name}")
     
     max_retries = 3
     base_delay = 2  # Reduced from 5 seconds for faster retries
@@ -1522,6 +1561,17 @@ def get_aks_specific_cost_data(resource_group, cluster_name, start_date, end_dat
                     else:
                         logger.error(f"❌ Thread {thread_id}: Rate limit exceeded after {max_retries} attempts")
                         raise Exception("Comprehensive Cost API rate limit exceeded")
+                elif any(conn_error in error_str for conn_error in [
+                    "connection", "reset", "resolve", "network", "timeout", "unreachable"
+                ]):
+                    if attempt < max_retries - 1:
+                        retry_delay = base_delay * (2 ** attempt)
+                        logger.warning(f"🌐 Thread {thread_id}: Network connectivity issue, retrying in {retry_delay}s: {e}")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        logger.error(f"❌ Thread {thread_id}: Network connectivity failed after {max_retries} attempts: {e}")
+                        raise Exception(f"Azure SDK cost validation error: {e}")
                 else:
                     logger.error(f"❌ Thread {thread_id}: Comprehensive SDK API error: {e}")
                     raise
