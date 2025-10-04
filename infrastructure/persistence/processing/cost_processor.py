@@ -24,16 +24,23 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from shared.config.config import logger
 from shared.utils.utils import validate_cost_data
+from shared.standards.implementation_cost_calculator import implementation_cost_calculator
 
 
 @dataclass
 class CostAllocationConfig:
-    """Configuration for cost allocation strategies"""
-    system_pod_percentage: float = 0.10  # 10% for system pods
-    idle_resource_threshold: float = 0.15  # 15% threshold for idle detection
-    load_balancer_allocation_method: str = "proportional"  # proportional or equal
-    cross_zone_data_transfer_factor: float = 0.02  # 2% of networking costs
-    enable_advanced_allocation: bool = True
+    """Configuration for cost allocation strategies using standards"""
+    def __init__(self):
+        # Load from standards
+        standards = implementation_cost_calculator.load_standards()
+        cost_processing = standards.get('cost_processing', {})
+        system_allocation = cost_processing.get('system_cost_allocation', {})
+        
+        self.system_pod_percentage = system_allocation.get('system_pod_percentage', 0.10)
+        self.idle_resource_threshold = system_allocation.get('idle_resource_threshold', 0.15)
+        self.load_balancer_allocation_method = system_allocation.get('load_balancer_allocation_method', "proportional")
+        self.cross_zone_data_transfer_factor = system_allocation.get('cross_zone_data_transfer_factor', 0.02)
+        self.enable_advanced_allocation = True
 
 
 class EnhancedAKSCostProcessor:
@@ -41,6 +48,7 @@ class EnhancedAKSCostProcessor:
     
     def __init__(self, config: CostAllocationConfig = None):
         self.config = config or CostAllocationConfig()
+        self.standards = implementation_cost_calculator.load_standards()
         self.cost_allocation_rules = self._initialize_allocation_rules()
     
     def _initialize_allocation_rules(self) -> Dict:
@@ -858,30 +866,38 @@ class EnhancedAKSCostProcessor:
         return cost_df
 
     def _calculate_allocation_weight(self, row: pd.Series) -> float:
-        """Calculate allocation weight for cost distribution"""
+        """Calculate allocation weight for cost distribution using standards"""
         category = row['Category']
         subcategory = row['Subcategory']
         
-        # Base weights by category
-        category_weights = {
-            'Node Pools': 3.0,  # Highest weight - directly attributable
-            'Storage': 2.5,
-            'Networking': 2.0,
-            'AKS Control Plane': 1.0,  # Shared cost
-            'Container Registry': 1.5,
-            'Monitoring': 1.0,
-            'Security': 1.0,
-            'Data Transfer': 2.0,
-            'Key Vault': 0.5,
-            'Application Services': 2.0,  # New category
-            'Data Services': 2.5,  # New category - often expensive
-            'Integration Services': 1.5,  # New category
-            'DevOps & CI/CD': 1.0,  # New category
-            'Backup & Recovery': 1.0,  # New category
-            'Governance & Compliance': 0.5,  # New category - usually low cost
-            'Support & Management': 0.5,  # New category - usually low cost
-            'Uncategorized': 0.5  # Lowest weight for unknown services
+        # Load weights from standards
+        cost_processing = self.standards.get('cost_processing', {})
+        allocation_weights = cost_processing.get('allocation_weights', {})
+        
+        # Map category names to standards keys
+        category_mapping = {
+            'Node Pools': 'node_pools',
+            'Storage': 'storage',
+            'Networking': 'networking',
+            'AKS Control Plane': 'aks_control_plane',
+            'Container Registry': 'container_registry',
+            'Monitoring': 'monitoring',
+            'Security': 'security',
+            'Data Transfer': 'data_transfer',
+            'Key Vault': 'key_vault',
+            'Application Services': 'application_services',
+            'Data Services': 'data_services',
+            'Integration Services': 'integration_services',
+            'DevOps & CI/CD': 'devops_cicd',
+            'Backup & Recovery': 'backup_recovery',
+            'Governance & Compliance': 'governance_compliance',
+            'Support & Management': 'support_management',
+            'Uncategorized': 'uncategorized'
         }
+        
+        # Get weight from standards or fallback
+        standards_key = category_mapping.get(category, 'uncategorized')
+        category_weights = {key: allocation_weights.get(key, 1.0) for key in category_mapping.values()}
         
         base_weight = category_weights.get(category, 1.0)
         

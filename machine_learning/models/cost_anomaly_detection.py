@@ -33,6 +33,8 @@ import time
 import warnings
 warnings.filterwarnings('ignore')
 
+from shared.standards.implementation_cost_calculator import implementation_cost_calculator
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -103,11 +105,19 @@ class AnomalyDetectionModel:
 
 class RealTimeCostAnomalyDetector:
     """
-     Real-time cost anomaly detection with robust error handling
+     Real-time cost anomaly detection with robust error handling using standards
     """
     
-    def __init__(self, detection_interval_seconds: int = 300):  # 5 minutes default
-        self.detection_interval = detection_interval_seconds
+    def __init__(self, detection_interval_seconds: int = None):
+        # Load standards for configuration
+        self.standards = implementation_cost_calculator.load_standards()
+        ml_analytics = self.standards.get('ml_analytics', {})
+        detection_intervals = self.standards.get('monitoring_alerting', {}).get('detection_intervals', {})
+        
+        # Use standards-based detection interval
+        self.detection_interval = (detection_interval_seconds or 
+                                  detection_intervals.get('real_time_seconds', 300))
+        
         self.is_running = False
         self.detection_thread = None
         
@@ -128,7 +138,7 @@ class RealTimeCostAnomalyDetector:
         self.anomaly_callbacks: List[Callable] = []
         self.guardrail_callbacks: List[Callable] = []
         
-        logger.info("🚨 Real-time cost anomaly detector initialized")
+        logger.info("🚨 Real-time cost anomaly detector initialized with standards")
     
     def start_real_time_monitoring(self, cluster_info: Dict):
         """Start real-time cost monitoring with robust error handling"""
@@ -434,12 +444,19 @@ class RealTimeCostAnomalyDetector:
         return sanitized
     
     def _is_valid_budget(self, budget: float) -> bool:
-        """ Validate budget value"""
+        """ Validate budget value using standards"""
         try:
+            # Load budget validation standards
+            ml_analytics = self.standards.get('ml_analytics', {})
+            budget_validation = ml_analytics.get('anomaly_detection', {}).get('budget_validation', {})
+            
+            min_budget = budget_validation.get('minimum_budget', 100.0)
+            max_budget = budget_validation.get('maximum_budget', 100000.0)
+            
             return (isinstance(budget, (int, float)) and 
                     np.isfinite(budget) and 
-                    budget > 0 and 
-                    budget < 1e6)  # Reasonable upper limit
+                    budget >= min_budget and 
+                    budget <= max_budget)
         except:
             return False
     
@@ -469,50 +486,53 @@ class RealTimeCostAnomalyDetector:
             return 750.0  # Conservative fallback
     
     def _get_fallback_cost(self, cost_type: str) -> float:
-        """Get dynamic fallback cost based on cost type and market standards"""
+        """Get dynamic fallback cost based on cost type and standards"""
         try:
             # Get estimated total budget
             total_budget = self._estimate_budget_from_usage()
             
-            # Distribute costs based on typical Azure AKS patterns
-            cost_distribution = {
+            # Load cost distribution from standards
+            cost_processing = self.standards.get('cost_processing', {})
+            cost_distribution = cost_processing.get('cost_distribution', {})
+            
+            # Map cost types to standards
+            distribution_mapping = {
                 'total_cost': 1.0,
-                'compute_cost': 0.60,  # ~60% compute
-                'storage_cost': 0.20,  # ~20% storage
-                'network_cost': 0.15,  # ~15% networking
-                'other_cost': 0.05     # ~5% other services
+                'compute_cost': cost_distribution.get('compute_percentage', 0.60),
+                'storage_cost': cost_distribution.get('storage_percentage', 0.20),
+                'network_cost': cost_distribution.get('network_percentage', 0.15),
+                'other_cost': cost_distribution.get('other_percentage', 0.05)
             }
             
             # Get the appropriate fraction
-            fraction = cost_distribution.get(cost_type.lower(), 0.6)
+            fraction = distribution_mapping.get(cost_type.lower(), 0.6)
             fallback_cost = total_budget * fraction
             
-            logger.debug(f"✅ Dynamic fallback cost for {cost_type}: ${fallback_cost:.2f}")
+            logger.debug(f"✅ Standards-based fallback cost for {cost_type}: ${fallback_cost:.2f}")
             return fallback_cost
             
         except Exception as e:
             logger.error(f"❌ Failed to get dynamic fallback cost for {cost_type}: {e}")
-            # Static fallback as last resort
-            static_fallbacks = {
-                'total_cost': 750.0,
-                'compute_cost': 450.0,
-                'storage_cost': 150.0,
-                'network_cost': 100.0
-            }
-            return static_fallbacks.get(cost_type.lower(), 100.0)
+            # Load static fallbacks from standards
+            fallback_costs = self.standards.get('cost_processing', {}).get('fallback_costs', {})
+            return fallback_costs.get(cost_type.lower(), 100.0)
     
     def _initialize_anomaly_models_safe(self, cluster_info: Dict):
-        """ Initialize anomaly detection models with safe data handling"""
+        """ Initialize anomaly detection models with safe data handling using standards"""
         
-        logger.info("🤖 Initializing anomaly detection models safely")
+        logger.info("🤖 Initializing anomaly detection models safely with standards")
         
         try:
-            # Initialize Isolation Forest model
+            # Load ML parameters from standards
+            ml_analytics = self.standards.get('ml_analytics', {})
+            isolation_forest_config = ml_analytics.get('anomaly_detection', {}).get('isolation_forest', {})
+            
+            # Initialize Isolation Forest model with standards-based parameters
             isolation_forest = IsolationForest(
-                contamination=0.1,  # Expect 10% anomalies
-                random_state=42,
-                n_estimators=50,    #  Reduced for stability
-                max_samples=100     #  Limited for safety
+                contamination=isolation_forest_config.get('contamination', 0.1),
+                random_state=isolation_forest_config.get('random_state', 42),
+                n_estimators=isolation_forest_config.get('n_estimators', 50),
+                max_samples=isolation_forest_config.get('max_samples', 100)
             )
             
             #  Create safe training data
