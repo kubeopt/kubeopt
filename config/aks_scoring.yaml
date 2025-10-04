@@ -1,0 +1,290 @@
+version: 1
+build_quality:
+  weights:
+    UE: 0.35  # Utilization Efficiency
+    AE: 0.15  # Autoscaling Efficacy  
+    CE: 0.30  # Cost Efficiency
+    RS: 0.10  # Reliability & Saturation
+    CH: 0.10  # Configuration Hygiene
+  targets:
+    cpu_warm_band: [0.60, 0.80]
+    mem_warm_band: [0.60, 0.80]
+    req_limit_ratio_band: [0.50, 0.80]
+    req_to_use_target: {target: 1.0, tol: 0.10}
+    binpack_idle_max: 0.40
+    hpa_coverage_target: 0.80
+    hpa_mape_ok: 0.25
+    ca_pending_ok: 0.05
+    idle_cost_pct_ok: 0.35
+    lb_per_workload_target: {target: 0.05, tol: 0.03}
+    net_unit_ref_price_per_gb: 0.02  # Azure East US baseline
+    ref_vcpu_price: 0.045             # Azure D-series baseline East US
+    reliability:
+      oom_rate_ok: 0.005
+      crash_rate_ok: 0.01
+      node_unready_ok: 0.01
+      sched_p95_ms_ok: 500
+  mix:
+    UE: {cpu: 0.35, mem: 0.35, request_discipline: 0.20, binpack: 0.10}
+    AE: {coverage: 0.40, tracking: 0.40, ca: 0.20}
+    CE: {cpu_cost: 0.35, idle: 0.25, storage: 0.20, net: 0.20}
+    RS: {oom: 0.35, crash: 0.25, node: 0.20, sched: 0.20}
+
+cost_excellence:
+  weights:
+    compute: 0.40           # Primary cost driver
+    storage: 0.15           # Significant but bounded
+    network_lb: 0.15        # LB and networking costs
+    observability: 0.10     # Log Analytics, monitoring
+    images: 0.05            # ACR costs
+    sec_tools: 0.05         # Defender, security agents
+    platform_hygiene: 0.05 # Config that impacts cost
+    idle_abandoned: 0.05    # Waste detection
+  
+  compute:
+    bands:
+      cpu_warm: [0.60, 0.80]  # Optimal CPU utilization range
+      mem_warm: [0.60, 0.80]  # Optimal memory utilization range
+    binpack_idle_max: 0.40    # >40% idle = poor bin-packing
+    pod_density_target: 0.70  # 70% of nodes should have >80% pod slots used
+    ca_pending_ok: 0.03       # <3% time pods pending due to capacity
+    ca_settings_bonus: 
+      least_waste: 0.5        # Bonus for least-waste expander
+      balance_sng: 0.5        # Bonus for balance-similar-node-groups
+    spot_target_core_mix: 0.30     # 30% spot mix target
+    ri_target_coverage: 0.70       # 70% reserved instance coverage
+    schedule_offhour_target: 0.40  # 40% cheaper off-hours for dev/test
+    ref_vcpu_price: 0.045          # Regional reference price per vCPU-hour
+    mix: 
+      rightsizing: 0.12       # CPU/mem warm running
+      packing: 0.08          # Bin-packing efficiency
+      ca: 0.08               # Cluster Autoscaler effectiveness
+      price_posture: 0.07    # Spot/RI coverage
+      unit_cost_norm: 0.05   # Cost per used vCPU vs reference
+      schedule: 0.05         # Scheduled scaling savings
+  
+  storage:
+    prov_vs_used_target: {target: 1.20, tol_frac: 0.25}  # 1.2x provisioned vs used is ideal
+    mix: 
+      overprov_tiering: 0.07  # Overprovisioning and Premium->Standard opportunities
+      orphans: 0.05          # Unattached disks, stale PVCs, old snapshots
+      product: 0.03          # Right storage product (Files vs Disks, ZRS vs LRS)
+  
+  network_lb:
+    lb_per_workload_target: {target: 0.05, tol_frac: 0.60}  # ~1 LB per 20 services
+    ref_net_price_per_gb: 0.02  # Regional reference for data processing
+    mix: 
+      lb_norm: 0.05      # Load balancer consolidation
+      unit_cost: 0.06    # Cost per GB vs reference
+      ip_nat: 0.04       # Idle public IPs and NAT optimization
+  
+  observability:
+    filter_target: 0.25    # Aim to filter ≥25% of log noise
+    retention_hot_band: [30, 90]  # Hot retention 30-90 days
+    ingest_per_pod_target: {target: 0.015, tol_frac: 0.60}  # ~15MB/pod/day baseline
+    
+    # Log volume collection standards
+    log_volume_collection:
+      enable_workspace_queries: true  # Query Log Analytics workspaces for actual volumes
+      fallback_estimation: true      # Use cost-based estimation if workspace unavailable
+      min_volume_gb_day: 0.1         # Minimum daily volume to consider for optimization
+      max_filter_potential: 0.40     # Maximum realistic filtering potential (40%)
+      cost_per_gb_estimation: 2.50   # Conservative cost/GB for volume estimation from spend
+    
+    # Enhanced pricing configuration
+    log_analytics_pricing:
+      payg_base_price: 2.76  # Pay-as-you-go baseline (East US)
+      commitment_discount_avg: 0.45  # Average 45% discount on commitment tiers
+      min_meaningful_savings: 50  # Minimum $50/month to suggest optimization
+      max_savings_pct: 0.80  # Cap savings at 80% of current observability spend
+      use_actual_costs: true  # Prioritize actual monitoring costs over theoretical pricing
+    
+    # Regional pricing multipliers (relative to East US baseline)
+    regional_multipliers:
+      eastus: 1.00
+      westus: 1.08
+      northeurope: 1.10
+      southeastasia: 1.20
+      australiaeast: 1.20
+      uksouth: 1.04
+    
+    mix: 
+      filters: 0.04       # DCR filtering effectiveness
+      retention: 0.03     # Retention and archival strategy
+      cost_density: 0.03  # Cost per pod and sampling
+  
+  images:
+    median_image_mb_target: {target: 250, tol_frac: 0.60}  # 250MB median image size
+    mix: 
+      acr_sku: 0.35      # ACR SKU appropriateness (Basic/Standard vs Premium)
+      size: 0.35         # Image size optimization
+      retention: 0.15    # Retention policy (≥14 days)
+      geo: 0.15          # Geo-replication right-sizing
+  
+  sec_tools:
+    mix: 
+      defender_scope: 0.60  # Defender scoped to prod (≥70% nonprod excluded)
+      dup_agents: 0.40     # Duplicate security agent detection
+  
+  hygiene:
+    checks:  # Boolean checks averaged by scorer
+      - user_vs_system_pools          # Separate user and system node pools
+      - zones_if_sla                  # AZ + Uptime SLA only if needed
+      - cni_overlay_or_ip_ok         # CNI properly sized
+      - requests_limits_coverage      # ≥95% workloads have requests/limits
+      - hpa_coverage_eligible        # ≥80% eligible workloads have HPA
+      - pdb_priority_for_spot        # PDB + priority for spot viability
+      - keda_eventing               # KEDA for event-driven scaling
+      - node_image_auto_upgrade_or_cadence  # Auto-upgrade or controlled cadence
+
+savings:
+  caps:
+    compute_idle_cap_ratio: 0.50  # Cap idle compute savings at 50% of node cost
+    storage_waste_cap_ratio: 0.45 # Cap storage waste at 45% of storage cost
+    network_consolidation_cap: 0.30  # Cap network savings at 30%
+  
+  # Savings estimation formulas
+  compute:
+    spot_expansion_eligible_ratio: 0.60  # 60% of workloads eligible for spot
+    ri_gap_roi_months: 12               # ROI calculation period for RI gap
+    schedule_eligible_ratio: 0.40       # 40% of workloads eligible for scheduling
+  
+  storage:
+    premium_to_standard_eligible: 0.25   # 25% could move Premium->Standard
+    premium_to_standard_savings: 0.40    # 40% cost reduction
+    pv_rightsizing_eligible: 0.20        # 20% over-provisioned
+    pv_rightsizing_waste: 0.25           # 25% over-provisioning
+    orphaned_volume_rate: 0.12           # 12% become orphaned
+  
+  network:
+    lb_consolidation_ratio: 0.60         # 60% of excess LBs can be consolidated
+    nat_optimization_potential: 0.20     # 20% NAT cost optimization
+    egress_cdn_eligible: 0.30           # 30% egress can use CDN
+  
+  observability:
+    log_filtering_potential: 0.25        # 25% of logs can be filtered
+    retention_optimization: 0.15         # 15% savings from retention tuning
+    
+    # Volume-based savings calculation standards
+    volume_estimation:
+      pod_baseline_mb_day: 15            # 15MB per pod per day baseline
+      node_overhead_mb_day: 100          # 100MB per node per day overhead
+      system_logs_pct: 0.15             # 15% of logs are system/infrastructure
+      application_logs_pct: 0.85        # 85% of logs are application
+      noise_logs_pct: 0.30              # 30% of logs considered "noise" 
+      
+    # Cost-based estimation when workspace data unavailable
+    cost_to_volume_estimation:
+      default_price_per_gb: 2.50         # Conservative $/GB for volume estimation
+      commitment_tier_detection: true    # Try to detect commitment pricing from costs
+      monthly_cost_to_daily_gb_factor: 12.0  # Factor to convert monthly cost to daily GB
+
+# Regional pricing references (update per your regions)
+# OFFICIAL INDUSTRY STANDARDS - CENTRALIZED
+# Sources: CNCF, FinOps Foundation, Google SRE, Azure Well-Architected Framework
+official_standards:
+  # CNCF Kubernetes Standards (2024 Benchmark Report - 330,000+ workloads)
+  kubernetes:
+    cpu_requests_coverage:
+      excellent: 95
+      good: 89
+      needs_improvement: 80
+    memory_limits_configuration:
+      optimal_sizing: 50
+      waste_threshold: 25
+    rightsizing_effectiveness:
+      excellent: 90
+      good: 85
+      needs_improvement: 75
+  
+  # Resource Utilization Standards (Google SRE + CNCF)
+  resource_utilization:
+    cpu_utilization_target:
+      optimal: [60, 80]
+      acceptable: [40, 90]
+      critical_low: 20
+      critical_high: 95
+    memory_utilization_target:
+      optimal: [65, 85]
+      acceptable: [45, 95]
+      critical_low: 25
+      critical_high: 98
+    node_utilization:
+      optimal: [70, 85]
+      acceptable: [50, 90]
+      critical_low: 30
+      critical_high: 95
+  
+  # FinOps Foundation Official Standards
+  finops:
+    commitment_utilization:
+      target: 80
+      minimum_acceptable: 70
+    spend_commitment_roi:
+      minimum_savings_per_dollar: 90
+      minimum_roi_percentage: 10
+      breakeven_months: 9
+  
+  # Cost Efficiency Standards (FinOps + Azure WAF)
+  cost_efficiency:
+    reserved_instance_coverage: 70    # 70% RI coverage
+    spot_instance_usage: 30           # 30% spot usage
+    idle_resource_threshold: 5        # <5% idle resources
+    waste_percentage: 15              # <15% waste acceptable
+    hpa_coverage_target: 80           # 80% HPA coverage (CNCF)
+  
+  # Azure Well-Architected Framework Standards
+  azure_waf:
+    spot_vm_savings:
+      maximum_discount: 90
+      arm64_performance_improvement: 50
+    azure_reservations:
+      maximum_discount: 72
+    monitoring_optimization:
+      prometheus_migration_savings: "significant"
+  
+  # Architectural Standards (Kubernetes Best Practices)
+  architectural:
+    pod_density:
+      min_per_node: 10
+      optimal_per_node: 30
+      max_per_node: 110
+    container_per_pod:
+      optimal: 1
+      acceptable: 3
+      warning: 5
+    namespace_isolation: true
+    resource_quotas_enabled: true
+    pod_disruption_budgets: true
+    horizontal_pod_autoscaling: 80    # 80% of eligible workloads
+    vertical_pod_autoscaling: 60      # 60% of stateful workloads
+  
+  # Health Score Calculations
+  health_scoring:
+    cpu_optimal_range: [60, 80]       # Optimal CPU utilization range
+    memory_optimal_range: [65, 85]    # Optimal memory utilization range
+    cpu_target_center: 70             # Target CPU for health calculations
+    memory_target_center: 75          # Target memory for health calculations
+    
+  # HPA and Scaling Standards
+  hpa_standards:
+    target_utilization_cpu: 70        # Default CPU target for HPA
+    target_utilization_memory: 80     # Default memory target for HPA
+    min_replicas: 2                   # Minimum replicas for HA
+    max_replicas_ratio: 10            # Max replicas as ratio of min
+    scale_up_threshold: 80            # Scale up at 80% utilization
+    scale_down_threshold: 50          # Scale down at 50% utilization
+
+regional_pricing:
+  eastus:
+    ref_vcpu_price: 0.045
+    ref_net_price_per_gb: 0.02
+    spot_discount_avg: 0.70  # 70% average spot discount
+  westus2:
+    ref_vcpu_price: 0.048
+    ref_net_price_per_gb: 0.021
+    spot_discount_avg: 0.72
+  northeurope:
+    ref_vcpu_price: 0.050
+    ref_net_price_per_gb: 0.022
+    spot_discount_avg: 0.68

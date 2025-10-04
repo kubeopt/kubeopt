@@ -40,6 +40,7 @@
     <script src="{{ url_for('static', filename='js/security/pure-backend-dashboard.js') }}"></script>
     <script src="{{ url_for('static', filename='js/auto-analysis-scheduler.js') }}"></script>
     <script src="{{ url_for('static', filename='js/feature-lock.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/aks-excellence.js') }}"></script>
 
     
     <!-- <script src="{{ url_for('static', filename='js/magic.js') }}"></script> -->
@@ -367,8 +368,8 @@
                                 <div class="chart-container">
                                     <canvas id="hpaComparisonChart"></canvas>
                                 </div>
-                                <div style="text-align: center; margin-top: 1rem; font-size: 0.75rem; color: var(--text-secondary);">
-                                    Active HPAs: <span style="background: var(--bg-primary); padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600;">0</span>
+                                <div id="hpa-count-display" style="text-align: center; margin-top: 1rem; font-size: 0.75rem; color: var(--text-secondary);">
+                                    Active HPAs: <span id="active-hpa-count" style="background: var(--bg-primary); padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600;">0</span>
                                 </div>
                             </div>
 
@@ -441,6 +442,109 @@
                                     <h3 class="metric-title">Analysis Accuracy</h3>
                                 </div>
                                 <div class="metric-value" id="analysis-accuracy" data-metric="accuracy">Loading...</div>
+                            </div>
+                        </div>
+                        
+                        <!-- AKS Excellence Scores Section -->
+                        <div class="clean-chart-card" style="grid-column: 1 / -1; margin-bottom: 2rem;">
+                            <div class="chart-header">
+                                <div class="chart-icon">
+                                    <i class="fas fa-award"></i>
+                                </div>
+                                <h3 class="chart-title">AKS Cost Excellence Framework</h3>
+                                <div class="chart-actions">
+                                    <button class="chart-action-btn" onclick="refreshAKSScores()">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="excellence-scores-grid">
+                                <!-- Build Quality Score -->
+                                <div class="excellence-score-card">
+                                    <div class="score-header">
+                                        <div class="score-icon build-quality">
+                                            <i class="fas fa-hammer"></i>
+                                        </div>
+                                        <div class="score-info">
+                                            <h4>Build Quality</h4>
+                                            <p>Utilization • Autoscaling • Reliability</p>
+                                        </div>
+                                    </div>
+                                    <div class="score-value-container">
+                                        <div class="score-value" id="build-quality-score">--</div>
+                                        <div class="score-suffix">/100</div>
+                                    </div>
+                                    <div class="score-breakdown" id="build-quality-breakdown">
+                                        <div class="breakdown-item">
+                                            <span class="breakdown-label">Utilization</span>
+                                            <span class="breakdown-value" id="ue-score">--</span>
+                                        </div>
+                                        <div class="breakdown-item">
+                                            <span class="breakdown-label">Autoscaling</span>
+                                            <span class="breakdown-value" id="ae-score">--</span>
+                                        </div>
+                                        <div class="breakdown-item">
+                                            <span class="breakdown-label">Cost Efficiency</span>
+                                            <span class="breakdown-value" id="ce-score">--</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Cost Excellence Score -->
+                                <div class="excellence-score-card">
+                                    <div class="score-header">
+                                        <div class="score-icon cost-excellence">
+                                            <i class="fas fa-dollar-sign"></i>
+                                        </div>
+                                        <div class="score-info">
+                                            <h4>Cost Excellence</h4>
+                                            <p>Compute • Storage • Network • Observability</p>
+                                        </div>
+                                    </div>
+                                    <div class="score-value-container">
+                                        <div class="score-value" id="cost-excellence-score">--</div>
+                                        <div class="score-suffix">/100</div>
+                                    </div>
+                                    <div class="score-breakdown" id="cost-excellence-breakdown">
+                                        <div class="breakdown-item">
+                                            <span class="breakdown-label">Compute</span>
+                                            <span class="breakdown-value" id="compute-score">--</span>
+                                        </div>
+                                        <div class="breakdown-item">
+                                            <span class="breakdown-label">Storage</span>
+                                            <span class="breakdown-value" id="storage-score">--</span>
+                                        </div>
+                                        <div class="breakdown-item">
+                                            <span class="breakdown-label">Network</span>
+                                            <span class="breakdown-value" id="network-score">--</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Top Savings Opportunities -->
+                                <div class="excellence-score-card full-width">
+                                    <div class="score-header">
+                                        <div class="score-icon savings">
+                                            <i class="fas fa-piggy-bank"></i>
+                                        </div>
+                                        <div class="score-info">
+                                            <h4>Top Savings Opportunities</h4>
+                                            <p>Based on AKS Excellence analysis</p>
+                                        </div>
+                                    </div>
+                                    <div class="savings-list" id="aks-savings-opportunities">
+                                        <div class="savings-item">
+                                            <div class="savings-icon">
+                                                <i class="fas fa-search"></i>
+                                            </div>
+                                            <div class="savings-info">
+                                                <span class="savings-category">Analyzing...</span>
+                                                <span class="savings-description">Calculating cost optimization opportunities</span>
+                                            </div>
+                                            <div class="savings-amount">--</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
@@ -793,6 +897,13 @@
         window.currentClusterId = '{{ cluster.id }}';
         window.currentClusterName = '{{ cluster.name }}';
         window.currentResourceGroup = '{{ cluster.resource_group }}';
+        {% endif %}
+        
+        // Analysis data with AKS Excellence scores
+        {% if analysis %}
+        window.analysisData = {{ analysis | tojson }};
+        {% else %}
+        window.analysisData = null;
         {% endif %}
         
     </script>

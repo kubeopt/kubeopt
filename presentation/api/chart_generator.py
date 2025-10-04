@@ -24,13 +24,21 @@ def extract_standards_based_savings(analysis_results: Dict) -> Dict:
     # Check if using new consolidated system with savings_by_category
     if 'savings_by_category' in analysis_results:
         savings_by_cat = analysis_results['savings_by_category']
+        
+        # UNIFIED APPROACH: Category savings and total_savings are now consistent
+        # Both come from the same validated category-based calculation
+        category_total = sum(ensure_float(v) for v in savings_by_cat.values())
+        total_savings = ensure_float(analysis_results.get('total_savings', 0))
+        
+        logger.info(f"✅ UNIFIED SAVINGS: Category sum=${category_total:.2f}, Total savings=${total_savings:.2f}")
+        
         return {
             'core_optimization_savings': ensure_float(savings_by_cat.get('Core Optimization', 0)),
             'compute_optimization_savings': ensure_float(savings_by_cat.get('Compute Optimization', 0)),
             'infrastructure_savings': ensure_float(savings_by_cat.get('Infrastructure', 0)),
             'container_data_savings': ensure_float(savings_by_cat.get('Container & Data', 0)),
             'security_monitoring_savings': ensure_float(savings_by_cat.get('Security & Monitoring', 0)),
-            'total_potential_savings': ensure_float(analysis_results.get('total_savings', 0)),
+            'total_potential_savings': total_savings,  # Now consistent with category sum
             'current_health_score': ensure_float(analysis_results.get('current_health_score', 0)),
             'standards_compliance': analysis_results.get('standards_compliance', {})
         }

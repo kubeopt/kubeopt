@@ -265,18 +265,28 @@ class AzureSDKManager:
             if client_type in self.clients[target_subscription]:
                 return self.clients[target_subscription][client_type]
             
-            # Create new client
+            # Create new client with timeout configuration
             try:
+                # Configure connection timeouts for stability
+                from azure.core.pipeline.policies import HttpLoggingPolicy
+                from azure.core.pipeline.transport import RequestsTransport
+                
+                # Create transport with timeout settings
+                transport = RequestsTransport(
+                    connection_timeout=30,  # 30 second connection timeout
+                    read_timeout=60        # 60 second read timeout
+                )
+                
                 if client_type == 'cost':
-                    client = CostManagementClient(self.credential)
+                    client = CostManagementClient(self.credential, transport=transport)
                 elif client_type == 'monitor':
-                    client = MonitorManagementClient(self.credential, target_subscription)
+                    client = MonitorManagementClient(self.credential, target_subscription, transport=transport)
                 elif client_type == 'resource':
-                    client = ResourceManagementClient(self.credential, target_subscription)
+                    client = ResourceManagementClient(self.credential, target_subscription, transport=transport)
                 elif client_type == 'aks':
-                    client = ContainerServiceClient(self.credential, target_subscription)
+                    client = ContainerServiceClient(self.credential, target_subscription, transport=transport)
                 elif client_type == 'logs':
-                    client = LogsQueryClient(self.credential)
+                    client = LogsQueryClient(self.credential, transport=transport)
                 else:
                     logger.error(f"❌ Unknown client type: {client_type}")
                     return None
