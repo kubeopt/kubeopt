@@ -49,6 +49,28 @@ except ImportError as e:
     class ContainerServiceClient: pass
     class LogsQueryClient: pass
 
+# Try to import additional Azure SDK packages
+try:
+    from azure.mgmt.loganalytics import LogAnalyticsManagementClient
+    LOG_ANALYTICS_AVAILABLE = True
+except ImportError:
+    LOG_ANALYTICS_AVAILABLE = False
+    class LogAnalyticsManagementClient: pass
+
+try:
+    from azure.mgmt.applicationinsights import ApplicationInsightsManagementClient
+    APPLICATION_INSIGHTS_AVAILABLE = True
+except ImportError:
+    APPLICATION_INSIGHTS_AVAILABLE = False
+    class ApplicationInsightsManagementClient: pass
+
+try:
+    from azure.mgmt.consumption import ConsumptionManagementClient
+    CONSUMPTION_AVAILABLE = True
+except ImportError:
+    CONSUMPTION_AVAILABLE = False
+    class ConsumptionManagementClient: pass
+
 logger = logging.getLogger(__name__)
 
 class AzureSDKManager:
@@ -287,6 +309,24 @@ class AzureSDKManager:
                     client = ContainerServiceClient(self.credential, target_subscription, transport=transport)
                 elif client_type == 'logs':
                     client = LogsQueryClient(self.credential, transport=transport)
+                elif client_type == 'loganalytics':
+                    if LOG_ANALYTICS_AVAILABLE:
+                        client = LogAnalyticsManagementClient(self.credential, target_subscription, transport=transport)
+                    else:
+                        logger.error(f"❌ LogAnalyticsManagementClient not available - install azure-mgmt-loganalytics")
+                        return None
+                elif client_type == 'applicationinsights':
+                    if APPLICATION_INSIGHTS_AVAILABLE:
+                        client = ApplicationInsightsManagementClient(self.credential, target_subscription, transport=transport)
+                    else:
+                        logger.error(f"❌ ApplicationInsightsManagementClient not available - install azure-mgmt-applicationinsights")
+                        return None
+                elif client_type == 'consumption':
+                    if CONSUMPTION_AVAILABLE:
+                        client = ConsumptionManagementClient(self.credential, target_subscription, transport=transport)
+                    else:
+                        logger.error(f"❌ ConsumptionManagementClient not available - install azure-mgmt-consumption")
+                        return None
                 else:
                     logger.error(f"❌ Unknown client type: {client_type}")
                     return None
@@ -321,20 +361,32 @@ class AzureSDKManager:
         return self.get_client('logs', subscription_id)
     
     def get_log_analytics_client(self, subscription_id: Optional[str] = None):
-        """Get Log Analytics client - alias for Monitor client"""
-        return self.get_monitor_client(subscription_id)
+        """Get Log Analytics client - requires azure-mgmt-loganalytics package"""
+        if not LOG_ANALYTICS_AVAILABLE:
+            logger.warning("⚠️ azure-mgmt-loganalytics package not installed. Install with: pip install azure-mgmt-loganalytics")
+            return None
+        
+        return self.get_client('loganalytics', subscription_id)
     
     def get_application_insights_client(self, subscription_id: Optional[str] = None):
-        """Get Application Insights client - alias for Monitor client"""
-        return self.get_monitor_client(subscription_id)
+        """Get Application Insights client - requires azure-mgmt-applicationinsights package"""
+        if not APPLICATION_INSIGHTS_AVAILABLE:
+            logger.warning("⚠️ azure-mgmt-applicationinsights package not installed. Install with: pip install azure-mgmt-applicationinsights")
+            return None
+        
+        return self.get_client('applicationinsights', subscription_id)
     
     def get_cost_management_client(self, subscription_id: Optional[str] = None):
         """Get Cost Management client - alias for cost client"""
         return self.get_cost_client(subscription_id)
     
     def get_consumption_client(self, subscription_id: Optional[str] = None):
-        """Get Consumption client - alias for cost client"""
-        return self.get_cost_client(subscription_id)
+        """Get Consumption client - requires azure-mgmt-consumption package"""
+        if not CONSUMPTION_AVAILABLE:
+            logger.warning("⚠️ azure-mgmt-consumption package not installed. Install with: pip install azure-mgmt-consumption")
+            return None
+        
+        return self.get_client('consumption', subscription_id)
     
     def get_subscription_id(self) -> Optional[str]:
         """Get current Azure subscription ID"""

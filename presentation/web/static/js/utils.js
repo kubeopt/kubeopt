@@ -42,17 +42,6 @@ export function getChartColors() {
     };
 }
 
-/**
- * DEPRECATED: Calculates optimization score based on metrics
- * 
- * This function is deprecated. Optimization scores should always come from the 
- * backend unified optimization scorer which uses YAML standards.
- */
-export function calculateOptimizationScore(metrics) {
-    console.warn('⚠️ DEPRECATED: calculateOptimizationScore called - optimization_score should come from backend');
-    // Return the backend score if available, otherwise return a neutral score
-    return metrics.optimization_score || 50;
-}
 
 /**
  * Debounce function to limit API calls

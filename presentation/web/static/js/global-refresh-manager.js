@@ -47,6 +47,8 @@ class GlobalRefreshManager {
         
         if (path.includes('/clusters') || path === '/') {
             return 'clusters';
+        } else if (path.includes('/cluster/')) {
+            return 'cluster-detail';
         } else if (path.includes('/dashboard')) {
             return 'dashboard';
         } else if (path.includes('/analysis') || path.includes('/results')) {
@@ -85,6 +87,17 @@ class GlobalRefreshManager {
             // Use silent page refresh instead of API polling
             this.addRefreshHandler('silent-page-refresh', async () => {
                 return await this.silentPageRefresh();
+            });
+        }
+        
+        // Cluster detail page refresh handlers
+        if (this.currentPage === 'cluster-detail') {
+            this.addRefreshHandler('cluster-analysis-status', async () => {
+                return await this.refreshClusterAnalysisStatus();
+            });
+            
+            this.addRefreshHandler('cluster-metrics', async () => {
+                return await this.refreshClusterMetrics();
             });
         }
         
@@ -571,10 +584,89 @@ class GlobalRefreshManager {
         }
     }
     
+    async refreshClusterAnalysisStatus() {
+        try {
+            // Extract cluster ID from URL
+            const clusterId = this.getClusterIdFromUrl();
+            if (!clusterId) {
+                console.warn('⚠️ Cannot refresh cluster status - no cluster ID in URL');
+                return false;
+            }
+            
+            const response = await fetch(`/api/cluster/${clusterId}/status`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // Update cluster status if the function exists
+                if (typeof updateClusterStatus === 'function') {
+                    updateClusterStatus(data.cluster);
+                }
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('❌ Failed to refresh cluster analysis status:', error);
+            return false;
+        }
+    }
+    
+    async refreshClusterMetrics() {
+        try {
+            // Extract cluster ID from URL  
+            const clusterId = this.getClusterIdFromUrl();
+            if (!clusterId) {
+                console.warn('⚠️ Cannot refresh cluster metrics - no cluster ID in URL');
+                return false;
+            }
+            
+            const response = await fetch(`/api/chart-data?cluster_id=${encodeURIComponent(clusterId)}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // Update cluster metrics display if the function exists
+                if (typeof updateClusterMetrics === 'function') {
+                    updateClusterMetrics(data.metrics);
+                }
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('❌ Failed to refresh cluster metrics:', error);
+            return false;
+        }
+    }
+    
     getClusterIdFromUrl() {
         const pathParts = window.location.pathname.split('/');
-        const analysisIndex = pathParts.findIndex(part => part === 'analysis');
         
+        // Handle /cluster/cluster-id URLs
+        const clusterIndex = pathParts.findIndex(part => part === 'cluster');
+        if (clusterIndex !== -1 && pathParts[clusterIndex + 1]) {
+            return decodeURIComponent(pathParts[clusterIndex + 1]);
+        }
+        
+        // Handle /analysis/cluster-id URLs (legacy)
+        const analysisIndex = pathParts.findIndex(part => part === 'analysis');
         if (analysisIndex !== -1 && pathParts[analysisIndex + 1]) {
             return decodeURIComponent(pathParts[analysisIndex + 1]);
         }
