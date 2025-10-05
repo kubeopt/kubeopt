@@ -8,7 +8,7 @@
 
 import { AppState, AppConfig } from './config.js';
 import { showNotification } from './notifications.js';
-import { getChartColors, formatValue, calculateOptimizationScore, getAccuracyBadgeClass } from './utils.js';
+import { getChartColors, formatValue, getAccuracyBadgeClass } from './utils.js';
 import { getThemeTooltipConfig, getThemeLegendConfig, getThemeChartOptions, getThemeChartColors } from './chart-theme.js';
 
 // Enhanced chart instance management with safety checks
@@ -201,6 +201,9 @@ function actualInitializeCharts() {
             if (!data.metrics) {
                 throw new Error('No metrics data in response');
             }
+            
+            console.log('🔍 FRONTEND: Chart data received, data.metrics:', data.metrics);
+            console.log('🔍 FRONTEND: optimization_score in data.metrics:', data.metrics.optimization_score);
             
             // Enhanced metrics update with CPU data
             updateDashboardMetricsWithCPU(data.metrics, data.cpuWorkloadMetrics);
@@ -2437,8 +2440,8 @@ export function updateDashboardMetrics(metrics) {
         return;
     }
     
-    // Calculate optimization score if not provided
-    const optimizationScore = metrics.optimization_score || calculateOptimizationScore(metrics);
+    // Use optimization score from backend - should always be provided by unified scorer
+    const optimizationScore = metrics.optimization_score || 0;
     
     // Calculate HPA efficiency if not provided
     const hpaEfficiency = metrics.hpa_efficiency || metrics.hpa_reduction || 0;

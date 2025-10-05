@@ -5,15 +5,16 @@ Flask-SQLAlchemy==3.0.5
 Werkzeug==2.3.7
 
 # Azure SDKs - ALL REQUIRED (Fixed versions)
-azure-identity==1.13.0
-azure-mgmt-resource==23.0.1
-azure-mgmt-containerservice==20.7.0
-azure-mgmt-monitor==6.0.0
+azure-identity==1.25.0
+azure-mgmt-resource==24.0.0
+azure-mgmt-containerservice==39.1.0
+azure-mgmt-monitor==7.0.0
 azure-mgmt-costmanagement==4.0.1
 azure-mgmt-consumption==10.0.0
-azure-mgmt-loganalytics==13.0.0b6  # ← THIS WAS MISSING!
-azure-monitor-query==1.2.0
-azure-core==1.28.0
+azure-mgmt-loganalytics==13.0.0b6
+azure-mgmt-applicationinsights==4.0.0
+azure-monitor-query==2.0.0
+azure-core==1.35.1
 azure-common==1.1.28
 
 # Additional Azure packages that might be dependencies

@@ -1428,6 +1428,10 @@ class KubernetesDataCache:
             # Get Log Analytics client
             log_analytics_client = azure_sdk_manager.get_log_analytics_client(self.subscription_id)
             
+            if log_analytics_client is None:
+                logger.warning(f"⚠️ {self.cluster_name}: Log Analytics client not available - package azure-mgmt-loganalytics not installed")
+                return "[]"  # Return empty JSON array
+            
             # List workspaces in resource group
             workspaces = log_analytics_client.workspaces.list_by_resource_group(self.resource_group)
             
@@ -1460,6 +1464,10 @@ class KubernetesDataCache:
             
             # Get Application Insights client  
             app_insights_client = azure_sdk_manager.get_application_insights_client(self.subscription_id)
+            
+            if app_insights_client is None:
+                logger.warning(f"⚠️ {self.cluster_name}: Application Insights client not available - package azure-mgmt-applicationinsights not installed")
+                return "[]"  # Return empty JSON array
             
             # List components in resource group
             components = app_insights_client.components.list_by_resource_group(self.resource_group)
@@ -1507,8 +1515,8 @@ class KubernetesDataCache:
                 "type": "ActualCost",
                 "timeframe": "Custom",
                 "timePeriod": {
-                    "from": start_date.strftime("%Y-%m-%d"),
-                    "to": end_date.strftime("%Y-%m-%d")
+                    "from": start_date.strftime("%Y-%m-%dT00:00:00Z"),
+                    "to": end_date.strftime("%Y-%m-%dT23:59:59Z")
                 },
                 "dataset": {
                     "granularity": "Daily",
@@ -1556,17 +1564,45 @@ class KubernetesDataCache:
             # Get Consumption client
             consumption_client = azure_sdk_manager.get_consumption_client(self.subscription_id)
             
+            if consumption_client is None:
+                logger.warning(f"⚠️ {self.cluster_name}: Consumption client not available - package azure-mgmt-consumption not installed")
+                return "[]"  # Return empty JSON array
+            
             # Query parameters for last 30 days
             end_date = datetime.now()
             start_date = end_date - timedelta(days=30)
             
-            # Get usage details
-            usage_details = consumption_client.usage_details.list(
-                scope=f"/subscriptions/{self.subscription_id}/resourceGroups/{self.resource_group}",
-                start_date=start_date.strftime("%Y-%m-%d"),
-                end_date=end_date.strftime("%Y-%m-%d"),
-                filter="properties/meterCategory eq 'Log Analytics' or properties/meterCategory eq 'Application Insights' or properties/meterCategory eq 'Azure Monitor'"
-            )
+            # Try multiple scope approaches for consumption API
+            scopes_to_try = [
+                f"/subscriptions/{self.subscription_id}/resourceGroups/{self.resource_group}",
+                f"/subscriptions/{self.subscription_id}",  # Fallback to subscription level
+            ]
+            
+            usage_details = None
+            for scope in scopes_to_try:
+                try:
+                    logger.info(f"🔍 {self.cluster_name}: Trying consumption API with scope: {scope}")
+                    # Method 1: Basic list without date parameters (gets recent data by default)
+                    usage_details = consumption_client.usage_details.list(scope=scope)
+                    logger.info(f"✅ {self.cluster_name}: Consumption API succeeded with scope: {scope}")
+                    break
+                except Exception as e1:
+                    logger.warning(f"⚠️ {self.cluster_name}: Scope {scope} failed: {e1}")
+                    try:
+                        # Method 2: Try with only scope and top parameter
+                        usage_details = consumption_client.usage_details.list(
+                            scope=scope,
+                            top=100  # Limit to recent 100 records
+                        )
+                        logger.info(f"✅ {self.cluster_name}: Consumption API succeeded with scope {scope} and top=100")
+                        break
+                    except Exception as e2:
+                        logger.warning(f"⚠️ {self.cluster_name}: Scope {scope} with top=100 failed: {e2}")
+                        continue
+            
+            if usage_details is None:
+                logger.error(f"❌ {self.cluster_name}: All consumption API scopes and methods failed")
+                return "[]"
             
             # Convert to list and serialize
             usage_list = []
