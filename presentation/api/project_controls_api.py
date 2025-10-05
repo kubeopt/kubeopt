@@ -855,7 +855,14 @@ def fix_intelligence_insights_structure(component_data, analysis_data):
             'azure_enhanced': intelligence_insights.get('azure_enhanced', True),
             'intelligence_quality': 'high',
             'learning_events_count': 0,
-            'optimization_opportunities': component_data.get('total_workloads', 22),
+            'optimization_opportunities': (
+                # Try multiple data sources for accurate workload count
+                executive_summary.get('metrics_data', {}).get('total_workloads') or
+                analysis_data.get('metrics_data', {}).get('total_workloads') or 
+                analysis_data.get('total_workloads') or
+                component_data.get('total_workloads') or
+                22  # Last resort fallback
+            ),
             'improved_ml_generated': intelligence_insights.get('improved_ml_generated', True),
             'lastUpdated': intelligence_insights.get('lastUpdated', datetime.now().isoformat())
         }

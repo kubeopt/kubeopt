@@ -40,6 +40,7 @@ COPY infrastructure/ ./infrastructure/
 COPY machine_learning/ ./machine_learning/
 COPY presentation/ ./presentation/
 COPY shared/ ./shared/
+COPY config/ ./config/
 COPY main.py production_main.py ./
 
 # Create PyInstaller spec file for better control
@@ -48,7 +49,7 @@ RUN echo "# -*- mode: python ; coding: utf-8 -*-" > main.spec && \
     echo "a = Analysis(['main.py']," >> main.spec && \
     echo "             pathex=['/build']," >> main.spec && \
     echo "             binaries=[]," >> main.spec && \
-    echo "             datas=[('presentation/web/templates', 'presentation/web/templates'), ('presentation/web/static', 'presentation/web/static'), ('machine_learning/data', 'machine_learning/data')]," >> main.spec && \
+    echo "             datas=[('presentation/web/templates', 'presentation/web/templates'), ('presentation/web/static', 'presentation/web/static'), ('machine_learning/data', 'machine_learning/data'), ('config', 'config')]," >> main.spec && \
     echo "             hiddenimports=['flask', 'azure.identity', 'azure.mgmt.containerservice', 'azure.mgmt.monitor', 'azure.mgmt.resource', 'azure.mgmt.costmanagement', 'azure.mgmt.consumption', 'azure.mgmt.loganalytics', 'azure.monitor.query', 'azure.mgmt.core', 'azure.mgmt.compute', 'azure.mgmt.network', 'azure.mgmt.storage', 'azure.mgmt.authorization', 'kubernetes', 'sklearn.ensemble', 'pandas', 'pandas.core.api', 'pandas.core.groupby', 'pandas.core.groupby.generic', 'pandas.core.frame', 'pandas.core.generic', 'pandas.core.window', 'pandas.core.window.ewm', 'pandas._libs', 'pandas._libs.algos', 'pandas._libs.groupby', 'pandas._libs.reduction', 'pandas._libs.lib', 'pandas._libs.hashtable', 'pandas._libs.tslib', 'pandas._libs.index', 'numpy', 'sqlite3', 'jinja2', 'werkzeug', 'matplotlib.backends.backend_agg', 'seaborn', 'plotly', 'networkx', 'psutil', 'reportlab', 'xlsxwriter', 'aiohttp', 'requests', 'schedule', 'sqlalchemy', 'cryptography', 'prometheus_client', 'structlog', 'redis', 'gunicorn']," >> main.spec && \
     echo "             hookspath=[]," >> main.spec && \
     echo "             hooksconfig={}," >> main.spec && \

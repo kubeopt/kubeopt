@@ -6,6 +6,7 @@ Uses standards from aks_implementation_standards.yaml for realistic cost estimat
 
 import yaml
 import os
+import sys
 import logging
 from typing import Dict, Any, Optional, Tuple
 from dataclasses import dataclass
@@ -27,50 +28,40 @@ class ImplementationCostCalculator:
     Calculate realistic implementation costs based on industry standards
     """
     
-    def __init__(self, standards_file: str = "config/aks_implementation_standards.yaml"):
-        self.standards_file = standards_file
+    def __init__(self, standards_file: str = None):
+        if standards_file is None:
+            # Use environment variable for config directory (Docker-friendly)
+            config_dir = os.getenv('CONFIG_DIR', self._get_default_config_dir())
+            standards_file = os.path.join(config_dir, 'aks_implementation_standards.yaml')
+        self.standards_file = os.path.abspath(standards_file)
         self.standards = self._load_standards()
+    
+    def _get_default_config_dir(self) -> str:
+        """Get default config directory for development and PyInstaller environments"""
+        # Check if running as PyInstaller bundle
+        if hasattr(sys, '_MEIPASS'):
+            # PyInstaller bundle - config files are in the bundle
+            return os.path.join(sys._MEIPASS, 'config')
+        else:
+            # Development environment
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.join(current_dir, '..', '..')
+            return os.path.join(project_root, 'config')
         
     def _load_standards(self) -> Dict[str, Any]:
         """Load implementation standards from YAML"""
+        if not os.path.exists(self.standards_file):
+            raise FileNotFoundError(f"❌ Standards file not found: {self.standards_file}. System requires proper configuration.")
+        
         try:
-            if os.path.exists(self.standards_file):
-                with open(self.standards_file, 'r') as f:
-                    standards = yaml.safe_load(f)
-                    logger.info(f"✅ Loaded implementation standards from {self.standards_file}")
-                    return standards
-            else:
-                logger.warning(f"⚠️ Standards file not found: {self.standards_file}, using defaults")
-                return self._get_default_standards()
+            with open(self.standards_file, 'r') as f:
+                standards = yaml.safe_load(f)
+                if not standards:
+                    raise ValueError(f"❌ Standards file is empty or invalid: {self.standards_file}")
+                logger.info(f"✅ Loaded implementation standards from {self.standards_file}")
+                return standards
         except Exception as e:
-            logger.error(f"❌ Error loading standards: {e}, using defaults")
-            return self._get_default_standards()
-    
-    def _get_default_standards(self) -> Dict[str, Any]:
-        """Fallback standards if YAML file unavailable"""
-        return {
-            'implementation_costs': {
-                'horizontal_scaling': {'base_cost': 120},
-                'resource_optimization': {'base_cost': 180},
-                'cluster_autoscaling': {'base_cost': 200},
-                'storage_optimization': {'base_cost': 160},
-                'network_optimization': {'base_cost': 240},
-                'security_hardening': {'base_cost': 300},
-                'observability_setup': {'base_cost': 220}
-            },
-            'implementation_timelines': {
-                'autoscaling': {'hpa_basic': 2, 'cluster_autoscaler': 3},
-                'resource_optimization': {'analysis_phase': 2, 'implementation_phase': 3}
-            },
-            'regional_rates': {'base_hourly_rate': 60},
-            'complexity_factors': {
-                'cluster_size': {
-                    'small': {'multiplier': 0.8},
-                    'medium': {'multiplier': 1.0}, 
-                    'large': {'multiplier': 1.3}
-                }
-            }
-        }
+            raise RuntimeError(f"❌ Failed to load standards from {self.standards_file}: {e}")
     
     def calculate_hpa_cost(self, cluster_config: Dict[str, Any] = None, 
                           complexity: str = "basic_cpu_memory",
@@ -86,16 +77,30 @@ class ImplementationCostCalculator:
         
         # Calculate cluster size multiplier
         cluster_size_multiplier = self._get_cluster_size_multiplier(cluster_config)
+        is_small_cluster = cluster_size_multiplier == 0.8
         
         # Get regional multiplier  
         regional_multiplier = self._get_regional_multiplier(region)
         
+        # Apply small cluster adjustments if needed
+        if is_small_cluster and optimization_type == 'horizontal_scaling':
+            small_adjustments = self.standards['implementation_costs'][optimization_type].get('small_cluster_adjustments', {})
+            base_reduction = small_adjustments.get('base_cost_reduction', 1.0)
+            base_cost = base_cost * base_reduction
+            logger.info(f"📉 Small cluster HPA: Reduced base cost by {(1-base_reduction)*100:.0f}% to ${base_cost:.0f}")
+        
         # Calculate total cost
         total_cost = base_cost * complexity_multiplier * cluster_size_multiplier * regional_multiplier
         
-        # Add prerequisites if needed
+        # Add prerequisites with small cluster adjustment
         prerequisites = self.standards['implementation_costs'][optimization_type].get('prerequisites', {})
         prerequisite_cost = sum(prerequisites.values()) if prerequisites else 0
+        
+        if is_small_cluster and optimization_type == 'horizontal_scaling':
+            small_adjustments = self.standards['implementation_costs'][optimization_type].get('small_cluster_adjustments', {})
+            prereq_reduction = small_adjustments.get('prerequisite_reduction', 1.0)
+            prerequisite_cost = prerequisite_cost * prereq_reduction
+            logger.info(f"📉 Small cluster HPA: Reduced prerequisites by {(1-prereq_reduction)*100:.0f}% to ${prerequisite_cost:.0f}")
         
         # Get timeline
         timeline_days = self.standards['implementation_timelines']['autoscaling'].get('hpa_basic', 2)
@@ -339,5 +344,19 @@ class ImplementationCostCalculator:
         """Public method to access loaded standards"""
         return self.standards.copy()  # Return a copy to prevent external modification
 
-# Global instance for easy access
-implementation_cost_calculator = ImplementationCostCalculator()
+# Global instance - lazy loaded to avoid import-time initialization
+_implementation_cost_calculator = None
+
+def get_implementation_cost_calculator():
+    """Get or create the global implementation cost calculator instance"""
+    global _implementation_cost_calculator
+    if _implementation_cost_calculator is None:
+        _implementation_cost_calculator = ImplementationCostCalculator()
+    return _implementation_cost_calculator
+
+# Backward compatibility - property that lazy loads
+class ImplementationCostCalculatorProxy:
+    def __getattr__(self, name):
+        return getattr(get_implementation_cost_calculator(), name)
+
+implementation_cost_calculator = ImplementationCostCalculatorProxy()

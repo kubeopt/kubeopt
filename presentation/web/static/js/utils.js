@@ -43,19 +43,15 @@ export function getChartColors() {
 }
 
 /**
- * Calculates optimization score based on metrics
+ * DEPRECATED: Calculates optimization score based on metrics
+ * 
+ * This function is deprecated. Optimization scores should always come from the 
+ * backend unified optimization scorer which uses YAML standards.
  */
 export function calculateOptimizationScore(metrics) {
-    const savingsPercentage = metrics.savings_percentage || 0;
-    const hpaReduction = metrics.hpa_reduction || 0;
-    const cpuGap = metrics.cpu_gap || 0;
-    const memoryGap = metrics.memory_gap || 0;
-    
-    const savingsScore = Math.min(100, savingsPercentage * 2);
-    const efficiencyScore = Math.min(100, hpaReduction * 1.5);
-    const utilizationScore = Math.max(0, 100 - (cpuGap + memoryGap) / 2);
-    
-    return Math.round(savingsScore * 0.4 + efficiencyScore * 0.3 + utilizationScore * 0.3);
+    console.warn('⚠️ DEPRECATED: calculateOptimizationScore called - optimization_score should come from backend');
+    // Return the backend score if available, otherwise return a neutral score
+    return metrics.optimization_score || 50;
 }
 
 /**

@@ -26,6 +26,9 @@ implementation_costs:
     prerequisites:
       metrics_server_setup: 60        # If Metrics Server not present
       rbac_configuration: 30          # RBAC setup for HPA
+    small_cluster_adjustments:
+      base_cost_reduction: 0.5        # 50% reduction for small clusters
+      prerequisite_reduction: 0.3     # 70% reduction in prerequisites
     
   # Resource Rightsizing (VPA/Analysis)  
   resource_optimization:
@@ -375,6 +378,18 @@ optimization_thresholds:
   # Implementation Priority Thresholds
   priority_thresholds:
     high_priority_savings: 100.0            # $100+ monthly savings = high priority
+    
+  # Component-Specific Optimization Thresholds (minimum cost to analyze)
+  component_thresholds:
+    storage_optimization_minimum: 1.0       # $1+ storage cost worth analyzing
+    networking_optimization_minimum: 2.0    # $2+ networking cost worth analyzing
+    compute_optimization_minimum: 2.0       # $2+ compute cost worth analyzing
+    
+  # Small cluster adjustments for thresholds  
+  small_cluster_thresholds:
+    storage_optimization_minimum: 0.5       # $0.50+ for small clusters
+    networking_optimization_minimum: 1.0    # $1+ for small clusters
+    compute_optimization_minimum: 1.0       # $1+ for small clusters
     medium_priority_savings: 25.0           # $25+ monthly savings = medium priority
     low_priority_savings: 5.0               # $5+ monthly savings = low priority
     
@@ -550,3 +565,27 @@ cost_calculation:
   maximum_costs:
     single_optimization: 2000        # Maximum for any single optimization
     comprehensive_project: 10000     # Maximum for comprehensive AKS optimization
+
+# Governance and Security Standards
+governance_standards:
+  
+  # Minimum namespace requirements for governance analysis
+  minimum_namespaces: 3              # Minimum for dev/staging/prod separation
+  
+  # Optimal namespace distribution by cluster size
+  namespace_recommendations:
+    small_cluster: 5                 # 1-50 workloads
+    medium_cluster: 8                # 51-200 workloads  
+    large_cluster: 12                # 201+ workloads
+    
+  # Security governance requirements
+  security_minimums:
+    rbac_enabled: true               # RBAC must be enabled
+    network_policies_coverage: 0.7   # 70% of namespaces should have network policies
+    pod_security_standards: 0.8      # 80% compliance with pod security standards
+    
+  # Compliance thresholds
+  compliance_targets:
+    audit_logging: 0.9               # 90% audit trail coverage
+    resource_quotas: 0.8             # 80% of namespaces should have quotas
+    admission_controllers: 0.9       # 90% admission controller coverage

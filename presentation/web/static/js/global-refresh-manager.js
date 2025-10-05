@@ -13,8 +13,10 @@ class GlobalRefreshManager {
         this.refreshHandlers = new Map();
         this.currentPage = this.detectCurrentPage();
         this.refreshIntervalMs = 60000; // 60 seconds default
+        this.fastRefreshIntervalMs = 15000; // 15 seconds during analysis
         this.isAnalysisActive = false;
         this.lastUserActivity = Date.now();
+        this.currentInterval = this.refreshIntervalMs;
         
         this.init();
     }
@@ -205,7 +207,18 @@ class GlobalRefreshManager {
             );
             
             await Promise.allSettled(refreshPromises);
-        }, this.refreshIntervalMs);
+        }, this.currentInterval);
+    }
+    
+    adjustRefreshInterval(newInterval) {
+        if (this.currentInterval === newInterval) return; // No change needed
+        
+        this.currentInterval = newInterval;
+        
+        if (this.refreshInterval) {
+            this.stopAutoRefresh();
+            this.startAutoRefresh();
+        }
     }
     
     stopAutoRefresh() {
@@ -257,19 +270,68 @@ class GlobalRefreshManager {
         try {
             // Only refresh if user hasn't interacted recently (to avoid interrupting them)
             const timeSinceLastActivity = Date.now() - (this.lastUserActivity || 0);
-            const minInactivityTime = 30000; // 30 seconds
+            const minInactivityTime = this.isAnalysisActive ? 10000 : 30000; // Shorter wait during analysis
             
             if (timeSinceLastActivity < minInactivityTime) {
-                console.log('🔄 Skipping refresh - user recently active');
+                console.log(`🔄 Skipping refresh - user recently active (${Math.round(timeSinceLastActivity/1000)}s ago)`);
                 return false;
             }
             
-            // Silent page refresh - reloads content without full page reload
-            console.log('🔄 Performing silent page refresh...');
-            window.location.reload();
-            return true;
+            // IMPROVED: Silent AJAX refresh instead of full page reload to prevent flickering
+            console.log('🔄 Performing silent AJAX refresh...');
+            
+            // Fetch updated cluster data
+            const response = await fetch('/api/clusters', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            if (!response.ok) {
+                console.warn('⚠️ Silent refresh failed, falling back to page reload');
+                window.location.reload();
+                return true;
+            }
+            
+            const data = await response.json();
+            
+            if (data.status === 'success' && data.clusters) {
+                // Check if any clusters are analyzing to adjust refresh frequency
+                const analyzingClusters = data.clusters.filter(cluster => 
+                    cluster.analysis_status === 'analyzing' || cluster.analysis_status === 'running'
+                );
+                
+                const wasAnalysisActive = this.isAnalysisActive;
+                this.isAnalysisActive = analyzingClusters.length > 0;
+                
+                // Adjust refresh interval based on analysis activity
+                if (this.isAnalysisActive && !wasAnalysisActive) {
+                    console.log('🚀 Analysis detected, increasing refresh frequency');
+                    this.adjustRefreshInterval(this.fastRefreshIntervalMs);
+                } else if (!this.isAnalysisActive && wasAnalysisActive) {
+                    console.log('✅ Analysis completed, reducing refresh frequency');
+                    this.adjustRefreshInterval(this.refreshIntervalMs);
+                }
+                
+                // Update cluster cards silently without page reload
+                if (typeof updateClusterCardsStatus === 'function') {
+                    updateClusterCardsStatus(data.clusters);
+                    console.log('✅ Silent refresh completed successfully');
+                } else {
+                    // Fallback to page reload if update function not available
+                    console.warn('⚠️ updateClusterCardsStatus not available, using page reload');
+                    window.location.reload();
+                }
+                return true;
+            }
+            
+            return false;
         } catch (error) {
             console.error('❌ Failed to perform silent refresh:', error);
+            // Fallback to page reload only in case of error
+            window.location.reload();
             return false;
         }
     }

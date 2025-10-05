@@ -126,10 +126,8 @@
                 </div>
 
                 <!-- Slack Integration Section -->
-                {% if feature_flags.slack_alerts %}
                 <div id="slack-section" class="form-section content-section">
-                {% else %}
-                <div id="slack-section" class="form-section content-section">
+                    {% if not feature_flags.slack_alerts %}
                     <div class="upgrade-prompt-section" style="padding: 2rem; text-align: center;">
                         <div style="width: 64px; height: 64px; background: #fef3c7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
                             <i class="fas fa-lock" style="color: #d97706; font-size: 1.5rem;"></i>
@@ -147,9 +145,7 @@
                             {% endif %}
                         </div>
                     </div>
-                </div>
-                <div id="slack-section-content" class="form-section content-section" style="display: none;">
-                {% endif %}
+                    {% else %}
                     <form method="POST" action="{{ url_for('save_settings') }}">
                         <input type="hidden" name="section" value="slack">
                         <div class="section-header">
@@ -213,16 +209,12 @@
                             </button>
                         </div>
                     </form>
+                    {% endif %}
                 </div>
-                {% if not feature_flags.slack_alerts %}
-                </div>
-                {% endif %}
 
                 <!-- Email Settings Section -->
-                {% if feature_flags.email_alerts %}
                 <div id="email-section" class="form-section content-section">
-                {% else %}
-                <div id="email-section" class="form-section content-section">
+                    {% if not feature_flags.email_alerts %}
                     <div class="upgrade-prompt-section" style="padding: 2rem; text-align: center;">
                         <div style="width: 64px; height: 64px; background: #fef3c7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
                             <i class="fas fa-lock" style="color: #d97706; font-size: 1.5rem;"></i>
@@ -240,9 +232,7 @@
                             {% endif %}
                         </div>
                     </div>
-                </div>
-                <div id="email-section-content" class="form-section content-section" style="display: none;">
-                {% endif %}
+                    {% else %}
                     <form method="POST" action="{{ url_for('save_settings') }}">
                         <input type="hidden" name="section" value="email">
                         <div class="section-header">
@@ -312,10 +302,8 @@
                             </button>
                         </div>
                     </form>
+                    {% endif %}
                 </div>
-                {% if not feature_flags.email_alerts %}
-                </div>
-                {% endif %}
 
                 <!-- General Settings Section -->
                 <div id="general-section" class="form-section content-section">
@@ -428,7 +416,7 @@
                         </div>
                     </form>
                 </div>
-                </div>
+            </div>
         </div>
     </div>
 </div>
