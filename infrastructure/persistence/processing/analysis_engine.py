@@ -95,6 +95,30 @@ class MultiSubscriptionAnalysisEngine:
                                    subscription_id: str, days: int) -> Dict[str, Any]:
         """Quick validation that cost data is available before expensive analysis"""
         try:
+            # OPTIMIZATION: Check cache first to avoid unnecessary API calls
+            from infrastructure.services.cost_cache import check_database_cost_freshness, cache
+            
+            logger.info(f"🔍 VALIDATION: Checking cache for {cluster_name} before API validation")
+            
+            # Check database for fresh cost data (12 hour cache)
+            cached_cost_df = check_database_cost_freshness(cluster_name, max_age_hours=12)
+            if cached_cost_df is not None:
+                logger.info(f"✅ VALIDATION: Found fresh cached data for {cluster_name}, skipping API validation")
+                return {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}
+            
+            # Check file cache for recent API responses
+            cluster_id = f"{resource_group}_{cluster_name}"
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+            date_range = f"{start_date} to {end_date}"
+            
+            cached_data = cache.get(cluster_id, subscription_id, date_range)
+            if cached_data:
+                logger.info(f"✅ VALIDATION: Found file cached data for {cluster_name}, skipping API validation")
+                return {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}
+            
+            logger.info(f"❌ VALIDATION: No cached data available, proceeding with API validation for {cluster_name}")
+            
             # Set subscription context for cost check
             if not azure_subscription_manager.set_active_subscription(subscription_id):
                 return {'available': False, 'error': f'Cannot set subscription context: {subscription_id}'}
@@ -181,6 +205,28 @@ class MultiSubscriptionAnalysisEngine:
                     return {'available': False, 'error': 'No response from cost API'}
                         
             except Exception as sdk_error:
+                # If we get 429 error, try to use any available stale cache
+                if '429' in str(sdk_error):
+                    logger.warning(f"⚠️ VALIDATION: API rate limited for {cluster_name}, checking for stale cache")
+                    
+                    # Try to get stale cached data as fallback (extended to 24h for 429 errors)
+                    stale_cached_df = check_database_cost_freshness(cluster_name, max_age_hours=24)
+                    if stale_cached_df is not None:
+                        logger.info(f"✅ VALIDATION: Using stale cached data for {cluster_name} due to API rate limit")
+                        return {'available': True, 'subscription_id': subscription_id, 'cache_hit': True, 'stale': True}
+                    
+                    # Try file cache with extended timeout
+                    import sqlite3
+                    key = cache._make_key(cluster_id, subscription_id, date_range)
+                    conn = sqlite3.connect(cache.cache_file)
+                    cursor = conn.execute('SELECT data FROM cost_cache WHERE key = ?', (key,))
+                    row = cursor.fetchone()
+                    conn.close()
+                    
+                    if row:
+                        logger.info(f"✅ VALIDATION: Using stale file cache for {cluster_name} due to API rate limit")
+                        return {'available': True, 'subscription_id': subscription_id, 'cache_hit': True, 'stale': True}
+                
                 return {'available': False, 'error': f'Azure SDK cost validation error: {str(sdk_error)}'}
                         
             finally:
@@ -228,13 +274,40 @@ class MultiSubscriptionAnalysisEngine:
                         'resource_group': resource_group
                     }
         
-            # Step 2: COST-FIRST VALIDATION (fail fast)
+            # Step 2: COST-FIRST VALIDATION (fail fast) - Check cache first
             try:
                 logger.info(f"💰 COST-FIRST: Validating cost data availability for {cluster_name}")
                 
-                cost_validation_result = self._validate_cost_data_availability(
-                    resource_group, cluster_name, subscription_id, days
-                )
+                # Check if we have cached cost data first to avoid API calls
+                try:
+                    from infrastructure.services.cost_cache import check_database_cost_freshness, cache
+                    cluster_id = f"{resource_group}_{cluster_name}"
+                    
+                    # First check database for fresh cost data
+                    cached_cost_df = check_database_cost_freshness(cluster_name, max_age_hours=12)
+                    if cached_cost_df is not None:
+                        logger.info(f"✅ COST-FIRST: Using database cached cost data for {cluster_name} - skipping API validation")
+                        cost_validation_result = {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}
+                    else:
+                        # Check file cache for recent API responses
+                        end_date = datetime.now()
+                        start_date = end_date - timedelta(days=days)
+                        date_range = f"{start_date} to {end_date}"
+                        cached_data = cache.get(cluster_id, subscription_id, date_range)
+                        
+                        if cached_data:
+                            logger.info(f"✅ COST-FIRST: Using file cached cost data for {cluster_name} - skipping API validation")
+                            cost_validation_result = {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}
+                        else:
+                            # No cache available, perform API validation
+                            cost_validation_result = self._validate_cost_data_availability(
+                                resource_group, cluster_name, subscription_id, days
+                            )
+                except Exception as cache_error:
+                    logger.warning(f"⚠️ Cost cache check failed: {cache_error}, proceeding with API validation")
+                    cost_validation_result = self._validate_cost_data_availability(
+                        resource_group, cluster_name, subscription_id, days
+                    )
                 
                 if not cost_validation_result['available']:
                     return {

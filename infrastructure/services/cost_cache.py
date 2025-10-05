@@ -109,7 +109,7 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = 12) ->
     Check if we have fresh cost data in the database to avoid unnecessary Azure API calls
     
     Args:
-        cluster_name: Name of the cluster to check
+        cluster_name: Name of the cluster to check (can be full cluster ID or just cluster name)
         max_age_hours: Maximum age in hours to consider data fresh (default 12)
     
     Returns:
@@ -122,6 +122,8 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = 12) ->
             return None
             
         conn = sqlite3.connect(cluster_db)
+        
+        # Try exact match first
         cursor = conn.execute('''
             SELECT last_cost, last_savings, last_analyzed, analysis_data 
             FROM clusters 
@@ -129,6 +131,36 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = 12) ->
         ''', (cluster_name,))
         
         row = cursor.fetchone()
+        
+        # If no exact match and cluster_name contains underscore (looks like full cluster ID),
+        # try extracting just the cluster name part
+        if not row and '_' in cluster_name:
+            # Extract cluster name from formats like "rg-xxx_cluster-name" 
+            cluster_name_only = cluster_name.split('_')[-1]  # Get last part after underscore
+            print(f"🔍 Cache lookup: No exact match for '{cluster_name}', trying cluster name only: '{cluster_name_only}'")
+            
+            cursor = conn.execute('''
+                SELECT last_cost, last_savings, last_analyzed, analysis_data 
+                FROM clusters 
+                WHERE name = ? AND last_analyzed IS NOT NULL AND last_cost > 0
+            ''', (cluster_name_only,))
+            
+            row = cursor.fetchone()
+            
+        # If still no match, try pattern matching for cluster names contained in the cluster_name
+        if not row:
+            cursor = conn.execute('''
+                SELECT last_cost, last_savings, last_analyzed, analysis_data 
+                FROM clusters 
+                WHERE ? LIKE '%' || name || '%' AND last_analyzed IS NOT NULL AND last_cost > 0
+                ORDER BY last_analyzed DESC
+                LIMIT 1
+            ''', (cluster_name,))
+            
+            row = cursor.fetchone()
+            if row:
+                print(f"🔍 Cache lookup: Found match using pattern matching for '{cluster_name}'")
+        
         conn.close()
         
         if not row:

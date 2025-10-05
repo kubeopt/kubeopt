@@ -320,6 +320,22 @@ class AzureSDKManager:
         """Get Azure Monitor Logs client for specified subscription"""
         return self.get_client('logs', subscription_id)
     
+    def get_log_analytics_client(self, subscription_id: Optional[str] = None):
+        """Get Log Analytics client - alias for Monitor client"""
+        return self.get_monitor_client(subscription_id)
+    
+    def get_application_insights_client(self, subscription_id: Optional[str] = None):
+        """Get Application Insights client - alias for Monitor client"""
+        return self.get_monitor_client(subscription_id)
+    
+    def get_cost_management_client(self, subscription_id: Optional[str] = None):
+        """Get Cost Management client - alias for cost client"""
+        return self.get_cost_client(subscription_id)
+    
+    def get_consumption_client(self, subscription_id: Optional[str] = None):
+        """Get Consumption client - alias for cost client"""
+        return self.get_cost_client(subscription_id)
+    
     def get_subscription_id(self) -> Optional[str]:
         """Get current Azure subscription ID"""
         return self.subscription_id

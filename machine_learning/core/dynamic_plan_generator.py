@@ -675,11 +675,40 @@ class MLIntegratedDynamicImplementationGenerator:
             variance_factor = 0.5
         savings_confidence = min(0.95, data_completeness * variance_factor)
         
-        # Calculate real governance metrics from cluster DNA
+        # Calculate real governance metrics from multiple data sources (priority order)
+        namespaces_count = 0
+        
+        # SOURCE 1: cluster_dna.cluster_config_insights
         if cluster_dna.cluster_config_insights:
             namespaces_count = cluster_dna.cluster_config_insights.get('total_namespaces', 0)
-        else:
-            raise ValueError("No cluster configuration insights available for governance analysis")
+            if namespaces_count > 0:
+                logger.info(f"✅ Found namespaces from cluster_config_insights: {namespaces_count}")
+        
+        # SOURCE 2: Direct from cluster_config (same source as dynamic_strategy.py:389)
+        if namespaces_count == 0 and hasattr(self, 'cluster_config') and self.cluster_config:
+            namespaces_count = self.cluster_config.get('fetch_metrics', {}).get('total_namespaces', 0)
+            if namespaces_count > 0:
+                logger.info(f"✅ Found namespaces from cluster_config.fetch_metrics: {namespaces_count}")
+        
+        # SOURCE 3: From analysis_results namespace data
+        if namespaces_count == 0 and analysis_results:
+            # Check pod_cost_analysis namespace data
+            namespace_costs = analysis_results.get('pod_cost_analysis', {}).get('namespace_costs', {})
+            if isinstance(namespace_costs, dict):
+                namespaces_count = len(namespace_costs)
+                if namespaces_count > 0:
+                    logger.info(f"✅ Found namespaces from analysis_results.pod_cost_analysis: {namespaces_count}")
+        
+        # SOURCE 4: Use standards for minimum governance requirements
+        if namespaces_count == 0:
+            from shared.standards.implementation_cost_calculator import get_implementation_cost_calculator
+            calculator = get_implementation_cost_calculator()
+            standards = calculator.load_standards()
+            min_namespaces = standards.get('governance_standards', {}).get('minimum_namespaces', 3)
+            namespaces_count = min_namespaces
+            logger.warning(f"⚠️ Using governance standards minimum namespaces: {namespaces_count}")
+        
+        logger.info(f"🏛️ Governance analysis using {namespaces_count} namespaces")
             
         if cluster_dna.real_workload_patterns:
             workloads_count = cluster_dna.real_workload_patterns.get('total_workloads', 0)

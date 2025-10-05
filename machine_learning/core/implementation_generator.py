@@ -1023,6 +1023,20 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         Security is now a first-class citizen, not an optional add-on.
         """
         
+        # CRITICAL: Check for None analysis_results to prevent downstream failures
+        if analysis_results is None:
+            logger.error("❌ CRITICAL: analysis_results is None - cannot generate implementation plan")
+            logger.error("❌ DEBUG: This indicates a problem in the analysis pipeline before implementation generation")
+            raise ValueError("analysis_results cannot be None - check analysis pipeline")
+        
+        if not isinstance(analysis_results, dict):
+            logger.error(f"❌ CRITICAL: analysis_results is not a dict: {type(analysis_results)}")
+            raise ValueError(f"analysis_results must be a dict, got {type(analysis_results)}")
+        
+        logger.info(f"✅ Implementation Generator: Received analysis_results with {len(analysis_results)} keys")
+        if len(analysis_results) == 0:
+            logger.warning("⚠️ Implementation Generator: analysis_results is empty dict")
+        
         cluster_name = analysis_results.get('cluster_name', 'unknown')
         resource_group = analysis_results.get('resource_group', 'unknown')
         

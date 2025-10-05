@@ -151,15 +151,15 @@ class AKSScorer:
             sum_limit = max(1e-9, metrics.get("sum_limit", 1))
             sum_p95_use = max(1e-9, metrics.get("sum_p95_use", 1))
             
-            rlr = sum_req / sum_limit
-            rtu = sum_req / sum_p95_use
+            rlr = safe_divide(sum_req, sum_limit, 0.0)
+            rtu = safe_divide(sum_req, sum_p95_use, 0.0)
             r1 = band_score(rlr, *Tg["req_limit_ratio_band"])
             r2 = inverse_deviation(rtu, Tg["req_to_use_target"]["target"], Tg["req_to_use_target"]["tol"])
             request_discipline = 0.5 * r1 + 0.5 * r2
             
             # Bin-packing
-            idle_cpu_frac = (cpu_alloc - cpu_p95) / cpu_alloc
-            idle_mem_frac = (mem_alloc - mem_p95) / mem_alloc
+            idle_cpu_frac = safe_divide(cpu_alloc - cpu_p95, cpu_alloc, 0.0)
+            idle_mem_frac = safe_divide(mem_alloc - mem_p95, mem_alloc, 0.0)
             idle_frac = 0.5 * (idle_cpu_frac + idle_mem_frac)
             binpack = 1 - clamp(idle_frac / Tg["binpack_idle_max"], 0, 1)
             
@@ -169,7 +169,7 @@ class AKSScorer:
             # === AUTOSCALING EFFICACY (15%) ===
             hpa_count = metrics.get("hpa_count", 0)
             eligible_hpa_workloads = max(1, metrics.get("eligible_hpa_workloads", 1))
-            coverage = hpa_count / eligible_hpa_workloads
+            coverage = safe_divide(hpa_count, eligible_hpa_workloads, 0.0)
             coverage_score = clamp(coverage / Tg["hpa_coverage_target"], 0, 1)
             
             hpa_mape = metrics.get("hpa_mape", 0)
@@ -185,15 +185,15 @@ class AKSScorer:
             ref_vcpu_price = metrics.get("ref_vcpu_price", Tg["ref_vcpu_price"])
             cost_nodes = max(1e-9, metrics.get("cost_nodes", 1))
             used_vcpu_hours = max(1e-9, metrics.get("used_vcpu_hours", 1))
-            compute_unit_cost = cost_nodes / used_vcpu_hours
-            cpu_cost_score = clamp(ref_vcpu_price / compute_unit_cost, 0, 1) if ref_vcpu_price > 0 else 0.0
+            compute_unit_cost = safe_divide(cost_nodes, used_vcpu_hours, 0.0)
+            cpu_cost_score = safe_divide(ref_vcpu_price, compute_unit_cost, 0.0) if ref_vcpu_price > 0 and compute_unit_cost > 0 else 0.0
             
             idle_compute_cost_pct = metrics.get("idle_compute_cost_pct", 0)
             idle_score = 1 - clamp(idle_compute_cost_pct / Tg["idle_cost_pct_ok"], 0, 1)
             
             cost_storage = max(1e-9, metrics.get("cost_storage", 1))
             storage_waste_cost = metrics.get("storage_waste_cost", 0)
-            storage_score = 1 - clamp(storage_waste_cost / cost_storage, 0, 1)
+            storage_score = 1 - clamp(safe_divide(storage_waste_cost, cost_storage, 0.0), 0, 1)
             
             # Network scoring
             cost_network = metrics.get("cost_network", 0)
@@ -201,8 +201,8 @@ class AKSScorer:
             cost_nat = metrics.get("cost_nat", 0)
             data_processed_gb = max(1e-9, metrics.get("data_processed_gb", 1))
             ref_net = metrics.get("ref_net_price_per_gb", Tg["net_unit_ref_price_per_gb"])
-            net_unit = (cost_network + cost_lb + cost_nat) / data_processed_gb
-            net_score = clamp(ref_net / net_unit, 0, 1) if ref_net > 0 else 0.0
+            net_unit = safe_divide(cost_network + cost_lb + cost_nat, data_processed_gb, 0.0)
+            net_score = safe_divide(ref_net, net_unit, 0.0) if ref_net > 0 and net_unit > 0 else 0.0
             
             CE = (Mix["CE"]["cpu_cost"] * cpu_cost_score + Mix["CE"]["idle"] * idle_score +
                   Mix["CE"]["storage"] * storage_score + Mix["CE"]["net"] * net_score)
@@ -219,8 +219,8 @@ class AKSScorer:
 
             # === CONFIGURATION HYGIENE (10%) ===
             hygiene_checks = metrics.get("hygiene_checks", [])
-            if hygiene_checks:
-                CH = sum(1.0 if bool(x) else 0.0 for x in hygiene_checks) / len(hygiene_checks)
+            if hygiene_checks and len(hygiene_checks) > 0:
+                CH = safe_divide(sum(1.0 if bool(x) else 0.0 for x in hygiene_checks), len(hygiene_checks), 0.0)
             else:
                 CH = 0.0
 
@@ -327,6 +327,210 @@ class AKSScorer:
             logger.error(f"❌ Cost Excellence scoring failed: {e}")
             raise
 
+    def calculate_unified_optimization_score(self, 
+                                           cost_data: Dict[str, Any],
+                                           metrics_data: Dict[str, Any], 
+                                           current_usage: Dict[str, Any],
+                                           analysis_results: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Calculate unified optimization score using existing AKS scoring framework and YAML standards
+        Integrates with existing Build Quality and Cost Excellence scores
+        """
+        try:
+            logger.info("🔍 Calculating unified optimization score using existing AKS scoring framework...")
+            
+            # Get optimization scoring standards from YAML
+            opt_standards = self.cfg.get('optimization_scoring')
+            if not opt_standards:
+                raise ValueError("❌ optimization_scoring missing from YAML configuration")
+            
+            # Prepare metrics for existing scoring framework
+            scoring_metrics = self._prepare_unified_scoring_metrics(
+                cost_data, metrics_data, current_usage, analysis_results
+            )
+            
+            # Use existing AKS scoring methods
+            build_quality_result = self.score_build_quality(scoring_metrics)
+            cost_excellence_result = self.score_cost_excellence(scoring_metrics)
+            
+            # Calculate component scores using YAML weights
+            weights = opt_standards['weights']
+            
+            # Map existing scores to optimization components
+            current_efficiency_score = self._map_to_current_efficiency(
+                build_quality_result, cost_excellence_result, current_usage, opt_standards
+            )
+            
+            optimization_potential_score = self._calculate_optimization_potential_from_savings(
+                analysis_results, cost_data, opt_standards
+            )
+            
+            configuration_quality_score = self._map_to_configuration_quality(
+                build_quality_result, analysis_results, opt_standards
+            )
+            
+            cost_effectiveness_score = self._map_to_cost_effectiveness(
+                cost_excellence_result, cost_data, analysis_results, opt_standards
+            )
+            
+            # Calculate weighted final score
+            component_scores = {
+                'current_efficiency': current_efficiency_score,
+                'optimization_potential': optimization_potential_score,
+                'configuration_quality': configuration_quality_score,
+                'cost_effectiveness': cost_effectiveness_score
+            }
+            
+            final_score = (
+                current_efficiency_score * weights['current_efficiency'] +
+                optimization_potential_score * weights['optimization_potential'] +
+                configuration_quality_score * weights['configuration_quality'] +
+                cost_effectiveness_score * weights['cost_effectiveness']
+            ) * opt_standards['score_calculation']['scale']
+            
+            # Ensure minimum score
+            min_score = opt_standards['score_calculation']['minimum_score']
+            final_score = max(min_score, final_score)
+            
+            # Determine interpretation
+            interpretation = self._get_score_interpretation(
+                final_score, opt_standards['score_calculation']['interpretation']
+            )
+            
+            # Calculate confidence
+            confidence = self._calculate_unified_confidence(
+                build_quality_result, cost_excellence_result, analysis_results, opt_standards
+            )
+            
+            result = {
+                'total_score': round(final_score, 1),
+                'component_scores': component_scores,
+                'confidence': round(confidence, 3),
+                'interpretation': interpretation,
+                'build_quality_score': build_quality_result.total,
+                'cost_excellence_score': cost_excellence_result.total,
+                'build_quality_breakdown': build_quality_result.breakdown,
+                'cost_excellence_breakdown': cost_excellence_result.breakdown,
+                'yaml_based': True,
+                'calculation_method': 'unified_aks_scoring_framework'
+            }
+            
+            logger.info(f"✅ Unified optimization score: {result['total_score']}/100 ({interpretation})")
+            logger.info(f"✅ Based on Build Quality: {build_quality_result.total}/100, Cost Excellence: {cost_excellence_result.total}/100")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to calculate unified optimization score: {e}")
+            raise
+    
+    def _prepare_unified_scoring_metrics(self, cost_data: Dict, metrics_data: Dict, 
+                                       current_usage: Dict, analysis_results: Dict) -> Dict:
+        """Prepare metrics for existing AKS scoring framework"""
+        # Map your data to the format expected by existing AKS scoring methods
+        # This ensures compatibility with existing scoring infrastructure
+        
+        unified_metrics = {
+            # CPU and memory metrics
+            'cpu_p95': current_usage.get('avg_cpu_utilization', 0),
+            'mem_p95': current_usage.get('avg_memory_utilization', 0),
+            'cpu_alloc': 100,  # Normalized
+            'mem_alloc': 100,  # Normalized
+            
+            # Cost metrics
+            'total_cost': cost_data.get('total_cost', 0),
+            'compute_cost': cost_data.get('node_cost', 0),
+            'storage_cost': cost_data.get('storage_cost', 0),
+            'network_cost': cost_data.get('networking_cost', 0),
+            
+            # Observability metrics from existing analysis
+            'current_observability_cost': analysis_results.get('current_observability_cost', 0),
+            'current_daily_ingestion_gb': analysis_results.get('current_daily_ingestion_gb', 0),
+            
+            # Workload metrics
+            'total_workloads': analysis_results.get('total_workloads', 1),
+            'hpa_count': analysis_results.get('hpa_count', 0),
+            
+            # Add other metrics as needed for existing scoring methods
+        }
+        
+        return unified_metrics
+    
+    def _map_to_current_efficiency(self, build_quality: ScoreResult, cost_excellence: ScoreResult,
+                                 current_usage: Dict, opt_standards: Dict) -> float:
+        """Map existing scoring to current efficiency component"""
+        # Use build quality score as primary indicator of current efficiency
+        # Build quality includes utilization efficiency and configuration hygiene
+        return build_quality.total / 100.0
+    
+    def _calculate_optimization_potential_from_savings(self, analysis_results: Dict, 
+                                                     cost_data: Dict, opt_standards: Dict) -> float:
+        """Calculate optimization potential score (inverse scoring)"""
+        total_cost = cost_data.get('total_cost', 0)
+        total_savings = analysis_results.get('total_savings', 0)
+        
+        if total_cost <= 0:
+            return 0.0
+        
+        savings_potential = total_savings / total_cost
+        
+        # Use YAML thresholds for inverse scoring
+        potential_config = opt_standards['optimization_potential']
+        
+        if savings_potential <= potential_config['low_potential_max']:
+            return potential_config['low_potential_bonus']
+        elif savings_potential <= potential_config['medium_potential_max']:
+            return potential_config['medium_potential_score']
+        else:
+            return potential_config['high_potential_penalty']
+    
+    def _map_to_configuration_quality(self, build_quality: ScoreResult, 
+                                    analysis_results: Dict, opt_standards: Dict) -> float:
+        """Map to configuration quality score"""
+        # Use HPA coverage and other configuration aspects from build quality
+        hpa_count = analysis_results.get('hpa_count', 0)
+        total_workloads = analysis_results.get('total_workloads', 1)
+        hpa_coverage = min(1.0, hpa_count / total_workloads)
+        
+        # Combine with build quality configuration aspects
+        config_quality = (build_quality.total / 100.0) * 0.7 + hpa_coverage * 0.3
+        
+        return min(1.0, config_quality)
+    
+    def _map_to_cost_effectiveness(self, cost_excellence: ScoreResult, cost_data: Dict,
+                                 analysis_results: Dict, opt_standards: Dict) -> float:
+        """Map cost excellence to cost effectiveness"""
+        # Use existing cost excellence score as primary indicator
+        return cost_excellence.total / 100.0
+    
+    def _calculate_unified_confidence(self, build_quality: ScoreResult, cost_excellence: ScoreResult,
+                                    analysis_results: Dict, opt_standards: Dict) -> float:
+        """Calculate confidence based on data quality and scoring reliability"""
+        confidence_factors = []
+        
+        # Build quality confidence
+        confidence_factors.append(0.9 if build_quality.total > 0 else 0.3)
+        
+        # Cost excellence confidence  
+        confidence_factors.append(0.9 if cost_excellence.total > 0 else 0.3)
+        
+        # Analysis data completeness
+        has_real_data = analysis_results.get('has_real_node_data', False)
+        confidence_factors.append(0.9 if has_real_data else 0.6)
+        
+        # Cost data quality
+        has_cost_data = analysis_results.get('total_cost', 0) > 0
+        confidence_factors.append(0.9 if has_cost_data else 0.5)
+        
+        return sum(confidence_factors) / len(confidence_factors)
+    
+    def _get_score_interpretation(self, score: float, interpretation_config: Dict) -> str:
+        """Get human-readable interpretation of score"""
+        for level, range_values in interpretation_config.items():
+            if range_values[0] <= score <= range_values[1]:
+                return level.title()
+        return "Unknown"
+
     def estimate_savings(self, metrics: Dict[str, Any], scores: Dict[str, ScoreResult]) -> List[SavingsEstimate]:
         """
         Estimate potential monthly savings based on scoring results
@@ -368,18 +572,18 @@ class AKSScorer:
         mem_p95 = metrics.get("mem_p95", 0)
 
         # Rightsizing
-        cpu_warm = band_score(cpu_p95 / cpu_alloc, *cfg["bands"]["cpu_warm"])
-        mem_warm = band_score(mem_p95 / mem_alloc, *cfg["bands"]["mem_warm"])
+        cpu_warm = band_score(safe_divide(cpu_p95, cpu_alloc, 0.0), *cfg["bands"]["cpu_warm"])
+        mem_warm = band_score(safe_divide(mem_p95, mem_alloc, 0.0), *cfg["bands"]["mem_warm"])
         rightsizing = 0.6 * cpu_warm + 0.4 * mem_warm
 
         # Bin-packing
-        idle_frac = 0.5 * ((cpu_alloc - cpu_p95) / cpu_alloc + (mem_alloc - mem_p95) / mem_alloc)
-        binpack = 1 - clamp(idle_frac / cfg["binpack_idle_max"], 0, 1)
-        pod_density_ok = clamp(metrics.get("pct_nodes_podslots_gt80", 0) / cfg["pod_density_target"], 0, 1)
+        idle_frac = 0.5 * (safe_divide(cpu_alloc - cpu_p95, cpu_alloc, 0.0) + safe_divide(mem_alloc - mem_p95, mem_alloc, 0.0))
+        binpack = 1 - clamp(safe_divide(idle_frac, cfg["binpack_idle_max"], 0.0), 0, 1)
+        pod_density_ok = clamp(safe_divide(metrics.get("pct_nodes_podslots_gt80", 0), cfg["pod_density_target"], 0.0), 0, 1)
         packing = 0.6 * binpack + 0.4 * pod_density_ok
 
         # Cluster Autoscaler
-        ca_pending = 1 - clamp(metrics.get("ca_pending_capacity_pct", 0) / cfg["ca_pending_ok"], 0, 1)
+        ca_pending = 1 - clamp(safe_divide(metrics.get("ca_pending_capacity_pct", 0), cfg["ca_pending_ok"], 0.0), 0, 1)
         ca_settings = (
             (1.0 if metrics.get("ca_expander") == "least-waste" else 0.0) * cfg["ca_settings_bonus"]["least_waste"] +
             (1.0 if metrics.get("ca_balance_sng", False) else 0.0) * cfg["ca_settings_bonus"]["balance_sng"]
@@ -388,22 +592,22 @@ class AKSScorer:
 
         # Price posture (Spot/RI)
         spot_score = clamp(
-            safe_divide(metrics.get("spot_user_cores", 0), metrics.get("total_user_cores", 1)) / cfg["spot_target_core_mix"], 0, 1
+            safe_divide(safe_divide(metrics.get("spot_user_cores", 0), metrics.get("total_user_cores", 1)), cfg["spot_target_core_mix"], 0.0), 0, 1
         )
         ri_score = clamp(
-            safe_divide(metrics.get("reserved_core_hours", 0), metrics.get("baseline_core_hours", 1)) / cfg["ri_target_coverage"], 0, 1
+            safe_divide(safe_divide(metrics.get("reserved_core_hours", 0), metrics.get("baseline_core_hours", 1)), cfg["ri_target_coverage"], 0.0), 0, 1
         )
         price_posture = 0.6 * ri_score + 0.4 * spot_score
 
         # Unit cost normalization
         ref_vcpu = metrics.get("ref_vcpu_price", cfg["ref_vcpu_price"])
         unit_cost = safe_divide(metrics.get("cost_nodes", 0), metrics.get("used_vcpu_hours", 1))
-        unit_norm = clamp(ref_vcpu / unit_cost, 0, 1) if ref_vcpu > 0 and unit_cost > 0 else 0.0
+        unit_norm = safe_divide(ref_vcpu, unit_cost, 0.0) if ref_vcpu > 0 and unit_cost > 0 else 0.0
 
         # Schedule savings
         peak_cost = max(1e-9, metrics.get("peak_hour_cost", 1))
-        offhour_reduction = (peak_cost - metrics.get("offhour_cost", 0)) / peak_cost
-        schedule_score = clamp(offhour_reduction / cfg["schedule_offhour_target"], 0, 1)
+        offhour_reduction = safe_divide(peak_cost - metrics.get("offhour_cost", 0), peak_cost, 0.0)
+        schedule_score = clamp(safe_divide(offhour_reduction, cfg["schedule_offhour_target"], 0.0), 0, 1)
 
         # Weighted combination
         mix = cfg["mix"]

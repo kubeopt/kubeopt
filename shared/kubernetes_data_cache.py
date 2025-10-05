@@ -127,6 +127,12 @@ class KubernetesDataCache:
             "aks_managed_identity": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query identity --output json",
             "cluster_version_sdk": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query currentKubernetesVersion --output tsv",
             
+            # === OBSERVABILITY & MONITORING COSTS (Azure SDK methods) ===
+            "log_analytics_workspaces_sdk": "log_analytics_workspaces",
+            "application_insights_components_sdk": "application_insights_components", 
+            "observability_costs_billing_sdk": "observability_costs_billing",
+            "consumption_usage_observability_sdk": "consumption_usage_observability",
+            
             # === SYSTEM COMPONENTS (Broader queries - always work) ===
             "kube_system_deployments": "kubectl get deployment -n kube-system",  # Alternative to specific deployments - filter results
             "kube_system_configmaps": "kubectl get configmap -n kube-system",   # Alternative to specific configmaps - filter results
@@ -134,7 +140,7 @@ class KubernetesDataCache:
     
     def _execute_kubectl_command(self, cmd: str, timeout: int = None) -> Optional[str]:
         """Execute single kubectl or az command via Azure SDK only"""
-        # All commands (kubectl and Azure CLI) should go through Azure SDK
+        # All commands (kubectl and Azure SDK) should go through Azure SDK
         return self._execute_kubectl_via_sdk(cmd, timeout)
     
     def _execute_kubectl_via_sdk(self, cmd: str, timeout: int = None) -> Optional[str]:
@@ -154,6 +160,14 @@ class KubernetesDataCache:
                 result_output = self._execute_aks_show_via_sdk()
             elif cmd.startswith('az aks nodepool list'):
                 result_output = self._execute_aks_nodepool_list_via_sdk()
+            elif cmd == "log_analytics_workspaces":
+                result_output = self._execute_log_analytics_workspaces_via_sdk()
+            elif cmd == "application_insights_components":
+                result_output = self._execute_application_insights_via_sdk()
+            elif cmd == "observability_costs_billing":
+                result_output = self._execute_observability_costs_via_sdk()
+            elif cmd == "consumption_usage_observability":
+                result_output = self._execute_consumption_usage_via_sdk()
             else:
                 # Handle kubectl commands through server-side execution
                 # Smart timeout based on command type
@@ -1402,6 +1416,176 @@ class KubernetesDataCache:
         Get cluster config via centralized command execution
         """
         return self.execute_kubectl_json(['config', 'view', '--output=json'])
+    
+    def _execute_log_analytics_workspaces_via_sdk(self) -> Optional[str]:
+        """Execute Log Analytics workspace listing via Azure SDK"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            import json
+            
+            logger.info(f"🔍 {self.cluster_name}: Getting Log Analytics workspaces via SDK...")
+            
+            # Get Log Analytics client
+            log_analytics_client = azure_sdk_manager.get_log_analytics_client(self.subscription_id)
+            
+            # List workspaces in resource group
+            workspaces = log_analytics_client.workspaces.list_by_resource_group(self.resource_group)
+            
+            # Convert to list and serialize
+            workspace_list = []
+            for workspace in workspaces:
+                workspace_dict = {
+                    'id': workspace.id,
+                    'name': workspace.name,
+                    'location': workspace.location,
+                    'retentionInDays': workspace.retention_in_days,
+                    'tags': workspace.tags
+                }
+                workspace_list.append(workspace_dict)
+            
+            logger.info(f"✅ {self.cluster_name}: Found {len(workspace_list)} Log Analytics workspaces")
+            return json.dumps(workspace_list)
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to get Log Analytics workspaces via SDK: {e}")
+            return None
+    
+    def _execute_application_insights_via_sdk(self) -> Optional[str]:
+        """Execute Application Insights listing via Azure SDK"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            import json
+            
+            logger.info(f"🔍 {self.cluster_name}: Getting Application Insights components via SDK...")
+            
+            # Get Application Insights client  
+            app_insights_client = azure_sdk_manager.get_application_insights_client(self.subscription_id)
+            
+            # List components in resource group
+            components = app_insights_client.components.list_by_resource_group(self.resource_group)
+            
+            # Convert to list and serialize
+            component_list = []
+            for component in components:
+                component_dict = {
+                    'id': component.id,
+                    'name': component.name,
+                    'location': component.location,
+                    'appId': component.app_id,
+                    'instrumentationKey': component.instrumentation_key,
+                    'tags': component.tags
+                }
+                component_list.append(component_dict)
+            
+            logger.info(f"✅ {self.cluster_name}: Found {len(component_list)} Application Insights components")
+            return json.dumps(component_list)
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to get Application Insights components via SDK: {e}")
+            return None
+    
+    def _execute_observability_costs_via_sdk(self) -> Optional[str]:
+        """Execute observability cost query via Azure SDK"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            from datetime import datetime, timedelta
+            import json
+            
+            logger.info(f"🔍 {self.cluster_name}: Getting observability costs via SDK...")
+            
+            # Get Cost Management client
+            cost_client = azure_sdk_manager.get_cost_management_client(self.subscription_id)
+            
+            # Build query for observability costs
+            scope = f"/subscriptions/{self.subscription_id}/resourceGroups/{self.resource_group}"
+            
+            # Query parameters for last 30 days
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=30)
+            
+            query_definition = {
+                "type": "ActualCost",
+                "timeframe": "Custom",
+                "timePeriod": {
+                    "from": start_date.strftime("%Y-%m-%d"),
+                    "to": end_date.strftime("%Y-%m-%d")
+                },
+                "dataset": {
+                    "granularity": "Daily",
+                    "aggregation": {
+                        "totalCost": {
+                            "name": "PreTaxCost",
+                            "function": "Sum"
+                        }
+                    },
+                    "grouping": [
+                        {
+                            "type": "Dimension",
+                            "name": "MeterCategory"
+                        }
+                    ],
+                    "filter": {
+                        "dimensions": {
+                            "name": "MeterCategory",
+                            "operator": "In",
+                            "values": ["Log Analytics", "Application Insights", "Azure Monitor"]
+                        }
+                    }
+                }
+            }
+            
+            # Execute query
+            result = cost_client.query.usage(scope, query_definition)
+            
+            logger.info(f"✅ {self.cluster_name}: Retrieved observability cost data")
+            return json.dumps(result.as_dict())
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to get observability costs via SDK: {e}")
+            return None
+    
+    def _execute_consumption_usage_via_sdk(self) -> Optional[str]:
+        """Execute consumption usage query via Azure SDK"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            from datetime import datetime, timedelta
+            import json
+            
+            logger.info(f"🔍 {self.cluster_name}: Getting consumption usage via SDK...")
+            
+            # Get Consumption client
+            consumption_client = azure_sdk_manager.get_consumption_client(self.subscription_id)
+            
+            # Query parameters for last 30 days
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=30)
+            
+            # Get usage details
+            usage_details = consumption_client.usage_details.list(
+                scope=f"/subscriptions/{self.subscription_id}/resourceGroups/{self.resource_group}",
+                start_date=start_date.strftime("%Y-%m-%d"),
+                end_date=end_date.strftime("%Y-%m-%d"),
+                filter="properties/meterCategory eq 'Log Analytics' or properties/meterCategory eq 'Application Insights' or properties/meterCategory eq 'Azure Monitor'"
+            )
+            
+            # Convert to list and serialize
+            usage_list = []
+            for usage in usage_details:
+                usage_dict = {
+                    'cost': usage.pretax_cost,
+                    'meter': usage.meter_name,
+                    'category': usage.meter_category,
+                    'subcategory': usage.meter_subcategory,
+                    'date': usage.date.isoformat() if usage.date else None
+                }
+                usage_list.append(usage_dict)
+            
+            logger.info(f"✅ {self.cluster_name}: Found {len(usage_list)} consumption usage records")
+            return json.dumps(usage_list)
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to get consumption usage via SDK: {e}")
+            return None
 
 
 # === GLOBAL CACHE MANAGER ===

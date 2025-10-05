@@ -572,7 +572,7 @@ def register_api_routes(app):
                 'annual_savings': ensure_float(analysis_data.get('total_savings', 0)) * 12,
                 'analysis_confidence': ensure_float(analysis_data.get('analysis_confidence', 0.8)),
                 'hpa_efficiency': ensure_float(analysis_data.get('hpa_efficiency', 0)),
-                'optimization_score': calculate_optimization_score(analysis_data),
+                'optimization_score': ensure_float(analysis_data.get('optimization_score', 0)),
                 'cpu_gap': ensure_float(analysis_data.get('cpu_gap', 0)),
                 'memory_gap': ensure_float(analysis_data.get('memory_gap', 0))
             }
@@ -2299,47 +2299,18 @@ def generate_real_savings_breakdown_data(analysis_data):
         logger.error(f"❌ Error generating REAL savings breakdown: {e}")
         return None
 
-def calculate_optimization_score(analysis_data):
-    """Calculate optimization score based on REAL analysis data"""
-    try:
-        if not isinstance(analysis_data, dict):
-            logger.error(f"❌ Optimization score: Expected dict, got {type(analysis_data)}")
-            return 50
-        
-        total_cost = ensure_float(analysis_data.get('total_cost', 0))
-        total_savings = ensure_float(analysis_data.get('total_savings', 0))
-        
-        if total_cost <= 0:
-            return 0
-        
-        savings_percentage = (total_savings / total_cost) * 100
-        
-        # Factor in CPU workload efficiency from REAL data
-        cpu_efficiency_bonus = 0
-        if analysis_data.get('has_cpu_analysis'):
-            avg_cpu = ensure_float(analysis_data.get('average_cpu_utilization', 0))
-            if avg_cpu > 80:
-                cpu_efficiency_bonus = -10
-            elif avg_cpu < 30:
-                cpu_efficiency_bonus = 5
-        
-        # Convert to 1-100 score
-        base_score = 0
-        if savings_percentage > 25:
-            base_score = min(100, 80 + (savings_percentage - 25))
-        elif savings_percentage > 15:
-            base_score = 60 + (savings_percentage - 15) * 2
-        elif savings_percentage > 5:
-            base_score = 40 + (savings_percentage - 5)
-        else:
-            base_score = max(10, savings_percentage * 8)
-        
-        final_score = max(0, min(100, base_score + cpu_efficiency_bonus))
-        return final_score
-        
-    except Exception as e:
-        logger.error(f"❌ Error calculating optimization score: {e}")
-        return 50
+# DEPRECATED: Old optimization score calculation - replaced by unified YAML-based scorer
+# This function is kept for reference but should not be used
+def calculate_optimization_score_deprecated(analysis_data):
+    """
+    DEPRECATED: Calculate optimization score based on REAL analysis data
+    
+    This function has been replaced by the unified optimization scorer that uses
+    YAML standards exclusively. The new scorer is integrated into the analytical
+    cost analyzer and provides more accurate, consistent scoring.
+    """
+    logger.warning("⚠️ DEPRECATED: calculate_optimization_score_deprecated called - use unified scorer instead")
+    return 0  # Return neutral score for deprecated function
 
 def ensure_float(value):
     """Safely convert value to float"""

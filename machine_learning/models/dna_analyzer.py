@@ -328,6 +328,102 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
             logger.error(f"❌ FINAL HPA detection failed: {e}")
             return hpa_detection_results
 
+    def _get_comprehensive_hpa_count_with_cache(self, k8s_cache, cluster_config: Dict, metrics_data: Dict, analysis_results: Dict) -> Dict:
+        """
+        Enhanced HPA detection using kubernetes_data_cache as primary source
+        """
+        hpa_detection_results = {
+            'hpa_count': 0,
+            'detection_sources': [],
+            'confidence_score': 0.0,
+            'validation_passed': False
+        }
+        
+        try:
+            logger.info("🎯 Enhanced HPA detection with kubernetes_data_cache priority...")
+            
+            # PRIORITY 1: kubernetes_data_cache (most reliable)
+            if k8s_cache:
+                try:
+                    hpa_data = k8s_cache.get_hpa_data()
+                    hpas = hpa_data.get('hpa', {}).get('items', []) if hpa_data else []
+                    if hpas:
+                        hpa_detection_results['hpa_count'] = len(hpas)
+                        hpa_detection_results['detection_sources'].append('kubernetes_data_cache')
+                        hpa_detection_results['confidence_score'] = 1.0
+                        hpa_detection_results['validation_passed'] = True
+                        logger.info(f"✅ K8s Cache: Found {len(hpas)} HPAs with highest confidence")
+                        return hpa_detection_results
+                except Exception as e:
+                    logger.warning(f"⚠️ K8s cache HPA extraction failed: {e}")
+            
+            # SOURCE 2: analysis_results
+            if analysis_results:
+                for key in ['hpa_count', 'total_hpas']:
+                    if key in analysis_results and analysis_results[key]:
+                        hpa_detection_results['hpa_count'] = analysis_results[key]
+                        hpa_detection_results['detection_sources'].append(f'analysis_results.{key}')
+                        hpa_detection_results['confidence_score'] = 0.9
+                        hpa_detection_results['validation_passed'] = True
+                        logger.info(f"✅ Analysis Results: Found {analysis_results[key]} HPAs from {key}")
+                        return hpa_detection_results
+                
+                # Check metrics_data within analysis_results
+                if 'metrics_data' in analysis_results:
+                    metrics = analysis_results['metrics_data']
+                    if isinstance(metrics, dict) and 'hpa_implementation' in metrics:
+                        hpa_impl = metrics['hpa_implementation']
+                        if 'total_hpas' in hpa_impl:
+                            hpa_detection_results['hpa_count'] = hpa_impl['total_hpas']
+                            hpa_detection_results['detection_sources'].append('analysis_results.metrics_data.hpa_implementation')
+                            hpa_detection_results['confidence_score'] = 0.9
+                            hpa_detection_results['validation_passed'] = True
+                            logger.info(f"✅ Analysis Results Metrics: Found {hpa_impl['total_hpas']} HPAs")
+                            return hpa_detection_results
+            
+            # FALLBACK 3: Try to use cluster_config data if available
+            if cluster_config and 'scaling_resources' in cluster_config:
+                scaling = cluster_config['scaling_resources']
+                if 'horizontalpodautoscalers' in scaling:
+                    hpa_count = scaling['horizontalpodautoscalers'].get('item_count', 0)
+                    if hpa_count > 0:
+                        hpa_detection_results['hpa_count'] = hpa_count
+                        hpa_detection_results['detection_sources'].append('cluster_config.scaling_resources')
+                        hpa_detection_results['confidence_score'] = 0.8
+                        hpa_detection_results['validation_passed'] = True
+                        logger.info(f"✅ Cluster Config Fallback: Found {hpa_count} HPAs")
+                        return hpa_detection_results
+            
+            # FALLBACK 4: Use stored metrics_data if available
+            if hasattr(self, '_current_metrics_data') and self._current_metrics_data:
+                metrics = self._current_metrics_data
+                if 'hpa_implementation' in metrics:
+                    hpa_impl = metrics['hpa_implementation']
+                    if 'total_hpas' in hpa_impl:
+                        hpa_detection_results['hpa_count'] = hpa_impl['total_hpas']
+                        hpa_detection_results['detection_sources'].append('stored_metrics_data.hpa_implementation')
+                        hpa_detection_results['confidence_score'] = 0.7
+                        hpa_detection_results['validation_passed'] = True
+                        logger.info(f"✅ Stored Metrics Fallback: Found {hpa_impl['total_hpas']} HPAs")
+                        return hpa_detection_results
+            
+            logger.warning("⚠️ WARNING: No HPA data found in any source - proceeding with 0 HPAs")
+            logger.warning(f"⚠️ DEBUG: k8s_cache available: {k8s_cache is not None}")
+            logger.warning(f"⚠️ DEBUG: analysis_results keys: {list(analysis_results.keys()) if analysis_results else 'Empty'}")
+            logger.warning(f"⚠️ DEBUG: cluster_config available: {cluster_config is not None}")
+            
+            # Return 0 HPAs instead of raising error - allow analysis to continue
+            hpa_detection_results['hpa_count'] = 0
+            hpa_detection_results['detection_sources'].append('fallback_zero')
+            hpa_detection_results['confidence_score'] = 0.1
+            hpa_detection_results['validation_passed'] = False
+            logger.info("✅ Using 0 HPAs as fallback - DNA analysis will continue")
+            return hpa_detection_results
+            
+        except Exception as e:
+            logger.error(f"❌ Enhanced HPA detection failed: {e}")
+            raise ValueError(f"HPA detection system failure: {e}")
+
     def _count_hpas_in_raw_data(self, raw_data) -> int:
         """
         Handle JSON string parsing with error handling
@@ -693,6 +789,16 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
         IMPROVED: Main DNA analysis that extracts its own metrics_data if not provided
         """
         logger.info("🧬 Starting Cluster DNA Analysis with self-sufficient HPA Detection...")
+        
+        # CRITICAL: Handle None analysis_results properly
+        if analysis_results is None:
+            logger.error("❌ CRITICAL: analysis_results is None - cannot perform DNA analysis")
+            logger.error("❌ This indicates a data flow problem in the analysis pipeline")
+            logger.error("❌ Check caller to ensure analysis_results is properly passed")
+            
+            # Use empty dict to prevent crashes, but log the issue
+            analysis_results = {}
+            logger.warning("⚠️ Using empty analysis_results - DNA analysis will be limited")
         
         # SELF-SUFFICIENT: Extract metrics_data from analysis_results if not provided
         if metrics_data is None:
@@ -1061,31 +1167,251 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
     
     def _analyze_cluster_configuration(self, cluster_config: Dict, analysis_results: Dict) -> Dict:
         """
-        Cluster configuration analysis with proper HPA detection
+        Cluster configuration analysis using kubernetes_data_cache as primary source
         """
         insights = {}
         workload_patterns = {}
         scaling_behavior = {}
         
         try:
-            # CRITICAL FIX: Use comprehensive HPA detection instead of single source
-            metrics_data = getattr(self, '_current_metrics_data', None)  # Access metrics_data if available
-            hpa_detection = self._get_comprehensive_hpa_count(cluster_config, metrics_data)
+            # CRITICAL CHANGE: Use kubernetes_data_cache instead of cluster_config
+            logger.info("🎯 Using kubernetes_data_cache and analysis_results as primary data sources")
             
-            # Extract configuration metrics
-            fetch_metrics = cluster_config.get('fetch_metrics', {})
-            insights['total_resources'] = fetch_metrics.get('successful_fetches', 0)
-            insights['total_namespaces'] = fetch_metrics.get('total_namespaces', 0)
+            # Get kubernetes data cache for real-time cluster data
+            k8s_cache = None
+            try:
+                from shared.kubernetes_data_cache import get_or_create_cache
+                
+                # Try multiple sources for cluster information
+                cluster_name = None
+                resource_group = None 
+                subscription_id = None
+                
+                # SOURCE 1: metrics_data (if available)
+                if hasattr(self, '_current_metrics_data') and self._current_metrics_data:
+                    cluster_info = self._current_metrics_data.get('cluster_info', {})
+                    cluster_name = cluster_info.get('cluster_name')
+                    resource_group = cluster_info.get('resource_group') 
+                    subscription_id = cluster_info.get('subscription_id')
+                    logger.info("🔍 Trying cluster info from metrics_data")
+                
+                # SOURCE 2: analysis_results (fallback)
+                if not all([cluster_name, resource_group, subscription_id]) and analysis_results:
+                    cluster_name = cluster_name or analysis_results.get('cluster_name')
+                    resource_group = resource_group or analysis_results.get('resource_group')
+                    subscription_id = subscription_id or analysis_results.get('subscription_id')
+                    logger.info("🔍 Trying cluster info from analysis_results")
+                
+                # SOURCE 3: cluster_config (last resort)
+                if not all([cluster_name, resource_group, subscription_id]) and cluster_config:
+                    cluster_name = cluster_name or cluster_config.get('cluster_name')
+                    resource_group = resource_group or cluster_config.get('resource_group')
+                    subscription_id = subscription_id or cluster_config.get('subscription_id')
+                    logger.info("🔍 Trying cluster info from cluster_config")
+                
+                # SOURCE 4: Extract from cluster_id in analysis_results if available
+                if not all([cluster_name, resource_group, subscription_id]) and analysis_results:
+                    cluster_id = analysis_results.get('cluster_id')
+                    if cluster_id and '_' in cluster_id:
+                        # Parse cluster_id format: "rg-name_cluster-name"
+                        parts = cluster_id.split('_')
+                        if len(parts) >= 2:
+                            resource_group = resource_group or parts[0]
+                            cluster_name = cluster_name or parts[1]
+                            logger.info(f"🔍 Extracted from cluster_id: rg={resource_group}, cluster={cluster_name}")
+                
+                if all([cluster_name, resource_group, subscription_id]):
+                    k8s_cache = get_or_create_cache(cluster_name, resource_group, subscription_id)
+                    logger.info(f"✅ Retrieved kubernetes_data_cache for {cluster_name}")
+                else:
+                    logger.warning(f"⚠️ Missing cluster info: name={cluster_name}, rg={resource_group}, sub={subscription_id}")
+                    logger.warning("⚠️ Proceeding without kubernetes_data_cache - will use fallback data sources")
+                    
+            except Exception as cache_error:
+                logger.warning(f"⚠️ Could not access kubernetes_data_cache: {cache_error}")
+            
+            # CRITICAL FIX: Use comprehensive HPA detection with k8s_cache priority
+            metrics_data = getattr(self, '_current_metrics_data', None)
+            hpa_detection = self._get_comprehensive_hpa_count_with_cache(k8s_cache, cluster_config, metrics_data, analysis_results)
+            
+            # CRITICAL CHANGE: Extract data from kubernetes_data_cache first, then analysis_results, then cluster_config
+            insights['total_resources'] = 0
+            insights['total_namespaces'] = 0
+            
+            # Priority 1: kubernetes_data_cache
+            if k8s_cache:
+                try:
+                    namespaces = k8s_cache.get_namespaces() or []
+                    insights['total_namespaces'] = len(namespaces)
+                    logger.info(f"✅ K8s Cache: Found {insights['total_namespaces']} namespaces")
+                    
+                    # Count total resources from cache
+                    total_resources = 0
+                    total_resources += len(k8s_cache.get_deployments() or [])
+                    total_resources += len(k8s_cache.get_statefulsets() or []) 
+                    total_resources += len(k8s_cache.get_daemonsets() or [])
+                    total_resources += len(k8s_cache.get_services() or [])
+                    insights['total_resources'] = total_resources
+                    logger.info(f"✅ K8s Cache: Found {total_resources} total resources")
+                except Exception as e:
+                    logger.warning(f"⚠️ K8s cache data extraction failed: {e}")
+            
+            # Source 2: analysis_results
+            if insights['total_namespaces'] == 0 and analysis_results:
+                # Look for namespace data in analysis_results
+                for key in ['total_namespaces', 'namespace_count', 'namespaces']:
+                    if key in analysis_results and analysis_results[key]:
+                        value = analysis_results[key]
+                        # Ensure we get an integer count
+                        if isinstance(value, list):
+                            insights['total_namespaces'] = len(value)
+                        elif isinstance(value, (int, float)):
+                            insights['total_namespaces'] = int(value)
+                        else:
+                            continue  # Skip non-numeric values
+                        logger.info(f"✅ Analysis Results: Found {insights['total_namespaces']} namespaces from {key}")
+                        break
+                
+                # Look for resource counts in analysis_results 
+                for key in ['total_workloads', 'workload_count', 'total_resources']:
+                    if key in analysis_results and analysis_results[key]:
+                        value = analysis_results[key]
+                        # Ensure we get an integer count
+                        if isinstance(value, list):
+                            insights['total_resources'] = len(value)
+                        elif isinstance(value, (int, float)):
+                            insights['total_resources'] = int(value)
+                        else:
+                            continue  # Skip non-numeric values
+                        logger.info(f"✅ Analysis Results: Found {insights['total_resources']} resources from {key}")
+                        break
+            
+            # CRITICAL FIX: Extract namespaces from HPA metrics if fetch_metrics is incomplete
+            if insights['total_namespaces'] == 0 and hasattr(self, '_current_metrics_data') and self._current_metrics_data:
+                logger.info("🔍 Extracting namespace data from collected HPA metrics...")
+                
+                # Extract from HPA implementation data
+                hpa_impl = self._current_metrics_data.get('hpa_implementation', {})
+                if 'hpa_data' in hpa_impl:
+                    hpa_raw_data = hpa_impl['hpa_data']
+                    if isinstance(hpa_raw_data, str):
+                        # Parse namespace from HPA data like: "kubeopt-com   kubeopt-website-hpa   4   70"
+                        namespaces = set()
+                        for line in hpa_raw_data.split('\n')[1:]:  # Skip header
+                            if line.strip():
+                                parts = line.split()
+                                if len(parts) > 0:
+                                    namespaces.add(parts[0])
+                        insights['total_namespaces'] = len(namespaces)
+                        logger.info(f"✅ Extracted {insights['total_namespaces']} namespaces from HPA data: {list(namespaces)}")
+                
+                # Fallback: check other metrics data sources
+                if insights['total_namespaces'] == 0:
+                    # Look for namespace data in other parts of metrics_data
+                    for key, value in self._current_metrics_data.items():
+                        if 'namespace' in str(key).lower() and isinstance(value, (list, dict)):
+                            if isinstance(value, list):
+                                insights['total_namespaces'] = len(value)
+                            elif isinstance(value, dict):
+                                insights['total_namespaces'] = len(value.keys())
+                            if insights['total_namespaces'] > 0:
+                                logger.info(f"✅ Found {insights['total_namespaces']} namespaces from {key}")
+                                break
+                
+                # No fallback defaults - fail loudly to diagnose data flow issues
+                if insights['total_namespaces'] == 0:
+                    logger.error("❌ CRITICAL: No namespace data found in any source")
+                    logger.error(f"❌ DEBUG: cluster_config keys: {list(cluster_config.keys()) if cluster_config else 'None'}")
+                    logger.error(f"❌ DEBUG: metrics_data keys: {list(self._current_metrics_data.keys()) if self._current_metrics_data else 'None'}")
+                    if self._current_metrics_data and 'hpa_implementation' in self._current_metrics_data:
+                        hpa_impl = self._current_metrics_data['hpa_implementation']
+                        logger.error(f"❌ DEBUG: hpa_implementation keys: {list(hpa_impl.keys()) if isinstance(hpa_impl, dict) else type(hpa_impl)}")
+                    raise ValueError("No namespace data available - data collection may have failed")
+            
             insights['configuration_confidence'] = min(1.0, insights['total_resources'] / 50)
             
-            # Analyze workload patterns from real data
-            workload_resources = cluster_config.get('workload_resources', {})
+            # CRITICAL CHANGE: Extract workload patterns from kubernetes_data_cache first
+            workload_patterns['deployments'] = 0
+            workload_patterns['statefulsets'] = 0
+            workload_patterns['daemonsets'] = 0
+            workload_patterns['total_workloads'] = 0
+            workload_patterns['node_count'] = 0
             
-            # Real workload distribution
-            workload_patterns['deployments'] = workload_resources.get('deployments', {}).get('item_count', 0)
-            workload_patterns['statefulsets'] = workload_resources.get('statefulsets', {}).get('item_count', 0)
-            workload_patterns['daemonsets'] = workload_resources.get('daemonsets', {}).get('item_count', 0)
-            workload_patterns['total_workloads'] = sum(workload_patterns.values())
+            # Priority 1: kubernetes_data_cache
+            if k8s_cache:
+                try:
+                    workload_patterns['deployments'] = len(k8s_cache.get_deployments() or [])
+                    workload_patterns['statefulsets'] = len(k8s_cache.get_statefulsets() or [])
+                    workload_patterns['daemonsets'] = len(k8s_cache.get_daemonsets() or [])
+                    workload_patterns['total_workloads'] = sum([
+                        workload_patterns['deployments'],
+                        workload_patterns['statefulsets'], 
+                        workload_patterns['daemonsets']
+                    ])
+                    
+                    # Get node count from cache
+                    nodes = k8s_cache.get_nodes() or []
+                    workload_patterns['node_count'] = len(nodes)
+                    
+                    logger.info(f"✅ K8s Cache: Found {workload_patterns['total_workloads']} workloads ({workload_patterns['deployments']} deployments, {workload_patterns['statefulsets']} statefulsets, {workload_patterns['daemonsets']} daemonsets) across {workload_patterns['node_count']} nodes")
+                except Exception as e:
+                    logger.warning(f"⚠️ K8s cache workload extraction failed: {e}")
+            
+            # Source 2: analysis_results  
+            if workload_patterns['total_workloads'] == 0 and analysis_results:
+                # Look for workload data in analysis_results
+                for key in ['total_workloads', 'workload_count']:
+                    if key in analysis_results and analysis_results[key]:
+                        value = analysis_results[key]
+                        # Ensure we get an integer count
+                        if isinstance(value, list):
+                            workload_patterns['total_workloads'] = len(value)
+                        elif isinstance(value, (int, float)):
+                            workload_patterns['total_workloads'] = int(value)
+                        else:
+                            continue  # Skip non-numeric values
+                        logger.info(f"✅ Analysis Results: Found {workload_patterns['total_workloads']} total workloads from {key}")
+                        break
+                
+                # Look for node count
+                for key in ['node_count', 'total_nodes', 'nodes']:
+                    if key in analysis_results and analysis_results[key]:
+                        value = analysis_results[key]
+                        # Ensure we get an integer count
+                        if isinstance(value, list):
+                            workload_patterns['node_count'] = len(value)
+                        elif isinstance(value, (int, float)):
+                            workload_patterns['node_count'] = int(value)
+                        else:
+                            continue  # Skip non-numeric values
+                        logger.info(f"✅ Analysis Results: Found {workload_patterns['node_count']} nodes from {key}")
+                        break
+            
+            # CRITICAL FIX: Estimate workloads from HPA data if workload_resources is empty
+            if workload_patterns['total_workloads'] == 0 and hasattr(self, '_current_metrics_data') and self._current_metrics_data:
+                logger.info("🔍 Estimating workload patterns from HPA data...")
+                
+                hpa_impl = self._current_metrics_data.get('hpa_implementation', {})
+                total_hpas = hpa_impl.get('total_hpas', 0)
+                
+                if total_hpas > 0:
+                    # Estimate: Each HPA typically manages 1 deployment
+                    workload_patterns['deployments'] = total_hpas
+                    workload_patterns['total_workloads'] = total_hpas
+                    logger.info(f"✅ Estimated {total_hpas} deployments from {total_hpas} HPAs")
+                
+                # Add reasonable estimates for system workloads
+                if workload_patterns['total_workloads'] > 0:
+                    workload_patterns['daemonsets'] = max(1, workload_patterns['total_workloads'] // 5)  # Estimate system daemonsets
+                    workload_patterns['total_workloads'] = sum(workload_patterns.values())
+                    logger.info(f"✅ Total estimated workloads: {workload_patterns['total_workloads']}")
+                
+                # No fallback defaults - fail loudly to diagnose data flow issues  
+                if workload_patterns['total_workloads'] == 0:
+                    logger.error("❌ CRITICAL: No workload data found in any source")
+                    logger.error(f"❌ DEBUG: workload_resources: {workload_resources}")
+                    logger.error(f"❌ DEBUG: HPA implementation: {hpa_impl}")
+                    raise ValueError("No workload data available - data collection may have failed")
             
             # Use comprehensive HPA detection results
             scaling_behavior['hpa_count'] = hpa_detection['hpa_count']
@@ -1102,6 +1428,17 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
                 scaling_behavior['hpa_coverage'] = (scaling_behavior['hpa_count'] / workload_patterns['total_workloads']) * 100
             else:
                 scaling_behavior['hpa_coverage'] = 0
+            
+            # CRITICAL FIX: Add node count estimation for small clusters
+            workload_patterns['node_count'] = workload_patterns.get('node_count', 0)
+            if workload_patterns['node_count'] == 0:
+                # Only estimate if we have workload data, otherwise fail loudly
+                if workload_patterns['total_workloads'] > 0:
+                    workload_patterns['node_count'] = max(1, min(3, (workload_patterns['total_workloads'] + 4) // 5))
+                    logger.info(f"✅ Estimated {workload_patterns['node_count']} nodes from {workload_patterns['total_workloads']} workloads")
+                else:
+                    logger.error("❌ CRITICAL: No node count data and no workloads to estimate from")
+                    raise ValueError("No node count data available - cluster discovery may have failed")
             
             # Analyze namespace distribution
             namespace_resources = cluster_config.get('namespace_resources', {})
