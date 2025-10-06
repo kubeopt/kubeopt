@@ -140,10 +140,20 @@ function initializeSecurityDashboard() {
 }
 
 function showContent(contentType, element) {
-    // Hide all content panels (expanded selector to include both classes)
-    document.querySelectorAll('.tab-content-panel, .content-section').forEach(panel => {
+    // Prevent any default link behavior and scrolling
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    
+    // Hide all content panels (expanded selector to include all content classes)
+    const allPanels = document.querySelectorAll('.tab-content-panel, .content-section, .tab-content');
+    
+    allPanels.forEach(panel => {
         panel.classList.add('hidden');
+        panel.classList.remove('active');
         panel.style.display = 'none';  // Explicitly set display none
+        panel.style.visibility = 'hidden'; // Extra protection
     });
     
     // Remove active class from all nav links
@@ -153,19 +163,33 @@ function showContent(contentType, element) {
     
     // Show the selected content panel
     const targetPanel = document.getElementById(`${contentType}-content`);
+    
     if (targetPanel) {
         targetPanel.classList.remove('hidden');
+        targetPanel.classList.add('active');
         targetPanel.style.display = 'block';  // Explicitly set display block
+        targetPanel.style.visibility = 'visible'; // Extra protection
+        
+        // Ensure page stays at top
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
     }
     
     // Initialize security dashboard if security posture tab is selected
     if (contentType === 'securityposture') {
-        initializeSecurityDashboard();
+        if (typeof initializeSecurityDashboard === 'function') {
+            initializeSecurityDashboard();
+        }
     }
     
     // Add active class to clicked nav link
     if (element) {
         element.classList.add('active');
+    }
+    
+    // Update URL hash without causing scroll (optional)
+    if (history.replaceState) {
+        history.replaceState(null, null, `#${contentType}`);
     }
     
     // Handle specific tab logic

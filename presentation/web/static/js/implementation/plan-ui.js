@@ -49,31 +49,7 @@ export function injectCompleteUI(planData) {
  */
 export function getCompleteHTML(data) {
     return `
-        <!-- Cluster details within implementation tab -->
-        <div style="margin-bottom: 2rem; padding: 1rem; background: var(--bg-white); border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                <div>
-                    <h3 style="margin: 0 0 0.25rem 0; color: var(--text-primary); font-size: 1.125rem; font-weight: 600;">
-                        ${data.clusterName}
-                    </h3>
-                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
-                        <strong>Resource Group:</strong> ${data.resourceGroup}
-                        ${data.intelligenceLevel && data.intelligenceLevel !== 'Unknown' ? ` • <strong>Intelligence:</strong> ${data.intelligenceLevel}` : ''}
-                    </p>
-                </div>
-                <div style="text-align: right;">
-                    <small style="color: var(--text-secondary); font-size: 0.75rem; display: block;">
-                        Generated: ${new Date(data.generatedAt).toLocaleDateString()}
-                    </small>
-                    ${data.strategyType && data.strategyType !== 'Unknown' ? `
-                        <small style="color: var(--text-secondary); font-size: 0.75rem;">
-                            Strategy: ${data.strategyType}
-                        </small>
-                    ` : ''}
-                </div>
-            </div>
-        </div>
-        
+        <!-- Cluster details within implementation tab -->        
         <!-- Main Content -->
         <div class="main-timeline-container">
             <div id="completeTimelineContent">${renderEnhancedCompleteTimeline(data)}</div>

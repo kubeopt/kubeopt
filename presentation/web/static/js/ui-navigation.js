@@ -422,13 +422,24 @@ export function enhanceNavigation() {
     // Add smooth scrolling to internal links
     document.querySelectorAll('a[href^="#"]').forEach(link => {
         link.addEventListener('click', (event) => {
-            const target = document.querySelector(link.getAttribute('href'));
-            if (target) {
-                event.preventDefault();
-                target.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                });
+            const href = link.getAttribute('href');
+            // Skip if href is just '#' or invalid selector
+            if (href === '#' || href.length <= 1) {
+                return;
+            }
+            
+            try {
+                const target = document.querySelector(href);
+                if (target) {
+                    event.preventDefault();
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            } catch (error) {
+                // Ignore invalid selectors
+                console.debug('Invalid selector:', href);
             }
         });
     });

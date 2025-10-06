@@ -28,27 +28,16 @@ class PureBackendSecurityDashboard {
     }
 
     async createDashboardLayout() {
-        const container = document.getElementById('securityposture-content');
+        const container = document.getElementById('security-analysis-results');
         if (!container) return;
 
         container.innerHTML = `
             <div class="security-dashboard-unified">
-                <!-- Header -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <div>
-                        <h2 style="font-size: 18px; margin: 0; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-shield-alt"></i>
-                            Security Posture Analysis
-                        </h2>
-                        <p style="font-size: 12px; margin: 4px 0 0 0; color: #666;">
-                            Last analysis: <span id="last-update-time">Loading...</span>
-                        </p>
-                    </div>
-                    <div>
-                        <button onclick="window.pureSecurityDashboard?.exportAnalysis()" class="security-btn accent">
-                            <i class="fas fa-download"></i>Export
-                        </button>
-                    </div>
+                <!-- Security Controls -->
+                <div style="display: flex; justify-content: flex-end; align-items: center; margin: 1rem 0; padding: 0 1rem;">
+                    <button onclick="window.pureSecurityDashboard?.exportAnalysis()" class="clean-btn clean-btn-primary clean-btn-small">
+                        <i class="fas fa-download"></i>Export
+                    </button>
                 </div>
 
                 <!-- Real Data Metrics -->
@@ -126,15 +115,16 @@ class PureBackendSecurityDashboard {
             </div>
 
             <!-- Details Modal -->
-            <div id="details-overlay" class="security-details-overlay" onclick="window.pureSecurityDashboard?.closeDetails()"></div>
-            <div id="details-modal" class="security-details-modal">
-                <div class="modal-header">
-                    <h2 class="modal-title" id="modal-title">Details</h2>
-                    <button class="modal-close" onclick="window.pureSecurityDashboard?.closeDetails()">
-                        <i class="fas fa-times"></i>
-                    </button>
+            <div id="details-modal" class="security-modal-overlay hidden" onclick="window.pureSecurityDashboard?.closeDetails()">
+                <div class="security-modal-content" onclick="event.stopPropagation()">
+                    <div class="security-modal-header">
+                        <h2 class="security-modal-title" id="modal-title">Details</h2>
+                        <button class="security-modal-close" onclick="window.pureSecurityDashboard?.closeDetails()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="security-modal-body" id="modal-content"></div>
                 </div>
-                <div class="modal-content" id="modal-content"></div>
             </div>
         `;
     }
@@ -182,8 +172,10 @@ class PureBackendSecurityDashboard {
             
             await this.updateDashboardWithRealData(data);
             
-            document.getElementById('last-update-time').textContent = 
-                new Date().toLocaleString();
+            const lastAnalyzedElement = document.getElementById('security-last-analyzed');
+            if (lastAnalyzedElement) {
+                lastAnalyzedElement.textContent = `Last analyzed: ${new Date().toLocaleString()}`;
+            }
 
         } catch (error) {
             console.error('❌ Failed to load real security data:', error);
@@ -431,7 +423,7 @@ class PureBackendSecurityDashboard {
                     if (elements.length > 0) {
                         const index = elements[0].index;
                         const frameworkName = frameworkNames[index];
-                        this.showFrameworkDetails(frameworkName, frameworks[frameworkName]);
+                        this.showFrameworkDetails(frameworkName, frameworks[frameworkName], event);
                     }
                 }
             }
@@ -542,7 +534,7 @@ class PureBackendSecurityDashboard {
                         const index = elements[0].index;
                         const severity = Object.keys(severityCounts)[index];
                         console.log(`🔍 Clicked ${severity} security issues`);
-                        this.showSecurityIssuesDetailsBySeverity(severity, alerts, violations);
+                        this.showSecurityIssuesDetailsBySeverity(severity, alerts, violations, event);
                     }
                 }
             }
@@ -738,7 +730,7 @@ class PureBackendSecurityDashboard {
                         const index = elements[0].index;
                         const category = Object.keys(categoryCounts)[index];
                         console.log(`🔍 Clicked ${category} violations, showing ${violations.length} total violations`);
-                        this.showViolationsByCategory(category, violations);
+                        this.showViolationsByCategory(category, violations, event);
                     }
                 }
             }
@@ -805,7 +797,7 @@ class PureBackendSecurityDashboard {
     }
 
     // Detail view methods using real data
-    showFrameworkDetails(name, framework) {
+    showFrameworkDetails(name, framework, clickEvent = null) {
         const title = `${name} Compliance Details`;
         const controls = framework.control_details || [];
         
@@ -857,10 +849,10 @@ class PureBackendSecurityDashboard {
         }
 
         content += '</div>';
-        this.openModal(title, content);
+        this.openModal(title, content, clickEvent);
     }
 
-    showAlertsDetailsBySeverity(severity, alerts) {
+    showAlertsDetailsBySeverity(severity, alerts, clickEvent = null) {
         const filteredAlerts = alerts.filter(a => a.severity === severity);
         const title = `${severity} Security Alerts (${filteredAlerts.length})`;
         
@@ -888,10 +880,10 @@ class PureBackendSecurityDashboard {
             </div>
         `;
         
-        this.openModal(title, content);
+        this.openModal(title, content, clickEvent);
     }
 
-    showSecurityIssuesDetailsBySeverity(severity, alerts, violations) {
+    showSecurityIssuesDetailsBySeverity(severity, alerts, violations, clickEvent = null) {
         const filteredAlerts = alerts.filter(a => a.severity === severity);
         const filteredViolations = violations.filter(v => v.severity === severity);
         const totalCount = filteredAlerts.length + filteredViolations.length;
@@ -964,10 +956,10 @@ class PureBackendSecurityDashboard {
         }
         
         content += '</div>';
-        this.openModal(title, content);
+        this.openModal(title, content, clickEvent);
     }
 
-    showViolationsByCategory(category, violations) {
+    showViolationsByCategory(category, violations, clickEvent = null) {
         const filteredViolations = violations.filter(v => v.policy_category === category);
         const title = `${category} Policy Violations (${filteredViolations.length})`;
         
@@ -1000,7 +992,7 @@ class PureBackendSecurityDashboard {
             </div>
         `;
         
-        this.openModal(title, content);
+        this.openModal(title, content, clickEvent);
     }
 
     // Utility methods
@@ -1015,16 +1007,81 @@ class PureBackendSecurityDashboard {
         ctx.fillText(message, canvas.width / 2, canvas.height / 2);
     }
 
-    openModal(title, content) {
+    openModal(title, content, clickEvent = null) {
         document.getElementById('modal-title').innerHTML = `<i class="fas fa-info-circle"></i> ${title}`;
         document.getElementById('modal-content').innerHTML = content;
-        document.getElementById('details-overlay').classList.add('active');
-        document.getElementById('details-modal').classList.add('active');
+        
+        const modal = document.getElementById('details-modal');
+        
+        // Position modal near click location if event provided
+        if (clickEvent) {
+            console.log('🎯 Click event received:', clickEvent);
+            
+            let clientX, clientY;
+            
+            // Handle Chart.js events vs regular DOM events
+            if (clickEvent.native && clickEvent.native instanceof MouseEvent) {
+                // Chart.js event - use the native event
+                clientX = clickEvent.native.clientX;
+                clientY = clickEvent.native.clientY;
+                console.log('📊 Chart.js event - using native coordinates:', clientX, clientY);
+            } else if (clickEvent.clientX !== undefined && clickEvent.clientY !== undefined) {
+                // Regular DOM event
+                clientX = clickEvent.clientX;
+                clientY = clickEvent.clientY;
+                console.log('🖱️ DOM event coordinates:', clientX, clientY);
+            } else {
+                console.log('❌ Invalid event format, falling back to center');
+                modal.classList.remove('contextual-position');
+                modal.classList.remove('hidden');
+                return;
+            }
+            
+            const viewportHeight = window.innerHeight;
+            const viewportWidth = window.innerWidth;
+            
+            // Calculate optimal position based on click coordinates
+            let topPosition = clientY + window.scrollY;
+            let leftPosition = clientX + window.scrollX;
+            
+            // Adjust if modal would go off-screen
+            const modalWidth = 800; // max-width of modal
+            const modalHeight = Math.min(600, viewportHeight * 0.8); // estimated height
+            
+            // Adjust horizontal position
+            if (leftPosition + modalWidth > viewportWidth) {
+                leftPosition = viewportWidth - modalWidth - 20;
+            }
+            if (leftPosition < 20) {
+                leftPosition = 20;
+            }
+            
+            // Adjust vertical position - offset down a bit from click point
+            topPosition += 20; // Small offset below cursor
+            if (topPosition + modalHeight > viewportHeight + window.scrollY) {
+                topPosition = Math.max(20, viewportHeight + window.scrollY - modalHeight - 20);
+            }
+            if (topPosition < window.scrollY + 20) {
+                topPosition = window.scrollY + 20;
+            }
+            
+            console.log('📍 Final modal position:', leftPosition, topPosition);
+            
+            // Apply contextual positioning
+            modal.style.setProperty('--modal-top', `${topPosition}px`);
+            modal.style.setProperty('--modal-left', `${leftPosition}px`);
+            modal.classList.add('contextual-position');
+        } else {
+            // Use default centered positioning
+            console.log('🎯 No click event, using center positioning');
+            modal.classList.remove('contextual-position');
+        }
+        
+        modal.classList.remove('hidden');
     }
 
     closeDetails() {
-        document.getElementById('details-overlay').classList.remove('active');
-        document.getElementById('details-modal').classList.remove('active');
+        document.getElementById('details-modal').classList.add('hidden');
     }
 
     getCurrentClusterId() {
@@ -1034,7 +1091,7 @@ class PureBackendSecurityDashboard {
     }
 
     showNoData() {
-        const container = document.getElementById('securityposture-content');
+        const container = document.getElementById('security-analysis-results');
         container.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-shield-alt empty-state-icon"></i>
@@ -1046,7 +1103,7 @@ class PureBackendSecurityDashboard {
 
     showError(message) {
         console.error('Security Dashboard Error:', message);
-        const container = document.getElementById('securityposture-content');
+        const container = document.getElementById('security-analysis-results');
         container.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-exclamation-triangle empty-state-icon"></i>

@@ -1,6 +1,46 @@
 /* ===== CLEAN PORTFOLIO STYLING ===== */
 /* Complete replacement for all existing CSS files */
 
+/* ===== ANIMATION DELAY CLASSES ===== */
+.cluster-card[data-animation-delay="0"] { animation-delay: 0s; }
+.cluster-card[data-animation-delay="1"] { animation-delay: 0.05s; }
+.cluster-card[data-animation-delay="2"] { animation-delay: 0.1s; }
+.cluster-card[data-animation-delay="3"] { animation-delay: 0.15s; }
+.cluster-card[data-animation-delay="4"] { animation-delay: 0.2s; }
+.cluster-card[data-animation-delay="5"] { animation-delay: 0.25s; }
+.cluster-card[data-animation-delay="6"] { animation-delay: 0.3s; }
+.cluster-card[data-animation-delay="7"] { animation-delay: 0.35s; }
+.cluster-card[data-animation-delay="8"] { animation-delay: 0.4s; }
+.cluster-card[data-animation-delay="9"] { animation-delay: 0.45s; }
+
+/* ===== UTILITY CLASSES ===== */
+.hidden { display: none !important; }
+.show { display: block !important; }
+.show-flex { display: flex !important; }
+.show-inline { display: inline-block !important; }
+
+/* ===== SPECIFIC ELEMENT VISIBILITY ===== */
+.analyzing-spinner.hidden { display: none !important; }
+.validation-status.hidden { display: none !important; }
+.loading-spinner.hidden { display: none !important; }
+.delete-form-container.hidden { display: none !important; }
+
+.analyzing-spinner.show { display: inline-block !important; }
+.validation-status.show { display: flex !important; }
+.loading-spinner.show { display: flex !important; }
+.delete-form-container.show { 
+    display: flex !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    z-index: 10000 !important;
+}
+
 /* ===== CSS VARIABLES ===== */
 :root {
     --primary-green: #7FB069;
