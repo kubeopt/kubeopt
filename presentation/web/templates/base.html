@@ -54,21 +54,21 @@
                                 <i class="fas fa-user"></i>
                             </div>
                             <!-- User Dropdown Menu -->
-                            <div id="userDropdownMenu" class="user-dropdown hidden" style="position: absolute; right: 0; top: 100%; margin-top: 8px; width: 200px; background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #e5e7eb; overflow: hidden;">
-                                <div style="padding: 8px 0;">
-                                    <div style="padding: 8px 16px; border-bottom: 1px solid #e5e7eb; margin-bottom: 4px;">
-                                        <p style="font-size: 12px; color: #6b7280; margin: 0;">Signed in as</p>
-                                        <p style="font-size: 14px; font-weight: 600; color: #111827; margin: 0;">{{ session.username or 'Admin' }}</p>
+                            <div id="userDropdownMenu" class="user-dropdown hidden user-dropdown-menu">
+                                    <div class="user-dropdown-content">
+                                        <div class="user-dropdown-header">
+                                            <p class="user-dropdown-label">Signed in as</p>
+                                            <p class="user-dropdown-username">{{ session.username or 'Admin' }}</p>
+                                        </div>
+                                        <a href="{{ url_for('settings') }}" class="user-menu-item">
+                                            <i class="fas fa-cog user-menu-icon"></i>
+                                            Settings
+                                        </a>
+                                        <a href="{{ url_for('logout') }}" class="user-menu-item logout">
+                                            <i class="fas fa-sign-out-alt user-menu-icon"></i>
+                                            Logout
+                                        </a>
                                     </div>
-                                    <a href="{{ url_for('settings') }}" class="menu-item" style="display: flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #374151; text-decoration: none; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#f3f4f6'" onmouseout="this.style.backgroundColor='transparent'">
-                                        <i class="fas fa-cog" style="width: 16px; margin-right: 12px;"></i>
-                                        Settings
-                                    </a>
-                                    <a href="{{ url_for('logout') }}" class="menu-item" style="display: flex; align-items: center; padding: 8px 16px; font-size: 14px; color: #dc2626; text-decoration: none; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#fef2f2'" onmouseout="this.style.backgroundColor='transparent'">
-                                        <i class="fas fa-sign-out-alt" style="width: 16px; margin-right: 12px;"></i>
-                                        Logout
-                                    </a>
-                                </div>
                             </div>
                         </div>
                     </li>

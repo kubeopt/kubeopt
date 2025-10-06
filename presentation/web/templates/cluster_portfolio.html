@@ -118,8 +118,7 @@
     <div class="clusters-grid">
         {% if clusters|length > 0 %}
             {% for cluster in clusters %}
-            <div class="cluster-card" data-cluster-id="{{ cluster.id }}" onclick="selectCluster('{{ cluster.id }}')" 
-                 style="animation-delay: {{ loop.index0 * 0.05 }}s;">
+            <div class="cluster-card" data-cluster-id="{{ cluster.id }}" data-animation-delay="{{ loop.index0 }}" onclick="selectCluster('{{ cluster.id }}')"
                 
                 <!-- Card Header -->
                 <div class="card-header">
@@ -130,7 +129,7 @@
                     <div class="card-actions">
                         <button class="action-icon analyze-btn" data-cluster-id="{{ cluster.id }}" onclick="event.stopPropagation(); analyzeCluster('{{ cluster.id }}')" title="Analyze">
                             <i class="fas fa-play"></i>
-                            <i class="fas fa-spinner fa-spin analyzing-spinner" style="display: none;"></i>
+                            <i class="fas fa-spinner fa-spin analyzing-spinner hidden"></i>
                         </button>
                         <button class="action-icon danger" onclick="event.stopPropagation(); deleteCluster('{{ cluster.id }}')" title="Delete">
                             <i class="fas fa-trash-alt"></i>
@@ -431,7 +430,7 @@
                 </div> -->
 
                 <!-- ===== VALIDATION STATUS ===== -->
-                <div id="validationStatus" class="validation-status" style="display: none;" aria-live="polite">
+                <div id="validationStatus" class="validation-status hidden" aria-live="polite">
                     <div class="validation-icon">
                         <i class="fas fa-spinner fa-spin"></i>
                     </div>
@@ -462,7 +461,7 @@
                     <i class="fas fa-plus me-2"></i>
                     <span class="btn-text">Add Cluster</span>
                 </span>
-                <span class="loading-spinner" style="display: none;">
+                <span class="loading-spinner hidden">
                     <div class="spinner"></div>
                     <span class="loading-text">Adding...</span>
                 </span>
@@ -475,7 +474,7 @@
 </div>
 
 <!-- Enhanced Delete Confirmation Form -->
-<div id="deleteConfirmationForm" class="delete-form-container" style="display: none;" role="dialog" aria-labelledby="deleteTitle" aria-modal="true">
+<div id="deleteConfirmationForm" class="delete-form-container hidden" role="dialog" aria-labelledby="deleteTitle" aria-modal="true">
     <div class="delete-form-content">
         <div class="delete-form-header">
             <div class="delete-icon-wrapper">

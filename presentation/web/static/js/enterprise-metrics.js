@@ -150,7 +150,7 @@ class EnterpriseMetricsManager {
 
         // Update level styling based on maturity
         if (levelEl) {
-            levelEl.className = 'text-2xl font-bold mt-2 ' + this.getMaturityLevelColor(maturity.level);
+            levelEl.className = 'text-l font-bold mt-2 ' + this.getMaturityLevelColor(maturity.level);
         }
     }
 
@@ -270,16 +270,16 @@ class EnterpriseMetricsManager {
         if (!container) return;
 
         if (actionItems.length === 0) {
-            container.innerHTML = '<div class="text-gray-400">No critical action items found.</div>';
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No critical action items found.</div>';
             return;
         }
 
         container.innerHTML = actionItems.slice(0, 5).map((item, index) => `
-            <div class="flex items-start space-x-3 p-3 bg-gray-700 rounded-lg">
-                <div class="flex-shrink-0 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center text-xs font-bold text-white">
+            <div class="action-item">
+                <div class="action-item-number">
                     ${index + 1}
                 </div>
-                <div class="flex-grow text-gray-300">
+                <div class="action-item-content">
                     ${this.escapeHtml(item)}
                 </div>
             </div>
@@ -568,81 +568,63 @@ class EnterpriseMetricsManager {
         
         // Create comprehensive modal content
         const modalHtml = `
-            <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" id="metric-details-modal">
-                <div class="bg-white rounded-xl p-6 max-w-4xl max-h-[85vh] overflow-y-auto m-4 shadow-2xl" style="border: 1px solid var(--border-color);">
-                    <div class="flex justify-between items-start mb-4">
+            <div class="metric-modal-overlay" id="metric-details-modal">
+                <div class="metric-modal-content">
+                    <div class="metric-modal-header">
                         <div>
-                            <h2 class="text-xl font-bold mb-1" style="color: var(--text-primary);">📊 ${metricName}</h2>
-                            <p class="text-sm" style="color: var(--text-secondary);">Enterprise Intelligence Report</p>
+                            <h2 class="metric-modal-title">📊 ${metricName} (${score}, <span class="${this.getScoreColor(score)}">${riskLevel} RISK</span>)</h2>
+                            <p class="metric-modal-subtitle">Enterprise Intelligence Report</p>
                         </div>
-                        <button onclick="document.getElementById('metric-details-modal').remove()" 
-                                class="text-2xl font-bold leading-none" style="color: var(--text-secondary); transition: color 0.2s ease;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-secondary)'">&times;</button>
+                        <button onclick="document.getElementById('metric-details-modal').remove()" class="metric-modal-close">&times;</button>
                     </div>
                     
-                    <!-- Score Header -->
-                    <div class="rounded-lg p-4 mb-4 text-center" style="background: var(--bg-primary); border: 1px solid var(--primary-green);">
-                        <div class="text-4xl font-bold ${this.getScoreColor(score)} mb-1">${score}</div>
-                        <div class="text-lg mb-1" style="color: var(--text-primary);">Overall Score</div>
-                        <div class="inline-block px-3 py-1 rounded-full ${this.getRiskBadgeClass(riskLevel)} font-medium text-sm">
-                            ${riskLevel} RISK
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="metric-content-grid">
                         <!-- Key Insights -->
-                        <div class="rounded-lg p-4" style="background: var(--bg-white); border: 1px solid var(--border-color);">
-                            <h3 class="font-semibold mb-3 flex items-center text-sm" style="color: var(--text-primary);">
-                                <i class="fas fa-lightbulb mr-2" style="color: var(--primary-green);"></i>
+                        <div class="metric-content-section">
+                            <h3 class="metric-section-title">
+                                <i class="fas fa-lightbulb metric-section-icon"></i>
                                 Key Insights
                             </h3>
-                            <div class="space-y-2">
+                            <div>
                                 ${insights.slice(0, 4).map(insight => `
-                                    <div class="flex items-start">
-                                        <span class="mr-2 mt-1 text-xs" style="color: var(--primary-green);">•</span>
-                                        <span class="text-sm" style="color: var(--text-primary);">${insight}</span>
+                                    <div class="metric-list-item">
+                                        <span class="metric-list-bullet">•</span>
+                                        <span class="metric-list-text">${insight}</span>
                                     </div>
                                 `).join('')}
                             </div>
                         </div>
                         
                         <!-- Action Items -->
-                        <div class="rounded-lg p-4" style="background: var(--bg-white); border: 1px solid var(--border-color);">
-                            <h3 class="font-semibold mb-3 flex items-center text-sm" style="color: var(--text-primary);">
-                                <i class="fas fa-tasks mr-2" style="color: var(--primary-green);"></i>
+                        <div class="metric-content-section">
+                            <h3 class="metric-section-title">
+                                <i class="fas fa-tasks metric-section-icon"></i>
                                 Action Items
                             </h3>
-                            <div class="space-y-2">
-                                ${(data.recommendations || ['No specific recommendations available']).slice(0, 3).map((rec, index) => `
-                                    <div class="flex items-start">
-                                        <span class="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white mr-2" style="background: var(--primary-green);">
-                                            ${index + 1}
-                                        </span>
-                                        <span class="text-sm" style="color: var(--text-primary);">${rec}</span>
-                                    </div>
-                                `).join('')}
+                            <div>
+                                ${this.formatActionItems(data, metricKey)}
                             </div>
                         </div>
                         
                         <!-- Technical Analysis -->
-                        <div class="rounded-lg p-4 lg:col-span-2" style="background: var(--bg-white); border: 1px solid var(--border-color);">
-                            <h3 class="font-semibold mb-3 flex items-center text-sm" style="color: var(--text-primary);">
-                                <i class="fas fa-cogs mr-2" style="color: var(--primary-green);"></i>
+                        <div class="metric-content-section full-width">
+                            <h3 class="metric-section-title">
+                                <i class="fas fa-cogs metric-section-icon"></i>
                                 Technical Details
                             </h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div style="font-size: 0.875rem;">
                                 ${this.formatDetailedBreakdown(data.details || data.key_details)}
                             </div>
                         </div>
                     </div>
                     
                     <!-- Footer Actions -->
-                    <div class="mt-4 pt-3 flex justify-between items-center" style="border-top: 1px solid var(--border-color);">
-                        <div class="text-xs" style="color: var(--text-secondary);">
+                    <div class="metric-modal-footer">
+                        <div class="metric-footer-timestamp">
                             📅 Updated: ${data.calculated_at || new Date().toLocaleString()}
                         </div>
-                        <div class="space-x-2">
-                            <button onclick="document.getElementById('metric-details-modal').remove()" 
-                                    class="px-3 py-1.5 rounded text-sm transition-colors" style="background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-color);" onmouseover="this.style.background='var(--primary-green)'; this.style.color='white'" onmouseout="this.style.background='var(--bg-primary)'; this.style.color='var(--text-primary)'">
+                        <div class="metric-footer-actions">
+                            <button onclick="document.getElementById('metric-details-modal').remove()" class="clean-btn clean-btn-secondary">
                                 Close
                             </button>
                         </div>
@@ -666,10 +648,16 @@ class EnterpriseMetricsManager {
     formatDetailedBreakdown(details) {
         if (!details) return '<span class="text-gray-400">No detailed data available</span>';
         
-        // Check if details is a string (which causes character-by-character iteration)
+        // Handle string details - try to parse as JSON or use as descriptive text
         if (typeof details === 'string') {
-            console.error('❌ Details is a string, expected object:', details);
-            return `<span class="text-red-400">Invalid data format: ${details.substring(0, 50)}...</span>`;
+            try {
+                // Try to parse as JSON first
+                const parsed = JSON.parse(details);
+                details = parsed;
+            } catch (e) {
+                // If not JSON, treat as descriptive text
+                return `<div class="col-span-2" style="color: var(--text-primary); line-height: 1.5;">${this.escapeHtml(details)}</div>`;
+            }
         }
         
         // Ensure details is an object
@@ -937,6 +925,85 @@ class EnterpriseMetricsManager {
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    formatActionItems(data, metricKey) {
+        // Check for actual recommendations first
+        if (data.recommendations && Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+            return data.recommendations.slice(0, 3).map((rec, index) => `
+                <div class="metric-list-item">
+                    <span class="metric-action-number">${index + 1}</span>
+                    <span class="metric-list-text">${typeof rec === 'string' ? rec : rec.title || rec.recommendation}</span>
+                </div>
+            `).join('');
+        }
+        
+        // Generate intelligent action items based on score and metric type
+        const score = data.score || 0;
+        const actions = this.generateIntelligentActions(metricKey, score, data);
+        
+        if (actions.length === 0) {
+            return '<div class="metric-list-text" style="text-align: center; font-style: italic; color: var(--text-secondary);">Analysis complete - no critical actions required at this time</div>';
+        }
+        
+        return actions.map((action, index) => `
+            <div class="metric-list-item">
+                <span class="metric-action-number">${index + 1}</span>
+                <span class="metric-list-text">${action}</span>
+            </div>
+        `).join('');
+    }
+
+    generateIntelligentActions(metricKey, score, data) {
+        const actions = [];
+        const details = data.details || data.key_details || {};
+        
+        // Generate specific actions based on metric type and score
+        switch (metricKey) {
+            case 'disaster_recovery':
+                if (score < 70) {
+                    if (!details.backup_configured) actions.push('Implement automated backup solution for persistent volumes');
+                    if (!details.multi_zone) actions.push('Configure multi-zone deployment for high availability');
+                    if (!details.dr_plan) actions.push('Create and test disaster recovery procedures');
+                }
+                break;
+                
+            case 'operational_maturity':
+                if (score < 80) {
+                    if (details.monitoring_coverage < 90) actions.push('Enhance monitoring coverage for all critical workloads');
+                    if (!details.automated_scaling) actions.push('Implement HPA for automatic scaling based on demand');
+                    if (details.manual_processes > 30) actions.push('Automate manual operational processes');
+                }
+                break;
+                
+            case 'capacity_planning':
+                if (score < 75) {
+                    if (details.cpu_utilization < 30) actions.push('Right-size over-provisioned workloads to reduce costs');
+                    if (details.memory_waste > 40) actions.push('Optimize memory allocation for better resource utilization');
+                    if (!details.predictive_scaling) actions.push('Implement predictive scaling based on usage patterns');
+                }
+                break;
+                
+            case 'security_posture':
+                if (score < 85) {
+                    if (details.exposed_services > 0) actions.push('Secure exposed services with proper authentication');
+                    if (!details.network_policies) actions.push('Implement Kubernetes network policies for micro-segmentation');
+                    if (details.outdated_images > 0) actions.push('Update container images to latest secure versions');
+                }
+                break;
+                
+            default:
+                // Generic actions based on score
+                if (score < 60) {
+                    actions.push('Review configuration and implement best practices');
+                    actions.push('Schedule regular assessments to track improvements');
+                } else if (score < 80) {
+                    actions.push('Optimize current implementation for better performance');
+                }
+                break;
+        }
+        
+        return actions;
     }
 
     getMetricInsights(metricKey, data) {

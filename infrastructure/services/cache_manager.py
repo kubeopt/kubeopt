@@ -306,12 +306,10 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
     
     logger.info(f"💾 CACHE SAVE: Validating data for {cache_key}")
     
-    # 🔍 CACHE SAVE: Log gap data and optimization score before caching
+    # 🔍 CACHE SAVE: Log gap data before caching
     cpu_gap = complete_analysis_data.get('cpu_gap', 'NOT_FOUND')
     memory_gap = complete_analysis_data.get('memory_gap', 'NOT_FOUND')
-    optimization_score = complete_analysis_data.get('optimization_score', 'NOT_FOUND')
     logger.info(f"🔍 CACHE SAVE: About to cache CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
-    logger.info(f"🔍 CACHE SAVE: About to cache optimization score: {optimization_score}")
     logger.info(f"🔍 CACHE SAVE: Analysis data keys: {list(complete_analysis_data.keys())}")
     
     try:
@@ -323,12 +321,10 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
         # STEP 2: Clean and prepare data for caching
         cache_data = _prepare_cache_data(complete_analysis_data, cluster_id)
         
-        # 🔍 CACHE PREP: Verify gap data and optimization score preservation
+        # 🔍 CACHE PREP: Verify gap data preservation
         prep_cpu_gap = cache_data.get('cpu_gap', 'NOT_FOUND')
         prep_memory_gap = cache_data.get('memory_gap', 'NOT_FOUND')
-        prep_optimization_score = cache_data.get('optimization_score', 'NOT_FOUND')
         logger.info(f"🔍 CACHE PREP: After preparation - CPU gap: {prep_cpu_gap}, Memory gap: {prep_memory_gap}")
-        logger.info(f"🔍 CACHE PREP: After preparation - optimization score: {prep_optimization_score}")
         
         # STEP 3: Store in cache with metadata
         cache_entry = {
@@ -408,12 +404,10 @@ def load_from_cache_with_validation(cluster_id: str, subscription_id: str = None
                     else:
                         logger.warning(f"⚠️ CACHE LOAD: Missing high_cpu_summary in cached data for {cluster_id}")
                     
-                    # 🔍 CACHE LOAD: Log gap data and optimization score being returned
+                    # 🔍 CACHE LOAD: Log gap data being returned
                     cpu_gap = cached_data.get('cpu_gap', 'NOT_FOUND')
                     memory_gap = cached_data.get('memory_gap', 'NOT_FOUND')
-                    optimization_score = cached_data.get('optimization_score', 'NOT_FOUND')
                     logger.info(f"🔍 CACHE LOAD: Returning CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
-                    logger.info(f"🔍 CACHE LOAD: Returning optimization score: {optimization_score}")
                     logger.debug(f"📦 CACHE HIT: {cache_key} - ${cached_data.get('total_cost', 0):.2f}")
                     return cached_data
         
@@ -476,6 +470,16 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'savings_percentage': float(complete_analysis_data.get('savings_percentage', 0)),
         'analysis_confidence': float(complete_analysis_data.get('analysis_confidence', 0)),
         'optimization_score': float(complete_analysis_data.get('optimization_score', 0)),
+        
+        # AKS Excellence scores
+        'build_quality_score': complete_analysis_data.get('build_quality_score'),
+        'cost_excellence_score': complete_analysis_data.get('cost_excellence_score'),
+        
+        # Security analysis data
+        'security_analysis': complete_analysis_data.get('security_analysis'),
+        
+        # AKS savings opportunities
+        'aks_savings_opportunities': complete_analysis_data.get('aks_savings_opportunities', []),
         
         # NEW CONSOLIDATED FIELDS - Standards-based categories and health scoring
         'savings_by_category': complete_analysis_data.get('savings_by_category', {}),

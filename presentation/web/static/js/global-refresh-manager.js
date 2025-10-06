@@ -593,7 +593,7 @@ class GlobalRefreshManager {
                 return false;
             }
             
-            const response = await fetch(`/api/cluster/${clusterId}/status`, {
+            const response = await fetch(`/api/clusters/${clusterId}/analysis-status`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',

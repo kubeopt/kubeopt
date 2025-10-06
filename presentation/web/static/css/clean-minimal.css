@@ -577,9 +577,9 @@ body {
 .main-content-area {
     flex: 1;
     background: var(--bg-primary);
-    display: flex;
-    flex-direction: column;
+    position: relative;
     min-height: 100vh;
+    overflow: hidden;
 }
 
 .content-header {
@@ -700,6 +700,62 @@ body {
 .clean-btn-secondary:hover {
     background: var(--bg-primary);
     border-color: var(--primary-green);
+}
+
+/* ===== SMALL BUTTON VARIANT ===== */
+.clean-btn-small {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.875rem !important;
+    min-height: 32px !important;
+}
+
+.clean-btn-small i {
+    font-size: 0.875rem !important;
+    margin-right: 0.5rem !important;
+}
+
+/* ===== ACTION ITEMS LIST ===== */
+#action-items-list {
+    background: var(--bg-white) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 1rem !important;
+    margin-top: 1rem !important;
+}
+
+.action-item {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 0.75rem !important;
+    padding: 0.75rem !important;
+    background: var(--bg-primary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.action-item:last-child {
+    margin-bottom: 0 !important;
+}
+
+.action-item-number {
+    flex-shrink: 0 !important;
+    width: 1.5rem !important;
+    height: 1.5rem !important;
+    background: var(--primary-green) !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.75rem !important;
+    font-weight: bold !important;
+    color: var(--text-white) !important;
+}
+
+.action-item-content {
+    flex-grow: 1 !important;
+    color: var(--text-primary) !important;
+    line-height: 1.4 !important;
 }
 
 /* ===== CLEAN CONTENT AREA ===== */
@@ -887,7 +943,7 @@ body {
     transform: scale(1.05);
 }
 
-/* ===== USER DROPDOWN MENU STYLING ===== */
+/* ===== USER DROPDOWN MENU STYLING (ID-based for backwards compatibility) ===== */
 #userDropdownMenu {
     position: fixed !important;
     right: 20px !important;
@@ -901,54 +957,44 @@ body {
     z-index: 1050 !important;
 }
 
-#userDropdownMenu .menu-item {
+/* Ensure ID-based menu uses same content styling */
+#userDropdownMenu .user-dropdown-content {
+    padding: var(--spacing-xs) 0 !important;
     display: flex !important;
-    align-items: center !important;
-    padding: var(--spacing-sm) var(--spacing-md) !important;
-    font-size: 0.875rem !important;
-    color: var(--text-primary) !important;
-    text-decoration: none !important;
-    transition: background-color 0.2s ease !important;
-    border: none !important;
-    background: none !important;
+    flex-direction: column !important;
 }
 
-#userDropdownMenu .menu-item:hover {
-    background: var(--bg-primary) !important;
-    color: var(--text-primary) !important;
-}
-
-#userDropdownMenu .menu-item i {
-    width: 16px !important;
-    margin-right: var(--spacing-md) !important;
-    color: var(--text-muted) !important;
-}
-
-#userDropdownMenu .menu-item:last-child {
-    color: #dc2626 !important;
-}
-
-#userDropdownMenu .menu-item:last-child:hover {
-    background: rgba(220, 38, 38, 0.1) !important;
-    color: #dc2626 !important;
-}
-
-/* User info section in dropdown */
-#userDropdownMenu > div > div:first-child {
+#userDropdownMenu .user-dropdown-header {
     padding: var(--spacing-sm) var(--spacing-md) !important;
     border-bottom: 1px solid var(--border-color) !important;
     margin-bottom: var(--spacing-xs) !important;
     background: var(--bg-primary) !important;
 }
 
-#userDropdownMenu p {
-    color: var(--text-muted) !important;
-    margin: 0 !important;
+#userDropdownMenu .user-menu-item {
+    display: block !important;
+    padding: var(--spacing-sm) var(--spacing-md) !important;
+    font-size: 0.875rem !important;
+    color: var(--text-primary) !important;
+    text-decoration: none !important;
+    transition: background-color 0.2s ease !important;
 }
 
-#userDropdownMenu p:last-child {
-    color: var(--text-primary) !important;
-    font-weight: 600 !important;
+#userDropdownMenu .user-menu-item:hover {
+    background-color: var(--bg-primary) !important;
+}
+
+#userDropdownMenu .user-menu-item.logout {
+    color: #dc2626 !important;
+}
+
+#userDropdownMenu .user-menu-item.logout:hover {
+    background-color: rgba(220, 38, 38, 0.1) !important;
+}
+
+#userDropdownMenu .user-menu-icon {
+    width: 16px !important;
+    margin-right: 12px !important;
 }
 
 /* ===== GLOBAL NOTIFICATIONS DROPDOWN STYLING ===== */
@@ -1431,20 +1477,205 @@ body {
 
 /* Make sure tab content sections work properly */
 .tab-content-panel.hidden,
-.tab-content.hidden {
+.tab-content.hidden,
+.content-section.hidden {
     display: none !important;
+    visibility: hidden !important;
 }
 
 .tab-content.active,
 .tab-content-panel.active,
+.content-section.active,
 .tab-content:not(.hidden),
-.tab-content-panel:not(.hidden) {
+.tab-content-panel:not(.hidden),
+.content-section:not(.hidden) {
     display: block !important;
+    visibility: visible !important;
+}
+
+/* Ensure content sections are positioned correctly for tab switching */
+.content-section,
+.tab-content,
+.tab-content-panel {
+    position: relative !important;
+    width: 100% !important;
+}
+
+/* Prevent content sections from stacking vertically */
+.main-content-area > .content-section,
+.main-content-area > .tab-content {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 1 !important;
+}
+
+.main-content-area > .content-section.active,
+.main-content-area > .tab-content.active {
+    z-index: 2 !important;
 }
 
 /* Ensure space-y classes don't interfere */
 .space-y-6 > * + * {
     margin-top: 1.5rem !important;
+}
+
+/* ===== SLEEK MODAL STYLING ===== */
+.metric-modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background: rgba(0, 0, 0, 0.75) !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    z-index: 1000 !important;
+    padding: 1rem !important;
+    padding-top: 10px !important;
+}
+
+.metric-modal-content {
+    background: var(--bg-white) !important;
+    border-radius: 16px !important;
+    padding: 1.5rem !important;
+    max-width: 800px !important;
+    max-height: 80vh !important;
+    width: 100% !important;
+    overflow-y: auto !important;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25) !important;
+    border: 1px solid var(--border-color) !important;
+    position: relative !important;
+    margin: auto !important;
+}
+
+.metric-modal-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    margin-bottom: 1rem !important;
+}
+
+.metric-modal-title {
+    font-size: 1.125rem !important;
+    font-weight: 700 !important;
+    color: var(--text-primary) !important;
+    margin-bottom: 0.25rem !important;
+    line-height: 1.4 !important;
+}
+
+.metric-modal-subtitle {
+    font-size: 0.875rem !important;
+    color: var(--text-secondary) !important;
+}
+
+.metric-modal-close {
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    color: var(--text-secondary) !important;
+    background: none !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 0.25rem !important;
+    line-height: 1 !important;
+    transition: color 0.2s ease !important;
+}
+
+.metric-modal-close:hover {
+    color: var(--text-primary) !important;
+}
+
+/* Score header removed - now integrated into title */
+
+.metric-content-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+}
+
+@media (min-width: 1024px) {
+    .metric-content-grid {
+        grid-template-columns: 1fr 1fr !important;
+    }
+}
+
+.metric-content-section {
+    background: var(--bg-white) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    padding: 1rem !important;
+}
+
+.metric-content-section.full-width {
+    grid-column: 1 / -1 !important;
+}
+
+.metric-section-title {
+    font-weight: 600 !important;
+    margin-bottom: 0.75rem !important;
+    display: flex !important;
+    align-items: center !important;
+    font-size: 0.875rem !important;
+    color: var(--text-primary) !important;
+}
+
+.metric-section-icon {
+    color: var(--primary-green) !important;
+    margin-right: 0.5rem !important;
+}
+
+.metric-list-item {
+    display: flex !important;
+    align-items: flex-start !important;
+    margin-bottom: 0.5rem !important;
+}
+
+.metric-list-bullet {
+    color: var(--primary-green) !important;
+    margin-right: 0.5rem !important;
+    margin-top: 0.25rem !important;
+    font-size: 0.75rem !important;
+}
+
+.metric-list-text {
+    color: var(--text-primary) !important;
+    font-size: 0.875rem !important;
+}
+
+.metric-action-number {
+    flex-shrink: 0 !important;
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: white !important;
+    background: var(--primary-green) !important;
+    margin-right: 0.5rem !important;
+}
+
+.metric-modal-footer {
+    margin-top: 1rem !important;
+    padding-top: 0.75rem !important;
+    border-top: 1px solid var(--border-color) !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+}
+
+.metric-footer-timestamp {
+    font-size: 0.75rem !important;
+    color: var(--text-secondary) !important;
+}
+
+.metric-footer-actions {
+    display: flex !important;
+    gap: 0.5rem !important;
 }
 
 /* Override gradient classes */
@@ -1563,12 +1794,345 @@ img[src*="kubeopt_eyecon"] {
     display: block !important;
 }
 
+/* ===== ENTERPRISE METRICS CONTROLS ===== */
+.enterprise-metrics-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 1rem 0;
+    padding: 0 1rem;
+}
+
+.enterprise-metrics-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.enterprise-badge {
+    background: var(--bg-primary);
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.enterprise-badge #maturity-score {
+    color: var(--primary-green);
+    margin-left: 0.25rem;
+}
+
+
+/* ===== CHART HEADER LEFT ALIGNMENT ===== */
+.chart-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    text-align: left !important;
+}
+
+.chart-header-left {
+    display: flex;
+    align-items: center;
+}
+
+.chart-header .chart-title {
+    text-align: left !important;
+    margin: 0 !important;
+    margin-left: 0.5rem !important;
+}
+
+.chart-header .chart-icon {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.chart-header-right {
+    display: flex;
+    align-items: center;
+}
+
+.last-analyzed-time {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
 /* Alerts list container */
 #alerts-list-container {
     background: var(--bg-white) !important;
     border: 1px solid var(--border-color) !important;
     border-radius: var(--border-radius) !important;
     padding: var(--spacing-md) !important;
+}
+
+/* ===== INLINE STYLES TO CSS CLASSES ===== */
+
+/* Notification Badge */
+.notification-badge {
+    font-size: 1.25rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    margin-right: 1rem;
+}
+
+/* Chart Cards */
+.chart-card-full-width {
+    grid-column: 1 / -1;
+}
+
+.chart-card-full-width-mb {
+    grid-column: 1 / -1;
+    margin-bottom: 2rem;
+}
+
+/* HPA Count Display */
+.hpa-count-display {
+    text-align: center;
+    margin-top: 1rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.hpa-count-badge {
+    background: var(--bg-primary);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+/* Insights Container */
+.insights-container {
+    padding: 1rem;
+}
+
+.insights-placeholder {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+}
+
+.insights-placeholder-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: var(--primary-green);
+}
+
+.insights-placeholder-title {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+}
+
+.insights-placeholder-text {
+    margin: 0 0 1rem 0;
+}
+
+.insights-placeholder-note {
+    font-size: 0.875rem;
+}
+
+/* Implementation Container */
+.implementation-container {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.implementation-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: var(--primary-green);
+}
+
+.implementation-title {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+}
+
+.implementation-text {
+    margin: 0;
+}
+
+/* Loading Spinner */
+.loading-container {
+    text-align: center;
+    padding: 3rem;
+}
+
+.loading-spinner {
+    width: 3rem;
+    height: 3rem;
+    border: 3px solid var(--bg-primary);
+    border-top: 3px solid var(--primary-green);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+.loading-text {
+    color: var(--text-secondary);
+}
+
+/* Alerts Header Controls */
+.alerts-header-controls {
+    padding: 1rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Delete Modal */
+.delete-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+
+.delete-modal-content {
+    background: var(--bg-white);
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: var(--shadow-lg);
+    max-width: 400px;
+    width: 90%;
+}
+
+.delete-modal-body {
+    text-align: center;
+}
+
+.delete-modal-icon-wrapper {
+    width: 4rem;
+    height: 4rem;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+}
+
+.delete-modal-icon {
+    color: #dc2626;
+    font-size: 1.5rem;
+}
+
+.delete-modal-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 1rem 0;
+}
+
+.delete-modal-content-body {
+    margin: 1rem 0;
+}
+
+.delete-modal-text {
+    color: var(--text-secondary);
+    margin: 0 0 1rem 0;
+}
+
+.delete-modal-alert {
+    font-size: 0.875rem;
+    text-align: left;
+}
+
+.delete-modal-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 1.5rem;
+}
+
+.delete-confirm-btn {
+    background: #dc2626;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* User Dropdown - Clean Light Theme for unified_dashboard.html */
+.user-dropdown-menu {
+    position: fixed;
+    right: 20px;
+    top: 70px;
+    width: 200px;
+    background: var(--bg-white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    z-index: 1050;
+}
+
+.user-dropdown-content {
+    padding: var(--spacing-xs) 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.user-dropdown-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: var(--spacing-xs);
+    background: var(--bg-primary);
+}
+
+.user-dropdown-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.user-dropdown-username {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.user-menu-item {
+    display: flex !important;
+    align-items: center !important;
+    padding: var(--spacing-sm) var(--spacing-md) !important;
+    font-size: 0.875rem !important;
+    color: var(--text-primary) !important;
+    text-decoration: none !important;
+    transition: background-color 0.2s ease !important;
+}
+
+.user-menu-item:hover {
+    background-color: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+}
+
+.user-menu-item.logout {
+    color: #dc2626 !important;
+}
+
+.user-menu-item.logout:hover {
+    background-color: rgba(220, 38, 38, 0.1) !important;
+    color: #dc2626 !important;
+}
+
+.user-menu-icon {
+    width: 16px;
+    margin-right: 12px;
 }
 
 /* Fix modal z-index and positioning for alerts */
