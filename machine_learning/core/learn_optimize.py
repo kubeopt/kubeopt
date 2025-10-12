@@ -224,7 +224,7 @@ class EnhancedLearningOptimizationEngine:
         conn.commit()
         conn.close()
         
-        logger.info("🗄️ Enhanced learning database initialized")
+        logger.debug("🗄️ Enhanced learning database initialized")
     
 
     def _create_framework_implementation_result(self, outcome_data: Dict):
@@ -371,7 +371,7 @@ class EnhancedLearningOptimizationEngine:
         historical_data = self._load_historical_data()
         
         if len(historical_data) < 10:
-            logger.info("🔧 Insufficient data for training - using synthetic augmentation")
+            logger.debug("🔧 Insufficient data for training - using synthetic augmentation")
             # Generate synthetic data for initial training
             historical_data = self.data_augmentation_engine.generate_synthetic_data(50)
         
@@ -410,7 +410,7 @@ class EnhancedLearningOptimizationEngine:
             logger.warning("⚠️ Insufficient training data for ML models")
             return
         
-        logger.info(f"🎓 Training enhanced ML models with {len(training_data)} samples...")
+        logger.debug(f"🎓 Training enhanced ML models with {len(training_data)} samples...")
         
         # Extract enhanced features
         feature_sets = []
@@ -442,7 +442,7 @@ class EnhancedLearningOptimizationEngine:
         # Evaluate models
         self._evaluate_model_performance(X_scaled, y_success, y_savings)
         
-        logger.info("✅ Enhanced ML models trained successfully")
+        logger.debug("✅ Enhanced ML models trained successfully")
     
     def _validate_feature_dimensions(self, features: np.ndarray) -> bool:
         """Validate feature dimensions for ML prediction"""
@@ -847,15 +847,10 @@ class EnhancedLearningOptimizationEngine:
         except Exception as e:
             logger.warning(f"⚠️ Could not update pattern mining: {e}")
 
-    print("🧠 ENHANCED LEARNING ENGINE FIXES COMPLETE")
-    print("✅ Pure ML learning system - no fallbacks")
-    print("✅ Comprehensive feature validation")
-    print("✅ Enhanced confidence calculations")
-    print("✅ ML-driven recommendations")
-    print("✅ Cross-validation and model training")
-    print("✅ Pattern mining and similarity analysis")
-    print("✅ Learning from implementation outcomes")
-    print("🎯 Ready for production ML learning system!")
+    # Log initialization only in debug mode
+    import os
+    if os.getenv('AKS_DEBUG', '').lower() in ('true', '1', 'yes'):
+        print("🧠 Enhanced Learning Engine initialized")
 
     def _calculate_ml_confidence_boost(self, ml_prediction, calibrated_confidence: float, similar_clusters: List[Dict]) -> float:
         """Calculate confidence boost based on ML prediction quality"""
@@ -1965,7 +1960,7 @@ class DataAugmentationEngine:
     def generate_synthetic_data(self, n_samples: int) -> List[EnhancedImplementationResult]:
         """Generate synthetic implementation results for training"""
         
-        logger.info(f"🔧 Generating {n_samples} synthetic training samples...")
+        logger.debug(f"🔧 Generating {n_samples} synthetic training samples...")
         
         synthetic_data = []
         
@@ -1974,7 +1969,7 @@ class DataAugmentationEngine:
             result = self._create_synthetic_result(i)
             synthetic_data.append(result)
         
-        logger.info(f"✅ Generated {len(synthetic_data)} synthetic training samples")
+        logger.debug(f"✅ Generated {len(synthetic_data)} synthetic training samples")
         return synthetic_data
     
     def _create_synthetic_result(self, idx: int) -> EnhancedImplementationResult:
@@ -2149,13 +2144,7 @@ def _train_enhanced_models(self, training_data: List[EnhancedImplementationResul
     
     logger.info("✅ Enhanced ML models trained successfully with proper feature validation")
 
-print("🔧 COMPREHENSIVE FIX APPLIED!")
-print("✅ Feature dimensions: Training and prediction both use 125 features")
-print("✅ Intelligent defaults: Outcome/temporal/contextual features have smart defaults")
-print("✅ Validation: Built-in feature validation prevents dimension mismatches")
-print("✅ Fallback: Enhanced fallback mode with cluster-aware recommendations")
-print("✅ Training: Proper validation during model training")
-print("🎯 Your learning engine will now work consistently!")
+# Verbose logging moved to debug mode - see above
 
 # ============================================================================
 # DEMO FUNCTION

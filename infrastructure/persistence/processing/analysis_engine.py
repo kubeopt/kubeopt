@@ -91,159 +91,8 @@ class MultiSubscriptionAnalysisEngine:
             self.subscription_locks[subscription_id] = threading.Lock()
         return self.subscription_locks[subscription_id]
     
-    def _validate_cost_data_availability(self, resource_group: str, cluster_name: str, 
-                                   subscription_id: str, days: int) -> Dict[str, Any]:
-        """Quick validation that cost data is available before expensive analysis"""
-        try:
-            # OPTIMIZATION: Check cache first to avoid unnecessary API calls
-            from infrastructure.services.cost_cache import check_database_cost_freshness, cache
-            
-            logger.info(f"🔍 VALIDATION: Checking cache for {cluster_name} before API validation")
-            
-            # Check database for fresh cost data (12 hour cache)
-            cached_cost_df = check_database_cost_freshness(cluster_name, max_age_hours=12)
-            if cached_cost_df is not None:
-                logger.info(f"✅ VALIDATION: Found fresh cached data for {cluster_name}, skipping API validation")
-                return {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}
-            
-            # Check file cache for recent API responses
-            cluster_id = f"{resource_group}_{cluster_name}"
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=days)
-            date_range = f"{start_date} to {end_date}"
-            
-            cached_data = cache.get(cluster_id, subscription_id, date_range)
-            if cached_data:
-                logger.info(f"✅ VALIDATION: Found file cached data for {cluster_name}, skipping API validation")
-                return {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}
-            
-            logger.info(f"❌ VALIDATION: No cached data available, proceeding with API validation for {cluster_name}")
-            
-            # Set subscription context for cost check
-            if not azure_subscription_manager.set_active_subscription(subscription_id):
-                return {'available': False, 'error': f'Cannot set subscription context: {subscription_id}'}
-            
-            # Quick cost availability check (without full fetch)
-            # datetime and timedelta already imported at module level
-            
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=days)
-            
-            # Test cost API access with minimal query
-            import subprocess
-            import json
-            
-            test_query = {
-                "type": "ActualCost",
-                "timeframe": "Custom", 
-                "timePeriod": {
-                    "from": start_date.strftime("%Y-%m-%d"),
-                    "to": end_date.strftime("%Y-%m-%d")
-                },
-                "dataset": {
-                    "granularity": "Monthly",
-                    "aggregation": {"totalCost": {"name": "PreTaxCost", "function": "Sum"}},
-                    "filter": {
-                        "dimensions": {
-                            "name": "ResourceGroupName",
-                            "operator": "In", 
-                            "values": [resource_group]
-                        }
-                    }
-                }
-            }
-            
-            # Save query to temp file
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-                json.dump(test_query, f)
-                query_file = f.name
-            
-            try:
-                # Use Azure SDK instead of CLI
-                from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-                
-                # Get cost management client using Azure SDK with subscription context
-                cost_client = azure_sdk_manager.get_cost_client(subscription_id)
-                if not cost_client:
-                    return {'available': False, 'error': 'Azure SDK authentication failed'}
-                
-                # Use the provided subscription_id instead of CLI command
-                current_subscription_id = subscription_id
-                
-                # Test cost API using Azure SDK
-                scope = f"/subscriptions/{current_subscription_id}"
-                query_definition = {
-                    "type": "ActualCost",
-                    "timeframe": "Custom",
-                    "time_period": {
-                        "from": start_date.strftime('%Y-%m-%dT00:00:00Z'),
-                        "to": end_date.strftime('%Y-%m-%dT23:59:59Z')
-                    },
-                    "dataset": {
-                        "granularity": "Daily",
-                        "aggregation": {
-                            "totalCost": {"name": "Cost", "function": "Sum"}
-                        }
-                    }
-                }
-                
-                # Test the cost API call using correct Azure Cost Management method
-                result = cost_client.query.usage(scope=scope, parameters=query_definition)
-                
-                # Check if result has data (Azure SDK returns the response object directly)
-                if result:
-                    # Log what we received for debugging
-                    logger.debug(f"Cost API response type: {type(result)}")
-                    if hasattr(result, '__dict__'):
-                        logger.debug(f"Cost API response attributes: {list(result.__dict__.keys())}")
-                    
-                    # Be more lenient - if we got any response, consider it valid
-                    # The actual cost queries will handle the specific format validation
-                    return {'available': True, 'subscription_id': current_subscription_id}
-                else:
-                    return {'available': False, 'error': 'No response from cost API'}
-                        
-            except Exception as sdk_error:
-                # If we get 429 error, try to use any available stale cache
-                if '429' in str(sdk_error):
-                    logger.warning(f"⚠️ VALIDATION: API rate limited for {cluster_name}, checking for stale cache")
-                    
-                    # Try to get stale cached data as fallback (extended to 24h for 429 errors)
-                    stale_cached_df = check_database_cost_freshness(cluster_name, max_age_hours=24)
-                    if stale_cached_df is not None:
-                        logger.info(f"✅ VALIDATION: Using stale cached data for {cluster_name} due to API rate limit")
-                        return {'available': True, 'subscription_id': subscription_id, 'cache_hit': True, 'stale': True}
-                    
-                    # Try file cache with extended timeout  
-                    import sqlite3
-                    # Ensure date_range is available even if exception occurred earlier
-                    if 'date_range' not in locals():
-                        fallback_end_date = datetime.now()
-                        fallback_start_date = fallback_end_date - timedelta(days=days)
-                        date_range = f"{fallback_start_date} to {fallback_end_date}"
-                    key = cache._make_key(cluster_id, subscription_id, date_range)
-                    conn = sqlite3.connect(cache.cache_file)
-                    cursor = conn.execute('SELECT data FROM cost_cache WHERE key = ?', (key,))
-                    row = cursor.fetchone()
-                    conn.close()
-                    
-                    if row:
-                        logger.info(f"✅ VALIDATION: Using stale file cache for {cluster_name} due to API rate limit")
-                        return {'available': True, 'subscription_id': subscription_id, 'cache_hit': True, 'stale': True}
-                
-                return {'available': False, 'error': f'Azure SDK cost validation error: {str(sdk_error)}'}
-                        
-            finally:
-                # Clean up temp file
-                try:
-                    import os
-                    os.unlink(query_file)
-                except:
-                    pass
-            
-        except Exception as e:
-            return {'available': False, 'error': f'Cost validation error: {e}'}
+    # REMOVED: _validate_cost_data_availability function - was making redundant API calls
+    # Cache checking is now handled in the main flow without API validation
 
     def run_subscription_aware_analysis(
         self, 
@@ -279,60 +128,40 @@ class MultiSubscriptionAnalysisEngine:
                         'resource_group': resource_group
                     }
         
-            # Step 2: COST-FIRST VALIDATION (fail fast) - Check cache first
+            # Step 2: CACHE-ONLY CHECK (no API calls - let comprehensive fetch handle all Azure API calls)
             try:
-                logger.info(f"💰 COST-FIRST: Validating cost data availability for {cluster_name}")
+                logger.info(f"🔍 CACHE-ONLY: Checking for existing cost data for {cluster_name}")
                 
-                # Check if we have cached cost data first to avoid API calls
-                try:
-                    from infrastructure.services.cost_cache import check_database_cost_freshness, cache
-                    cluster_id = f"{resource_group}_{cluster_name}"
+                # Check if we have cached cost data (avoid redundant API calls)
+                from infrastructure.services.cost_cache import check_database_cost_freshness, cache
+                cluster_id = f"{resource_group}_{cluster_name}"
+                
+                # Check database for fresh cost data  
+                cached_cost_df = check_database_cost_freshness(cluster_name, max_age_hours=24)
+                if cached_cost_df is not None:
+                    logger.info(f"✅ CACHE HIT: Found fresh database cost data for {cluster_name}")
+                    cost_validation_result = {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}
+                else:
+                    # Check file cache for recent API responses
+                    cache_end_date = datetime.now()
+                    cache_start_date = cache_end_date - timedelta(days=days)
+                    cache_date_range = f"{cache_start_date} to {cache_end_date}"
+                    cached_data = cache.get(cluster_id, subscription_id, cache_date_range)
                     
-                    # First check database for fresh cost data
-                    cached_cost_df = check_database_cost_freshness(cluster_name, max_age_hours=12)
-                    if cached_cost_df is not None:
-                        logger.info(f"✅ COST-FIRST: Using database cached cost data for {cluster_name} - skipping API validation")
+                    if cached_data:
+                        logger.info(f"✅ CACHE HIT: Found file cached cost data for {cluster_name}")
                         cost_validation_result = {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}
                     else:
-                        # Check file cache for recent API responses
-                        # Reuse date calculations from earlier in function to avoid redefinition
-                        cache_end_date = datetime.now()
-                        cache_start_date = cache_end_date - timedelta(days=days)
-                        cache_date_range = f"{cache_start_date} to {cache_end_date}"
-                        cached_data = cache.get(cluster_id, subscription_id, cache_date_range)
-                        
-                        if cached_data:
-                            logger.info(f"✅ COST-FIRST: Using file cached cost data for {cluster_name} - skipping API validation")
-                            cost_validation_result = {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}
-                        else:
-                            # No cache available, perform API validation
-                            cost_validation_result = self._validate_cost_data_availability(
-                                resource_group, cluster_name, subscription_id, days
-                            )
-                except Exception as cache_error:
-                    logger.warning(f"⚠️ Cost cache check failed: {cache_error}, proceeding with API validation")
-                    cost_validation_result = self._validate_cost_data_availability(
-                        resource_group, cluster_name, subscription_id, days
-                    )
+                        # No cache available - comprehensive fetch will handle Azure API call and validation
+                        logger.info(f"🔄 CACHE MISS: No cached data for {cluster_name} - comprehensive fetch will get fresh data")
+                        cost_validation_result = {'available': True, 'subscription_id': subscription_id, 'cache_hit': False}
                 
-                if not cost_validation_result['available']:
-                    return {
-                        'status': 'error',
-                        'message': f'Cost data not available: {cost_validation_result["error"]}',
-                        'cluster_name': cluster_name,
-                        'subscription_id': subscription_id
-                    }
+                logger.info(f"✅ CACHE CHECK: Cost data check completed for {cluster_name}")
                 
-                logger.info(f"✅ COST-FIRST: Cost data validation passed for {cluster_name}")
-                
-            except Exception as cost_error:
-                logger.error(f"❌ COST-FIRST: Cost validation failed for {cluster_name}: {cost_error}")
-                return {
-                    'status': 'error',
-                    'message': f'Cost data validation failed: {cost_error}',
-                    'cluster_name': cluster_name,
-                    'subscription_id': subscription_id
-                }
+            except Exception as cache_error:
+                logger.warning(f"⚠️ Cache check failed for {cluster_name}: {cache_error} - comprehensive fetch will handle validation")
+                # Don't fail - let comprehensive fetch handle everything
+                cost_validation_result = {'available': True, 'subscription_id': subscription_id, 'cache_hit': False}
             
             # Step 3: Create subscription-aware config
             if config is None:

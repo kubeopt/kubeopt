@@ -48,7 +48,7 @@ class CostCache:
         return None
     
     def set(self, cluster_id: str, subscription_id: str, data: Dict[str, Any], 
-            date_range: str = None, hours: int = 12):
+            date_range: str = None, hours: int = 24):
         """Cache data for specified hours"""
         key = self._make_key(cluster_id, subscription_id, date_range)
         expires = datetime.now() + timedelta(hours=hours)
@@ -104,7 +104,7 @@ def _restore_data_from_cache(cached_data: Dict[str, Any]) -> Any:
 # Global cache instance
 cache = CostCache()
 
-def check_database_cost_freshness(cluster_name: str, max_age_hours: int = 12) -> Optional[pd.DataFrame]:
+def check_database_cost_freshness(cluster_name: str, max_age_hours: int = 24) -> Optional[pd.DataFrame]:
     """
     Check if we have fresh cost data in the database to avoid unnecessary Azure API calls
     
@@ -224,7 +224,7 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = 12) ->
         return None
 
 def cached_cost_fetch(cluster_id: str, subscription_id: str, fetch_func: Callable, 
-                     date_range: str = None, max_age_hours: int = 12, **kwargs) -> Dict[str, Any]:
+                     date_range: str = None, max_age_hours: int = 24, **kwargs) -> Dict[str, Any]:
     """
     Smart cached wrapper with database-first validation to avoid unnecessary Azure API calls
     

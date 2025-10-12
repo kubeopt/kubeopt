@@ -3146,13 +3146,7 @@ class MLIntegratedDynamicImplementationGenerator:
             'budget_constraints': ml_structure.get('costProtection', {}).get('budgetLimits', {})
         }
 
-print("🤖 COMPLETE FIXED INTEGRATED DYNAMIC PLAN GENERATOR READY")
-print("✅ All real Python libraries and APIs implemented")
-print("✅ COCOMO II effort estimation with numpy")
-print("✅ Real Azure pricing calculation")
-print("✅ Organizational stakeholder analysis with real methods") 
-print("✅ Cluster configuration intelligence fully integrated")
-print("✅ All phase creation methods enhanced with real calculations")
-print("✅ Complete business case and project management components")
-print("✅ Full governance, compliance, and stakeholder management")
-print("✅ Ready for production use with zero fictional dependencies")
+# Log initialization only in debug mode
+import os
+if os.getenv('AKS_DEBUG', '').lower() in ('true', '1', 'yes'):
+    print("🤖 Dynamic Plan Generator initialized")

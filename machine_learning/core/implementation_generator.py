@@ -88,18 +88,20 @@ failed_imports = [k for k, v in security_import_status.items() if v != 'success'
 SECURITY_INTEGRATION_AVAILABLE = len(successful_imports) >= 1  # At least one component available
 
 
-# Print detailed import status
-print("🔒 Security Framework Import Status:")
-for component, status in security_import_status.items():
-    if status == 'success':
-        print(f"  ✅ {component}: Available")
-    else:
-        print(f"  ❌ {component}: {status}")
+# Print detailed import status only in debug mode
+import os
+if os.getenv('AKS_DEBUG', '').lower() in ('true', '1', 'yes'):
+    print("🔒 Security Framework Import Status:")
+    for component, status in security_import_status.items():
+        if status == 'success':
+            print(f"  ✅ {component}: Available")
+        else:
+            print(f"  ❌ {component}: {status}")
 
-if SECURITY_INTEGRATION_AVAILABLE:
-    print(f"✅ Security framework partially available ({len(successful_imports)}/5 components)")
-else:
-    print("⚠️ Security framework completely unavailable - using fallback")
+    if SECURITY_INTEGRATION_AVAILABLE:
+        print(f"✅ Security framework partially available ({len(successful_imports)}/5 components)")
+    else:
+        print("⚠️ Security framework completely unavailable - using fallback")
 
 # Define a fallback SecurityIntegrationMixin if needed
 if SecurityIntegrationMixin is None:
@@ -636,7 +638,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         MLLearningIntegrationMixin.__init__(self)
         SecurityIntegrationMixin.__init__(self)  # This will use fallback if imports failed
         
-        logger.info("🧠🔒 Initializing AKS Implementation Generator with INTEGRATED ML & Security")
+        logger.debug("🧠🔒 Initializing AKS Implementation Generator with INTEGRATED ML & Security")
         
         # Configuration
         self.enable_cost_monitoring = enable_cost_monitoring
@@ -720,7 +722,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
     def _initialize_integrated_systems(self):
         """Initialize ML and Security systems together as integrated components"""
         
-        logger.info("🔧 Initializing INTEGRATED ML + Security systems...")
+        logger.debug("🔧 Initializing INTEGRATED ML + Security systems...")
         
         # Initialize flags
         self.ml_systems_available = False
@@ -731,16 +733,16 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         security_initialization_results = {}
         
         try:
-            # PHASE 1: Initialize ML Systems
-            logger.info("🧠 Phase 1: Initializing ML Intelligence Systems...")
+            # Initialize ML Systems
+            logger.debug("🧠 Initializing ML Intelligence Systems...")
             self.ml_systems_available = self._initialize_ml_systems_core(ml_initialization_results)
             
-            # PHASE 2: Initialize Security Systems (NEW - INTEGRATED APPROACH)
-            logger.info("🔒 Phase 2: Initializing Security Framework Systems...")
+            # Initialize Security Systems 
+            logger.debug("🔒 Initializing Security Framework Systems...")
             self.security_systems_available = self._initialize_security_systems_core(security_initialization_results)
             
-            # PHASE 3: Cross-system Integration
-            logger.info("🔗 Phase 3: Establishing ML-Security Integration...")
+            # Cross-system Integration
+            logger.debug("🔗 Establishing ML-Security Integration...")
             self._establish_ml_security_integration()
             
             # Update debug info with both systems
@@ -770,13 +772,13 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         """Initialize ML systems with detailed error tracking"""
         
         try:
-            # Import ML modules with individual error tracking
-            logger.info("📥 Importing ML modules...")
+            # Import ML modules with error tracking
+            logger.debug("📥 Importing ML modules...")
             
             try:
                 from machine_learning.core.learn_optimize import create_enhanced_learning_engine
                 results['learn_optimize_import'] = 'success'
-                logger.info("✅ learn_optimize imported")
+                logger.debug("✅ learn_optimize imported")
             except Exception as e:
                 results['learn_optimize_import'] = f'failed: {e}'
                 logger.error(f"❌ learn_optimize import failed: {e}")
@@ -785,7 +787,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             try:
                 from machine_learning.core.dynamic_strategy import EnhancedDynamicStrategyEngine
                 results['dynamic_strategy_import'] = 'success'
-                logger.info("✅ dynamic_strategy imported")
+                logger.debug("✅ dynamic_strategy imported")
             except Exception as e:
                 results['dynamic_strategy_import'] = f'failed: {e}'
                 logger.error(f"❌ dynamic_strategy import failed: {e}")
@@ -794,7 +796,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             try:
                 from machine_learning.core.dynamic_plan_generator import MLIntegratedDynamicImplementationGenerator
                 results['dynamic_plan_generator_import'] = 'success'
-                logger.info("✅ dynamic_plan_generator imported")
+                logger.debug("✅ dynamic_plan_generator imported")
             except Exception as e:
                 results['dynamic_plan_generator_import'] = f'failed: {e}'
                 logger.error(f"❌ dynamic_plan_generator import failed: {e}")
@@ -803,7 +805,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             try:
                 from machine_learning.core.dynamic_cmd_center import AdvancedExecutableCommandGenerator
                 results['dynamic_cmd_center_import'] = 'success'
-                logger.info("✅ dynamic_cmd_center imported")
+                logger.debug("✅ dynamic_cmd_center imported")
             except Exception as e:
                 results['dynamic_cmd_center_import'] = f'failed: {e}'
                 logger.error(f"❌ dynamic_cmd_center import failed: {e}")
@@ -812,7 +814,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             try:
                 from machine_learning.models.dna_analyzer import ClusterDNAAnalyzer
                 results['dna_analyzer_import'] = 'success'
-                logger.info("✅ dna_analyzer imported")
+                logger.debug("✅ dna_analyzer imported")
             except Exception as e:
                 results['dna_analyzer_import'] = f'failed: {e}'
                 logger.error(f"❌ dna_analyzer import failed: {e}")
@@ -821,17 +823,17 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             try:
                 from machine_learning.core.ml_integration import MLSystemOrchestrator
                 results['ml_integration_import'] = 'success'
-                logger.info("✅ ml_integration imported")
+                logger.debug("✅ ml_integration imported")
             except Exception as e:
                 results['ml_integration_import'] = f'failed: {e}'
                 logger.error(f"❌ ml_integration import failed: {e}")
                 raise
             
             results['imports'] = {'status': 'success', 'modules_imported': 6}
-            logger.info("✅ All ML modules imported successfully")
+            logger.debug("✅ All ML modules imported successfully")
             
             # Initialize ML systems
-            logger.info("🔧 Initializing ML system instances...")
+            logger.debug("🔧 Initializing ML system instances...")
             
             self.learning_engine = create_enhanced_learning_engine()
             results['learning_engine'] = {'status': 'success'}
@@ -863,7 +865,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             self.enable_learning_integration(self.ml_orchestrator)
             results['learning_integration'] = {'status': 'success'}
             
-            logger.info("✅ ML systems initialized successfully")
+            logger.debug("✅ ML systems initialized successfully")
             return True
             
         except Exception as e:
@@ -888,7 +890,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             return False
         
         try:
-            logger.info("🔧 Initializing Security framework instances...")
+            logger.debug("🔧 Initializing Security framework instances...")
             
             # Store import status for debugging
             results['import_status'] = security_import_status
@@ -910,8 +912,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
             # This follows the same pattern as ML components that need data to initialize
             results['framework_status'] = {'status': 'ready_for_cluster_config'}
             
-            logger.info("✅ Security systems core initialization successful")
-            logger.info("🔧 Security components will be initialized with cluster configuration")
+            logger.debug("✅ Security systems core initialization successful")
             logger.info(f"🔧 Available security components: {successful_imports}")
             return True
             
@@ -941,7 +942,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
                     self.ml_enhanced_security = True
                     logger.info("🔗 ML enhancement enabled for security analysis")
                 
-                logger.info("✅ ML-Security integration established")
+                logger.debug("✅ ML-Security integration established")
             else:
                 logger.warning("⚠️ Partial integration: Some systems not available")
                 
@@ -4048,7 +4049,7 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
 
 
 # =============================================================================
-# FACTORY FUNCTIONS AND BACKWARD COMPATIBILITY
+# FACTORY FUNCTION
 # =============================================================================
 
 def create_aks_implementation_generator(enable_cost_monitoring: bool = True,
@@ -4061,35 +4062,12 @@ def create_aks_implementation_generator(enable_cost_monitoring: bool = True,
         enable_security_integration=enable_security_integration
     )
 
-# Backward compatibility aliases
-CombinedAKSImplementationGenerator = AKSImplementationGenerator
-FixedAKSImplementationGenerator = AKSImplementationGenerator
+# No module-level instance to avoid duplicate initialization
+# Use create_aks_implementation_generator() factory function instead
 
-# Default instance with integrated systems
-generator = AKSImplementationGenerator(
-    enable_cost_monitoring=True,
-    enable_temporal=True,
-    enable_security_integration=True
-)
-
-print("✅ ENHANCED AKS Implementation Generator ready with intelligent import handling")
-print("🧠 ML Systems: Initialized alongside Security Framework")
-print(f"🔒 Security Framework: {len(successful_imports)}/5 components available")
-if len(failed_imports) > 0:
-    print(f"⚠️  Failed components: {', '.join(failed_imports)}")
-if SecurityIntegrationMixin.__name__ == 'SecurityIntegrationMixin' and SecurityIntegrationMixin.__doc__ and 'Fallback' in SecurityIntegrationMixin.__doc__:
-    print("🔒 Using fallback SecurityIntegrationMixin - some security features disabled")
-else:
-    print("🔒 Using full SecurityIntegrationMixin - all security features available")
-print("🔗 INTEGRATED MODE: Both systems work together as first-class citizens")
-print("📊 Individual component import tracking for better debugging")
-print("🎯 Enhanced confidence calculation with ML+Security metrics")
-print("📚 Enhanced learning with integrated ML+Security outcomes")
-print("🛡️ SecurityIntegrationMixin support with graceful degradation")
-print("📋 Security-enhanced implementation planning when components available")
-print("🔐 Robust error handling for missing security components")
-print("✅ Backward compatibility maintained")
-print("\n🔍 Security Component Status:")
-for component, status in security_import_status.items():
-    status_icon = "✅" if status == "success" else "❌"
-    print(f"  {status_icon} {component}: {status}")
+# Log initialization status at debug level only
+import os
+if os.getenv('AKS_DEBUG', '').lower() in ('true', '1', 'yes'):
+    print(f"✅ AKS Implementation Generator module loaded - Security: {len(successful_imports)}/5 components")
+    if len(failed_imports) > 0:
+        print(f"⚠️  Failed components: {', '.join(failed_imports)}")
