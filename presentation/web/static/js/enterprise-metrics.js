@@ -426,7 +426,7 @@ class EnterpriseMetricsManager {
         const path = window.location.pathname;
         console.log('🔍 Current URL path:', path);
         
-        // FIXED: Check for cluster context set by unified dashboard first
+        //  Check for cluster context set by unified dashboard first
         if (window.currentClusterId) {
             console.log('✅ Found cluster ID from window context:', window.currentClusterId);
             console.log('🔍 CLUSTER-SPECIFIC METRICS: Loading enterprise metrics for cluster:', window.currentClusterId);

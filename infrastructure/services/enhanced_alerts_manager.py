@@ -13,8 +13,8 @@ import traceback
 from flask import request
 import requests
 import smtplib
-from email.mime.text import MIMEText  # Fixed: Capital letters
-from email.mime.multipart import MIMEMultipart  # Fixed: Capital letters
+from email.mime.text import MIMEText  #  Capital letters
+from email.mime.multipart import MIMEMultipart  #  Capital letters
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 import logging
@@ -742,12 +742,12 @@ AKS Cost Intelligence Team
     def _send_email(self, subject: str, body: str, recipients: List[str]) -> bool:
         """Send email using SMTP"""
         try:
-            msg = MIMEMultipart()  # Fixed: Capital letters
+            msg = MIMEMultipart()  #  Capital letters
             msg['From'] = self.from_email
             msg['To'] = ', '.join(recipients)
             msg['Subject'] = subject
             
-            msg.attach(MIMEText(body, 'plain'))  # Fixed: Capital letters
+            msg.attach(MIMEText(body, 'plain'))  #  Capital letters
             
             server = smtplib.SMTP(self.smtp_server, self.smtp_port)
             server.starttls()

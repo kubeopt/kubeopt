@@ -1020,7 +1020,7 @@ class AKSRealTimeMetricsFetcher:
                     logger.warning("⚠️ Both JSON and text HPA data unavailable")
                     hpa_data = {'items': []}
             
-            # FIXED: Extract REAL CPU/Memory metrics from spec.metrics instead of using defaults
+            #  Extract REAL CPU/Memory metrics from spec.metrics instead of using defaults
             hpa_details = []  # Store complete HPA details with metrics for chart generator
             if hpa_data and 'items' in hpa_data:
                 logger.info(f"🔍 Processing {len(hpa_data['items'])} HPAs from cache with complete metrics extraction")
@@ -1784,7 +1784,7 @@ class AKSRealTimeMetricsFetcher:
         Get metrics with ALL workloads data preserved
         """
         try:
-            logger.info("🤖 FIXED: Collecting ML-ready metrics with ALL workloads...")
+            logger.info("🤖  Collecting ML-ready metrics with ALL workloads...")
             
             # Step 1: Get enhanced node-level metrics
             try:
@@ -1829,7 +1829,7 @@ class AKSRealTimeMetricsFetcher:
             try:
                 # Use the fixed method that saves ALL workloads
                 pod_metrics = self._get_workload_level_metrics()
-                logger.info("✅ Got ALL workload metrics (fixed method)")
+                logger.info("✅ Got ALL workload metrics")
                 
                 # Validate that we got all workloads
                 total_workloads = pod_metrics.get('total_workloads', 0)
@@ -1889,7 +1889,7 @@ class AKSRealTimeMetricsFetcher:
                 'workload_namespace_breakdown': pod_metrics.get('namespace_aggregates', {}),
                 'workload_distribution': pod_metrics.get('workload_distribution', {}),
                 
-                # ===== FIXED: HIGH CPU DATA FROM INTEGRATED POD METRICS (includes HPA) =====
+                # =====  HIGH CPU DATA FROM INTEGRATED POD METRICS (includes HPA) =====
                 'high_cpu_summary': {
                     'high_cpu_hpas': hpa_metrics.get('high_cpu_hpas', []),
                     'high_cpu_workloads': pod_metrics.get('high_cpu_pods', []),  # Use integrated data
@@ -1939,7 +1939,7 @@ class AKSRealTimeMetricsFetcher:
             total_workloads = len(ml_ready_data.get('all_workloads', []))
             
             # ===== FINAL SUCCESS LOGGING =====
-            logger.info(f"✅ FIXED: ML-ready metrics collected with ALL workloads preserved")
+            logger.info(f"✅  ML-ready metrics collected with ALL workloads preserved")
             logger.info(f"📊 SUMMARY: {total_nodes} nodes, {total_workloads} total workloads")
             logger.info(f"📊 HIGH CPU: {len(high_cpu_analysis.get('high_cpu_workloads', []))} high CPU workloads")
             logger.info(f"✅ ALL WORKLOADS SAVED: No conditional filtering applied")
@@ -1947,7 +1947,7 @@ class AKSRealTimeMetricsFetcher:
             return ml_ready_data
             
         except Exception as e:
-            logger.error(f"❌ FIXED: ML-ready metrics collection failed: {e}")
+            logger.error(f"❌  ML-ready metrics collection failed: {e}")
             # Return empty but valid structure to maintain compatibility
             return {
                 'status': 'error',
@@ -2008,7 +2008,7 @@ class AKSRealTimeMetricsFetcher:
 
     def _get_workload_level_metrics(self) -> Optional[Dict]:
         """
-        FIXED: Get ALL workload-level CPU/Memory usage, not just high-CPU detection
+         Get ALL workload-level CPU/Memory usage, not just high-CPU detection
         Save all 393 pods, not just the high CPU ones
         """
         try:
@@ -2251,7 +2251,7 @@ class AKSRealTimeMetricsFetcher:
             }
             
             # ===== CRITICAL SUCCESS LOGGING =====
-            logger.info(f"✅ FIXED: ALL workload metrics collected - {total_workloads} total workloads")
+            logger.info(f"✅  ALL workload metrics collected - {total_workloads} total workloads")
             logger.info(f"📊 Breakdown: {high_cpu_count} high-CPU, {total_workloads - high_cpu_count} normal-CPU")
             logger.info(f"📊 Severity breakdown: normal={len(workload_data['cpu_severity_breakdown']['normal'])}, moderate={len(workload_data['cpu_severity_breakdown']['moderate'])}, high={len(workload_data['cpu_severity_breakdown']['high'])}, critical={len(workload_data['cpu_severity_breakdown']['critical'])}")
             logger.info(f"✅ Data saved unconditionally for ALL {total_workloads} workloads")

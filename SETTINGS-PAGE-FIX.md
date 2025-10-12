@@ -6,7 +6,7 @@
 ## 🛠️ **Root Cause:**
 The settings template was updated to use `feature_flags` for conditional rendering, but the settings route wasn't passing this context variable.
 
-## ✅ **Fixed:**
+## ✅ ****
 
 ### 1. **Added Feature Flags to Settings Route** (`auth_routes.py`)
 ```python

@@ -6,7 +6,7 @@ Project: AKS Cost Optimizer
 """
 
 """
-FIXED Real-Time Cost Anomaly Detection Engine
+Real-Time Cost Anomaly Detection Engine
 ============================================
 Fixed version that handles edge cases and prevents infinity/NaN values.
 This resolves the "Input X contains infinity or a value too large" error.
@@ -1142,50 +1142,3 @@ def setup_real_time_cost_anomaly_detection(cluster_info: Dict,
         # Return a minimal detector that won't crash
         detector = RealTimeCostAnomalyDetector()
         return detector
-
-def demo_fixed_cost_anomaly_detection():
-    """Demo the fixed cost anomaly detection system"""
-    
-    print("🚨 FIXED REAL-TIME COST ANOMALY DETECTION DEMO")
-    print("=" * 60)
-    
-    # Setup cluster info with safe values
-    cluster_info = {
-        'cluster_name': 'aks-dpl-mad-uat-ne2-1',
-        'total_cost': 1864.43,
-        'nodes': [{'name': f'node-{i}'} for i in range(5)]
-    }
-    
-    # Setup detector with fixed implementation
-    detector = setup_real_time_cost_anomaly_detection(cluster_info, cost_budget_monthly=2000)
-    
-    print("✅ Fixed detector setup completed")
-    print("📊 Testing with safe cost data...")
-    
-    # Test with safe cost data
-    for i in range(5):
-        cost_data = {
-            'total_cost': 1864.43 + (i * 100),  # Gradual increase
-            'compute_cost': 600.0,
-            'storage_cost': 200.0,
-            'network_cost': 200.0,
-            'pod_count': 15,
-            'cpu_utilization': 65.0,
-            'memory_utilization': 70.0
-        }
-        
-        detector.feed_cost_data(cost_data)
-        print(f"  ✅ Data point {i+1}: ${cost_data['total_cost']:.2f}")
-    
-    print("🔮 Testing prediction...")
-    prediction = detector.predict_cost_spike({'total_cost': 1864.43})
-    print(f"✅ Prediction completed: {prediction.get('spike_probability', 0):.1%} probability")
-    
-    # Cleanup
-    detector.stop_monitoring()
-    print("✅ Fixed demo completed successfully!")
-    
-    return detector
-
-if __name__ == "__main__":
-    demo_fixed_cost_anomaly_detection()

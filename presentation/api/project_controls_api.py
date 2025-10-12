@@ -6,7 +6,7 @@ Project: AKS Cost Optimizer
 """
 
 """
-FIXED Project Controls API Endpoint - WITH COMMANDS EXTRACTION
+Project Controls API Endpoint - WITH COMMANDS EXTRACTION
 Extracts framework components AND commands from real analysis results
 """
 
@@ -296,9 +296,9 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
 
     @app.route('/api/project-controls', methods=['GET'])
     def api_project_controls():
-        """Get project controls framework data with commands - FIXED VERSION"""
+        """Get project controls framework data with commands"""
         try:
-            logger.info("🔒 FIXED Project Controls API called - WITH COMMANDS")
+            logger.info("🔒 Project Controls API called - WITH COMMANDS")
             
             # Extract cluster ID
             cluster_id = request.args.get('cluster_id')
@@ -338,7 +338,7 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
                 }), 404
             
             # Log what we received for debugging
-            logger.info(f"🔍 FIXED: Raw analysis data keys: {list(current_analysis.keys())}")
+            logger.info(f"🔍  Raw analysis data keys: {list(current_analysis.keys())}")
             
             # Project Controls has been migrated to Enterprise Metrics
             framework_data = {
@@ -376,7 +376,7 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
                 'commands_extracted': True
             }
             
-            logger.info(f"✅ FIXED: Project controls with commands prepared for cluster: {cluster_id}")
+            logger.info(f"✅  Project controls with commands prepared for cluster: {cluster_id}")
             logger.info(f"📊 Framework components: {list(framework_data.get('framework', {}).keys())}")
             
             # Sanitize the framework data before JSON serialization
@@ -384,11 +384,11 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
             return jsonify(sanitized_framework)
             
         except Exception as e:
-            logger.error(f"❌ Error in FIXED project controls API: {e}")
+            logger.error(f"❌ Error in project controls API: {e}")
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return jsonify({
                 'status': 'error',
-                'message': f'FIXED project controls API error: {str(e)}',
+                'message': f'project controls API error: {str(e)}',
                 'error_type': type(e).__name__
             }), 500
 
@@ -560,7 +560,7 @@ async def get_enterprise_metrics():
 def extract_framework_with_commands(analysis_data, cluster, data_source):
     """Extract framework components WITH commands from analysis data"""
     try:
-        logger.info("🔧 FIXED: Extracting framework with commands...")
+        logger.info("🔧  Extracting framework with commands...")
         
         # Get implementation plan
         implementation_plan = analysis_data.get('implementation_plan', {})
@@ -660,16 +660,16 @@ def extract_framework_with_commands(analysis_data, cluster, data_source):
             }
         }
         
-        logger.info(f"✅ FIXED: Framework extraction completed with {found_components} components and commands")
+        logger.info(f"✅  Framework extraction completed with {found_components} components and commands")
         return response_data
         
     except Exception as e:
-        logger.error(f"❌ FIXED framework extraction failed: {e}")
+        logger.error(f"❌ framework extraction failed: {e}")
         logger.error(f"❌ Traceback: {traceback.format_exc()}")
         
         return {
             'status': 'error',
-            'message': f'FIXED framework extraction failed: {str(e)}',
+            'message': f'framework extraction failed: {str(e)}',
             'framework': {},
             'execution_plan': {},
             'ml_confidence': 0.0
@@ -969,7 +969,7 @@ def calculate_ml_confidence_from_sources(framework, analysis_data, implementatio
 def integrate_project_controls_api(app):
     """Integration function"""
     register_project_controls_api(app)
-    logger.info("✅ FIXED Project Controls API with commands registered")
+    logger.info("✅ Project Controls API with commands registered")
 
 def register_project_controls_routes(app):
     """Register project controls routes - alias for main registration function"""

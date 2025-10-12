@@ -35,7 +35,7 @@ from infrastructure.services.subscription_manager import azure_subscription_mana
 class AnalysisType(Enum):
     """Analysis type configurations"""
     CONSISTENT = "consistent"
-    COMPLETELY_FIXED = "completely_fixed"
+    MULTI_SUBSCRIPTION = "multi_subscription"
 
 @dataclass
 class AnalysisConfig:
@@ -70,10 +70,10 @@ class MultiSubscriptionAnalysisEngine:
                 'metrics_source': 'ML-Enhanced Multi-Subscription Real-time Collection',
                 'log_prefix': '🌐 MULTI-SUB ML-ENHANCED'
             },
-            AnalysisType.COMPLETELY_FIXED: {
-                'data_type': 'completely_fixed_ml_enhanced_multi_subscription',
-                'metrics_source': 'FIXED ML-Enhanced Multi-Subscription Real-time Collection',
-                'log_prefix': '🌐 MULTI-SUB COMPLETELY FIXED'
+            AnalysisType.MULTI_SUBSCRIPTION: {
+                'data_type': 'ml_enhanced_multi_subscription',
+                'metrics_source': 'ML-Enhanced Multi-Subscription Real-time Collection',
+                'log_prefix': '🌐 MULTI-SUB'
             }
         }
         self.subscription_locks = {}

@@ -1539,7 +1539,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 conn.commit()
 
             # ===== FINAL SUCCESS LOGGING =====
-            self.logger.info(f"✅ FIXED: Updated cluster analysis with ALL workload data preserved: {cluster_id}")
+            self.logger.info(f"✅  Updated cluster analysis with ALL workload data preserved: {cluster_id}")
             if total_workloads_saved > 0:
                 self.logger.info(f"✅ DATABASE: Saved {total_workloads_saved} total workloads (was only saving {high_cpu_workloads_saved} high CPU)")
             else:
@@ -1555,7 +1555,7 @@ class EnhancedMultiSubscriptionClusterManager:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
-                # FIXED: Query analysis_results table which contains implementation_plan with enterprise_metrics
+                #  Query analysis_results table which contains implementation_plan with enterprise_metrics
                 cursor = conn.execute('''
                     SELECT results, analysis_date, total_cost, total_savings
                     FROM analysis_results 
