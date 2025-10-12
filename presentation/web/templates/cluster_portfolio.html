@@ -537,6 +537,10 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/cluster-portfolio.js') }}"></script>
 <script>
+// Clean up invalid hash fragments on page load
+if (window.location.hash && !document.querySelector(window.location.hash)) {
+    history.replaceState(null, null, window.location.pathname);
+}
 // Scripts loaded successfully from external file
 </script>
 {% endblock %}

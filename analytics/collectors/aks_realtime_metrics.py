@@ -1905,7 +1905,7 @@ class AKSRealTimeMetricsFetcher:
                 'high_cpu_detected': pod_metrics.get('high_cpu_count', 0) > 0,
                 'enhanced_data_available': node_metrics.get('enhanced_data_available', False),
                 'nodes_with_real_requests': node_metrics.get('nodes_with_real_requests', 0),
-                'completely_fixed': True,
+                'MULTI_SUBSCRIPTION': True,
                 'all_workloads_preserved': True,  # 🆕 Flag indicating the fix is applied
                 'high_cpu_ui_ready': True  # 🆕 Flag indicating high CPU data is UI-ready
             }

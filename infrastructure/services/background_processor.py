@@ -112,7 +112,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             'subscription_id': subscription_id,
             'resource_group': resource_group,
             'cluster_name': cluster_name,
-            'analysis_type': 'completely_fixed',
+            'analysis_type': 'MULTI_SUBSCRIPTION',
             'status': 'running',
             'progress': 0,
             'message': f'Starting subscription-aware analysis in {subscription_name}',

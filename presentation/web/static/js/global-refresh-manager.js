@@ -201,11 +201,8 @@ class GlobalRefreshManager {
         
         this.refreshInterval = setInterval(async () => {
             if (this.refreshHandlers.size === 0) {
-                console.log('⚠️ No refresh handlers registered');
                 return;
             }
-            
-            console.log(`🔄 Executing ${this.refreshHandlers.size} refresh handlers...`);
             
             // Execute all registered refresh handlers
             const refreshPromises = Array.from(this.refreshHandlers.entries()).map(
@@ -331,10 +328,8 @@ class GlobalRefreshManager {
                 // Update cluster cards silently without page reload
                 if (typeof updateClusterCardsStatus === 'function') {
                     updateClusterCardsStatus(data.clusters);
-                    console.log('✅ Silent refresh completed successfully');
                 } else {
                     // Fallback to page reload if update function not available
-                    console.warn('⚠️ updateClusterCardsStatus not available, using page reload');
                     window.location.reload();
                 }
                 return true;

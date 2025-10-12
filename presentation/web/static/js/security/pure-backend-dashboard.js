@@ -187,8 +187,7 @@ class PureBackendSecurityDashboard {
         // Try the same endpoints as your existing system
         const endpoints = [
             `${this.apiBaseUrl}/results/${clusterId}`,
-            `${this.apiBaseUrl}/overview?cluster_id=${clusterId}`,
-            `/api/analysis/security/${clusterId}`
+            `${this.apiBaseUrl}/overview?cluster_id=${clusterId}`
         ];
 
         for (const endpoint of endpoints) {
