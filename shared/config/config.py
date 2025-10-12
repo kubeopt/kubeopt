@@ -152,10 +152,10 @@ def initialize_database():
         # Initialize security database tables
         try:
             from infrastructure.security.database_schema import initialize_security_database
-            logger.info("🔒 Initializing security database schema...")
+            logger.debug("🔒 Initializing security database schema...")
             security_init_success = initialize_security_database()
             if security_init_success:
-                logger.info("✅ Security database initialization completed")
+                logger.debug("✅ Security database initialization completed")
             else:
                 logger.warning("⚠️ Security database initialization failed - using existing tables")
         except Exception as security_e:
@@ -163,7 +163,7 @@ def initialize_database():
         
         # Initialize operational database tables
         try:
-            logger.info("📊 Initializing operational database schema...")
+            logger.debug("📊 Initializing operational database schema...")
             from infrastructure.persistence.database_config import DatabaseConfig
             import sqlite3
             
@@ -410,9 +410,7 @@ alerts_manager = None
 # Enhanced startup sequence
 def initialize_application_with_multi_subscription():
     """Enhanced application initialization with multi-subscription support"""
-    logger.info("=" * 80)
-    logger.info("🌐 INITIALIZING MULTI-SUBSCRIPTION AKS COST OPTIMIZATION SYSTEM")
-    logger.info("=" * 80)
+    logger.debug("🌐 Initializing multi-subscription AKS cost optimization system")
     
     initialization_steps = [
         ("Database Schema", initialize_database),
@@ -425,10 +423,10 @@ def initialize_application_with_multi_subscription():
     
     for step_name, step_function in initialization_steps:
         try:
-            logger.info(f"🔄 Initializing {step_name}...")
+            logger.debug(f"🔄 Initializing {step_name}...")
             success = step_function()
             if success:
-                logger.info(f"✅ {step_name} initialized successfully")
+                logger.debug(f"✅ {step_name} initialized successfully")
                 successful_steps += 1
             else:
                 logger.warning(f"⚠️ {step_name} initialization completed with warnings")
@@ -440,10 +438,7 @@ def initialize_application_with_multi_subscription():
     validation_results = validate_multi_subscription_configuration()
     
     # Summary
-    logger.info("=" * 80)
-    logger.info(f"🌐 MULTI-SUBSCRIPTION INITIALIZATION COMPLETE")
-    logger.info(f"✅ {successful_steps}/{len(initialization_steps)} components initialized")
-    logger.info("=" * 80)
+    logger.info(f"🌐 Multi-subscription system ready ({successful_steps}/{len(initialization_steps)} components)")
     
     # Log system status
     status = get_multi_subscription_status()

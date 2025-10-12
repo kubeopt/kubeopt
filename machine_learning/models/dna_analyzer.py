@@ -2408,12 +2408,7 @@ def analyze_cluster_dna_from_analysis(analysis_results: Dict,
     return analyzer.analyze_cluster_dna(analysis_results, historical_data, cluster_config, metrics_data)
 
 
-print("🧬 CLUSTER DNA ANALYZER READY")
-print("✅ HPA detection (consistent with Cost Analyzer)")
-print("✅ ML-based HPA validation with confidence scoring")
-print("✅ Real cluster configuration intelligence")
-print("✅ Temporal pattern analysis")
-print("✅ cluster personality with config-derived traits")
-print("✅ Backward compatible with all existing code")
-print("✅ Optimal timing prediction with cluster awareness")
-print("🔧 Integration: Pass metrics_data parameter for comprehensive HPA detection")
+# Log initialization only in debug mode
+import os
+if os.getenv('AKS_DEBUG', '').lower() in ('true', '1', 'yes'):
+    print("🧬 CLUSTER DNA ANALYZER READY")

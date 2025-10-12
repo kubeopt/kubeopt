@@ -924,6 +924,6 @@ class SecurityPostureEngineYAML:
         return True  # Placeholder
 
 # Factory function for integration
-def create_security_posture_engine_yaml(cluster_config: Dict, database_path: str = None, config_dir: str = None) -> SecurityPostureEngineYAML:
+def create_security_posture_engine(cluster_config: Dict, database_path: str = None, config_dir: str = None) -> SecurityPostureEngineYAML:
     """Create YAML-configured security posture engine instance"""
     return SecurityPostureEngineYAML(cluster_config, database_path, config_dir)
