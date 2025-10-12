@@ -310,7 +310,7 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
     cpu_gap = complete_analysis_data.get('cpu_gap', 'NOT_FOUND')
     memory_gap = complete_analysis_data.get('memory_gap', 'NOT_FOUND')
     logger.info(f"🔍 CACHE SAVE: About to cache CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
-    logger.info(f"🔍 CACHE SAVE: Analysis data keys: {list(complete_analysis_data.keys())}")
+    #logger.info(f"🔍 CACHE SAVE: Analysis data keys: {list(complete_analysis_data.keys())}")
     
     try:
         # STEP 1: Comprehensive data validation

@@ -286,7 +286,11 @@ class PureBackendSecurityDashboard {
             violationsCount: policyCompliance.violations?.length || 0,
             hasBreakdown: !!securityPosture.breakdown,
             breakdownKeys: securityPosture.breakdown ? Object.keys(securityPosture.breakdown) : [],
-            vulnerabilities: vulnerabilityAssessment.total_vulnerabilities || 0
+            vulnerabilities: vulnerabilityAssessment.total_vulnerabilities || vulnerabilityAssessment.total || 0,
+            vulnerabilityStructure: vulnerabilityAssessment,
+            alertsStructure: securityPosture.alerts,
+            securityPostureKeys: Object.keys(securityPosture),
+            vulnerabilityKeys: Object.keys(vulnerabilityAssessment)
         });
 
         // Log detailed alert information
@@ -305,7 +309,7 @@ class PureBackendSecurityDashboard {
         // Create charts with real data only
         await Promise.all([
             this.createRealComplianceChart(complianceFrameworks),
-            this.createRealAlertsChart(securityPosture.alerts || [], policyCompliance.violations || []),
+            this.createRealAlertsChart(securityPosture.alerts || []),
             this.createRealBreakdownChart(securityPosture.breakdown || {}),
             this.createRealViolationsChart(policyCompliance.violations || []),
             this.createRealVulnerabilitiesChart(vulnerabilityAssessment)
@@ -345,7 +349,7 @@ class PureBackendSecurityDashboard {
                     <div class="metric-value">${alertsCount}</div>
                 </div>
                 <div class="metric-label">Security Alerts</div>
-                <div class="metric-trend">Active issues found</div>
+                <div class="metric-trend">Active runtime alerts</div>
             </div>
 
             <div class="security-metric-card" onclick="window.pureSecurityDashboard?.showComplianceDetails()">
@@ -363,7 +367,7 @@ class PureBackendSecurityDashboard {
                     <div class="metric-value">${violationsCount}</div>
                 </div>
                 <div class="metric-label">Policy Violations</div>
-                <div class="metric-trend">${criticalVulns} critical vulnerabilities</div>
+                <div class="metric-trend">Configuration compliance issues</div>
             </div>
         `;
     }
@@ -432,20 +436,15 @@ class PureBackendSecurityDashboard {
         this.charts.set('compliance', chart);
     }
 
-    async createRealAlertsChart(alerts, violations = []) {
+    async createRealAlertsChart(alerts) {
         const canvas = document.getElementById('alerts-chart');
         if (!canvas) return;
 
-        // Combine alerts and violations for comprehensive security issues display
-        const allSecurityIssues = [
-            ...alerts.map(a => ({...a, type: 'alert'})),
-            ...violations.map(v => ({...v, type: 'violation'}))
-        ];
+        console.log(`🔍 Creating security alerts chart with ${alerts.length} alerts`);
+        console.log('📊 Alerts sample data:', alerts.slice(0, 2));
 
-        console.log(`🔍 Creating security issues chart with ${alerts.length} alerts + ${violations.length} violations = ${allSecurityIssues.length} total issues`);
-
-        if (allSecurityIssues.length === 0) {
-            this.showEmptyChart(canvas, '✅ No security issues found');
+        if (alerts.length === 0) {
+            this.showEmptyChart(canvas, '✅ No security alerts found');
             return;
         }
 
@@ -455,17 +454,16 @@ class PureBackendSecurityDashboard {
 
         const ctx = canvas.getContext('2d');
         
-        // Count all security issues by severity
+        // Count alerts by severity
         const severityCounts = {
-            'CRITICAL': allSecurityIssues.filter(item => item.severity === 'CRITICAL').length,
-            'HIGH': allSecurityIssues.filter(item => item.severity === 'HIGH').length,
-            'MEDIUM': allSecurityIssues.filter(item => item.severity === 'MEDIUM').length,
-            'LOW': allSecurityIssues.filter(item => item.severity === 'LOW').length
+            'CRITICAL': alerts.filter(alert => alert.severity === 'CRITICAL').length,
+            'HIGH': alerts.filter(alert => alert.severity === 'HIGH').length,
+            'MEDIUM': alerts.filter(alert => alert.severity === 'MEDIUM').length,
+            'LOW': alerts.filter(alert => alert.severity === 'LOW').length
         };
 
-        console.log('📊 Security issues breakdown:', {
+        console.log('📊 Security alerts breakdown:', {
             alerts: alerts.length,
-            violations: violations.length,
             severityCounts
         });
 
@@ -474,7 +472,7 @@ class PureBackendSecurityDashboard {
             data: {
                 labels: Object.keys(severityCounts),
                 datasets: [{
-                    label: 'Security Issues',
+                    label: 'Security Alerts',
                     data: Object.values(severityCounts),
                     backgroundColor: ['#EF4444', '#F97316', '#EAB308', '#22C55E'],
                     borderColor: ['#DC2626', '#EA580C', '#D97706', '#16A34A'],
@@ -514,15 +512,9 @@ class PureBackendSecurityDashboard {
                             label: (context) => {
                                 const severity = context.label;
                                 const count = context.parsed.y;
-                                const alertsOfSeverity = alerts.filter(a => a.severity === severity).length;
-                                const violationsOfSeverity = violations.filter(v => v.severity === severity).length;
-                                return [
-                                    `${count} ${severity} issues:`,
-                                    `  • ${alertsOfSeverity} alerts`,
-                                    `  • ${violationsOfSeverity} violations`
-                                ];
+                                return `${count} ${severity} security alerts`;
                             },
-                            afterBody: () => ['', '💡 Click to view details']
+                            afterBody: () => ['', '💡 Click to view alert details']
                         }
                     }
                 },
@@ -533,8 +525,8 @@ class PureBackendSecurityDashboard {
                     if (elements.length > 0) {
                         const index = elements[0].index;
                         const severity = Object.keys(severityCounts)[index];
-                        console.log(`🔍 Clicked ${severity} security issues`);
-                        this.showSecurityIssuesDetailsBySeverity(severity, alerts, violations, event);
+                        console.log(`🔍 Clicked ${severity} security alerts`);
+                        this.showAlertsDetailsBySeverity(severity, alerts, event);
                     }
                 }
             }
@@ -658,7 +650,12 @@ class PureBackendSecurityDashboard {
 
         console.log('🔍 Creating violations chart with data:', {
             violationsCount: violations.length,
-            violationsData: violations.slice(0, 3)
+            violationsData: violations.slice(0, 3),
+            sampleViolationProperties: violations.slice(0, 3).map(v => ({
+                policy_category: v.policy_category,
+                category: v.category,
+                policy_name: v.policy_name
+            }))
         });
 
         if (violations.length === 0) {
@@ -673,7 +670,8 @@ class PureBackendSecurityDashboard {
         const ctx = canvas.getContext('2d');
         const categoryCounts = {};
         violations.forEach(v => {
-            const category = v.policy_category || 'Other';
+            // Try both possible category property names
+            const category = v.policy_category || v.category || 'Other';
             categoryCounts[category] = (categoryCounts[category] || 0) + 1;
         });
 
@@ -743,7 +741,10 @@ class PureBackendSecurityDashboard {
         const canvas = document.getElementById('vulnerabilities-chart');
         if (!canvas) return;
 
-        const total = vulnerabilities.total_vulnerabilities || 0;
+        console.log('🔍 Creating vulnerabilities chart with data:', vulnerabilities);
+        
+        // Handle both summary format and direct format
+        const total = vulnerabilities.total_vulnerabilities || vulnerabilities.total || 0;
         if (total === 0) {
             this.showEmptyChart(canvas, 'No vulnerabilities found');
             return;
@@ -755,10 +756,10 @@ class PureBackendSecurityDashboard {
 
         const ctx = canvas.getContext('2d');
         const vulnCounts = {
-            'Critical': vulnerabilities.critical_vulnerabilities || 0,
-            'High': vulnerabilities.high_vulnerabilities || 0,
-            'Medium': vulnerabilities.medium_vulnerabilities || 0,
-            'Low': vulnerabilities.low_vulnerabilities || 0
+            'Critical': vulnerabilities.critical_vulnerabilities || vulnerabilities.by_severity?.CRITICAL || 0,
+            'High': vulnerabilities.high_vulnerabilities || vulnerabilities.by_severity?.HIGH || 0,
+            'Medium': vulnerabilities.medium_vulnerabilities || vulnerabilities.by_severity?.MEDIUM || 0,
+            'Low': vulnerabilities.low_vulnerabilities || vulnerabilities.by_severity?.LOW || 0
         };
 
         const chart = new Chart(ctx, {
@@ -960,7 +961,10 @@ class PureBackendSecurityDashboard {
     }
 
     showViolationsByCategory(category, violations, clickEvent = null) {
-        const filteredViolations = violations.filter(v => v.policy_category === category);
+        const filteredViolations = violations.filter(v => {
+            const violationCategory = v.policy_category || v.category || 'Other';
+            return violationCategory === category;
+        });
         const title = `${category} Policy Violations (${filteredViolations.length})`;
         
         const content = `

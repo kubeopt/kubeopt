@@ -1601,7 +1601,7 @@ class KubernetesDataCache:
                         continue
             
             if usage_details is None:
-                logger.error(f"❌ {self.cluster_name}: All consumption API scopes and methods failed")
+                logger.info(f"📊 {self.cluster_name}: Consumption API not available (normal for some subscription types)")
                 return "[]"
             
             # Convert to list and serialize
@@ -1620,8 +1620,9 @@ class KubernetesDataCache:
             return json.dumps(usage_list)
             
         except Exception as e:
-            logger.error(f"❌ {self.cluster_name}: Failed to get consumption usage via SDK: {e}")
-            return None
+            logger.warning(f"⚠️ {self.cluster_name}: Failed to get consumption usage via SDK: {e}")
+            logger.info(f"📊 {self.cluster_name}: Consumption API may not be accessible for this subscription/resource group")
+            return "[]"  # Return empty JSON array - no kubectl fallback needed
 
 
 # === GLOBAL CACHE MANAGER ===

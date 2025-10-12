@@ -550,7 +550,7 @@ def _extract_cpu_workload_data(analysis_data):
     if not analysis_data:
         raise ValueError("No analysis data provided for CPU workload extraction")
     
-    logger.info(f"🔍 CHART_GENERATOR DEBUG: _extract_cpu_workload_data called with data keys: {list(analysis_data.keys()) if isinstance(analysis_data, dict) else type(analysis_data)}")
+    #logger.info(f"🔍 CHART_GENERATOR DEBUG: _extract_cpu_workload_data called with data keys: {list(analysis_data.keys()) if isinstance(analysis_data, dict) else type(analysis_data)}")
     
     cpu_workload_data = {
         'has_high_cpu_workloads': False,

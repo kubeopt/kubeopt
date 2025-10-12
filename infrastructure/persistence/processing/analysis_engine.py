@@ -124,7 +124,7 @@ class MultiSubscriptionAnalysisEngine:
                 return {'available': False, 'error': f'Cannot set subscription context: {subscription_id}'}
             
             # Quick cost availability check (without full fetch)
-            from datetime import datetime, timedelta
+            # datetime and timedelta already imported at module level
             
             end_date = datetime.now()
             start_date = end_date - timedelta(days=days)
@@ -215,8 +215,13 @@ class MultiSubscriptionAnalysisEngine:
                         logger.info(f"✅ VALIDATION: Using stale cached data for {cluster_name} due to API rate limit")
                         return {'available': True, 'subscription_id': subscription_id, 'cache_hit': True, 'stale': True}
                     
-                    # Try file cache with extended timeout
+                    # Try file cache with extended timeout  
                     import sqlite3
+                    # Ensure date_range is available even if exception occurred earlier
+                    if 'date_range' not in locals():
+                        fallback_end_date = datetime.now()
+                        fallback_start_date = fallback_end_date - timedelta(days=days)
+                        date_range = f"{fallback_start_date} to {fallback_end_date}"
                     key = cache._make_key(cluster_id, subscription_id, date_range)
                     conn = sqlite3.connect(cache.cache_file)
                     cursor = conn.execute('SELECT data FROM cost_cache WHERE key = ?', (key,))
@@ -290,10 +295,11 @@ class MultiSubscriptionAnalysisEngine:
                         cost_validation_result = {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}
                     else:
                         # Check file cache for recent API responses
-                        end_date = datetime.now()
-                        start_date = end_date - timedelta(days=days)
-                        date_range = f"{start_date} to {end_date}"
-                        cached_data = cache.get(cluster_id, subscription_id, date_range)
+                        # Reuse date calculations from earlier in function to avoid redefinition
+                        cache_end_date = datetime.now()
+                        cache_start_date = cache_end_date - timedelta(days=days)
+                        cache_date_range = f"{cache_start_date} to {cache_end_date}"
+                        cached_data = cache.get(cluster_id, subscription_id, cache_date_range)
                         
                         if cached_data:
                             logger.info(f"✅ COST-FIRST: Using file cached cost data for {cluster_name} - skipping API validation")

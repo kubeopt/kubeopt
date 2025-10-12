@@ -1,0 +1,484 @@
+# AKS Security Policies and Standards Configuration
+# Replaces hardcoded security standards from policy_analyzer.py and security_standards.py
+# Compatible with existing aks_implementation_standards.yaml and aks_scoring.yaml
+
+version: 2025.1
+metadata:
+  description: "Comprehensive security policies, compliance frameworks, and standards"
+  integrates_with: 
+    - "aks_implementation_standards.yaml"
+    - "aks_scoring.yaml"
+  sources:
+    - "CIS Kubernetes Benchmark v1.6.0"
+    - "NIST Cybersecurity Framework v1.1"
+    - "ISO/IEC 27001:2013"
+    - "SOC 2 Type II"
+    - "Azure Well-Architected Framework Security Pillar"
+
+# ===================================================================
+# SECURITY POLICY RULES
+# ===================================================================
+policy_rules:
+  # Security Category Policies
+  security_context_required:
+    rule_id: "SEC001"
+    name: "Security Context Required"
+    description: "All containers must have security context defined"
+    category: "Security"
+    severity: "HIGH"
+    resource_types: ["Deployment", "Pod", "StatefulSet", "DaemonSet"]
+    rule_logic: "spec.template.spec.containers[*].securityContext must exist"
+    remediation_template: "Add securityContext to container specification"
+    compliance_mappings:
+      CIS: "4.2.1"
+      NIST: "PR.AC-4"
+    enabled: true
+    auto_remediable: false
+    risk_multiplier: 1.2
+
+  privileged_containers:
+    rule_id: "SEC002"
+    name: "No Privileged Containers"
+    description: "Containers must not run in privileged mode"
+    category: "Security"
+    severity: "CRITICAL"
+    resource_types: ["Deployment", "Pod", "StatefulSet", "DaemonSet"]
+    rule_logic: "spec.template.spec.containers[*].securityContext.privileged must be false or undefined"
+    remediation_template: "Remove privileged: true from container securityContext"
+    compliance_mappings:
+      CIS: "4.2.1"
+      PCI-DSS: "2.2"
+    enabled: true
+    auto_remediable: false
+    risk_multiplier: 2.0
+
+  root_user_forbidden:
+    rule_id: "SEC003"
+    name: "Non-Root User Required"
+    description: "Containers must not run as root user"
+    category: "Security"
+    severity: "HIGH"
+    resource_types: ["Deployment", "Pod", "StatefulSet", "DaemonSet"]
+    rule_logic: "spec.template.spec.containers[*].securityContext.runAsUser must be > 0"
+    remediation_template: "Set runAsUser to non-zero value in securityContext"
+    compliance_mappings:
+      CIS: "4.2.6"
+      NIST: "PR.AC-1"
+    enabled: true
+    auto_remediable: true
+    risk_multiplier: 1.5
+
+  image_pull_policy_always:
+    rule_id: "SEC004"
+    name: "Image Pull Policy Always"
+    description: "Container images must always be pulled to ensure latest security patches"
+    category: "Security"
+    severity: "MEDIUM"
+    resource_types: ["Deployment", "Pod", "StatefulSet", "DaemonSet"]
+    rule_logic: "spec.template.spec.containers[*].imagePullPolicy must be Always"
+    remediation_template: "Set imagePullPolicy to Always for all containers"
+    compliance_mappings:
+      CIS: "4.1.1"
+    enabled: true
+    auto_remediable: true
+    risk_multiplier: 1.0
+
+  capabilities_restricted:
+    rule_id: "SEC005"
+    name: "Capabilities Restricted"
+    description: "Containers must drop all capabilities and only add required ones"
+    category: "Security"
+    severity: "HIGH"
+    resource_types: ["Deployment", "Pod", "StatefulSet", "DaemonSet"]
+    rule_logic: "spec.template.spec.containers[*].securityContext.capabilities.drop must include ALL"
+    remediation_template: "Drop all capabilities and add only required ones"
+    compliance_mappings:
+      CIS: "4.2.3"
+      NIST: "PR.AC-4"
+    enabled: true
+    auto_remediable: true
+    risk_multiplier: 1.3
+
+  # Governance Category Policies
+  resource_limits_required:
+    rule_id: "GOV001"
+    name: "Resource Limits Required"
+    description: "All containers must have CPU and memory limits"
+    category: "Governance"
+    severity: "MEDIUM"
+    resource_types: ["Deployment", "Pod", "StatefulSet", "DaemonSet"]
+    rule_logic: "spec.template.spec.containers[*].resources.limits must exist"
+    remediation_template: "Add CPU and memory limits to container resources"
+    compliance_mappings:
+      FinOps: "Cost Control"
+      NIST: "ID.AM-2"
+    enabled: true
+    auto_remediable: true
+    risk_multiplier: 0.8
+
+  required_labels:
+    rule_id: "GOV002"
+    name: "Required Labels"
+    description: "Resources must have required organizational labels"
+    category: "Governance"
+    severity: "MEDIUM"
+    resource_types: ["Deployment", "Service", "Pod", "Namespace"]
+    rule_logic: "metadata.labels must contain app, version, owner, environment"
+    remediation_template: "Add required labels to resource metadata"
+    compliance_mappings:
+      SOC2: "CC6.1"
+      ISO27001: "A.8.1.1"
+    enabled: true
+    auto_remediable: true
+    risk_multiplier: 0.6
+
+  pod_security_standards:
+    rule_id: "GOV003"
+    name: "Pod Security Standards"
+    description: "Pods must comply with Pod Security Standards"
+    category: "Governance"
+    severity: "HIGH"
+    resource_types: ["Deployment", "Pod", "StatefulSet", "DaemonSet"]
+    rule_logic: "Pod Security Standards compliance required"
+    remediation_template: "Apply Pod Security Standards at namespace level"
+    compliance_mappings:
+      CIS: "4.2.0"
+      NIST: "PR.AC-4"
+    enabled: true
+    auto_remediable: false
+    risk_multiplier: 1.4
+
+  # Network Category Policies
+  network_policies_required:
+    rule_id: "NET001"
+    name: "Network Policies Required"
+    description: "Namespaces must have network policies for segmentation"
+    category: "Network"
+    severity: "HIGH"
+    resource_types: ["Namespace"]
+    rule_logic: "NetworkPolicy must exist for namespace"
+    remediation_template: "Create network policies to control pod-to-pod communication"
+    compliance_mappings:
+      CIS: "3.2.1"
+      NIST: "PR.AC-4"
+    enabled: true
+    auto_remediable: false
+    risk_multiplier: 1.3
+
+  tls_required:
+    rule_id: "NET002"
+    name: "TLS Required for Ingress"
+    description: "All ingress resources must use TLS encryption"
+    category: "Network"
+    severity: "HIGH"
+    resource_types: ["Ingress"]
+    rule_logic: "spec.tls must be defined and non-empty"
+    remediation_template: "Add TLS configuration to ingress specification"
+    compliance_mappings:
+      PCI-DSS: "4.1"
+      HIPAA: "164.312"
+    enabled: true
+    auto_remediable: false
+    risk_multiplier: 1.2
+
+  service_mesh_tls:
+    rule_id: "NET003"
+    name: "Service Mesh TLS"
+    description: "Service-to-service communication must use TLS"
+    category: "Network"
+    severity: "MEDIUM"
+    resource_types: ["Service"]
+    rule_logic: "Service mesh TLS configuration required"
+    remediation_template: "Configure service mesh with mutual TLS"
+    compliance_mappings:
+      NIST: "PR.DS-2"
+    enabled: false  # Optional for service mesh environments
+    auto_remediable: false
+    risk_multiplier: 1.1
+
+# ===================================================================
+# COMPLIANCE FRAMEWORKS
+# ===================================================================
+compliance_frameworks:
+  CIS:
+    name: "CIS Kubernetes Benchmark"
+    version: "1.6.0"
+    categories: ["Master Node", "Worker Node", "Pod Security", "Network", "Storage"]
+    controls: 100
+    description: "Center for Internet Security Kubernetes Benchmark"
+    priority_weight: 1.2
+    auto_update: true
+
+  NIST:
+    name: "NIST Cybersecurity Framework"
+    version: "1.1"
+    categories: ["Identify", "Protect", "Detect", "Respond", "Recover"]
+    controls: 108
+    description: "National Institute of Standards and Technology Cybersecurity Framework"
+    priority_weight: 1.1
+    auto_update: true
+
+  ISO27001:
+    name: "ISO/IEC 27001"
+    version: "2013"
+    categories: ["Information Security Policies", "Access Control", "Cryptography", "Physical Security"]
+    controls: 114
+    description: "International Information Security Management Standard"
+    priority_weight: 1.0
+    auto_update: false
+
+  SOC2:
+    name: "SOC 2 Type II"
+    version: "2017"
+    categories: ["Security", "Availability", "Processing Integrity", "Confidentiality", "Privacy"]
+    controls: 64
+    description: "Service Organization Control 2 Trust Services Criteria"
+    priority_weight: 0.9
+    auto_update: true
+
+  PCI-DSS:
+    name: "PCI Data Security Standard"
+    version: "3.2.1"
+    categories: ["Network Security", "Data Protection", "Vulnerability Management", "Access Control"]
+    controls: 78
+    description: "Payment Card Industry Data Security Standard"
+    priority_weight: 1.3
+    auto_update: true
+
+  HIPAA:
+    name: "Health Insurance Portability and Accountability Act"
+    version: "2013"
+    categories: ["Administrative Safeguards", "Physical Safeguards", "Technical Safeguards"]
+    controls: 45
+    description: "Healthcare Information Security and Privacy Regulations"
+    priority_weight: 1.4
+    auto_update: false
+
+# ===================================================================
+# SECURITY RULE CONTEXT AND CONSTANTS
+# ===================================================================
+rule_context:
+  # Required Labels Configuration
+  required_labels:
+    - "app"
+    - "version"
+    - "owner"
+    - "environment"
+
+  # Forbidden Capabilities
+  forbidden_capabilities:
+    - "SYS_ADMIN"
+    - "NET_ADMIN"
+    - "SYS_TIME"
+    - "SYS_MODULE"
+    - "SYS_RAWIO"
+
+  # Trusted Container Registries
+  trusted_registries:
+    - "mcr.microsoft.com"
+    - "gcr.io"
+    - "docker.io/library"
+    - "quay.io"
+    - "k8s.gcr.io"
+
+  # Maximum Resource Limits
+  max_resource_limits:
+    cpu: "8"
+    memory: "16Gi"
+    storage: "100Gi"
+
+  # Security Policies
+  security_policies:
+    - "pod-security-policy"
+    - "network-policy"
+    - "admission-controller"
+
+  # Namespace Configuration
+  system_namespaces:
+    - "kube-system"
+    - "kube-public"
+    - "kube-node-lease"
+    - "default"
+
+# ===================================================================
+# ML MODEL PARAMETERS AND THRESHOLDS
+# ===================================================================
+ml_parameters:
+  # Text Analysis Configuration
+  text_vectorizer:
+    max_features: 1000
+    stop_words: "english"
+    ngram_range: [1, 2]
+
+  # Policy Clustering
+  policy_clusterer:
+    n_clusters: 8
+    random_state: 42
+
+  # Severity Classification
+  severity_classifier:
+    n_estimators: 100
+    random_state: 42
+
+  # Risk Scoring Parameters
+  risk_scoring:
+    severity_base_scores:
+      CRITICAL: 10.0
+      HIGH: 7.5
+      MEDIUM: 5.0
+      LOW: 2.5
+      INFO: 1.0
+
+    category_multipliers:
+      Security: 1.2
+      Network: 1.1
+      Governance: 0.9
+      Compliance: 1.0
+
+    framework_impact_weight: 0.1
+    max_risk_score: 10.0
+
+  # Compliance Scoring
+  compliance_scoring:
+    category_weights:
+      Security: 0.4
+      Network: 0.25
+      Governance: 0.2
+      Compliance: 0.15
+
+    severity_weights:
+      CRITICAL: 4.0
+      HIGH: 3.0
+      MEDIUM: 2.0
+      LOW: 1.0
+      INFO: 0.5
+
+    confidence_factors:
+      total_violations_penalty: 0.1
+      critical_violations_penalty: 0.15
+      all_categories_affected_penalty: 0.05
+      min_confidence: 0.7
+
+# ===================================================================
+# SECURITY STANDARDS (from security_standards.py)
+# ===================================================================
+security_standards:
+  # Authentication Standards
+  authentication:
+    azure_ad_integration: true
+    azure_ad_rbac: true
+    workload_identity: true
+    disable_local_accounts: true
+    mfa_for_admin: true
+    mfa_for_production: true
+    mfa_token_lifetime_hours: 8
+    service_account_token_expiration_hours: 1
+
+  # Authorization Standards
+  authorization:
+    enable_rbac: true
+    principle_of_least_privilege: true
+    namespace_isolation: true
+    default_user_permissions: "read-only"
+    restrict_cluster_admin_role: true
+    enable_resource_quotas: true
+    enable_network_policies: true
+    audit_log_retention_days: 365
+
+  # Network Security Standards
+  network_security:
+    enable_private_cluster: true
+    disable_public_fqdn: false
+    enable_private_endpoint: true
+    use_azure_cni: true
+    enable_network_policies: true
+    default_network_policy_engine: "Calico"
+    minimum_tls_version: "1.2"
+    preferred_tls_version: "1.3"
+    certificate_rotation_days: 90
+
+  # Container Security Standards
+  container_security:
+    scan_images_for_vulnerabilities: true
+    block_high_severity_vulnerabilities: true
+    block_critical_vulnerabilities: true
+    use_private_registry: true
+    require_signed_images: true
+    pod_security_standard: "restricted"
+    run_as_non_root: true
+    read_only_root_filesystem: true
+    drop_all_capabilities: true
+    enforce_resource_limits: true
+
+  # Data Protection Standards
+  data_protection:
+    enable_encryption_at_rest: true
+    encryption_algorithm: "AES-256"
+    use_customer_managed_keys: true
+    key_rotation_days: 90
+    enable_encryption_in_transit: true
+    require_tls_all_communications: true
+    encrypt_backups: true
+
+  # Monitoring and Response Standards
+  monitoring:
+    enable_azure_defender: true
+    enable_threat_detection: true
+    enable_anomaly_detection: true
+    security_incident_response_minutes: 30
+    critical_incident_response_minutes: 15
+    vulnerability_scan_frequency_days: 7
+    critical_vulnerability_remediation_days: 1
+
+# ===================================================================
+# POLICY ANALYSIS CONFIGURATION
+# ===================================================================
+policy_analysis:
+  # Analysis Behavior
+  enabled_categories:
+    - "Security"
+    - "Network"
+    - "Governance"
+    - "Compliance"
+
+  # Severity Handling
+  block_on_critical: true
+  warn_on_high: true
+  auto_remediate_low: true
+
+  # Reporting Configuration
+  generate_detailed_reports: true
+  include_remediation_steps: true
+  cluster_similar_violations: true
+  max_recommendations: 10
+
+  # ML Analysis Settings
+  enable_ml_enhancement: true
+  ml_confidence_threshold: 0.7
+  enable_pattern_clustering: true
+  enable_predictive_analysis: true
+
+# ===================================================================
+# INTEGRATION WITH EXISTING YAML FILES
+# ===================================================================
+integration:
+  # Reference to aks_implementation_standards.yaml
+  implementation_standards:
+    file: "aks_implementation_standards.yaml"
+    inherit_risk_assessment: true
+    inherit_complexity_factors: true
+    use_cost_thresholds: true
+
+  # Reference to aks_scoring.yaml
+  scoring_standards:
+    file: "aks_scoring.yaml"
+    inherit_official_standards: true
+    use_compliance_targets: true
+    align_with_optimization_scoring: true
+
+  # Custom Policy Extensions
+  custom_policies:
+    enabled: true
+    directory: "custom_security_policies/"
+    auto_load: true
+    validation_required: true

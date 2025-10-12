@@ -47,7 +47,7 @@ class KubernetesParsingUtils:
                 total_cpu = 0.0
                 cpu_values = [val.strip() for val in cpu_str.split(',')]
                 for cpu_val in cpu_values:
-                    if cpu_val and cpu_val != '<none>':
+                    if cpu_val and cpu_val not in ['<none>', '<unknown>']:
                         total_cpu += KubernetesParsingUtils._parse_single_cpu_value(cpu_val)
                 return total_cpu
             else:
@@ -59,7 +59,9 @@ class KubernetesParsingUtils:
     def _parse_single_cpu_value(cpu_str: str) -> float:
         """Parse a single CPU value"""
         cpu_str = cpu_str.strip()
-        if cpu_str.endswith('m'):
+        if cpu_str in ['<none>', '<unknown>']:
+            return 0.0
+        elif cpu_str.endswith('m'):
             return float(cpu_str[:-1]) / 1000.0
         elif cpu_str.endswith('n'):
             return float(cpu_str[:-1]) / 1000000000.0
@@ -79,7 +81,7 @@ class KubernetesParsingUtils:
                 total_memory = 0
                 memory_values = [val.strip() for val in memory_str.split(',')]
                 for mem_val in memory_values:
-                    if mem_val and mem_val != '<none>':
+                    if mem_val and mem_val not in ['<none>', '<unknown>']:
                         total_memory += KubernetesParsingUtils._parse_single_memory_value(mem_val)
                 return total_memory
             else:
@@ -91,7 +93,9 @@ class KubernetesParsingUtils:
     def _parse_single_memory_value(memory_str: str) -> int:
         """Parse a single memory value"""
         memory_str = memory_str.strip()
-        if memory_str.endswith('Ki'):
+        if memory_str in ['<none>', '<unknown>']:
+            return 0
+        elif memory_str.endswith('Ki'):
             return int(float(memory_str[:-2]) * 1024)
         elif memory_str.endswith('Mi'):
             return int(float(memory_str[:-2]) * 1024 * 1024)
