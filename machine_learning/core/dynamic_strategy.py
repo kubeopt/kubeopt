@@ -345,7 +345,7 @@ class EnhancedDynamicStrategyEngine:
                 analysis_hpas = self._extract_hpa_count_from_analysis(self._current_analysis_results)
                 if analysis_hpas > 0:
                     total_hpas = analysis_hpas
-                    logger.info(f"🔧 Fixed HPA count in strategy: Using {total_hpas} HPAs from analysis results instead of cluster config's 0")
+                    logger.info(f"🔧 HPA count in strategy: Using {total_hpas} HPAs from analysis results instead of cluster config's 0")
             
             cluster_config_workloads = total_deployments + total_statefulsets + total_daemonsets
             
@@ -1566,7 +1566,7 @@ class EnhancedOpportunityDetector:
             should_recommend_hpa = True
             
         if should_recommend_hpa:
-            # FIXED: Use detailed algorithmic analysis results when available
+            #  Use detailed algorithmic analysis results when available
             total_cost = self._extract_real_cluster_cost(analysis_results)
             
             # DEBUG: Log what's actually received to diagnose the root cause
@@ -1693,7 +1693,7 @@ class EnhancedOpportunityDetector:
             should_recommend_rightsizing = True
             
         if should_recommend_rightsizing:
-            # FIXED: Use detailed algorithmic analysis results when available
+            #  Use detailed algorithmic analysis results when available
             total_cost = self._extract_real_cluster_cost(analysis_results)
             
             # DEBUG: Log what's actually received for right-sizing

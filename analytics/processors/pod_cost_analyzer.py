@@ -1343,7 +1343,7 @@ class EnhancedDynamicCostDistributionEngine:
     # =============================================================================
 
     def _safe_kubectl_yaml_command(self, kubectl_cmd: str, timeout: int = None) -> Optional[Dict]:
-        """FIXED: Completely avoid problematic JSON commands for large clusters"""
+        """ Completely avoid problematic JSON commands for large clusters"""
         try:
             # FIX: For large clusters, immediately use text format for problematic commands
             if "-o json" in kubectl_cmd and ("get pods" in kubectl_cmd or "get pvc" in kubectl_cmd or "get services" in kubectl_cmd):

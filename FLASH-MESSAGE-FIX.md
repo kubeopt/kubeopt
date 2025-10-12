@@ -1,6 +1,6 @@
 # 🔧 Flash Message Duplicate Fix
 
-## ❌ **Issue Fixed:**
+## ❌ **Issue **
 - Flash messages appearing twice in settings page
 - Messages not auto-disappearing
 

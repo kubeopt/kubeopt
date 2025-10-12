@@ -70,7 +70,7 @@ def register_all_routes_with_multi_subscription():
         from interface.api_routes import register_api_routes
         register_api_routes(app)
         
-        # FIXED: Register alerts routes (subscription-aware) 
+        #  Register alerts routes (subscription-aware) 
         try:
             from alerts import register_alerts_routes
             register_alerts_routes(app)

@@ -10,7 +10,7 @@ AKS Algorithmic Cost Analyzer - Updated for Comprehensive Self-Learning ML
 --------------------------------------------------------------------------
 Provides intelligent cost analysis and optimization recommendations
 using comprehensive self-learning machine learning approaches.
-FIXED: Added ML operation deduplication to prevent duplicate expensive ML calls
+ Added ML operation deduplication to prevent duplicate expensive ML calls
 """
 
 # ============================================================================
@@ -312,7 +312,7 @@ def ensure_numeric(value, default=0.0) -> float:
 class MLEnhancedHPARecommendationEngine:
     """
     UPDATED: ML-Enhanced HPA Recommendation Engine using Comprehensive Self-Learning Model
-    FIXED: Added deduplication to prevent expensive ML operations from running multiple times
+     Added deduplication to prevent expensive ML operations from running multiple times
     """
     
     def __init__(self):
@@ -338,7 +338,7 @@ class MLEnhancedHPARecommendationEngine:
     def generate_hpa_recommendations(self, metrics_data: Dict, actual_costs: Dict) -> Dict:
         """
         UPDATED: Generate HPA recommendations with comprehensive self-learning ML
-        FIXED: Added deduplication to prevent multiple expensive ML operations
+         Added deduplication to prevent multiple expensive ML operations
         """
         try:
             # PERFORMANCE FIX: Create cache key based on metrics and costs
@@ -715,7 +715,7 @@ class MLEnhancedHPARecommendationEngine:
                             'type': 'hpa_managed'
                         }
                         
-                        # Determine severity - FIXED: consistent with aks_realtime_metrics (150% threshold)
+                        # Determine severity -  consistent with aks_realtime_metrics (150% threshold)
                         if workload['cpu_utilization'] > 150:
                             if workload['cpu_utilization'] > 1000:
                                 workload['severity'] = 'critical'
@@ -775,7 +775,7 @@ class MLEnhancedHPARecommendationEngine:
                             }
                             
                             # Determine severity based on CPU
-                            # FIXED: consistent threshold with aks_realtime_metrics (150%)
+                            #  consistent threshold with aks_realtime_metrics (150%)
                             if workload['cpu_utilization'] > 150:
                                 if workload['cpu_utilization'] > 1000:
                                     workload['severity'] = 'critical'
@@ -819,7 +819,7 @@ class MLEnhancedHPARecommendationEngine:
                             }
                             
                             # Determine severity
-                            # FIXED: consistent threshold with aks_realtime_metrics (150%)
+                            #  consistent threshold with aks_realtime_metrics (150%)
                             if cpu_pct > 150:
                                 if cpu_pct > 1000:
                                     workload['severity'] = 'critical'
@@ -920,7 +920,7 @@ class MLEnhancedHPARecommendationEngine:
                     flattened_workload_characteristics['workloads_by_namespace'][namespace] = []
                 flattened_workload_characteristics['workloads_by_namespace'][namespace].append(workload)
             
-            logger.info("✅ FIXED: All workload data preserved in flattened structure")
+            logger.info("✅  All workload data preserved in flattened structure")
             logger.info(f"✅ Total workloads saved: {len(all_workloads)} (was only saving {len(high_cpu_workloads)} high CPU ones)")
             
             return {
@@ -932,7 +932,7 @@ class MLEnhancedHPARecommendationEngine:
                     'ml_analysis': True,
                     'self_learning_enabled': True
                 },
-                'workload_characteristics': flattened_workload_characteristics,  # ✅ FIXED: All workloads included
+                'workload_characteristics': flattened_workload_characteristics,  # ✅  All workloads included
                 'ml_enhanced': True,
                 'comprehensive_self_learning': True,
                 'consistency_verified': True,
@@ -1262,7 +1262,7 @@ class MLEnhancedHPARecommendationEngine:
 class ConsistentCostAnalyzer:
     """
     CONSISTENT COST ANALYZER - Main Analysis Engine with Comprehensive ML
-    FIXED: Added deduplication to prevent expensive operations from running multiple times
+     Added deduplication to prevent expensive operations from running multiple times
     """
     
     def __init__(self):
@@ -1316,7 +1316,7 @@ class ConsistentCostAnalyzer:
     def _generate_hpa_recommendations(self, cost_data: Dict, metrics_data: Dict) -> Dict:
         """
         UPDATED: Generate HPA recommendations using comprehensive self-learning ML engine
-        FIXED: Added deduplication to prevent multiple expensive ML operations
+         Added deduplication to prevent multiple expensive ML operations
         """
         try:
             # PERFORMANCE FIX: Create cache key for HPA recommendations
@@ -1478,7 +1478,7 @@ class ConsistentCostAnalyzer:
             if hpa_implementation:
                 results['hpa_implementation'] = hpa_implementation
                 total_hpas = hpa_implementation.get('total_hpas', 0)
-                logger.info(f"✅ FIXED: Preserved HPA implementation data with {total_hpas} HPAs for chart generator")
+                logger.info(f"✅  Preserved HPA implementation data with {total_hpas} HPAs for chart generator")
             else:
                 logger.warning("⚠️ No hpa_implementation found in metrics_data")
 
@@ -2246,7 +2246,7 @@ class ConsistentCostAnalyzer:
     def _analyze_category_specific_savings(self, cost_data: Dict, metrics_data: Dict, 
                                          current_usage: Dict, analysis_results: Dict) -> Dict[str, float]:
         """
-        FIXED: Category-specific savings analysis per Kubernetes and AKS standards
+         Category-specific savings analysis per Kubernetes and AKS standards
         Uses actual component costs as baseline, prevents savings > component costs
         NO double-counting between categories
         """
@@ -2340,7 +2340,7 @@ class ConsistentCostAnalyzer:
     def _analyze_node_pools_savings(self, node_cost: float, metrics_data: Dict, 
                                    current_usage: Dict, hpa_savings: float, right_sizing_savings: float) -> float:
         """
-        FIXED: Analyze Node Pools savings per Kubernetes and AKS standards
+         Analyze Node Pools savings per Kubernetes and AKS standards
         Ensures savings never exceed actual node pool costs
         """
         
@@ -2400,7 +2400,7 @@ class ConsistentCostAnalyzer:
 
     def _analyze_storage_savings(self, storage_cost: float, metrics_data: Dict, storage_savings: float, total_cost: float = 0) -> float:
         """
-        FIXED: Analyze Storage savings per Kubernetes storage best practices
+         Analyze Storage savings per Kubernetes storage best practices
         Based on CNCF storage optimization patterns and AKS storage recommendations
         """
         
@@ -2478,7 +2478,7 @@ class ConsistentCostAnalyzer:
 
     def _analyze_networking_savings(self, networking_cost: float, metrics_data: Dict, current_usage: Dict, total_cost: float = 0) -> float:
         """
-        FIXED: Analyze Networking savings per AKS networking best practices
+         Analyze Networking savings per AKS networking best practices
         Based on Azure Well-Architected Framework and AKS networking optimization patterns
         """
         
@@ -2640,7 +2640,7 @@ class ConsistentCostAnalyzer:
         # Get declared total
         declared_total = ensure_numeric(cost_data.get('total_cost', 0))
         
-        # FIXED: Proper cost reconciliation per Azure Cost Management best practices
+        #  Proper cost reconciliation per Azure Cost Management best practices
         if abs(component_total - declared_total) > 0.01:
             logger.warning(f"⚠️ Cost reconciliation needed: components=${component_total:.2f}, declared=${declared_total:.2f}")
             
@@ -2972,7 +2972,7 @@ class ConsistentCostAnalyzer:
                     results['control_plane_cost'] *= adjustment_factor
                     results['registry_cost'] *= adjustment_factor
                     results['other_cost'] *= adjustment_factor
-                    logger.info(f"✅ Auto-fixed cost breakdown mismatch")
+                    logger.info(f"✅ cost breakdown mismatch")
             
             elif 'exceeds total cost' in warning:
                 # Fix savings exceeding total cost
@@ -2994,7 +2994,7 @@ class ConsistentCostAnalyzer:
                     results['right_sizing_savings'] *= reduction_factor
                     results['storage_savings'] *= reduction_factor
                 
-                logger.info(f"✅ Auto-fixed excessive savings")
+                logger.info(f"✅ excessive savings")
         
         return results
     
@@ -3323,7 +3323,7 @@ class OptimizationCalculatorAlgorithm:
             # Container and data optimization
             container_data_savings = 0  # Will add more logic if needed
             
-            # FIXED: Use category-based total as single source of truth
+            #  Use category-based total as single source of truth
             category_savings = {
                 'core_optimization': core_optimization_savings,
                 'compute_optimization': compute_optimization_savings,
@@ -4814,7 +4814,7 @@ def integrate_consistent_analysis(resource_group: str, cluster_name: str,
     """
     CONSISTENT ANALYSIS INTEGRATION with Comprehensive Self-Learning ML
     Main integration function for app.py
-    FIXED: Added deduplication and performance optimizations
+     Added deduplication and performance optimizations
     """
     
     logger.info("🎯 Starting CONSISTENT algorithmic integration with comprehensive self-learning ML")

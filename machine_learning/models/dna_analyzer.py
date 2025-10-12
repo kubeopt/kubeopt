@@ -1462,7 +1462,7 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
             logger.info(f"🔧 HPA Coverage: {scaling_behavior['hpa_coverage']:.1f}%")
             
         except Exception as e:
-            logger.error(f"❌ FIXED cluster config analysis failed: {e}")
+            logger.error(f"❌ cluster config analysis failed: {e}")
             insights['error'] = str(e)
         
         return {
@@ -1735,7 +1735,7 @@ class ClusterDNAAnalyzer(MLLearningIntegrationMixin):
     def _calculate_uniqueness_score(self, cost_genetics: Dict, efficiency_genetics: Dict,
                                 scaling_genetics: Dict, complexity_genetics: Dict) -> float:
         """
-        FIXED: Calculate truly dynamic uniqueness score based on actual cluster characteristics
+         Calculate truly dynamic uniqueness score based on actual cluster characteristics
         """
         try:
             logger.info("🔍 Calculating dynamic uniqueness score...")

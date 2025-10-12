@@ -34,7 +34,7 @@ from shared.utils.shared import _get_analysis_data  # Import from shared module
 from infrastructure.services.subscription_manager import azure_subscription_manager
 from infrastructure.persistence.processing.analysis_engine import multi_subscription_analysis_engine
 
-# FIXED: Import alerts integration
+#  Import alerts integration
 from infrastructure.services.alerts_integration import initialize_alerts_system, register_alerts_routes, get_alerts_manager
 
 # Feature guards for tier-based access control
@@ -44,7 +44,7 @@ from infrastructure.services.license_manager import FeatureFlag
 from presentation.api.project_controls_api import integrate_project_controls_api
 from infrastructure.security.security_api_blueprint import security_api
 
-# FIXED: Import chart functions from correct location
+#  Import chart functions from correct location
 chart_generator_functions = {}
 try:
     from presentation.api.chart_generator import generate_dynamic_hpa_comparison
@@ -88,7 +88,7 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️ Could not import generate_dynamic_trend_data: {e}")
 
-# FIXED: Import CPU data extraction function
+#  Import CPU data extraction function
 try:
     from presentation.api.chart_generator import _extract_cpu_workload_data
     chart_generator_functions['cpu_workload'] = _extract_cpu_workload_data
