@@ -239,7 +239,7 @@ class SecurityIntegrationMixin:
         required_methods = {
             'security_engine': ['analyze_security_posture'],
             'policy_analyzer': ['analyze_policy_compliance'],
-            'compliance_engine': ['assess_framework_compliance'],
+            'compliance_engine': ['assess_compliance_framework_yaml'],
             'vulnerability_scanner': ['perform_comprehensive_scan']
         }
         
@@ -417,7 +417,7 @@ class SecurityIntegrationMixin:
                     raise RuntimeError("Compliance engine not initialized")
                 
                 try:
-                    compliance_report = await self.compliance_engine.assess_framework_compliance(framework)
+                    compliance_report = await self.compliance_engine.assess_compliance_framework_yaml(framework)
                     
                     if not compliance_report:
                         logger.warning(f"Compliance assessment for {framework} returned empty result")

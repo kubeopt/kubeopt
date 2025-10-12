@@ -2218,7 +2218,7 @@ def test_extreme_case_classification():
         total_checks = len(validation_results)
         
         if passed_checks == total_checks:
-            print(f"\n🎉 ALL FIXES WORKING: {passed_checks}/{total_checks} checks passed")
+            print(f"\n🎉 ALL WORKING: {passed_checks}/{total_checks} checks passed")
             return True
         else:
             print(f"\n⚠️ PARTIAL SUCCESS: {passed_checks}/{total_checks} checks passed")

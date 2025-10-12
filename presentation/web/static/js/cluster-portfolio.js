@@ -464,6 +464,7 @@ const DeleteFormManager = {
         });
         
         setTimeout(() => {
+            form.classList.remove('hidden');
             form.classList.add('show');
             
             // Apply dark theme styled modal
@@ -772,8 +773,11 @@ const DeleteFormManager = {
                 deleteBtn.style.cursor = 'not-allowed';
             }
             
-            // Simple, smooth closure - just hide immediately
-            form.style.display = 'none';
+            // Properly hide by removing show class and adding hidden class
+            form.classList.remove('show');
+            form.classList.add('hidden');
+            // Remove inline styles that override CSS classes
+            form.style.display = '';
             AppState.currentModal = null;
         }
         
@@ -1084,7 +1088,9 @@ const ModalManager = {
     },
 
     close(event = null) {
-        if (event && event.target !== Utils.safeGetElement('modalOverlay', 'ModalManager.close')) {
+        // Only prevent closing if clicking inside modal content (not overlay or close button)
+        if (event && event.target.closest && event.target.closest('.modal-container') && 
+            !event.target.closest('.modal-close') && !event.target.closest('[onclick*="closeModal"]')) {
             return;
         }
         
@@ -1739,8 +1745,10 @@ const ClusterManager = {
             if (data.status === 'success') {
                 console.log(`✅ Analysis completed successfully for ${clusterName}`);
                 
-                // ✅  Complete the analysis state FIRST
-                AnalysisStateManager.setAnalyzing(clusterId, false);
+                // ✅  Add a minimum delay to ensure user sees the analyzing state
+                setTimeout(() => {
+                    // ✅  Complete the analysis state FIRST
+                    AnalysisStateManager.setAnalyzing(clusterId, false);
                 
                 // ✅  Update the status-info element immediately to show completed state
                 const statusInfoElement = clusterCard?.querySelector('.status-info');
@@ -1811,6 +1819,7 @@ const ClusterManager = {
                 //         }
                 //     }, 800);
                 // }, 3000); // 3 second delay
+                }, 1500); // 1.5 second delay to ensure user sees analyzing state
                 
             } else {
                 throw new Error(data.message || 'Analysis failed');
@@ -1975,6 +1984,7 @@ window.analyzeCluster = analyzeCluster;
 window.deleteCluster = deleteCluster;
 window.closeModal = closeModal;
 window.addCluster = addCluster;
+window.hideDeleteForm = hideDeleteForm;
 
 // ===== ENHANCED EVENT LISTENERS =====
 document.addEventListener('keydown', (e) => {
@@ -2205,10 +2215,13 @@ function updateClusterCardsStatus(clusters) {
         // IMPROVED: Check local analysis state before updating
         const isLocallyAnalyzing = AppState.analyzingClusters.has(cluster.id);
         
-        // Don't override local analysis state unless server confirms completion
-        if (isLocallyAnalyzing && cluster.analysis_status !== 'completed') {
-            console.log(`🔒 Preserving local analyzing state for ${cluster.id}`);
-            return; // Skip updating this cluster to preserve local state
+        // Only allow server to override local analyzing state if server has newer status
+        if (isLocallyAnalyzing && cluster.analysis_status === 'completed') {
+            // Server confirms analysis is done - remove from local analyzing state
+            AnalysisStateManager.setAnalyzing(cluster.id, false);
+        } else if (isLocallyAnalyzing && cluster.analysis_status !== 'analyzing') {
+            console.log(`🔒 Preserving local analyzing state for ${cluster.id} (server status: ${cluster.analysis_status})`);
+            return; // Keep local analyzing state if server hasn't caught up yet
         }
         
         // Update status info (matches actual HTML structure)

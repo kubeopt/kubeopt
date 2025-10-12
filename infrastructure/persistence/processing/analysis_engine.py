@@ -165,7 +165,7 @@ class MultiSubscriptionAnalysisEngine:
             
             # Step 3: Create subscription-aware config
             if config is None:
-                config = AnalysisConfig(AnalysisType.COMPLETELY_FIXED, subscription_id)
+                config = AnalysisConfig(AnalysisType.MULTI_SUBSCRIPTION, subscription_id)
             else:
                 config.subscription_id = subscription_id
             

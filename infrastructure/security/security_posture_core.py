@@ -233,7 +233,8 @@ class SecurityPostureEngineYAML:
         
         # Override with any custom controls from YAML
         yaml_controls = cis_framework.get('controls', {})
-        cis_controls.update(yaml_controls)
+        if isinstance(yaml_controls, dict):
+            cis_controls.update(yaml_controls)
         
         return cis_controls
     
@@ -272,7 +273,8 @@ class SecurityPostureEngineYAML:
         
         # Override with any custom controls from YAML
         yaml_controls = nist_framework.get('controls', {})
-        nist_controls.update(yaml_controls)
+        if isinstance(yaml_controls, dict):
+            nist_controls.update(yaml_controls)
         
         return nist_controls
     
@@ -434,7 +436,7 @@ class SecurityPostureEngineYAML:
         
         logger.info("🔍 Starting YAML-configured security posture analysis...")
         
-        if not self.cluster_config or self.cluster_config.get('status') != 'completed':
+        if not self.cluster_config or not isinstance(self.cluster_config, dict):
             raise ValueError("Valid cluster configuration required for security analysis")
         
         try:
@@ -830,13 +832,14 @@ class SecurityPostureEngineYAML:
         
         with sqlite3.connect(self.database_path) as conn:
             cursor = conn.cursor()
+            cluster_id = self.cluster_config.get('cluster_name', 'default')
             cursor.execute("""
                 INSERT OR REPLACE INTO security_alerts 
-                (alert_id, severity, category, title, description, resource_type, 
+                (cluster_id, alert_id, severity, category, title, description, resource_type, 
                  resource_name, namespace, remediation, risk_score, detected_at, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                alert.alert_id, alert.severity, alert.category, alert.title,
+                cluster_id, alert.alert_id, alert.severity, alert.category, alert.title,
                 alert.description, alert.resource_type, alert.resource_name,
                 alert.namespace, alert.remediation, alert.risk_score,
                 alert.detected_at, json.dumps(alert.metadata)

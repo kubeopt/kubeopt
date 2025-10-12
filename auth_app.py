@@ -92,7 +92,6 @@ def create_minimal_app():
 def main():
     """Main entry point for minimal auth app"""
     print("🚀 Starting AKS Cost Optimizer (Authentication Test Mode)")
-    print("=" * 60)
     
     # Create Flask app
     app = create_minimal_app()
@@ -100,7 +99,6 @@ def main():
     print("✅ Authentication system is ready!")
     print("🌐 Access the application at: http://localhost:5002")
     print("🔑 Default credentials: kubeopt / kubeopt")
-    print("=" * 60)
     
     # Start the application
     try:
