@@ -318,6 +318,18 @@ class SecurityPostureEngineYAML:
             "insecure_registry": {
                 "severity": "MEDIUM", 
                 "description": "Using insecure container registry"
+            },
+            "missing_resource_limits": {
+                "severity": "MEDIUM",
+                "description": "Container without CPU and memory limits"
+            },
+            "insecure_image_pull": {
+                "severity": "LOW",
+                "description": "Container not using Always image pull policy"
+            },
+            "service_account_automount": {
+                "severity": "MEDIUM",
+                "description": "Service account token auto-mounting enabled"
             }
         }
         
@@ -337,6 +349,7 @@ class SecurityPostureEngineYAML:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS security_alerts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    cluster_id TEXT,
                     alert_id TEXT UNIQUE,
                     severity TEXT,
                     category TEXT,
@@ -351,6 +364,13 @@ class SecurityPostureEngineYAML:
                     metadata TEXT
                 )
             """)
+            
+            # Add cluster_id column if it doesn't exist (migration for existing databases)
+            try:
+                cursor.execute("ALTER TABLE security_alerts ADD COLUMN cluster_id TEXT")
+            except sqlite3.OperationalError:
+                # Column already exists, which is fine
+                pass
             
             # Security scores table
             cursor.execute("""
@@ -679,6 +699,12 @@ class SecurityPostureEngineYAML:
         
         if vulnerabilities_found > 0:
             logger.warning(f"🚨 Found {vulnerabilities_found} security vulnerabilities")
+            await self._create_security_alert_yaml(
+                category="VULNERABILITY",
+                severity="HIGH" if vulnerabilities_found > 5 else "MEDIUM",
+                title=f"Security Vulnerabilities Detected",
+                description=f"Found {vulnerabilities_found} security vulnerabilities in cluster configuration"
+            )
         
         return max(0, score)
     
@@ -702,19 +728,89 @@ class SecurityPostureEngineYAML:
         if pattern_name == "privileged_container":
             deployments = self.cluster_config.get('workload_resources', {}).get('deployments', {}).get('items', [])
             for deployment in deployments:
+                deployment_name = deployment.get('metadata', {}).get('name', 'unknown')
                 containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
                 for container in containers:
                     if container.get('securityContext', {}).get('privileged', False):
                         count += 1
+                        await self._create_security_alert_yaml(
+                            category="CONTAINER_SECURITY",
+                            severity="CRITICAL",
+                            title="Privileged Container Detected",
+                            description=f"Container {container.get('name', 'unknown')} in deployment {deployment_name} is running in privileged mode",
+                            resource_type="Deployment",
+                            resource_name=deployment_name
+                        )
         
         elif pattern_name == "root_user":
             deployments = self.cluster_config.get('workload_resources', {}).get('deployments', {}).get('items', [])
             for deployment in deployments:
+                deployment_name = deployment.get('metadata', {}).get('name', 'unknown')
                 containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
                 for container in containers:
                     run_as_user = container.get('securityContext', {}).get('runAsUser', 0)
                     if run_as_user == 0:
                         count += 1
+                        await self._create_security_alert_yaml(
+                            category="CONTAINER_SECURITY",
+                            severity="HIGH",
+                            title="Container Running as Root",
+                            description=f"Container {container.get('name', 'unknown')} in deployment {deployment_name} is running as root user",
+                            resource_type="Deployment",
+                            resource_name=deployment_name
+                        )
+        
+        elif pattern_name == "missing_resource_limits":
+            deployments = self.cluster_config.get('workload_resources', {}).get('deployments', {}).get('items', [])
+            for deployment in deployments:
+                deployment_name = deployment.get('metadata', {}).get('name', 'unknown')
+                containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
+                for container in containers:
+                    resources = container.get('resources', {})
+                    limits = resources.get('limits', {})
+                    if not limits.get('cpu') or not limits.get('memory'):
+                        count += 1
+                        await self._create_security_alert_yaml(
+                            category="RESOURCE_MANAGEMENT",
+                            severity="MEDIUM",
+                            title="Missing Resource Limits",
+                            description=f"Container {container.get('name', 'unknown')} in deployment {deployment_name} lacks CPU or memory limits",
+                            resource_type="Deployment",
+                            resource_name=deployment_name
+                        )
+        
+        elif pattern_name == "insecure_image_pull":
+            deployments = self.cluster_config.get('workload_resources', {}).get('deployments', {}).get('items', [])
+            for deployment in deployments:
+                deployment_name = deployment.get('metadata', {}).get('name', 'unknown')
+                containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
+                for container in containers:
+                    if container.get('imagePullPolicy', 'Always') != 'Always':
+                        count += 1
+                        await self._create_security_alert_yaml(
+                            category="CONTAINER_SECURITY",
+                            severity="LOW",
+                            title="Insecure Image Pull Policy",
+                            description=f"Container {container.get('name', 'unknown')} in deployment {deployment_name} does not use Always pull policy",
+                            resource_type="Deployment",
+                            resource_name=deployment_name
+                        )
+        
+        elif pattern_name == "service_account_automount":
+            deployments = self.cluster_config.get('workload_resources', {}).get('deployments', {}).get('items', [])
+            for deployment in deployments:
+                deployment_name = deployment.get('metadata', {}).get('name', 'unknown')
+                pod_spec = deployment.get('spec', {}).get('template', {}).get('spec', {})
+                if pod_spec.get('automountServiceAccountToken', True):
+                    count += 1
+                    await self._create_security_alert_yaml(
+                        category="CONTAINER_SECURITY",
+                        severity="MEDIUM",
+                        title="Service Account Auto-mount Enabled",
+                        description=f"Deployment {deployment_name} has service account token auto-mounting enabled",
+                        resource_type="Deployment",
+                        resource_name=deployment_name
+                    )
         
         # Add more pattern checks as needed based on YAML configuration
         
@@ -826,6 +922,7 @@ class SecurityPostureEngineYAML:
         
         # Store alert in database
         await self._store_security_alert(alert)
+        logger.info(f"🚨 Security alert created: {severity} - {title}")
     
     async def _store_security_alert(self, alert: SecurityAlert):
         """Store security alert in database"""

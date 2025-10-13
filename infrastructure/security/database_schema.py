@@ -105,7 +105,7 @@ class SecurityDatabaseManager:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS security_scores (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 overall_score REAL NOT NULL,
                 grade TEXT NOT NULL,
                 rbac_score REAL NOT NULL,
@@ -127,7 +127,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS security_alerts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 alert_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 severity TEXT NOT NULL CHECK (severity IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')),
                 category TEXT NOT NULL CHECK (category IN ('POLICY', 'VULNERABILITY', 'DRIFT', 'EXPOSURE', 'COMPLIANCE')),
                 title TEXT NOT NULL,
@@ -155,7 +155,7 @@ class SecurityDatabaseManager:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS security_baselines (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 baseline_name TEXT NOT NULL,
                 configuration_hash TEXT NOT NULL,
                 configuration_data TEXT NOT NULL, -- JSON
@@ -171,7 +171,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS security_scan_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 scan_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 scan_type TEXT NOT NULL,
                 scan_status TEXT NOT NULL,
                 total_findings INTEGER DEFAULT 0,
@@ -209,7 +209,7 @@ class SecurityDatabaseManager:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS security_drift (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 resource_type TEXT NOT NULL,
                 resource_name TEXT NOT NULL,
                 namespace TEXT DEFAULT 'default',
@@ -253,7 +253,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS policy_violations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 violation_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 policy_rule_id TEXT NOT NULL,
                 policy_name TEXT NOT NULL,
                 policy_category TEXT NOT NULL,
@@ -284,7 +284,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS governance_reports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 report_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 report_type TEXT DEFAULT 'policy_compliance',
                 overall_compliance REAL NOT NULL,
                 total_violations INTEGER NOT NULL,
@@ -341,7 +341,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS compliance_assessments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 assessment_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 framework_id TEXT NOT NULL,
                 control_id TEXT NOT NULL,
                 compliance_status TEXT NOT NULL CHECK (compliance_status IN ('COMPLIANT', 'NON_COMPLIANT', 'PARTIAL', 'NOT_TESTED')),
@@ -363,7 +363,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS compliance_reports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 report_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 framework_id TEXT NOT NULL,
                 report_type TEXT DEFAULT 'assessment',
                 overall_compliance REAL NOT NULL,
@@ -393,7 +393,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS vulnerabilities (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 vuln_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 cve_id TEXT,
                 title TEXT NOT NULL,
                 description TEXT NOT NULL,
@@ -428,7 +428,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS vulnerability_scans (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 scan_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 scan_type TEXT NOT NULL CHECK (scan_type IN ('FULL', 'INCREMENTAL', 'TARGETED', 'SCHEDULED')),
                 target_resource TEXT DEFAULT 'cluster-wide',
                 scan_status TEXT NOT NULL CHECK (scan_status IN ('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED')),
@@ -505,7 +505,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS audit_trail (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 audit_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 event_type TEXT NOT NULL CHECK (event_type IN ('ASSESSMENT', 'REMEDIATION', 'CONFIG_CHANGE', 'ACCESS', 'SCAN', 'ALERT')),
                 event_category TEXT DEFAULT 'security',
@@ -551,7 +551,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS evidence_repository (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 evidence_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 evidence_type TEXT NOT NULL CHECK (evidence_type IN ('CONFIGURATION', 'LOG', 'SCREENSHOT', 'REPORT', 'CERTIFICATE')),
                 control_id TEXT,
                 assessment_id TEXT,
@@ -603,7 +603,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS dashboard_configurations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 config_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 user_id TEXT,
                 dashboard_type TEXT NOT NULL,
                 configuration TEXT NOT NULL, -- JSON
@@ -620,7 +620,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS scheduled_reports (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 report_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 report_type TEXT NOT NULL,
                 report_name TEXT NOT NULL,
                 schedule_cron TEXT NOT NULL,
@@ -643,7 +643,7 @@ class SecurityDatabaseManager:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 execution_id TEXT UNIQUE NOT NULL,
                 scheduled_report_id TEXT NOT NULL,
-                cluster_name TEXT NOT NULL,
+                cluster_id TEXT NOT NULL,
                 report_type TEXT NOT NULL,
                 execution_status TEXT NOT NULL CHECK (execution_status IN ('running', 'completed', 'failed')),
                 report_file_path TEXT,

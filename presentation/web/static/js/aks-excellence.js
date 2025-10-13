@@ -27,8 +27,8 @@ export function initializeAKSExcellence() {
     // Load initial scores
     loadAKSScores();
     
-    // Set up periodic refresh (every 5 minutes)
-    setInterval(loadAKSScores, 5 * 60 * 1000);
+    // Set up periodic refresh (every 15 minutes)
+    setInterval(loadAKSScores, 15 * 60 * 1000);
 }
 
 /**

@@ -185,8 +185,9 @@ class ComplianceFrameworkEngineYAML:
             }
             
             # Load controls for each framework if defined in YAML
-            yaml_controls = framework_config.get('detailed_controls', {})
-            if yaml_controls:
+            yaml_controls = framework_config.get('controls', {})
+            logger.debug(f"🔍 Framework {framework_id}: Found {len(yaml_controls) if isinstance(yaml_controls, dict) else 'non-dict'} controls in YAML")
+            if yaml_controls and isinstance(yaml_controls, dict):
                 if framework_id == 'CIS':
                     self.cis_controls = self._load_framework_controls_yaml(framework_id, yaml_controls)
                 elif framework_id == 'NIST':
@@ -195,16 +196,14 @@ class ComplianceFrameworkEngineYAML:
                     self.iso27001_controls = self._load_framework_controls_yaml(framework_id, yaml_controls)
                 elif framework_id == 'SOC2':
                     self.soc2_controls = self._load_framework_controls_yaml(framework_id, yaml_controls)
+                    logger.info(f"✅ SOC2: Loaded {len(self.soc2_controls)} controls from YAML")
                 elif framework_id == 'PCI-DSS':
                     self.pci_dss_controls = self._load_framework_controls_yaml(framework_id, yaml_controls)
                 elif framework_id == 'HIPAA':
                     self.hipaa_controls = self._load_framework_controls_yaml(framework_id, yaml_controls)
             else:
-                # Generate standard controls if not defined in YAML
-                if framework_id == 'CIS':
-                    self.cis_controls = self._generate_standard_cis_controls()
-                elif framework_id == 'NIST':
-                    self.nist_controls = self._generate_standard_nist_controls()
+                # No fallbacks - let it fail properly if YAML controls are missing
+                logger.warning(f"⚠️ No controls found in YAML for framework {framework_id}")
         
         logger.info(f"📋 Loaded {len(self.compliance_frameworks)} compliance frameworks from YAML")
     
@@ -212,6 +211,7 @@ class ComplianceFrameworkEngineYAML:
         """Load framework controls from YAML configuration"""
         
         controls = {}
+        logger.debug(f"🔧 Loading {len(yaml_controls)} controls for framework {framework_id}")
         
         for control_key, control_data in yaml_controls.items():
             try:
@@ -996,19 +996,18 @@ class ComplianceFrameworkEngineYAML:
         with sqlite3.connect(self.database_path) as conn:
             cursor = conn.cursor()
             
+            cluster_id = self.cluster_config.get('cluster_name', 'default')
             cursor.execute("""
                 INSERT INTO compliance_assessments 
-                (assessment_id, framework, overall_compliance, compliance_grade, 
-                 passed_controls, failed_controls, partial_controls, assessor, next_assessment_due)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (assessment_id, cluster_id, framework_id, control_id, compliance_status, 
+                 assessor, next_assessment_due)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
                 report.report_id,
+                cluster_id,
                 report.framework,
-                report.overall_compliance,
-                report.compliance_grade,
-                len([r for r in report.detailed_findings if r.get('status') == 'COMPLIANT']),
-                len([r for r in report.detailed_findings if r.get('status') == 'NON_COMPLIANT']),
-                len([r for r in report.detailed_findings if r.get('status') == 'PARTIAL']),
+                'overall',  # Use 'overall' as control_id for framework-level assessments
+                'COMPLIANT' if report.overall_compliance >= 80 else 'NON_COMPLIANT',
                 report.assessor,
                 report.next_assessment_due
             ))
