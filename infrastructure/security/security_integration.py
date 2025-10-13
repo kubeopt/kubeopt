@@ -66,7 +66,8 @@ class SecurityIntegrationMixin:
                                    implementation_plan: Dict,
                                    cluster_config: Dict,
                                    security_frameworks: Optional[List[str]] = None,
-                                   priority: str = 'HIGH') -> SecurityEnhancedPlan:
+                                   priority: str = 'HIGH',
+                                   k8s_cache=None) -> SecurityEnhancedPlan:
         """
         Main public orchestration method to enhance implementation plan with security.
         
@@ -116,7 +117,7 @@ class SecurityIntegrationMixin:
             
             # Step 2: Perform comprehensive security analysis
             security_analysis = await self._perform_comprehensive_security_analysis(
-                cluster_config, security_frameworks
+                cluster_config, security_frameworks, k8s_cache
             )
             
             # Step 3: Generate security implementation phases
@@ -253,7 +254,8 @@ class SecurityIntegrationMixin:
                         )
     
     async def _perform_comprehensive_security_analysis(self, cluster_config: Dict, 
-                                                     security_frameworks: List[str]) -> Dict:
+                                                     security_frameworks: List[str], 
+                                                     k8s_cache=None) -> Dict:
         """
          Perform real security analysis using actual cluster configuration
         No static data, no fallbacks, proper error handling
@@ -481,7 +483,7 @@ class SecurityIntegrationMixin:
             if not self.vulnerability_scanner:
                 raise RuntimeError("Vulnerability scanner not initialized")
             
-            scan_result = await self.vulnerability_scanner.perform_comprehensive_scan("FULL")
+            scan_result = await self.vulnerability_scanner.perform_comprehensive_scan("FULL", k8s_cache)
             
             if not scan_result:
                 raise ValueError("Vulnerability scan returned empty result")

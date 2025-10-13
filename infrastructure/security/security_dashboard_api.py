@@ -377,7 +377,7 @@ class SecurityDashboardAPI:
         async def get_compliance_status(framework: str):
             """Get compliance status for specific framework"""
             try:
-                report = await self.compliance_engine.assess_framework_compliance(framework.upper())
+                report = await self.compliance_engine.assess_compliance_framework_yaml(framework.upper())
                 
                 return ComplianceStatusResponse(
                     framework=report.framework,
@@ -396,7 +396,7 @@ class SecurityDashboardAPI:
         async def get_detailed_compliance_report(framework: str):
             """Get detailed compliance report for framework"""
             try:
-                report = await self.compliance_engine.assess_framework_compliance(framework.upper())
+                report = await self.compliance_engine.assess_compliance_framework_yaml(framework.upper())
                 
                 return {
                     "report_id": report.report_id,
@@ -670,7 +670,7 @@ class SecurityDashboardAPI:
             try:
                 if report_type == "compliance" and framework:
                     # Export compliance report
-                    report = await self.compliance_engine.assess_framework_compliance(framework.upper())
+                    report = await self.compliance_engine.assess_compliance_framework_yaml(framework.upper())
                     file_path = await self.compliance_engine.export_audit_report(report, format)
                     
                     return FileResponse(

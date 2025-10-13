@@ -308,7 +308,7 @@ function addSmartColors() {
     document.head.appendChild(style);
     
     updateColors();
-    setInterval(updateColors, 60000); // Update every minute
+    setInterval(updateColors, 900000); // Update every 15 minutes
 }
 
 // ========== 10. PERFORMANCE MONITOR ========== 

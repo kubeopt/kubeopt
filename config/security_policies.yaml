@@ -196,15 +196,444 @@ policy_rules:
     auto_remediable: false
     risk_multiplier: 1.1
 
+  # AKS-Specific Security Rules
+  azure_defender_enabled:
+    rule_id: "AKS001"
+    name: "Azure Defender for Kubernetes Enabled"
+    description: "Azure Defender must be enabled for enhanced threat protection"
+    category: "Security"
+    severity: "HIGH"
+    resource_types: ["Cluster"]
+    rule_logic: "Azure Defender for Kubernetes must be enabled"
+    remediation_template: "Enable Azure Defender for Kubernetes in Security Center"
+    compliance_mappings:
+      SOC2: "CC6.1"
+      NIST: "DE.CM-1"
+    enabled: true
+    auto_remediable: true
+    risk_multiplier: 1.4
+
+  private_cluster_enabled:
+    rule_id: "AKS002"
+    name: "Private Cluster Configuration"
+    description: "AKS clusters should be configured as private clusters"
+    category: "Network"
+    severity: "HIGH"
+    resource_types: ["Cluster"]
+    rule_logic: "apiServerAccessProfile.enablePrivateCluster must be true"
+    remediation_template: "Configure cluster as private cluster with private endpoint"
+    compliance_mappings:
+      CIS: "3.2.1"
+      SOC2: "CC6.1"
+    enabled: true
+    auto_remediable: false
+    risk_multiplier: 1.3
+
+  authorized_ip_ranges:
+    rule_id: "AKS003"
+    name: "Authorized IP Ranges Configured"
+    description: "API server access should be restricted to authorized IP ranges"
+    category: "Network"
+    severity: "MEDIUM"
+    resource_types: ["Cluster"]
+    rule_logic: "apiServerAccessProfile.authorizedIpRanges must be defined"
+    remediation_template: "Configure authorized IP ranges for API server access"
+    compliance_mappings:
+      CIS: "1.2.1"
+      SOC2: "CC6.1"
+    enabled: true
+    auto_remediable: false
+    risk_multiplier: 1.2
+
+  workload_identity_enabled:
+    rule_id: "AKS004"
+    name: "Workload Identity Enabled"
+    description: "Workload identity should be enabled for secure pod authentication"
+    category: "Security"
+    severity: "HIGH"
+    resource_types: ["Cluster"]
+    rule_logic: "oidcIssuerProfile.enabled must be true"
+    remediation_template: "Enable workload identity and OIDC issuer"
+    compliance_mappings:
+      NIST: "PR.AC-1"
+      SOC2: "CC6.2"
+    enabled: true
+    auto_remediable: false
+    risk_multiplier: 1.3
+
+  image_scanning_enabled:
+    rule_id: "AKS005"
+    name: "Container Image Scanning"
+    description: "Container images must be scanned for vulnerabilities"
+    category: "Security"
+    severity: "CRITICAL"
+    resource_types: ["Deployment", "Pod", "StatefulSet", "DaemonSet"]
+    rule_logic: "Container images must be scanned and approved"
+    remediation_template: "Implement container image scanning in CI/CD pipeline"
+    compliance_mappings:
+      SOC2: "CC7.1"
+      NIST: "PR.DS-1"
+    enabled: true
+    auto_remediable: false
+    risk_multiplier: 2.0
+
+  pod_security_standards_enforced:
+    rule_id: "AKS006"
+    name: "Pod Security Standards Enforced"
+    description: "Pod security standards must be enforced at namespace level"
+    category: "Security"
+    severity: "CRITICAL"
+    resource_types: ["Namespace"]
+    rule_logic: "pod-security.kubernetes.io/enforce label must be set to restricted"
+    remediation_template: "Apply pod security standards to namespace"
+    compliance_mappings:
+      CIS: "4.2.1"
+      SOC2: "CC6.1"
+    enabled: true
+    auto_remediable: true
+    risk_multiplier: 1.8
+
+  service_account_automount_disabled:
+    rule_id: "AKS007"
+    name: "Service Account Auto-mount Disabled"
+    description: "Service account tokens should not be automatically mounted"
+    category: "Security"
+    severity: "MEDIUM"
+    resource_types: ["Deployment", "Pod", "StatefulSet", "DaemonSet"]
+    rule_logic: "spec.template.spec.automountServiceAccountToken must be false"
+    remediation_template: "Disable automatic service account token mounting"
+    compliance_mappings:
+      CIS: "5.1.1"
+      NIST: "PR.AC-4"
+    enabled: true
+    auto_remediable: true
+    risk_multiplier: 1.1
+
+  read_only_root_filesystem:
+    rule_id: "AKS008"
+    name: "Read-Only Root Filesystem"
+    description: "Container root filesystem should be read-only"
+    category: "Security"
+    severity: "HIGH"
+    resource_types: ["Deployment", "Pod", "StatefulSet", "DaemonSet"]
+    rule_logic: "spec.template.spec.containers[*].securityContext.readOnlyRootFilesystem must be true"
+    remediation_template: "Configure containers with read-only root filesystem"
+    compliance_mappings:
+      CIS: "4.2.6"
+      SOC2: "CC6.1"
+    enabled: true
+    auto_remediable: true
+    risk_multiplier: 1.2
+
 # ===================================================================
-# COMPLIANCE FRAMEWORKS
+# COMPLIANCE FRAMEWORKS WITH CONTROLS
 # ===================================================================
 compliance_frameworks:
   CIS:
     name: "CIS Kubernetes Benchmark"
     version: "1.6.0"
     categories: ["Master Node", "Worker Node", "Pod Security", "Network", "Storage"]
-    controls: 100
+    controls:
+      "CIS-1.1.1":
+        control_id: "CIS-1.1.1"
+        title: "Ensure API server audit log path is set"
+        description: "Enable audit logging for API server activities"
+        category: "Master Node Configuration"
+        priority: "HIGH"
+        implementation_guidance: "Configure --audit-log-path parameter in API server"
+        testing_procedure: "Verify audit-log-path is configured in API server manifest"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Configure audit logging in API server"
+        
+      "CIS-1.2.1":
+        control_id: "CIS-1.2.1"
+        title: "Ensure API server anonymous auth is disabled"
+        description: "Disable anonymous requests to the API server"
+        category: "Master Node Configuration"
+        priority: "HIGH"
+        implementation_guidance: "Set --anonymous-auth=false in API server"
+        testing_procedure: "Verify anonymous authentication is disabled"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Disable anonymous authentication in API server"
+        
+      "CIS-3.2.1":
+        control_id: "CIS-3.2.1"
+        title: "Ensure network policies are enabled"
+        description: "Enable network policies for traffic segmentation"
+        category: "Network"
+        priority: "HIGH"
+        implementation_guidance: "Implement network policies using Calico or Azure CNI"
+        testing_procedure: "Verify network policy controller is running"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Deploy network policy controller and policies"
+        
+      "CIS-4.2.1":
+        control_id: "CIS-4.2.1"
+        title: "Minimize admission of privileged containers"
+        description: "Prevent containers from running in privileged mode"
+        category: "Pod Security Policies"
+        priority: "CRITICAL"
+        implementation_guidance: "Implement Pod Security Policy or OPA Gatekeeper"
+        testing_procedure: "Attempt to deploy privileged container and verify it's blocked"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement admission control for privileged containers"
+        
+      "CIS-4.2.6":
+        control_id: "CIS-4.2.6"
+        title: "Minimize admission of containers running as root"
+        description: "Ensure containers do not run as root user"
+        category: "Pod Security Policies"
+        priority: "HIGH"
+        implementation_guidance: "Set runAsUser to non-zero in security context"
+        testing_procedure: "Verify containers run as non-root user"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Configure non-root user in container security context"
+        
+      "CIS-5.1.1":
+        control_id: "CIS-5.1.1"
+        title: "Ensure RBAC is enabled"
+        description: "Verify Role-Based Access Control is properly configured"
+        category: "RBAC and Service Accounts"
+        priority: "CRITICAL"
+        implementation_guidance: "Enable RBAC authorization mode in API server"
+        testing_procedure: "Verify RBAC resources exist and are properly configured"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Configure comprehensive RBAC policies"
+        
+      "CIS-1.1.11":
+        control_id: "CIS-1.1.11"
+        title: "Ensure etcd data directory permissions are set to 700"
+        description: "Ensure that the etcd data directory has permissions of 700"
+        category: "Master Node Configuration"
+        priority: "HIGH"
+        implementation_guidance: "Set etcd data directory permissions to 700"
+        testing_procedure: "Verify etcd data directory permissions"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Configure proper etcd data directory permissions"
+        
+      "CIS-1.2.5":
+        control_id: "CIS-1.2.5"
+        title: "Ensure kubelet anonymous auth is disabled"
+        description: "Disable anonymous authentication to the kubelet server"
+        category: "Master Node Configuration"
+        priority: "HIGH"
+        implementation_guidance: "Set --anonymous-auth=false for kubelet"
+        testing_procedure: "Verify kubelet anonymous authentication is disabled"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Disable kubelet anonymous authentication"
+        
+      "CIS-1.2.6":
+        control_id: "CIS-1.2.6"
+        title: "Ensure kubelet authorization mode is not AlwaysAllow"
+        description: "Do not allow all requests to the kubelet server"
+        category: "Master Node Configuration"
+        priority: "HIGH"
+        implementation_guidance: "Set kubelet --authorization-mode to Webhook"
+        testing_procedure: "Verify kubelet authorization mode is properly configured"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Configure proper kubelet authorization mode"
+        
+      "CIS-1.3.1":
+        control_id: "CIS-1.3.1"
+        title: "Ensure controller manager profiling is disabled"
+        description: "Disable profiling for controller manager"
+        category: "Master Node Configuration"
+        priority: "MEDIUM"
+        implementation_guidance: "Set --profiling=false for controller manager"
+        testing_procedure: "Verify controller manager profiling is disabled"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Disable controller manager profiling"
+        
+      "CIS-1.3.2":
+        control_id: "CIS-1.3.2"
+        title: "Ensure controller manager use-service-account-credentials is enabled"
+        description: "Use individual service account credentials for each controller"
+        category: "Master Node Configuration"
+        priority: "HIGH"
+        implementation_guidance: "Set --use-service-account-credentials=true"
+        testing_procedure: "Verify service account credentials are used"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Enable service account credentials for controllers"
+        
+      "CIS-2.1":
+        control_id: "CIS-2.1"
+        title: "Ensure kubelet node authorization is enabled"
+        description: "Enable node authorization for kubelet"
+        category: "Worker Node Configuration"
+        priority: "HIGH"
+        implementation_guidance: "Configure kubelet with proper node authorization"
+        testing_procedure: "Verify kubelet node authorization is enabled"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Enable kubelet node authorization"
+        
+      "CIS-2.2":
+        control_id: "CIS-2.2"
+        title: "Minimize admission of containers wishing to share the host process ID namespace"
+        description: "Do not allow containers to share the host process namespace"
+        category: "Worker Node Configuration"
+        priority: "HIGH"
+        implementation_guidance: "Implement Pod Security Policy to block hostPID"
+        testing_procedure: "Verify hostPID sharing is blocked"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Block containers from sharing host PID namespace"
+        
+      "CIS-2.3":
+        control_id: "CIS-2.3"
+        title: "Minimize admission of containers wishing to share the host IPC namespace"
+        description: "Do not allow containers to share the host IPC namespace"
+        category: "Worker Node Configuration"
+        priority: "HIGH"
+        implementation_guidance: "Implement Pod Security Policy to block hostIPC"
+        testing_procedure: "Verify hostIPC sharing is blocked"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Block containers from sharing host IPC namespace"
+        
+      "CIS-2.4":
+        control_id: "CIS-2.4"
+        title: "Minimize admission of containers wishing to share the host network namespace"
+        description: "Do not allow containers to share the host network namespace"
+        category: "Worker Node Configuration"
+        priority: "HIGH"
+        implementation_guidance: "Implement Pod Security Policy to block hostNetwork"
+        testing_procedure: "Verify hostNetwork sharing is blocked"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Block containers from sharing host network namespace"
+        
+      "CIS-3.1.1":
+        control_id: "CIS-3.1.1"
+        title: "Ensure client certificate authentication is used for users"
+        description: "Use client certificate authentication for user access"
+        category: "Network"
+        priority: "HIGH"
+        implementation_guidance: "Configure client certificate authentication"
+        testing_procedure: "Verify client certificate authentication is configured"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement client certificate authentication"
+        
+      "CIS-4.1.1":
+        control_id: "CIS-4.1.1"
+        title: "Ensure Image Pull Policy is set to Always"
+        description: "Always pull container images to ensure latest security patches"
+        category: "Pod Security Policies"
+        priority: "MEDIUM"
+        implementation_guidance: "Set imagePullPolicy to Always for all containers"
+        testing_procedure: "Verify image pull policy is set to Always"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Configure image pull policy to Always"
+        
+      "CIS-4.2.2":
+        control_id: "CIS-4.2.2"
+        title: "Minimize admission of containers with allowPrivilegeEscalation"
+        description: "Prevent containers from escalating privileges"
+        category: "Pod Security Policies"
+        priority: "CRITICAL"
+        implementation_guidance: "Set allowPrivilegeEscalation to false"
+        testing_procedure: "Verify privilege escalation is blocked"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Block privilege escalation in containers"
+        
+      "CIS-4.2.3":
+        control_id: "CIS-4.2.3"
+        title: "Minimize admission of containers running with root capabilities"
+        description: "Drop all capabilities and only add required ones"
+        category: "Pod Security Policies"
+        priority: "HIGH"
+        implementation_guidance: "Drop ALL capabilities and add only required ones"
+        testing_procedure: "Verify containers drop all capabilities"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Configure proper capability management"
+        
+      "CIS-4.2.4":
+        control_id: "CIS-4.2.4"
+        title: "Minimize admission of containers with capabilities assigned"
+        description: "Restrict Linux capabilities assigned to containers"
+        category: "Pod Security Policies"
+        priority: "HIGH"
+        implementation_guidance: "Implement restricted capability policies"
+        testing_procedure: "Verify capability restrictions are enforced"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement capability restriction policies"
+        
+      "CIS-4.2.5":
+        control_id: "CIS-4.2.5"
+        title: "Minimize admission of containers with SEC_PROC_MOUNT"
+        description: "Restrict containers from mounting /proc with write access"
+        category: "Pod Security Policies"
+        priority: "MEDIUM"
+        implementation_guidance: "Block containers with securityContext.procMount"
+        testing_procedure: "Verify procMount restrictions are enforced"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Block containers with procMount capabilities"
+        
+      "CIS-5.1.2":
+        control_id: "CIS-5.1.2"
+        title: "Minimize access to secrets"
+        description: "Restrict access to Kubernetes secrets"
+        category: "RBAC and Service Accounts"
+        priority: "HIGH"
+        implementation_guidance: "Implement least privilege access to secrets"
+        testing_procedure: "Verify secret access is properly restricted"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement least privilege secret access"
+        
+      "CIS-5.1.3":
+        control_id: "CIS-5.1.3"
+        title: "Minimize wildcard use in Roles and ClusterRoles"
+        description: "Avoid using wildcards in RBAC permissions"
+        category: "RBAC and Service Accounts"
+        priority: "HIGH"
+        implementation_guidance: "Use specific permissions instead of wildcards"
+        testing_procedure: "Verify no wildcard permissions are used"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Replace wildcard permissions with specific ones"
+        
+      "CIS-5.1.4":
+        control_id: "CIS-5.1.4"
+        title: "Minimize access to create pods"
+        description: "Restrict who can create pods in the cluster"
+        category: "RBAC and Service Accounts"
+        priority: "HIGH"
+        implementation_guidance: "Limit pod creation permissions to necessary users"
+        testing_procedure: "Verify pod creation access is restricted"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement restricted pod creation permissions"
+        
+      "CIS-5.2.1":
+        control_id: "CIS-5.2.1"
+        title: "Minimize the admission of pods with automountServiceAccountToken"
+        description: "Prevent automatic mounting of service account tokens"
+        category: "RBAC and Service Accounts"
+        priority: "MEDIUM"
+        implementation_guidance: "Set automountServiceAccountToken to false"
+        testing_procedure: "Verify service account tokens are not auto-mounted"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Disable automatic service account token mounting"
+        
     description: "Center for Internet Security Kubernetes Benchmark"
     priority_weight: 1.2
     auto_update: true
@@ -213,7 +642,259 @@ compliance_frameworks:
     name: "NIST Cybersecurity Framework"
     version: "1.1"
     categories: ["Identify", "Protect", "Detect", "Respond", "Recover"]
-    controls: 108
+    controls:
+      "NIST-PR.AC-1":
+        control_id: "NIST-PR.AC-1"
+        title: "Identities and credentials are managed for authorized devices and users"
+        description: "Implement proper identity and access management"
+        category: "Access Control"
+        priority: "HIGH"
+        implementation_guidance: "Configure Azure AD integration and proper RBAC"
+        testing_procedure: "Verify identity management and access controls"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement comprehensive identity and access management"
+        
+      "NIST-PR.AC-4":
+        control_id: "NIST-PR.AC-4"
+        title: "Access permissions are managed incorporating principles of least privilege"
+        description: "Ensure least privilege access control"
+        category: "Access Control"
+        priority: "HIGH"
+        implementation_guidance: "Implement least privilege RBAC policies"
+        testing_procedure: "Review and test access permissions for least privilege"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Review and reduce excessive permissions"
+        
+      "NIST-PR.DS-2":
+        control_id: "NIST-PR.DS-2"
+        title: "Data-in-transit is protected"
+        description: "Ensure all data in transit is encrypted"
+        category: "Data Security"
+        priority: "HIGH"
+        implementation_guidance: "Configure TLS for all communications"
+        testing_procedure: "Verify TLS is enforced for all network traffic"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement comprehensive TLS encryption"
+        
+      "NIST-PR.DS-1":
+        control_id: "NIST-PR.DS-1"
+        title: "Data-at-rest is protected"
+        description: "Ensure all data at rest is encrypted"
+        category: "Data Security"
+        priority: "HIGH"
+        implementation_guidance: "Enable encryption at rest for etcd and persistent volumes"
+        testing_procedure: "Verify encryption at rest is enabled"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Configure encryption for data at rest"
+        
+      "NIST-DE.CM-1":
+        control_id: "NIST-DE.CM-1"
+        title: "The network is monitored to detect potential cybersecurity events"
+        description: "Implement network monitoring and detection"
+        category: "Detection and Monitoring"
+        priority: "MEDIUM"
+        implementation_guidance: "Deploy network monitoring tools and Azure Security Center"
+        testing_procedure: "Verify network monitoring is active"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement comprehensive network monitoring"
+        
+      "NIST-ID.AM-1":
+        control_id: "NIST-ID.AM-1"
+        title: "Physical devices and systems within the organization are inventoried"
+        description: "Maintain an inventory of physical devices and systems"
+        category: "Asset Management"
+        priority: "HIGH"
+        implementation_guidance: "Maintain inventory of all cluster nodes and infrastructure"
+        testing_procedure: "Verify comprehensive asset inventory exists"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement automated asset discovery and inventory"
+        
+      "NIST-ID.AM-2":
+        control_id: "NIST-ID.AM-2"
+        title: "Software platforms and applications within the organization are inventoried"
+        description: "Maintain an inventory of software and applications"
+        category: "Asset Management"
+        priority: "HIGH"
+        implementation_guidance: "Track all container images, applications, and software"
+        testing_procedure: "Verify software inventory is maintained"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement software inventory management"
+        
+      "NIST-ID.BE-5":
+        control_id: "NIST-ID.BE-5"
+        title: "Resilience requirements to support delivery of critical services are established"
+        description: "Define resilience requirements for critical services"
+        category: "Business Environment"
+        priority: "MEDIUM"
+        implementation_guidance: "Define SLAs and resilience requirements for applications"
+        testing_procedure: "Verify resilience requirements are documented"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Document resilience and availability requirements"
+        
+      "NIST-ID.GV-1":
+        control_id: "NIST-ID.GV-1"
+        title: "Organizational cybersecurity policy is established and communicated"
+        description: "Establish and communicate cybersecurity policies"
+        category: "Governance"
+        priority: "HIGH"
+        implementation_guidance: "Document and communicate security policies for Kubernetes"
+        testing_procedure: "Verify security policies are documented and communicated"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Develop comprehensive security policy framework"
+        
+      "NIST-ID.RA-1":
+        control_id: "NIST-ID.RA-1"
+        title: "Asset vulnerabilities are identified and documented"
+        description: "Identify and document vulnerabilities in assets"
+        category: "Risk Assessment"
+        priority: "HIGH"
+        implementation_guidance: "Implement regular vulnerability scanning and assessment"
+        testing_procedure: "Verify vulnerability scanning is performed regularly"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Establish automated vulnerability assessment process"
+        
+      "NIST-PR.AT-1":
+        control_id: "NIST-PR.AT-1"
+        title: "All users are informed and trained"
+        description: "Provide cybersecurity awareness and training"
+        category: "Awareness and Training"
+        priority: "MEDIUM"
+        implementation_guidance: "Provide Kubernetes security training to users and administrators"
+        testing_procedure: "Verify security training is provided to all users"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Implement security awareness training program"
+        
+      "NIST-PR.DS-3":
+        control_id: "NIST-PR.DS-3"
+        title: "Assets are formally managed throughout removal, transfers, and disposition"
+        description: "Manage assets through their lifecycle including disposal"
+        category: "Data Security"
+        priority: "MEDIUM"
+        implementation_guidance: "Implement secure data disposal and asset management"
+        testing_procedure: "Verify asset disposal procedures are followed"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Establish asset lifecycle management procedures"
+        
+      "NIST-PR.IP-1":
+        control_id: "NIST-PR.IP-1"
+        title: "A baseline configuration of information technology/industrial control systems is created and maintained"
+        description: "Maintain secure baseline configurations"
+        category: "Information Protection"
+        priority: "HIGH"
+        implementation_guidance: "Maintain secure baseline configurations for containers and nodes"
+        testing_procedure: "Verify baseline configurations are maintained"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement configuration management and drift detection"
+        
+      "NIST-PR.MA-1":
+        control_id: "NIST-PR.MA-1"
+        title: "Maintenance and repair of organizational assets are performed and logged"
+        description: "Perform and log maintenance activities"
+        category: "Maintenance"
+        priority: "MEDIUM"
+        implementation_guidance: "Log all maintenance activities on cluster infrastructure"
+        testing_procedure: "Verify maintenance activities are logged"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement maintenance logging and tracking"
+        
+      "NIST-PR.PT-1":
+        control_id: "NIST-PR.PT-1"
+        title: "Audit/log records are determined, documented, implemented, and reviewed"
+        description: "Implement comprehensive audit logging"
+        category: "Protective Technology"
+        priority: "HIGH"
+        implementation_guidance: "Enable comprehensive audit logging for all cluster activities"
+        testing_procedure: "Verify audit logging is comprehensive and reviewed"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement comprehensive audit logging strategy"
+        
+      "NIST-DE.AE-1":
+        control_id: "NIST-DE.AE-1"
+        title: "A baseline of network operations and expected data flows is established and managed"
+        description: "Establish network baseline for anomaly detection"
+        category: "Anomalies and Events"
+        priority: "MEDIUM"
+        implementation_guidance: "Establish baseline network patterns for cluster communications"
+        testing_procedure: "Verify network baseline is established and monitored"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement network baseline and anomaly detection"
+        
+      "NIST-DE.DP-1":
+        control_id: "NIST-DE.DP-1"
+        title: "Roles and responsibilities for detection are well defined"
+        description: "Define roles and responsibilities for security detection"
+        category: "Detection Processes"
+        priority: "MEDIUM"
+        implementation_guidance: "Define security incident detection roles and responsibilities"
+        testing_procedure: "Verify detection roles are documented and assigned"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Document security detection roles and responsibilities"
+        
+      "NIST-RS.RP-1":
+        control_id: "NIST-RS.RP-1"
+        title: "Response plan is executed during or after an incident"
+        description: "Execute incident response plan"
+        category: "Response Planning"
+        priority: "HIGH"
+        implementation_guidance: "Develop and test incident response procedures"
+        testing_procedure: "Verify incident response plan exists and is tested"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Develop comprehensive incident response plan"
+        
+      "NIST-RS.CO-1":
+        control_id: "NIST-RS.CO-1"
+        title: "Personnel know their roles and order of operations when a response is needed"
+        description: "Ensure personnel understand response roles"
+        category: "Communications"
+        priority: "MEDIUM"
+        implementation_guidance: "Train personnel on incident response roles and procedures"
+        testing_procedure: "Verify personnel understand their response roles"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Provide incident response training to all personnel"
+        
+      "NIST-RC.RP-1":
+        control_id: "NIST-RC.RP-1"
+        title: "Recovery plan is executed during or after a cybersecurity incident"
+        description: "Execute recovery plan after incidents"
+        category: "Recovery Planning"
+        priority: "HIGH"
+        implementation_guidance: "Develop and test disaster recovery procedures"
+        testing_procedure: "Verify recovery plan exists and is tested"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Develop comprehensive recovery plan"
+        
+      "NIST-RC.IM-1":
+        control_id: "NIST-RC.IM-1"
+        title: "Recovery plans incorporate lessons learned"
+        description: "Improve recovery plans based on lessons learned"
+        category: "Improvements"
+        priority: "MEDIUM"
+        implementation_guidance: "Regularly update recovery plans based on incidents"
+        testing_procedure: "Verify recovery plans are updated with lessons learned"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Implement lessons learned process for recovery planning"
+        
     description: "National Institute of Standards and Technology Cybersecurity Framework"
     priority_weight: 1.1
     auto_update: true
@@ -222,7 +903,307 @@ compliance_frameworks:
     name: "ISO/IEC 27001"
     version: "2013"
     categories: ["Information Security Policies", "Access Control", "Cryptography", "Physical Security"]
-    controls: 114
+    controls:
+      "ISO27001-A.8.1.1":
+        control_id: "ISO27001-A.8.1.1"
+        title: "Inventory of assets"
+        description: "All assets associated with information and information processing facilities shall be identified and an inventory of these assets shall be drawn up and maintained"
+        category: "Asset Management"
+        priority: "HIGH"
+        implementation_guidance: "Maintain an accurate inventory of all Kubernetes resources, including pods, services, and persistent volumes"
+        testing_procedure: "Verify comprehensive asset inventory is maintained and updated"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement automated asset discovery and inventory management"
+        
+      "ISO27001-A.9.1.2":
+        control_id: "ISO27001-A.9.1.2"
+        title: "Access to networks and network services"
+        description: "Users shall only be provided with access to the network and network services that they have been specifically authorized to use"
+        category: "Access Control"
+        priority: "HIGH"
+        implementation_guidance: "Implement network policies and RBAC to restrict network access"
+        testing_procedure: "Verify network access controls are properly configured"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Configure network policies and access controls"
+        
+      "ISO27001-A.10.1.1":
+        control_id: "ISO27001-A.10.1.1"
+        title: "Policy on the use of cryptographic controls"
+        description: "A policy on the use of cryptographic controls for protection of information shall be developed and implemented"
+        category: "Cryptography"
+        priority: "CRITICAL"
+        implementation_guidance: "Implement encryption policies for data at rest and in transit"
+        testing_procedure: "Verify encryption policies are documented and implemented"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Develop and implement comprehensive encryption policy"
+        
+      "ISO27001-A.12.6.1":
+        control_id: "ISO27001-A.12.6.1"
+        title: "Management of technical vulnerabilities"
+        description: "Information about technical vulnerabilities of information systems being used shall be obtained in a timely fashion"
+        category: "Operations Security"
+        priority: "HIGH"
+        implementation_guidance: "Implement regular vulnerability scanning and assessment"
+        testing_procedure: "Verify vulnerability management processes are effective"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Establish regular vulnerability scanning and remediation process"
+        
+      "ISO27001-A.13.1.1":
+        control_id: "ISO27001-A.13.1.1"
+        title: "Network controls"
+        description: "Networks shall be controlled and protected to protect information in systems and applications"
+        category: "Communications Security"
+        priority: "HIGH"
+        implementation_guidance: "Implement network segmentation and monitoring controls"
+        testing_procedure: "Verify network controls are properly implemented"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Configure network segmentation and monitoring"
+        
+      "ISO27001-A.5.1.1":
+        control_id: "ISO27001-A.5.1.1"
+        title: "Policies for information security"
+        description: "A set of policies for information security shall be defined, approved by management, published and communicated"
+        category: "Information Security Policies"
+        priority: "HIGH"
+        implementation_guidance: "Document and publish information security policies"
+        testing_procedure: "Verify security policies are documented and communicated"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Develop comprehensive information security policy"
+        
+      "ISO27001-A.6.1.1":
+        control_id: "ISO27001-A.6.1.1"
+        title: "Information security roles and responsibilities"
+        description: "All information security responsibilities shall be defined and allocated"
+        category: "Organization of Information Security"
+        priority: "HIGH"
+        implementation_guidance: "Define and assign security roles and responsibilities"
+        testing_procedure: "Verify security roles are documented and assigned"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Document security roles and responsibilities"
+        
+      "ISO27001-A.7.1.1":
+        control_id: "ISO27001-A.7.1.1"
+        title: "Screening"
+        description: "Background verification checks on all candidates for employment shall be carried out"
+        category: "Human Resource Security"
+        priority: "MEDIUM"
+        implementation_guidance: "Implement background checks for personnel with cluster access"
+        testing_procedure: "Verify background screening procedures are followed"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Implement personnel screening procedures"
+        
+      "ISO27001-A.8.2.1":
+        control_id: "ISO27001-A.8.2.1"
+        title: "Classification of information"
+        description: "Information shall be classified in terms of legal requirements, value, criticality and sensitivity"
+        category: "Asset Management"
+        priority: "HIGH"
+        implementation_guidance: "Classify data and applications based on sensitivity"
+        testing_procedure: "Verify information classification scheme is implemented"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Implement data classification framework"
+        
+      "ISO27001-A.8.3.1":
+        control_id: "ISO27001-A.8.3.1"
+        title: "Management of removable media"
+        description: "Procedures shall be implemented for the management of removable media"
+        category: "Asset Management"
+        priority: "MEDIUM"
+        implementation_guidance: "Control access to persistent volumes and storage"
+        testing_procedure: "Verify removable media procedures are implemented"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement storage access controls"
+        
+      "ISO27001-A.9.2.1":
+        control_id: "ISO27001-A.9.2.1"
+        title: "User registration and de-registration"
+        description: "A formal user registration and de-registration process shall be implemented"
+        category: "Access Control"
+        priority: "HIGH"
+        implementation_guidance: "Implement formal user lifecycle management"
+        testing_procedure: "Verify user registration processes are followed"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement user lifecycle management process"
+        
+      "ISO27001-A.9.2.3":
+        control_id: "ISO27001-A.9.2.3"
+        title: "Management of privileged access rights"
+        description: "The allocation and use of privileged access rights shall be restricted and controlled"
+        category: "Access Control"
+        priority: "CRITICAL"
+        implementation_guidance: "Implement privileged access management for cluster administrators"
+        testing_procedure: "Verify privileged access is properly controlled"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement privileged access management"
+        
+      "ISO27001-A.9.4.1":
+        control_id: "ISO27001-A.9.4.1"
+        title: "Information access restriction"
+        description: "Access to information and application system functions shall be restricted"
+        category: "Access Control"
+        priority: "HIGH"
+        implementation_guidance: "Implement least privilege access to applications and data"
+        testing_procedure: "Verify information access is properly restricted"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement least privilege access controls"
+        
+      "ISO27001-A.10.1.2":
+        control_id: "ISO27001-A.10.1.2"
+        title: "Key management"
+        description: "A policy on the use, protection and lifetime of cryptographic keys shall be developed"
+        category: "Cryptography"
+        priority: "CRITICAL"
+        implementation_guidance: "Implement key management for secrets and certificates"
+        testing_procedure: "Verify key management procedures are implemented"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement comprehensive key management"
+        
+      "ISO27001-A.11.1.1":
+        control_id: "ISO27001-A.11.1.1"
+        title: "Physical security perimeter"
+        description: "Physical security perimeters shall be defined and used to protect areas"
+        category: "Physical and Environmental Security"
+        priority: "MEDIUM"
+        implementation_guidance: "Ensure data centers have proper physical security"
+        testing_procedure: "Verify physical security controls are in place"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Verify physical security controls"
+        
+      "ISO27001-A.12.1.1":
+        control_id: "ISO27001-A.12.1.1"
+        title: "Documented operating procedures"
+        description: "Operating procedures shall be documented and made available to all users"
+        category: "Operations Security"
+        priority: "MEDIUM"
+        implementation_guidance: "Document all operational procedures for cluster management"
+        testing_procedure: "Verify operational procedures are documented"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Document operational procedures"
+        
+      "ISO27001-A.12.3.1":
+        control_id: "ISO27001-A.12.3.1"
+        title: "Information backup"
+        description: "Backup copies of information, software and system images shall be taken and tested"
+        category: "Operations Security"
+        priority: "HIGH"
+        implementation_guidance: "Implement regular backup and testing procedures"
+        testing_procedure: "Verify backup procedures are implemented and tested"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement comprehensive backup strategy"
+        
+      "ISO27001-A.12.4.1":
+        control_id: "ISO27001-A.12.4.1"
+        title: "Event logging"
+        description: "Event logs recording user activities, exceptions, faults and information security events shall be produced"
+        category: "Operations Security"
+        priority: "HIGH"
+        implementation_guidance: "Enable comprehensive audit logging for all cluster events"
+        testing_procedure: "Verify comprehensive event logging is implemented"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement comprehensive audit logging"
+        
+      "ISO27001-A.13.2.1":
+        control_id: "ISO27001-A.13.2.1"
+        title: "Information transfer policies and procedures"
+        description: "Formal transfer policies, procedures and controls shall be in place"
+        category: "Communications Security"
+        priority: "MEDIUM"
+        implementation_guidance: "Implement secure data transfer procedures"
+        testing_procedure: "Verify data transfer procedures are implemented"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Implement secure data transfer procedures"
+        
+      "ISO27001-A.14.1.1":
+        control_id: "ISO27001-A.14.1.1"
+        title: "Information security requirements analysis and specification"
+        description: "Information security requirements shall be included in the requirements for new systems"
+        category: "System Acquisition, Development and Maintenance"
+        priority: "HIGH"
+        implementation_guidance: "Include security requirements in all new deployments"
+        testing_procedure: "Verify security requirements are included in new systems"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Implement security requirements process"
+        
+      "ISO27001-A.14.2.1":
+        control_id: "ISO27001-A.14.2.1"
+        title: "Secure development policy"
+        description: "Rules for the development of software and systems shall be established"
+        category: "System Acquisition, Development and Maintenance"
+        priority: "HIGH"
+        implementation_guidance: "Implement secure development practices for container images"
+        testing_procedure: "Verify secure development practices are followed"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement secure development lifecycle"
+        
+      "ISO27001-A.15.1.1":
+        control_id: "ISO27001-A.15.1.1"
+        title: "Information security policy for supplier relationships"
+        description: "Information security requirements for mitigating risks shall be agreed with suppliers"
+        category: "Supplier Relationships"
+        priority: "MEDIUM"
+        implementation_guidance: "Include security requirements in vendor agreements"
+        testing_procedure: "Verify supplier security requirements are documented"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Implement supplier security requirements"
+        
+      "ISO27001-A.16.1.1":
+        control_id: "ISO27001-A.16.1.1"
+        title: "Responsibilities and procedures"
+        description: "Management responsibilities and procedures shall be established to ensure a quick response to security incidents"
+        category: "Information Security Incident Management"
+        priority: "HIGH"
+        implementation_guidance: "Establish incident response procedures and responsibilities"
+        testing_procedure: "Verify incident response procedures are documented"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Implement incident response framework"
+        
+      "ISO27001-A.17.1.1":
+        control_id: "ISO27001-A.17.1.1"
+        title: "Planning information security continuity"
+        description: "The organization shall determine its requirements for information security in continuity management"
+        category: "Information Security in Business Continuity"
+        priority: "MEDIUM"
+        implementation_guidance: "Plan for security continuity during disasters"
+        testing_procedure: "Verify business continuity security plans exist"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Develop security continuity plans"
+        
+      "ISO27001-A.18.1.1":
+        control_id: "ISO27001-A.18.1.1"
+        title: "Identification of applicable legislation and contractual requirements"
+        description: "All relevant legislative statutory, regulatory, contractual requirements shall be identified"
+        category: "Compliance"
+        priority: "HIGH"
+        implementation_guidance: "Identify and document compliance requirements"
+        testing_procedure: "Verify compliance requirements are documented"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Document compliance requirements"
+        
     description: "International Information Security Management Standard"
     priority_weight: 1.0
     auto_update: false
@@ -231,7 +1212,127 @@ compliance_frameworks:
     name: "SOC 2 Type II"
     version: "2017"
     categories: ["Security", "Availability", "Processing Integrity", "Confidentiality", "Privacy"]
-    controls: 64
+    controls:
+      "SOC2-CC6.1":
+        control_id: "SOC2-CC6.1"
+        title: "Logical and physical access controls restrict access"
+        description: "Implement logical and physical access restrictions"
+        category: "Security"
+        priority: "HIGH"
+        implementation_guidance: "Configure RBAC, network policies, and Azure AD integration"
+        testing_procedure: "Verify access controls are properly implemented and tested"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement comprehensive access control framework"
+        
+      "SOC2-CC6.2":
+        control_id: "SOC2-CC6.2"
+        title: "Prior to issuing system credentials, the entity registers authorized users"
+        description: "Implement user registration and authorization process"
+        category: "Security"
+        priority: "HIGH"
+        implementation_guidance: "Use Azure AD for user management and service account controls"
+        testing_procedure: "Review user provisioning and deprovisioning processes"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Establish formal user lifecycle management"
+        
+      "SOC2-CC6.3":
+        control_id: "SOC2-CC6.3"
+        title: "The entity authorizes, modifies, or removes access in a timely manner"
+        description: "Implement timely access management"
+        category: "Security"
+        priority: "HIGH"
+        implementation_guidance: "Automate access reviews and implement JIT access"
+        testing_procedure: "Test access modification and removal procedures"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement automated access lifecycle management"
+        
+      "SOC2-CC7.1":
+        control_id: "SOC2-CC7.1"
+        title: "The entity uses encryption to protect data"
+        description: "Implement encryption for data protection"
+        category: "Security"
+        priority: "CRITICAL"
+        implementation_guidance: "Enable encryption at rest and in transit for all data"
+        testing_procedure: "Verify encryption is properly implemented"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement comprehensive encryption strategy"
+        
+      "SOC2-A1.1":
+        control_id: "SOC2-A1.1"
+        title: "The entity maintains, monitors, and evaluates current processing capacity"
+        description: "Monitor system availability and capacity"
+        category: "Availability"
+        priority: "MEDIUM"
+        implementation_guidance: "Implement monitoring, alerting, and capacity planning"
+        testing_procedure: "Verify monitoring and alerting systems are functional"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Deploy comprehensive monitoring and alerting"
+        
+      "SOC2-A1.2":
+        control_id: "SOC2-A1.2"
+        title: "The entity authorizes, designs, develops or acquires, configures, tests, approves, and implements changes to infrastructure"
+        description: "Implement change management for infrastructure"
+        category: "Availability"
+        priority: "MEDIUM"
+        implementation_guidance: "Use GitOps and Infrastructure as Code practices"
+        testing_procedure: "Review change management processes and approvals"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Implement formal change management process"
+        
+      "SOC2-PI1.1":
+        control_id: "SOC2-PI1.1"
+        title: "The entity implements policies and procedures to make available for use complete, valid, and accurate data"
+        description: "Ensure data processing integrity"
+        category: "Processing Integrity"
+        priority: "MEDIUM"
+        implementation_guidance: "Implement data validation and integrity checks"
+        testing_procedure: "Test data processing and validation mechanisms"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement comprehensive data integrity controls"
+        
+      "SOC2-C1.1":
+        control_id: "SOC2-C1.1"
+        title: "The entity identifies and maintains confidential information"
+        description: "Identify and protect confidential data"
+        category: "Confidentiality"
+        priority: "HIGH"
+        implementation_guidance: "Classify data and implement protection mechanisms"
+        testing_procedure: "Review data classification and protection measures"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Implement data classification and protection framework"
+        
+      "SOC2-CC8.1":
+        control_id: "SOC2-CC8.1"
+        title: "The entity implements change management policies and procedures"
+        description: "Implement change management for system modifications"
+        category: "Security"
+        priority: "HIGH"
+        implementation_guidance: "Implement GitOps and Infrastructure as Code for changes"
+        testing_procedure: "Verify change management procedures are followed"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement formal change management process"
+        
+      "SOC2-A1.3":
+        control_id: "SOC2-A1.3"
+        title: "The entity monitors system components and network capacity"
+        description: "Monitor system performance and capacity"
+        category: "Availability"
+        priority: "MEDIUM"
+        implementation_guidance: "Implement comprehensive monitoring and alerting"
+        testing_procedure: "Verify system monitoring is comprehensive"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Deploy comprehensive monitoring solution"
+        
     description: "Service Organization Control 2 Trust Services Criteria"
     priority_weight: 0.9
     auto_update: true
@@ -240,7 +1341,127 @@ compliance_frameworks:
     name: "PCI Data Security Standard"
     version: "3.2.1"
     categories: ["Network Security", "Data Protection", "Vulnerability Management", "Access Control"]
-    controls: 78
+    controls:
+      "PCI-DSS-1.1.4":
+        control_id: "PCI-DSS-1.1.4"
+        title: "Requirements for a firewall at each Internet connection and between any demilitarized zone (DMZ) and the internal network zone"
+        description: "Implement firewall controls for network segmentation"
+        category: "Network Security"
+        priority: "CRITICAL"
+        implementation_guidance: "Configure network policies and Azure Firewall for proper network segmentation"
+        testing_procedure: "Verify firewall rules and network segmentation are properly configured"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement comprehensive network firewall controls"
+        
+      "PCI-DSS-2.2.2":
+        control_id: "PCI-DSS-2.2.2"
+        title: "Enable only necessary services, protocols, daemons, etc., as required for the function of the system"
+        description: "Disable unnecessary services and protocols"
+        category: "Secure Configuration"
+        priority: "HIGH"
+        implementation_guidance: "Configure containers with minimal attack surface, disable unnecessary services"
+        testing_procedure: "Verify only required services are running in containers"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement secure container configuration standards"
+        
+      "PCI-DSS-3.4":
+        control_id: "PCI-DSS-3.4"
+        title: "Render PAN unreadable anywhere it is stored"
+        description: "Encrypt sensitive data at rest"
+        category: "Data Protection"
+        priority: "CRITICAL"
+        implementation_guidance: "Enable encryption at rest for persistent volumes and secrets"
+        testing_procedure: "Verify data encryption at rest is properly implemented"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement comprehensive data encryption at rest"
+        
+      "PCI-DSS-4.1":
+        control_id: "PCI-DSS-4.1"
+        title: "Use strong cryptography and security protocols to safeguard sensitive cardholder data during transmission"
+        description: "Encrypt data in transit"
+        category: "Data Protection"
+        priority: "CRITICAL"
+        implementation_guidance: "Enforce TLS encryption for all communications"
+        testing_procedure: "Verify TLS encryption is enforced for all network traffic"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement TLS encryption for all communications"
+        
+      "PCI-DSS-8.1.1":
+        control_id: "PCI-DSS-8.1.1"
+        title: "Define and implement policies and procedures to ensure proper user identification management"
+        description: "Implement proper user identification and authentication"
+        category: "Access Control"
+        priority: "HIGH"
+        implementation_guidance: "Configure Azure AD integration and implement strong authentication"
+        testing_procedure: "Verify user identification and authentication controls"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement comprehensive identity and access management"
+        
+      "PCI-DSS-11.2.1":
+        control_id: "PCI-DSS-11.2.1"
+        title: "Perform quarterly internal vulnerability scans"
+        description: "Implement regular vulnerability scanning"
+        category: "Vulnerability Management"
+        priority: "HIGH"
+        implementation_guidance: "Implement automated vulnerability scanning for containers and infrastructure"
+        testing_procedure: "Verify vulnerability scanning is performed regularly"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Establish automated vulnerability scanning process"
+        
+      "PCI-DSS-6.1":
+        control_id: "PCI-DSS-6.1"
+        title: "Establish a process to identify security vulnerabilities and assign a risk ranking"
+        description: "Implement vulnerability management process"
+        category: "Vulnerability Management"
+        priority: "HIGH"
+        implementation_guidance: "Implement vulnerability identification and risk ranking process"
+        testing_procedure: "Verify vulnerability management process is established"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Establish vulnerability management framework"
+        
+      "PCI-DSS-7.1":
+        control_id: "PCI-DSS-7.1"
+        title: "Limit access to system components and cardholder data by business need to know"
+        description: "Implement need-to-know access control"
+        category: "Access Control"
+        priority: "HIGH"
+        implementation_guidance: "Implement role-based access control with need-to-know principle"
+        testing_procedure: "Verify access is limited to business need-to-know"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement need-to-know access controls"
+        
+      "PCI-DSS-10.1":
+        control_id: "PCI-DSS-10.1"
+        title: "Implement audit trails to link all access to system components"
+        description: "Implement comprehensive audit logging"
+        category: "Logging and Monitoring"
+        priority: "HIGH"
+        implementation_guidance: "Enable comprehensive audit logging for all system access"
+        testing_procedure: "Verify comprehensive audit trails are implemented"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement comprehensive audit logging"
+        
+      "PCI-DSS-12.1":
+        control_id: "PCI-DSS-12.1"
+        title: "Establish, publish, maintain, and disseminate a security policy"
+        description: "Implement and maintain security policies"
+        category: "Security Policies"
+        priority: "HIGH"
+        implementation_guidance: "Document and maintain comprehensive security policies"
+        testing_procedure: "Verify security policies are documented and current"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Develop comprehensive security policy framework"
+        
     description: "Payment Card Industry Data Security Standard"
     priority_weight: 1.3
     auto_update: true
@@ -249,7 +1470,127 @@ compliance_frameworks:
     name: "Health Insurance Portability and Accountability Act"
     version: "2013"
     categories: ["Administrative Safeguards", "Physical Safeguards", "Technical Safeguards"]
-    controls: 45
+    controls:
+      "HIPAA-164.308":
+        control_id: "HIPAA-164.308"
+        title: "Administrative Safeguards"
+        description: "A covered entity must implement administrative safeguards to protect electronic PHI"
+        category: "Administrative Safeguards"
+        priority: "HIGH"
+        implementation_guidance: "Implement security officer assignment, workforce training, and incident response procedures"
+        testing_procedure: "Verify administrative safeguards are documented and implemented"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Establish comprehensive administrative safeguard program"
+        
+      "HIPAA-164.310":
+        control_id: "HIPAA-164.310"
+        title: "Physical Safeguards"
+        description: "A covered entity must implement physical safeguards to protect electronic PHI"
+        category: "Physical Safeguards"
+        priority: "HIGH"
+        implementation_guidance: "Implement facility access controls and workstation use restrictions"
+        testing_procedure: "Verify physical access controls are properly implemented"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Implement comprehensive physical access controls"
+        
+      "HIPAA-164.312":
+        control_id: "HIPAA-164.312"
+        title: "Technical Safeguards"
+        description: "A covered entity must implement technical safeguards to protect electronic PHI"
+        category: "Technical Safeguards"
+        priority: "CRITICAL"
+        implementation_guidance: "Implement access control, audit controls, integrity, person or entity authentication, and transmission security"
+        testing_procedure: "Verify technical safeguards including encryption and access controls"
+        automated_check: true
+        manual_review_required: true
+        remediation_plan: "Implement comprehensive technical safeguards including encryption"
+        
+      "HIPAA-164.312(a)(1)":
+        control_id: "HIPAA-164.312(a)(1)"
+        title: "Access Control"
+        description: "Implement technical policies and procedures for electronic information systems that maintain electronic PHI to allow access only to those persons or software programs that have been granted access rights"
+        category: "Technical Safeguards"
+        priority: "CRITICAL"
+        implementation_guidance: "Configure RBAC and implement least privilege access controls"
+        testing_procedure: "Verify access controls restrict access to authorized users only"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement role-based access control system"
+        
+      "HIPAA-164.312(e)(1)":
+        control_id: "HIPAA-164.312(e)(1)"
+        title: "Transmission Security"
+        description: "Implement technical security measures to guard against unauthorized access to electronic PHI that is being transmitted over an electronic communications network"
+        category: "Technical Safeguards"
+        priority: "CRITICAL"
+        implementation_guidance: "Implement end-to-end encryption for all data transmissions"
+        testing_procedure: "Verify all data transmissions are encrypted"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement comprehensive encryption for data in transit"
+        
+      "HIPAA-164.312(a)(2)(i)":
+        control_id: "HIPAA-164.312(a)(2)(i)"
+        title: "Unique User Identification"
+        description: "Assign a unique name and/or number for identifying and tracking user identity"
+        category: "Technical Safeguards"
+        priority: "HIGH"
+        implementation_guidance: "Implement unique user identification for all system access"
+        testing_procedure: "Verify unique user identification is implemented"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement unique user identification system"
+        
+      "HIPAA-164.312(b)":
+        control_id: "HIPAA-164.312(b)"
+        title: "Audit Controls"
+        description: "Implement hardware, software, and/or procedural mechanisms that record and examine access and other activity"
+        category: "Technical Safeguards"
+        priority: "HIGH"
+        implementation_guidance: "Implement comprehensive audit logging and monitoring"
+        testing_procedure: "Verify audit controls are implemented and functional"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement comprehensive audit controls"
+        
+      "HIPAA-164.312(c)(1)":
+        control_id: "HIPAA-164.312(c)(1)"
+        title: "Integrity"
+        description: "Implement electronic mechanisms to corroborate that electronic PHI has not been improperly altered or destroyed"
+        category: "Technical Safeguards"
+        priority: "HIGH"
+        implementation_guidance: "Implement data integrity verification mechanisms"
+        testing_procedure: "Verify data integrity mechanisms are implemented"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement data integrity controls"
+        
+      "HIPAA-164.308(a)(3)(ii)(A)":
+        control_id: "HIPAA-164.308(a)(3)(ii)(A)"
+        title: "Assigned Security Responsibility"
+        description: "Identify the security officer who is responsible for developing and implementing security policies"
+        category: "Administrative Safeguards"
+        priority: "HIGH"
+        implementation_guidance: "Assign designated security officer for PHI protection"
+        testing_procedure: "Verify security officer is assigned and documented"
+        automated_check: false
+        manual_review_required: true
+        remediation_plan: "Assign and document security officer responsibilities"
+        
+      "HIPAA-164.308(a)(5)(ii)(C)":
+        control_id: "HIPAA-164.308(a)(5)(ii)(C)"
+        title: "Log-in Monitoring"
+        description: "Procedures for monitoring log-in attempts and reporting discrepancies"
+        category: "Administrative Safeguards"
+        priority: "MEDIUM"
+        implementation_guidance: "Implement login monitoring and anomaly detection"
+        testing_procedure: "Verify login monitoring procedures are implemented"
+        automated_check: true
+        manual_review_required: false
+        remediation_plan: "Implement login monitoring and alerting"
+        
     description: "Healthcare Information Security and Privacy Regulations"
     priority_weight: 1.4
     auto_update: false

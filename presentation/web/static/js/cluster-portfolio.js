@@ -155,6 +155,12 @@ function validateForm() {
 // ===== ENHANCED LOADING MANAGEMENT =====
 const LoadingManager = {
     show(message = 'Processing...') {
+        // Skip loading indicators during silent refresh to prevent flicker
+        if (window.GlobalRefreshManager && window.GlobalRefreshManager.isRefreshing) {
+            console.log('🔇 Skipping LoadingManager.show during silent refresh');
+            return;
+        }
+        
         const toast = Utils.safeGetElement('loadingToast', 'LoadingManager.show');
         if (toast) {
             const text = toast.querySelector('.loading-text');
@@ -1704,18 +1710,8 @@ const ClusterManager = {
 
         console.log(`🚀 Starting analysis for cluster: ${clusterName} (ID: ${clusterId})`);
 
-        // ✅  Set analyzing state IMMEDIATELY
-        AnalysisStateManager.setAnalyzing(clusterId, true);
-        
-        // ✅  Update the status-info element immediately to show analyzing state
-        const statusInfoElement = clusterCard?.querySelector('.status-info');
-        if (statusInfoElement) {
-            statusInfoElement.innerHTML = `
-                <i class="fas fa-cog fa-spin analyzing-icon"></i>
-                <span class="analyzing-text">Analyzing...</span>
-            `;
-            console.log(`✅ Updated status-info for ${clusterId} to show analyzing state`);
-        }
+        // PROPER FLOW: Start analysis and let server response drive status updates
+        AppState.analyzingClusters.add(clusterId);
         
         // ✅  Show loading after a brief delay to let UI update
         setTimeout(() => {
@@ -1745,22 +1741,20 @@ const ClusterManager = {
             if (data.status === 'success') {
                 console.log(`✅ Analysis completed successfully for ${clusterName}`);
                 
-                // ✅  Add a minimum delay to ensure user sees the analyzing state
-                setTimeout(() => {
-                    // ✅  Complete the analysis state FIRST
-                    AnalysisStateManager.setAnalyzing(clusterId, false);
-                
-                // ✅  Update the status-info element immediately to show completed state
-                const statusInfoElement = clusterCard?.querySelector('.status-info');
-                if (statusInfoElement) {
-                    statusInfoElement.innerHTML = `
-                        <i class="fas fa-check-circle success-icon"></i>
-                        <span class="status-text">Analyzed</span>
-                    `;
-                    console.log(`✅ Updated status-info for ${clusterId} to show completed state`);
-                }
-                
+                // PROPER FLOW: Just trigger a refresh to get updated status from server
                 LoadingManager.hide();
+                
+                NotificationManager.show(
+                    'Analysis Started!', 
+                    `Analysis for "${clusterName}" has been initiated`,
+                    'success',
+                    3000
+                );
+                
+                // Force immediate refresh to show analyzing status
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
                 
                 // ✅ REFRESH NOTIFICATIONS: Analysis may have triggered new alerts
              
@@ -1819,7 +1813,6 @@ const ClusterManager = {
                 //         }
                 //     }, 800);
                 // }, 3000); // 3 second delay
-                }, 1500); // 1.5 second delay to ensure user sees analyzing state
                 
             } else {
                 throw new Error(data.message || 'Analysis failed');
@@ -1828,7 +1821,7 @@ const ClusterManager = {
             console.error('❌ Analysis failed:', error);
             
             // ✅  Reset state on error
-            AnalysisStateManager.setAnalyzing(clusterId, false);
+            AppState.analyzingClusters.delete(clusterId);
             
             // ✅  Update the status-info element to show failed state
             const statusInfoElement = clusterCard?.querySelector('.status-info');
@@ -1979,12 +1972,14 @@ function addCluster() {
 }
 
 // Ensure functions are available globally
-window.selectCluster = selectCluster;
-window.analyzeCluster = analyzeCluster;
-window.deleteCluster = deleteCluster;
-window.closeModal = closeModal;
-window.addCluster = addCluster;
-window.hideDeleteForm = hideDeleteForm;
+document.addEventListener('DOMContentLoaded', function() {
+    window.selectCluster = selectCluster;
+    window.analyzeCluster = analyzeCluster;
+    window.deleteCluster = deleteCluster;
+    window.closeModal = closeModal;
+    window.addCluster = addCluster;
+    window.hideDeleteForm = hideDeleteForm;
+});
 
 // ===== ENHANCED EVENT LISTENERS =====
 document.addEventListener('keydown', (e) => {
@@ -2212,16 +2207,11 @@ function updateClusterCardsStatus(clusters) {
         }
         console.log(`✅ Found cluster card for ${cluster.id}`);
         
-        // IMPROVED: Check local analysis state before updating
-        const isLocallyAnalyzing = AppState.analyzingClusters.has(cluster.id);
-        
-        // Only allow server to override local analyzing state if server has newer status
-        if (isLocallyAnalyzing && cluster.analysis_status === 'completed') {
-            // Server confirms analysis is done - remove from local analyzing state
-            AnalysisStateManager.setAnalyzing(cluster.id, false);
-        } else if (isLocallyAnalyzing && cluster.analysis_status !== 'analyzing') {
-            console.log(`🔒 Preserving local analyzing state for ${cluster.id} (server status: ${cluster.analysis_status})`);
-            return; // Keep local analyzing state if server hasn't caught up yet
+        // PROPER FLOW: Always update with server status - server is source of truth
+        if (cluster.analysis_status === 'analyzing') {
+            AppState.analyzingClusters.add(cluster.id);
+        } else {
+            AppState.analyzingClusters.delete(cluster.id);
         }
         
         // Update status info (matches actual HTML structure)
@@ -2291,9 +2281,9 @@ function updateAnalyzeButtonState(analyzeBtn, cluster) {
         console.log(`✅ Updated analyze button for ${cluster.id} to 'View Results' state`);
         
     } else if (analysisStatus === 'analyzing' || analysisStatus === 'running') {
-        // Don't override if locally analyzing (button state already set)
-        if (!AppState.analyzingClusters.has(cluster.id)) {
-            AnalysisStateManager.setAnalyzing(cluster.id, true);
+        // Update analyzing state based on server status
+        if (cluster.analysis_status === 'analyzing') {
+            AppState.analyzingClusters.add(cluster.id);
         }
         
     } else {
@@ -2327,14 +2317,26 @@ function updateAnalyzeButtonState(analyzeBtn, cluster) {
 function updateClusterStatusDisplay(statusContainer, cluster) {
     const analysisStatus = cluster.analysis_status || 'pending';
     
-    // Clear existing status content
-    statusContainer.innerHTML = '';
+    // Smooth update without DOM flicker - reuse existing elements
+    let icon = statusContainer.querySelector('i');
+    let statusText = statusContainer.querySelector('.status-text, .analyzing-text');
     
+    // Create elements if they don't exist
+    if (!icon) {
+        icon = document.createElement('i');
+        statusContainer.appendChild(icon);
+    }
+    if (!statusText) {
+        statusText = document.createElement('span');
+        statusText.className = 'status-text';
+        statusContainer.appendChild(statusText);
+    }
+    
+    // Update classes and text without innerHTML replacement
     if (analysisStatus === 'completed') {
-        statusContainer.innerHTML = `
-            <i class="fas fa-check-circle success-icon"></i>
-            <span class="status-text">Analyzed</span>
-        `;
+        icon.className = 'fas fa-check-circle success-icon';
+        statusText.className = 'status-text';
+        statusText.textContent = 'Analyzed';
         
         // Remove from analyzing clusters tracking
         if (AppState.analyzingClusters.has(cluster.id)) {
@@ -2343,25 +2345,22 @@ function updateClusterStatusDisplay(statusContainer, cluster) {
         
     } else if (analysisStatus === 'analyzing' || analysisStatus === 'running') {
         const progress = cluster.analysis_progress || 0;
-        statusContainer.innerHTML = `
-            <i class="fas fa-cog fa-spin analyzing-icon"></i>
-            <span class="analyzing-text">Analyzing...</span>
-        `;
+        icon.className = 'fas fa-cog fa-spin analyzing-icon';
+        statusText.className = 'analyzing-text';
+        statusText.textContent = 'Analyzing...';
         
         // Add to analyzing clusters tracking
         AppState.analyzingClusters.add(cluster.id);
         
     } else if (analysisStatus === 'failed') {
-        statusContainer.innerHTML = `
-            <i class="fas fa-exclamation-triangle error-icon"></i>
-            <span class="status-text">Failed</span>
-        `;
+        icon.className = 'fas fa-exclamation-triangle error-icon';
+        statusText.className = 'status-text';
+        statusText.textContent = 'Failed';
         
     } else {
-        statusContainer.innerHTML = `
-            <i class="fas fa-clock warning-icon"></i>
-            <span class="status-text">Pending</span>
-        `;
+        icon.className = 'fas fa-clock warning-icon';
+        statusText.className = 'status-text';
+        statusText.textContent = 'Pending';
     }
     
     console.log(`✅ Updated status for cluster ${cluster.id}: ${analysisStatus}`);

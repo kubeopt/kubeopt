@@ -12,11 +12,14 @@ class GlobalRefreshManager {
         this.isRefreshing = false;
         this.refreshHandlers = new Map();
         this.currentPage = this.detectCurrentPage();
-        this.refreshIntervalMs = 60000; // 60 seconds default
-        this.fastRefreshIntervalMs = 15000; // 15 seconds during analysis
+        this.refreshIntervalMs = 300000; // 5 minutes default
+        this.fastRefreshIntervalMs = 60000; // 1 minute during analysis
         this.isAnalysisActive = false;
         this.lastUserActivity = Date.now();
         this.currentInterval = this.refreshIntervalMs;
+        
+        // Expose globally to prevent loading flickers during refresh
+        window.GlobalRefreshManager = this;
         
         this.init();
     }
