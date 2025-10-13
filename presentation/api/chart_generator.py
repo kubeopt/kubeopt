@@ -755,8 +755,10 @@ def _extract_hpa_state_data(analysis_data):
                     
                     # Convert HPA implementation to existing_hpas format
                     hpa_details = hpa_implementation.get('hpa_details', [])
-                    if hpa_details:
-                        # Map hpa_details to existing_hpas format
+                    
+                    # FIX: Handle case where we have HPA count but no detailed specs (UAT/staging clusters)
+                    if hpa_details and isinstance(hpa_details, list) and len(hpa_details) > 0:
+                        # Map hpa_details to existing_hpas format (DEV cluster path)
                         existing_hpas = []
                         for i, hpa_detail in enumerate(hpa_details):
                             if isinstance(hpa_detail, dict):
@@ -965,44 +967,24 @@ def _generate_ml_driven_scenarios(workload_type: str, primary_action: str, ml_co
     # Extract HPA state data for detailed analysis
     hpa_state_data = _extract_hpa_state_data(analysis_data)
     
-    # ENTERPRISE REQUIREMENT: Use ONLY real HPA analysis data with complete specifications
-    if not hpa_state_data.get('existing_hpas') or len(hpa_state_data['existing_hpas']) == 0:
-        # Log the debug information about what was found
-        logger.error(f"🔍 DEBUG: Extracted HPA state data keys: {list(hpa_state_data.keys())}")
-        logger.error(f"🔍 DEBUG: existing_hpas count: {len(hpa_state_data.get('existing_hpas', []))}")
-        logger.error(f"🔍 DEBUG: summary data: {hpa_state_data.get('summary', {})}")
-        
-        # Check if we have total HPA count but no detailed specs - allow with synthetic data
-        if hpa_state_data.get('summary', {}).get('existing_hpas', 0) > 0:
-            logger.warning(f"⚠️ Found HPA count but no detailed specs - using summary data for chart generation")
-            total_hpas = hpa_state_data['summary']['existing_hpas']
-            
-            # Generate minimal synthetic data for chart display
-            synthetic_hpas = []
-            for i in range(min(total_hpas, 5)):  # Limit to 5 for display
-                synthetic_hpa = {
-                    'namespace': f'ns-{i+1}',
-                    'name': f'hpa-{i+1}',
-                    'current_replicas': 2,
-                    'min_replicas': 1,
-                    'max_replicas': 10,
-                    'hpa_id': f'ns-{i+1}/hpa-{i+1}',
-                    'hpa_type': 'mixed',  # Use mixed for synthetic HPAs since distribution shows Mixed=228
-                    'spec': {'minReplicas': 1, 'maxReplicas': 10},
-                    'status': {'currentReplicas': 2}
-                }
-                synthetic_hpas.append(synthetic_hpa)
-            hpa_state_data['existing_hpas'] = synthetic_hpas
-            logger.info(f"✅ Generated {len(synthetic_hpas)} synthetic HPAs from summary count")
-        else:
-            logger.error(f"🔍 DEBUG: No HPA data found. Analysis data top-level keys: {list(analysis_data.keys())}")
-            raise ValueError("❌ ENTERPRISE DATA INTEGRITY: No complete HPA specifications available. Refusing to show charts with incomplete data.")
+    #Check if we have real HPA data - either detailed or just total count
+    total_hpas = hpa_implementation.get('total_hpas', 0)
     
-    logger.info(f"✅ Using REAL HPA analysis data: {len(hpa_state_data['existing_hpas'])} HPAs with complete specs")
-    current_replicas_data = _extract_real_hpa_replica_data(hpa_state_data)
+    if total_hpas == 0:
+        logger.error(f"❌ No HPA data: total_hpas={total_hpas}")
+        return None
+    
+    # Success - we have real HPA count data
+    logger.info(f"✅ Using real HPA data: total_hpas={total_hpas}")
+    
+    # Try to extract replica data - return None if fails
+    current_replicas_data = _extract_real_hpa_replica_data(hpa_state_data, total_hpas)
     
     if not current_replicas_data:
-        raise ValueError("❌ ENTERPRISE DATA INTEGRITY: Failed to extract real HPA replica data")
+        logger.error(f"❌ Failed to extract replica data for {total_hpas} HPAs")
+        return None
+    
+    logger.info(f"✅ Using HPA analysis data: {len(hpa_state_data.get('existing_hpas', []))} HPAs with specs, total_hpas={total_hpas}")
     
     logger.info(f"🔍 Using real cluster data: {current_replicas_data['total_hpas']} HPAs, {current_replicas_data['total_current_replicas']} total replicas, {current_replicas_data['mixed_based_count']} mixed HPAs")
     current_replicas = current_replicas_data['current_avg']
@@ -1059,17 +1041,16 @@ def _generate_ml_driven_scenarios(workload_type: str, primary_action: str, ml_co
         'real_cluster_data': True
     }
 
-def _extract_real_hpa_replica_data(hpa_state_data):
-    """Extract replica data from REAL HPA analysis with complete specifications - ENTERPRISE ONLY"""
+def _extract_real_hpa_replica_data(hpa_state_data, total_hpas):
+    """Extract replica data from HPA analysis - return None if fails"""
     import numpy as np
     
     existing_hpas = hpa_state_data.get('existing_hpas', [])
     hpa_type_distribution = hpa_state_data.get('hpa_type_distribution', {})
     
-    if not existing_hpas:
-        raise ValueError("❌ No real HPA data available")
-    
-    logger.info(f"🔍 Processing {len(existing_hpas)} real HPAs with complete specifications")
+    # If we have detailed HPA specs, use them
+    if existing_hpas and len(existing_hpas) > 0:
+        logger.info(f"🔍 Processing {len(existing_hpas)} real HPAs with complete specifications")
     
     # Extract real replica data by HPA type
     cpu_hpa_replicas = []

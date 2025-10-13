@@ -118,7 +118,7 @@ class SecurityDatabaseManager:
                 ml_confidence REAL DEFAULT 0.8,
                 assessment_metadata TEXT, -- JSON
                 assessed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (cluster_name) REFERENCES clusters(name)
+                FOREIGN KEY (cluster_id) REFERENCES clusters(name)
             )
         """)
         
@@ -162,7 +162,7 @@ class SecurityDatabaseManager:
                 is_active BOOLEAN DEFAULT TRUE,
                 created_by TEXT DEFAULT 'system',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(cluster_name, baseline_name)
+                UNIQUE(cluster_id, baseline_name)
             )
         """)
         
@@ -184,7 +184,7 @@ class SecurityDatabaseManager:
                 scan_results TEXT,
                 started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 completed_at TIMESTAMP,
-                FOREIGN KEY (cluster_name) REFERENCES clusters(name)
+                FOREIGN KEY (cluster_id) REFERENCES clusters(name)
             )
         """)
         
@@ -535,7 +535,7 @@ class SecurityDatabaseManager:
             CREATE TABLE IF NOT EXISTS system_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 log_id TEXT UNIQUE NOT NULL,
-                cluster_name TEXT,
+                cluster_id TEXT,
                 log_level TEXT NOT NULL CHECK (log_level IN ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')),
                 component TEXT NOT NULL,
                 message TEXT NOT NULL,
@@ -611,7 +611,7 @@ class SecurityDatabaseManager:
                 is_shared BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (cluster_name) REFERENCES clusters(name)
+                FOREIGN KEY (cluster_id) REFERENCES clusters(name)
             )
         """)
         
@@ -633,7 +633,7 @@ class SecurityDatabaseManager:
                 status TEXT DEFAULT 'active' CHECK (status IN ('active', 'paused', 'error')),
                 created_by TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (cluster_name) REFERENCES clusters(name)
+                FOREIGN KEY (cluster_id) REFERENCES clusters(name)
             )
         """)
         
@@ -660,30 +660,30 @@ class SecurityDatabaseManager:
         """Create database indexes for performance"""
         
         # Security scores indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_security_scores_cluster_time ON security_scores(cluster_name, assessed_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_security_scores_cluster_time ON security_scores(cluster_id, assessed_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_security_scores_overall ON security_scores(overall_score, assessed_at)")
         
         # Security alerts indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_security_alerts_cluster_severity ON security_alerts(cluster_name, severity, detected_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_security_alerts_cluster_severity ON security_alerts(cluster_id, severity, detected_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_security_alerts_status ON security_alerts(resolved, acknowledged)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_security_alerts_category ON security_alerts(category, severity)")
         
         # Policy violations indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_policy_violations_cluster_status ON policy_violations(cluster_name, remediation_status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_policy_violations_cluster_status ON policy_violations(cluster_id, remediation_status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_policy_violations_severity ON policy_violations(severity, detected_at)")
         
         # Vulnerability indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vulnerabilities_cluster_severity ON vulnerabilities(cluster_name, severity)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vulnerabilities_cluster_severity ON vulnerabilities(cluster_id, severity)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vulnerabilities_cve ON vulnerabilities(cve_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vulnerabilities_status ON vulnerabilities(remediation_status, detected_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vulnerabilities_component ON vulnerabilities(component_type, affected_component)")
         
         # Compliance indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_compliance_assessments_cluster_framework ON compliance_assessments(cluster_name, framework_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_compliance_assessments_cluster_framework ON compliance_assessments(cluster_id, framework_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_compliance_assessments_status ON compliance_assessments(compliance_status, assessed_at)")
         
         # Audit trail indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_trail_cluster_time ON audit_trail(cluster_name, timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_trail_cluster_time ON audit_trail(cluster_id, timestamp)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_trail_event_type ON audit_trail(event_type, timestamp)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_audit_trail_user ON audit_trail(user_name, timestamp)")
         

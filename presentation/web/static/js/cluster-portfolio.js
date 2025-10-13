@@ -1744,12 +1744,12 @@ const ClusterManager = {
                 // PROPER FLOW: Just trigger a refresh to get updated status from server
                 LoadingManager.hide();
                 
-                NotificationManager.show(
-                    'Analysis Started!', 
-                    `Analysis for "${clusterName}" has been initiated`,
-                    'success',
-                    3000
-                );
+                // NotificationManager.show(
+                //     'Analysis Started!', 
+                //     `Analysis for "${clusterName}" has been initiated`,
+                //     'success',
+                //     3000
+                // );
                 
                 // Force immediate refresh to show analyzing status
                 setTimeout(() => {
