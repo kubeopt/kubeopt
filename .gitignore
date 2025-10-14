@@ -10,10 +10,11 @@ app-bkp/*
 
 # Environment files with secrets
 .env
-.env.local
-.env.production
-.env.*.local
-.env.*.*
+.env.*
+!.env.example
+!.env.example.*
+!config/examples/.env.example
+!deploy/docker/.env.example.*
 
 # Node.js dependencies (in tailwind folder)
 tailwind/node_modules/
