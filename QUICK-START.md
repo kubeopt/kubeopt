@@ -7,12 +7,17 @@
 # Build with PyInstaller (default - most secure)
 docker build -t aks-cost-optimizer .
 
-# Run with Azure credentials
+# Run with Azure credentials and optional notifications
 docker run -d -p 5000:5000 \
   -e AZURE_TENANT_ID=your-tenant-id \
   -e AZURE_CLIENT_ID=your-client-id \
   -e AZURE_CLIENT_SECRET=your-client-secret \
   -e AZURE_SUBSCRIPTION_ID=your-subscription-id \
+  -e EMAIL_ENABLED=true \
+  -e SMTP_USERNAME=your-email@domain.com \
+  -e SMTP_PASSWORD=your-password \
+  -e SLACK_ENABLED=true \
+  -e SLACK_WEBHOOK_URL=your-webhook-url \
   aks-cost-optimizer
 ```
 
@@ -26,6 +31,21 @@ http://localhost:5000
 2. Enter your Azure credentials
 3. Click **"Test Azure Connection"**
 4. Click **"Save Azure Settings"**
+
+### 4. Optional: Configure Notifications
+1. Go to **Settings** → **Slack Integration**
+   - Enable Slack Notifications
+   - Add Slack Webhook URL
+   - Set Default Channel (e.g., `#aks-cost-alerts`)
+   
+2. Go to **Settings** → **Email Settings**
+   - Enable Email Notifications
+   - Configure SMTP Settings
+   - Add Recipients
+
+3. **Test Notifications:**
+   - Create a test alert in Alerts Management
+   - Use "Test Alert" button to verify notifications work
 
 ## 📋 Alternative Options
 
