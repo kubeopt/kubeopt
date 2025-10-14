@@ -244,6 +244,19 @@ FLASK_DEBUG=0
 LOG_LEVEL=INFO
 DATABASE_PATH=/app/data/aks_optimizer.db
 PYTHONPATH=/app
+APP_URL=https://your-domain.com
+
+# Notification Settings (Optional)
+EMAIL_ENABLED=true
+SMTP_SERVER=smtpout.secureserver.net
+SMTP_PORT=587
+SMTP_USERNAME=alerts@your-domain.com
+SMTP_PASSWORD=your-email-password
+EMAIL_RECIPIENTS=admin@your-domain.com,devops@your-domain.com
+
+SLACK_ENABLED=true
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+SLACK_CHANNEL=#aks-cost-alerts
 
 # Feature Configuration
 ENABLE_MULTI_SUBSCRIPTION=true

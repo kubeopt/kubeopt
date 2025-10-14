@@ -37,12 +37,17 @@ The AKS Cost Optimizer is a sophisticated enterprise-grade tool that provides co
 # Build with PyInstaller (default - most secure)
 docker build -t aks-cost-optimizer .
 
-# Run with Azure credentials
+# Run with Azure credentials and notifications
 docker run -d -p 5000:5000 \
   -e AZURE_TENANT_ID=your-tenant-id \
   -e AZURE_CLIENT_ID=your-client-id \
   -e AZURE_CLIENT_SECRET=your-client-secret \
   -e AZURE_SUBSCRIPTION_ID=your-subscription-id \
+  -e EMAIL_ENABLED=true \
+  -e SMTP_USERNAME=your-email@domain.com \
+  -e SMTP_PASSWORD=your-password \
+  -e SLACK_ENABLED=true \
+  -e SLACK_WEBHOOK_URL=your-webhook-url \
   aks-cost-optimizer
 ```
 
@@ -358,11 +363,25 @@ AZURE_CLIENT_ID=your-client-id
 AZURE_CLIENT_SECRET=your-client-secret
 AZURE_SUBSCRIPTION_ID=your-subscription-id
 
+# Email Notifications (Optional)
+EMAIL_ENABLED=true
+SMTP_SERVER=smtpout.secureserver.net  # or smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-email@domain.com
+SMTP_PASSWORD=your-email-password
+EMAIL_RECIPIENTS=admin@company.com,devops@company.com
+
+# Slack Notifications (Optional)
+SLACK_ENABLED=true
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+SLACK_CHANNEL=#aks-cost-alerts
+
 # Application Settings
 FLASK_ENV=production
 LOG_LEVEL=INFO
 ENABLE_MULTI_SUBSCRIPTION=true
 PARALLEL_PROCESSING=true
+APP_URL=http://localhost:5001  # Base URL for dashboard links
 
 # License Configuration (Optional)
 LICENSE_TIER=enterprise  # free, pro, enterprise
@@ -400,13 +419,19 @@ http://localhost:5001
 # Build with PyInstaller (most secure)
 docker build -t aks-cost-optimizer .
 
-# Run in production mode
+# Run in production mode with notifications
 docker run -d -p 5000:5000 \
   --name aks-optimizer \
   -e AZURE_TENANT_ID=your-tenant-id \
   -e AZURE_CLIENT_ID=your-client-id \
   -e AZURE_CLIENT_SECRET=your-client-secret \
   -e AZURE_SUBSCRIPTION_ID=your-subscription-id \
+  -e EMAIL_ENABLED=true \
+  -e SMTP_USERNAME=your-email@domain.com \
+  -e SMTP_PASSWORD=your-password \
+  -e SLACK_ENABLED=true \
+  -e SLACK_WEBHOOK_URL=your-webhook-url \
+  -e APP_URL=https://your-domain.com \
   aks-cost-optimizer
 ```
 
@@ -427,6 +452,100 @@ docker-compose -f docker-compose.prod.yml up -d
 # Deploy with secure compose
 docker-compose -f deploy/docker/docker-compose.secure.yml up -d
 ```
+
+---
+
+## 🔔 **Notifications Configuration**
+
+The AKS Cost Optimizer supports multi-channel notifications for cost alerts, including Email, Slack, and In-app notifications.
+
+### **Email Notifications**
+
+Configure email notifications to receive alerts when cost thresholds are exceeded:
+
+```bash
+# Email Settings
+EMAIL_ENABLED=true
+SMTP_SERVER=smtpout.secureserver.net  # GoDaddy/Professional email
+SMTP_PORT=587
+SMTP_USERNAME=your-email@domain.com
+SMTP_PASSWORD=your-email-password
+EMAIL_RECIPIENTS=admin@company.com,devops@company.com
+```
+
+**Supported Email Providers:**
+- **GoDaddy Email:** `smtpout.secureserver.net:587` (recommended for professional domains)
+- **Gmail:** `smtp.gmail.com:587` (requires app-specific password)
+- **Office 365:** `smtp-mail.outlook.com:587`
+- **Custom SMTP:** Any SMTP server with STARTTLS support
+
+### **Slack Notifications**
+
+Configure Slack notifications for real-time team alerts:
+
+```bash
+# Slack Settings
+SLACK_ENABLED=true
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+SLACK_CHANNEL=#aks-cost-alerts
+```
+
+**Slack Webhook Setup:**
+1. Go to [api.slack.com/apps](https://api.slack.com/apps)
+2. Create a new app or select existing app
+3. Go to "Incoming Webhooks" → "Add New Webhook to Workspace"
+4. Select the channel and copy the webhook URL
+5. Add the webhook URL to your environment configuration
+
+**Slack Notification Features:**
+- 🎯 **Rich Formatting:** Cost breakdowns with color-coded severity
+- 🔗 **Clickable Links:** Direct links to cluster dashboards
+- 🖱️ **Action Buttons:** "View Cluster Dashboard" and "View Portfolio" buttons
+- 📊 **Detailed Metrics:** Current cost, threshold, overage amount, and percentage
+
+### **In-App Notifications**
+
+In-app notifications are enabled by default and appear in the dashboard:
+
+- **Real-time Alerts:** Immediate notifications when alerts trigger
+- **Notification History:** View past alerts and their status
+- **Alert Management:** Mark as read, dismiss, or take action
+- **Visual Indicators:** Color-coded severity levels
+
+### **Alert Configuration**
+
+Configure cost alert thresholds through the web interface:
+
+1. **Go to Settings** → **Alerts Management**
+2. **Create Alert:**
+   - Alert Name: "Production Budget Alert"
+   - Cluster: Select target cluster
+   - Threshold: $1000.00 (monthly)
+   - Notification Channels: Email, Slack, In-app
+3. **Test Alert:** Use "Test Alert" button to verify notifications
+4. **Monitor:** Alerts automatically trigger when thresholds are exceeded
+
+**Notification Channels:**
+- **Email:** Professional email alerts with detailed cost breakdown
+- **Slack:** Real-time team notifications with dashboard links
+- **In-app:** Dashboard notifications with full alert management
+
+### **Security Considerations**
+
+**Environment Variables:**
+- Store sensitive data (passwords, webhook URLs) in `.env.local` (git-ignored)
+- Use environment variables in production deployments
+- Never commit secrets to version control
+
+**Email Security:**
+- Use app-specific passwords for Gmail (not regular password)
+- Enable STARTTLS encryption (port 587 recommended)
+- Validate recipient email addresses
+
+**Slack Security:**
+- Rotate webhook URLs periodically
+- Limit webhook permissions to specific channels
+- Monitor webhook usage in Slack admin panel
 
 ---
 
