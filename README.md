@@ -408,9 +408,9 @@ pip install -r requirements.txt
 2. **Configure Development Environment:**
 ```bash
 # Copy development configuration template
-cp config/examples/.env.development.example .env.local
+cp config/examples/.env.development.example .env
 
-# Edit .env.local with your Azure credentials and development settings
+# Edit .env with your Azure credentials and development settings
 # Update Azure credentials and enable desired features
 
 # Enable full Enterprise features for development
@@ -559,7 +559,7 @@ Configure cost alert thresholds through the web interface:
 ### **Security Considerations**
 
 **Environment Variables:**
-- Store sensitive data (passwords, webhook URLs) in `.env.local` (git-ignored)
+- Store sensitive data (passwords, webhook URLs) in `.env` (git-ignored)
 - Use environment variables in production deployments
 - Never commit secrets to version control
 

@@ -52,7 +52,7 @@ http://localhost:5000
 ### Development Mode (Local)
 ```bash
 # Setup development environment
-cp config/examples/.env.development.example .env.local
+cp config/examples/.env.development.example .env
 python3 dev-mode.py enable
 
 # Start development server

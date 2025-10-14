@@ -5,9 +5,9 @@
 ### **1. Environment Configuration:**
 ```bash
 # Copy development configuration template
-cp config/examples/.env.development.example .env.local
+cp config/examples/.env.development.example .env
 
-# Edit .env.local with your actual Azure credentials:
+# Edit .env with your actual Azure credentials:
 # - AZURE_TENANT_ID
 # - AZURE_CLIENT_ID  
 # - AZURE_CLIENT_SECRET
@@ -56,10 +56,10 @@ python3 dev-mode.py tier --tier enterprise
 ### **6. Development Configuration Options:**
 ```bash
 # View development configuration
-cat .env.local
+cat .env
 
 # Load development environment variables
-export $(cat .env.local | xargs)
+export $(cat .env | xargs)
 
 # Check loaded environment
 env | grep -E "(AZURE|FLASK|LOG|EMAIL|SLACK)"
@@ -184,7 +184,7 @@ python3 main.py
 ### **Daily Development:**
 ```bash
 # 1. Start development session
-cp config/examples/.env.development.example .env.local
+cp config/examples/.env.development.example .env
 python3 dev-mode.py enable
 
 # 2. Start server with hot reload
@@ -226,7 +226,7 @@ git status  # Check no .env files are staged
 ## 🛡️ **Development Security**
 
 ### **Environment File Safety:**
-- ✅ Use `.env.local` for development (git-ignored)
+- ✅ Use `.env` for development (git-ignored)
 - ❌ Never commit `.env` files with real credentials
 - ✅ Use separate test accounts for email/Slack
 - ✅ Use development Azure subscriptions when possible
