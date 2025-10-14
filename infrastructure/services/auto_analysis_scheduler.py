@@ -78,6 +78,13 @@ class AutoAnalysisScheduler:
             self.scheduler_thread.join(timeout=5)
             
         logger.info("✅ Auto analysis scheduler stopped")
+    
+    def restart_scheduler(self):
+        """Restart the scheduler (useful when settings change)"""
+        logger.info("🔄 Restarting auto analysis scheduler...")
+        self.stop_scheduler()
+        time.sleep(1)  # Brief pause to ensure clean shutdown
+        self.start_scheduler()
         
     def _scheduler_loop(self):
         """Main scheduler loop with robust error handling"""
@@ -85,6 +92,11 @@ class AutoAnalysisScheduler:
         
         while not self.stop_event.is_set():
             try:
+                # Check if auto-analysis is still enabled (user can disable it anytime)
+                if not self._is_auto_analysis_enabled():
+                    logger.info("🚫 Auto-analysis has been disabled, stopping scheduler...")
+                    break
+                
                 # Validate prerequisites
                 if not self._validate_scheduler_prerequisites():
                     logger.warning("📋 Scheduler prerequisites not met, waiting...")
@@ -127,16 +139,28 @@ class AutoAnalysisScheduler:
         logger.info("🔄 Auto analysis scheduler loop ended")
         
     def _is_auto_analysis_enabled(self) -> bool:
-        """Auto-analysis is always enabled - this is a mandatory system feature"""
-        # Auto-analysis is now mandatory and always enabled
-        # Only check if it's explicitly disabled for testing/debugging
-        disabled_for_testing = os.getenv('DISABLE_AUTO_ANALYSIS_FOR_TESTING', 'false').lower()
-        if disabled_for_testing in ['true', '1', 'yes', 'on']:
-            logger.info("🧪 Auto-analysis disabled for testing purposes")
+        """Check if auto-analysis is enabled from environment variables (like it used to work)"""
+        try:
+            # Check environment variable first (your original working method)
+            env_enabled = os.getenv('AUTO_ANALYSIS_ENABLED', 'true').lower()
+            logger.info(f"🔍 DEBUG: AUTO_ANALYSIS_ENABLED = '{env_enabled}'")
+            
+            if env_enabled in ['false', '0', 'no', 'off', 'disabled']:
+                logger.info("🚫 Auto-analysis disabled by AUTO_ANALYSIS_ENABLED environment variable")
+                return False
+            
+            # Also check testing override
+            disabled_for_testing = os.getenv('DISABLE_AUTO_ANALYSIS_FOR_TESTING', 'false').lower()
+            if disabled_for_testing in ['true', '1', 'yes', 'on']:
+                logger.info("🧪 Auto-analysis disabled for testing purposes")
+                return False
+            
+            logger.info("✅ Auto-analysis enabled by environment variables")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error checking auto-analysis environment variables: {e}")
             return False
-        
-        # Always enabled for production
-        return True
         
     def _get_analysis_interval(self) -> int:
         """Get the analysis interval in minutes"""

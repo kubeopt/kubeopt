@@ -243,6 +243,78 @@ official_standards:
     monitoring_optimization:
       prometheus_migration_savings: "significant"
   
+  # Azure Regional Pricing Standards (USD per GB per month)
+  azure_pricing:
+    storage:
+      eastus:
+        standard_lrs: 0.045
+        premium_lrs: 0.135
+        standard_ssd: 0.095
+      westus:
+        standard_lrs: 0.045
+        premium_lrs: 0.135
+        standard_ssd: 0.095
+      westus2:
+        standard_lrs: 0.045
+        premium_lrs: 0.135
+        standard_ssd: 0.095
+      centralus:
+        standard_lrs: 0.045
+        premium_lrs: 0.135
+        standard_ssd: 0.095
+      northeurope:
+        standard_lrs: 0.045
+        premium_lrs: 0.135
+        standard_ssd: 0.095
+      westeurope:
+        standard_lrs: 0.049
+        premium_lrs: 0.144
+        standard_ssd: 0.103
+      japaneast:
+        standard_lrs: 0.053
+        premium_lrs: 0.159
+        standard_ssd: 0.112
+      japanwest:
+        standard_lrs: 0.058
+        premium_lrs: 0.175
+        standard_ssd: 0.123
+      southeastasia:
+        standard_lrs: 0.048
+        premium_lrs: 0.144
+        standard_ssd: 0.102
+      eastasia:
+        standard_lrs: 0.053
+        premium_lrs: 0.159
+        standard_ssd: 0.112
+      australiaeast:
+        standard_lrs: 0.055
+        premium_lrs: 0.165
+        standard_ssd: 0.116
+      australiasoutheast:
+        standard_lrs: 0.055
+        premium_lrs: 0.165
+        standard_ssd: 0.116
+      brazilsouth:
+        standard_lrs: 0.065
+        premium_lrs: 0.195
+        standard_ssd: 0.137
+      canadacentral:
+        standard_lrs: 0.050
+        premium_lrs: 0.150
+        standard_ssd: 0.105
+      canadaeast:
+        standard_lrs: 0.050
+        premium_lrs: 0.150
+        standard_ssd: 0.105
+      uksouth:
+        standard_lrs: 0.048
+        premium_lrs: 0.144
+        standard_ssd: 0.102
+      ukwest:
+        standard_lrs: 0.048
+        premium_lrs: 0.144
+        standard_ssd: 0.102
+  
   # Architectural Standards (Kubernetes Best Practices)
   architectural:
     pod_density:

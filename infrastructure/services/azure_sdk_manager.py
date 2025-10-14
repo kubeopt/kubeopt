@@ -35,6 +35,8 @@ try:
     from azure.mgmt.monitor import MonitorManagementClient
     from azure.mgmt.resource import ResourceManagementClient
     from azure.mgmt.containerservice import ContainerServiceClient
+    from azure.mgmt.compute import ComputeManagementClient
+    from azure.mgmt.network import NetworkManagementClient
     from azure.monitor.query import LogsQueryClient
     from azure.core.credentials import TokenCredential
     from azure.core.exceptions import ClientAuthenticationError
@@ -47,6 +49,8 @@ except ImportError as e:
     class MonitorManagementClient: pass
     class ResourceManagementClient: pass
     class ContainerServiceClient: pass
+    class ComputeManagementClient: pass
+    class NetworkManagementClient: pass
     class LogsQueryClient: pass
 
 # Try to import additional Azure SDK packages
@@ -309,6 +313,10 @@ class AzureSDKManager:
                     client = ContainerServiceClient(self.credential, target_subscription, transport=transport)
                 elif client_type == 'logs':
                     client = LogsQueryClient(self.credential, transport=transport)
+                elif client_type == 'compute':
+                    client = ComputeManagementClient(self.credential, target_subscription, transport=transport)
+                elif client_type == 'network':
+                    client = NetworkManagementClient(self.credential, target_subscription, transport=transport)
                 elif client_type == 'loganalytics':
                     if LOG_ANALYTICS_AVAILABLE:
                         client = LogAnalyticsManagementClient(self.credential, target_subscription, transport=transport)
@@ -359,6 +367,14 @@ class AzureSDKManager:
     def get_logs_client(self, subscription_id: Optional[str] = None) -> Optional[LogsQueryClient]:
         """Get Azure Monitor Logs client for specified subscription"""
         return self.get_client('logs', subscription_id)
+    
+    def get_compute_client(self, subscription_id: Optional[str] = None) -> Optional[ComputeManagementClient]:
+        """Get Azure Compute Management client for specified subscription"""
+        return self.get_client('compute', subscription_id)
+    
+    def get_network_client(self, subscription_id: Optional[str] = None) -> Optional[NetworkManagementClient]:
+        """Get Azure Network Management client for specified subscription"""
+        return self.get_client('network', subscription_id)
     
     def get_log_analytics_client(self, subscription_id: Optional[str] = None):
         """Get Log Analytics client - requires azure-mgmt-loganalytics package"""
