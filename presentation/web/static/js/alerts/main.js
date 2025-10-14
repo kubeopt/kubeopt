@@ -394,73 +394,91 @@ function showGlobalNotificationsDropdown(event) {
     const bellIcon = event.target.closest('.relative') || event.target;
     const bellRect = bellIcon.getBoundingClientRect();
     
-    dropdown.style.cssText = `
-        position: fixed;
-        top: ${bellRect.bottom + 10}px;
-        right: ${window.innerWidth - bellRect.right}px;
-        width: 350px;
-        max-width: 90vw;
-        max-height: 500px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.15);
-        z-index: 99999;
-        overflow: hidden;
-        border: 1px solid #e5e7eb;
-        transform: translateY(-5px);
-        opacity: 0;
-        transition: all 0.2s ease-out;
-    `;
+    // Calculate optimal positioning
+    const dropdownWidth = 350;
+    const margin = 10;
     
-    // Create dropdown content
+    // Determine if there's enough space on the right
+    const spaceOnRight = window.innerWidth - bellRect.right;
+    const spaceOnLeft = bellRect.left;
+    
+    let rightPosition, leftPosition;
+    
+    if (spaceOnRight >= dropdownWidth + margin) {
+        // Align dropdown to the right edge of the bell icon
+        rightPosition = window.innerWidth - bellRect.right;
+    } else if (spaceOnLeft >= dropdownWidth + margin) {
+        // Position to the left of the bell icon
+        leftPosition = bellRect.left - dropdownWidth;
+    } else {
+        // Center dropdown on screen with margin
+        rightPosition = margin;
+    }
+    
+    // Set positioning
+    dropdown.style.top = `${bellRect.bottom + margin}px`;
+    if (rightPosition !== undefined) {
+        dropdown.style.right = `${rightPosition}px`;
+    } else {
+        dropdown.style.left = `${leftPosition}px`;
+    }
+    
+    // Ensure dropdown doesn't go off bottom of screen
+    const dropdownMaxHeight = 500;
+    const spaceBelow = window.innerHeight - bellRect.bottom - margin;
+    if (spaceBelow < dropdownMaxHeight) {
+        // Position above the bell icon instead
+        dropdown.style.top = `${bellRect.top - dropdownMaxHeight - margin}px`;
+        dropdown.style.maxHeight = `${Math.min(dropdownMaxHeight, bellRect.top - margin)}px`;
+    }
+    
+    // Create dropdown content using CSS classes
     const dropdownContent = `
-        <div style="padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); background: #171d33; color: white;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0; font-size: 16px; font-weight: 600;">
+        <div class="notifications-dropdown-header">
+            <div class="notifications-dropdown-header-content">
+                <h3 class="notifications-dropdown-title">
                     🔔 ${window.AlertsState.currentClusterId ? 'Cluster' : 'All'} Notifications
                 </h3>
-                <button onclick="closeNotificationsDropdown()" 
-                        style="background: rgba(255,255,255,0.2); border: none; color: white; width: 28px; height: 28px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
+                <button onclick="closeNotificationsDropdown()" class="notifications-dropdown-close-btn">×</button>
             </div>
             ${window.AlertsState.currentClusterId ? 
-                `<p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.7;">🎯 ${window.AlertsState.currentClusterId}</p>` : 
+                `<p class="notifications-dropdown-cluster-info">🎯 ${window.AlertsState.currentClusterId}</p>` : 
                 ''
             }
             ${unreadCount > 0 ? 
-                `<p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}</p>` : 
-                `<p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">All caught up! 🎉</p>`
+                `<p class="notifications-dropdown-unread-info">${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}</p>` : 
+                `<p class="notifications-dropdown-unread-info">All caught up! 🎉</p>`
             }
         </div>
         
-        <div style="max-height: 400px; overflow-y: auto;">
+        <div class="notifications-dropdown-content">
             ${recentNotifications.length === 0 ? `
-                <div style="padding: 40px 20px; text-align: center; color: #6b7280;">
-                    <div style="font-size: 48px; margin-bottom: 16px;">🔕</div>
-                    <h4 style="margin: 0 0 8px 0; color: #374151;">No notifications yet</h4>
-                    <p style="margin: 0; font-size: 14px;">When alerts are triggered, you'll see them here</p>
+                <div class="notifications-dropdown-empty">
+                    <div class="notifications-dropdown-empty-icon">🔕</div>
+                    <h4>No notifications yet</h4>
+                    <p>When alerts are triggered, you'll see them here</p>
                 </div>
             ` : recentNotifications.map(notification => `
-                <div style="padding: 16px; border-bottom: 1px solid #f3f4f6; ${!notification.read ? 'background: linear-gradient(90deg, #fef3c7 0%, #fef3c7 4px, #ffffff 4px);' : ''} hover:background-color: #f9fafb; cursor: pointer;" 
+                <div class="notification-dropdown-item ${!notification.read ? 'unread' : ''}" 
                      data-notification-id="${notification.id}"
                      onclick="handleNotificationClick('${notification.id}')">
-                    <div style="display: flex; justify-content: space-between; align-items: start;">
-                        <div style="flex-grow: 1; padding-right: 12px;">
-                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                                <div style="font-weight: 600; font-size: 14px; color: #374151;">
+                    <div class="notification-dropdown-item-content">
+                        <div class="notification-dropdown-item-main">
+                            <div class="notification-dropdown-item-header">
+                                <div class="notification-dropdown-item-title">
                                     ${escapeHtml(notification.title)}
                                 </div>
-                                ${!notification.read ? '<div style="width: 8px; height: 8px; background: #ef4444; border-radius: 50%; flex-shrink: 0;"></div>' : ''}
+                                ${!notification.read ? '<div class="notification-dropdown-item-unread-dot"></div>' : ''}
                             </div>
-                            <p style="margin: 0 0 8px 0; font-size: 13px; color: #6b807bff; line-height: 1.4;">
+                            <p class="notification-dropdown-item-message">
                                 ${escapeHtml(notification.message)}
                             </p>
-                            <div style="font-size: 12px; color: #9cafadff;">
+                            <div class="notification-dropdown-item-time">
                                 ${formatDateTime(notification.timestamp)}
                             </div>
                         </div>
                         ${!notification.read ? `
-                            <button id="mark-read-${notification.id}" class="mark-read-btn" data-notification-id="${notification.id}"
-                                    style="background: #171d34; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
+                            <button id="mark-read-${notification.id}" class="notification-mark-read-btn" data-notification-id="${notification.id}">
                                 Mark Read
                             </button>
                         ` : ''}
@@ -469,20 +487,16 @@ function showGlobalNotificationsDropdown(event) {
             `).join('')}
         </div>
         
-        ${recentNotifications.length > 0 ? `
-            <div style="padding: 16px; background: #f9fafb; border-top: 1px solid #e5e7eb; display: flex; gap: 8px;">
-                ${unreadCount > 0 ? `
-                    <button id="mark-all-read-global" class="mark-all-read-btn"
-                            style="flex: 1; background: #171d34; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
-                        Mark All Read
-                    </button>
-                ` : ''}
-                <button onclick="navigateToAlertsTab(); closeNotificationsDropdown();" 
-                        style="flex: 1; background: #171d34; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
-                    View All
+        <div class="notifications-dropdown-footer">
+            ${unreadCount > 0 ? `
+                <button id="mark-all-read-global" class="notifications-dropdown-btn mark-all">
+                    Mark All Read
                 </button>
-            </div>
-        ` : ''}
+            ` : ''}
+            <button onclick="navigateToAlertsTab(); closeNotificationsDropdown();" class="notifications-dropdown-btn">
+                View All Alerts ${notifications.length > 5 ? `(${notifications.length})` : ''}
+            </button>
+        </div>
     `;
     
     dropdown.innerHTML = dropdownContent;
@@ -491,10 +505,9 @@ function showGlobalNotificationsDropdown(event) {
     // Add event listeners for buttons IMMEDIATELY after creation
     setupDropdownEventListeners(dropdown);
     
-    // Animate in
+    // Animate in using CSS class
     requestAnimationFrame(() => {
-        dropdown.style.opacity = '1';
-        dropdown.style.transform = 'translateY(0)';
+        dropdown.classList.add('show');
     });
     
     // Close on click outside
@@ -516,7 +529,7 @@ function showGlobalNotificationsDropdown(event) {
 function closeNotificationsDropdown() {
     const dropdown = document.getElementById('global-notifications-dropdown');
     if (dropdown) {
-        dropdown.style.opacity = '0';
+        dropdown.classList.remove('show');
         dropdown.style.transform = 'translateY(-10px)';
         setTimeout(() => dropdown.remove(), 200);
     }
@@ -529,7 +542,7 @@ function setupDropdownEventListeners(dropdown) {
     console.log('🔧 Setting up dropdown event listeners...');
     
     // Setup individual "Mark Read" button listeners
-    const markReadButtons = dropdown.querySelectorAll('.mark-read-btn');
+    const markReadButtons = dropdown.querySelectorAll('.notification-mark-read-btn');
     markReadButtons.forEach(button => {
         const notificationId = button.getAttribute('data-notification-id');
         button.addEventListener('click', function(event) {
@@ -541,7 +554,7 @@ function setupDropdownEventListeners(dropdown) {
     });
     
     // Setup "Mark All Read" button listener
-    const markAllButton = dropdown.querySelector('.mark-all-read-btn');
+    const markAllButton = dropdown.querySelector('#mark-all-read-global');
     if (markAllButton) {
         markAllButton.addEventListener('click', function(event) {
             event.preventDefault();

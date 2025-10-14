@@ -140,13 +140,27 @@ function updateUI(scores) {
         updateScoreBreakdown(costBreakdownElement, scores.costExcellenceBreakdown);
     }
     
-    // Update savings opportunities
-    updateSavingsOpportunities(scores.savingsOpportunities || []);
+    // Combine savings opportunities and recommendations into unified display
+    const buildRecommendations = window.analysisData.build_quality_recommendations || [];
+    const costRecommendations = window.analysisData.cost_excellence_recommendations || [];
+    const savingsOpportunities = scores.savingsOpportunities || [];
     
-    // Update recommendations if available
-    const buildRecommendations = analysisData.build_quality_recommendations || [];
-    const costRecommendations = analysisData.cost_excellence_recommendations || [];
-    updateRecommendations([...buildRecommendations, ...costRecommendations]);
+    console.log('🔍 Build Quality Recommendations:', buildRecommendations);
+    console.log('🔍 Cost Excellence Recommendations:', costRecommendations);
+    console.log('🔍 Savings Opportunities:', savingsOpportunities);
+    console.log('🔍 Total items:', buildRecommendations.length + costRecommendations.length + savingsOpportunities.length);
+    
+    // Create truly unified display by converting savings to recommendation format
+    const allRecommendations = [
+        ...convertSavingsToRecommendations(savingsOpportunities),
+        ...buildRecommendations,
+        ...costRecommendations
+    ];
+    
+    console.log('🔍 Unified recommendations total:', allRecommendations.length);
+    
+    // Update both containers with unified data
+    updateTrulyUnifiedDisplay(allRecommendations);
 }
 
 /**
@@ -339,10 +353,68 @@ function showAKSScoreDetails(scoreType) {
 }
 
 /**
+ * Convert savings opportunities to recommendation format for unified display
+ */
+function convertSavingsToRecommendations(savingsOpportunities) {
+    return savingsOpportunities.map(opp => ({
+        category: opp.category,
+        priority: opp.confidence === 'High' ? 'High' : 'Medium',
+        description: opp.description,
+        action: `Potential savings: $${Math.round(opp.monthly_savings)}/month - ${opp.description}`,
+        impact: opp.confidence === 'High' ? 'High' : 'Medium',
+        based_on_real_metrics: true,
+        savings_amount: opp.monthly_savings,
+        confidence: opp.confidence,
+        effort: opp.effort,
+        type: 'savings_opportunity'
+    }));
+}
+
+/**
+ * Update truly unified display - hide savings section, show everything in recommendations
+ */
+function updateTrulyUnifiedDisplay(allRecommendations) {
+    const savingsContainer = document.getElementById('aks-savings-opportunities');
+    const recommendationsContainer = document.getElementById('aks-recommendations');
+    
+    if (!recommendationsContainer) {
+        console.warn('⚠️ Recommendations container not found');
+        return;
+    }
+    
+    // Hide the savings section entirely since we're showing everything unified
+    const savingsSection = document.querySelector('.savings-section');
+    if (savingsSection) {
+        savingsSection.style.display = 'none';
+    }
+    
+    // Show all items in the recommendations section
+    updateImplementationRecommendationsOnly(allRecommendations, recommendationsContainer);
+}
+
+/**
+ * Update unified recommendations display combining savings and implementation recommendations
+ */
+function updateUnifiedRecommendations(savingsOpportunities, implementationRecommendations) {
+    const savingsContainer = document.getElementById('aks-savings-opportunities');
+    const recommendationsContainer = document.getElementById('aks-recommendations');
+    
+    if (!savingsContainer || !recommendationsContainer) {
+        console.warn('⚠️ Unified recommendations containers not found');
+        return;
+    }
+    
+    // Update savings opportunities section
+    updateSavingsOpportunitiesOnly(savingsOpportunities, savingsContainer);
+    
+    // Update implementation recommendations section  
+    updateImplementationRecommendationsOnly(implementationRecommendations, recommendationsContainer);
+}
+
+/**
  * Update savings opportunities display with real analysis data
  */
-function updateSavingsOpportunities(opportunities) {
-    const savingsContainer = document.getElementById('aks-savings-opportunities');
+function updateSavingsOpportunitiesOnly(opportunities, savingsContainer) {
     if (!savingsContainer) {
         console.warn('⚠️ Savings opportunities container not found');
         return;
@@ -412,10 +484,9 @@ function getCategoryIcon(category) {
 }
 
 /**
- * Update recommendations display with data from AKS scoring system
+ * Update implementation recommendations display with data from AKS scoring system
  */
-function updateRecommendations(recommendations) {
-    const recommendationsContainer = document.getElementById('aks-recommendations');
+function updateImplementationRecommendationsOnly(recommendations, recommendationsContainer) {
     if (!recommendationsContainer) {
         console.warn('⚠️ Recommendations container not found');
         return;
@@ -461,19 +532,23 @@ function updateRecommendations(recommendations) {
             groupedRecs[priority].forEach(rec => {
                 const isBasedOnRealMetrics = rec.based_on_real_metrics === true;
                 const yamlStandard = rec.yaml_standard ? `Based on: ${rec.yaml_standard}` : '';
+                const isSavingsOpportunity = rec.type === 'savings_opportunity';
                 
                 recommendationsHTML += `
-                    <div class="recommendation-item ${priority.toLowerCase()}" data-priority="${priority}">
+                    <div class="recommendation-item ${priority.toLowerCase()} ${isSavingsOpportunity ? 'savings-type' : 'implementation-type'}" data-priority="${priority}">
                         <div class="recommendation-header">
                             <div class="recommendation-icon">
                                 <i class="fas ${getRecommendationIcon(rec.category)}"></i>
                             </div>
                             <div class="recommendation-title">
-                                <h6>${rec.category}</h6>
+                                <h6>${rec.category}${isSavingsOpportunity ? ` ($${Math.round(rec.savings_amount)}/mo)` : ''}</h6>
                                 <div class="recommendation-badges">
                                     <span class="priority-badge ${priority.toLowerCase()}">${priority}</span>
                                     <span class="impact-badge ${rec.impact ? rec.impact.toLowerCase() : 'medium'}">${rec.impact || 'Medium'} Impact</span>
                                     ${isBasedOnRealMetrics ? '<span class="metrics-badge real-metrics">Real Metrics</span>' : '<span class="metrics-badge estimated">Estimated</span>'}
+                                    ${isSavingsOpportunity ? `<span class="type-badge savings">Cost Savings</span>` : `<span class="type-badge implementation">Implementation</span>`}
+                                    ${isSavingsOpportunity && rec.confidence ? `<span class="confidence-badge">${rec.confidence} Confidence</span>` : ''}
+                                    ${isSavingsOpportunity && rec.effort ? `<span class="effort-badge">${rec.effort} Effort</span>` : ''}
                                 </div>
                             </div>
                         </div>
@@ -482,6 +557,19 @@ function updateRecommendations(recommendations) {
                             <div class="recommendation-action">
                                 <strong>Action:</strong> ${rec.action}
                             </div>
+                            
+                            ${rec.current_value && rec.target_range ? `
+                                <div class="recommendation-metrics">
+                                    <div class="metrics-row">
+                                        <span class="metrics-label">Current:</span>
+                                        <span class="metrics-value current">${rec.current_value}</span>
+                                        <span class="metrics-label">Target:</span>
+                                        <span class="metrics-value target">${rec.target_range || rec.target_value}</span>
+                                    </div>
+                                    ${rec.gap_analysis ? `<div class="gap-analysis"><small><i class="fas fa-chart-line"></i> ${rec.gap_analysis}</small></div>` : ''}
+                                </div>
+                            ` : ''}
+                            
                             ${yamlStandard ? `<div class="recommendation-standard"><small><em>${yamlStandard}</em></small></div>` : ''}
                         </div>
                     </div>

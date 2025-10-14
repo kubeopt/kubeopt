@@ -1704,9 +1704,11 @@ class ConsistentCostAnalyzer:
                 'build_quality_score': build_quality.total,
                 'build_quality_breakdown': build_quality.breakdown,
                 'build_quality_details': build_quality.details,
+                'build_quality_recommendations': build_quality.recommendations or [],
                 'cost_excellence_score': cost_excellence.total,
                 'cost_excellence_breakdown': cost_excellence.breakdown,
                 'cost_excellence_details': cost_excellence.details,
+                'cost_excellence_recommendations': cost_excellence.recommendations or [],
                 'aks_savings_opportunities': [
                     {
                         'category': est.category,
@@ -1729,6 +1731,11 @@ class ConsistentCostAnalyzer:
         Prepare metrics data for AKS scoring framework
         """
         try:
+            # Debug logging to see what data we have
+            logger.info(f"🔍 SCORING DEBUG - Cost data keys: {list(cost_data.keys())}")
+            logger.info(f"🔍 SCORING DEBUG - Metrics data keys: {list(metrics_data.keys())}")
+            logger.info(f"🔍 SCORING DEBUG - Current usage: {current_usage}")
+            logger.info(f"🔍 SCORING DEBUG - Analysis results keys: {list(analysis_results.keys())}")
             # Extract basic resource metrics
             nodes = metrics_data.get('nodes', [])
             node_count = len(nodes)
@@ -1739,6 +1746,25 @@ class ConsistentCostAnalyzer:
             
             avg_cpu = current_usage.get('avg_cpu_utilization', 0)
             avg_memory = current_usage.get('avg_memory_utilization', 0)
+            
+            # Debug CPU/Memory data
+            logger.info(f"🔍 SCORING DEBUG - CPU: {avg_cpu}%, Memory: {avg_memory}%")
+            logger.info(f"🔍 SCORING DEBUG - Total CPU alloc: {total_cpu_alloc}, Total Memory alloc: {total_mem_alloc}")
+            
+            # Try to get actual usage from pod metrics if current_usage is empty
+            if avg_cpu == 0 and avg_memory == 0:
+                pods = metrics_data.get('pods', [])
+                if pods:
+                    total_cpu_usage = sum(pod.get('cpu_usage_millicores', 0) for pod in pods)
+                    total_memory_usage = sum(pod.get('memory_usage_mb', 0) for pod in pods)
+                    
+                    # Convert to percentages
+                    if total_cpu_alloc > 0:
+                        avg_cpu = (total_cpu_usage / 1000) / total_cpu_alloc * 100  # Convert millicores to cores
+                    if total_mem_alloc > 0:
+                        avg_memory = total_memory_usage / (total_mem_alloc * 1024) * 100  # Convert MB to percentage
+                    
+                    logger.info(f"🔍 SCORING DEBUG - Calculated from pods - CPU: {avg_cpu:.1f}%, Memory: {avg_memory:.1f}%")
             
             # Convert percentage to actual usage
             cpu_p95 = (avg_cpu / 100.0) * total_cpu_alloc if avg_cpu else 0
@@ -1893,7 +1919,15 @@ class ConsistentCostAnalyzer:
                 'cluster_network_waste': metrics_data.get('cluster_network_waste_sdk', []),
             }
             
+            # Log key scoring metrics
             logger.info(f"✅ Prepared scoring metrics: {len(scoring_metrics)} parameters")
+            logger.info(f"🔍 KEY SCORING METRICS:")
+            logger.info(f"   CPU Alloc: {scoring_metrics['cpu_alloc']}, P95: {scoring_metrics['cpu_p95']} ({scoring_metrics['cpu_p95']/scoring_metrics['cpu_alloc']*100:.1f}%)")
+            logger.info(f"   Mem Alloc: {scoring_metrics['mem_alloc']}, P95: {scoring_metrics['mem_p95']} ({scoring_metrics['mem_p95']/scoring_metrics['mem_alloc']*100:.1f}%)")
+            logger.info(f"   HPAs: {scoring_metrics['hpa_count']}/{scoring_metrics['eligible_hpa_workloads']} ({scoring_metrics['hpa_count']/scoring_metrics['eligible_hpa_workloads']*100:.1f}%)")
+            logger.info(f"   Idle Compute: {scoring_metrics['idle_compute_cost_pct']*100:.1f}%")
+            logger.info(f"   Node Cost: ${scoring_metrics['cost_nodes']}, Storage: ${scoring_metrics['cost_storage']}")
+            
             return scoring_metrics
             
         except Exception as e:
