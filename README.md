@@ -385,6 +385,13 @@ APP_URL=http://localhost:5001  # Base URL for dashboard links
 
 # License Configuration (Optional)
 LICENSE_TIER=enterprise  # free, pro, enterprise
+
+# Development Settings (for .env.local in development)
+FLASK_ENV=development     # Enable development mode
+FLASK_DEBUG=true          # Enable Flask debug mode
+LOG_LEVEL=DEBUG           # Verbose logging
+PRODUCTION_MODE=false     # Disable production optimizations
+kubeopt_DEV_MODE=true     # Enable full enterprise features
 ```
 
 ### **Development Setup**
@@ -398,19 +405,38 @@ source venv/bin/activate  # or `venv\Scripts\activate` on Windows
 pip install -r requirements.txt
 ```
 
-2. **Enable Development Mode:**
+2. **Configure Development Environment:**
 ```bash
+# Copy development configuration template
+cp config/examples/.env.development.example .env.local
+
+# Edit .env.local with your Azure credentials and development settings
+# Update Azure credentials and enable desired features
+
 # Enable full Enterprise features for development
 python3 dev-mode.py enable
-
-# Start application
-python3 main.py
 ```
 
-3. **Access Application:**
+3. **Start Development Server:**
+```bash
+# Start with development configuration
+python3 main.py
+
+# Or use Flask development server with hot reload
+FLASK_ENV=development FLASK_DEBUG=true python3 main.py
+```
+
+4. **Access Development Application:**
 ```
 http://localhost:5001
 ```
+
+#### **Development Features:**
+- 🔧 **Full Enterprise Features:** All features unlocked for development
+- 🔄 **Hot Reload:** Automatic restart on code changes
+- 📊 **Debug Logging:** Verbose logging for troubleshooting
+- 🧪 **Test Configurations:** Lower thresholds for easier testing
+- 📧 **Test Notifications:** Separate email/Slack for development
 
 ### **Production Deployment**
 

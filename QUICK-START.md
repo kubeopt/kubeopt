@@ -49,7 +49,17 @@ http://localhost:5000
 
 ## 📋 Alternative Options
 
-### Development Mode
+### Development Mode (Local)
+```bash
+# Setup development environment
+cp config/examples/.env.development.example .env.local
+python3 dev-mode.py enable
+
+# Start development server
+FLASK_ENV=development python3 main.py
+```
+
+### Development Mode (Docker)
 ```bash
 docker-compose up -d
 ```
