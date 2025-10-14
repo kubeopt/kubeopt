@@ -533,53 +533,54 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Top Savings Opportunities -->
+                                <!-- Top Savings Opportunities and Recommendations Combined -->
                                 <div class="excellence-score-card full-width">
                                     <div class="score-header">
                                         <div class="score-icon savings">
-                                            <i class="fas fa-piggy-bank"></i>
+                                            <i class="fas fa-lightbulb"></i>
                                         </div>
                                         <div class="score-info">
                                             <h4>Top Savings Opportunities</h4>
-                                            <p>Based on AKS Excellence analysis</p>
+                                            <p>Based on AKS Excellence analysis with actionable recommendations</p>
                                         </div>
                                     </div>
-                                    <div class="savings-list" id="aks-savings-opportunities">
-                                        <div class="savings-item">
-                                            <div class="savings-icon">
-                                                <i class="fas fa-search"></i>
+                                    
+                                    <!-- Savings Opportunities Section -->
+                                    <div class="savings-section">
+                                        <h5 class="section-subtitle">
+                                            <i class="fas fa-piggy-bank"></i>
+                                            Cost Optimization Opportunities
+                                        </h5>
+                                        <div class="savings-list" id="aks-savings-opportunities">
+                                            <div class="savings-item">
+                                                <div class="savings-icon">
+                                                    <i class="fas fa-search"></i>
+                                                </div>
+                                                <div class="savings-info">
+                                                    <span class="savings-category">Analyzing...</span>
+                                                    <span class="savings-description">Calculating cost optimization opportunities</span>
+                                                </div>
+                                                <div class="savings-amount">--</div>
                                             </div>
-                                            <div class="savings-info">
-                                                <span class="savings-category">Analyzing...</span>
-                                                <span class="savings-description">Calculating cost optimization opportunities</span>
-                                            </div>
-                                            <div class="savings-amount">--</div>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- AKS Excellence Recommendations Section -->
-                        <div class="clean-chart-card chart-card-full-width-mb">
-                            <div class="chart-header">
-                                <div class="chart-icon">
-                                    <i class="fas fa-tasks"></i>
-                                </div>
-                                <h3 class="chart-title">Improvement Recommendations</h3>
-                                <div class="chart-actions">
-                                    <button class="chart-action-btn" onclick="refreshAKSScores()">
-                                        <i class="fas fa-sync-alt"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="recommendations-container" id="aks-recommendations">
-                                <div class="recommendations-placeholder">
-                                    <div class="recommendations-placeholder-icon">
-                                        <i class="fas fa-clipboard-list"></i>
+                                    
+                                    <!-- Recommendations Section -->
+                                    <div class="recommendations-section">
+                                        <h5 class="section-subtitle">
+                                            <i class="fas fa-tasks"></i>
+                                            Implementation Recommendations
+                                        </h5>
+                                        <div class="recommendations-container" id="aks-recommendations">
+                                            <div class="recommendations-placeholder">
+                                                <div class="recommendations-placeholder-icon">
+                                                    <i class="fas fa-clipboard-list"></i>
+                                                </div>
+                                                <h4 class="recommendations-placeholder-title">Recommendations Loading...</h4>
+                                                <p class="recommendations-placeholder-text">Analyzing your cluster's performance to generate actionable recommendations</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <h4 class="recommendations-placeholder-title">Recommendations Loading...</h4>
-                                    <p class="recommendations-placeholder-text">Analyzing your cluster's performance to generate actionable recommendations</p>
                                 </div>
                             </div>
                         </div>

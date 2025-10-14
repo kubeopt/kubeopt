@@ -225,6 +225,32 @@ official_standards:
       minimum_roi_percentage: 10
       breakeven_months: 9
   
+  # Savings Opportunities Standards (Real Data Analysis)
+  savings_opportunities:
+    # Public IP standards
+    public_ip_monthly_cost: 3.65            # Azure public IP cost per month
+    unused_ip_cleanup_percentage: 0.80      # 80% of unused IPs are cleanable
+    minimum_ip_cost_threshold: 10           # Only recommend if >$10/month
+    
+    # Load balancer standards  
+    lb_monthly_cost_standard: 25            # Azure Load Balancer cost per month
+    lb_consolidation_threshold: 2           # Recommend consolidation if >2 LBs
+    lb_consolidation_percentage: 0.75       # 75% of excess LBs can be consolidated
+    
+    # Idle resources standards
+    idle_cpu_threshold: 0.05                # 5% max idle CPU acceptable
+    idle_memory_threshold: 0.05             # 5% max idle memory acceptable
+    idle_cleanup_percentage: 0.70           # 70% of idle resources can be cleaned
+    minimum_idle_cost_threshold: 50         # Only recommend if >$50/month
+    
+    # Spot instance standards
+    spot_instance_target_percentage: 0.30   # 30% target spot usage
+    spot_monthly_savings_rate: 0.60         # 60% cost reduction with spot
+    
+    # Reserved instance standards
+    reserved_instance_target_percentage: 0.70  # 70% target RI coverage
+    reserved_monthly_savings_rate: 0.30     # 30% cost reduction with RI
+
   # Cost Efficiency Standards (FinOps + Azure WAF)
   cost_efficiency:
     reserved_instance_coverage: 70    # 70% RI coverage

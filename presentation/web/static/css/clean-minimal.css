@@ -1132,51 +1132,71 @@ body {
 }
 
 /* ===== GLOBAL NOTIFICATIONS DROPDOWN CONTENT OVERRIDE ===== */
-/* Main dropdown container - Fixed positioning */
+/* Main dropdown container - Dynamic positioning */
 #global-notifications-dropdown {
     position: fixed !important;
-    top: 70px !important; /* Fixed position below top bar */
-    right: 20px !important; /* Fixed position from right edge */
     width: 350px !important;
     max-width: 90vw !important;
     max-height: 500px !important;
     background: var(--bg-white) !important;
     border-radius: var(--border-radius-lg) !important;
-    box-shadow: var(--shadow-lg) !important;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15) !important;
     z-index: 99999 !important;
     overflow: hidden !important;
     border: 1px solid var(--border-color) !important;
-    transform: translateY(0px) !important;
+    transform: translateY(-5px) !important;
+    opacity: 0 !important;
+    transition: all 0.2s ease-out !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+/* Animated state when visible */
+#global-notifications-dropdown.show {
+    transform: translateY(0) !important;
     opacity: 1 !important;
-    transition: 0.2s ease-out !important;
 }
 
 /* Dropdown header section */
-#global-notifications-dropdown > div:first-child {
+.notifications-dropdown-header {
     padding: var(--spacing-lg) !important;
     border-bottom: 1px solid var(--border-color) !important;
-    background: var(--bg-primary) !important;
-    color: var(--text-primary) !important;
+    background: var(--primary-green) !important;
+    color: var(--text-white) !important;
 }
 
-#global-notifications-dropdown > div:first-child > div {
+.notifications-dropdown-header-content {
     display: flex !important;
     justify-content: space-between !important;
     align-items: center !important;
 }
 
-#global-notifications-dropdown h3 {
+.notifications-dropdown-title {
     margin: 0 !important;
-    font-size: 1rem !important;
+    font-size: 16px !important;
     font-weight: 600 !important;
-    color: var(--text-primary) !important;
+    color: var(--text-white) !important;
+}
+
+.notifications-dropdown-cluster-info {
+    margin: 4px 0 0 0 !important;
+    font-size: 12px !important;
+    opacity: 0.7 !important;
+    color: var(--text-white) !important;
+}
+
+.notifications-dropdown-unread-info {
+    margin: 8px 0 0 0 !important;
+    font-size: 14px !important;
+    opacity: 0.9 !important;
+    color: var(--text-white) !important;
 }
 
 /* Close button in header */
-#global-notifications-dropdown button {
-    background: var(--border-color) !important;
+.notifications-dropdown-close-btn {
+    background: rgba(255,255,255,0.2) !important;
     border: none !important;
-    color: var(--text-secondary) !important;
+    color: var(--text-white) !important;
     width: 28px !important;
     height: 28px !important;
     border-radius: 50% !important;
@@ -1188,53 +1208,154 @@ body {
     transition: all 0.2s ease !important;
 }
 
-#global-notifications-dropdown button:hover {
-    background: var(--primary-green) !important;
-    color: var(--text-white) !important;
-}
-
-/* Cluster info paragraphs in header */
-#global-notifications-dropdown > div:first-child p {
-    margin: 4px 0 0 0 !important;
-    font-size: 0.75rem !important;
-    color: var(--text-secondary) !important;
-}
-
-#global-notifications-dropdown > div:first-child p:last-child {
-    margin: 8px 0 0 0 !important;
-    font-size: 0.875rem !important;
-    color: var(--text-primary) !important;
+.notifications-dropdown-close-btn:hover {
+    background: var(--bg-white) !important;
+    color: var(--primary-green) !important;
 }
 
 /* Notifications content area */
-#global-notifications-dropdown > div:last-child {
-    max-height: 400px !important;
+.notifications-dropdown-content {
+    flex: 1 !important;
     overflow-y: auto !important;
     background: var(--bg-white) !important;
+    min-height: 0 !important;
 }
 
 /* Empty state content */
-#global-notifications-dropdown > div:last-child > div {
+.notifications-dropdown-empty {
     padding: 40px 20px !important;
     text-align: center !important;
     color: var(--text-secondary) !important;
 }
 
-#global-notifications-dropdown > div:last-child > div > div:first-child {
+.notifications-dropdown-empty-icon {
     font-size: 48px !important;
     margin-bottom: 16px !important;
 }
 
-#global-notifications-dropdown > div:last-child h4 {
+.notifications-dropdown-empty h4 {
     margin: 0 0 8px 0 !important;
     color: var(--text-primary) !important;
     font-weight: 600 !important;
 }
 
-#global-notifications-dropdown > div:last-child p {
+.notifications-dropdown-empty p {
     margin: 0 !important;
-    font-size: 0.875rem !important;
+    font-size: 14px !important;
     color: var(--text-secondary) !important;
+}
+
+/* Individual notification items */
+.notification-dropdown-item {
+    padding: 16px !important;
+    border-bottom: 1px solid #f3f4f6 !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s ease !important;
+}
+
+.notification-dropdown-item:hover {
+    background-color: #f9fafb !important;
+}
+
+.notification-dropdown-item.unread {
+    background: linear-gradient(90deg, #fef3c7 0%, #fef3c7 4px, #ffffff 4px) !important;
+}
+
+.notification-dropdown-item-content {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: start !important;
+}
+
+.notification-dropdown-item-main {
+    flex-grow: 1 !important;
+    padding-right: 12px !important;
+}
+
+.notification-dropdown-item-header {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-bottom: 6px !important;
+}
+
+.notification-dropdown-item-title {
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    color: var(--text-primary) !important;
+}
+
+.notification-dropdown-item-unread-dot {
+    width: 8px !important;
+    height: 8px !important;
+    background: #ef4444 !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+}
+
+.notification-dropdown-item-message {
+    margin: 0 0 8px 0 !important;
+    font-size: 13px !important;
+    color: var(--text-secondary) !important;
+    line-height: 1.4 !important;
+}
+
+.notification-dropdown-item-time {
+    font-size: 12px !important;
+    color: var(--text-muted) !important;
+}
+
+/* Mark read button */
+.notification-mark-read-btn {
+    background: var(--primary-green) !important;
+    color: var(--text-white) !important;
+    border: none !important;
+    padding: 6px 12px !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    transition: background-color 0.2s ease !important;
+}
+
+.notification-mark-read-btn:hover {
+    background: var(--dark-green) !important;
+}
+
+/* Footer actions - Fixed at bottom */
+.notifications-dropdown-footer {
+    padding: 16px !important;
+    background: var(--bg-primary) !important;
+    border-top: 1px solid var(--border-color) !important;
+    display: flex !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+    margin-top: auto !important;
+}
+
+.notifications-dropdown-btn {
+    flex: 1 !important;
+    background: var(--primary-green) !important;
+    color: var(--text-white) !important;
+    border: none !important;
+    padding: 10px 16px !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s ease !important;
+}
+
+.notifications-dropdown-btn:hover {
+    background: var(--dark-green) !important;
+}
+
+.notifications-dropdown-btn.mark-all {
+    background: var(--light-green) !important;
+}
+
+.notifications-dropdown-btn.mark-all:hover {
+    background: var(--primary-green) !important;
 }
 
 /* ===== CLEAN TAB SYSTEM ===== */
@@ -3276,16 +3397,7 @@ button[style*="background: #dc2626"]:hover {
 
 .excellence-score-card {
     background: var(--bg-white);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-lg);
     padding: var(--spacing-lg);
-    box-shadow: var(--shadow-sm);
-    transition: all 0.3s ease;
-}
-
-.excellence-score-card:hover {
-    box-shadow: var(--shadow-md);
-    transform: translateY(-2px);
 }
 
 .excellence-score-card.full-width {
@@ -3840,4 +3952,256 @@ canvas {
         width: auto !important;
         margin: 0 8px !important;
     }
+}
+
+/* ===== ENHANCED RECOMMENDATIONS STYLES ===== */
+
+/* Section subtitles */
+.section-subtitle {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.section-subtitle i {
+    color: var(--primary-green);
+}
+
+/* Savings and Recommendations Sections */
+.savings-section,
+.recommendations-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.savings-section:last-child,
+.recommendations-section:last-child {
+    margin-bottom: 0;
+}
+
+/* Priority section headers - flat design */
+.recommendations-priority-header {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-sm) 0;
+    padding-left: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+/* Enhanced recommendation item styling - clean flat design */
+.recommendation-item {
+    padding: var(--spacing-md) 0;
+    margin-bottom: var(--spacing-md);
+    padding-left: 0;
+    transition: all 0.2s ease;
+}
+
+.recommendation-item:hover {
+    background: rgba(127, 176, 105, 0.03);
+}
+
+/* Recommendation header - flat design */
+.recommendation-header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.recommendation-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-green);
+    font-size: 1rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.recommendation-title {
+    flex: 1;
+}
+
+.recommendation-title h6 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-sm) 0;
+    line-height: 1.4;
+}
+
+/* Badge container styling - minimal design */
+.recommendation-badges {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+    margin-top: var(--spacing-xs);
+}
+
+.recommendation-badges > * {
+    font-size: 0.75rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    font-weight: 500;
+    line-height: 1.2;
+    border: none;
+}
+
+/* Minimal badge styles */
+.priority-badge.high {
+    background: rgba(220, 38, 38, 0.15);
+    color: #dc2626;
+}
+
+.priority-badge.medium {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+.priority-badge.low {
+    background: rgba(127, 176, 105, 0.15);
+    color: var(--primary-green);
+}
+
+.impact-badge.high {
+    background: rgba(220, 38, 38, 0.15);
+    color: #dc2626;
+}
+
+.impact-badge.medium {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+.impact-badge.low {
+    background: rgba(127, 176, 105, 0.15);
+    color: var(--primary-green);
+}
+
+.metrics-badge.real-metrics {
+    background: rgba(127, 176, 105, 0.15);
+    color: var(--primary-green);
+}
+
+.metrics-badge.estimated {
+    background: rgba(107, 114, 128, 0.15);
+    color: #6b7280;
+}
+
+.type-badge.savings {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+}
+
+.type-badge.implementation {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+}
+
+.confidence-badge {
+    background: rgba(107, 114, 128, 0.15);
+    color: #6b7280;
+}
+
+.effort-badge {
+    background: rgba(139, 69, 19, 0.15);
+    color: #8b4513;
+}
+
+/* Recommendation content */
+.recommendation-content {
+    line-height: 1.5;
+}
+
+.recommendation-description {
+    color: var(--text-secondary);
+    margin: 0 0 var(--spacing-md) 0;
+    font-size: 0.95rem;
+}
+
+.recommendation-action {
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    margin-bottom: var(--spacing-md);
+}
+
+.recommendation-action strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Enhanced recommendation metrics display - flat design */
+.recommendation-metrics {
+    margin-top: var(--spacing-sm);
+    padding: var(--spacing-sm) 0;
+    margin-left: 32px; /* Align with content */
+}
+
+.metrics-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+}
+
+.metrics-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.metrics-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid;
+}
+
+.metrics-value.current {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+    border-color: #dc2626;
+}
+
+.metrics-value.target {
+    background: rgba(127, 176, 105, 0.1);
+    color: var(--primary-green);
+    border-color: var(--primary-green);
+}
+
+.gap-analysis {
+    margin-top: var(--spacing-sm);
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.875rem;
+}
+
+.gap-analysis i {
+    margin-right: var(--spacing-xs);
+}
+
+/* Recommendation standard - flat design */
+.recommendation-standard {
+    margin-top: var(--spacing-sm);
+    margin-left: 32px; /* Align with content */
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+/* Score actions */
+.score-actions {
+    display: flex;
+    gap: var(--spacing-sm);
 }

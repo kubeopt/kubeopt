@@ -771,20 +771,26 @@ class AKSScorer:
                 implementation_effort="Low"
             ))
 
-        # Idle compute cleanup
+        # Idle compute cleanup using YAML standards and real data
+        standards = cfg.get("official_standards", {}).get("savings_opportunities", {})
         idle_cost_pct = metrics.get("idle_compute_cost_pct", 0)
-        if idle_cost_pct > 0.35:  # Above 35% threshold
+        idle_threshold = standards.get("idle_cpu_threshold", 0.05)  # 5% from YAML
+        min_threshold = standards.get("minimum_idle_cost_threshold", 50)  # $50 from YAML
+        cleanup_rate = standards.get("idle_cleanup_percentage", 0.70)  # 70% from YAML
+        
+        if idle_cost_pct > idle_threshold:
             cost_nodes = metrics.get("cost_nodes", 0)
-            excess_idle = idle_cost_pct - 0.25  # Target 25% idle
-            potential = cost_nodes * excess_idle * 0.8  # 80% recoverable
-            
-            savings.append(SavingsEstimate(
-                category="Compute - Idle Resources",
-                potential_monthly_savings=potential,
-                description=f"Right-size or schedule idle resources ({idle_cost_pct*100:.1f}% idle)",
-                confidence="Medium",
-                implementation_effort="High"
-            ))
+            if cost_nodes > min_threshold:  # Only recommend if significant cost
+                excess_idle = idle_cost_pct - idle_threshold
+                potential = cost_nodes * excess_idle * cleanup_rate
+                
+                savings.append(SavingsEstimate(
+                    category="Compute - Idle Resources",
+                    potential_monthly_savings=potential,
+                    description=f"Right-size or schedule idle resources ({idle_cost_pct*100:.1f}% idle)",
+                    confidence="Medium",
+                    implementation_effort="High"
+                ))
 
         return savings
 
@@ -888,32 +894,44 @@ class AKSScorer:
         return savings
 
     def _estimate_network_savings(self, metrics: Dict[str, Any], scores: Dict[str, ScoreResult], cfg: Dict[str, Any]) -> List[SavingsEstimate]:
-        """Estimate network-related savings opportunities"""
+        """Estimate network-related savings opportunities using YAML standards and real data"""
         savings = []
         
-        # Load balancer consolidation
-        lb_count = metrics.get("lb_count", 0)
-        services_exposed = metrics.get("services_exposed", 1)
-        lb_ratio = lb_count / services_exposed
-        if lb_ratio > 0.08:  # More than 1 LB per 12 services
-            excess_lbs = lb_count - (services_exposed * 0.05)  # Target 1 per 20
-            lb_cost_each = 20  # Approximate monthly cost per LB
-            potential = excess_lbs * lb_cost_each * 0.6  # 60% consolidatable
+        # Get standards from YAML
+        standards = cfg.get("official_standards", {}).get("savings_opportunities", {})
+        
+        # Load balancer consolidation using real data
+        cluster_lb_analysis = metrics.get("cluster_load_balancer_analysis", [])
+        if isinstance(cluster_lb_analysis, str):
+            try:
+                import json
+                cluster_lb_analysis = json.loads(cluster_lb_analysis)
+            except json.JSONDecodeError:
+                cluster_lb_analysis = []
+        
+        if cluster_lb_analysis and len(cluster_lb_analysis) > standards.get("lb_consolidation_threshold", 2):
+            excess_lbs = len(cluster_lb_analysis) - standards.get("lb_consolidation_threshold", 2)
+            lb_cost_each = standards.get("lb_monthly_cost_standard", 25)
+            consolidation_rate = standards.get("lb_consolidation_percentage", 0.75)
+            potential = excess_lbs * lb_cost_each * consolidation_rate
             
             savings.append(SavingsEstimate(
                 category="Network - LB Consolidation",
                 potential_monthly_savings=potential,
-                description=f"Consolidate {excess_lbs:.0f} excess load balancers using Ingress",
+                description=f"Consolidate {excess_lbs} excess load balancers using Ingress",
                 confidence="Medium",
                 implementation_effort="Medium"
             ))
 
-        # Idle public IP cleanup
+        # Idle public IP cleanup using real Azure data
         idle_ip_cost = metrics.get("idle_public_ip_cost", 0)
-        if idle_ip_cost > 10:  # More than $10/month
+        min_threshold = standards.get("minimum_ip_cost_threshold", 10)
+        cleanup_rate = standards.get("unused_ip_cleanup_percentage", 0.8)
+        
+        if idle_ip_cost > min_threshold:
             savings.append(SavingsEstimate(
                 category="Network - Idle Public IPs",
-                potential_monthly_savings=idle_ip_cost * 0.8,  # 80% cleanable
+                potential_monthly_savings=idle_ip_cost * cleanup_rate,
                 description="Remove unused public IP addresses",
                 confidence="High",
                 implementation_effort="Low"
@@ -1142,7 +1160,7 @@ class AKSScorer:
                                               metrics: Dict[str, Any], cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Generate actionable recommendations based on Build Quality scoring results.
-        Uses only YAML-defined standards and thresholds - no hardcoded values.
+        Uses only YAML-defined standards and thresholds with enhanced gap analysis.
         """
         recommendations = []
         
@@ -1154,8 +1172,15 @@ class AKSScorer:
             # Use YAML-defined threshold for when to recommend improvements
             good_threshold = optimization_standards.get("current_efficiency", {}).get("good_threshold", 0.70)
             
+            # Calculate overall Build Quality score gaps for priority assessment
+            build_quality_score = sum(breakdown.values()) / len(breakdown) if breakdown else 0
+            performance_gap = good_threshold - build_quality_score if build_quality_score < good_threshold else 0
+            
             # === UTILIZATION EFFICIENCY RECOMMENDATIONS ===
-            if breakdown.get("UE", 1.0) < good_threshold:
+            ue_score = breakdown.get("UE", 1.0)
+            logger.info(f"🔍 UE Score: {ue_score:.3f}, Threshold: {good_threshold}, Will generate UE recs: {ue_score < good_threshold}")
+            
+            if ue_score < good_threshold:
                 cpu_eff = details.get("cpu_efficiency", 0)
                 mem_eff = details.get("mem_efficiency", 0)
                 
@@ -1172,27 +1197,41 @@ class AKSScorer:
                 current_cpu_util = (cpu_p95 / cpu_alloc * 100) if cpu_alloc > 0 else 0
                 current_mem_util = (mem_p95 / mem_alloc * 100) if mem_alloc > 0 else 0
                 
-                # Only recommend if outside optimal range from YAML
+                # Only recommend if outside optimal range from YAML  
                 if current_cpu_util < cpu_optimal[0] or current_cpu_util > cpu_optimal[1]:
+                    # Calculate potential savings/impact
+                    cpu_gap = abs(current_cpu_util - ((cpu_optimal[0] + cpu_optimal[1]) / 2))
+                    potential_cost_impact = self._estimate_cpu_optimization_impact(metrics, current_cpu_util, cpu_optimal)
+                    
                     recommendations.append({
                         "category": "Utilization Efficiency - CPU",
-                        "priority": "High" if current_cpu_util < cpu_optimal[0] * 0.5 else "Medium",
+                        "priority": "High" if current_cpu_util < cpu_optimal[0] * 0.5 or cpu_gap > 30 else "Medium",
                         "description": f"CPU utilization ({current_cpu_util:.1f}%) outside optimal range {cpu_optimal[0]}-{cpu_optimal[1]}%",
-                        "action": "Review CPU resource requests and consider vertical pod autoscaling" if current_cpu_util < cpu_optimal[0] else "Reduce CPU over-allocation",
-                        "impact": "Medium",
+                        "action": f"{'Right-size CPU requests and consider VPA' if current_cpu_util < cpu_optimal[0] else 'Reduce CPU over-allocation'} - Potential impact: {potential_cost_impact}",
+                        "impact": "High" if cpu_gap > 30 else "Medium",
                         "based_on_real_metrics": True,
-                        "yaml_standard": f"official_standards.resource_utilization.cpu_utilization_target.optimal"
+                        "yaml_standard": f"official_standards.resource_utilization.cpu_utilization_target.optimal",
+                        "current_value": f"{current_cpu_util:.1f}%",
+                        "target_range": f"{cpu_optimal[0]}-{cpu_optimal[1]}%",
+                        "gap_analysis": f"{cpu_gap:.1f}% deviation from optimal"
                     })
                     
                 if current_mem_util < mem_optimal[0] or current_mem_util > mem_optimal[1]:
+                    # Calculate memory gap and potential impact
+                    mem_gap = abs(current_mem_util - ((mem_optimal[0] + mem_optimal[1]) / 2))
+                    potential_memory_impact = self._estimate_memory_optimization_impact(metrics, current_mem_util, mem_optimal)
+                    
                     recommendations.append({
                         "category": "Utilization Efficiency - Memory",
-                        "priority": "High" if current_mem_util < mem_optimal[0] * 0.5 else "Medium",
+                        "priority": "High" if current_mem_util < mem_optimal[0] * 0.5 or mem_gap > 35 else "Medium",
                         "description": f"Memory utilization ({current_mem_util:.1f}%) outside optimal range {mem_optimal[0]}-{mem_optimal[1]}%",
-                        "action": "Review memory resource requests and right-size containers" if current_mem_util < mem_optimal[0] else "Reduce memory over-allocation",
-                        "impact": "Medium",
+                        "action": f"{'Right-size memory requests and implement memory limits' if current_mem_util < mem_optimal[0] else 'Reduce memory over-allocation'} - {potential_memory_impact}",
+                        "impact": "High" if mem_gap > 35 else "Medium",
                         "based_on_real_metrics": True,
-                        "yaml_standard": f"official_standards.resource_utilization.memory_utilization_target.optimal"
+                        "yaml_standard": f"official_standards.resource_utilization.memory_utilization_target.optimal",
+                        "current_value": f"{current_mem_util:.1f}%",
+                        "target_range": f"{mem_optimal[0]}-{mem_optimal[1]}%",
+                        "gap_analysis": f"{mem_gap:.1f}% deviation from optimal"
                     })
 
             # === AUTOSCALING EFFICACY RECOMMENDATIONS ===
@@ -1206,14 +1245,21 @@ class AKSScorer:
                 
                 if coverage < hpa_target:
                     missing_hpas = max(0, int((hpa_target - coverage) * eligible_hpa_workloads))
+                    coverage_gap = (hpa_target - coverage) * 100
+                    potential_hpa_savings = self._estimate_hpa_savings_impact(metrics, missing_hpas, eligible_hpa_workloads)
+                    
                     recommendations.append({
                         "category": "Autoscaling Efficacy",
-                        "priority": "Medium",
+                        "priority": "High" if coverage_gap > 50 else "Medium",
                         "description": f"HPA coverage ({coverage*100:.1f}%) below target {hpa_target*100:.0f}% - implement for {missing_hpas} workloads",
-                        "action": "Add Horizontal Pod Autoscaler for eligible stateless workloads",
-                        "impact": "High",
+                        "action": f"Add Horizontal Pod Autoscaler for eligible stateless workloads - {potential_hpa_savings}",
+                        "impact": "High" if missing_hpas > 3 else "Medium",
                         "based_on_real_metrics": True,
-                        "yaml_standard": "official_standards.cost_efficiency.hpa_coverage_target"
+                        "yaml_standard": "official_standards.cost_efficiency.hpa_coverage_target",
+                        "current_value": f"{coverage*100:.1f}%",
+                        "target_value": f"{hpa_target*100:.0f}%",
+                        "gap_analysis": f"{missing_hpas} workloads need HPA implementation",
+                        "workloads_affected": missing_hpas
                     })
 
             # === COST EFFICIENCY RECOMMENDATIONS ===
@@ -1249,6 +1295,10 @@ class AKSScorer:
                 })
 
             logger.info(f"✅ Generated {len(recommendations)} Build Quality recommendations using YAML standards")
+            logger.info(f"🔍 Build Quality Score Breakdown: UE={breakdown.get('UE', 0):.3f}, AE={breakdown.get('AE', 0):.3f}, CE={breakdown.get('CE', 0):.3f}, RS={breakdown.get('RS', 0):.3f}, CH={breakdown.get('CH', 0):.3f}")
+            logger.info(f"🎯 Total recommendations generated: {len(recommendations)}")
+            if recommendations:
+                logger.info(f"📋 Recommendation categories: {[rec['category'] for rec in recommendations]}")
             return recommendations
             
         except Exception as e:
@@ -1341,7 +1391,11 @@ class AKSScorer:
                                 "yaml_standard": "cost_excellence.observability.filter_target"
                             })
 
-            logger.info(f"✅ Generated {len(recommendations)} Cost Excellence recommendations using YAML standards")
+            logger.info(f"✅ Generated {len(recommendations)} Cost Excellence recommendations using YAML standards")  
+            logger.info(f"🔍 Cost Excellence Score Breakdown: compute={breakdown.get('compute', 0):.3f}, storage={breakdown.get('storage', 0):.3f}, network_lb={breakdown.get('network_lb', 0):.3f}, observability={breakdown.get('observability', 0):.3f}")
+            logger.info(f"🎯 Total recommendations generated: {len(recommendations)}")
+            if recommendations:
+                logger.info(f"📋 Recommendation categories: {[rec['category'] for rec in recommendations]}")
             return recommendations
             
         except Exception as e:
@@ -1379,3 +1433,51 @@ class AKSScorer:
         except Exception as e:
             logger.error(f"Could not get Azure pricing from YAML for region {region}: {e}")
             raise ValueError(f"Azure pricing configuration missing for region {region}: {e}")
+    
+    def _estimate_cpu_optimization_impact(self, metrics: Dict[str, Any], current_cpu_util: float, cpu_optimal: List[float]) -> str:
+        """Estimate the impact of CPU optimization"""
+        try:
+            optimal_cpu = (cpu_optimal[0] + cpu_optimal[1]) / 2
+            cpu_improvement = abs(current_cpu_util - optimal_cpu)
+            
+            # Estimate based on current compute costs
+            compute_cost = metrics.get("cost_nodes", 0)
+            if compute_cost > 0 and cpu_improvement > 10:
+                # Rough estimate: 10% CPU optimization = 5-8% cost reduction
+                potential_savings = compute_cost * (cpu_improvement / 100) * 0.6
+                return f"Est. ${potential_savings:.0f}/month savings"
+            
+            return "Improved performance and efficiency"
+        except Exception:
+            return "Performance optimization"
+    
+    def _estimate_memory_optimization_impact(self, metrics: Dict[str, Any], current_mem_util: float, mem_optimal: List[float]) -> str:
+        """Estimate the impact of memory optimization"""
+        try:
+            optimal_mem = (mem_optimal[0] + mem_optimal[1]) / 2
+            mem_improvement = abs(current_mem_util - optimal_mem)
+            
+            # Memory optimization often has higher impact due to waste
+            compute_cost = metrics.get("cost_nodes", 0)
+            if compute_cost > 0 and mem_improvement > 15:
+                # Memory over-allocation typically has higher waste factor
+                potential_savings = compute_cost * (mem_improvement / 100) * 0.8
+                return f"Est. ${potential_savings:.0f}/month savings"
+            
+            return "Better resource utilization"
+        except Exception:
+            return "Memory optimization"
+    
+    def _estimate_hpa_savings_impact(self, metrics: Dict[str, Any], missing_hpas: int, total_workloads: int) -> str:
+        """Estimate the impact of implementing HPA"""
+        try:
+            compute_cost = metrics.get("cost_nodes", 0)
+            if compute_cost > 0 and missing_hpas > 0:
+                # HPA can typically reduce costs by 15-30% for variable workloads
+                workload_fraction = missing_hpas / total_workloads
+                potential_savings = compute_cost * workload_fraction * 0.20  # 20% average savings
+                return f"Est. ${potential_savings:.0f}/month with auto-scaling"
+            
+            return f"Auto-scaling for {missing_hpas} workloads"
+        except Exception:
+            return f"Implement HPA for {missing_hpas} workloads"
