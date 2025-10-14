@@ -31,7 +31,6 @@ class SettingsManager:
     
     def __init__(self):
         self.settings_file = os.path.join(os.getcwd(), '.env')
-        self.local_settings_file = os.path.join(os.getcwd(), '.env.local')
         self.backup_settings_file = os.path.join(os.getcwd(), '.env.backup')
         self.config_cache = {}
         self.load_settings()
@@ -49,15 +48,6 @@ class SettingsManager:
             # Load from .env file if it exists
             if os.path.exists(self.settings_file):
                 with open(self.settings_file, 'r') as f:
-                    for line in f:
-                        line = line.strip()
-                        if line and not line.startswith('#') and '=' in line:
-                            key, value = line.split('=', 1)
-                            config[key.strip()] = value.strip().strip('"\'')
-            
-            # Load from .env.local file if it exists (for secrets)
-            if os.path.exists(self.local_settings_file):
-                with open(self.local_settings_file, 'r') as f:
                     for line in f:
                         line = line.strip()
                         if line and not line.startswith('#') and '=' in line:
