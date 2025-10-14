@@ -38,15 +38,19 @@ class EnhancedAlertsManager:
         monitoring_config = self.standards.get('monitoring_alerting', {})
         notification_config = monitoring_config.get('notifications', {})
         
-        # Email configuration
-        self.smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-        self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
-        self.smtp_username = os.getenv('SMTP_USERNAME', '')
-        self.smtp_password = os.getenv('SMTP_PASSWORD', '')
-        self.from_email = os.getenv('FROM_EMAIL', self.smtp_username)
+        # Settings manager for both email and Slack configuration
+        from infrastructure.services.settings_manager import settings_manager
+        self.settings_manager = settings_manager
         
-        # Slack configuration
-        self.slack_webhook_url = os.getenv('SLACK_WEBHOOK_URL', '')
+        # Email configuration - get from settings manager
+        self.smtp_server = self.settings_manager.get_setting('SMTP_SERVER', 'smtp.gmail.com')
+        self.smtp_port = int(self.settings_manager.get_setting('SMTP_PORT', '587'))
+        self.smtp_username = self.settings_manager.get_setting('SMTP_USERNAME', '')
+        self.smtp_password = self.settings_manager.get_setting('SMTP_PASSWORD', '')
+        self.from_email = self.settings_manager.get_setting('FROM_EMAIL', self.smtp_username or self.smtp_username)
+        
+        # Slack configuration - get from settings manager
+        self.slack_webhook_url = self.settings_manager.get_setting('SLACK_WEBHOOK_URL', '')
         
         # Load notification settings from standards
         self.notification_retry_attempts = notification_config.get('retry_attempts', 3)
@@ -211,7 +215,8 @@ class EnhancedAlertsManager:
             
             # Test Slack notification
             slack_sent = False
-            if 'slack' in alert['notification_channels'] and self.slack_webhook_url:
+            slack_enabled = self.settings_manager.get_setting('SLACK_ENABLED', 'false').lower() == 'true'
+            if 'slack' in alert['notification_channels'] and self.slack_webhook_url and slack_enabled:
                 slack_sent = self._send_test_slack(alert)
             
             # 🆕 TEST IN-APP NOTIFICATION
@@ -357,12 +362,17 @@ class EnhancedAlertsManager:
                                 self.logger.warning(f"⚠️ Email notification failed for alert {alert['id']}")
                         
                         # Slack notification
-                        if 'slack' in alert['notification_channels'] and self.slack_webhook_url:
+                        slack_enabled = self.settings_manager.get_setting('SLACK_ENABLED', 'false').lower() == 'true'
+                        if 'slack' in alert['notification_channels'] and self.slack_webhook_url and slack_enabled:
                             if self._send_alert_slack(alert, triggered_alert):
                                 notifications_sent.append('slack')
                                 self.logger.info(f"✅ Slack notification sent for alert {alert['id']}")
                             else:
                                 self.logger.warning(f"⚠️ Slack notification failed for alert {alert['id']}")
+                        elif 'slack' in alert['notification_channels'] and not slack_enabled:
+                            self.logger.warning(f"⚠️ Slack notification skipped for alert {alert['id']} - Slack is disabled")
+                        elif 'slack' in alert['notification_channels'] and not self.slack_webhook_url:
+                            self.logger.warning(f"⚠️ Slack notification skipped for alert {alert['id']} - No webhook URL configured")
                         
                         # 🆕 IN-APP NOTIFICATION - THE KEY FIX!
                         if ('inapp' in alert['notification_channels'] or 
@@ -601,12 +611,29 @@ AKS Cost Intelligence Team
     def _send_test_slack(self, alert: Dict) -> bool:
         """Send test Slack notification"""
         try:
+            # Get fresh webhook URL and channel from settings
+            webhook_url = self.settings_manager.get_setting('SLACK_WEBHOOK_URL', '')
+            slack_channel = self.settings_manager.get_setting('SLACK_CHANNEL', '#all-kubeopt')
+            
+            if not webhook_url:
+                self.logger.error("❌ Slack webhook URL not configured in settings")
+                return False
+            
+            # Get app URL for dashboard links
+            app_url = os.getenv('APP_URL', 'http://localhost:5000')
+            cluster_dashboard_url = f"{app_url}/cluster/{alert['cluster_id']}"
+            portfolio_url = f"{app_url}/"
+            
             payload = {
+                "channel": slack_channel,
+                "username": "AKS Cost Optimizer",
+                "icon_emoji": ":cloud:",
                 "text": f"🧪 Test Alert: {alert['name']}",
                 "attachments": [
                     {
                         "color": "#36a64f",
                         "title": f"Test Alert: {alert['name']}",
+                        "title_link": cluster_dashboard_url,
                         "text": "This is a test notification for your AKS cost alert.",
                         "fields": [
                             {
@@ -620,13 +647,34 @@ AKS Cost Intelligence Team
                                 "short": True
                             }
                         ],
-                        "footer": "AKS Cost Intelligence - Test Mode"
+                        "footer": "AKS Cost Intelligence - Test Mode",
+                        "actions": [
+                            {
+                                "type": "button",
+                                "text": "View Cluster Dashboard",
+                                "url": cluster_dashboard_url,
+                                "style": "primary"
+                            },
+                            {
+                                "type": "button",
+                                "text": "View Portfolio", 
+                                "url": portfolio_url,
+                                "style": "default"
+                            }
+                        ]
                     }
                 ]
             }
             
-            response = requests.post(self.slack_webhook_url, json=payload, timeout=10)
-            return response.status_code == 200
+            self.logger.info(f"📤 Sending test Slack notification to {slack_channel}")
+            response = requests.post(webhook_url, json=payload, timeout=10)
+            
+            if response.status_code == 200:
+                self.logger.info(f"✅ Test Slack notification sent successfully to {slack_channel}")
+                return True
+            else:
+                self.logger.error(f"❌ Slack API returned status {response.status_code}: {response.text}")
+                return False
             
         except Exception as e:
             self.logger.error(f"❌ Error sending test Slack: {e}")
@@ -680,19 +728,36 @@ AKS Cost Intelligence Team
     def _send_alert_slack(self, alert: Dict, triggered_alert: Dict) -> bool:
         """Send actual alert Slack notification"""
         try:
+            # Get fresh webhook URL and channel from settings
+            webhook_url = self.settings_manager.get_setting('SLACK_WEBHOOK_URL', '')
+            slack_channel = self.settings_manager.get_setting('SLACK_CHANNEL', '#all-kubeopt')
+            
+            if not webhook_url:
+                self.logger.error("❌ Slack webhook URL not configured in settings")
+                return False
+            
             current_cost = triggered_alert['current_cost']
             exceeded_by = triggered_alert['threshold_exceeded_by']
+            
+            # Get app URL for dashboard links
+            app_url = os.getenv('APP_URL', 'http://localhost:5000')
+            cluster_dashboard_url = f"{app_url}/cluster/{alert['cluster_id']}"
+            portfolio_url = f"{app_url}/"
             
             color = "#ff9900"  # Orange for cost alerts
             if exceeded_by > alert['threshold_amount'] * 0.5:
                 color = "#ff0000"  # Red for major overages
             
             payload = {
+                "channel": slack_channel,
+                "username": "AKS Cost Optimizer",
+                "icon_emoji": ":cloud:",
                 "text": f"🚨 Cost Alert: {alert['name']}",
                 "attachments": [
                     {
                         "color": color,
                         "title": f"Cost Alert: {alert['name']}",
+                        "title_link": cluster_dashboard_url,
                         "text": f"Cluster {alert['cluster_name']} has exceeded its cost threshold.",
                         "fields": [
                             {
@@ -727,13 +792,34 @@ AKS Cost Intelligence Team
                             }
                         ],
                         "footer": "AKS Cost Intelligence",
-                        "ts": int(datetime.now().timestamp())
+                        "ts": int(datetime.now().timestamp()),
+                        "actions": [
+                            {
+                                "type": "button",
+                                "text": "View Cluster Dashboard",
+                                "url": cluster_dashboard_url,
+                                "style": "primary"
+                            },
+                            {
+                                "type": "button", 
+                                "text": "View Portfolio",
+                                "url": portfolio_url,
+                                "style": "default"
+                            }
+                        ]
                     }
                 ]
             }
             
-            response = requests.post(self.slack_webhook_url, json=payload, timeout=10)
-            return response.status_code == 200
+            self.logger.info(f"📤 Sending cost alert Slack notification to {slack_channel}")
+            response = requests.post(webhook_url, json=payload, timeout=10)
+            
+            if response.status_code == 200:
+                self.logger.info(f"✅ Cost alert Slack notification sent successfully to {slack_channel}")
+                return True
+            else:
+                self.logger.error(f"❌ Slack API returned status {response.status_code}: {response.text}")
+                return False
             
         except Exception as e:
             self.logger.error(f"❌ Error sending alert Slack: {e}")

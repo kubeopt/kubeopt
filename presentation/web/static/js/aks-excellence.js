@@ -142,6 +142,11 @@ function updateUI(scores) {
     
     // Update savings opportunities
     updateSavingsOpportunities(scores.savingsOpportunities || []);
+    
+    // Update recommendations if available
+    const buildRecommendations = analysisData.build_quality_recommendations || [];
+    const costRecommendations = analysisData.cost_excellence_recommendations || [];
+    updateRecommendations([...buildRecommendations, ...costRecommendations]);
 }
 
 /**
@@ -404,6 +409,138 @@ function getCategoryIcon(category) {
     if (categoryLower.includes('reserved') || categoryLower.includes('spot')) return 'fa-coins';
     
     return 'fa-cog'; // Default icon
+}
+
+/**
+ * Update recommendations display with data from AKS scoring system
+ */
+function updateRecommendations(recommendations) {
+    const recommendationsContainer = document.getElementById('aks-recommendations');
+    if (!recommendationsContainer) {
+        console.warn('⚠️ Recommendations container not found');
+        return;
+    }
+    
+    if (!recommendations || recommendations.length === 0) {
+        recommendationsContainer.innerHTML = `
+            <div class="recommendations-placeholder">
+                <div class="recommendations-placeholder-icon">
+                    <i class="fas fa-check-circle text-success"></i>
+                </div>
+                <h4 class="recommendations-placeholder-title">No Recommendations Needed</h4>
+                <p class="recommendations-placeholder-text">Your cluster configuration meets the current optimization standards</p>
+                <span class="recommendations-placeholder-note">Scores above 70% don't require immediate attention</span>
+            </div>
+        `;
+        return;
+    }
+    
+    // Group recommendations by priority
+    const priorityOrder = ['Critical', 'High', 'Medium', 'Low'];
+    const groupedRecs = recommendations.reduce((groups, rec) => {
+        const priority = rec.priority || 'Medium';
+        if (!groups[priority]) groups[priority] = [];
+        groups[priority].push(rec);
+        return groups;
+    }, {});
+    
+    let recommendationsHTML = '';
+    
+    // Display recommendations by priority
+    priorityOrder.forEach(priority => {
+        if (groupedRecs[priority] && groupedRecs[priority].length > 0) {
+            recommendationsHTML += `
+                <div class="recommendations-priority-section">
+                    <h5 class="recommendations-priority-header ${priority.toLowerCase()}">
+                        <i class="fas ${getPriorityIcon(priority)}"></i>
+                        ${priority} Priority (${groupedRecs[priority].length})
+                    </h5>
+                    <div class="recommendations-list">
+            `;
+            
+            groupedRecs[priority].forEach(rec => {
+                const isBasedOnRealMetrics = rec.based_on_real_metrics === true;
+                const yamlStandard = rec.yaml_standard ? `Based on: ${rec.yaml_standard}` : '';
+                
+                recommendationsHTML += `
+                    <div class="recommendation-item ${priority.toLowerCase()}" data-priority="${priority}">
+                        <div class="recommendation-header">
+                            <div class="recommendation-icon">
+                                <i class="fas ${getRecommendationIcon(rec.category)}"></i>
+                            </div>
+                            <div class="recommendation-title">
+                                <h6>${rec.category}</h6>
+                                <div class="recommendation-badges">
+                                    <span class="priority-badge ${priority.toLowerCase()}">${priority}</span>
+                                    <span class="impact-badge ${rec.impact ? rec.impact.toLowerCase() : 'medium'}">${rec.impact || 'Medium'} Impact</span>
+                                    ${isBasedOnRealMetrics ? '<span class="metrics-badge real-metrics">Real Metrics</span>' : '<span class="metrics-badge estimated">Estimated</span>'}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="recommendation-content">
+                            <p class="recommendation-description">${rec.description}</p>
+                            <div class="recommendation-action">
+                                <strong>Action:</strong> ${rec.action}
+                            </div>
+                            ${yamlStandard ? `<div class="recommendation-standard"><small><em>${yamlStandard}</em></small></div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            recommendationsHTML += `
+                    </div>
+                </div>
+            `;
+        }
+    });
+    
+    if (recommendationsHTML) {
+        recommendationsContainer.innerHTML = recommendationsHTML;
+        console.log(`✅ Updated ${recommendations.length} recommendations`);
+    } else {
+        recommendationsContainer.innerHTML = `
+            <div class="recommendations-placeholder">
+                <div class="recommendations-placeholder-icon">
+                    <i class="fas fa-info-circle"></i>
+                </div>
+                <h4 class="recommendations-placeholder-title">No Active Recommendations</h4>
+                <p class="recommendations-placeholder-text">All scoring components are within acceptable ranges</p>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Get icon for recommendation priority
+ */
+function getPriorityIcon(priority) {
+    switch (priority.toLowerCase()) {
+        case 'critical': return 'fa-exclamation-triangle';
+        case 'high': return 'fa-exclamation';
+        case 'medium': return 'fa-info';
+        case 'low': return 'fa-check';
+        default: return 'fa-info';
+    }
+}
+
+/**
+ * Get icon for recommendation category
+ */
+function getRecommendationIcon(category) {
+    const categoryLower = (category || '').toLowerCase();
+    
+    if (categoryLower.includes('cpu') || categoryLower.includes('utilization')) return 'fa-microchip';
+    if (categoryLower.includes('memory')) return 'fa-memory';
+    if (categoryLower.includes('autoscaling') || categoryLower.includes('hpa')) return 'fa-expand-arrows-alt';
+    if (categoryLower.includes('cost') || categoryLower.includes('spot') || categoryLower.includes('reserved')) return 'fa-dollar-sign';
+    if (categoryLower.includes('storage')) return 'fa-hdd';
+    if (categoryLower.includes('network')) return 'fa-network-wired';
+    if (categoryLower.includes('observability') || categoryLower.includes('log')) return 'fa-chart-line';
+    if (categoryLower.includes('configuration') || categoryLower.includes('hygiene')) return 'fa-cog';
+    if (categoryLower.includes('reliability')) return 'fa-shield-alt';
+    
+    return 'fa-tasks'; // Default icon
 }
 
 // Auto-initialize when script loads

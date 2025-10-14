@@ -1884,6 +1884,13 @@ class ConsistentCostAnalyzer:
                 
                 # Orphaned resources (estimated)
                 'orphan_cost': total_cost * 0.05,  # 5% orphaned estimate
+                
+                # REAL CLUSTER RESOURCE ANALYSIS (from kubernetes_data_cache)
+                'cluster_orphaned_disks': metrics_data.get('cluster_orphaned_disks_sdk', []),
+                'cluster_storage_tiers': metrics_data.get('cluster_storage_tiers_sdk', []),
+                'cluster_unused_public_ips': metrics_data.get('cluster_unused_public_ips_sdk', []),
+                'cluster_load_balancer_analysis': metrics_data.get('cluster_load_balancer_analysis_sdk', []),
+                'cluster_network_waste': metrics_data.get('cluster_network_waste_sdk', []),
             }
             
             logger.info(f"✅ Prepared scoring metrics: {len(scoring_metrics)} parameters")

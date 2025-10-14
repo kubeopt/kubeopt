@@ -8,6 +8,13 @@ static/.DS_Store
 *.png
 app-bkp/*
 
+# Environment files with secrets
+.env
+.env.local
+.env.production
+.env.*.local
+.env.*.*
+
 # Node.js dependencies (in tailwind folder)
 tailwind/node_modules/
 tailwind/npm-debug.log*
@@ -16,3 +23,4 @@ tailwind/yarn-error.log*
 
 # Keep generated CSS committed for production deployments
 # presentation/web/static/css/tailwind.css
+

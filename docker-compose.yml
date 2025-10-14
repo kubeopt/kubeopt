@@ -21,6 +21,9 @@ services:
       # Writable Azure config directory
       - azure_config:/home/appuser/.azure
       
+    env_file:
+      - .env.local  # Load secrets from local file (not committed to git)
+    
     environment:
       # Flask settings - production mode for security
       - FLASK_ENV=${FLASK_ENV:-production}
@@ -36,6 +39,18 @@ services:
       # Enable multi-subscription support
       - ENABLE_MULTI_SUBSCRIPTION=true
       - PARALLEL_PROCESSING=true
+      
+      # Email/Slack settings (from .env.local or environment)
+      - EMAIL_ENABLED=${EMAIL_ENABLED:-false}
+      - SMTP_SERVER=${SMTP_SERVER:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - EMAIL_USERNAME=${EMAIL_USERNAME:-}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
+      - EMAIL_RECIPIENTS=${EMAIL_RECIPIENTS:-}
+      - SLACK_ENABLED=${SLACK_ENABLED:-false}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - SLACK_CHANNEL=${SLACK_CHANNEL:-}
+      - APP_URL=${APP_URL:-http://localhost:5000}
       
     restart: unless-stopped
     

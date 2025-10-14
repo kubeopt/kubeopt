@@ -311,7 +311,7 @@ monitoring_alerting:
     
   # Notification Settings
   notifications:
-    default_channels: ["email", "inapp"]  # Default notification channels
+    default_channels: ["email", "inapp", "slack"]  # Default notification channels
     retry_attempts: 3                     # Notification retry attempts
     retry_delay_seconds: 5                # Delay between retries
     timeout_seconds: 10                   # Request timeout

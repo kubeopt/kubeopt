@@ -133,6 +133,13 @@ class KubernetesDataCache:
             "observability_costs_billing_sdk": "observability_costs_billing",
             "consumption_usage_observability_sdk": "consumption_usage_observability",
             
+            # === CLUSTER-SCOPED AZURE RESOURCE WASTE DETECTION ===
+            "cluster_orphaned_disks_sdk": "cluster_orphaned_disks",
+            "cluster_storage_tiers_sdk": "cluster_storage_tiers", 
+            "cluster_unused_public_ips_sdk": "cluster_unused_public_ips",
+            "cluster_load_balancer_analysis_sdk": "cluster_load_balancer_analysis",
+            "cluster_network_waste_sdk": "cluster_network_waste",
+            
             # === SYSTEM COMPONENTS (Broader queries - always work) ===
             "kube_system_deployments": "kubectl get deployment -n kube-system",  # Alternative to specific deployments - filter results
             "kube_system_configmaps": "kubectl get configmap -n kube-system",   # Alternative to specific configmaps - filter results
@@ -168,6 +175,16 @@ class KubernetesDataCache:
                 result_output = self._execute_observability_costs_via_sdk()
             elif cmd == "consumption_usage_observability":
                 result_output = self._execute_consumption_usage_via_sdk()
+            elif cmd == "cluster_orphaned_disks":
+                result_output = self._execute_cluster_orphaned_disks_via_sdk()
+            elif cmd == "cluster_storage_tiers":
+                result_output = self._execute_cluster_storage_tiers_via_sdk()
+            elif cmd == "cluster_unused_public_ips":
+                result_output = self._execute_cluster_unused_public_ips_via_sdk()
+            elif cmd == "cluster_load_balancer_analysis":
+                result_output = self._execute_cluster_load_balancer_analysis_via_sdk()
+            elif cmd == "cluster_network_waste":
+                result_output = self._execute_cluster_network_waste_via_sdk()
             else:
                 # Handle kubectl commands through server-side execution
                 # Smart timeout based on command type
@@ -1623,6 +1640,367 @@ class KubernetesDataCache:
             logger.warning(f"⚠️ {self.cluster_name}: Failed to get consumption usage via SDK: {e}")
             logger.info(f"📊 {self.cluster_name}: Consumption API may not be accessible for this subscription/resource group")
             return "[]"  # Return empty JSON array - no kubectl fallback needed
+    
+    def _get_cluster_region(self) -> str:
+        """Get the actual Azure region of the cluster"""
+        try:
+            # Try to get from cached AKS cluster info first
+            cluster_info = self.get("aks_cluster_info")
+            if cluster_info:
+                import json
+                cluster_data = json.loads(cluster_info)
+                location = cluster_data.get('location')
+                if location:
+                    return location
+            
+            # Fallback to asking Azure SDK directly
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
+            if aks_client:
+                cluster = aks_client.managed_clusters.get(self.resource_group, self.cluster_name)
+                return cluster.location
+                
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Could not get cluster region: {e}")
+            raise ValueError(f"Could not determine cluster region for {self.cluster_name}. Region is required for accurate cost analysis.")
+    
+    def _get_actual_mc_resource_group(self) -> Optional[str]:
+        """Get the actual MC_ resource group name from AKS cluster properties"""
+        try:
+            # Try to get from cached AKS cluster info first
+            cluster_info = self.get("aks_cluster_info")
+            if cluster_info:
+                import json
+                cluster_data = json.loads(cluster_info)
+                # The MC_ resource group is stored in nodeResourceGroup property
+                node_resource_group = cluster_data.get('nodeResourceGroup')
+                if node_resource_group:
+                    logger.info(f"✅ {self.cluster_name}: Found actual MC_ resource group: {node_resource_group}")
+                    return node_resource_group
+            
+            # Fallback to asking Azure SDK directly
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            aks_client = azure_sdk_manager.get_aks_client(self.subscription_id)
+            if aks_client:
+                cluster = aks_client.managed_clusters.get(self.resource_group, self.cluster_name)
+                if cluster and cluster.node_resource_group:
+                    logger.info(f"✅ {self.cluster_name}: Found actual MC_ resource group via SDK: {cluster.node_resource_group}")
+                    return cluster.node_resource_group
+                    
+        except Exception as e:
+            logger.warning(f"⚠️ {self.cluster_name}: Could not get MC_ resource group: {e}")
+        
+        return None
+    
+    def _execute_cluster_orphaned_disks_via_sdk(self) -> Optional[str]:
+        """Find disks created by cluster but currently unattached"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            import json
+            
+            logger.info(f"🔍 {self.cluster_name}: Analyzing cluster orphaned disks via SDK...")
+            
+            # Get compute management client
+            compute_client = azure_sdk_manager.get_compute_client(self.subscription_id)
+            if not compute_client:
+                logger.warning(f"⚠️ {self.cluster_name}: Could not get compute client")
+                return "[]"
+            
+            # Get all disks in both the cluster resource group and actual MC_ resource group
+            resource_groups = [self.resource_group]
+            
+            # Get actual MC_ resource group from AKS cluster info (don't guess the name!)
+            mc_resource_group = self._get_actual_mc_resource_group()
+            if mc_resource_group:
+                resource_groups.append(mc_resource_group)
+            else:
+                logger.warning(f"⚠️ {self.cluster_name}: Could not find MC_ resource group - will only check main resource group")
+            
+            orphaned_disks = []
+            
+            for rg in resource_groups:
+                try:
+                    disks = list(compute_client.disks.list_by_resource_group(rg))
+                    
+                    for disk in disks:
+                        # Check if disk is unattached
+                        if disk.managed_by is None and disk.managed_by_extended is None:
+                            # Check if it's cluster-related by tags or naming
+                            is_cluster_related = False
+                            
+                            # Check tags for kubernetes/cluster markers
+                            if disk.tags:
+                                for tag_key, tag_value in disk.tags.items():
+                                    if any(marker in tag_key.lower() or marker in str(tag_value).lower() 
+                                           for marker in ['kubernetes', 'k8s', self.cluster_name.lower(), 'pvc', 'persistent']):
+                                        is_cluster_related = True
+                                        break
+                            
+                            # Check naming patterns (pvc-, kubernetes-, cluster name)
+                            if not is_cluster_related:
+                                name_lower = disk.name.lower()
+                                if any(pattern in name_lower for pattern in ['pvc-', 'kubernetes-', self.cluster_name.lower()]):
+                                    is_cluster_related = True
+                            
+                            # If in MC_ resource group, it's definitely cluster-related
+                            if rg.startswith('MC_'):
+                                is_cluster_related = True
+                            
+                            if is_cluster_related:
+                                orphaned_disks.append({
+                                    'name': disk.name,
+                                    'resource_group': rg,
+                                    'size_gb': disk.disk_size_gb,
+                                    'sku': disk.sku.name if disk.sku else 'Unknown',
+                                    'created_time': disk.time_created.isoformat() if disk.time_created else None,
+                                    'tags': disk.tags or {},
+                                    'location': disk.location
+                                })
+                
+                except Exception as e:
+                    logger.warning(f"⚠️ {self.cluster_name}: Could not list disks in {rg}: {e}")
+                    continue
+            
+            logger.info(f"✅ {self.cluster_name}: Found {len(orphaned_disks)} cluster orphaned disks")
+            return json.dumps(orphaned_disks)
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to analyze orphaned disks: {e}")
+            return "[]"
+    
+    def _execute_cluster_storage_tiers_via_sdk(self) -> Optional[str]:
+        """Analyze storage tiers of cluster PVCs vs actual usage patterns"""
+        try:
+            import json
+            
+            logger.info(f"🔍 {self.cluster_name}: Analyzing cluster storage tiers...")
+            
+            # Get PVC data from cache (already collected)
+            pvcs_data = self.get("pvcs")
+            if not pvcs_data:
+                logger.warning(f"⚠️ {self.cluster_name}: No PVC data available")
+                return "[]"
+            
+            try:
+                pvcs = json.loads(pvcs_data)
+            except:
+                logger.warning(f"⚠️ {self.cluster_name}: Could not parse PVC data")
+                return "[]"
+            
+            storage_analysis = []
+            
+            for pvc in pvcs.get('items', []):
+                pvc_name = pvc.get('metadata', {}).get('name', 'unknown')
+                namespace = pvc.get('metadata', {}).get('namespace', 'unknown')
+                storage_class = pvc.get('spec', {}).get('storage_class_name', 'unknown')
+                
+                # Analyze storage class efficiency
+                if 'premium' in storage_class.lower():
+                    # This is a premium storage - check if it's actually needed
+                    # For now, flag for manual review - can be enhanced with actual IOPS monitoring
+                    storage_analysis.append({
+                        'pvc_name': pvc_name,
+                        'namespace': namespace,
+                        'current_storage_class': storage_class,
+                        'storage_tier': 'Premium_LRS',
+                        'recommended_tier': 'Standard_LRS',
+                        'reason': 'Premium storage detected - verify if high IOPS needed',
+                        'confidence': 'Medium'
+                    })
+            
+            logger.info(f"✅ {self.cluster_name}: Analyzed {len(storage_analysis)} storage tier opportunities")
+            return json.dumps(storage_analysis)
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to analyze storage tiers: {e}")
+            return "[]"
+    
+    def _execute_cluster_unused_public_ips_via_sdk(self) -> Optional[str]:
+        """Find public IPs allocated for cluster but currently unused"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            import json
+            
+            logger.info(f"🔍 {self.cluster_name}: Analyzing cluster unused public IPs...")
+            
+            # Get network management client  
+            network_client = azure_sdk_manager.get_network_client(self.subscription_id)
+            if not network_client:
+                logger.warning(f"⚠️ {self.cluster_name}: Could not get network client")
+                return "[]"
+            
+            # Check both resource groups - get actual MC_ resource group  
+            resource_groups = [self.resource_group]
+            mc_resource_group = self._get_actual_mc_resource_group()
+            if mc_resource_group:
+                resource_groups.append(mc_resource_group)
+            unused_ips = []
+            
+            for rg in resource_groups:
+                try:
+                    public_ips = list(network_client.public_ip_addresses.list(rg))
+                    
+                    for pip in public_ips:
+                        # Check if IP is not associated with anything
+                        if not pip.ip_configuration:
+                            # Check if it's cluster-related
+                            is_cluster_related = False
+                            
+                            # Check tags
+                            if pip.tags:
+                                for tag_key, tag_value in pip.tags.items():
+                                    if any(marker in tag_key.lower() or marker in str(tag_value).lower() 
+                                           for marker in ['kubernetes', 'k8s', self.cluster_name.lower()]):
+                                        is_cluster_related = True
+                                        break
+                            
+                            # Check naming
+                            if not is_cluster_related:
+                                name_lower = pip.name.lower()
+                                if any(pattern in name_lower for pattern in ['kubernetes-', self.cluster_name.lower()]):
+                                    is_cluster_related = True
+                            
+                            # If in MC_ resource group, it's cluster-related
+                            if rg.startswith('MC_'):
+                                is_cluster_related = True
+                            
+                            if is_cluster_related:
+                                unused_ips.append({
+                                    'name': pip.name,
+                                    'resource_group': rg,
+                                    'ip_address': pip.ip_address,
+                                    'sku': pip.sku.name if pip.sku else 'Basic',
+                                    'allocation_method': pip.public_ip_allocation_method,
+                                    'tags': pip.tags or {},
+                                    'location': pip.location
+                                })
+                
+                except Exception as e:
+                    logger.warning(f"⚠️ {self.cluster_name}: Could not list public IPs in {rg}: {e}")
+                    continue
+            
+            logger.info(f"✅ {self.cluster_name}: Found {len(unused_ips)} cluster unused public IPs")
+            return json.dumps(unused_ips)
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to analyze unused public IPs: {e}")
+            return "[]"
+    
+    def _execute_cluster_load_balancer_analysis_via_sdk(self) -> Optional[str]:
+        """Analyze cluster load balancers for optimization opportunities"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            import json
+            
+            logger.info(f"🔍 {self.cluster_name}: Analyzing cluster load balancers...")
+            
+            # Get network management client
+            network_client = azure_sdk_manager.get_network_client(self.subscription_id)
+            if not network_client:
+                logger.warning(f"⚠️ {self.cluster_name}: Could not get network client")
+                return "[]"
+            
+            # Get services data from cache to correlate
+            services_data = self.get("services")
+            service_count = 0
+            loadbalancer_services = 0
+            
+            if services_data:
+                try:
+                    services = json.loads(services_data)
+                    service_count = len(services.get('items', []))
+                    for svc in services.get('items', []):
+                        if svc.get('spec', {}).get('type') == 'LoadBalancer':
+                            loadbalancer_services += 1
+                except:
+                    pass
+            
+            # Check actual MC_ resource group for load balancers
+            mc_resource_group = self._get_actual_mc_resource_group()
+            if not mc_resource_group:
+                logger.warning(f"⚠️ {self.cluster_name}: Could not find MC_ resource group for load balancer analysis")
+                return "[]"
+            load_balancer_analysis = []
+            
+            try:
+                load_balancers = list(network_client.load_balancers.list(mc_resource_group))
+                
+                lb_analysis = {
+                    'total_load_balancers': len(load_balancers),
+                    'kubernetes_services_total': service_count,
+                    'loadbalancer_type_services': loadbalancer_services,
+                    'load_balancers': []
+                }
+                
+                for lb in load_balancers:
+                    lb_info = {
+                        'name': lb.name,
+                        'sku': lb.sku.name if lb.sku else 'Basic',
+                        'frontend_ip_count': len(lb.frontend_ip_configurations) if lb.frontend_ip_configurations else 0,
+                        'backend_pool_count': len(lb.backend_address_pools) if lb.backend_address_pools else 0,
+                        'tags': lb.tags or {},
+                        'location': lb.location
+                    }
+                    lb_analysis['load_balancers'].append(lb_info)
+                
+                load_balancer_analysis.append(lb_analysis)
+                
+            except Exception as e:
+                logger.warning(f"⚠️ {self.cluster_name}: Could not analyze load balancers in {mc_resource_group}: {e}")
+            
+            logger.info(f"✅ {self.cluster_name}: Analyzed cluster load balancer configuration")
+            return json.dumps(load_balancer_analysis)
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to analyze load balancers: {e}")
+            return "[]"
+    
+    def _execute_cluster_network_waste_via_sdk(self) -> Optional[str]:
+        """Analyze cluster network configuration for waste opportunities"""
+        try:
+            import json
+            
+            logger.info(f"🔍 {self.cluster_name}: Analyzing cluster network waste...")
+            
+            # Combine multiple network analyses
+            network_analysis = {
+                'analysis_type': 'cluster_network_waste',
+                'cluster_name': self.cluster_name,
+                'timestamp': datetime.now().isoformat(),
+                'recommendations': []
+            }
+            
+            # Get services and ingress data to understand traffic patterns
+            services_data = self.get("services")
+            if services_data:
+                try:
+                    services = json.loads(services_data)
+                    total_services = len(services.get('items', []))
+                    lb_services = sum(1 for svc in services.get('items', []) 
+                                     if svc.get('spec', {}).get('type') == 'LoadBalancer')
+                    
+                    if lb_services > 0:
+                        # Calculate ratio - opportunities for ingress consolidation
+                        lb_ratio = lb_services / total_services if total_services > 0 else 0
+                        
+                        if lb_ratio > 0.3:  # More than 30% of services use LoadBalancer
+                            network_analysis['recommendations'].append({
+                                'type': 'ingress_consolidation',
+                                'current_lb_services': lb_services,
+                                'total_services': total_services,
+                                'recommendation': 'Consider using Ingress controller to consolidate load balancers',
+                                'confidence': 'Medium'
+                            })
+                
+                except Exception as e:
+                    logger.warning(f"⚠️ {self.cluster_name}: Could not analyze services for network waste: {e}")
+            
+            logger.info(f"✅ {self.cluster_name}: Completed cluster network waste analysis")
+            return json.dumps(network_analysis)
+            
+        except Exception as e:
+            logger.error(f"❌ {self.cluster_name}: Failed to analyze network waste: {e}")
+            return "[]"
 
 
 # === GLOBAL CACHE MANAGER ===

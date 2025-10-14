@@ -182,12 +182,12 @@
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">Notification Threshold (USD)</label>
-                                <input type="number" name="slack_cost_threshold" value="{{ config.get('SLACK_COST_THRESHOLD', '100') }}" 
+                                <label class="form-label">Dashboard URL</label>
+                                <input type="url" name="app_url" value="{{ config.get('APP_URL', 'http://localhost:5001') }}" 
                                        class="form-input"
                                        autocomplete="off"
-                                       placeholder="100" min="0" step="0.01">
-                                <p class="form-help">Send alerts when daily costs exceed this amount</p>
+                                       placeholder="http://localhost:5001">
+                                <p class="form-help">Base URL for dashboard links in Slack notifications</p>
                             </div>
                         </div>
 

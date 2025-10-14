@@ -31,6 +31,7 @@ class SettingsManager:
     
     def __init__(self):
         self.settings_file = os.path.join(os.getcwd(), '.env')
+        self.local_settings_file = os.path.join(os.getcwd(), '.env.local')
         self.backup_settings_file = os.path.join(os.getcwd(), '.env.backup')
         self.config_cache = {}
         self.load_settings()
@@ -48,6 +49,15 @@ class SettingsManager:
             # Load from .env file if it exists
             if os.path.exists(self.settings_file):
                 with open(self.settings_file, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, value = line.split('=', 1)
+                            config[key.strip()] = value.strip().strip('"\'')
+            
+            # Load from .env.local file if it exists (for secrets)
+            if os.path.exists(self.local_settings_file):
+                with open(self.local_settings_file, 'r') as f:
                     for line in f:
                         line = line.strip()
                         if line and not line.startswith('#') and '=' in line:
@@ -94,7 +104,7 @@ class SettingsManager:
             
             # Group settings by category
             azure_settings = {k: v for k, v in settings.items() if k.startswith('AZURE_') or k in ['azure_tenant_id', 'azure_subscription_id', 'azure_client_id', 'azure_client_secret']}
-            slack_settings = {k: v for k, v in settings.items() if k.startswith('SLACK_') or k in ['slack_enabled', 'slack_webhook_url', 'slack_channel', 'slack_cost_threshold']}
+            slack_settings = {k: v for k, v in settings.items() if k.startswith('SLACK_') or k in ['slack_enabled', 'slack_webhook_url', 'slack_channel', 'app_url']}
             email_settings = {k: v for k, v in settings.items() if k.startswith(('EMAIL_', 'SMTP_')) or k in ['email_enabled', 'email_username', 'email_password', 'email_recipients', 'smtp_server', 'smtp_port']}
             general_settings = {k: v for k, v in settings.items() if k in ['analysis_refresh_interval', 'cost_alert_threshold', 'log_level', 'production_mode', 'auto_analysis_enabled', 'auto_analysis_interval']}
             
@@ -108,8 +118,10 @@ class SettingsManager:
             config_lines.extend(["", "# Slack Integration"])
             for key, value in slack_settings.items():
                 env_key = key.upper() if not key.startswith('SLACK_') else key
-                if key in ['slack_enabled', 'slack_webhook_url', 'slack_channel', 'slack_cost_threshold']:
+                if key in ['slack_enabled', 'slack_webhook_url', 'slack_channel']:
                     env_key = f"SLACK_{key.split('_', 1)[1].upper()}" if '_' in key else 'SLACK_ENABLED'
+                elif key == 'app_url':
+                    env_key = 'APP_URL'
                 config_lines.append(f"{env_key}={value}")
             
             config_lines.extend(["", "# Email Settings"])
@@ -156,6 +168,15 @@ class SettingsManager:
             # Reload settings cache
             self.load_settings()
             
+            # Check if auto-analysis setting changed and restart scheduler if needed
+            if 'auto_analysis_enabled' in settings:
+                try:
+                    from infrastructure.services.auto_analysis_scheduler import auto_scheduler
+                    logger.info("🔄 Auto-analysis setting changed, restarting scheduler...")
+                    auto_scheduler.restart_scheduler()
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not restart auto-analysis scheduler: {e}")
+            
             logger.info("Settings saved successfully")
             return True
             
@@ -181,7 +202,7 @@ class SettingsManager:
             'slack_enabled': 'SLACK_ENABLED',
             'slack_webhook_url': 'SLACK_WEBHOOK_URL',
             'slack_channel': 'SLACK_CHANNEL',
-            'slack_cost_threshold': 'SLACK_COST_THRESHOLD',
+            'app_url': 'APP_URL',
             'email_enabled': 'EMAIL_ENABLED',
             'smtp_server': 'SMTP_SERVER',
             'smtp_port': 'SMTP_PORT',
