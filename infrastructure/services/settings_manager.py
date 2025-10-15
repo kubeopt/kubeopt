@@ -67,12 +67,12 @@ class SettingsManager:
             logger.error(f"Error loading settings: {e}")
             return {}
     
-    def save_settings(self, settings: Dict[str, str]) -> bool:
+    def save_settings(self, new_settings: Dict[str, str]) -> bool:
         """
-        Save settings to .env file and environment
+        Save settings to .env file and environment - MERGES with existing settings
         
         Args:
-            settings: Dictionary of settings to save
+            new_settings: Dictionary of new settings to save
             
         Returns:
             bool: True if successful
@@ -84,64 +84,75 @@ class SettingsManager:
                     with open(self.backup_settings_file, 'w') as dst:
                         dst.write(src.read())
             
-            # Prepare settings for writing
+            # Load existing settings first
+            existing_settings = self.load_settings()
+            
+            # Convert form field names to environment variable names and merge
+            merged_settings = existing_settings.copy()
+            for key, value in new_settings.items():
+                env_key = self._get_env_key(key)
+                merged_settings[env_key] = str(value)
+                # Also update current environment
+                os.environ[env_key] = str(value)
+            
+            # Group merged settings by category for organized output
+            azure_settings = {k: v for k, v in merged_settings.items() if k.startswith('AZURE_')}
+            slack_settings = {k: v for k, v in merged_settings.items() if k.startswith('SLACK_') or k == 'APP_URL'}
+            email_settings = {k: v for k, v in merged_settings.items() if k.startswith(('EMAIL_', 'SMTP_', 'FROM_'))}
+            general_settings = {k: v for k, v in merged_settings.items() if k in [
+                'ANALYSIS_REFRESH_INTERVAL', 'COST_ALERT_THRESHOLD', 'LOG_LEVEL', 
+                'PRODUCTION_MODE', 'AUTO_ANALYSIS_ENABLED', 'AUTO_ANALYSIS_INTERVAL'
+            ]}
+            
+            # Handle custom environment variables
+            custom_env_vars = merged_settings.get('CUSTOM_ENV_VARS', '')
+            
+            # Build output lines
             config_lines = [
                 "# AKS Cost Optimizer Configuration",
                 f"# Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 "",
-                "# Azure Configuration",
+                "# Azure Configuration"
             ]
             
-            # Group settings by category
-            azure_settings = {k: v for k, v in settings.items() if k.startswith('AZURE_') or k in ['azure_tenant_id', 'azure_subscription_id', 'azure_client_id', 'azure_client_secret']}
-            slack_settings = {k: v for k, v in settings.items() if k.startswith('SLACK_') or k in ['slack_enabled', 'slack_webhook_url', 'slack_channel', 'app_url']}
-            email_settings = {k: v for k, v in settings.items() if k.startswith(('EMAIL_', 'SMTP_')) or k in ['email_enabled', 'email_username', 'email_password', 'email_recipients', 'smtp_server', 'smtp_port']}
-            general_settings = {k: v for k, v in settings.items() if k in ['analysis_refresh_interval', 'cost_alert_threshold', 'log_level', 'production_mode', 'auto_analysis_enabled', 'auto_analysis_interval']}
-            
             # Write Azure settings
-            for key, value in azure_settings.items():
-                env_key = key.upper() if not key.startswith('AZURE_') else key
-                if key in ['azure_tenant_id', 'azure_subscription_id', 'azure_client_id', 'azure_client_secret']:
-                    env_key = f"AZURE_{key.split('_', 1)[1].upper()}"
-                config_lines.append(f"{env_key}={value}")
+            for key, value in sorted(azure_settings.items()):
+                config_lines.append(f"{key}={value}")
             
-            config_lines.extend(["", "# Slack Integration"])
-            for key, value in slack_settings.items():
-                env_key = key.upper() if not key.startswith('SLACK_') else key
-                if key in ['slack_enabled', 'slack_webhook_url', 'slack_channel']:
-                    env_key = f"SLACK_{key.split('_', 1)[1].upper()}" if '_' in key else 'SLACK_ENABLED'
-                elif key == 'app_url':
-                    env_key = 'APP_URL'
-                config_lines.append(f"{env_key}={value}")
+            # Write Slack settings
+            if slack_settings:
+                config_lines.extend(["", "# Slack Integration"])
+                for key, value in sorted(slack_settings.items()):
+                    config_lines.append(f"{key}={value}")
             
-            config_lines.extend(["", "# Email Settings"])
-            for key, value in email_settings.items():
-                env_key = key.upper()
-                if key in ['email_enabled', 'email_username', 'email_password', 'email_recipients']:
-                    env_key = f"EMAIL_{key.split('_', 1)[1].upper()}" if '_' in key else 'EMAIL_ENABLED'
-                config_lines.append(f"{env_key}={value}")
+            # Write Email settings
+            if email_settings:
+                config_lines.extend(["", "# Email Settings"])
+                for key, value in sorted(email_settings.items()):
+                    config_lines.append(f"{key}={value}")
             
-            config_lines.extend(["", "# General Settings"])
-            for key, value in general_settings.items():
-                env_key = key.upper()
-                if key == 'analysis_refresh_interval':
-                    env_key = 'ANALYSIS_REFRESH_INTERVAL'
-                elif key == 'cost_alert_threshold':
-                    env_key = 'COST_ALERT_THRESHOLD'
-                elif key == 'log_level':
-                    env_key = 'LOG_LEVEL'
-                elif key == 'production_mode':
-                    env_key = 'PRODUCTION_MODE'
-                elif key == 'auto_analysis_enabled':
-                    env_key = 'AUTO_ANALYSIS_ENABLED'
-                elif key == 'auto_analysis_interval':
-                    env_key = 'AUTO_ANALYSIS_INTERVAL'
-                config_lines.append(f"{env_key}={value}")
+            # Write General settings
+            if general_settings:
+                config_lines.extend(["", "# General Settings"])
+                for key, value in sorted(general_settings.items()):
+                    config_lines.append(f"{key}={value}")
+            
+            # Write any other settings not categorized above
+            other_settings = {k: v for k, v in merged_settings.items() 
+                            if not k.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'FROM_')) 
+                            and k not in ['APP_URL', 'ANALYSIS_REFRESH_INTERVAL', 'COST_ALERT_THRESHOLD', 
+                                        'LOG_LEVEL', 'PRODUCTION_MODE', 'AUTO_ANALYSIS_ENABLED', 
+                                        'AUTO_ANALYSIS_INTERVAL', 'CUSTOM_ENV_VARS']}
+            
+            if other_settings:
+                config_lines.extend(["", "# Other Settings"])
+                for key, value in sorted(other_settings.items()):
+                    config_lines.append(f"{key}={value}")
             
             # Handle custom environment variables
-            if 'custom_env_vars' in settings and settings['custom_env_vars']:
+            if custom_env_vars:
                 config_lines.extend(["", "# Custom Environment Variables"])
-                for line in settings['custom_env_vars'].split('\n'):
+                for line in custom_env_vars.split('\n'):
                     line = line.strip()
                     if line and not line.startswith('#'):
                         config_lines.append(line)
@@ -150,16 +161,11 @@ class SettingsManager:
             with open(self.settings_file, 'w') as f:
                 f.write('\n'.join(config_lines))
             
-            # Update environment variables for current session
-            for key, value in settings.items():
-                env_key = self._get_env_key(key)
-                os.environ[env_key] = str(value)
-            
             # Reload settings cache
-            self.load_settings()
+            self.config_cache = merged_settings
             
             # Check if auto-analysis setting changed and restart scheduler if needed
-            if 'auto_analysis_enabled' in settings:
+            if 'auto_analysis_enabled' in new_settings:
                 try:
                     from infrastructure.services.auto_analysis_scheduler import auto_scheduler
                     logger.info("🔄 Auto-analysis setting changed, restarting scheduler...")
@@ -196,8 +202,9 @@ class SettingsManager:
             'email_enabled': 'EMAIL_ENABLED',
             'smtp_server': 'SMTP_SERVER',
             'smtp_port': 'SMTP_PORT',
-            'email_username': 'EMAIL_USERNAME',
-            'email_password': 'EMAIL_PASSWORD',
+            'smtp_username': 'SMTP_USERNAME',
+            'smtp_password': 'SMTP_PASSWORD',
+            'from_email': 'FROM_EMAIL',
             'email_recipients': 'EMAIL_RECIPIENTS',
             'analysis_refresh_interval': 'ANALYSIS_REFRESH_INTERVAL',
             'cost_alert_threshold': 'COST_ALERT_THRESHOLD',

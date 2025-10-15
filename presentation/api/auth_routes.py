@@ -128,7 +128,7 @@ def register_auth_routes(app):
             elif section == 'email':
                 # Email settings
                 settings_data['email_enabled'] = 'true' if request.form.get('email_enabled') else 'false'
-                email_fields = ['smtp_server', 'smtp_port', 'email_username', 'email_password', 'email_recipients']
+                email_fields = ['smtp_server', 'smtp_port', 'smtp_username', 'smtp_password', 'from_email', 'email_recipients']
                 for field in email_fields:
                     value = request.form.get(field, '').strip()
                     if value:
@@ -188,7 +188,7 @@ def register_auth_routes(app):
                 
                 # Email settings
                 settings_data['email_enabled'] = 'true' if request.form.get('email_enabled') else 'false'
-                email_fields = ['smtp_server', 'smtp_port', 'email_username', 'email_password', 'email_recipients']
+                email_fields = ['smtp_server', 'smtp_port', 'smtp_username', 'smtp_password', 'from_email', 'email_recipients']
                 for field in email_fields:
                     value = request.form.get(field, '').strip()
                     if value:
@@ -256,11 +256,16 @@ def register_auth_routes(app):
         try:
             smtp_server = request.form.get('smtp_server', '').strip()
             smtp_port = int(request.form.get('smtp_port', '587'))
-            username = request.form.get('email_username', '').strip()
-            password = request.form.get('email_password', '').strip()
+            username = request.form.get('smtp_username', '').strip()
+            password = request.form.get('smtp_password', '').strip()
+            from_email = request.form.get('from_email', '').strip()
+            email_recipients = request.form.get('email_recipients', '').strip()
             
-            # Use current user's email as test recipient
-            recipients = [username] if username else []
+            # Parse recipients from comma-separated string
+            if email_recipients:
+                recipients = [email.strip() for email in email_recipients.split(',') if email.strip()]
+            else:
+                recipients = [from_email or username] if (from_email or username) else []
             
             if not all([smtp_server, username, password]):
                 return jsonify({'success': False, 'message': 'Please fill in all email fields'})

@@ -267,28 +267,41 @@
                         
                         <div class="form-row">
                             <div class="form-group">
-                                <label class="form-label">Email Username</label>
-                                <input type="email" name="email_username" value="{{ config.get('EMAIL_USERNAME', '') }}" 
+                                <label class="form-label">SMTP Username</label>
+                                <input type="email" name="smtp_username" value="{{ config.get('SMTP_USERNAME', '') }}" 
                                        class="form-input"
                                        autocomplete="email"
                                        placeholder="your-email@company.com">
+                                <p class="form-help">SMTP login username (usually your email address)</p>
                             </div>
                                 
                             <div class="form-group">
-                                <label class="form-label">Email Password</label>
-                                <input type="password" name="email_password" value="{{ config.get('EMAIL_PASSWORD', '') }}" 
+                                <label class="form-label">SMTP Password</label>
+                                <input type="password" name="smtp_password" value="{{ config.get('SMTP_PASSWORD', '') }}" 
                                        class="form-input"
                                        autocomplete="new-password"
                                        placeholder="Enter email password or app password">
+                                <p class="form-help">SMTP login password</p>
                             </div>
                         </div>
                         
-                        <div class="form-group form-full-width">
-                            <label class="form-label">Recipients (comma-separated)</label>
-                            <input type="text" name="email_recipients" value="{{ config.get('EMAIL_RECIPIENTS', '') }}" 
-                                   class="form-input"
-                                   placeholder="admin@company.com, devops@company.com">
-                            <p class="form-help">Email addresses to receive cost optimization reports</p>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">From Email</label>
+                                <input type="email" name="from_email" value="{{ config.get('FROM_EMAIL', '') }}" 
+                                       class="form-input"
+                                       autocomplete="email"
+                                       placeholder="sender@company.com">
+                                <p class="form-help">Email address that appears as sender (usually same as SMTP username)</p>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Recipients (comma-separated)</label>
+                                <input type="text" name="email_recipients" value="{{ config.get('EMAIL_RECIPIENTS', '') }}" 
+                                       class="form-input"
+                                       placeholder="admin@company.com, devops@company.com">
+                                <p class="form-help">Email addresses to receive cost optimization reports</p>
+                            </div>
                         </div>
 
                         <div class="btn-actions">

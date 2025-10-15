@@ -919,7 +919,7 @@ function displayAlerts() {
                                 <button class="action-btn p-2 rounded" style="color: rgb(156, 163, 175); background: rgba(75, 85, 99, 0.3);" onclick="toggleSimpleMenu('${alert.id}')" id="dropdown-${alert.id}">
                                     <i class="fas fa-ellipsis-v"></i>
                                 </button>
-                                <div class="dropdown-menu absolute right-0 mt-1 w-48 rounded border z-10 hidden" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1);" id="simple-menu-${alert.id}">
+                                <div class="dropdown-menu absolute right-0 mt-1 w-48 rounded border z-10" style="background: #171d33; border: 1px solid rgba(255,255,255,0.1); display: none;" id="simple-menu-${alert.id}">
                                    
                                     <button class="dropdown-item w-full text-left px-4 py-2 text-sm flex items-center" style="color: rgb(203, 213, 225);" onclick="showEditAlertModal('${alert.id}'); closeMenu('${alert.id}');">
                                         <i class="fas fa-edit mr-2 text-emerald-400"></i>Edit Alert
@@ -1059,13 +1059,14 @@ function toggleSimpleMenu(alertId) {
     const button = document.getElementById(`dropdown-${alertId}`);
     
     if (menu && button) {
-        const isHidden = !menu.classList.contains('show');
+        const isHidden = menu.style.display === 'none' || menu.style.display === '';
         
         if (isHidden) {
-            // Show menu temporarily to measure its height
+            // Reset all styles first
+            menu.classList.remove('dropup', 'show');
             menu.style.display = 'block';
-            menu.style.visibility = 'hidden';
-            menu.classList.remove('dropup');
+            menu.style.opacity = '0';
+            menu.style.visibility = 'visible';
             
             // Get measurements
             const buttonRect = button.getBoundingClientRect();
@@ -1074,11 +1075,7 @@ function toggleSimpleMenu(alertId) {
             const spaceBelow = viewportHeight - buttonRect.bottom;
             const spaceAbove = buttonRect.top;
             
-            // Reset styles
-            menu.style.visibility = 'visible';
-            
             // Determine if menu should show above (dropup) or below (dropdown)
-            // Use dropup if there's not enough space below but there is space above
             if (spaceBelow < menuHeight + 10 && spaceAbove > menuHeight + 10) {
                 menu.classList.add('dropup');
                 console.log(`📍 Alert ${alertId}: Using dropup (space below: ${spaceBelow}px, space above: ${spaceAbove}px, menu height: ${menuHeight}px)`);
@@ -1087,10 +1084,14 @@ function toggleSimpleMenu(alertId) {
                 console.log(`📍 Alert ${alertId}: Using dropdown (space below: ${spaceBelow}px, space above: ${spaceAbove}px, menu height: ${menuHeight}px)`);
             }
             
+            // Show menu with animation
             menu.classList.add('show');
+            menu.style.opacity = '1';
         } else {
+            // Hide menu
             menu.classList.remove('show', 'dropup');
             menu.style.display = 'none';
+            menu.style.opacity = '0';
             console.log(`🔧 Closed menu for alert ${alertId}`);
         }
     } else {
@@ -1103,6 +1104,7 @@ function closeMenu(alertId) {
     if (menu) {
         menu.classList.remove('show', 'dropup');
         menu.style.display = 'none';
+        menu.style.opacity = '0';
     }
 }
 
