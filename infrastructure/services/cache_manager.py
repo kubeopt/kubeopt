@@ -310,6 +310,11 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
     cpu_gap = complete_analysis_data.get('cpu_gap', 'NOT_FOUND')
     memory_gap = complete_analysis_data.get('memory_gap', 'NOT_FOUND')
     logger.info(f"🔍 CACHE SAVE: About to cache CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
+    # Debug: Check if breakdown data exists before caching
+    build_breakdown = complete_analysis_data.get('build_quality_breakdown', 'MISSING')
+    cost_breakdown = complete_analysis_data.get('cost_excellence_breakdown', 'MISSING')
+    logger.info(f"🔍 CACHE SAVE: build_quality_breakdown = {build_breakdown}")
+    logger.info(f"🔍 CACHE SAVE: cost_excellence_breakdown = {cost_breakdown}")
     #logger.info(f"🔍 CACHE SAVE: Analysis data keys: {list(complete_analysis_data.keys())}")
     
     try:
@@ -357,6 +362,11 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
         else:
             logger.warning(f"⚠️ CACHE SAVE WARNING: high_cpu_summary missing from cached data")
         
+        # Debug: Check if breakdown data is preserved in cache
+        cached_build_breakdown = cache_data.get('build_quality_breakdown', 'MISSING')
+        cached_cost_breakdown = cache_data.get('cost_excellence_breakdown', 'MISSING')
+        logger.info(f"🔍 CACHE SAVED: build_quality_breakdown = {cached_build_breakdown}")
+        logger.info(f"🔍 CACHE SAVED: cost_excellence_breakdown = {cached_cost_breakdown}")
         logger.info(f"💾 CACHE SAVED: {cache_key} with validated data ({len(cache_data)} components)")
         return True
         
@@ -471,9 +481,15 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'analysis_confidence': float(complete_analysis_data.get('analysis_confidence', 0)),
         'optimization_score': float(complete_analysis_data.get('optimization_score', 0)),
         
-        # AKS Excellence scores
+        # AKS Excellence scores and breakdowns
         'build_quality_score': complete_analysis_data.get('build_quality_score'),
         'cost_excellence_score': complete_analysis_data.get('cost_excellence_score'),
+        'build_quality_breakdown': complete_analysis_data.get('build_quality_breakdown'),
+        'cost_excellence_breakdown': complete_analysis_data.get('cost_excellence_breakdown'),
+        'build_quality_details': complete_analysis_data.get('build_quality_details'),
+        'cost_excellence_details': complete_analysis_data.get('cost_excellence_details'),
+        'build_quality_recommendations': complete_analysis_data.get('build_quality_recommendations'),
+        'cost_excellence_recommendations': complete_analysis_data.get('cost_excellence_recommendations'),
         
         # Security analysis data
         'security_analysis': complete_analysis_data.get('security_analysis'),
