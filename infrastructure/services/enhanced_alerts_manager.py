@@ -49,13 +49,19 @@ class EnhancedAlertsManager:
         self.smtp_password = self.settings_manager.get_setting('SMTP_PASSWORD', '')
         self.from_email = self.settings_manager.get_setting('FROM_EMAIL', self.smtp_username or self.smtp_username)
         
+        # Get email recipients
+        email_recipients = self.settings_manager.get_setting('EMAIL_RECIPIENTS', '')
+        self.email_recipients = [email.strip() for email in email_recipients.split(',') if email.strip()]
+        if not self.email_recipients:
+            self.email_recipients = [self.from_email]  # Fallback to from_email
+        
         # Slack configuration - get from settings manager
         self.slack_webhook_url = self.settings_manager.get_setting('SLACK_WEBHOOK_URL', '')
         
         # Load notification settings from standards
         self.notification_retry_attempts = notification_config.get('retry_attempts', 3)
         self.notification_timeout = notification_config.get('timeout_seconds', 10)
-        self.default_channels = notification_config.get('default_channels', ['email', 'inapp'])
+        self.default_channels = notification_config.get('default_channels', ['email', 'inapp', 'slack'])
         
         self.logger.info("✅ Enhanced alerts manager initialized with standards")
 
@@ -602,7 +608,7 @@ Best regards,
 AKS Cost Intelligence Team
             """
             
-            return self._send_email(subject, body, [self.from_email])
+            return self._send_email(subject, body, self.email_recipients)
             
         except Exception as e:
             self.logger.error(f"❌ Error sending test email: {e}")
@@ -719,7 +725,7 @@ Best regards,
 AKS Cost Intelligence Team
             """
             
-            return self._send_email(subject, body, [self.from_email])
+            return self._send_email(subject, body, self.email_recipients)
             
         except Exception as e:
             self.logger.error(f"❌ Error sending alert email: {e}")
@@ -828,6 +834,15 @@ AKS Cost Intelligence Team
     def _send_email(self, subject: str, body: str, recipients: List[str]) -> bool:
         """Send email using SMTP"""
         try:
+            self.logger.info(f"📧 Attempting to send email to {recipients}")
+            self.logger.info(f"📧 SMTP Server: {self.smtp_server}:{self.smtp_port}")
+            self.logger.info(f"📧 From: {self.from_email}")
+            self.logger.info(f"📧 Username: {self.smtp_username}")
+            
+            if not recipients:
+                self.logger.error("❌ No email recipients configured")
+                return False
+                
             msg = MIMEMultipart()  #  Capital letters
             msg['From'] = self.from_email
             msg['To'] = ', '.join(recipients)
@@ -835,18 +850,23 @@ AKS Cost Intelligence Team
             
             msg.attach(MIMEText(body, 'plain'))  #  Capital letters
             
+            self.logger.info(f"📧 Connecting to SMTP server...")
             server = smtplib.SMTP(self.smtp_server, self.smtp_port)
             server.starttls()
+            self.logger.info(f"📧 Logging in with username: {self.smtp_username}")
             server.login(self.smtp_username, self.smtp_password)
             
             text = msg.as_string()
+            self.logger.info(f"📧 Sending email...")
             server.sendmail(self.from_email, recipients, text)
             server.quit()
             
+            self.logger.info(f"✅ Email sent successfully to {recipients}")
             return True
             
         except Exception as e:
             self.logger.error(f"❌ Error sending email: {e}")
+            self.logger.error(f"❌ Email config - Server: {self.smtp_server}:{self.smtp_port}, User: {self.smtp_username}, From: {self.from_email}")
             return False
 
     def _send_cpu_alert_in_app(self, alert: Dict, triggered_alert: Dict) -> bool:
@@ -925,7 +945,7 @@ Thresholds:
 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
             
-            return self._send_email(subject, body, [self.from_email])
+            return self._send_email(subject, body, self.email_recipients)
             
         except Exception as e:
             self.logger.error(f"❌ Error sending CPU alert email: {e}")

@@ -59,8 +59,10 @@ function testEmail() {
     form.append('test_email', 'true');
     form.append('smtp_server', document.querySelector('input[name="smtp_server"]').value);
     form.append('smtp_port', document.querySelector('input[name="smtp_port"]').value);
-    form.append('email_username', document.querySelector('input[name="email_username"]').value);
-    form.append('email_password', document.querySelector('input[name="email_password"]').value);
+    form.append('smtp_username', document.querySelector('input[name="smtp_username"]').value);
+    form.append('smtp_password', document.querySelector('input[name="smtp_password"]').value);
+    form.append('from_email', document.querySelector('input[name="from_email"]').value);
+    form.append('email_recipients', document.querySelector('input[name="email_recipients"]').value);
     
     const button = event.target;
     const originalText = button.innerHTML;

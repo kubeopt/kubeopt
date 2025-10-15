@@ -481,21 +481,10 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'analysis_confidence': float(complete_analysis_data.get('analysis_confidence', 0)),
         'optimization_score': float(complete_analysis_data.get('optimization_score', 0)),
         
-        # AKS Excellence scores and breakdowns
-        'build_quality_score': complete_analysis_data.get('build_quality_score'),
-        'cost_excellence_score': complete_analysis_data.get('cost_excellence_score'),
-        'build_quality_breakdown': complete_analysis_data.get('build_quality_breakdown'),
-        'cost_excellence_breakdown': complete_analysis_data.get('cost_excellence_breakdown'),
-        'build_quality_details': complete_analysis_data.get('build_quality_details'),
-        'cost_excellence_details': complete_analysis_data.get('cost_excellence_details'),
-        'build_quality_recommendations': complete_analysis_data.get('build_quality_recommendations'),
-        'cost_excellence_recommendations': complete_analysis_data.get('cost_excellence_recommendations'),
         
         # Security analysis data
         'security_analysis': complete_analysis_data.get('security_analysis'),
         
-        # AKS savings opportunities
-        'aks_savings_opportunities': complete_analysis_data.get('aks_savings_opportunities', []),
         
         # NEW CONSOLIDATED FIELDS - Standards-based categories and health scoring
         'savings_by_category': complete_analysis_data.get('savings_by_category', {}),

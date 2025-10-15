@@ -38,12 +38,6 @@
     --spacing-lg: 1.5rem;
     --spacing-xl: 2rem;
     
-    /* AKS Excellence Colors */
-    --excellence-build: #6366f1;      /* Indigo for build quality */
-    --excellence-cost: #059669;       /* Emerald for cost excellence */
-    --excellence-savings: #dc2626;    /* Red for savings */
-    --excellence-bg: #f8fafc;         /* Light background */
-    --excellence-text: #374151;       /* Dark text */
 }
 
 /* ===== GLOBAL RESET & BASE STYLES ===== */
@@ -3386,54 +3380,6 @@ button[style*="background: #dc2626"]:hover {
     }
 }
 
-/* ===== AKS EXCELLENCE FRAMEWORK STYLES ===== */
-
-.excellence-scores-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--spacing-lg);
-    margin-top: var(--spacing-lg);
-}
-
-.excellence-score-card {
-    background: var(--bg-white);
-    padding: var(--spacing-lg);
-}
-
-.excellence-score-card.full-width {
-    grid-column: 1 / -1;
-}
-
-.score-header {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-md);
-    margin-bottom: var(--spacing-lg);
-}
-
-.score-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: var(--border-radius);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
-    color: white;
-}
-
-.score-icon.build-quality {
-    background: var(--excellence-build);
-}
-
-.score-icon.cost-excellence {
-    background: var(--excellence-cost);
-}
-
-.score-icon.savings {
-    background: var(--excellence-savings);
-}
-
 .score-info h4 {
     margin: 0;
     font-size: 1.125rem;
@@ -3496,7 +3442,7 @@ button[style*="background: #dc2626"]:hover {
     font-weight: 600;
     color: var(--text-primary);
     padding: 2px 8px;
-    background: var(--excellence-bg);
+    background: var(--bg-light);
     border-radius: 4px;
 }
 
@@ -3511,7 +3457,7 @@ button[style*="background: #dc2626"]:hover {
     align-items: center;
     gap: var(--spacing-md);
     padding: var(--spacing-md);
-    background: var(--excellence-bg);
+    background: var(--bg-light);
     border-radius: var(--border-radius);
     border: 1px solid var(--border-color);
 }
@@ -3520,7 +3466,7 @@ button[style*="background: #dc2626"]:hover {
     width: 36px;
     height: 36px;
     border-radius: var(--border-radius);
-    background: var(--excellence-savings);
+    background: var(--danger-red);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3549,7 +3495,7 @@ button[style*="background: #dc2626"]:hover {
 .savings-amount {
     font-size: 1rem;
     font-weight: 700;
-    color: var(--excellence-cost);
+    color: var(--success-green);
 }
 
 .savings-confidence {
@@ -3577,31 +3523,6 @@ button[style*="background: #dc2626"]:hover {
 .score-value.good { color: #d97706; }
 .score-value.needs-improvement { color: #dc2626; }
 
-/* Responsive design for excellence scores */
-@media (max-width: 768px) {
-    .excellence-scores-grid {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-md);
-    }
-    
-    .score-header {
-        gap: var(--spacing-sm);
-    }
-    
-    .score-icon {
-        width: 40px;
-        height: 40px;
-        font-size: 1rem;
-    }
-    
-    .score-value {
-        font-size: 2rem;
-    }
-    
-    .savings-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--spacing-sm);
     }
 }
 /* ===== CHART TOOLTIPS THEME OVERRIDE ===== */
@@ -3802,53 +3723,6 @@ button[style*="background: #dc2626"]:hover {
     color: var(--text-primary) !important;
 }
 
-/* ===== AKS EXCELLENCE SCORES VISIBILITY FIXES ===== */
-.excellence-scores-grid {
-    opacity: 1 !important;
-    visibility: visible !important;
-}
-
-.excellence-score-card {
-    opacity: 1 !important;
-    visibility: visible !important;
-}
-
-#build-quality-score,
-#cost-excellence-score {
-    opacity: 1 !important;
-    visibility: visible !important;
-    display: block !important;
-}
-
-#build-quality-breakdown,
-#cost-excellence-breakdown {
-    opacity: 1 !important;
-    visibility: visible !important;
-    display: block !important;
-}
-
-/* Loading state for AKS scores */
-.excellence-score-loading {
-    display: inline-flex !important;
-    align-items: center !important;
-    gap: 8px !important;
-    color: var(--text-muted) !important;
-}
-
-.excellence-score-loading .spinner {
-    width: 16px !important;
-    height: 16px !important;
-    border: 2px solid var(--border-color) !important;
-    border-top-color: var(--primary-green) !important;
-    border-radius: 50% !important;
-    animation: spin 1s linear infinite !important;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-/* ===== AKS EXCELLENCE SCORE BREAKDOWN STYLES ===== */
 .breakdown-item {
     display: flex !important;
     align-items: center !important;
@@ -3942,6 +3816,81 @@ canvas {
         gap: 4px !important;
     }
     
+/* ===== ALERT MENU STYLES ===== */
+[id^="simple-menu-"] {
+    position: absolute !important;
+    right: 0 !important;
+    top: 100% !important;
+    margin-top: 8px !important;
+    min-width: 160px !important;
+    z-index: 1050 !important;
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transform: translateY(-10px) !important;
+    transition: all 0.2s ease !important;
+}
+
+[id^="simple-menu-"].show {
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(0) !important;
+}
+
+[id^="simple-menu-"].dropup {
+    top: auto !important;
+    bottom: 100% !important;
+    margin-top: 0 !important;
+    margin-bottom: 8px !important;
+    transform: translateY(10px);
+}
+
+[id^="simple-menu-"].dropup.show {
+    transform: translateY(0) !important;
+}
+
+[id^="simple-menu-"] .menu-item {
+    display: block;
+    padding: 8px 16px;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 0.875rem;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+[id^="simple-menu-"] .menu-item:hover {
+    background: var(--bg-secondary);
+}
+
+[id^="simple-menu-"] .menu-item:focus {
+    outline: none;
+    background: var(--bg-secondary);
+}
+
+[id^="simple-menu-"] .menu-item i {
+    width: 16px;
+    margin-right: 8px;
+    color: var(--text-muted);
+}
+
+[id^="simple-menu-"] .menu-item.delete {
+    color: var(--danger-red);
+}
+
+[id^="simple-menu-"] .menu-item.delete:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+[id^="simple-menu-"] .menu-item.delete i {
+    color: var(--danger-red);
+}
+
     .breakdown-score {
         align-self: stretch !important;
         justify-content: space-between !important;

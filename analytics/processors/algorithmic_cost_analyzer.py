@@ -30,8 +30,8 @@ from collections import defaultdict
 import warnings
 
 from analytics.processors.pod_cost_analyzer import KubernetesParsingUtils
-from machine_learning.models.workload_performance_analyzer import create_comprehensive_self_learning_hpa_engine
 from analytics.processors.aks_scorer import AKSScorer
+from machine_learning.models.workload_performance_analyzer import create_comprehensive_self_learning_hpa_engine
 
 warnings.filterwarnings('ignore')
 
@@ -1281,16 +1281,16 @@ class ConsistentCostAnalyzer:
     """
     
     def __init__(self):
-        # NEW: AKS Cost Excellence Scorer (initialize first for standards access)
+        # Initialize AKS Scorer for standards access (but not for AKS Excellence scoring)
         try:
             self.aks_scorer = AKSScorer.from_default_config()
-            logger.info("✅ AKS Cost Excellence Scorer initialized")
+            logger.info("✅ AKS Scorer initialized for standards access")
             
         except Exception as e:
-            logger.error(f"❌ AKS Scorer or Unified Scorer initialization failed: {e}")
+            logger.error(f"❌ AKS Scorer initialization failed: {e}")
             raise RuntimeError(f"Required scoring components failed to initialize: {e}")
         
-        # UPDATED: Standards now use YAML configuration via proxy
+        # Standards provider using AKS scorer for YAML access
         self.standards = OfficialAKSStandardsProxy(self.aks_scorer)
         
         self.algorithms = {
@@ -1655,36 +1655,24 @@ class ConsistentCostAnalyzer:
                 results['hpa_count'] = 0
                 logger.info("ℹ️ No HPAs detected in analysis")
             
-            # NEW: Add AKS Cost Excellence Scoring
-            if self.aks_scorer:
-                try:
-                    aks_scores = self._calculate_aks_excellence_scores(cost_data, metrics_data, current_usage, results)
-                    results.update(aks_scores)
-                    logger.info(f"✅ AKS Excellence Scores: Build Quality={aks_scores.get('build_quality_score', 'N/A')}/100, Cost Excellence={aks_scores.get('cost_excellence_score', 'N/A')}/100")
-                except Exception as e:
-                    logger.warning(f"⚠️ AKS Excellence scoring failed: {e}")
-            
-            # UNIFIED: Calculate optimization score using YAML standards (replaces all other optimization scores)
+            # Simple optimization score based on savings potential
             try:
-                optimization_result = self.aks_scorer.calculate_unified_optimization_score(
-                    cost_data, metrics_data, current_usage, results
-                )
+                total_cost = cost_data.get('total_cost', 0)
+                total_savings = results.get('total_savings', 0)
                 
-                # Add unified optimization score to results
-                results['optimization_score'] = optimization_result['total_score']
-                results['optimization_score_components'] = optimization_result['component_scores']
-                results['optimization_score_confidence'] = optimization_result['confidence']
-                results['optimization_score_interpretation'] = optimization_result['interpretation']
-                results['optimization_score_details'] = optimization_result.get('details', optimization_result)
+                if total_cost > 0:
+                    savings_percentage = (total_savings / total_cost) * 100
+                    # Inverse scoring: lower savings needed = higher optimization score
+                    optimization_score = max(0, 100 - savings_percentage)
+                else:
+                    optimization_score = 50  # Neutral score if no cost data
                 
-                logger.info(f"✅ UNIFIED Optimization Score: {optimization_result['total_score']}/100 ({optimization_result['interpretation']})")
-                logger.info(f"✅ Score Components: {optimization_result['component_scores']}")
+                results['optimization_score'] = round(optimization_score, 1)
+                logger.info(f"✅ Optimization Score: {optimization_score:.1f}/100 (based on savings potential)")
                 
             except Exception as e:
-                logger.error(f"❌ Unified optimization scoring failed: {e}")
-                # Set a minimal fallback score to prevent system failure
+                logger.error(f"❌ Optimization scoring failed: {e}")
                 results['optimization_score'] = 0
-                results['optimization_score_error'] = str(e)
             
             return results
         
@@ -1694,51 +1682,6 @@ class ConsistentCostAnalyzer:
             logger.error(f"🔍 TRACEBACK: {traceback.format_exc()}")
             raise ValueError(f"Enhanced consistent analysis with comprehensive ML failed: {str(e)}")
 
-    def _calculate_aks_excellence_scores(self, cost_data: Dict, metrics_data: Dict, 
-                                       current_usage: Dict, analysis_results: Dict) -> Dict:
-        """
-        Calculate AKS Build Quality and Cost Excellence scores using the new framework
-        """
-        try:
-            # Prepare metrics for scoring
-            scoring_metrics = self._prepare_scoring_metrics(cost_data, metrics_data, current_usage, analysis_results)
-            
-            # Calculate Build Quality Score (0-100)
-            build_quality = self.aks_scorer.score_build_quality(scoring_metrics)
-            
-            # Calculate Cost Excellence Score (0-100)
-            cost_excellence = self.aks_scorer.score_cost_excellence(scoring_metrics)
-            
-            # Estimate savings opportunities
-            savings_estimates = self.aks_scorer.estimate_savings(scoring_metrics, {
-                'build_quality': build_quality,
-                'cost_excellence': cost_excellence
-            })
-            
-            return {
-                'build_quality_score': build_quality.total,
-                'build_quality_breakdown': build_quality.breakdown,
-                'build_quality_details': build_quality.details,
-                'build_quality_recommendations': build_quality.recommendations or [],
-                'cost_excellence_score': cost_excellence.total,
-                'cost_excellence_breakdown': cost_excellence.breakdown,
-                'cost_excellence_details': cost_excellence.details,
-                'cost_excellence_recommendations': cost_excellence.recommendations or [],
-                'aks_savings_opportunities': [
-                    {
-                        'category': est.category,
-                        'monthly_savings': est.potential_monthly_savings,
-                        'description': est.description,
-                        'confidence': est.confidence,
-                        'effort': est.implementation_effort
-                    } for est in savings_estimates
-                ],
-                'aks_scoring_enabled': True
-            }
-            
-        except Exception as e:
-            logger.error(f"❌ AKS Excellence scoring calculation failed: {e}")
-            return {'aks_scoring_enabled': False, 'aks_scoring_error': str(e)}
 
     def _prepare_scoring_metrics(self, cost_data: Dict, metrics_data: Dict, 
                                current_usage: Dict, analysis_results: Dict) -> Dict:
