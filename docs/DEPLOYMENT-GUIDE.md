@@ -724,6 +724,7 @@ ENABLE_MULTI_SUBSCRIPTION=true
 PARALLEL_PROCESSING=true
 LICENSE_TIER=enterprise
 AUTO_ANALYSIS_ENABLED=true
+AUTO_ANALYSIS_INTERVAL=240m
 
 # ===========================
 # Performance Tuning

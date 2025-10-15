@@ -109,6 +109,7 @@ APP_URL=http://localhost:5001
 ANALYSIS_REFRESH_INTERVAL=1    # 1 hour instead of 24
 COST_ALERT_THRESHOLD=100       # Lower threshold for testing
 AUTO_ANALYSIS_ENABLED=false    # Control background tasks
+AUTO_ANALYSIS_INTERVAL=240m
 ```
 
 ### **Development Notifications:**

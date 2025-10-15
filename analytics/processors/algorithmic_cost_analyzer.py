@@ -433,8 +433,12 @@ class MLEnhancedHPARecommendationEngine:
                 logger.warning("⚠️ No workloads found for HPA efficiency calculation")
                 return 0.0
             
-            # Calculate base efficiency from actual coverage
-            base_efficiency = (actual_hpa_coverage['hpa_count'] / actual_hpa_coverage['total_workloads']) * 100
+            # Calculate base efficiency from actual coverage - safe division
+            total_workloads = actual_hpa_coverage.get('total_workloads', 1)
+            if total_workloads > 0:
+                base_efficiency = (actual_hpa_coverage['hpa_count'] / total_workloads) * 100
+            else:
+                base_efficiency = 0.0
             
             logger.info(f"🔍 ACTUAL HPA Coverage: {actual_hpa_coverage['hpa_count']}/{actual_hpa_coverage['total_workloads']} = {base_efficiency:.1f}%")
             
@@ -567,6 +571,9 @@ class MLEnhancedHPARecommendationEngine:
         try:
             if actual_utilization <= 0:
                 return 0.0
+            
+            if target_utilization <= 0:
+                return 0.0  # Can't calculate efficiency with zero target
             
             # Calculate efficiency based on how close actual is to target
             if actual_utilization <= target_utilization:
@@ -1049,11 +1056,19 @@ class MLEnhancedHPARecommendationEngine:
             # Very similar scaling - provide workload-specific guidance
             recommendation_text = f"{workload_type} workload: Consider custom metrics for better scaling decisions"
         elif avg_cpu_replicas < avg_memory_replicas:
-            reduction_pct = ((avg_memory_replicas - avg_cpu_replicas) / avg_memory_replicas * 100)
-            recommendation_text = f"CPU-based HPA could reduce replicas by {reduction_pct:.0f}% vs Memory-based HPA"
+            # Safe division to prevent division by zero
+            if avg_memory_replicas > 0:
+                reduction_pct = ((avg_memory_replicas - avg_cpu_replicas) / avg_memory_replicas * 100)
+                recommendation_text = f"CPU-based HPA could reduce replicas by {reduction_pct:.0f}% vs Memory-based HPA"
+            else:
+                recommendation_text = f"CPU-based HPA recommended for {workload_type} workload"
         else:
-            reduction_pct = ((avg_cpu_replicas - avg_memory_replicas) / avg_cpu_replicas * 100)
-            recommendation_text = f"Memory-based HPA could reduce replicas by {reduction_pct:.0f}% vs CPU-based HPA"
+            # Safe division to prevent division by zero
+            if avg_cpu_replicas > 0:
+                reduction_pct = ((avg_cpu_replicas - avg_memory_replicas) / avg_cpu_replicas * 100)
+                recommendation_text = f"Memory-based HPA could reduce replicas by {reduction_pct:.0f}% vs CPU-based HPA"
+            else:
+                recommendation_text = f"Memory-based HPA recommended for {workload_type} workload"
         
         return {
             'timePoints': ['Low Load', 'Current', 'Peak Load', 'Optimized', 'Average'],
@@ -1736,13 +1751,39 @@ class ConsistentCostAnalyzer:
             logger.info(f"🔍 SCORING DEBUG - Metrics data keys: {list(metrics_data.keys())}")
             logger.info(f"🔍 SCORING DEBUG - Current usage: {current_usage}")
             logger.info(f"🔍 SCORING DEBUG - Analysis results keys: {list(analysis_results.keys())}")
-            # Extract basic resource metrics
-            nodes = metrics_data.get('nodes', [])
+            # Extract basic resource metrics - prefer processed nodes for accurate parsing
+            nodes = metrics_data.get('nodes_processed', metrics_data.get('nodes', []))
             node_count = len(nodes)
             
-            # Calculate CPU/Memory metrics
-            total_cpu_alloc = sum(node.get('allocatable_cpu', 0) for node in nodes)
-            total_mem_alloc = sum(node.get('allocatable_memory', 0) for node in nodes)
+            # Calculate CPU/Memory metrics with proper format detection
+            total_cpu_alloc = 0
+            total_mem_alloc = 0
+            
+            for node in nodes:
+                # Handle both processed format (allocatable_cpu as float) and raw format (needs parsing)
+                if 'allocatable_cpu' in node and isinstance(node['allocatable_cpu'], (int, float)):
+                    # Processed format from kubernetes_data_cache
+                    total_cpu_alloc += node['allocatable_cpu']
+                    total_mem_alloc += node.get('allocatable_memory', 0)
+                elif 'status' in node and 'allocatable' in node['status']:
+                    # Raw Kubernetes format - parse manually
+                    allocatable = node['status']['allocatable']
+                    cpu_str = allocatable.get('cpu', '0')
+                    memory_str = allocatable.get('memory', '0Ki')
+                    
+                    # Parse CPU millicores
+                    if cpu_str.endswith('m'):
+                        total_cpu_alloc += float(cpu_str[:-1]) / 1000
+                    else:
+                        total_cpu_alloc += float(cpu_str) if cpu_str else 0
+                    
+                    # Parse memory
+                    if memory_str.endswith('Ki'):
+                        total_mem_alloc += float(memory_str[:-2]) * 1024
+                    elif memory_str.endswith('Mi'):
+                        total_mem_alloc += float(memory_str[:-2]) * 1024 * 1024
+                    elif memory_str.endswith('Gi'):
+                        total_mem_alloc += float(memory_str[:-2]) * 1024 * 1024 * 1024
             
             avg_cpu = current_usage.get('avg_cpu_utilization', 0)
             avg_memory = current_usage.get('avg_memory_utilization', 0)
@@ -1917,6 +1958,13 @@ class ConsistentCostAnalyzer:
                 'cluster_unused_public_ips': metrics_data.get('cluster_unused_public_ips_sdk', []),
                 'cluster_load_balancer_analysis': metrics_data.get('cluster_load_balancer_analysis_sdk', []),
                 'cluster_network_waste': metrics_data.get('cluster_network_waste_sdk', []),
+                
+                # ===== CRITICAL: SPOT AND RI METRICS FOR SAVINGS CALCULATIONS =====
+                # These are required by aks_scorer.py for spot/RI recommendations
+                'spot_user_cores': self._calculate_spot_cores(nodes),  # Actual spot cores in use
+                'total_user_cores': total_cpu_alloc * 0.9,  # 90% of total CPU for user workloads 
+                'baseline_core_hours': used_vcpu_hours,  # Total baseline hours for RI calculation
+                'reserved_core_hours': used_vcpu_hours * 0.5,  # Current RI coverage (estimate 50%)
             }
             
             # Log key scoring metrics
@@ -1927,6 +1975,9 @@ class ConsistentCostAnalyzer:
             logger.info(f"   HPAs: {scoring_metrics['hpa_count']}/{scoring_metrics['eligible_hpa_workloads']} ({scoring_metrics['hpa_count']/scoring_metrics['eligible_hpa_workloads']*100:.1f}%)")
             logger.info(f"   Idle Compute: {scoring_metrics['idle_compute_cost_pct']*100:.1f}%")
             logger.info(f"   Node Cost: ${scoring_metrics['cost_nodes']}, Storage: ${scoring_metrics['cost_storage']}")
+            logger.info(f"🎯 SPOT/RI METRICS:")
+            logger.info(f"   Spot Cores: {scoring_metrics['spot_user_cores']:.2f}, Total User Cores: {scoring_metrics['total_user_cores']:.2f}")
+            logger.info(f"   Baseline Hours: {scoring_metrics['baseline_core_hours']:.0f}, Reserved Hours: {scoring_metrics['reserved_core_hours']:.0f}")
             
             return scoring_metrics
             
@@ -1945,6 +1996,49 @@ class ConsistentCostAnalyzer:
                 'total_cluster_related_costs': cost_data.get('total_cost', 1200),
                 'orphan_cost': 50
             }
+
+    def _calculate_spot_cores(self, nodes: List[Dict]) -> float:
+        """Calculate total CPU cores from spot instances"""
+        spot_cores = 0.0
+        
+        for node in nodes:
+            # Check if node is spot instance
+            is_spot = False
+            
+            if 'is_spot' in node:
+                # Processed format from kubernetes_data_cache
+                is_spot = node['is_spot']
+                if is_spot:
+                    spot_cores += node.get('allocatable_cpu', 0)
+            elif 'labels' in node:
+                # Raw format - check labels  
+                labels = node['labels']
+                is_spot = (
+                    labels.get('kubernetes.azure.com/scalesetpriority') == 'Spot' or
+                    labels.get('node.kubernetes.io/instance-type', '').lower().find('spot') != -1 or
+                    labels.get('karpenter.sh/capacity-type') == 'spot'
+                )
+                if is_spot and 'status' in node:
+                    # Parse raw CPU allocation
+                    cpu_str = node['status'].get('allocatable', {}).get('cpu', '0')
+                    if cpu_str.endswith('m'):
+                        spot_cores += float(cpu_str[:-1]) / 1000
+                    else:
+                        spot_cores += float(cpu_str) if cpu_str else 0
+            elif 'raw_node' in node:
+                # Check raw node data
+                raw_node = node['raw_node']
+                labels = raw_node.get('metadata', {}).get('labels', {})
+                is_spot = (
+                    labels.get('kubernetes.azure.com/scalesetpriority') == 'Spot' or
+                    labels.get('node.kubernetes.io/instance-type', '').lower().find('spot') != -1 or
+                    labels.get('karpenter.sh/capacity-type') == 'spot'
+                )
+                if is_spot:
+                    spot_cores += node.get('allocatable_cpu', 0)
+        
+        logger.info(f"🎯 Calculated spot cores: {spot_cores:.2f} from {len(nodes)} nodes")
+        return spot_cores
 
     def _estimate_log_volume_from_cost_data(self, cost_data: Dict, metrics_data: Dict) -> Dict:
         """
@@ -3081,7 +3175,8 @@ class CurrentUsageAnalysisAlgorithm:
         logger.info(f"🔍 GAP CALCULATION: Received metrics_data keys: {list(metrics_data.keys()) if metrics_data else 'None'}")
         
         try:
-            nodes = metrics_data.get('nodes', []) if metrics_data else []
+            # Prefer processed nodes for accurate CPU/memory calculations
+            nodes = metrics_data.get('nodes_processed', metrics_data.get('nodes', [])) if metrics_data else []
             logger.info(f"🔍 GAP CALCULATION: Found {len(nodes)} nodes in metrics_data")
             
             if not nodes:
