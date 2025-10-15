@@ -15,6 +15,7 @@ import json
 import logging
 import subprocess
 import time
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 
@@ -35,6 +36,137 @@ class KubernetesDataCache:
             self.fetch_all_data()
         else:
             logger.info(f"💤 {self.cluster_name}: Cache created - kubectl commands will run on demand")
+    
+    # === KUBERNETES RESOURCE PARSING UTILITIES ===
+    
+    def _parse_cpu_millicores(self, cpu_str: str) -> float:
+        """Parse Kubernetes CPU value to cores (e.g., '7820m' -> 7.82)"""
+        if not cpu_str or cpu_str == '0':
+            return 0.0
+        
+        try:
+            if cpu_str.endswith('m'):
+                # Millicores (e.g., "7820m" -> 7.82 cores)
+                return float(cpu_str[:-1]) / 1000
+            elif cpu_str.endswith('n'):
+                # Nanocores (rare, e.g., "1000000000n" -> 1.0 cores)
+                return float(cpu_str[:-1]) / 1_000_000_000
+            else:
+                # Whole cores (e.g., "4" -> 4.0 cores)
+                return float(cpu_str)
+        except (ValueError, TypeError) as e:
+            logger.warning(f"⚠️ Failed to parse CPU value '{cpu_str}': {e}")
+            return 0.0
+    
+    def _parse_memory_bytes(self, memory_str: str) -> float:
+        """Parse Kubernetes memory value to bytes (e.g., '63437724Ki' -> bytes)"""
+        if not memory_str or memory_str == '0':
+            return 0.0
+        
+        try:
+            # Handle different memory units
+            if memory_str.endswith('Ki'):
+                return float(memory_str[:-2]) * 1024
+            elif memory_str.endswith('Mi'):
+                return float(memory_str[:-2]) * 1024 * 1024
+            elif memory_str.endswith('Gi'):
+                return float(memory_str[:-2]) * 1024 * 1024 * 1024
+            elif memory_str.endswith('Ti'):
+                return float(memory_str[:-2]) * 1024 * 1024 * 1024 * 1024
+            elif memory_str.endswith('K'):
+                return float(memory_str[:-1]) * 1000
+            elif memory_str.endswith('M'):
+                return float(memory_str[:-1]) * 1000 * 1000
+            elif memory_str.endswith('G'):
+                return float(memory_str[:-1]) * 1000 * 1000 * 1000
+            else:
+                # Raw bytes
+                return float(memory_str)
+        except (ValueError, TypeError) as e:
+            logger.warning(f"⚠️ Failed to parse memory value '{memory_str}': {e}")
+            return 0.0
+    
+    def _process_nodes_data(self, raw_nodes_data: Any) -> List[Dict[str, Any]]:
+        """
+        Process raw kubectl nodes JSON into clean, standardized format for all consumers.
+        This ensures universal compatibility across all cluster sizes and configurations.
+        """
+        if not raw_nodes_data:
+            logger.warning("⚠️ No nodes data to process")
+            return []
+        
+        # Handle both string JSON and dict
+        if isinstance(raw_nodes_data, str):
+            try:
+                nodes_json = json.loads(raw_nodes_data)
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ Failed to parse nodes JSON: {e}")
+                return []
+        else:
+            nodes_json = raw_nodes_data
+        
+        if not isinstance(nodes_json, dict) or 'items' not in nodes_json:
+            logger.warning(f"⚠️ Invalid nodes data structure: {type(nodes_json)}")
+            return []
+        
+        processed_nodes = []
+        total_cpu_parsed = 0.0
+        total_memory_parsed = 0.0
+        
+        for i, node in enumerate(nodes_json.get('items', [])):
+            try:
+                metadata = node.get('metadata', {})
+                status = node.get('status', {})
+                allocatable = status.get('allocatable', {})
+                labels = metadata.get('labels', {})
+                
+                # Parse allocatable resources
+                cpu_cores = self._parse_cpu_millicores(allocatable.get('cpu', '0'))
+                memory_bytes = self._parse_memory_bytes(allocatable.get('memory', '0Ki'))
+                
+                # Detect spot instances from labels
+                is_spot = (
+                    labels.get('kubernetes.azure.com/scalesetpriority') == 'Spot' or
+                    labels.get('node.kubernetes.io/instance-type', '').lower().find('spot') != -1 or
+                    labels.get('karpenter.sh/capacity-type') == 'spot'
+                )
+                
+                # Node pool and instance type
+                node_pool = labels.get('agentpool', labels.get('nodepool', 'unknown'))
+                instance_type = labels.get('node.kubernetes.io/instance-type', 'unknown')
+                
+                processed_node = {
+                    # Clean standardized fields that all components expect
+                    'name': metadata.get('name', f'node-{i}'),
+                    'allocatable_cpu': cpu_cores,  # Always in cores (float)
+                    'allocatable_memory': memory_bytes,  # Always in bytes (float)
+                    'is_spot': is_spot,  # Boolean flag for spot detection
+                    'node_pool': node_pool,
+                    'instance_type': instance_type,
+                    
+                    # Enhanced fields for analysis
+                    'cpu_cores': cpu_cores,  # Alias for clarity
+                    'memory_gb': memory_bytes / (1024**3) if memory_bytes > 0 else 0,  # GB for readability
+                    'labels': labels,  # Full labels for advanced analysis
+                    
+                    # Preserve raw data for components that need it
+                    'raw_allocatable': allocatable,
+                    'raw_node': node
+                }
+                
+                processed_nodes.append(processed_node)
+                total_cpu_parsed += cpu_cores
+                total_memory_parsed += memory_bytes
+                
+                logger.debug(f"✅ Processed node {processed_node['name']}: {cpu_cores:.2f} CPU cores, {memory_bytes/(1024**3):.2f} GB memory, spot={is_spot}")
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to process node {i}: {e}")
+                continue
+        
+        logger.info(f"✅ Processed {len(processed_nodes)} nodes: {total_cpu_parsed:.2f} total CPU cores, {total_memory_parsed/(1024**3):.2f} GB total memory")
+        
+        return processed_nodes
         
     def get_all_kubectl_commands(self) -> Dict[str, str]:
         """
@@ -502,7 +634,46 @@ class KubernetesDataCache:
         return results, failed_commands
 
     def _finalize_results(self, results: Dict[str, Any], start_time: float) -> Dict[str, Any]:
-        """Finalize and store results"""
+        """Finalize and store results with enhanced data processing"""
+        
+        # === ENHANCED DATA PROCESSING FOR UNIVERSAL COMPATIBILITY ===
+        
+        # Process nodes data for all consumers
+        if 'nodes' in results and results['nodes']:
+            try:
+                logger.info(f"🔄 {self.cluster_name}: Processing nodes data for universal compatibility...")
+                processed_nodes = self._process_nodes_data(results['nodes'])
+                
+                # Store both processed and raw formats
+                results['nodes_processed'] = processed_nodes  # Clean format for consumers
+                results['nodes_raw'] = results['nodes']       # Preserve original for compatibility
+                # CRITICAL: Keep original 'nodes' for backward compatibility with aks_realtime_metrics.py
+                # Components expecting processed nodes should use 'nodes_processed'
+                
+                # Add summary statistics for easy access
+                total_cpu = sum(node.get('allocatable_cpu', 0) for node in processed_nodes)
+                total_memory_gb = sum(node.get('memory_gb', 0) for node in processed_nodes)
+                spot_nodes = [node for node in processed_nodes if node.get('is_spot', False)]
+                
+                results['cluster_summary'] = {
+                    'total_nodes': len(processed_nodes),
+                    'total_cpu_cores': round(total_cpu, 2),
+                    'total_memory_gb': round(total_memory_gb, 2),
+                    'spot_nodes_count': len(spot_nodes),
+                    'spot_cpu_cores': round(sum(node.get('allocatable_cpu', 0) for node in spot_nodes), 2),
+                    'spot_percentage': round((len(spot_nodes) / len(processed_nodes) * 100), 1) if processed_nodes else 0,
+                    'node_pools': list(set(node.get('node_pool', 'unknown') for node in processed_nodes)),
+                    'instance_types': list(set(node.get('instance_type', 'unknown') for node in processed_nodes))
+                }
+                
+                logger.info(f"✅ {self.cluster_name}: Nodes processed - {len(processed_nodes)} nodes, {total_cpu:.2f} CPU cores, {len(spot_nodes)} spot instances")
+                
+            except Exception as e:
+                logger.error(f"❌ {self.cluster_name}: Failed to process nodes data: {e}")
+                # Keep original data if processing fails
+                results['nodes_processed'] = []
+                results['cluster_summary'] = {}
+        
         # Store results
         self.data = results
         

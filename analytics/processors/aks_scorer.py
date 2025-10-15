@@ -730,46 +730,285 @@ class AKSScorer:
         mix = cfg["mix"]
         return mix["defender_scope"] * defender_scope + mix["dup_agents"] * dup_agents
 
+    # ===== INTELLIGENT RECOMMENDATION ENGINE =====
+    
+    def _analyze_workload_suitability(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze workload suitability for different optimization strategies"""
+        workloads = metrics.get('workloads', [])
+        pods = metrics.get('pods', [])
+        
+        spot_suitable = []
+        ri_suitable = []
+        stateless_count = 0
+        stateful_count = 0
+        
+        for workload in workloads:
+            workload_type = workload.get('type', '')
+            replicas = workload.get('replicas', 1)
+            has_persistence = workload.get('has_persistence', False)
+            
+            # Spot suitability analysis
+            if (workload_type in ['Deployment', 'ReplicaSet'] and 
+                not has_persistence and 
+                replicas > 1):
+                spot_suitable.append(workload)
+                stateless_count += 1
+            else:
+                stateful_count += 1
+                
+            # RI suitability (steady workloads with consistent usage)
+            cpu_usage = workload.get('cpu_usage_avg', 0)
+            if (workload_type in ['Deployment', 'StatefulSet'] and
+                cpu_usage > 30 and  # Consistent usage
+                replicas >= 1):
+                ri_suitable.append(workload)
+        
+        total_workloads = len(workloads)
+        spot_suitable_percentage = len(spot_suitable) / max(total_workloads, 1) * 100
+        ri_suitable_percentage = len(ri_suitable) / max(total_workloads, 1) * 100
+        
+        return {
+            'total_workloads': total_workloads,
+            'spot_suitable': spot_suitable,
+            'ri_suitable': ri_suitable,
+            'spot_suitable_percentage': spot_suitable_percentage,
+            'ri_suitable_percentage': ri_suitable_percentage,
+            'stateless_percentage': stateless_count / max(total_workloads, 1) * 100,
+            'stateful_percentage': stateful_count / max(total_workloads, 1) * 100
+        }
+    
+    def _detect_environment_type(self, metrics: Dict[str, Any]) -> str:
+        """Detect environment type from cluster characteristics"""
+        cluster_name = metrics.get('cluster_name', '').lower()
+        namespaces = metrics.get('namespaces', [])
+        
+        # Check cluster name patterns
+        if any(env in cluster_name for env in ['prod', 'production']):
+            return 'production'
+        elif any(env in cluster_name for env in ['stag', 'staging', 'uat']):
+            return 'staging'  
+        elif any(env in cluster_name for env in ['dev', 'development', 'test']):
+            return 'development'
+            
+        # Check namespace patterns
+        namespace_names = [ns.get('name', '') for ns in namespaces if isinstance(ns, dict)]
+        prod_indicators = sum(1 for ns in namespace_names if any(p in ns.lower() for p in ['prod', 'production']))
+        dev_indicators = sum(1 for ns in namespace_names if any(d in ns.lower() for d in ['dev', 'test', 'staging']))
+        
+        if prod_indicators > dev_indicators:
+            return 'production'
+        elif dev_indicators > 0:
+            return 'development'
+        else:
+            return 'unknown'
+    
+    def _calculate_intelligent_spot_target(self, cost_excellence_score: float, workload_analysis: Dict, 
+                                         environment: str, current_spot_percentage: float) -> float:
+        """Calculate intelligent spot target based on cluster context"""
+        
+        # If already well optimized, minimal spot recommendations
+        if cost_excellence_score > 85:
+            return min(0.10, current_spot_percentage + 0.05)  # Very conservative
+            
+        # Base target based on Cost Excellence score
+        if cost_excellence_score < 40:
+            base_target = 0.15  # Conservative start for poor performing clusters
+        elif cost_excellence_score < 60:
+            base_target = 0.25  # Moderate for improving clusters
+        elif cost_excellence_score < 80:
+            base_target = 0.30  # Standard target
+        else:
+            base_target = 0.20  # Already decent, moderate improvement
+            
+        # Adjust based on workload suitability
+        spot_suitable_percentage = workload_analysis.get('spot_suitable_percentage', 0)
+        if spot_suitable_percentage < 30:
+            base_target *= 0.5  # Reduce target if few workloads are suitable
+        elif spot_suitable_percentage > 70:
+            base_target *= 1.2  # Increase if many workloads are suitable
+            
+        # Environment-based adjustments
+        if environment == 'production':
+            base_target *= 0.7  # More conservative for production
+        elif environment == 'development':
+            base_target *= 1.3  # More aggressive for development
+        elif environment == 'staging':
+            base_target *= 0.9  # Slightly conservative for staging
+            
+        # Cap at workload suitability limits
+        max_safe_target = spot_suitable_percentage / 100 * 0.8  # 80% of suitable workloads
+        
+        return min(base_target, max_safe_target, 0.50)  # Never exceed 50% spot
+    
+    def _calculate_intelligent_ri_target(self, cost_excellence_score: float, workload_analysis: Dict,
+                                       environment: str, current_ri_percentage: float) -> float:
+        """Calculate intelligent RI target based on cluster context"""
+        
+        # If already well optimized, focus on fine-tuning
+        if cost_excellence_score > 85:
+            return min(0.80, current_ri_percentage + 0.10)
+            
+        # Base target based on Cost Excellence score  
+        if cost_excellence_score < 40:
+            base_target = 0.40  # Start with most predictable workloads
+        elif cost_excellence_score < 60:
+            base_target = 0.60  # Moderate RI adoption
+        elif cost_excellence_score < 80:
+            base_target = 0.70  # Standard target
+        else:
+            base_target = 0.75  # Already good, incremental improvement
+            
+        # Adjust based on workload patterns
+        ri_suitable_percentage = workload_analysis.get('ri_suitable_percentage', 0)
+        if ri_suitable_percentage < 40:
+            base_target *= 0.7  # Reduce if few workloads are suitable
+        elif ri_suitable_percentage > 80:
+            base_target *= 1.1  # Increase if many workloads are suitable
+            
+        # Environment considerations
+        if environment == 'production':
+            base_target *= 1.1  # Production benefits more from RI
+        elif environment == 'development':
+            base_target *= 0.5  # Dev environments less predictable
+            
+        return min(base_target, 0.85)  # Never exceed 85% RI coverage
+
     def _estimate_compute_savings(self, metrics: Dict[str, Any], scores: Dict[str, ScoreResult], cfg: Dict[str, Any]) -> List[SavingsEstimate]:
-        """Estimate compute-related savings opportunities"""
+        """Intelligent compute savings recommendations based on cluster context and Cost Excellence scores"""
         savings = []
         
-        # Spot instance expansion
-        spot_current = metrics.get("spot_user_cores", 0)
-        total_cores = metrics.get("total_user_cores", 1)
-        spot_target = total_cores * 0.30  # 30% target
-        if spot_current < spot_target:
-            spot_gap = spot_target - spot_current
-            vcpu_price = metrics.get("ref_vcpu_price", 0.045)
-            spot_discount = 0.70  # 70% average discount
-            monthly_hours = 24 * 30  # 720 hours
-            potential = spot_gap * vcpu_price * spot_discount * monthly_hours
+        try:
+            # Get Cost Excellence score for intelligent decision making
+            cost_excellence_result = scores.get('cost_excellence')
+            cost_excellence_score = cost_excellence_result.total * 100 if cost_excellence_result else 50
             
-            savings.append(SavingsEstimate(
-                category="Compute - Spot Expansion",
-                potential_monthly_savings=potential,
-                description=f"Expand spot usage by {spot_gap:.0f} cores to reach 30% target",
-                confidence="High",
-                implementation_effort="Medium"
-            ))
+            # Analyze cluster context
+            workload_analysis = self._analyze_workload_suitability(metrics)
+            environment = self._detect_environment_type(metrics)
+            
+            logger.info(f"🧠 INTELLIGENT RECOMMENDATIONS - Cost Excellence: {cost_excellence_score:.1f}/100, Environment: {environment}")
+            logger.info(f"🧠 Workload Analysis - Spot Suitable: {workload_analysis['spot_suitable_percentage']:.1f}%, RI Suitable: {workload_analysis['ri_suitable_percentage']:.1f}%")
+            
+            # === INTELLIGENT SPOT INSTANCE RECOMMENDATIONS ===
+            spot_current = metrics.get("spot_user_cores", 0)
+            total_cores = metrics.get("total_user_cores", 1)
+            current_spot_percentage = spot_current / total_cores if total_cores > 0 else 0
+            
+            # Calculate intelligent spot target
+            intelligent_spot_target = self._calculate_intelligent_spot_target(
+                cost_excellence_score, workload_analysis, environment, current_spot_percentage
+            )
+            
+            spot_target_cores = total_cores * intelligent_spot_target
+            
+            # Only recommend if there's meaningful improvement potential and suitable workloads
+            if (spot_current < spot_target_cores and 
+                workload_analysis['spot_suitable_percentage'] > 20 and  # At least 20% suitable workloads
+                cost_excellence_score < 90):  # Don't micro-optimize already excellent clusters
+                
+                spot_gap = spot_target_cores - spot_current
+                vcpu_price = metrics.get("ref_vcpu_price", 0.045)
+                spot_discount = 0.70  # 70% average discount
+                monthly_hours = 24 * 30  # 720 hours
+                potential = spot_gap * vcpu_price * spot_discount * monthly_hours
+                
+                # Adjust confidence based on cluster context
+                confidence = "High"
+                if environment == "production" or workload_analysis['spot_suitable_percentage'] < 40:
+                    confidence = "Medium"
+                elif cost_excellence_score < 40:
+                    confidence = "Medium"  # Lower confidence for poorly managed clusters
+                
+                # Contextual description
+                target_percentage = intelligent_spot_target * 100
+                suitable_workloads = len(workload_analysis['spot_suitable'])
+                
+                description = f"Expand spot usage by {spot_gap:.1f} cores to reach {target_percentage:.0f}% target"
+                if environment != "unknown":
+                    description += f" ({environment} environment)"
+                if suitable_workloads > 0:
+                    description += f" - {suitable_workloads} suitable workloads identified"
+                
+                savings.append(SavingsEstimate(
+                    category="Compute - Spot Expansion",
+                    potential_monthly_savings=potential,
+                    description=description,
+                    confidence=confidence,
+                    implementation_effort="Medium" if environment == "production" else "Low"
+                ))
+                
+                logger.info(f"🎯 SPOT REC: {spot_gap:.1f} cores → ${potential:.0f}/month (target: {target_percentage:.0f}%)")
+            else:
+                if cost_excellence_score >= 90:
+                    logger.info(f"✅ SPOT: Cluster already excellent ({cost_excellence_score:.1f}/100) - no spot expansion needed")
+                elif workload_analysis['spot_suitable_percentage'] <= 20:
+                    logger.info(f"⚠️ SPOT: Limited suitable workloads ({workload_analysis['spot_suitable_percentage']:.1f}%) - spot expansion not recommended")
+                else:
+                    logger.info(f"✅ SPOT: Current spot usage appears appropriate for cluster context")
 
-        # Reserved instance gap
-        ri_current_hours = metrics.get("reserved_core_hours", 0)
-        baseline_hours = metrics.get("baseline_core_hours", 1)
-        ri_target_hours = baseline_hours * 0.70  # 70% target
-        if ri_current_hours < ri_target_hours:
-            ri_gap_hours = ri_target_hours - ri_current_hours
-            vcpu_price = metrics.get("ref_vcpu_price", 0.045)
-            ri_discount = 0.40  # 40% RI discount typically
-            potential = ri_gap_hours * vcpu_price * ri_discount / 12  # Monthly from annual
+            # === INTELLIGENT RESERVED INSTANCE RECOMMENDATIONS ===
+            ri_current_hours = metrics.get("reserved_core_hours", 0)
+            baseline_hours = metrics.get("baseline_core_hours", 1)
+            current_ri_percentage = ri_current_hours / baseline_hours if baseline_hours > 0 else 0
             
-            savings.append(SavingsEstimate(
-                category="Compute - Reserved Instances",
-                potential_monthly_savings=potential,
-                description=f"Purchase RI for {ri_gap_hours/720:.0f} cores baseline usage",
-                confidence="High",
-                implementation_effort="Low"
-            ))
+            # Calculate intelligent RI target
+            intelligent_ri_target = self._calculate_intelligent_ri_target(
+                cost_excellence_score, workload_analysis, environment, current_ri_percentage
+            )
+            
+            ri_target_hours = baseline_hours * intelligent_ri_target
+            
+            # Only recommend if there's meaningful improvement potential
+            if (ri_current_hours < ri_target_hours and 
+                workload_analysis['ri_suitable_percentage'] > 30 and  # At least 30% suitable workloads
+                cost_excellence_score < 95):  # Don't micro-optimize excellent clusters
+                
+                ri_gap_hours = ri_target_hours - ri_current_hours
+                vcpu_price = metrics.get("ref_vcpu_price", 0.045)
+                ri_discount = 0.30  # 30% RI discount typically  
+                potential = ri_gap_hours * vcpu_price * ri_discount / 12  # Monthly from annual
+                
+                # Adjust confidence based on environment and workload patterns
+                confidence = "High"
+                if environment == "development" or workload_analysis['ri_suitable_percentage'] < 50:
+                    confidence = "Medium"
+                elif cost_excellence_score < 40:
+                    confidence = "Medium"
+                
+                # Contextual description
+                target_percentage = intelligent_ri_target * 100
+                suitable_workloads = len(workload_analysis['ri_suitable'])
+                ri_gap_cores = ri_gap_hours / (24 * 30)  # Convert to core equivalent
+                
+                description = f"Purchase RI for {ri_gap_cores:.1f} cores baseline usage to reach {target_percentage:.0f}% coverage"
+                if environment != "unknown":
+                    description += f" ({environment} environment)"
+                if suitable_workloads > 0:
+                    description += f" - {suitable_workloads} suitable workloads identified"
+                
+                savings.append(SavingsEstimate(
+                    category="Compute - Reserved Instances",
+                    potential_monthly_savings=potential,
+                    description=description,
+                    confidence=confidence,
+                    implementation_effort="Low" if environment == "production" else "Medium"
+                ))
+                
+                logger.info(f"🎯 RI REC: {ri_gap_cores:.1f} cores → ${potential:.0f}/month (target: {target_percentage:.0f}%)")
+            else:
+                if cost_excellence_score >= 95:
+                    logger.info(f"✅ RI: Cluster already excellent ({cost_excellence_score:.1f}/100) - RI coverage appears optimal")
+                elif workload_analysis['ri_suitable_percentage'] <= 30:
+                    logger.info(f"⚠️ RI: Limited suitable workloads ({workload_analysis['ri_suitable_percentage']:.1f}%) - RI expansion not recommended")
+                else:
+                    logger.info(f"✅ RI: Current RI coverage appears appropriate for cluster context")
+            
+        except Exception as e:
+            logger.error(f"❌ Error in intelligent compute savings estimation: {e}")
+            # Fallback to basic recommendations if intelligent analysis fails
+            return []
+            
+        return savings
 
         # Idle compute cleanup using YAML standards and real data
         standards = cfg.get("official_standards", {}).get("savings_opportunities", {})
