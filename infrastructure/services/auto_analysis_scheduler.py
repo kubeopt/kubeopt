@@ -461,8 +461,8 @@ class AutoAnalysisScheduler:
         """Cleanup stale analysis statuses"""
         try:
             from shared.config.config import enhanced_cluster_manager
-            if enhanced_cluster_manager and hasattr(enhanced_cluster_manager, 'cleanup_stale_analysis_statuses'):
-                stale_count = enhanced_cluster_manager.cleanup_stale_analysis_statuses(max_analysis_hours=1)  # 1 hour
+            if enhanced_cluster_manager and hasattr(enhanced_cluster_manager, 'cleanup_stale_analyses'):
+                stale_count = enhanced_cluster_manager.cleanup_stale_analyses(max_age_hours=1)  # 1 hour
                 if stale_count > 0:
                     logger.info(f"🧹 Cleaned up {stale_count} stale analysis statuses")
             else:
@@ -474,8 +474,8 @@ class AutoAnalysisScheduler:
         """Manually cleanup stale analysis statuses"""
         try:
             from shared.config.config import enhanced_cluster_manager
-            if enhanced_cluster_manager and hasattr(enhanced_cluster_manager, 'cleanup_stale_analysis_statuses'):
-                stale_count = enhanced_cluster_manager.cleanup_stale_analysis_statuses(max_analysis_hours=0.5)  # 30 minutes
+            if enhanced_cluster_manager and hasattr(enhanced_cluster_manager, 'cleanup_stale_analyses'):
+                stale_count = enhanced_cluster_manager.cleanup_stale_analyses(max_age_hours=0.5)  # 30 minutes
                 logger.info(f"🧹 Manual cleanup: Reset {stale_count} stale analysis statuses")
                 return stale_count
             else:

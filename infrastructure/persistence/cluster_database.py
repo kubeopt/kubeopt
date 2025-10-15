@@ -540,13 +540,22 @@ class EnhancedMultiSubscriptionClusterManager:
                         AND started_at < ?
                     ''', (datetime.now().isoformat(), cutoff_time.isoformat()))
                     
-                    # Also update corresponding clusters
+                    # Also update corresponding clusters - but preserve previous successful analyses
                     for session_id, cluster_id in stale_sessions:
                         conn.execute('''
                             UPDATE clusters 
-                            SET analysis_status = 'failed',
-                                analysis_progress = 0,
-                                analysis_message = 'Analysis session timed out'
+                            SET analysis_status = CASE 
+                                    WHEN last_analyzed IS NOT NULL THEN 'completed'
+                                    ELSE 'failed'
+                                END,
+                                analysis_progress = CASE 
+                                    WHEN last_analyzed IS NOT NULL THEN 100
+                                    ELSE 0
+                                END,
+                                analysis_message = CASE 
+                                    WHEN last_analyzed IS NOT NULL THEN 'Previous analysis restored after session cleanup'
+                                    ELSE 'Analysis session timed out'
+                                END
                             WHERE id = ?
                         ''', (cluster_id,))
                     
@@ -1654,6 +1663,19 @@ class EnhancedMultiSubscriptionClusterManager:
 
     def update_analysis_status(self, cluster_id: str, status: str, progress: int = 0, message: str = ""):
         """Update analysis status for a cluster"""
+        import traceback
+        
+        # Log WHO is calling this function when trying to set to failed
+        if status == 'failed':
+            stack = traceback.extract_stack()
+            caller_info = []
+            for frame in stack[-4:-1]:  # Get last few frames before this function
+                caller_info.append(f"{frame.filename}:{frame.lineno} in {frame.name}")
+            
+            self.logger.warning(f"🚨 ATTEMPT TO SET {cluster_id} TO FAILED")
+            self.logger.warning(f"🚨 Called from: {' -> '.join(caller_info)}")
+            self.logger.warning(f"🚨 Message: {message}")
+        
         try:
             with sqlite3.connect(self.db_path) as conn:
                 # DEBUG: Check data before update
@@ -1672,12 +1694,57 @@ class EnhancedMultiSubscriptionClusterManager:
                         WHERE id = ?
                     ''', (status, progress, message, datetime.now().isoformat(), cluster_id))
                 else:
-                    # Update progress or completion
-                    conn.execute('''
-                        UPDATE clusters 
-                        SET analysis_status = ?, analysis_progress = ?, analysis_message = ?
-                        WHERE id = ?
-                    ''', (status, progress, message, cluster_id))
+                    # Update progress or completion - but preserve successful previous analyses
+                    if status == 'failed':
+                        # Check current cluster state first
+                        check_cursor = conn.execute('''
+                            SELECT analysis_status, last_analyzed, last_cost, last_savings 
+                            FROM clusters WHERE id = ?
+                        ''', (cluster_id,))
+                        current_data = check_cursor.fetchone()
+                        
+                        if current_data:
+                            current_status, last_analyzed, last_cost, last_savings = current_data
+                            self.logger.info(f"🔍 BEFORE UPDATE: {cluster_id} → status={current_status}, last_analyzed={last_analyzed}, cost={last_cost}, savings={last_savings}")
+                            
+                            if last_analyzed:
+                                self.logger.info(f"✅ PRESERVING previous successful analysis for {cluster_id}")
+                            else:
+                                self.logger.info(f"❌ NO previous analysis found for {cluster_id}, setting to failed")
+                        
+                        # Don't override successful previous analyses when setting to failed
+                        conn.execute('''
+                            UPDATE clusters 
+                            SET analysis_status = CASE 
+                                    WHEN last_analyzed IS NOT NULL THEN 'completed'
+                                    ELSE 'failed'
+                                END,
+                                analysis_progress = CASE 
+                                    WHEN last_analyzed IS NOT NULL THEN 100
+                                    ELSE ?
+                                END,
+                                analysis_message = CASE 
+                                    WHEN last_analyzed IS NOT NULL THEN 'Previous analysis restored - current attempt failed'
+                                    ELSE ?
+                                END
+                            WHERE id = ?
+                        ''', (progress, message, cluster_id))
+                        
+                        # Check what actually happened
+                        check_cursor = conn.execute('''
+                            SELECT analysis_status FROM clusters WHERE id = ?
+                        ''', (cluster_id,))
+                        final_status = check_cursor.fetchone()
+                        if final_status:
+                            self.logger.info(f"🔍 AFTER UPDATE: {cluster_id} → final status={final_status[0]}")
+                        
+                    else:
+                        # For non-failed statuses, update normally
+                        conn.execute('''
+                            UPDATE clusters 
+                            SET analysis_status = ?, analysis_progress = ?, analysis_message = ?
+                            WHERE id = ?
+                        ''', (status, progress, message, cluster_id))
                 
                 conn.commit()
                 self.logger.info(f"✅ Updated analysis status for {cluster_id}: {status} ({progress}%)")
