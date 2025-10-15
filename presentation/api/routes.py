@@ -111,8 +111,12 @@ def register_routes(app):
             # Enhanced logging for dashboard
             if cached_analysis:
                 logger.info(f"📊 DASHBOARD: Using data from {data_source}")
+                logger.info(f"🔍 ROUTE: Data source = {data_source}")
                 logger.info(f"📊 DASHBOARD: Cost=${cached_analysis.get('total_cost', 0):.2f}, "
                            f"HPA={bool(cached_analysis.get('hpa_recommendations'))}")
+                # Debug breakdown data in route
+                logger.info(f"🔍 ROUTE: build_quality_breakdown = {cached_analysis.get('build_quality_breakdown', 'MISSING')}")
+                logger.info(f"🔍 ROUTE: cost_excellence_breakdown = {cached_analysis.get('cost_excellence_breakdown', 'MISSING')}")
             
             # Add feature flags for UI rendering
             feature_flags = get_ui_feature_flags()
@@ -128,6 +132,65 @@ def register_routes(app):
             logger.error(f"Error in single_cluster_dashboard: {e}")
             traceback.print_exc()
             return render_template('error.html', error=str(e))
+
+    @app.route('/api/cluster/<cluster_id>/aks-excellence', methods=['GET'])
+    @auth_manager.require_auth
+    def get_aks_excellence_data(cluster_id: str):
+        """Get AKS Excellence Framework data with proper caching"""
+        try:
+            # Validate cluster exists
+            cluster = enhanced_cluster_manager.get_cluster(cluster_id)
+            if not cluster:
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Cluster {cluster_id} not found'
+                }), 404
+            
+            # Get cached analysis data using existing cache system
+            cached_analysis, data_source = _get_analysis_data(cluster_id)
+            
+            if not cached_analysis:
+                return jsonify({
+                    'status': 'no_data',
+                    'message': 'No analysis data available. Please run analysis first.',
+                    'cache_valid': False
+                })
+            
+            # Extract AKS Excellence specific data
+            aks_excellence_data = {
+                'status': 'success',
+                'cache_valid': is_cache_valid(cluster_id),
+                'data_source': data_source,
+                'timestamp': cached_analysis.get('timestamp') or cached_analysis.get('analysis_timestamp'),
+                
+                # Build Quality Score
+                'build_quality_score': cached_analysis.get('build_quality_score'),
+                'build_quality_breakdown': cached_analysis.get('build_quality_breakdown', {}),
+                'build_quality_details': cached_analysis.get('build_quality_details', {}),
+                'build_quality_recommendations': cached_analysis.get('build_quality_recommendations', []),
+                
+                # Cost Excellence Score  
+                'cost_excellence_score': cached_analysis.get('cost_excellence_score'),
+                'cost_excellence_breakdown': cached_analysis.get('cost_excellence_breakdown', {}),
+                'cost_excellence_details': cached_analysis.get('cost_excellence_details', {}),
+                'cost_excellence_recommendations': cached_analysis.get('cost_excellence_recommendations', []),
+                
+                # Savings Opportunities
+                'aks_savings_opportunities': cached_analysis.get('aks_savings_opportunities', []),
+                'aks_scoring_enabled': cached_analysis.get('aks_scoring_enabled', False),
+                'aks_scoring_error': cached_analysis.get('aks_scoring_error'),
+            }
+            
+            logger.info(f"📊 AKS Excellence API: Served data for {cluster_id} from {data_source}")
+            return jsonify(aks_excellence_data)
+            
+        except Exception as e:
+            logger.error(f"❌ AKS Excellence API error for {cluster_id}: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'cache_valid': False
+            }), 500
 
     @app.route('/analyze/<subscription_id>/<cluster_name>')
     @auth_manager.require_auth
