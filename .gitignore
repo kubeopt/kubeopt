@@ -26,3 +26,4 @@ tailwind/yarn-error.log*
 # Keep generated CSS committed for production deployments
 # presentation/web/static/css/tailwind.css
 
+.aider*
