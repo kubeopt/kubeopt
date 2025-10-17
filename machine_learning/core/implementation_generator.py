@@ -4047,6 +4047,334 @@ class AKSImplementationGenerator(MLLearningIntegrationMixin, SecurityIntegration
         
         return result
 
+    def generate_enhanced_implementation_plan(self, analysis_results: Dict, enhanced_input: Dict) -> Dict:
+        """
+        Generate enhanced implementation plan with specific, actionable recommendations
+        
+        Args:
+            analysis_results: Basic analysis results
+            enhanced_input: Enhanced analysis input with detailed workload information
+            
+        Returns:
+            Enhanced implementation plan with specific targets and kubectl commands
+        """
+        logger.info("🚀 Generating enhanced implementation plan with specific workload targets")
+        
+        # Extract enhanced data
+        workloads = enhanced_input.get('workloads', [])
+        existing_hpas = enhanced_input.get('existing_hpas', [])
+        node_pools = enhanced_input.get('node_pools', [])
+        storage_volumes = enhanced_input.get('storage_volumes', [])
+        inefficient_workloads = enhanced_input.get('inefficient_workloads', {})
+        namespaces = enhanced_input.get('namespaces', [])
+        cost_analysis = enhanced_input.get('cost_analysis', {})
+        cluster_info = enhanced_input.get('cluster_info', {})
+        
+        logger.info(f"📊 Processing enhanced data: {len(workloads)} workloads, {len(existing_hpas)} HPAs")
+        
+        # Generate specific recommendations
+        quick_wins = self._generate_specific_quick_wins(
+            workloads, existing_hpas, inefficient_workloads, cost_analysis
+        )
+        
+        scaling_recommendations = self._generate_specific_scaling_recommendations(
+            workloads, node_pools, namespaces
+        )
+        
+        storage_recommendations = self._generate_specific_storage_recommendations(
+            storage_volumes, inefficient_workloads
+        )
+        
+        # Calculate total savings
+        total_quick_wins_savings = sum(
+            float(action.get('estimated_savings', '0').replace('$', '').replace('/month', ''))
+            for action in quick_wins
+        )
+        
+        total_scaling_savings = sum(
+            float(action.get('estimated_savings', '0').replace('$', '').replace('/month', ''))
+            for action in scaling_recommendations
+        )
+        
+        total_storage_savings = sum(
+            float(action.get('estimated_savings', '0').replace('$', '').replace('/month', ''))
+            for action in storage_recommendations
+        )
+        
+        # Build enhanced implementation plan
+        enhanced_plan = {
+            "cluster_info": {
+                "cluster_name": cluster_info.get('cluster_name', 'unknown'),
+                "resource_group": cluster_info.get('resource_group', 'unknown'),
+                "total_cost": cost_analysis.get('total_cost', 0),
+                "analysis_timestamp": datetime.now().isoformat()
+            },
+            
+            "executive_summary": {
+                "total_estimated_monthly_savings": total_quick_wins_savings + total_scaling_savings + total_storage_savings,
+                "total_annual_savings": (total_quick_wins_savings + total_scaling_savings + total_storage_savings) * 12,
+                "implementation_timeline": "2-6 weeks",
+                "risk_assessment": "Low to Medium",
+                "roi_months": 2.5,
+                "workloads_analyzed": len(workloads),
+                "optimization_opportunities": len(quick_wins) + len(scaling_recommendations) + len(storage_recommendations)
+            },
+            
+            "phase_1_quick_wins": {
+                "name": "Phase 1: Immediate Quick Wins",
+                "description": "Low-risk, high-impact optimizations that can be implemented immediately",
+                "timeline": "1-2 weeks",
+                "actions": quick_wins,
+                "total_actions": len(quick_wins),
+                "estimated_monthly_savings": total_quick_wins_savings,
+                "estimated_annual_savings": total_quick_wins_savings * 12,
+                "risk_level": "Low",
+                "implementation_effort": "Low"
+            },
+            
+            "implementation_phases": [
+                {
+                    "phase": 1,
+                    "name": "Quick Wins Implementation",
+                    "description": "Immediate optimizations with specific kubectl commands",
+                    "timeline": "Week 1-2",
+                    "specific_actions": quick_wins,
+                    "action_count": len(quick_wins),
+                    "estimated_savings": total_quick_wins_savings,
+                    "risk_level": "Low"
+                },
+                {
+                    "phase": 2,
+                    "name": "Scaling Optimization",
+                    "description": "Node pool and workload scaling optimizations",
+                    "timeline": "Week 3-4", 
+                    "specific_actions": scaling_recommendations,
+                    "action_count": len(scaling_recommendations),
+                    "estimated_savings": total_scaling_savings,
+                    "risk_level": "Medium"
+                },
+                {
+                    "phase": 3,
+                    "name": "Storage Optimization",
+                    "description": "Storage cleanup and optimization",
+                    "timeline": "Week 5-6",
+                    "specific_actions": storage_recommendations,
+                    "action_count": len(storage_recommendations),
+                    "estimated_savings": total_storage_savings,
+                    "risk_level": "Low"
+                }
+            ],
+            
+            "detailed_recommendations": {
+                "hpa_optimization": {
+                    "missing_hpa_count": len(inefficient_workloads.get('missing_hpa_candidates', [])),
+                    "candidates": [
+                        {
+                            "workload": f"{w['workload']['namespace']}/{w['workload']['name']}", 
+                            "estimated_savings": w.get('hpa_suitability', {}).get('estimated_savings', 0)
+                        }
+                        for w in inefficient_workloads.get('missing_hpa_candidates', [])
+                    ]
+                },
+                "right_sizing": {
+                    "over_provisioned_count": len(inefficient_workloads.get('over_provisioned', [])),
+                    "under_utilized_count": len(inefficient_workloads.get('under_utilized', [])),
+                    "total_waste_cost": sum(
+                        w.get('inefficiency_details', {}).get('potential_monthly_savings', 0)
+                        for w in inefficient_workloads.get('over_provisioned', [])
+                    )
+                },
+                "storage_cleanup": {
+                    "orphaned_resources_count": len(inefficient_workloads.get('orphaned_resources', [])),
+                    "underutilized_volumes_count": len([
+                        v for v in storage_volumes 
+                        if v.get('size', {}).get('utilization_percentage', 100) < 50
+                    ])
+                }
+            },
+            
+            "enhanced_metadata": {
+                "workloads_analyzed": len(workloads),
+                "hpas_analyzed": len(existing_hpas),
+                "node_pools_analyzed": len(node_pools),
+                "storage_volumes_analyzed": len(storage_volumes),
+                "namespaces_analyzed": len(namespaces),
+                "specific_actions_generated": len(quick_wins) + len(scaling_recommendations) + len(storage_recommendations),
+                "enhancement_timestamp": datetime.now().isoformat(),
+                "schema_version": enhanced_input.get('metadata', {}).get('schema_version', '2.0.0'),
+                "plan_type": "enhanced_specific_recommendations"
+            }
+        }
+        
+        logger.info(f"✅ Enhanced plan generated with {len(quick_wins)} quick wins, {len(scaling_recommendations)} scaling actions, {len(storage_recommendations)} storage actions")
+        return enhanced_plan
+    
+    def _generate_specific_quick_wins(self, workloads: List[Dict], existing_hpas: List[Dict], 
+                                    inefficient_workloads: Dict, cost_analysis: Dict) -> List[Dict]:
+        """Generate specific quick win actions with kubectl commands"""
+        actions = []
+        
+        # 1. Enable HPA for missing candidates
+        missing_hpa_candidates = inefficient_workloads.get('missing_hpa_candidates', [])
+        for candidate in missing_hpa_candidates[:3]:  # Limit to top 3
+            workload = candidate.get('workload', {})
+            hpa_config = candidate.get('hpa_suitability', {}).get('recommended_hpa_config', {})
+            estimated_savings = candidate.get('hpa_suitability', {}).get('estimated_savings', 25.0)
+            
+            if workload.get('name') and workload.get('namespace'):
+                action = {
+                    "type": "enable_hpa",
+                    "target": {
+                        "namespace": workload['namespace'],
+                        "deployment": workload['name'],
+                        "current_replicas": 1,  # Default
+                        "current_cpu_usage": "unknown"
+                    },
+                    "configuration": {
+                        "min_replicas": hpa_config.get('min_replicas', 1),
+                        "max_replicas": hpa_config.get('max_replicas', 5),
+                        "target_cpu": hpa_config.get('target_cpu', 70)
+                    },
+                    "estimated_savings": f"${estimated_savings}/month",
+                    "risk_level": "low",
+                    "kubectl_command": f"kubectl autoscale deployment {workload['name']} --namespace={workload['namespace']} --min={hpa_config.get('min_replicas', 1)} --max={hpa_config.get('max_replicas', 5)} --cpu-percent={hpa_config.get('target_cpu', 70)}"
+                }
+                actions.append(action)
+        
+        # 2. Right-size over-provisioned workloads
+        over_provisioned = inefficient_workloads.get('over_provisioned', [])
+        for workload_data in over_provisioned[:2]:  # Limit to top 2
+            workload = workload_data.get('workload', {})
+            inefficiency = workload_data.get('inefficiency_details', {})
+            
+            if workload.get('name') and workload.get('namespace'):
+                action = {
+                    "type": "right_size_deployment",
+                    "target": {
+                        "namespace": workload['namespace'],
+                        "deployment": workload['name'],
+                        "current_cpu": "500m",  # Default
+                        "current_memory": "512Mi"
+                    },
+                    "configuration": {
+                        "recommended_cpu": inefficiency.get('recommended_cpu', '200m'),
+                        "recommended_memory": inefficiency.get('recommended_memory', '256Mi')
+                    },
+                    "estimated_savings": f"${inefficiency.get('potential_monthly_savings', 15)}/month",
+                    "risk_level": "medium",
+                    "kubectl_command": f"kubectl set resources deployment {workload['name']} --namespace={workload['namespace']} --requests=cpu={inefficiency.get('recommended_cpu', '200m')},memory={inefficiency.get('recommended_memory', '256Mi')}"
+                }
+                actions.append(action)
+        
+        # 3. Optimize underutilized workloads
+        under_utilized = inefficient_workloads.get('under_utilized', [])
+        for workload_data in under_utilized[:2]:  # Limit to top 2
+            workload = workload_data.get('workload', {})
+            utilization = workload_data.get('utilization_details', {})
+            
+            if workload.get('name') and workload.get('namespace'):
+                action = {
+                    "type": "scale_down_deployment",
+                    "target": {
+                        "namespace": workload['namespace'],
+                        "deployment": workload['name'],
+                        "current_replicas": 3,  # Default
+                        "current_cpu_usage": f"{utilization.get('avg_cpu_utilization', 15)}%"
+                    },
+                    "configuration": {
+                        "recommended_replicas": max(1, int(utilization.get('replica_efficiency', 0.5) * 3))
+                    },
+                    "estimated_savings": "$20/month",
+                    "risk_level": "low",
+                    "kubectl_command": f"kubectl scale deployment {workload['name']} --namespace={workload['namespace']} --replicas={max(1, int(utilization.get('replica_efficiency', 0.5) * 3))}"
+                }
+                actions.append(action)
+        
+        return actions
+    
+    def _generate_specific_scaling_recommendations(self, workloads: List[Dict], 
+                                                 node_pools: List[Dict], namespaces: List[Dict]) -> List[Dict]:
+        """Generate specific scaling recommendations"""
+        actions = []
+        
+        # Node pool scaling recommendations
+        for node_pool in node_pools:
+            utilization = node_pool.get('utilization', {})
+            cpu_pct = utilization.get('cpu_percentage', 0)
+            memory_pct = utilization.get('memory_percentage', 0)
+            
+            if cpu_pct < 30 and node_pool.get('node_count', 0) > 2:
+                action = {
+                    "type": "scale_down_node_pool",
+                    "target": {
+                        "node_pool": node_pool['name'],
+                        "current_nodes": node_pool['node_count'],
+                        "current_cpu_usage": f"{cpu_pct}%",
+                        "current_memory_usage": f"{memory_pct}%"
+                    },
+                    "configuration": {
+                        "recommended_nodes": max(2, node_pool['node_count'] - 1)
+                    },
+                    "estimated_savings": f"${node_pool.get('monthly_cost', 500) / node_pool.get('node_count', 3):.0f}/month",
+                    "risk_level": "medium",
+                    "azure_cli_command": f"az aks nodepool scale --cluster-name CLUSTER_NAME --name {node_pool['name']} --node-count {max(2, node_pool['node_count'] - 1)} --resource-group RESOURCE_GROUP"
+                }
+                actions.append(action)
+        
+        return actions
+    
+    def _generate_specific_storage_recommendations(self, storage_volumes: List[Dict], 
+                                                 inefficient_workloads: Dict) -> List[Dict]:
+        """Generate specific storage optimization recommendations"""
+        actions = []
+        
+        # Orphaned resources cleanup
+        orphaned_resources = inefficient_workloads.get('orphaned_resources', [])
+        for resource in orphaned_resources:
+            if resource.get('resource_type') == 'PVC' and resource.get('safe_to_delete'):
+                action = {
+                    "type": "cleanup_orphaned_pvc",
+                    "target": {
+                        "pvc_name": resource['name'],
+                        "namespace": resource['namespace'],
+                        "last_used": resource.get('last_used', 'unknown'),
+                        "monthly_cost": resource.get('monthly_cost', 0)
+                    },
+                    "configuration": {
+                        "backup_recommended": True
+                    },
+                    "estimated_savings": f"${resource.get('monthly_cost', 15)}/month",
+                    "risk_level": "low",
+                    "kubectl_command": f"kubectl delete pvc {resource['name']} --namespace={resource['namespace']}"
+                }
+                actions.append(action)
+        
+        # Storage optimization
+        for volume in storage_volumes:
+            size = volume.get('size', {})
+            utilization = size.get('utilization_percentage', 100)
+            
+            if utilization < 50 and size.get('requested_gb', 0) > 50:
+                action = {
+                    "type": "resize_storage_volume",
+                    "target": {
+                        "pvc_name": volume['pvc_name'],
+                        "namespace": volume['namespace'],
+                        "current_size": f"{size.get('requested_gb')}Gi",
+                        "used_size": f"{size.get('used_gb')}Gi",
+                        "utilization": f"{utilization}%"
+                    },
+                    "configuration": {
+                        "recommended_size": f"{max(int(size.get('used_gb', 10) * 1.5), 20)}Gi"
+                    },
+                    "estimated_savings": f"${volume.get('monthly_cost', 20) * 0.3:.0f}/month",
+                    "risk_level": "medium",
+                    "kubectl_command": f"# Manual resize required - expand PVC {volume['pvc_name']} in namespace {volume['namespace']}"
+                }
+                actions.append(action)
+        
+        return actions
+
 
 # =============================================================================
 # FACTORY FUNCTION

@@ -465,11 +465,20 @@ export function renderEnhancedCompleteTimeline(data) {
                                 const commandId = `cmd_${category.replace(/[^a-zA-Z0-9]/g, '_')}_${idx}`;
                                 if (!window.commandStore) window.commandStore = {};
                                 
-                                // Handle both ExecutableCommand objects and strings
-                                let commandText, commandObj;
+                                // Handle both ExecutableCommand objects and strings with savings awareness
+                                let commandText, commandObj, savingsInfo = '';
                                 if (typeof cmd === 'object' && cmd !== null) {
                                     commandText = cmd.command || cmd.description || JSON.stringify(cmd);
                                     commandObj = cmd;
+                                    
+                                    // Extract savings information for display
+                                    if (cmd.savings_monthly) {
+                                        savingsInfo = ` 💰 $${cmd.savings_monthly}/month`;
+                                    }
+                                    if (cmd.current_usage) {
+                                        savingsInfo += ` (Current: ${cmd.current_usage})`;
+                                    }
+                                    
                                     window.commandStore[commandId] = cmd.command || cmd.description || JSON.stringify(cmd);
                                 } else if (typeof cmd === 'string') {
                                     commandText = cmd;
@@ -483,14 +492,32 @@ export function renderEnhancedCompleteTimeline(data) {
                                 
                                 return `
                                     <li class="command-step">
-                                        <p class="command-description">Run the following command:</p>
+                                        <div class="command-header">
+                                            <p class="command-description">
+                                                ${commandObj.description || 'Run the following command:'}
+                                                ${savingsInfo ? `<span class="savings-badge">${savingsInfo}</span>` : ''}
+                                            </p>
+                                        </div>
                                         <div class="command-block">
                                             <pre class="command-pre"><code>${commandText}</code></pre>
                                             <button onclick="copyStoredCommand('${commandId}', ${idx + 1}, this)" class="copy-button">Copy</button>
                                         </div>
+                                        ${commandObj.rollback_command && commandObj.rollback_command !== '# Analysis command - no rollback needed' ? `
+                                            <div class="rollback-section">
+                                                <p style="margin: 0.5rem 0 0.25rem 0; color: var(--text-secondary); font-size: 0.875rem; font-weight: 600;">
+                                                    🔄 Rollback Command:
+                                                </p>
+                                                <code style="background: #ffe8e8; color: #d63031; padding: 0.25rem 0.5rem; border-radius: 3px; font-size: 0.8rem; display: block;">${commandObj.rollback_command}</code>
+                                            </div>
+                                        ` : ''}
                                         ${commandObj.validation_commands && commandObj.validation_commands.length > 0 ? `
                                             <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary); font-size: 0.875rem;">
-                                                Verify with: <code style="background: #e8f5e8; padding: 0.125rem 0.25rem; border-radius: 3px; font-size: 0.8rem;">${commandObj.validation_commands[0]}</code>
+                                                ✅ Verify with: <code style="background: #e8f5e8; padding: 0.125rem 0.25rem; border-radius: 3px; font-size: 0.8rem;">${commandObj.validation_commands[0]}</code>
+                                            </p>
+                                        ` : ''}
+                                        ${commandObj.target_workload ? `
+                                            <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary); font-size: 0.875rem;">
+                                                🎯 Target: <strong>${commandObj.target_workload}</strong>
                                             </p>
                                         ` : ''}
                                     </li>
