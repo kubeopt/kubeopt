@@ -388,7 +388,7 @@ export function extractPhaseCommands(phase, fullData) {
     let commandGroups = [];
     console.log('🔍 Extracting commands for phase');
     
-    // 1. Commands from phase.commands (direct from backend)
+    // 1. Commands from phase.commands (direct from backend) - Enhanced with savings data
     if (phase.commands && Array.isArray(phase.commands) && phase.commands.length > 0) {
         commandGroups.push({
             title: `${phase.title} Commands`,
@@ -401,6 +401,18 @@ export function extractPhaseCommands(phase, fullData) {
             source: 'phase_direct'
         });
         console.log(`   ✅ Found ${phase.commands.length} direct phase commands`);
+    }
+    
+    // 2. Enhanced: Commands from phase.savings_opportunities (new savings-aware data)
+    if (phase.savings_opportunities && Array.isArray(phase.savings_opportunities) && phase.savings_opportunities.length > 0) {
+        commandGroups.push({
+            title: `💰 ${phase.title} - ROI Optimizations`,
+            commands: phase.savings_opportunities,  // These are already savings-aware command objects
+            description: `Cost optimization commands for ${phase.title} with specific ROI`,
+            source: 'savings_opportunities',
+            total_savings: phase.projected_savings || 0
+        });
+        console.log(`   💰 Found ${phase.savings_opportunities.length} savings-aware commands with $${phase.projected_savings || 0}/month potential`);
     }
     
     // 2. Commands from phase tasks (direct association)

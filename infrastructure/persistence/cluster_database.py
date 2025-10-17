@@ -33,6 +33,7 @@ def migrate_database_schema(db_path: str = '../data/database/clusters.db'):
             # Define required columns
             required_columns = {
                 'analysis_data': 'BLOB',
+                'enhanced_analysis_data': 'BLOB',
                 'last_confidence': 'REAL DEFAULT 0'
             }
             
@@ -130,6 +131,7 @@ def migrate_analysis_data_to_blob(db_path: str = '../data/database/clusters.db')
                             analysis_count INTEGER DEFAULT 0,
                             metadata TEXT DEFAULT '{}',
                             analysis_data BLOB,
+                            enhanced_analysis_data BLOB,
                             analysis_status TEXT DEFAULT 'pending',
                             analysis_progress INTEGER DEFAULT 0,
                             analysis_message TEXT DEFAULT '',
@@ -149,6 +151,7 @@ def migrate_analysis_data_to_blob(db_path: str = '../data/database/clusters.db')
                                created_at, last_analyzed, last_cost, last_savings, last_confidence,
                                analysis_count, metadata, 
                                COALESCE(analysis_data_blob, analysis_data) as analysis_data,
+                               NULL as enhanced_analysis_data,
                                analysis_status, analysis_progress, analysis_message, analysis_started_at,
                                auto_analyze_enabled, subscription_id, subscription_name,
                                subscription_context_verified, subscription_last_validated
@@ -196,6 +199,7 @@ def migrate_database_for_multi_subscription(db_path: str = '../data/database/clu
                 'subscription_id': 'TEXT DEFAULT NULL',
                 'subscription_name': 'TEXT DEFAULT NULL',
                 'analysis_data': 'BLOB',
+                'enhanced_analysis_data': 'BLOB',
                 'last_confidence': 'REAL DEFAULT 0',
                 'analysis_status': 'TEXT DEFAULT "pending"',
                 'analysis_progress': 'INTEGER DEFAULT 0',
@@ -409,6 +413,7 @@ class EnhancedMultiSubscriptionClusterManager:
                         analysis_count INTEGER DEFAULT 0,
                         metadata TEXT DEFAULT '{}',
                         analysis_data BLOB,
+                        enhanced_analysis_data BLOB,
                         analysis_status TEXT DEFAULT 'pending',
                         analysis_progress INTEGER DEFAULT 0,
                         analysis_message TEXT DEFAULT '',
@@ -1340,7 +1345,7 @@ class EnhancedMultiSubscriptionClusterManager:
         except Exception as e:
             self.logger.error(f"❌ Failed to update cluster subscription info: {e}")
 
-    def update_cluster_analysis(self, cluster_id: str, analysis_data: dict):
+    def update_cluster_analysis(self, cluster_id: str, analysis_data: dict, enhanced_input: dict = None):
         """
         Update cluster with analysis results - preserves ALL workload data
         """
@@ -1484,7 +1489,17 @@ class EnhancedMultiSubscriptionClusterManager:
                 try:
                     from machine_learning.core.implementation_generator import AKSImplementationGenerator
                     implementation_generator = AKSImplementationGenerator()
-                    implementation_plan = implementation_generator.generate_implementation_plan(enhanced_analysis_data)
+                    
+                    # Use enhanced input if available for detailed recommendations
+                    if enhanced_input:
+                        self.logger.info("✅ Using enhanced input for detailed implementation plan generation")
+                        implementation_plan = implementation_generator.generate_enhanced_implementation_plan(
+                            enhanced_analysis_data, enhanced_input
+                        )
+                    else:
+                        self.logger.info("ℹ️ Using basic analysis for standard implementation plan generation")
+                        implementation_plan = implementation_generator.generate_implementation_plan(enhanced_analysis_data)
+                    
                     enhanced_analysis_data['implementation_plan'] = implementation_plan
                     self.logger.info("✅ Generated implementation plan for database")
                     
@@ -1492,6 +1507,11 @@ class EnhancedMultiSubscriptionClusterManager:
                     if implementation_plan and 'implementation_phases' in implementation_plan:
                         phases_count = len(implementation_plan['implementation_phases'])
                         self.logger.info(f"✅ Implementation plan has {phases_count} phases")
+                        
+                        # Log enhanced recommendations if available
+                        if enhanced_input and 'phase_1_quick_wins' in implementation_plan:
+                            quick_wins = implementation_plan['phase_1_quick_wins'].get('actions', [])
+                            self.logger.info(f"✅ Generated {len(quick_wins)} specific actionable recommendations")
                         
                 except Exception as impl_error:
                     self.logger.error(f"❌ Failed to generate implementation plan: {impl_error}")
@@ -1521,16 +1541,26 @@ class EnhancedMultiSubscriptionClusterManager:
             total_savings = float(serializable_data.get('total_savings', 0))
             confidence = float(serializable_data.get('analysis_confidence', 0))
             
+            # Prepare enhanced analysis data for storage
+            enhanced_analysis_blob = None
+            if enhanced_input:
+                try:
+                    enhanced_analysis_blob = json.dumps(enhanced_input).encode('utf-8')
+                    self.logger.info(f"✅ DB SAVE: Enhanced analysis data prepared for storage ({len(enhanced_input.keys())} sections)")
+                except Exception as e:
+                    self.logger.error(f"❌ Failed to serialize enhanced analysis data: {e}")
+
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute('''
                     UPDATE clusters 
                     SET last_cost = ?, last_savings = ?, last_confidence = ?, 
-                        last_analyzed = ?, analysis_data = ?
+                        last_analyzed = ?, analysis_data = ?, enhanced_analysis_data = ?
                     WHERE id = ?
                 ''', (
                     total_cost, total_savings, confidence,
                     datetime.now().isoformat(),
                     json.dumps(serializable_data).encode('utf-8'),  # Store as BLOB
+                    enhanced_analysis_blob,  # Store enhanced input as BLOB
                     cluster_id
                 ))
                 conn.execute('''
@@ -1560,11 +1590,31 @@ class EnhancedMultiSubscriptionClusterManager:
             raise
 
     def get_latest_analysis(self, cluster_id: str) -> Optional[Dict[str, Any]]:
-        """Get latest analysis with proper implementation plan deserialization"""
+        """Get latest analysis with enhanced data when available"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
-                #  Query analysis_results table which contains implementation_plan with enterprise_metrics
+                
+                # First try to get enhanced analysis data from clusters table
+                cursor = conn.execute('''
+                    SELECT analysis_data, enhanced_analysis_data, last_analyzed
+                    FROM clusters 
+                    WHERE id = ? AND analysis_data IS NOT NULL
+                ''', (cluster_id,))
+                
+                cluster_row = cursor.fetchone()
+                
+                # If enhanced analysis data exists, return it
+                if cluster_row and cluster_row['enhanced_analysis_data']:
+                    try:
+                        enhanced_data = json.loads(cluster_row['enhanced_analysis_data'].decode('utf-8'))
+                        self.logger.info(f"✅ DB LOAD: Loaded enhanced analysis data for {cluster_id}")
+                        return enhanced_data
+                    except Exception as e:
+                        self.logger.error(f"❌ Failed to load enhanced analysis data: {e}")
+                        # Fall back to regular analysis data
+                
+                # Fallback: Query analysis_results table for regular analysis data
                 cursor = conn.execute('''
                     SELECT results, analysis_date, total_cost, total_savings
                     FROM analysis_results 
@@ -1659,6 +1709,34 @@ class EnhancedMultiSubscriptionClusterManager:
                     
         except Exception as e:
             self.logger.error(f"❌ Database error getting analysis: {e}")
+            return None
+    
+    def get_enhanced_analysis_data(self, cluster_id: str) -> Optional[Dict[str, Any]]:
+        """Get enhanced analysis data specifically"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT enhanced_analysis_data, last_analyzed
+                    FROM clusters 
+                    WHERE id = ? AND enhanced_analysis_data IS NOT NULL
+                ''', (cluster_id,))
+                
+                row = cursor.fetchone()
+                if row and row['enhanced_analysis_data']:
+                    try:
+                        enhanced_data = json.loads(row['enhanced_analysis_data'].decode('utf-8'))
+                        self.logger.info(f"✅ DB LOAD: Loaded enhanced analysis data for {cluster_id} ({len(enhanced_data.keys())} sections)")
+                        return enhanced_data
+                    except Exception as e:
+                        self.logger.error(f"❌ Failed to decode enhanced analysis data: {e}")
+                        return None
+                else:
+                    self.logger.info(f"ℹ️ No enhanced analysis data found for {cluster_id}")
+                    return None
+                    
+        except Exception as e:
+            self.logger.error(f"❌ Failed to get enhanced analysis data: {e}")
             return None
 
     def update_analysis_status(self, cluster_id: str, status: str, progress: int = 0, message: str = ""):

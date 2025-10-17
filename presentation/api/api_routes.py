@@ -822,16 +822,23 @@ def register_api_routes(app):
             )
             
             if needs_generation:
-                logger.info(f"🔄 API: Generating implementation plan for {cluster_id} in {format_type} format")
+                logger.info(f"🔄 API: Generating SAVINGS-AWARE implementation plan for {cluster_id} in {format_type} format")
                 try:
                     from shared.config.config import implementation_generator
+                    from machine_learning.core.savings_aware_implementation_generator import SavingsAwareImplementationGenerator
                     from infrastructure.services.cache_manager import save_to_cache
                     
-                    # MODIFIED: Generate with format parameter
-                    fresh_plan = implementation_generator.generate_implementation_plan_for_api(
-                        current_analysis, 
-                        output_format=format_type
-                    )
+                    # 🎯 NEW: Use savings-aware generator for better ROI-focused commands
+                    savings_generator = SavingsAwareImplementationGenerator()
+                    fresh_plan = savings_generator.generate_savings_focused_plan(current_analysis)
+                    
+                    # Fallback to original generator if savings-aware fails
+                    if not fresh_plan or not isinstance(fresh_plan, dict):
+                        logger.warning("⚠️ Savings-aware generator failed, falling back to original")
+                        fresh_plan = implementation_generator.generate_implementation_plan_for_api(
+                            current_analysis, 
+                            output_format=format_type
+                        )
                     
                     # Validate the generated plan
                     if not isinstance(fresh_plan, dict):
