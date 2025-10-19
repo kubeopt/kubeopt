@@ -66,11 +66,22 @@ analysis_cache = {
 
 # Initialize enhanced database components with multi-subscription support
 from infrastructure.persistence.cluster_database import EnhancedMultiSubscriptionClusterManager, migrate_database_for_multi_subscription
-from machine_learning.core.implementation_generator import AKSImplementationGenerator
+from infrastructure.plan_generation.claude_plan_generator import ClaudePlanGenerator
 
 # Use the enhanced multi-subscription cluster manager
 enhanced_cluster_manager = EnhancedMultiSubscriptionClusterManager()
-implementation_generator = AKSImplementationGenerator()
+
+# Initialize implementation generator conditionally
+implementation_generator = None
+try:
+    implementation_generator = ClaudePlanGenerator()
+    logger.info("✅ Claude API plan generator initialized")
+except ValueError as e:
+    if "ANTHROPIC_API_KEY" in str(e):
+        logger.warning("⚠️ Claude API plan generator not available - API key required")
+        implementation_generator = None
+    else:
+        raise
 
 def initialize_multi_subscription_environment():
     """Initialize the multi-subscription environment"""

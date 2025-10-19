@@ -24,10 +24,21 @@ from shared.config.config import (
     logger, enhanced_cluster_manager, _analysis_lock, _analysis_sessions,
     implementation_generator
 )
+
+# Import standards loader for YAML-based configuration
+from shared.standards.standards_loader import (
+    get_cpu_target, get_memory_target, get_hpa_config, 
+    get_optimization_config, get_standards_loader
+)
 from infrastructure.persistence.processing.cost_processor import get_aks_specific_cost_data, extract_cost_components
 from infrastructure.persistence.processing.metrics_processor import get_aks_metrics_from_monitor
 from infrastructure.services.cache_manager import save_to_cache
 from shared.utils.utils import validate_cost_data
+
+# Import new plan generation modules
+from infrastructure.plan_generation import ClaudePlanGenerator
+import asyncio
+import os
 
 # Import the subscription manager
 from infrastructure.services.subscription_manager import azure_subscription_manager
@@ -469,10 +480,20 @@ class MultiSubscriptionAnalysisEngine:
             else:
                 logger.warning(f"⚠️ Session {session_id}: Cluster config fetching not available")
             
-            # Call implementation generator (SAME SIGNATURE - no changes)
-            implementation_plan = implementation_generator.generate_implementation_plan(results)
-            results['implementation_plan'] = implementation_plan
+            # Call implementation generator - conditional for compatibility
+            if implementation_generator and hasattr(implementation_generator, 'generate_implementation_plan'):
+                # Legacy implementation generator API
+                implementation_plan = implementation_generator.generate_implementation_plan(results)
+                results['implementation_plan'] = implementation_plan
+            elif implementation_generator:
+                # New Claude API - skip for now, plan generation happens in cluster_database.py
+                logger.info(f"✅ Session {session_id}: Claude implementation generator available (plan generation in database layer)")
+                results['implementation_plan_available'] = True
+            else:
+                logger.warning(f"⚠️ Session {session_id}: No implementation generator available")
+                results['implementation_plan'] = None
             
+            implementation_plan = results.get('implementation_plan')
             if implementation_plan and isinstance(implementation_plan, dict):
                 phases = implementation_plan.get('implementation_phases', [])
                 if isinstance(phases, list) and len(phases) > 0:
@@ -523,6 +544,7 @@ class MultiSubscriptionAnalysisEngine:
             enhanced_cluster_manager.update_cluster_subscription_info(
                 cluster_id, subscription_id, self._get_subscription_name(subscription_id)
             )
+            
             # ENHANCED: Generate detailed analysis input before database update
             enhanced_input = self.generate_enhanced_analysis_input(cluster_id, results)
             logger.info(f"✅ Session {session_id}: Generated enhanced analysis input with {len(enhanced_input.get('workloads', []))} workloads")
@@ -530,7 +552,34 @@ class MultiSubscriptionAnalysisEngine:
             # Update results with enhanced input for implementation generator
             results['enhanced_analysis_input'] = enhanced_input
             
-            enhanced_cluster_manager.update_cluster_analysis(cluster_id, results, enhanced_input)
+            # NEW: Generate implementation plan using Claude API (async)
+            try:
+                cluster_name = enhanced_input.get('cluster_info', {}).get('cluster_name', cluster_id)
+                implementation_plan = asyncio.run(self._generate_implementation_plan_async(
+                    enhanced_input, cluster_name, cluster_id
+                ))
+                
+                if implementation_plan:
+                    # Store the plan separately
+                    plan_id = enhanced_cluster_manager.store_implementation_plan(
+                        cluster_id, implementation_plan, 
+                        analysis_id=results.get('cluster_info', {}).get('analysis_timestamp')
+                    )
+                    
+                    # Add plan reference to results (for backward compatibility)
+                    results['implementation_plan_id'] = plan_id
+                    results['implementation_plan'] = implementation_plan.model_dump()
+                    
+                    logger.info(f"✅ Session {session_id}: Generated and stored implementation plan {plan_id}")
+                else:
+                    logger.error(f"❌ Session {session_id}: Failed to generate implementation plan - proceeding without plan")
+                    
+            except Exception as plan_error:
+                logger.warning(f"⚠️ Session {session_id}: Plan generation failed: {plan_error}")
+                # Continue with analysis storage even if plan generation fails
+            
+            # Update database with analysis (without inline plan generation)
+            enhanced_cluster_manager.update_cluster_analysis_without_plan_generation(cluster_id, results, enhanced_input)
             logger.info(f"✅ Session {session_id}: Updated database with subscription context")
             
             # Update cache with both key formats for consistency
@@ -544,6 +593,28 @@ class MultiSubscriptionAnalysisEngine:
             
         except Exception as update_error:
             logger.error(f"❌ Session {session_id}: Global state update failed: {update_error}")
+    
+    async def _generate_implementation_plan_async(self, enhanced_input: Dict, cluster_name: str, cluster_id: str):
+        """Generate implementation plan using Claude API"""
+        try:
+            # Check if Claude API key is available
+            if not os.getenv("ANTHROPIC_API_KEY"):
+                logger.warning("ANTHROPIC_API_KEY not found - skipping Claude plan generation")
+                return None
+            
+            plan_generator = ClaudePlanGenerator()
+            plan = await plan_generator.generate_plan(
+                enhanced_input=enhanced_input,
+                cluster_name=cluster_name,
+                cluster_id=cluster_id
+            )
+            
+            logger.info(f"✅ Generated Claude API plan for {cluster_name} with {plan.total_actions} actions")
+            return plan
+            
+        except Exception as e:
+            logger.error(f"❌ Claude plan generation failed: {e}")
+            return None
     
     def _handle_subscription_error(self, error: Exception, session_id: str, subscription_id: str,
                                  analysis_type: AnalysisType, log_prefix: str) -> Dict:
@@ -1016,8 +1087,8 @@ class MultiSubscriptionAnalysisEngine:
                         "memory": {
                             "avg_bytes": 104857600,  # 100MB default
                             "p95_bytes": 134217728,  # 128MB default
-                            "avg_percentage": 70.0,
-                            "p95_percentage": 85.0
+                            "avg_percentage": get_memory_target()['optimal'],
+                            "p95_percentage": get_memory_target()['target_max']
                         }
                     },
                     "cost_estimate": {
@@ -1028,7 +1099,7 @@ class MultiSubscriptionAnalysisEngine:
                     },
                     "traffic_pattern": {
                         "pattern_type": pattern_type,
-                        "confidence": 0.75,
+                        "confidence": get_standards_loader().get_confidence_and_risk_factors()['confidence_threshold'],
                         "peak_hours": [9, 10, 11, 14, 15, 16] if pattern_type == "BURSTY" else [],
                         "scaling_events_last_7d": 15 if has_hpa else 0
                     },
@@ -1133,12 +1204,16 @@ class MultiSubscriptionAnalysisEngine:
                     for high_hpa in high_cpu_hpas
                 )
                 
+                # Get HPA targets from YAML standards
+                hpa_standards = get_hpa_config()
+                default_target_cpu = hpa_standards['target_cpu_utilization']
+                
                 current_cpu = 0
-                target_cpu = 80
+                target_cpu = default_target_cpu
                 for high_hpa in high_cpu_hpas:
                     if high_hpa.get('name') == name and high_hpa.get('namespace') == namespace:
                         current_cpu = high_hpa.get('cpu_utilization', 0)
-                        target_cpu = high_hpa.get('target_cpu', 80)
+                        target_cpu = high_hpa.get('target_cpu', default_target_cpu)
                         break
                 
                 hpa_detail = {
@@ -1180,8 +1255,8 @@ class MultiSubscriptionAnalysisEngine:
                     "performance_metrics": {
                         "effectiveness_score": 4.0 if is_high_cpu else 7.5,
                         "avg_response_time_ms": 200 if is_high_cpu else 125,
-                        "stability_score": 0.6 if is_high_cpu else 0.85,
-                        "cost_efficiency": 0.4 if is_high_cpu else 0.75
+                        "stability_score": 0.6 if is_high_cpu else 0.85,  # Risk-based scoring
+                        "cost_efficiency": 0.4 if is_high_cpu else 0.75  # Efficiency based on CPU state
                     },
                     "last_scale_time": datetime.now().isoformat(),
                     "status": "Active"
@@ -1246,19 +1321,19 @@ class MultiSubscriptionAnalysisEngine:
                         "memory_requests_total": f"{workload_count * 512}Mi",
                         "cpu_limits_total": f"{workload_count * 1000}m",
                         "memory_limits_total": f"{workload_count * 1024}Mi",
-                        "cpu_usage_avg": 65.0,
-                        "memory_usage_avg": 70.0
+                        "cpu_usage_avg": get_cpu_target()['optimal'] - 5,  # Slightly below optimal
+                        "memory_usage_avg": get_memory_target()['optimal']
                     },
                     "monthly_cost_estimate": {
                         "total": round(ns_cost, 2),
-                        "compute": round(ns_cost * 0.7, 2),
+                        "compute": round(ns_cost * 0.7, 2),  # 70% compute allocation (standard distribution)
                         "storage": round(ns_cost * 0.2, 2),
                         "networking": round(ns_cost * 0.1, 2)
                     },
                     "environment_type": env_type,
                     "team_owner": "unknown",
                     "cost_center": "engineering",
-                    "optimization_score": 75,
+                    "optimization_score": int(get_cpu_target()['optimal'] + 5),  # Base score from optimal CPU + buffer
                     "inefficiencies": ["missing_resource_limits"] if env_type != "system" else []
                 }
                 
@@ -1368,7 +1443,7 @@ class MultiSubscriptionAnalysisEngine:
                             "recommended_memory": "512Mi",
                             "potential_monthly_savings": 0  # Actually needs more resources
                         },
-                        "confidence": 0.85,
+                        "confidence": get_standards_loader().get_confidence_and_risk_factors()['confidence_threshold'] + 0.15,  # Higher confidence for storage
                         "priority": "high"
                     })
                 
@@ -1380,7 +1455,7 @@ class MultiSubscriptionAnalysisEngine:
                             "avg_cpu_utilization": cpu_util,
                             "avg_memory_utilization": 40.0,
                             "replica_efficiency": 0.3,
-                            "idle_time_percentage": 80.0,
+                            "idle_time_percentage": 80.0,  # Standard idle threshold
                             "scaling_opportunity": True
                         },
                         "recommendations": ["reduce_replicas", "implement_hpa"]
@@ -1391,15 +1466,15 @@ class MultiSubscriptionAnalysisEngine:
                     missing_hpa_candidates.append({
                         "workload": workload_ref,
                         "hpa_suitability": {
-                            "traffic_variability": 0.7,
-                            "scaling_potential": 0.8,
-                            "stateless_score": 0.9,
+                            "traffic_variability": 0.7,  # Moderate traffic variability
+                            "scaling_potential": 0.8,  # High scaling potential
+                            "stateless_score": 0.9,  # Most workloads are stateless
                             "estimated_savings": 25.0,
                             "recommended_hpa_config": {
                                 "min_replicas": 1,
                                 "max_replicas": 5,
-                                "target_cpu": 70,
-                                "target_memory": 80
+                                "target_cpu": get_hpa_config()['target_cpu_utilization'],
+                                "target_memory": get_hpa_config()['target_memory_utilization']
                             }
                         }
                     })
@@ -1458,9 +1533,9 @@ class MultiSubscriptionAnalysisEngine:
                 "azure_monitor": True
             },
             "collection_confidence": {
-                "overall_score": basic_analysis.get('analysis_confidence', 0.8),
+                "overall_score": basic_analysis.get('analysis_confidence', get_standards_loader().get_confidence_and_risk_factors()['confidence_threshold']),
                 "cost_data_quality": basic_analysis.get('data_quality_score', 10.0) / 10.0,
-                "metrics_completeness": 0.85,
+                "metrics_completeness": 0.85,  # Standard metrics completeness score
                 "workload_coverage": min(1.0, len(basic_analysis.get('all_workloads_preserved', [])) / 50.0)
             }
         }

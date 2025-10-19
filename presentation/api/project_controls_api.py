@@ -17,7 +17,7 @@ import asyncio
 from shared.config.config import logger, enhanced_cluster_manager
 from shared.utils.shared import _get_analysis_data
 from machine_learning.core.enterprise_metrics import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
-from machine_learning.core.implementation_generator import AKSImplementationGenerator
+from infrastructure.plan_generation.claude_plan_generator import ClaudePlanGenerator
 from infrastructure.services.feature_guard import require_feature, get_ui_feature_flags
 from infrastructure.services.license_manager import FeatureFlag
 
@@ -180,7 +180,7 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
     """Generate dynamic action items using existing implementation"""
     try:
         # Create an instance of the implementation generator
-        generator = AKSImplementationGenerator()
+        generator = ClaudePlanGenerator()
         
         # Calculate scores for each metric (matching our enterprise metrics)
         scores = {
@@ -450,18 +450,15 @@ def get_enterprise_metrics_clean():
                 }
             }), 400
         
-        # Use the Implementation Generator (proper engine)
-        from machine_learning.core.implementation_generator import AKSImplementationGenerator
-        impl_generator = AKSImplementationGenerator()
+        # Use the Enterprise Metrics Engine (proper engine for enterprise metrics)
+        enterprise_engine = EnterpriseOperationalMetricsEngine()
         
         # Generate enterprise metrics using real analysis data
-        import asyncio
-        enterprise_metrics = asyncio.run(impl_generator._calculate_enterprise_metrics(
+        enterprise_metrics = enterprise_engine.calculate_comprehensive_enterprise_metrics(
             analysis_data,  # analysis_results
-            None,  # cluster_dna - can be added if needed  
-            analysis_data.get('ml_session', {}),  # ml_session
-            analysis_data.get('cluster_config', {})  # cluster_config
-        ))
+            cluster_config=analysis_data.get('cluster_config', {}),
+            ml_session=analysis_data.get('ml_session', {})
+        )
         
         logger.info(f"✅ Enterprise metrics generated using Implementation Generator for {cluster_name}")
         
