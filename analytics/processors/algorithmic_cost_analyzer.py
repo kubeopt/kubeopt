@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -63,7 +64,6 @@ class OfficialAKSStandardsProxy:
             except Exception as e:
                 logger.warning(f"⚠️ Failed to load standards from YAML: {e}")
         
-        # Fallback to minimal hardcoded standards
         logger.warning("⚠️ Using fallback hardcoded standards - YAML config not available")
         return {
             'resource_utilization': {
@@ -261,8 +261,8 @@ def safe_stdev(data: list, default=0.0) -> float:
         if not data or len(data) < 2:
             return default
         return statistics.stdev(data)
-    except:
-        return default
+    except Exception as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 def safe_variance(data: list, default=0.0) -> float:
     """Compute variance - return default if insufficient data"""
@@ -270,8 +270,8 @@ def safe_variance(data: list, default=0.0) -> float:
         if not data or len(data) < 2:
             return default
         return statistics.variance(data)
-    except:
-        return default
+    except Exception as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 def safe_mean(data: list, default=0.0) -> float:
     """Compute mean - return default if no data"""
@@ -279,22 +279,22 @@ def safe_mean(data: list, default=0.0) -> float:
         if not data:
             return default
         return statistics.mean(data)
-    except:
-        return default
+    except Exception as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 def safe_max(data: list, default=0.0) -> float:
     """Safely get maximum value"""
     try:
         return max(data) if data else default
-    except:
-        return default
+    except Exception as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 def safe_min(data: list, default=0.0) -> float:
     """Safely get minimum value"""
     try:
         return min(data) if data else default
-    except:
-        return default
+    except Exception as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
 
 def ensure_numeric(value, default=0.0) -> float:
     """Ensure value is numeric"""
@@ -534,7 +534,6 @@ class MLEnhancedHPARecommendationEngine:
                 coverage['total_workloads'] = actual_workloads
                 logger.info(f"🔍 Using ACTUAL workload count: {actual_workloads}")
             else:
-                # Fallback: From nodes (rough approximation)
                 nodes = metrics_data.get('nodes', [])
                 if nodes:
                     # Estimate workloads (typically 2-5 workloads per node)
@@ -553,7 +552,6 @@ class MLEnhancedHPARecommendationEngine:
                 coverage['total_workloads'] = int(metrics_data.get('workload_count', 0))
                 logger.info(f"🔍 Found workload count: {coverage['total_workloads']}")
             
-            # Fallback: use minimum reasonable number
             if coverage['total_workloads'] == 0:
                 coverage['total_workloads'] = max(5, len(nodes) * 2) if nodes else 10
                 logger.warning(f"⚠️ Using fallback workload count: {coverage['total_workloads']}")
@@ -843,7 +841,7 @@ class MLEnhancedHPARecommendationEngine:
                             #logger.info(f"💾 SAVED RESOURCE WORKLOAD: {workload['namespace']}/{workload['name']} = {cpu_pct}%")
             
             # Calculate averages from ALL workloads
-            if all_workloads:
+            if all_workloads is not None and all_workloads:
                 all_cpu_values = [w['cpu_utilization'] for w in all_workloads if w['cpu_utilization'] > 0]
                 avg_cpu_utilization = sum(all_cpu_values) / len(all_cpu_values) if all_cpu_values else 0
                 
@@ -852,14 +850,13 @@ class MLEnhancedHPARecommendationEngine:
             
             # Get current utilization for chart calculations
             nodes = metrics_data.get('nodes', [])
-            if nodes:
+            if nodes is not None and nodes:
                 fallback_cpu = np.mean([node.get('cpu_usage_pct', 0) for node in nodes])
                 fallback_memory = np.mean([node.get('memory_usage_pct', 0) for node in nodes])
                 current_replicas = len(nodes)
             else:
                 logger.info(f"⚠️ Node data is not available")
             
-            # Use ML data if available, fallback to node data
             chart_cpu = ml_cpu_utilization if ml_cpu_utilization > 0 else fallback_cpu
             chart_memory = ml_memory_utilization if ml_memory_utilization > 0 else fallback_memory
             
@@ -1429,7 +1426,7 @@ class ConsistentCostAnalyzer:
                 # Validate cache has consolidated fields and is not expired
                 cache_valid = (time.time() - cache_entry['timestamp'] < 300 and  # 5 minute cache
                               'savings_by_category' in cache_entry.get('result', {}))
-                if cache_valid:
+                if cache_valid is not None and cache_valid:
                     logger.info(f"🎯 ANALYSIS CACHE HIT: Using cached analysis result with consolidated fields")
                     return cache_entry['result']
                 else:
@@ -1490,7 +1487,7 @@ class ConsistentCostAnalyzer:
             
             # Step 10.1: CRITICAL FIX - Preserve HPA implementation data from metrics_data
             hpa_implementation = metrics_data.get('hpa_implementation', {})
-            if hpa_implementation:
+            if hpa_implementation is not None and hpa_implementation:
                 results['hpa_implementation'] = hpa_implementation
                 total_hpas = hpa_implementation.get('total_hpas', 0)
                 logger.info(f"✅  Preserved HPA implementation data with {total_hpas} HPAs for chart generator")
@@ -1632,7 +1629,7 @@ class ConsistentCostAnalyzer:
             required_fields = ['savings_by_category', 'current_health_score', 'standards_compliance']
             missing_fields = [field for field in required_fields if field not in results]
             
-            if missing_fields:
+            if missing_fields is not None and missing_fields:
                 logger.error(f"❌ CRITICAL: Missing required consolidated fields: {missing_fields}")
                 raise ValueError(f"Consolidated system failed to set required fields: {missing_fields}")
             
@@ -1738,7 +1735,7 @@ class ConsistentCostAnalyzer:
             # Try to get actual usage from pod metrics if current_usage is empty
             if avg_cpu == 0 and avg_memory == 0:
                 pods = metrics_data.get('pods', [])
-                if pods:
+                if pods is not None and pods:
                     total_cpu_usage = sum(pod.get('cpu_usage_millicores', 0) for pod in pods)
                     total_memory_usage = sum(pod.get('memory_usage_mb', 0) for pod in pods)
                     
@@ -1926,7 +1923,6 @@ class ConsistentCostAnalyzer:
             
         except Exception as e:
             logger.error(f"❌ Failed to prepare scoring metrics: {e}")
-            # Return minimal metrics to prevent total failure
             return {
                 'cpu_alloc': 100, 'mem_alloc': 100, 'cpu_p95': 60, 'mem_p95': 60,
                 'sum_req': 50, 'sum_limit': 80, 'sum_p95_use': 55,
@@ -1951,7 +1947,7 @@ class ConsistentCostAnalyzer:
             if 'is_spot' in node:
                 # Processed format from kubernetes_data_cache
                 is_spot = node['is_spot']
-                if is_spot:
+                if is_spot is not None and is_spot:
                     spot_cores += node.get('allocatable_cpu', 0)
             elif 'labels' in node:
                 # Raw format - check labels  
@@ -1977,7 +1973,7 @@ class ConsistentCostAnalyzer:
                     labels.get('node.kubernetes.io/instance-type', '').lower().find('spot') != -1 or
                     labels.get('karpenter.sh/capacity-type') == 'spot'
                 )
-                if is_spot:
+                if is_spot is not None and is_spot:
                     spot_cores += node.get('allocatable_cpu', 0)
         
         logger.info(f"🎯 Calculated spot cores: {spot_cores:.2f} from {len(nodes)} nodes")
@@ -2039,7 +2035,7 @@ class ConsistentCostAnalyzer:
             total_cost = 0.0
             
             # Parse billing costs data
-            if billing_data:
+            if billing_data is not None and billing_data:
                 import json
                 billing_json = json.loads(billing_data)
                 
@@ -2050,7 +2046,6 @@ class ConsistentCostAnalyzer:
                             cost = float(row[0]) if row[0] else 0
                             total_cost += cost
             
-            # Parse consumption data as fallback
             if total_cost == 0 and consumption_data:
                 import json
                 consumption_json = json.loads(consumption_data)
@@ -2186,7 +2181,7 @@ class ConsistentCostAnalyzer:
             cached_data = metrics_data.get('cached_data', {})
             aks_info = cached_data.get('aks_cluster_info')
             
-            if aks_info:
+            if aks_info is not None and aks_info:
                 import json
                 aks_json = json.loads(aks_info)
                 return aks_json.get('location', 'eastus').lower()
@@ -2265,7 +2260,7 @@ class ConsistentCostAnalyzer:
                 container.get('resources', {}).get('requests', {})
                 for container in containers
             )
-            if has_requests:
+            if has_requests is not None and has_requests:
                 workloads_with_requests += 1
         
         request_coverage = workloads_with_requests / max(1, len(workloads))
@@ -2491,7 +2486,7 @@ class ConsistentCostAnalyzer:
         # Use the total_cost parameter passed to the method
         is_small_cluster = total_cost < 100  # Small cluster threshold
         
-        if is_small_cluster:
+        if is_small_cluster is not None and is_small_cluster:
             min_threshold = standards.get('optimization_thresholds', {}).get('small_cluster_thresholds', {}).get('storage_optimization_minimum', 0.5)
         else:
             min_threshold = standards.get('optimization_thresholds', {}).get('component_thresholds', {}).get('storage_optimization_minimum', 1.0)
@@ -2568,7 +2563,7 @@ class ConsistentCostAnalyzer:
         # Use the total_cost parameter passed to the method
         is_small_cluster = total_cost < 100  # Small cluster threshold
         
-        if is_small_cluster:
+        if is_small_cluster is not None and is_small_cluster:
             min_threshold = standards.get('optimization_thresholds', {}).get('small_cluster_thresholds', {}).get('networking_optimization_minimum', 1.0)
         else:
             min_threshold = standards.get('optimization_thresholds', {}).get('component_thresholds', {}).get('networking_optimization_minimum', 2.0)
@@ -3076,7 +3071,6 @@ class ConsistentCostAnalyzer:
         
         return results
     
-    # REMOVED: _create_fallback_results method - no static fallback data allowed
     # System must use real data only and fail properly when data is unavailable
 
 # ============================================================================
@@ -3184,7 +3178,7 @@ class CurrentUsageAnalysisAlgorithm:
             high_cpu_hpas = high_cpu_summary.get('high_cpu_hpas', [])
             
             logger.info(f"🔍 DEBUG HIGH_CPU_DATA: workloads={len(high_cpu_workloads)}, hpas={len(high_cpu_hpas)}")
-            if high_cpu_hpas:
+            if high_cpu_hpas is not None and high_cpu_hpas:
                 for i, hpa in enumerate(high_cpu_hpas[:3]):  # Log first 3
                     logger.info(f"🔥 DEBUG HPA {i+1}: {hpa.get('name', 'unknown')} = {hpa.get('cpu_utilization', 0)}%")
             
@@ -3469,7 +3463,6 @@ class OptimizationCalculatorAlgorithm:
             import traceback
             logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             
-            # Return valid default result instead of None to prevent downstream failures
             return {
                 # BACKWARD COMPATIBILITY: Individual savings (for existing UI)
                 'hpa_monthly_savings': 0.0,
@@ -3505,7 +3498,7 @@ class OptimizationCalculatorAlgorithm:
         """Calculate HPA savings using industry standards and performance factors"""
         high_cpu_workloads = usage.get('high_cpu_workloads', [])
         
-        if high_cpu_workloads:
+        if high_cpu_workloads is not None and high_cpu_workloads:
             logger.info(f"🔥 PERFORMANCE-COST INTEGRATION: Found {len(high_cpu_workloads)} high CPU workloads for savings calculation")
             return self._calculate_performance_based_hpa_savings_enhanced(node_cost, high_cpu_workloads, usage)
         
@@ -4961,7 +4954,6 @@ def integrate_consistent_analysis(resource_group: str, cluster_name: str,
         
     except Exception as e:
         logger.error(f"CONSISTENT analysis with comprehensive ML failed: {e}")
-        # Return fallback results instead of raising exception
         analyzer = ConsistentCostAnalyzer()
         return None
 

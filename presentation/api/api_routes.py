@@ -752,17 +752,8 @@ def register_api_routes(app):
         try:
             logger.info("📋 Implementation plan API called")
             
-            # Extract cluster ID
+            # Extract cluster ID from query parameter
             cluster_id = request.args.get('cluster_id')
-            if not cluster_id:
-                referrer = request.headers.get('Referer', '')
-                if '/cluster/' in referrer:
-                    try:
-                        cluster_id = referrer.split('/cluster/')[-1].split('/')[0].split('?')[0]
-                        logger.info(f"📋 Extracted cluster_id from referrer: {cluster_id}")
-                    except Exception:
-                        pass
-            
             if not cluster_id:
                 return jsonify({
                     'status': 'error',
@@ -2065,7 +2056,7 @@ def register_api_routes(app):
         """Generate a new implementation plan for a cluster"""
         try:
             # Get the latest analysis data
-            analysis_data = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+            analysis_data = enhanced_cluster_manager.get_enhanced_analysis_input(cluster_id)
             if not analysis_data:
                 return jsonify({
                     'status': 'error',

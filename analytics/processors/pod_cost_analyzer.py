@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -286,11 +287,10 @@ class SubscriptionAwareKubectlExecutor:
         """REPLACED: Execute kubectl command with fallback using cache"""
         # Try primary command using cache
         result = self.query_cache_kubectl(primary_cmd, timeout)
-        if result:
+        if result is not None and result:
             return result
         
-        # Try fallback if provided
-        if fallback_cmd:
+        if fallback_cmd is not None and fallback_cmd:
             logger.info(f"🔄 Subscription {self.subscription_id[:8]}: Primary command failed, trying fallback...")
             return self.query_cache_kubectl(fallback_cmd, timeout)
         
@@ -338,7 +338,7 @@ class EnhancedDynamicCostDistributionEngine:
         self.pricing_config = DynamicPricingConfig()
         
         # CACHE-FIRST: Use provided cache or create new one (backward compatibility)
-        if cache:
+        if cache is not None and cache:
             logger.info(f"🎯 {cluster_name}: Using shared cache instance for pod cost analysis")
             self.cache = cache
         else:
@@ -436,7 +436,7 @@ class EnhancedDynamicCostDistributionEngine:
                     
                     # FIX: Try to repair corrupted JSON at the error location
                     repaired_json = self._attempt_json_repair(raw_output, e)
-                    if repaired_json:
+                    if repaired_json is not None and repaired_json:
                         try:
                             yaml_data = json.loads(repaired_json)
                             if isinstance(yaml_data, dict) and ('kind' in yaml_data or 'items' in yaml_data):
@@ -445,7 +445,6 @@ class EnhancedDynamicCostDistributionEngine:
                         except json.JSONDecodeError:
                             pass
                     
-                    # FIX: Fallback - use text parsing for large datasets
                     logger.info("🔄 JSON too large/corrupted, falling back to text parsing")
                     return self._parse_large_output_as_text(kubectl_cmd, timeout)
             
@@ -540,28 +539,28 @@ class EnhancedDynamicCostDistributionEngine:
                 text_cmd = "kubectl get pods --all-namespaces --field-selector=status.phase=Running"
                 text_output = self._safe_kubectl_command(text_cmd, timeout)
                 
-                if text_output:
+                if text_output is not None and text_output:
                     return self._convert_pod_text_to_dict(text_output)
             
             elif "get nodes" in original_cmd:
                 text_cmd = "kubectl get nodes"
                 text_output = self._safe_kubectl_command(text_cmd, timeout)
                 
-                if text_output:
+                if text_output is not None and text_output:
                     return self._convert_nodes_text_to_dict(text_output)
             
             elif "get pvc" in original_cmd:
                 text_cmd = "kubectl get pvc --all-namespaces"
                 text_output = self._safe_kubectl_command(text_cmd, timeout)
                 
-                if text_output:
+                if text_output is not None and text_output:
                     return self._convert_pvc_text_to_dict(text_output)
             
             elif "get services" in original_cmd:
                 text_cmd = "kubectl get services --all-namespaces"
                 text_output = self._safe_kubectl_command(text_cmd, timeout)
                 
-                if text_output:
+                if text_output is not None and text_output:
                     return self._convert_services_text_to_dict(text_output)
             
             return None
@@ -757,7 +756,7 @@ class EnhancedDynamicCostDistributionEngine:
                     yaml_started = True
                 
                 # Collect YAML content once started (PRESERVED)
-                if yaml_started:
+                if yaml_started is not None and yaml_started:
                     yaml_content_lines.append(line)
             
             if not yaml_content_lines:
@@ -804,7 +803,7 @@ class EnhancedDynamicCostDistributionEngine:
                     try:
                         import re
                         line_match = re.search(r'line (\d+)', error_str)
-                        if line_match:
+                        if line_match is not None and line_match:
                             error_line = int(line_match.group(1))
                             yaml_lines = clean_yaml.split('\n')
                             if error_line > 1 and error_line <= len(yaml_lines):
@@ -812,9 +811,10 @@ class EnhancedDynamicCostDistributionEngine:
                                 clean_yaml = '\n'.join(yaml_lines[:error_line-1])
                                 logger.info(f"Truncated YAML at error line {error_line}")
                                 return clean_yaml
-                    except:
-                        pass
-                return None
+                    except Exception as e:
+                        logger.error(f"Unexpected error: {e}")
+                        raise
+                        return None
             
         except Exception as e:
             logger.error(f"Error extracting clean YAML: {e}")
@@ -1102,7 +1102,7 @@ class EnhancedDynamicCostDistributionEngine:
             
             logger.warning(f"⚠️ Could not detect instance type for {node_name}, using Standard_D4s_v3")
             fallback_type = 'Standard_D4s_v3'  # Fallback to common AKS default
-            self._instance_type_cache[node_name] = fallback_type  # Cache fallback too
+            self._instance_type_cache[node_name] = fallback_type
             return fallback_type
             
         except Exception as e:
@@ -1115,7 +1115,6 @@ class EnhancedDynamicCostDistributionEngine:
             # Get instance type first
             instance_type = self._get_dynamic_instance_type(node_name)
             
-            # Return CPU from our VM specs mapping
             if instance_type in AZURE_VM_SPECS:
                 cpu = AZURE_VM_SPECS[instance_type]['cpu']
                 logger.debug(f"✅ Dynamic CPU for {node_name} ({instance_type}): {cpu}")
@@ -1142,7 +1141,6 @@ class EnhancedDynamicCostDistributionEngine:
             # Get instance type first
             instance_type = self._get_dynamic_instance_type(node_name)
             
-            # Return memory from our VM specs mapping
             if instance_type in AZURE_VM_SPECS:
                 memory = AZURE_VM_SPECS[instance_type]['memory']
                 logger.debug(f"✅ Dynamic memory for {node_name} ({instance_type}): {memory}")
@@ -1167,7 +1165,6 @@ class EnhancedDynamicCostDistributionEngine:
 
     def _get_dynamic_storage_class(self) -> str:
         """Get the default/preferred storage class dynamically from the cluster - cached"""
-        # Return cached result if available
         if self._storage_class_cache is not None:
             logger.debug(f"✅ Using cached storage class: {self._storage_class_cache}")
             return self._storage_class_cache
@@ -1177,7 +1174,7 @@ class EnhancedDynamicCostDistributionEngine:
             cmd = "kubectl get storageclass -o json"
             sc_output = self._safe_kubectl_command(cmd, timeout=30)
             
-            if sc_output:
+            if sc_output is not None and sc_output:
                 try:
                     sc_data = json.loads(sc_output)
                     storage_classes = sc_data.get('items', [])
@@ -1201,8 +1198,7 @@ class EnhancedDynamicCostDistributionEngine:
                                 logger.info(f"✅ Found preferred storage class: {sc_name}")
                                 return sc_name
                     
-                    # Return first available storage class
-                    if storage_classes:
+                    if storage_classes is not None and storage_classes:
                         first_sc = storage_classes[0].get('metadata', {}).get('name', 'managed-csi')
                         self._storage_class_cache = first_sc  # Cache it
                         logger.info(f"✅ Using first available storage class: {first_sc}")
@@ -1211,11 +1207,10 @@ class EnhancedDynamicCostDistributionEngine:
                 except json.JSONDecodeError as e:
                     logger.error(f"❌ Failed to parse storage class JSON: {e}")
             
-            # Try text format as fallback
             cmd_text = "kubectl get storageclass"
             text_output = self._safe_kubectl_command(cmd_text, timeout=30)
             
-            if text_output:
+            if text_output is not None and text_output:
                 lines = text_output.strip().split('\n')[1:]  # Skip header
                 for line in lines:
                     if line.strip():
@@ -1228,9 +1223,9 @@ class EnhancedDynamicCostDistributionEngine:
                                 return sc_name
                 
                 # If no default found, use first one
-                if lines:
+                if lines is not None and lines:
                     first_line = lines[0].strip()
-                    if first_line:
+                    if first_line is not None and first_line:
                         sc_name = first_line.split()[0]
                         self._storage_class_cache = sc_name  # Cache it
                         logger.info(f"✅ Using first storage class via text: {sc_name}")
@@ -1238,13 +1233,13 @@ class EnhancedDynamicCostDistributionEngine:
             
             logger.warning("⚠️ Could not detect storage classes, using managed-csi")
             fallback_sc = 'managed-csi'
-            self._storage_class_cache = fallback_sc  # Cache fallback too
+            self._storage_class_cache = fallback_sc
             return fallback_sc
             
         except Exception as e:
             logger.error(f"❌ Failed to get dynamic storage class: {e}")
             fallback_sc = 'managed-csi'
-            self._storage_class_cache = fallback_sc  # Cache fallback too
+            self._storage_class_cache = fallback_sc
             return fallback_sc
 
     def _get_pvc_via_text_format(self) -> Dict:
@@ -1439,7 +1434,7 @@ class EnhancedDynamicCostDistributionEngine:
         
         #  Parse actual pod metrics with existing utilities
         pod_metrics = resource_data.get('pod_metrics', '')
-        if pod_metrics:
+        if pod_metrics is not None and pod_metrics:
             for line in pod_metrics.split('\n'):
                 if line.strip():
                     parts = line.split()
@@ -1794,7 +1789,7 @@ class WorkloadCostAnalyzer:
         self.subscription_id = subscription_id
         
         # CACHE-FIRST: Use provided cache or let the cost engine create one
-        if cache:
+        if cache is not None and cache:
             logger.info(f"🎯 {cluster_name}: Using shared cache for workload cost analysis")
         
         # PRESERVED: Create subscription-aware cost distribution engine (pass cache if available)
@@ -1876,7 +1871,7 @@ def get_enhanced_pod_cost_breakdown(resource_group: str, cluster_name: str,
         
         workload_result = workload_analyzer.analyze_workload_costs(total_costs)
         
-        if workload_result:
+        if workload_result is not None and workload_result:
             logger.info(f"✅  workload analysis successful")
             return {
                 'analysis_type': 'enhanced_workload_dynamic',
@@ -1887,7 +1882,6 @@ def get_enhanced_pod_cost_breakdown(resource_group: str, cluster_name: str,
                 **workload_result
             }
 
-        # Fallback to basic distribution if workload analysis fails
         logger.info("🔄 Falling back to basic cost distribution...")
         cost_engine = EnhancedDynamicCostDistributionEngine(resource_group, cluster_name, subscription_id)
         basic_result = cost_engine.analyze_enhanced_pod_costs(total_costs)

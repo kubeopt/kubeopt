@@ -161,7 +161,7 @@ def process_monitor_metrics(metrics, resource_group, cluster_name):
                 
                 logger.info(f"🔧 DEBUG: Total CPU values extracted: {len(cpu_values)}")
                 
-                if cpu_values:
+                if cpu_values is not None and cpu_values:
                     avg_cpu_millicores = safe_mean(cpu_values)
                     # Convert millicores to percentage (typical AKS node has 4 vCPUs = 4000 millicores)
                     node_capacity_millicores = 4000  # Can be adjusted based on node size
@@ -205,7 +205,7 @@ def process_monitor_metrics(metrics, resource_group, cluster_name):
                 
                 logger.info(f"🔧 DEBUG: Total memory values extracted: {len(memory_values)}")
                 
-                if memory_values:
+                if memory_values is not None and memory_values:
                     avg_memory_bytes = safe_mean(memory_values)
                     # Convert bytes to percentage (typical AKS node has 16GB = 16*1024^3 bytes)
                     node_capacity_bytes = 16 * 1024 * 1024 * 1024  # 16GB
@@ -272,7 +272,6 @@ def process_monitor_metrics(metrics, resource_group, cluster_name):
     
     else:
         logger.error("❌ NO REAL METRICS DATA AVAILABLE - Cannot create nodes without real data")
-        # Return empty nodes instead of static data
         processed_metrics['nodes'] = []
     
     # Add metadata about data quality

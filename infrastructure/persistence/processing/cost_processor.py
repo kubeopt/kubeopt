@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -178,7 +179,7 @@ class EnhancedAKSCostProcessor:
         required_columns = ['PreTaxCost', 'ResourceType', 'ResourceGroupName', 'ServiceName']
         missing_columns = [col for col in required_columns if col not in column_names]
         
-        if missing_columns:
+        if missing_columns is not None and missing_columns:
             logger.warning(f"⚠️ Missing required columns: {missing_columns}")
         
         return column_names
@@ -202,7 +203,6 @@ class EnhancedAKSCostProcessor:
         # Use 'Meter' instead of 'MeterName' as it's a valid dimension
         meter_name = str(row_data.get('Meter', ''))
         if not meter_name:
-            # Fallback to MeterSubcategory if Meter is empty
             meter_name = str(row_data.get('MeterSubcategory', ''))
         
         location = str(row_data.get('ResourceLocation', ''))
@@ -895,7 +895,6 @@ class EnhancedAKSCostProcessor:
             'Uncategorized': 'uncategorized'
         }
         
-        # Get weight from standards or fallback
         standards_key = category_mapping.get(category, 'uncategorized')
         category_weights = {key: allocation_weights.get(key, 1.0) for key in category_mapping.values()}
         

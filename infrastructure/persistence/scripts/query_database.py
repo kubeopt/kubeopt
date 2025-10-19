@@ -23,7 +23,7 @@ def view_raw_implementation_plan(db_path='app/data/database/clusters.db', cluste
         with sqlite3.connect(db_path) as conn:
             conn.row_factory = sqlite3.Row
             
-            if cluster_id:
+            if cluster_id is not None and cluster_id:
                 cursor = conn.execute('''
                     SELECT id, name, analysis_data, last_analyzed 
                     FROM clusters 
@@ -236,7 +236,7 @@ def save_to_file(db_path='app/data/database/clusters.db', cluster_id=None, outpu
         with sqlite3.connect(db_path) as conn:
             conn.row_factory = sqlite3.Row
             
-            if cluster_id:
+            if cluster_id is not None and cluster_id:
                 cursor = conn.execute('''
                     SELECT id, name, analysis_data 
                     FROM clusters 

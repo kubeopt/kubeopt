@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -57,7 +58,6 @@ class SecurityResultsManager:
             logger.warning(f"⚠️ Failed to import unified databases, falling back to file storage: {e}")
             self.operational_db = None
             self.security_db = None
-            # Fallback: Create persistence directory
             self._persistence_dir = Path("security_results")
             self._persistence_dir.mkdir(exist_ok=True)
     
@@ -127,7 +127,6 @@ class SecurityResultsManager:
                     logger.warning(f"⚠️ Failed to store in unified database: {db_error}, falling back to file storage")
                     self._persist_results(cluster_id, security_results)
             else:
-                # Fallback to file storage
                 self._persist_results(cluster_id, security_results)
             
             return result_id
@@ -156,7 +155,7 @@ class SecurityResultsManager:
             try:
                 scan_results = self.operational_db.get_security_scan_results(cluster_id, limit=1)
                 
-                if scan_results:
+                if scan_results is not None and scan_results:
                     latest_result = scan_results[0]
                     
                     # Convert database format to expected format
@@ -187,10 +186,9 @@ class SecurityResultsManager:
             except Exception as db_error:
                 logger.warning(f"⚠️ Failed to load from unified database: {db_error}, trying fallback")
         
-        # Fallback: Try to load from disk if unified database fails
         if hasattr(self, '_persistence_dir'):
             persisted = self._load_persisted_results(cluster_id)
-            if persisted:
+            if persisted is not None and persisted:
                 self._results_store[cluster_id] = persisted
                 return persisted
         
@@ -240,7 +238,6 @@ class SecurityResultsManager:
             except Exception as db_error:
                 logger.warning(f"⚠️ Failed to get history from unified database: {db_error}")
         
-        # Fallback: check memory cache
         if hasattr(self, '_results_history') and cluster_id in self._results_history:
             history = self._results_history[cluster_id]
             return sorted(history, key=lambda x: x['timestamp'], reverse=True)[:limit]

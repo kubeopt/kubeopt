@@ -220,30 +220,47 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
         except Exception as e:
             logger.warning(f"⚠️ Enterprise cache fetch failed for {cluster_id}: {e}")
 
-        # PRIORITY 2: Database with HPA validation
+        # PRIORITY 2: Database analysis results (NOT enhanced input)
         try:
-            logger.info(f"🔄 Loading from database for cluster: {cluster_id}")
-            db_data = enhanced_cluster_manager.get_latest_analysis(cluster_id)
-            if db_data and db_data.get('total_cost', 0) > 0:
-                if 'hpa_recommendations' in db_data and 'high_cpu_summary' in db_data:
-                    logger.info(f"✅ DATABASE: Complete data with HPA and high CPU for {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
-                    logger.info(f"🔍 DEBUG: cluster_version in db_data: {db_data.get('cluster_version', 'NOT_FOUND')}")
-                    # Cache with subscription context
-                    from infrastructure.services.cache_manager import save_to_cache
-                    save_to_cache(cluster_id, db_data, subscription_id)
-                    return db_data, "cluster_database"
-                else:
-                    missing_fields = []
-                    if 'hpa_recommendations' not in db_data:
-                        missing_fields.append('hpa_recommendations')
-                    if 'high_cpu_summary' not in db_data:
-                        missing_fields.append('high_cpu_summary')
-                    logger.warning(f"⚠️ DATABASE: Data exists but missing {', '.join(missing_fields)} for {cluster_id}")
+            logger.info(f"🔄 Loading analysis results from database for cluster: {cluster_id}")
+            
+            # Direct query to analysis_results table (not enhanced input)
+            import sqlite3
+            import json
+            from infrastructure.persistence.cluster_database import deserialize_implementation_plan
+            
+            db_path = enhanced_cluster_manager.db_path
+            with sqlite3.connect(db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT results, analysis_date, total_cost, total_savings
+                    FROM analysis_results 
+                    WHERE cluster_id = ? AND results IS NOT NULL
+                    ORDER BY analysis_date DESC
+                    LIMIT 1
+                ''', (cluster_id,))
+                
+                row = cursor.fetchone()
+                if row and row['results']:
+                    raw_data = row['results']
+                    if isinstance(raw_data, bytes):
+                        serialized_data = json.loads(raw_data.decode('utf-8'))
+                    else:
+                        serialized_data = json.loads(raw_data)
+                    
+                    db_data = deserialize_implementation_plan(serialized_data)
+                    
+                    if db_data and db_data.get('total_cost', 0) > 0:
+                        logger.info(f"✅ DATABASE: Found analysis results for {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
+                        # Cache with subscription context
+                        from infrastructure.services.cache_manager import save_to_cache
+                        save_to_cache(cluster_id, db_data, subscription_id)
+                        return db_data, "analysis_results_table"
         except Exception as e:
             logger.error(f"❌ Database error for cluster {cluster_id}: {e}")
 
-        logger.warning(f"⚠️ No complete analysis data (with HPA and high CPU summary) found for cluster: {cluster_id}")
-        return None, "no_complete_data"
+        logger.warning(f"⚠️ No analysis data found for cluster: {cluster_id}")
+        return None, "no_data"
     
     # Use deduplicator to prevent duplicate calls
     try:

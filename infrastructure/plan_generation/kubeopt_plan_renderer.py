@@ -1,4 +1,5 @@
 """
+from pydantic import BaseModel, Field, validator
 KubeOpt Plan Renderer
 
 Renders KubeOpt implementation plans as interactive HTML with the specific

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -418,7 +419,7 @@ class AlertsDatabase:
                 ''', (alert_id,))
                 
                 row = cursor.fetchone()
-                if row:
+                if row is not None and row:
                     alert = dict(row)
                     alert['notification_channels'] = json.loads(alert.get('notification_channels', '[]'))
                     alert['metadata'] = json.loads(alert.get('metadata', '{}'))
@@ -446,15 +447,15 @@ class AlertsDatabase:
                 where_clauses = []
                 params = []
                 
-                if cluster_id:
+                if cluster_id is not None and cluster_id:
                     where_clauses.append("a.cluster_id = ?")
                     params.append(cluster_id)
                 
-                if status:
+                if status is not None and status:
                     where_clauses.append("a.status = ?")
                     params.append(status)
                 
-                if subscription_id:
+                if subscription_id is not None and subscription_id:
                     where_clauses.append("a.subscription_id = ?")
                     params.append(subscription_id)
                 
@@ -608,11 +609,11 @@ class AlertsDatabase:
                 where_clauses = []
                 params = []
                 
-                if alert_id:
+                if alert_id is not None and alert_id:
                     where_clauses.append("alert_id = ?")
                     params.append(alert_id)
                 
-                if cluster_id:
+                if cluster_id is not None and cluster_id:
                     where_clauses.append("cluster_id = ?")
                     params.append(cluster_id)
                 
@@ -754,7 +755,7 @@ class AlertsDatabase:
                 ''', (config_key,))
                 
                 row = cursor.fetchone()
-                if row:
+                if row is not None and row:
                     value = row['config_value']
                     config_type = row['config_type']
                     
@@ -835,7 +836,7 @@ class AlertsDatabase:
                     
                     trigger_id = self.record_alert_trigger(trigger_data)
                     
-                    if trigger_id:
+                    if trigger_id is not None and trigger_id:
                         triggered_alerts.append({
                             'alert': alert,
                             'trigger_id': trigger_id,
@@ -912,11 +913,11 @@ class AlertsDatabase:
                 where_clauses = ['dismissed = 0']  # Don't show dismissed notifications
                 params = []
                 
-                if cluster_id:
+                if cluster_id is not None and cluster_id:
                     where_clauses.append('cluster_id = ?')
                     params.append(cluster_id)
                 
-                if unread_only:
+                if unread_only is not None and unread_only:
                     where_clauses.append('read = 0')
                 
                 where_sql = ' WHERE ' + ' AND '.join(where_clauses)
@@ -982,7 +983,7 @@ class AlertsDatabase:
                 where_clauses = ['read = 0', 'dismissed = 0']
                 params = []
                 
-                if cluster_id:
+                if cluster_id is not None and cluster_id:
                     where_clauses.append('cluster_id = ?')
                     params.append(cluster_id)
                 

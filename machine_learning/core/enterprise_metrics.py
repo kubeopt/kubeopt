@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -74,7 +75,6 @@ def _load_environment_config() -> Dict[str, Any]:
             return _ENVIRONMENT_CONFIG
         except Exception as e:
             logger.warning(f"⚠️ Could not load environment config, using defaults: {e}")
-            # Fallback to minimal config
             _ENVIRONMENT_CONFIG = {
                 "environments": {
                     "development": {
@@ -171,12 +171,11 @@ class EnterpriseOperationalMetricsEngine:
                     (cluster_id, self.cluster_name)
                 )
                 result = cursor.fetchone()
-                if result:
+                if result is not None and result:
                     return result[0]
         except Exception as e:
             logger.warning(f"Could not query database for {self.cluster_name}: {e}")
         
-        # Fallback: smart detection using customer environment config
         config = _load_environment_config()
         environments = config.get("environments", {})
         name_lower = self.cluster_name.lower()
@@ -189,7 +188,6 @@ class EnterpriseOperationalMetricsEngine:
                     logger.info(f"🎯 Detected environment '{env_name}' for {self.cluster_name} (matched alias: {alias})")
                     return env_name
         
-        # Return default if no match
         default_env = config.get("default_environment", "development")
         logger.info(f"🔍 No environment match for {self.cluster_name}, using default: {default_env}")
         return default_env
@@ -448,16 +446,14 @@ class EnterpriseOperationalMetricsEngine:
                             }
                         }
                 
-                # Fallback: look for any version pattern in text
                 version_match = re.search(r'v?\d+\.\d+\.\d+[-\w]*', text_output)
-                if version_match:
+                if version_match is not None and version_match:
                     return {
                         "serverVersion": {
                             "gitVersion": version_match.group(0)
                         }
                     }
                     
-                # Last resort: use kubectl version --short directly without JSON fallback
                 logger.warning(f"⚠️ Could not parse version from: {text_output[:100]}")
                 return {"serverVersion": {"gitVersion": ""}}
             
@@ -498,7 +494,6 @@ class EnterpriseOperationalMetricsEngine:
                 current_version = aks_cluster_details.get('kubernetesVersion', '').replace('v', '')
                 logger.info(f"🚀 Using AKS cluster version: {current_version}")
             else:
-                # Fallback to kubectl version
                 version_info = cluster_data.get("version", {})
                 current_version = version_info.get("serverVersion", {}).get("gitVersion", "").replace("v", "")
             
@@ -548,7 +543,7 @@ class EnterpriseOperationalMetricsEngine:
             risk_level = "OPTIMAL" if score >= 81 else "ACCEPTABLE" if score >= 61 else "NEEDS_ATTENTION" if score >= 41 else "CRITICAL"
             
             recommendations = []
-            if deprecated_apis:
+            if deprecated_apis is not None and deprecated_apis:
                 recommendations.append(f"Update {len(deprecated_apis)} deprecated API versions")
             if version_gap > 2:
                 recommendations.append(f"Upgrade cluster from {current_version} to {latest_stable}")
@@ -640,7 +635,7 @@ class EnterpriseOperationalMetricsEngine:
                     stateful_protection_score = 95  # Excellent protection
                 elif backup_solutions and snapshot_coverage > 50:
                     stateful_protection_score = 75  # Good protection  
-                elif backup_solutions:
+                elif backup_solutions is not None and backup_solutions:
                     stateful_protection_score = 55  # Basic protection
                 else:
                     stateful_protection_score = 10  # Critical gap
@@ -800,9 +795,8 @@ class EnterpriseOperationalMetricsEngine:
             nodes = cluster_data.get("nodes", {}).get("items", [])
             pods = cluster_data.get("pods", {}).get("items", [])
             
-            # 🚀 ENHANCED: Try AKS config node data first, fallback to kubectl nodes
             aks_nodes = cluster_data.get('aks_config', {}).get('node_data', {}).get('node_list', [])
-            if aks_nodes:
+            if aks_nodes is not None and aks_nodes:
                 logger.info(f"🚀 Using rich AKS config node data: {len(aks_nodes)} nodes")
                 nodes = aks_nodes
                 # Convert AKS node format to expected format for compatibility
@@ -815,13 +809,12 @@ class EnterpriseOperationalMetricsEngine:
                             'nodeInfo': node.get('node_info', {})
                         }
             else:
-                # Fallback to original kubectl nodes data
                 logger.info("📋 Using kubectl nodes data (AKS config not available)")
                 
             # CRITICAL DEBUG: Check if nodes data exists
             raw_nodes = cluster_data.get("nodes", {})
             logger.info(f"🔍 NODES DEBUG: kubectl raw_nodes type={type(raw_nodes)}, keys={list(raw_nodes.keys()) if isinstance(raw_nodes, dict) else 'Not dict'}")
-            if aks_nodes:
+            if aks_nodes is not None and aks_nodes:
                 logger.info(f"🔍 NODES DEBUG: AKS config provides {len(aks_nodes)} nodes with rich data")
             elif isinstance(raw_nodes, dict) and 'items' in raw_nodes:
                 logger.info(f"🔍 NODES DEBUG: Found {len(raw_nodes['items'])} nodes in kubectl items")
@@ -912,10 +905,10 @@ class EnterpriseOperationalMetricsEngine:
                             if not namespace.startswith('kube-'):
                                 parsed_count += 1
                                 try:
-                                    if cpu_req:
+                                    if cpu_req is not None and cpu_req:
                                         total_requested_cpu += self.parser.parse_cpu_safe(cpu_req)
                                         logger.debug(f"📊 Added CPU request: {cpu_req} for {pod_name}")
-                                    if mem_req:
+                                    if mem_req is not None and mem_req:
                                         total_requested_memory += self.parser.parse_memory_safe(mem_req)
                                         logger.debug(f"📊 Added memory request: {mem_req} for {pod_name}")
                                 except Exception as e:
@@ -927,7 +920,6 @@ class EnterpriseOperationalMetricsEngine:
                 logger.info(f"📊 Namespace distribution: {namespace_counts}")
                 logger.info(f"📊 Lines with resource requests: {lines_with_requests}/{len(lines)-1}")
             else:
-                # Fallback: Sum requested resources from pods JSON (if available)
                 logger.info("📊 Fallback: parsing pod resources from JSON data...")
                 for pod in pods:
                     if pod.get("status", {}).get("phase") != "Running":
@@ -958,7 +950,7 @@ class EnterpriseOperationalMetricsEngine:
                 logger.info(f"✅ Resource requests successfully detected: {total_requested_cpu:.2f} CPU cores, {total_requested_memory/1024/1024/1024:.2f} GB memory")
             
             # Parse actual resource usage from kubectl top nodes
-            if node_usage_data:
+            if node_usage_data is not None and node_usage_data:
                 logger.info("📊 Parsing real node usage from kubectl top...")
                 try:
                     # Handle both string and dict formats
@@ -1014,7 +1006,6 @@ class EnterpriseOperationalMetricsEngine:
             logger.info(f"📊 Resource requests - CPU: {total_requested_cpu}, Memory: {total_requested_memory/1024**3:.2f}GB")
             logger.info(f"📊 Actual usage - CPU: {total_actual_cpu}, Memory: {total_actual_memory/1024**3:.2f}GB")
             
-            # Calculate utilization percentages (use actual usage if available, fallback to requests)
             if total_actual_cpu > 0 or total_actual_memory > 0:
                 cpu_utilization = (total_actual_cpu / total_allocatable_cpu * 100) if total_allocatable_cpu > 0 else 0
                 memory_utilization = (total_actual_memory / total_allocatable_memory * 100) if total_allocatable_memory > 0 else 0
@@ -1250,7 +1241,7 @@ class EnterpriseOperationalMetricsEngine:
             
             # DIAGNOSTIC: Log what data we actually have
             logger.info(f"🔍 Team Velocity DATA CHECK: deployments={len(deployments)}, pods={len(pods)}")
-            if deployments:
+            if deployments is not None and deployments:
                 sample_deployment = deployments[0]
                 logger.info(f"🔍 Sample deployment keys: {list(sample_deployment.keys())}")
                 metadata = sample_deployment.get("metadata", {})
@@ -1346,8 +1337,8 @@ class EnterpriseOperationalMetricsEngine:
             minor_gap = latest_parts[1] - current_parts[1] if major_gap == 0 else 0
             
             return (major_gap * 10) + minor_gap
-        except:
-            return 5  # Default moderate penalty
+        except Exception as e:
+            raise RuntimeError(f"Operation failed: {e}") from e  # Default moderate penalty
     
     def _detect_deprecated_apis(self, cluster_data: Dict) -> List[str]:
         """Detect deprecated API versions in cluster workloads"""
@@ -1367,7 +1358,7 @@ class EnterpriseOperationalMetricsEngine:
         """Count potentially risky cluster-admin role bindings"""
         # 🚀 ENHANCED: Try AKS config data first
         aks_resources = cluster_data.get('aks_config', {}).get('workload_resources', {})
-        if aks_resources:
+        if aks_resources is not None and aks_resources:
             cluster_role_bindings = aks_resources.get("clusterrolebindings", {}).get("items", [])
             logger.info(f"🚀 {self.cluster_name}: Using AKS config - Found {len(cluster_role_bindings)} cluster role bindings")
         else:
@@ -1383,7 +1374,7 @@ class EnterpriseOperationalMetricsEngine:
                 subjects = binding.get("subjects", [])
                 service_accounts = [s for s in subjects if s.get("kind") == "ServiceAccount"]
                 count += len(service_accounts)
-                if service_accounts:
+                if service_accounts is not None and service_accounts:
                     logger.debug(f"📊 {self.cluster_name}: Found cluster-admin binding with {len(service_accounts)} service accounts")
         
         logger.info(f"📊 {self.cluster_name}: Total cluster-admin bindings: {count}")
@@ -1506,7 +1497,7 @@ class EnterpriseOperationalMetricsEngine:
                     if mounted_secrets and not env_secrets:  # Prefer mounted over env vars
                         good_practices += 1
             
-            if has_secrets:
+            if has_secrets is not None and has_secrets:
                 total_pods_with_secrets += 1
         
         if total_pods_with_secrets == 0:
@@ -1563,7 +1554,7 @@ class EnterpriseOperationalMetricsEngine:
         }
         
         # Method 1: ReplicaSet Analysis (Most Universal - works for all deployment methods)
-        if cluster_data:
+        if cluster_data is not None and cluster_data:
             deployments = cluster_data.get("deployments", {}).get("items", [])
             replicasets = cluster_data.get("replicasets", {}).get("items", [])
             pods = cluster_data.get("pods", {}).get("items", [])
@@ -1579,7 +1570,7 @@ class EnterpriseOperationalMetricsEngine:
             # NEW: Use custom columns timestamp data (more reliable than JSON metadata)
             replicaset_timestamp_data = cluster_data.get("replicaset_timestamps", "")
             
-            if replicaset_timestamp_data:
+            if replicaset_timestamp_data is not None and replicaset_timestamp_data:
                 logger.info(f"🔍 {self.cluster_name}: Using CUSTOM COLUMNS for ReplicaSet timestamps (more reliable)")
                 lines = replicaset_timestamp_data.strip().split('\n')[1:]  # Skip header
                 
@@ -1637,7 +1628,6 @@ class EnterpriseOperationalMetricsEngine:
                         logger.warning(f"⚠️ Failed to parse ReplicaSet {rs_name} creation time '{rs_creation_str}': {e}")
                         
             else:
-                # FALLBACK: Use JSON metadata (original method, but less reliable)
                 logger.info(f"🔍 {self.cluster_name}: FALLBACK to JSON metadata for ReplicaSet timestamps")
                 rs_sample_count = 0
                 for rs in replicasets:
@@ -1719,7 +1709,7 @@ class EnterpriseOperationalMetricsEngine:
             # NEW: Use custom columns timestamp data for Pods (more reliable than JSON metadata)
             pod_timestamp_data = cluster_data.get("pod_timestamps", "")
             
-            if pod_timestamp_data:
+            if pod_timestamp_data is not None and pod_timestamp_data:
                 logger.info(f"🔍 {self.cluster_name}: Using CUSTOM COLUMNS for Pod timestamps (more reliable)")
                 lines = pod_timestamp_data.strip().split('\n')[1:]  # Skip header
                 
@@ -1776,7 +1766,6 @@ class EnterpriseOperationalMetricsEngine:
                         logger.warning(f"⚠️ Failed to parse pod creation time for {pod_name}: {e}")
                         
             else:
-                # FALLBACK: Use JSON metadata (original method, but less reliable)
                 logger.info(f"🔍 {self.cluster_name}: FALLBACK to JSON metadata for Pod timestamps")
                 pod_sample_count = 0
                 for pod in pods:
@@ -1835,7 +1824,7 @@ class EnterpriseOperationalMetricsEngine:
             
             # Check for ArgoCD (optional)
             argocd_apps = cluster_data.get("applications", {}).get("items", []) if "applications" in cluster_data else []
-            if argocd_apps:
+            if argocd_apps is not None and argocd_apps:
                 gitops_tools_found.append(f"ArgoCD ({len(argocd_apps)} apps)")
                 # Only count recent ArgoCD activity if found
                 for app in argocd_apps:
@@ -1846,22 +1835,23 @@ class EnterpriseOperationalMetricsEngine:
                             finished_at = datetime.fromisoformat(operation_state["finishedAt"].replace("Z", "+00:00"))
                             if finished_at.astimezone(timezone.utc) > cutoff_date:
                                 gitops_signals += 1
-                        except:
-                            pass
+                        except Exception as e:
+                            logger.error(f"Unexpected error: {e}")
+                            raise
             
             # Check for Flux (optional)
             flux_resources = cluster_data.get("gitrepositories", {}).get("items", []) if "gitrepositories" in cluster_data else []
-            if flux_resources:
+            if flux_resources is not None and flux_resources:
                 gitops_tools_found.append(f"Flux ({len(flux_resources)} repos)")
             
-            if gitops_tools_found:
+            if gitops_tools_found is not None and gitops_tools_found:
                 logger.info(f"📊 {self.cluster_name}: GitOps tools detected - {', '.join(gitops_tools_found)}, {gitops_signals} recent activities")
                 deployment_signals['argocd_syncs'] = gitops_signals  # Generic GitOps activity
             else:
                 logger.info(f"📊 {self.cluster_name}: No GitOps tools detected - using standard Kubernetes deployment detection")
         
         # Method 4: Enhanced Event Analysis
-        if events:
+        if events is not None and events:
             logger.info(f"🔍 {self.cluster_name}: Analyzing {len(events)} Kubernetes events")
             deployment_related_events = 0
             
@@ -1881,8 +1871,9 @@ class EnterpriseOperationalMetricsEngine:
                             deployment_signals['deployment_events'] += 1
                             deployment_related_events += 1
                             logger.debug(f"📊 Deployment event: {reason} at {event_time}")
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.error(f"Unexpected error: {e}")
+                        raise
                         
             logger.info(f"📊 {self.cluster_name}: Event analysis - {deployment_related_events} deployment-related events in last 30 days")
         
@@ -1972,7 +1963,7 @@ class EnterpriseOperationalMetricsEngine:
             
             try:
                 # Check creation time
-                if creation_time_str:
+                if creation_time_str is not None and creation_time_str:
                     creation_time = datetime.fromisoformat(creation_time_str.replace("Z", "+00:00"))
                     if creation_time.astimezone(timezone.utc) > cutoff_date:
                         recent_activity = True
@@ -1981,14 +1972,14 @@ class EnterpriseOperationalMetricsEngine:
                 for condition in conditions:
                     if condition.get("type") == "Progressing":
                         last_update_str = condition.get("lastUpdateTime", "")
-                        if last_update_str:
+                        if last_update_str is not None and last_update_str:
                             last_update = datetime.fromisoformat(last_update_str.replace("Z", "+00:00"))
                             if last_update.astimezone(timezone.utc) > cutoff_date:
                                 recent_activity = True
                                 break
                 
                 # Count as release if any activity detected
-                if recent_activity:
+                if recent_activity is not None and recent_activity:
                     recent_releases += 1
                     
             except Exception as e:
@@ -1996,8 +1987,9 @@ class EnterpriseOperationalMetricsEngine:
                 try:
                     if int(revision) > 1:  # Has been updated at least once
                         recent_releases += 0.1  # Partial credit for having update history
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Unexpected error: {e}")
+                    raise
                 
         # Convert to daily frequency for consistency with environment targets
         daily_frequency = recent_releases / analysis_days
@@ -2351,7 +2343,7 @@ class EnterpriseOperationalMetricsEngine:
             
             # Priority 4: Kubernetes upgrade blockers
             upgrade_metric = next((m for m in metrics if "upgrade" in m.metric_name.lower()), None)
-            if upgrade_metric:
+            if upgrade_metric is not None and upgrade_metric:
                 deprecated_apis = upgrade_metric.details.get('deprecated_api_count', 0)
                 if deprecated_apis > 0:
                     priority_actions.append(f"🟡 MEDIUM: Update {deprecated_apis} deprecated APIs before Kubernetes upgrade")

@@ -1,4 +1,5 @@
 """
+from pydantic import BaseModel, Field, validator
 Plan Renderer
 
 Renders implementation plans as interactive HTML with modern styling.

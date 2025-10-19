@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Security Analytics Database Manager
 Handles all security and compliance data operations
 """
@@ -62,7 +63,7 @@ class SecurityAnalyticsDB:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 
-                if framework:
+                if framework is not None and framework:
                     cursor = conn.execute('''
                         SELECT * FROM security_assessments 
                         WHERE cluster_id = ? AND framework = ?
@@ -78,7 +79,7 @@ class SecurityAnalyticsDB:
                     ''', (cluster_id,))
                 
                 row = cursor.fetchone()
-                if row:
+                if row is not None and row:
                     assessment = dict(row)
                     assessment['score_breakdown'] = json.loads(assessment['score_breakdown'])
                     if assessment['trends_data']:
@@ -138,11 +139,11 @@ class SecurityAnalyticsDB:
                 where_clauses = ['cluster_id = ?']
                 params = [cluster_id]
                 
-                if severity:
+                if severity is not None and severity:
                     where_clauses.append('severity = ?')
                     params.append(severity)
                 
-                if status:
+                if status is not None and status:
                     where_clauses.append('status = ?')
                     params.append(status)
                 
@@ -258,7 +259,7 @@ class SecurityAnalyticsDB:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 
-                if metric_category:
+                if metric_category is not None and metric_category:
                     cursor = conn.execute('''
                         SELECT * FROM security_metrics 
                         WHERE cluster_id = ? AND metric_category = ?

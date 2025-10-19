@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -93,7 +94,7 @@ class CacheKeyStrategy:
         # If it's a simple key, try to find subscription-aware variants
         if not ('_' in cluster_id and len(cluster_id.split('_')[0]) > 20):
             enhanced_key = CacheKeyStrategy._get_enhanced_key(cluster_id)
-            if enhanced_key:
+            if enhanced_key is not None and enhanced_key:
                 variants.append(enhanced_key)
         
         # Only check first 10 existing cache keys to avoid performance issues
@@ -185,7 +186,7 @@ def cleanup_expired_cache():
         for key in expired_keys:
             analysis_cache['clusters'].pop(key, None)
         
-        if expired_keys:
+        if expired_keys is not None and expired_keys:
             logger.info(f"🧹 Cleaned up {len(expired_keys)} expired cache entries")
         
         # Also cleanup key lookup cache
@@ -200,7 +201,7 @@ def cleanup_expired_cache():
                 for k in old_keys:
                     del _cache_key_lookup[k]
                     
-                if old_keys:
+                if old_keys is not None and old_keys:
                     logger.info(f"🧹 Cleaned up {len(old_keys)} cached key lookups")
         
         return len(expired_keys)
@@ -225,7 +226,7 @@ def clear_analysis_cache(cluster_id: str = None, subscription_id: str = None):
                 del analysis_cache['clusters'][variant]
                 cleared_keys.append(variant)
         
-        if cleared_keys:
+        if cleared_keys is not None and cleared_keys:
             logger.info(f"🧹 CACHE: Cleared cache for cluster {cluster_id}: {cleared_keys}")
         else:
             logger.info(f"ℹ️ CACHE: No cache to clear for cluster: {cluster_id}")
@@ -320,7 +321,7 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
     try:
         # STEP 1: Comprehensive data validation
         validation_errors = _validate_cache_data_structure(complete_analysis_data, cluster_id)
-        if validation_errors:
+        if validation_errors is not None and validation_errors:
             raise ValueError(f"Cache validation failed: {validation_errors}")
         
         # STEP 2: Clean and prepare data for caching
@@ -409,7 +410,7 @@ def load_from_cache_with_validation(cluster_id: str, subscription_id: str = None
                 if cached_data.get('total_cost', 0) > 0 and cached_data.get('hpa_recommendations'):
                     # Check if high_cpu_summary exists
                     has_high_cpu_summary = 'high_cpu_summary' in cached_data
-                    if has_high_cpu_summary:
+                    if has_high_cpu_summary is not None and has_high_cpu_summary:
                         logger.info(f"✅ CACHE LOAD: Found high_cpu_summary with {len(cached_data['high_cpu_summary'].get('high_cpu_workloads', []))} workloads")
                     else:
                         logger.warning(f"⚠️ CACHE LOAD: Missing high_cpu_summary in cached data for {cluster_id}")

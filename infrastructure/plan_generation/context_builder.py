@@ -1,4 +1,5 @@
 """
+from pydantic import BaseModel, Field, validator
 Context Builder for Claude API Integration
 
 Handles intelligent data compacting for large clusters to fit within Claude's token limits
@@ -42,7 +43,6 @@ class ContextBuilder:
         except Exception:
             try:
                 import tiktoken
-                # Fallback to cl100k_base if model-specific encoding fails
                 self.encoding = tiktoken.get_encoding("cl100k_base")
             except ImportError:
                 self.logger.warning("tiktoken not available - using character-based estimation")
@@ -53,7 +53,6 @@ class ContextBuilder:
         if self.encoding:
             return len(self.encoding.encode(str(text)))
         else:
-            # Fallback: estimate tokens as roughly 1/4 of character count
             # This is a rough approximation for English text
             return len(str(text)) // 4
     

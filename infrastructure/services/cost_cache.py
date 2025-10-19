@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Simple Cost Cache - Just cache Azure API calls for 12 hours to avoid 429 errors
 """
 
@@ -43,7 +44,7 @@ class CostCache:
         row = cursor.fetchone()
         conn.close()
         
-        if row:
+        if row is not None and row:
             return json.loads(row[0])
         return None
     
@@ -80,11 +81,11 @@ def _prepare_data_for_cache(data: Any) -> Dict[str, Any]:
         # Already serializable
         return data
     else:
-        # Try to convert to dict, fallback to string representation
         try:
             return {'_type': 'other', '_data': str(data)}
-        except:
-            return {'_type': 'error', '_data': 'Could not serialize data'}
+        except Exception as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
+            # {'_type': 'error', '_data': 'Could not serialize data'}
 
 def _restore_data_from_cache(cached_data: Dict[str, Any]) -> Any:
     """Restore DataFrame from cached format"""
@@ -95,10 +96,8 @@ def _restore_data_from_cache(cached_data: Dict[str, Any]) -> Any:
             df.index = cached_data['_index']
         return df
     elif isinstance(cached_data, dict) and cached_data.get('_type') == 'other':
-        # Return string representation
         return cached_data['_data']
     else:
-        # Return as-is (regular dict)
         return cached_data
 
 # Global cache instance
@@ -158,7 +157,7 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = 24) ->
             ''', (cluster_name,))
             
             row = cursor.fetchone()
-            if row:
+            if row is not None and row:
                 print(f"🔍 Cache lookup: Found match using pattern matching for '{cluster_name}'")
         
         conn.close()
@@ -177,15 +176,16 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = 24) ->
             
             # Try to get full analysis data first - use stored cost DataFrame if available
             cost_df_data = []
-            if analysis_data:
+            if analysis_data is not None and analysis_data:
                 try:
                     full_analysis = json.loads(analysis_data.decode('utf-8'))
                     # If we have stored cost DataFrame data, use it directly
                     if isinstance(full_analysis, dict) and 'cost_data' in full_analysis:
                         cost_df_data = full_analysis.get('cost_data', [])
                         print(f"🎯 Found stored cost DataFrame: {len(cost_df_data)} entries")
-                except:
-                    pass  # If analysis data can't be decoded, continue with basic data
+                except Exception as e:
+                    logger.error(f"Unexpected error: {e}")
+                    raise  # If analysis data can't be decoded, continue with basic data
             
             # If no detailed cost data stored, return None to force fresh Azure API call
             if not cost_df_data:
@@ -296,7 +296,7 @@ def cached_cost_fetch(cluster_id: str, subscription_id: str, fetch_func: Callabl
             row = cursor.fetchone()
             conn.close()
             
-            if row:
+            if row is not None and row:
                 stale_data = json.loads(row[0])
                 
                 # Restore DataFrame from cache if needed

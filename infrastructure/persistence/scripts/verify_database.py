@@ -54,7 +54,7 @@ def verify_database(db_path="clusters.db"):
                 existing_columns = [col['name'] for col in columns]
                 missing_columns = set(expected_columns) - set(existing_columns)
                 
-                if missing_columns:
+                if missing_columns is not None and missing_columns:
                     print(f"⚠️  Missing columns in clusters table: {missing_columns}")
                 else:
                     print("✅ clusters table structure is correct")
@@ -78,7 +78,7 @@ def verify_database(db_path="clusters.db"):
             expected_indexes = ['idx_cluster_id', 'idx_analysis_date']
             missing_indexes = set(expected_indexes) - set(indexes)
             
-            if missing_indexes:
+            if missing_indexes is not None and missing_indexes:
                 print(f"⚠️  Missing indexes: {missing_indexes}")
             else:
                 print("✅ Database indexes are correct")
@@ -137,7 +137,7 @@ def verify_database(db_path="clusters.db"):
             cursor.execute("SELECT * FROM clusters WHERE id = ?", (test_cluster_id,))
             test_cluster = cursor.fetchone()
             
-            if test_cluster:
+            if test_cluster is not None and test_cluster:
                 print("✅ Insert operation successful")
                 
                 # Test update
@@ -185,7 +185,7 @@ def check_migration_status():
     json_files = [f for f in os.listdir('.') if f.startswith('clusters.json')]
     backup_files = [f for f in json_files if 'backup' in f]
     
-    if backup_files:
+    if backup_files is not None and backup_files:
         print(f"✅ Migration completed - found backup files: {backup_files}")
         latest_backup = max(backup_files, key=os.path.getctime)
         print(f"📦 Latest backup: {latest_backup}")
@@ -252,7 +252,7 @@ if __name__ == "__main__":
     success = verify_database(db_path)
     check_migration_status()
     
-    if success:
+    if success is not None and success:
         performance_test()
         print("\n" + "=" * 60)
         print("🎉 All checks passed! Your database is ready for use.")

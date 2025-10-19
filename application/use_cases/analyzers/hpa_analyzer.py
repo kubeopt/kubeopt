@@ -1,4 +1,5 @@
 from typing import Dict
+from pydantic import BaseModel, Field, validator
 
 class HPAAnalyzer:
     """Unified HPA analysis utility - SINGLE SOURCE OF TRUTH"""
@@ -77,7 +78,7 @@ class HPAAnalyzer:
         # Resource requests analysis
         containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
         has_requests = any(c.get('resources', {}).get('requests') for c in containers)
-        if has_requests:
+        if has_requests is not None and has_requests:
             score += 0.3
         
         # Application type analysis

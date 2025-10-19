@@ -1,4 +1,5 @@
 """
+from pydantic import BaseModel, Field, validator
 Track Claude API costs for monitoring and optimization.
 """
 

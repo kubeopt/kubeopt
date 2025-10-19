@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -433,7 +434,7 @@ class DynamicPolicyAnalyzerYAML:
                 # Evaluate policy rule against resource
                 violation_context = await self._evaluate_policy_rule_yaml(resource, policy_rule)
                 
-                if violation_context:
+                if violation_context is not None and violation_context:
                     violation = await self._create_policy_violation_yaml(
                         policy_rule=policy_rule,
                         resource_name=violation_context['resource_name'],
@@ -477,7 +478,7 @@ class DynamicPolicyAnalyzerYAML:
             # Generic evaluation for custom rules
             violation_context = await self._evaluate_generic_rule_yaml(resource, rule_logic)
         
-        if violation_context:
+        if violation_context is not None and violation_context:
             violation_context['resource_name'] = resource_name
             violation_context['namespace'] = namespace
         
@@ -522,7 +523,7 @@ class DynamicPolicyAnalyzerYAML:
             
             # Check for forbidden capabilities (YAML configured)
             capabilities = security_context.get('capabilities', {})
-            if capabilities:
+            if capabilities is not None and capabilities:
                 added_caps = capabilities.get('add', [])
                 forbidden_caps = self.rule_context.get('forbidden_capabilities', [])
                 
@@ -560,7 +561,7 @@ class DynamicPolicyAnalyzerYAML:
                 if 'memory' not in limits:
                     missing_limits.append('memory')
                 
-                if missing_limits:
+                if missing_limits is not None and missing_limits:
                     return {
                         'current_value': f'missing limits: {", ".join(missing_limits)}',
                         'expected_value': 'all resource limits defined',
@@ -592,7 +593,7 @@ class DynamicPolicyAnalyzerYAML:
             
             missing_labels = [label for label in required_labels if label not in labels]
             
-            if missing_labels:
+            if missing_labels is not None and missing_labels:
                 return {
                     'current_value': f'missing labels: {", ".join(missing_labels)}',
                     'expected_value': f'all required labels: {", ".join(required_labels)}',
@@ -601,7 +602,7 @@ class DynamicPolicyAnalyzerYAML:
         
         # Validate label values using YAML patterns
         invalid_labels = await self._validate_label_values_yaml(labels)
-        if invalid_labels:
+        if invalid_labels is not None and invalid_labels:
             return {
                 'current_value': f'invalid label values: {invalid_labels}',
                 'expected_value': 'valid label values according to YAML standards',
@@ -786,7 +787,7 @@ class DynamicPolicyAnalyzerYAML:
         steps = [policy_rule.remediation_template]
         
         # Add context-specific steps
-        if context:
+        if context is not None and context:
             if 'container' in context:
                 steps.append(f"Apply changes to container: {context['container']}")
             
@@ -953,12 +954,12 @@ class DynamicPolicyAnalyzerYAML:
         
         # Priority recommendations based on YAML configuration
         critical_violations = [v for v in violations if v.severity == 'CRITICAL']
-        if critical_violations:
+        if critical_violations is not None and critical_violations:
             recommendations.append(f"⚠️ URGENT: {len(critical_violations)} critical violations require immediate attention")
         
         # Auto-remediation opportunities
         auto_remediable = [v for v in violations if v.auto_remediable]
-        if auto_remediable:
+        if auto_remediable is not None and auto_remediable:
             recommendations.append(f"🤖 Quick Fix: {len(auto_remediable)} violations can be auto-remediated")
         
         # Compliance framework recommendations
@@ -1035,8 +1036,8 @@ class DynamicPolicyAnalyzerYAML:
             actual_val = float(actual.rstrip('mGi'))
             limit_val = float(limit.rstrip('mGi'))
             return 1 if actual_val > limit_val else (-1 if actual_val < limit_val else 0)
-        except:
-            return 0
+        except Exception as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
     
     async def _validate_label_values_yaml(self, labels: Dict[str, str]) -> Dict[str, str]:
         """Validate label values using YAML configuration"""

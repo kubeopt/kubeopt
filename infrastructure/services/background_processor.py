@@ -343,7 +343,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
         error_message = f'Subscription-aware analysis error: {str(e)}'
         logger.error(f"❌ Subscription-aware background analysis exception for {cluster_id}: {e}")
         
-        if session_id:
+        if session_id is not None and session_id:
             enhanced_cluster_manager.update_subscription_analysis_session(session_id, {
                 'status': 'failed',
                 'progress': 0,
@@ -371,7 +371,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
                 'session_id': session_id
             }
         
-        if subscription_id:
+        if subscription_id is not None and subscription_id:
             enhanced_cluster_manager.record_subscription_performance_metric(
                 subscription_id, 'failed_analyses', 1
             )
@@ -624,5 +624,5 @@ def check_alerts_after_analysis(cluster_id: str, analysis_results: dict):
     cluster = enhanced_cluster_manager.get_cluster(cluster_id)
     subscription_id = cluster.get('subscription_id') if cluster else None
     
-    if subscription_id:
+    if subscription_id is not None and subscription_id:
         check_subscription_aware_alerts_after_analysis(cluster_id, analysis_results, subscription_id)

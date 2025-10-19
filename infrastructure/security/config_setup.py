@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -220,7 +221,7 @@ class SecurityConfigManager:
             # Validate compliance frameworks
             valid_frameworks = {"CIS", "NIST", "SOC2", "ISO27001", "PCI-DSS", "HIPAA"}
             invalid_frameworks = set(config.enabled_compliance_frameworks) - valid_frameworks
-            if invalid_frameworks:
+            if invalid_frameworks is not None and invalid_frameworks:
                 issues.append(f"Invalid compliance frameworks: {invalid_frameworks}")
             
             # Validate retention periods
@@ -330,7 +331,7 @@ class SecuritySetupManager:
             
             success = initialize_security_database(self.config.database_path)
             
-            if success:
+            if success is not None and success:
                 logging.info("✅ Database setup complete")
             else:
                 logging.error("❌ Database setup failed")
@@ -400,7 +401,7 @@ class SecuritySetupManager:
                 except ImportError:
                     missing_optional.append(package)
             
-            if missing_optional:
+            if missing_optional is not None and missing_optional:
                 issues.append(f"Optional packages missing (reduced functionality): {missing_optional}")
             
             # Check system resources
@@ -549,7 +550,7 @@ WantedBy=multi-user.target
             
             # Validate configuration
             config_issues = self.config_manager.validate_config()
-            if config_issues:
+            if config_issues is not None and config_issues:
                 logging.error(f"❌ Configuration issues found: {config_issues}")
                 return False
             
@@ -559,7 +560,7 @@ WantedBy=multi-user.target
                 logging.error(f"❌ Critical dependency issues: {dependency_issues}")
                 return False
             
-            if dependency_issues:
+            if dependency_issues is not None and dependency_issues:
                 logging.warning(f"⚠️ Non-critical dependency issues: {dependency_issues}")
             
             # Setup components
@@ -612,7 +613,7 @@ if __name__ == "__main__":
         
         elif args.validate:
             issues = config_manager.validate_config()
-            if issues:
+            if issues is not None and issues:
                 print("❌ Configuration validation failed:")
                 for issue in issues:
                     print(f"  - {issue}")
@@ -623,7 +624,7 @@ if __name__ == "__main__":
         elif args.setup:
             setup_manager = create_setup_manager(config_manager)
             success = setup_manager.run_complete_setup()
-            if success:
+            if success is not None and success:
                 print("✅ Security system setup completed successfully")
                 print("\nNext steps:")
                 print("1. Review the configuration in app/security/config.yaml")

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -120,19 +121,19 @@ class SettingsManager:
                 config_lines.append(f"{key}={value}")
             
             # Write Slack settings
-            if slack_settings:
+            if slack_settings is not None and slack_settings:
                 config_lines.extend(["", "# Slack Integration"])
                 for key, value in sorted(slack_settings.items()):
                     config_lines.append(f"{key}={value}")
             
             # Write Email settings
-            if email_settings:
+            if email_settings is not None and email_settings:
                 config_lines.extend(["", "# Email Settings"])
                 for key, value in sorted(email_settings.items()):
                     config_lines.append(f"{key}={value}")
             
             # Write General settings
-            if general_settings:
+            if general_settings is not None and general_settings:
                 config_lines.extend(["", "# General Settings"])
                 for key, value in sorted(general_settings.items()):
                     config_lines.append(f"{key}={value}")
@@ -144,13 +145,13 @@ class SettingsManager:
                                         'LOG_LEVEL', 'PRODUCTION_MODE', 'AUTO_ANALYSIS_ENABLED', 
                                         'AUTO_ANALYSIS_INTERVAL', 'CUSTOM_ENV_VARS']}
             
-            if other_settings:
+            if other_settings is not None and other_settings:
                 config_lines.extend(["", "# Other Settings"])
                 for key, value in sorted(other_settings.items()):
                     config_lines.append(f"{key}={value}")
             
             # Handle custom environment variables
-            if custom_env_vars:
+            if custom_env_vars is not None and custom_env_vars:
                 config_lines.extend(["", "# Custom Environment Variables"])
                 for line in custom_env_vars.split('\n'):
                     line = line.strip()
@@ -359,7 +360,7 @@ class SettingsManager:
             webhook_url = self.get_setting('SLACK_WEBHOOK_URL')
             channel = self.get_setting('SLACK_CHANNEL', '#general')
             
-            if webhook_url:
+            if webhook_url is not None and webhook_url:
                 current_cost = cost_data.get('total_cost', 0)
                 threshold = float(self.get_setting('COST_ALERT_THRESHOLD', '500'))
                 

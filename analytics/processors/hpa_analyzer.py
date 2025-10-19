@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -207,13 +208,13 @@ class HPAAnalyzer:
         
         if metrics_info['has_multiple']:
             if has_cpu and has_memory:
-                if has_custom:
+                if has_custom is not None and has_custom:
                     return 'hybrid'  # CPU + Memory + Custom
                 else:
                     return 'balanced'  # CPU + Memory
             elif (has_cpu or has_memory) and has_custom:
                 return 'hybrid'  # Standard + Custom
-            elif has_custom:
+            elif has_custom is not None and has_custom:
                 return 'custom-metrics'  # Multiple custom metrics
         
         # Single metric strategies
@@ -408,7 +409,7 @@ class HPAAnalyzer:
             
             # 4. Target configuration scoring
             cpu_info = metrics_info.get('cpu')
-            if cpu_info:
+            if cpu_info is not None and cpu_info:
                 cpu_target = cpu_info.get('target_numeric', 70)
                 if 60 <= cpu_target <= 80:
                     score_factors.append(0.9)  # Optimal range
@@ -521,8 +522,8 @@ class HPAAnalyzer:
                 return float(value_str.replace('ki', '')) * 1024
             else:
                 return float(value_str)
-        except:
-            return 0.0
+        except Exception as e:
+            raise RuntimeError(f"Operation failed: {e}") from e.0
     
     @staticmethod
     def _fetch_complete_hpa_specs_directly() -> List[Dict]:
@@ -535,7 +536,6 @@ class HPAAnalyzer:
             logger.warning("🚨 EMERGENCY: Attempting direct kubectl HPA fetch due to incomplete data")
             
             # Try to get cluster info from the current metrics context
-            # This is a fallback method - ideally we wouldn't need this
             result = subprocess.run([
                 'kubectl', 'get', 'hpa', '--all-namespaces', '-o', 'json'
             ], capture_output=True, text=True, timeout=30)
@@ -618,7 +618,6 @@ class HPAAnalyzer:
             
             for hpa in existing_hpas:
                 try:
-                    # Use standard kubectl HPA format (no complex fallback logic)
                     metrics_info = HPAAnalyzer.detect_hpa_metrics(hpa)
                     optimization_score = HPAAnalyzer.calculate_optimization_score(hpa, metrics_info)
                     

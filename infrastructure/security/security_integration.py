@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -94,9 +95,9 @@ class SecurityIntegrationMixin:
             raise ValueError("Valid completed cluster configuration is required")
         
         # Validate and set frameworks
-        if security_frameworks:
+        if security_frameworks is not None and security_frameworks:
             invalid_frameworks = [f for f in security_frameworks if f not in self.SUPPORTED_FRAMEWORKS]
-            if invalid_frameworks:
+            if invalid_frameworks is not None and invalid_frameworks:
                 logger.warning(f"Unsupported frameworks will be skipped: {invalid_frameworks}")
                 security_frameworks = [f for f in security_frameworks if f in self.SUPPORTED_FRAMEWORKS]
         else:
@@ -188,7 +189,6 @@ class SecurityIntegrationMixin:
         logger.info("🔐 Initializing security integration components with real cluster data...")
         
         try:
-            # Initialize with real cluster configuration - no fallbacks
             logger.debug("Creating security posture engine...")
             self.security_engine = create_security_posture_engine(cluster_config)
             logger.debug("Security posture engine created successfully")
@@ -246,7 +246,7 @@ class SecurityIntegrationMixin:
         
         for component_name, methods in required_methods.items():
             component = getattr(self, component_name)
-            if component:
+            if component is not None and component:
                 for method in methods:
                     if not hasattr(component, method):
                         raise RuntimeError(
@@ -352,7 +352,6 @@ class SecurityIntegrationMixin:
         except Exception as e:
             logger.error(f"❌ Security posture analysis failed: {str(e)}")
             security_analysis['analysis_errors'].append(f"Security posture analysis: {str(e)}")
-            # Don't use fallback data - raise the error
             raise RuntimeError(f"Security posture analysis failed: {str(e)}") from e
         
         # Analyze real policy violations from cluster workloads
@@ -643,7 +642,7 @@ class SecurityIntegrationMixin:
             failing_frameworks = [f for f, data in compliance_frameworks.items() 
                                 if data.get('overall_compliance', 100) < 80]
             
-            if failing_frameworks:
+            if failing_frameworks is not None and failing_frameworks:
                 compliance_phase = {
                     'phase_number': phase_counter,
                     'phase_id': f'SEC-{phase_counter}',
@@ -818,7 +817,7 @@ class SecurityIntegrationMixin:
                 })
             
             # Add summary plan for medium vulnerabilities
-            if medium_vulns:
+            if medium_vulns is not None and medium_vulns:
                 remediation_plans.append({
                     'vulnerability_id': 'MEDIUM_BATCH',
                     'severity': 'MEDIUM',
@@ -951,7 +950,7 @@ class SecurityIntegrationMixin:
                 # Commands for real RBAC issues
                 rbac_score = breakdown.get('rbac_score', 100)
                 if rbac_score < 70:
-                    if ExecutableCommand:
+                    if ExecutableCommand and isinstance(ExecutableCommand, str) and ExecutableCommand.strip():
                         # Create proper ExecutableCommand objects
                         rbac_commands = [
                             'kubectl get clusterroles,clusterrolebindings -o yaml > rbac-backup.yaml',
@@ -972,7 +971,6 @@ class SecurityIntegrationMixin:
                                 validation_commands=[f'kubectl auth can-i --list --as=system:serviceaccount:default:default']
                             ))
                     else:
-                        # Fallback to dictionary format if ExecutableCommand not available
                         commands.append({
                             'title': 'Fix RBAC Configuration',
                             'commands': [
@@ -988,7 +986,7 @@ class SecurityIntegrationMixin:
                 # Commands for real network issues
                 network_score = breakdown.get('network_score', 100)
                 if network_score < 70:
-                    if ExecutableCommand:
+                    if ExecutableCommand and isinstance(ExecutableCommand, str) and ExecutableCommand.strip():
                         # Create proper ExecutableCommand objects
                         network_commands = [
                             'kubectl get networkpolicies --all-namespaces',
@@ -1008,7 +1006,6 @@ class SecurityIntegrationMixin:
                                 validation_commands=['kubectl get networkpolicies --all-namespaces']
                             ))
                     else:
-                        # Fallback to dictionary format
                         commands.append({
                             'title': 'Implement Network Policies',
                             'commands': [
