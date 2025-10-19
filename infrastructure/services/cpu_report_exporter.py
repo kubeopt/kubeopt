@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -22,7 +23,6 @@ import os
 import base64
 from io import BytesIO
 
-# Optional dependencies - graceful fallbacks
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True

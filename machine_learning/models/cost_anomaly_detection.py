@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -457,8 +458,8 @@ class RealTimeCostAnomalyDetector:
                     np.isfinite(budget) and 
                     budget >= min_budget and 
                     budget <= max_budget)
-        except:
-            return False
+        except Exception as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
     
     def _estimate_budget_from_usage(self) -> float:
         """Estimate budget based on historical usage patterns"""
@@ -472,7 +473,6 @@ class RealTimeCostAnomalyDetector:
                     logger.info(f"✅ Estimated budget from cluster costs: ${estimated_budget:.2f}")
                     return estimated_budget
             
-            # Fallback to industry-standard estimates based on cluster size
             # Estimate based on typical AKS costs: $150-500/month per node
             estimated_nodes = 3  # Default small cluster
             cost_per_node_monthly = 250  # Mid-range estimate
@@ -513,7 +513,6 @@ class RealTimeCostAnomalyDetector:
             
         except Exception as e:
             logger.error(f"❌ Failed to get dynamic fallback cost for {cost_type}: {e}")
-            # Load static fallbacks from standards
             fallback_costs = self.standards.get('cost_processing', {}).get('fallback_costs', {})
             return fallback_costs.get(cost_type.lower(), 100.0)
     
@@ -541,7 +540,6 @@ class RealTimeCostAnomalyDetector:
             # Validate training data
             if not self._validate_training_data(training_data):
                 logger.warning("⚠️ Training data validation failed, using fallback")
-                #training_data = self._generate_fallback_training_data()
             
             # Train the model
             isolation_forest.fit(training_data)
@@ -627,12 +625,10 @@ class RealTimeCostAnomalyDetector:
         except Exception as e:
             logger.error(f"❌ Safe training data generation failed: {e}")
             return None
-            #return self._generate_fallback_training_data()
     
     def _generate_fallback_training_data(self) -> np.ndarray:
         """ Generate minimal fallback training data"""
         
-        # Ultra-safe fallback data
         n_samples = 100
         base_cost = 1000.0
         
@@ -1027,8 +1023,9 @@ class CostStreamProcessor:
         try:
             if isinstance(value, (int, float)) and np.isfinite(value):
                 return float(value)
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            raise
         return default
     
     def _safe_int(self, value, default: int) -> int:
@@ -1036,8 +1033,9 @@ class CostStreamProcessor:
         try:
             if isinstance(value, (int, float)) and np.isfinite(value):
                 return int(value)
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            raise
         return default
 
 class MLAnomalyDetector:

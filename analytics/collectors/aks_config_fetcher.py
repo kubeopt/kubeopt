@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -181,7 +182,7 @@ class PureAKSClusterConfigFetcher:
             
             # Phase 4: Resource discovery and fetching
             logger.info("🔍 Phase 4: Fetching Kubernetes resources")
-            if enable_parallel_fetch:
+            if enable_parallel_fetch is not None and enable_parallel_fetch:
                 resource_data = self._fetch_resources_parallel()
             else:
                 resource_data = self._fetch_resources_sequential()
@@ -229,19 +230,19 @@ class PureAKSClusterConfigFetcher:
         try:
             # Get AKS cluster details
             cluster_details = self._run_az_aks_show()
-            if cluster_details:
+            if cluster_details is not None and cluster_details:
                 cluster_info['aks_cluster_details'] = cluster_details
                 logger.info("✅ AKS cluster details fetched")
             
             # Get node pools
             node_pools = self._run_az_aks_nodepool_list()
-            if node_pools:
+            if node_pools is not None and node_pools:
                 cluster_info['node_pools'] = node_pools
                 logger.info(f"✅ Node pools fetched: {len(node_pools)} pools")
             
             # Get managed identity
             managed_identity = self._get_managed_identity()
-            if managed_identity:
+            if managed_identity is not None and managed_identity:
                 cluster_info['managed_identity'] = managed_identity
                 logger.info("✅ Managed identity info fetched")
             
@@ -258,19 +259,19 @@ class PureAKSClusterConfigFetcher:
         try:
             # Get cluster version info from cache
             version_info = self.cache.get('version')
-            if version_info:
+            if version_info is not None and version_info:
                 k8s_info['version_info'] = version_info
                 logger.info("✅ Kubernetes version info from cache")
             
             # Get cluster-info
             cluster_info = self._run_kubectl_command(['cluster-info', '--output=json'])
-            if cluster_info:
+            if cluster_info is not None and cluster_info:
                 k8s_info['cluster_endpoints'] = cluster_info
                 logger.info("✅ Cluster endpoints fetched")
             
             # Get cluster configuration
             cluster_config = self._run_kubectl_command(['config', 'view', '--output=json'])
-            if cluster_config:
+            if cluster_config is not None and cluster_config:
                 k8s_info['kubectl_config'] = cluster_config
                 logger.info("✅ Kubectl config fetched")
             
@@ -287,7 +288,7 @@ class PureAKSClusterConfigFetcher:
         try:
             # Get nodes with detailed information from cache
             nodes_output = self.cache.get('nodes')
-            if nodes_output:
+            if nodes_output is not None and nodes_output:
                 node_data['nodes_raw'] = nodes_output
                 logger.info(f"✅ {self.cluster_name}: Got nodes data from cache")
                 
@@ -313,12 +314,12 @@ class PureAKSClusterConfigFetcher:
             # Get node metrics if available (optional)
             try:
                 node_metrics = self.cache.get('node_usage_headers')
-                if node_metrics:
+                if node_metrics is not None and node_metrics:
                     node_data['node_metrics_raw'] = node_metrics
                     logger.info("✅ Node metrics from cache")
                 else:
                     logger.info("ℹ️ Node metrics not available (metrics-server may not be running)")
-            except:
+            except Exception as e:
                 logger.info("ℹ️ Node metrics not available (metrics-server may not be installed)")
             
         except Exception as e:
@@ -349,7 +350,7 @@ class PureAKSClusterConfigFetcher:
                 resource_type = future_to_resource[future]
                 try:
                     result = future.result(timeout=self.timeout_seconds)
-                    if result:
+                    if result is not None and result:
                         resource_data[resource_type.value] = result
                         self.fetched_resources.add(resource_type.value)
                         self.metrics.successful_fetches += 1
@@ -376,7 +377,7 @@ class PureAKSClusterConfigFetcher:
         for resource_type in ResourceType:
             try:
                 result = self._fetch_single_resource_type(resource_type)
-                if result:
+                if result is not None and result:
                     resource_data[resource_type.value] = result
                     self.fetched_resources.add(resource_type.value)
                     self.metrics.successful_fetches += 1
@@ -406,7 +407,7 @@ class PureAKSClusterConfigFetcher:
             result = self._run_kubectl_command(args)
             
             # FIX: Handle both dict and string returns properly
-            if result:
+            if result is not None and result:
                 if isinstance(result, dict) and 'items' in result:
                     # Successfully got JSON dict with items
                     logger.debug(f"✅ Fetched {len(result['items'])} {resource_type.value}")
@@ -438,7 +439,6 @@ class PureAKSClusterConfigFetcher:
                     except json.JSONDecodeError as json_error:
                         logger.debug(f"⚠️ JSON parse failed for {resource_type.value}: {json_error}")
                     
-                    # Return empty structure for string that can't be parsed
                     logger.debug(f"⚠️ Could not parse {resource_type.value} output as JSON, treating as empty")
                     return {
                         'raw_data': result,
@@ -550,7 +550,7 @@ class PureAKSClusterConfigFetcher:
                     if isinstance(resource_info, dict) and 'items' in resource_info:
                         for item in resource_info['items']:
                             ns = item.get('metadata', {}).get('namespace')
-                            if ns:
+                            if ns is not None and ns:
                                 namespaces.add(ns)
         
         self.metrics.total_namespaces = len(namespaces)
@@ -563,14 +563,14 @@ class PureAKSClusterConfigFetcher:
         try:
             # Get API resources from cache
             api_resources = self.cache.get('api_resources')
-            if api_resources:
+            if api_resources is not None and api_resources:
                 api_data['api_resources_raw'] = api_resources
                 api_data['api_resources_list'] = self._parse_api_resources(api_resources)
                 logger.info(f"✅ API resources from cache: {len(api_data.get('api_resources_list', []))} resources")
             
             # Get API versions from cache
             api_versions = self.cache.get('api_versions')
-            if api_versions:
+            if api_versions is not None and api_versions:
                 api_data['api_versions_raw'] = api_versions
                 logger.info("✅ API versions from cache")
             
@@ -647,12 +647,11 @@ class PureAKSClusterConfigFetcher:
         try:
             # Use the working execute_kubectl_command method
             output = self.execute_kubectl_command(kubectl_cmd, timeout)
-            if output:
+            if output is not None and output:
                 try:
                     return json.loads(output)
                 except json.JSONDecodeError as e:
                     logger.debug(f"JSON parsing failed for {kubectl_cmd}: {e}")
-                    return output  # Return raw string
             return None
         except Exception as e:
             logger.debug(f"YAML command failed: {e}")
@@ -681,7 +680,6 @@ class PureAKSClusterConfigFetcher:
             cached_data = self.cache.get('config_view')
             if cached_data and isinstance(cached_data, dict):
                 return json.dumps(cached_data)
-            return cached_data  # Return raw if not dict
         elif "kubectl get nodes" in kubectl_cmd and "-o json" in kubectl_cmd:
             cached_data = self.cache.get('nodes')
             if cached_data and isinstance(cached_data, dict):
@@ -789,7 +787,7 @@ class PureAKSClusterConfigFetcher:
             
             # Try to get from cache first (this is the key change)
             cache_key = cache_key_mapping.get(kubectl_cmd)
-            if cache_key:
+            if cache_key is not None and cache_key:
                 cached_result = self.cache.get(cache_key)
                 if cached_result is not None:
                     logger.info(f"✅ {self.cluster_name}: Got {cache_key} from cache")
@@ -797,7 +795,6 @@ class PureAKSClusterConfigFetcher:
                 else:
                     logger.info(f"⚠️ {self.cluster_name}: {cache_key} not in cache, executing command")
             
-            # NO FALLBACK TO COMMAND EXECUTION - READ FROM CACHE ONLY
             logger.warning(f"⚠️ {self.cluster_name}: Data for {cache_key or kubectl_cmd} not found in cache, no command execution during analysis")
             return None
                 

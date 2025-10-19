@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -210,7 +211,6 @@ class AzureSubscriptionManager:
             subscriptions = list(subscription_client.subscriptions.list())
             
             if subscriptions:
-                # Return the first subscription (default one)
                 default_subscription = subscriptions[0]
                 subscription_id = default_subscription.subscription_id
                 logger.info(f"✅ SDK: Got current subscription {subscription_id[:8]}...")
@@ -261,7 +261,7 @@ class AzureSubscriptionManager:
         for future in concurrent.futures.as_completed(futures, timeout=120):  # 2 minute timeout
             try:
                 subscription, cluster_found = future.result()
-                if cluster_found:
+                if cluster_found is not None and cluster_found:
                     logger.info(f"✅ Found cluster {cluster_name} in subscription: {subscription.subscription_name}")
                     
                     # Cancel remaining futures to save resources
@@ -337,7 +337,7 @@ class AzureSubscriptionManager:
             # Get cluster information
             cluster = aks_client.managed_clusters.get(resource_group, cluster_name)
             
-            if cluster:
+            if cluster is not None and cluster:
                 cluster_info = {
                     'name': cluster.name,
                     'location': cluster.location,
@@ -436,7 +436,7 @@ class AzureSubscriptionManager:
             for op in old_operations:
                 del self.last_az_call[op]
                 
-            if old_operations:
+            if old_operations is not None and old_operations:
                 logger.info(f"🧹 Cleared {len(old_operations)} old rate limit entries")
                 
         except Exception as e:

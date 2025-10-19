@@ -182,7 +182,6 @@ class SecurityDashboardAPI:
                         scan_status='COMPLETED'
                     )
                 
-                # Fallback to live analysis if no stored results
                 return await self._perform_live_analysis()
                 
             except Exception as e:
@@ -210,7 +209,6 @@ class SecurityDashboardAPI:
                         "cluster_name": security_results.get('cluster_name', 'Unknown')
                     }
                 
-                # Fallback
                 return await self._get_live_security_score()
                 
             except Exception as e:
@@ -230,7 +228,7 @@ class SecurityDashboardAPI:
                     violations = policy_compliance.get('violations', [])
                     
                     # Filter by severity if specified
-                    if severity:
+                    if severity is not None and severity:
                         violations = [v for v in violations if v.get('severity') == severity.upper()]
                     
                     # Limit results
@@ -238,7 +236,6 @@ class SecurityDashboardAPI:
                     
                     return [self._format_violation(v) for v in violations]
                 
-                # Fallback
                 return await self._get_live_policy_violations(severity, limit)
                 
             except Exception as e:
@@ -449,7 +446,7 @@ class SecurityDashboardAPI:
         ):
             """Get vulnerabilities with optional filtering"""
             try:
-                if severity:
+                if severity is not None and severity:
                     vulnerabilities = await self.vulnerability_scanner.get_vulnerabilities_by_severity(
                         severity.upper(), limit
                     )
@@ -636,7 +633,7 @@ class SecurityDashboardAPI:
                 audit_entries = await self.compliance_engine._get_recent_audit_trail("ALL", days)
                 
                 # Filter by event type if specified
-                if event_type:
+                if event_type is not None and event_type:
                     audit_entries = [e for e in audit_entries if e.event_type == event_type.upper()]
                 
                 # Limit results

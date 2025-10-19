@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 ML Analytics Database Manager
 Handles all machine learning and analytics data operations
 """
@@ -57,7 +58,7 @@ class MLAnalyticsDB:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 
-                if cluster_id:
+                if cluster_id is not None and cluster_id:
                     cursor = conn.execute('''
                         SELECT * FROM learning_data 
                         WHERE cluster_id = ? 
@@ -157,7 +158,7 @@ class MLAnalyticsDB:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 
-                if optimization_type:
+                if optimization_type is not None and optimization_type:
                     cursor = conn.execute('''
                         SELECT * FROM optimization_results 
                         WHERE cluster_id = ? AND optimization_type = ?

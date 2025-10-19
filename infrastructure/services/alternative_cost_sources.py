@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Alternative Cost Data Sources
 Fallback methods when Azure Cost Management API is unavailable
 """
@@ -79,21 +80,21 @@ class AlternativeCostSources:
             
             # Extract node information
             nodes = cluster_data.get('nodes', [])
-            if nodes:
+            if nodes is not None and nodes:
                 compute_cost = await self._estimate_compute_cost(nodes)
                 total_cost += compute_cost
                 cost_breakdown['compute'] = compute_cost
             
             # Extract storage information
             storage_data = cluster_data.get('storage', {})
-            if storage_data:
+            if storage_data is not None and storage_data:
                 storage_cost = await self._estimate_storage_cost(storage_data)
                 total_cost += storage_cost
                 cost_breakdown['storage'] = storage_cost
             
             # Extract network information
             network_data = cluster_data.get('network', {})
-            if network_data:
+            if network_data is not None and network_data:
                 network_cost = await self._estimate_network_cost(network_data)
                 total_cost += network_cost
                 cost_breakdown['network'] = network_cost
@@ -313,7 +314,6 @@ class AlternativeCostSources:
         except Exception as e:
             logger.error(f"❌ Fallback estimation failed: {e}")
             
-            # Ultimate fallback
             return AlternativeCostData(
                 total_cost=500.0,  # Default estimate for small cluster
                 cost_breakdown={'emergency_estimate': 500.0},
@@ -356,7 +356,6 @@ class AlternativeCostSources:
                 logger.warning(f"⚠️ Alternative source {source_name} failed: {e}")
         
         if not best_result:
-            # Use fallback as last resort
             best_result = await self._fallback_estimation(cluster_data)
         
         logger.info(f"📊 Using alternative cost data from {best_result.source} (confidence: {best_result.confidence})")

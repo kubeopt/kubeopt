@@ -12,6 +12,7 @@ import os
 from typing import Dict, Optional
 from datetime import datetime
 import logging
+from pydantic import BaseModel, Field, validator
 from .plan_schema import (
     KubeOptImplementationPlan, ImplementationPlanDocument, 
     KUBEOPT_IMPLEMENTATION_PLAN_SCHEMA, create_empty_plan
@@ -51,12 +52,14 @@ class ClaudePlanGenerator:
         # Get model from parameter, environment, or default
         self.model = model or os.getenv("CLAUDE_MODEL", "claude-3-haiku-20240307")
         
-        # Get max output tokens
-        if max_output_tokens:
+        # Get max output tokens with explicit validation
+        if max_output_tokens is not None:
+            if not isinstance(max_output_tokens, int) or max_output_tokens <= 0:
+                raise ValueError(f"max_output_tokens must be a positive integer, got: {max_output_tokens}")
             self.max_output_tokens = max_output_tokens
         else:
             env_max_tokens = os.getenv("CLAUDE_MAX_OUTPUT_TOKENS")
-            if env_max_tokens:
+            if env_max_tokens and env_max_tokens.strip():
                 self.max_output_tokens = int(env_max_tokens)
             else:
                 # Use model-specific default
@@ -122,6 +125,16 @@ class ClaudePlanGenerator:
         Automatically uses split mode for Haiku (2 calls),
         single mode for other models.
         """
+        
+        # Validate inputs
+        if not enhanced_input:
+            raise ValueError("enhanced_input is required and cannot be empty")
+        if not isinstance(enhanced_input, dict):
+            raise TypeError(f"enhanced_input must be a dictionary, got: {type(enhanced_input)}")
+        if not cluster_name or not isinstance(cluster_name, str) or not cluster_name.strip():
+            raise ValueError("cluster_name must be a non-empty string")
+        if not cluster_id or not isinstance(cluster_id, str) or not cluster_id.strip():
+            raise ValueError("cluster_id must be a non-empty string")
         
         # Determine mode
         use_split = "haiku" in self.model.lower() or os.getenv("CLAUDE_USE_SPLIT_MODE", "true").lower() == "true"
@@ -412,7 +425,6 @@ class ClaudePlanGenerator:
                     print(f"❌ All {max_retries} attempts failed - no more retries")
                     # Don't raise here - let it fall through to the final error
                 
-        # PRODUCTION SYSTEM: NO FALLBACKS - Fail fast with clear error
         error_msg = (
             f"Claude API plan generation failed after {max_retries} attempts for cluster {cluster_name}. "
             f"Model: {self.model}. Check API key, network connectivity, and model availability. "
@@ -566,7 +578,7 @@ class ClaudePlanGenerator:
         print(f"{'─'*70}")
         
         # Combine into complete plan
-        complete_plan = {
+        complete_plan_dict = {
             'implementation_plan': {
                 # From Call 1 (Core)
                 'metadata': core_plan.get('metadata', {}),
@@ -585,10 +597,93 @@ class ClaudePlanGenerator:
             }
         }
         
-        # Add metadata
-        complete_plan['generated_at'] = datetime.utcnow()
-        complete_plan['cluster_id'] = cluster_id
-        complete_plan['generation_method'] = 'split_dual_call'
+        # Add required fields for validation
+        if 'generated_at' not in complete_plan_dict:
+            complete_plan_dict['generated_at'] = datetime.utcnow().isoformat()
+        if 'cluster_id' not in complete_plan_dict:
+            complete_plan_dict['cluster_id'] = cluster_id
+        if 'version' not in complete_plan_dict:
+            complete_plan_dict['version'] = "1.0"
+        if 'generated_by' not in complete_plan_dict:
+            complete_plan_dict['generated_by'] = f"claude-api-{self.model}-split"
+        
+        # ═══════════════════════════════════════════════════════
+        # PROPER VALIDATION WITH PYDANTIC SCHEMAS
+        # ═══════════════════════════════════════════════════════
+        
+        print(f"\n{'─'*70}")
+        print(f"🔍 Validating with Pydantic schemas...")
+        print(f"{'─'*70}")
+        
+        # Combine the two responses
+        combined_plan_content = {
+            'metadata': core_plan.get('metadata', {}),
+            'implementation_summary': core_plan.get('implementation_summary', {}),
+            'phases': core_plan.get('phases', []),
+            'roi_summary': core_plan.get('roi_summary', {}),
+            'monitoring': core_plan.get('monitoring', {}),
+            'next_steps': core_plan.get('next_steps', []),
+            
+            # Optional from Call 2
+            'cluster_dna_analysis': analysis.get('cluster_dna_analysis'),
+            'build_quality_assessment': analysis.get('build_quality_assessment'),
+            'naming_conventions_analysis': analysis.get('naming_conventions_analysis'),
+            'roi_analysis': analysis.get('roi_analysis'),
+            'review_schedule': analysis.get('review_schedule'),
+        }
+        
+        # Import split mode schemas
+        from .plan_schema import SplitModeImplementationPlan
+        from pydantic import ValidationError
+        
+        # Create and validate with proper Pydantic model
+        try:
+            complete_plan = SplitModeImplementationPlan.create_validated(
+                data=combined_plan_content,
+                cluster_id=cluster_id,
+                generated_by=f"claude-api-{self.model}-split"
+            )
+            
+            if complete_plan.validation_passed:
+                print(f"✅ Plan content validated successfully")
+                print(f"   Total actions: {complete_plan.total_actions}")
+                print(f"   Total phases: {len(complete_plan.phases)}")
+                print(f"   Total savings: ${complete_plan.total_savings_monthly:.2f}/month")
+                print(f"   Schema version: {complete_plan.schema_version}")
+            else:
+                print(f"⚠️ Plan created but validation failed")
+                print(f"   Validation errors: {len(complete_plan.validation_errors or [])}")
+                for error in (complete_plan.validation_errors or []):
+                    print(f"     - {error}")
+                print(f"   Plan still usable but may have data quality issues")
+            
+        except Exception as critical_error:
+            print(f"❌ CRITICAL VALIDATION FAILURE!")
+            print(f"Schema validation errors:")
+            print(f"   Error: {critical_error}")
+            
+            # Save debug data
+            debug_file = f"debug_validation_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            with open(debug_file, 'w') as f:
+                json.dump({
+                    'error': str(critical_error),
+                    'raw_data': combined_plan_content,
+                    'cluster_id': cluster_id,
+                    'model': self.model
+                }, f, indent=2, default=str)
+            
+            print(f"💾 Debug data saved to: {debug_file}")
+            print(f"\nOptions:")
+            print(f"1. Fix the prompt to return correct structure")
+            print(f"2. Update schema to accept Claude's format")
+            print(f"3. Add data transformation before validation")
+            
+            raise RuntimeError(f"Plan validation failed: {critical_error}")
+        
+        # Add metadata including split mode info
+        complete_plan.generated_at = datetime.utcnow()
+        complete_plan.version = "1.0"
+        complete_plan.generated_by = f"claude-api-{self.model}-split"
         
         # ═══════════════════════════════════════════════════════
         # SUMMARY
@@ -603,9 +698,11 @@ class ClaudePlanGenerator:
         print(f"Total cost:          ${total_cost:.6f}")
         print(f"")
         print(f"✅ Full rich plan generated with 2 API calls!")
-        print(f"   47% cheaper than Sonnet 3.5 single call")
+        print(f"   Plan: {complete_plan.total_actions} actions across {len(complete_plan.phases)} phases")
+        print(f"   Cost: 47% cheaper than Sonnet 3.5 single call")
         print(f"{'='*70}\n")
         
+        self.logger.info(f"Successfully generated split mode plan with {complete_plan.total_actions} actions")
         return complete_plan
     
     def _build_system_prompt(self) -> str:
@@ -908,7 +1005,6 @@ Generate the complete implementation plan as valid JSON matching the schema."""
         # Try to find JSON content
         text = text.strip()
         
-        # Parse JSON with fallback cleaning
         try:
             return json.loads(text)
         except json.JSONDecodeError as e:
@@ -949,15 +1045,30 @@ Generate the complete implementation plan as valid JSON matching the schema."""
         # Remove trailing commas before closing braces/brackets
         json_text = re.sub(r',(\s*[}\]])', r'\1', json_text)
         
-        # Fix unquoted property names
-        json_text = re.sub(r'(\w+):', r'"\1":', json_text)
+        # Fix missing commas between array elements (common Claude issue)
+        json_text = re.sub(r'"\s*\n\s*"', r'",\n"', json_text)
+        json_text = re.sub(r'}\s*\n\s*{', r'},\n{', json_text)
+        json_text = re.sub(r']\s*\n\s*"', r'],\n"', json_text)
         
-        # Fix single quotes to double quotes
-        json_text = re.sub(r"'([^']*)'", r'"\1"', json_text)
+        # Fix unquoted property names (but be careful not to quote strings in arrays)
+        lines = json_text.split('\n')
+        for i, line in enumerate(lines):
+            # Only fix property names (lines with colons outside of quotes)
+            if ':' in line and not line.strip().startswith('"'):
+                # Match word characters followed by colon (property names)
+                lines[i] = re.sub(r'(\w+):', r'"\1":', line)
+        json_text = '\n'.join(lines)
+        
+        # Fix single quotes to double quotes (but be careful with contractions)
+        json_text = re.sub(r"'([^']*)':", r'"\1":', json_text)  # Property names
+        json_text = re.sub(r":\s*'([^']*)'", r': "\1"', json_text)  # String values
         
         # Remove comments (// or /* */)
         json_text = re.sub(r'//.*?$', '', json_text, flags=re.MULTILINE)
         json_text = re.sub(r'/\*.*?\*/', '', json_text, flags=re.DOTALL)
+        
+        # Fix common Claude mistakes with arrays
+        json_text = re.sub(r'"\s*\]\s*,\s*\[', r'"],\n[', json_text)
         
         return json_text
     
@@ -1148,7 +1259,7 @@ Keep response under 2,500 tokens."""
 Memory: {mem['target_min']:.0f}-{mem['target_max']:.0f}% target, {mem['optimal']:.0f}% optimal
 HPA: {hpa['target_cpu_utilization']}% CPU target, {hpa['coverage_target']:.0f}% coverage goal"""
         
-        if opt:
+        if opt is not None and opt:
             standards_text += f"""
 Optimization Thresholds: Max {opt['payback_threshold_months']} months payback, min ${opt['minimum_monthly_savings']:.2f}/month"""
         

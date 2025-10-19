@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -265,7 +266,7 @@ class AKSScorer:
         """
         try:
             cfg = self.cfg["cost_excellence"]
-            if overrides:
+            if overrides is not None and overrides:
                 cfg = self._deep_merge(cfg, overrides)
 
             Wt = cfg["weights"]
@@ -562,7 +563,6 @@ class AKSScorer:
             
             logger.info(f"✅ Estimated {len(savings)} savings opportunities totaling ${sum(s.potential_monthly_savings for s in savings):.0f}/month")
             
-            return savings[:10]  # Return top 10 opportunities
             
         except Exception as e:
             logger.error(f"❌ Savings estimation failed: {e}")
@@ -1005,7 +1005,6 @@ class AKSScorer:
             
         except Exception as e:
             logger.error(f"❌ Error in intelligent compute savings estimation: {e}")
-            # Fallback to basic recommendations if intelligent analysis fails
             return []
             
         return savings
@@ -1043,7 +1042,7 @@ class AKSScorer:
 
         # Premium to Standard migration - USE REAL DATA from cache
         storage_tiers = metrics.get("cluster_storage_tiers", [])
-        if storage_tiers:
+        if storage_tiers is not None and storage_tiers:
             try:
                 if isinstance(storage_tiers, str):
                     import json
@@ -1094,7 +1093,7 @@ class AKSScorer:
 
         # Cleanup orphaned storage - USE REAL DATA from cache
         orphaned_disks = metrics.get("cluster_orphaned_disks", [])
-        if orphaned_disks:
+        if orphaned_disks is not None and orphaned_disks:
             try:
                 if isinstance(orphaned_disks, str):
                     import json
@@ -1301,7 +1300,7 @@ class AKSScorer:
         if not validated.get("region"):
             # Try to infer from cluster context
             cluster_region = validated.get("cluster_metadata", {}).get("region")
-            if cluster_region:
+            if cluster_region is not None and cluster_region:
                 validated["region"] = cluster_region
                 logger.info(f"🌍 Inferred region from cluster metadata: {cluster_region}")
         
@@ -1326,7 +1325,7 @@ class AKSScorer:
                 "5000GB": 2.25   # $2.25/GB for 5TB/day commitment
             }
             tier_price = pricing_map.get(commitment_tier)
-            if tier_price:
+            if tier_price is not None and tier_price:
                 logger.info(f"🏷️ Using commitment tier pricing: {commitment_tier} = ${tier_price}/GB")
                 return tier_price
         
@@ -1347,11 +1346,10 @@ class AKSScorer:
         }
         
         regional_price = regional_pricing.get(region)
-        if regional_price:
+        if regional_price is not None and regional_price:
             logger.info(f"🌍 Using regional pay-as-you-go pricing for {region}: ${regional_price}/GB")
             return regional_price
         
-        # Fallback to default pay-as-you-go pricing
         default_price = 2.76  # Azure East US baseline
         logger.warning(f"⚠️ Using default Log Analytics pricing: ${default_price}/GB")
         return default_price
@@ -1536,7 +1534,7 @@ class AKSScorer:
             logger.info(f"✅ Generated {len(recommendations)} Build Quality recommendations using YAML standards")
             logger.info(f"🔍 Build Quality Score Breakdown: UE={breakdown.get('UE', 0):.3f}, AE={breakdown.get('AE', 0):.3f}, CE={breakdown.get('CE', 0):.3f}, RS={breakdown.get('RS', 0):.3f}, CH={breakdown.get('CH', 0):.3f}")
             logger.info(f"🎯 Total recommendations generated: {len(recommendations)}")
-            if recommendations:
+            if recommendations is not None and recommendations:
                 logger.info(f"📋 Recommendation categories: {[rec['category'] for rec in recommendations]}")
             return recommendations
             
@@ -1633,7 +1631,7 @@ class AKSScorer:
             logger.info(f"✅ Generated {len(recommendations)} Cost Excellence recommendations using YAML standards")  
             logger.info(f"🔍 Cost Excellence Score Breakdown: compute={breakdown.get('compute', 0):.3f}, storage={breakdown.get('storage', 0):.3f}, network_lb={breakdown.get('network_lb', 0):.3f}, observability={breakdown.get('observability', 0):.3f}")
             logger.info(f"🎯 Total recommendations generated: {len(recommendations)}")
-            if recommendations:
+            if recommendations is not None and recommendations:
                 logger.info(f"📋 Recommendation categories: {[rec['category'] for rec in recommendations]}")
             return recommendations
             
@@ -1651,7 +1649,7 @@ class AKSScorer:
                     import json
                     cluster_data = json.loads(cluster_info)
                     region = cluster_data.get('location')
-                    if region:
+                    if region is not None and region:
                         return region
             
             raise ValueError("Could not determine cluster region from metrics")

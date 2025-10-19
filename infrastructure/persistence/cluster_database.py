@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -91,7 +92,7 @@ def migrate_analysis_data_to_blob(db_path: str = '../data/database/clusters.db')
                     
                     # Copy data from TEXT to BLOB
                     for cluster_id, analysis_data in data_backup:
-                        if analysis_data:
+                        if analysis_data is not None and analysis_data:
                             try:
                                 # Handle both string and bytes data types
                                 if isinstance(analysis_data, str):
@@ -718,10 +719,11 @@ class EnhancedMultiSubscriptionClusterManager:
                         subscription_name = "Unknown"
                         try:
                             sub_info = sub_manager.get_subscription_info(subscription_id)
-                            if sub_info:
+                            if sub_info is not None and sub_info:
                                 subscription_name = sub_info['subscription_name']
-                        except:
-                            pass
+                        except Exception as e:
+                            logger.error(f"Unexpected error: {e}")
+                            raise
                         
                         # Update the cluster with subscription info
                         with sqlite3.connect(self.db_path) as conn:
@@ -804,7 +806,7 @@ class EnhancedMultiSubscriptionClusterManager:
                         set_clauses.append(f"{key} = ?")
                         values.append(value)
                 
-                if set_clauses:
+                if set_clauses is not None and set_clauses:
                     values.append(session_id)
                     query = f"UPDATE subscription_analysis_sessions SET {', '.join(set_clauses)} WHERE session_id = ?"
                     conn.execute(query, values)
@@ -826,11 +828,11 @@ class EnhancedMultiSubscriptionClusterManager:
                 where_clauses = []
                 params = []
                 
-                if subscription_id:
+                if subscription_id is not None and subscription_id:
                     where_clauses.append("subscription_id = ?")
                     params.append(subscription_id)
                 
-                if status:
+                if status is not None and status:
                     where_clauses.append("status = ?")
                     params.append(status)
                 
@@ -1130,7 +1132,6 @@ class EnhancedMultiSubscriptionClusterManager:
                 cluster_config['cluster_name']
             )
             
-            # Use discovered information if available, otherwise fallback to provided data
             if validation_result['valid']:
                 cluster_info = validation_result.get('cluster_info', {})
                 discovered_rg = validation_result.get('discovered_resource_group', cluster_config.get('resource_group', ''))
@@ -1141,7 +1142,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 discovered_environment = None
                 
                 # Look for environment in common tag names
-                if tags:
+                if tags is not None and tags:
                     for tag_name in ['Environment', 'environment', 'env', 'Env']:
                         if tag_name in tags:
                             discovered_environment = str(tags[tag_name]).lower()
@@ -1150,7 +1151,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 # Update cluster config with discovered values
                 cluster_config['resource_group'] = discovered_rg
                 cluster_config['region'] = discovered_location
-                if discovered_environment:
+                if discovered_environment is not None and discovered_environment:
                     cluster_config['environment'] = discovered_environment
                 
                 self.logger.info(f"✅ Enhanced cluster info: {cluster_config['cluster_name']} -> RG: {discovered_rg}, Location: {discovered_location}, Environment: {cluster_config.get('environment', 'MISSING')}")
@@ -1253,7 +1254,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 ''', (cluster_id,))
                 
                 row = cursor.fetchone()
-                if row:
+                if row is not None and row:
                     cluster = dict(row)
                     cluster['metadata'] = json.loads(cluster.get('metadata', '{}'))
                     return cluster
@@ -1368,20 +1369,286 @@ class EnhancedMultiSubscriptionClusterManager:
     def update_cluster_analysis_without_plan_generation(self, cluster_id: str, analysis_data: dict, enhanced_input: dict = None):
         """
         Update cluster with analysis results - preserves ALL workload data
-        WITHOUT generating implementation plan (for use with separated plan generation)
+        (Implementation plans are generated separately via Claude API)
         """
-        return self._update_cluster_analysis_internal(cluster_id, analysis_data, enhanced_input, generate_plan=False)
+        return self._update_cluster_analysis_internal(cluster_id, analysis_data, enhanced_input)
     
+    def _extract_enhanced_input_from_analysis(self, analysis_results: dict) -> dict:
+        """
+        Transform full analysis results (11MB) into enhanced input (200KB).
+        
+        This is what Claude API actually needs - structured, concise, actionable data.
+        
+        Input: Full comprehensive analysis (98 flat keys, 11MB)
+        Output: Enhanced input (6 nested sections, 200KB)
+        """
+        
+        if not analysis_results or not isinstance(analysis_results, dict):
+            raise ValueError("analysis_results must be a non-empty dictionary")
+        
+        print(f"📦 Extracting enhanced input from analysis results...")
+        print(f"   Input size: {len(json.dumps(analysis_results, default=str)):,} bytes")
+        print(f"   Input keys: {len(analysis_results)}")
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 1: CLUSTER INFO (nested structure)
+        # ════════════════════════════════════════════════════════════
+        
+        cluster_info = {
+            'cluster_name': analysis_results.get('cluster_name'),
+            'resource_group': analysis_results.get('resource_group'),
+            'subscription_id': analysis_results.get('subscription_id'),
+            'location': analysis_results.get('location'),
+            'kubernetes_version': analysis_results.get('kubernetes_version', 'Unknown'),
+            'node_count': analysis_results.get('node_count', 0),
+            'total_pods': analysis_results.get('total_pods', 0),
+            'total_namespaces': analysis_results.get('total_namespaces', 0)
+        }
+        
+        # Extract from nested cluster_info if exists
+        nested_cluster_info = analysis_results.get('cluster_info', {})
+        if isinstance(nested_cluster_info, dict):
+            for key in cluster_info.keys():
+                if nested_cluster_info.get(key) is not None:
+                    cluster_info[key] = nested_cluster_info[key]
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 2: COST ANALYSIS (nested structure, no bloat)
+        # ════════════════════════════════════════════════════════════
+        
+        cost_analysis = {
+            'total_monthly_cost': analysis_results.get('total_cost', 0),
+            'compute_cost': analysis_results.get('node_cost', 0),
+            'storage_cost': analysis_results.get('storage_cost', 0),
+            'network_cost': analysis_results.get('network_cost', 0),
+            'potential_savings': analysis_results.get('potential_monthly_savings', 0),
+            'cost_breakdown_by_namespace': analysis_results.get('namespace_costs', [])[:20],  # Limit to top 20
+            'cost_trend': analysis_results.get('cost_trend_summary', {})
+        }
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 3: WORKLOADS (limit to essentials)
+        # ════════════════════════════════════════════════════════════
+        
+        raw_workloads = analysis_results.get('workloads', [])
+        
+        # Try different sources for workload data
+        if not raw_workloads:
+            workload_sources = [
+                'hpa_recommendations.workload_characteristics.all_workloads',
+                'workload_characteristics.all_workloads',
+                'pod_resource_data.all_workloads',
+                'workload_cpu_analysis.all_workloads',
+                'workload_cpu_analysis.raw_workload_data'
+            ]
+            
+            for source_path in workload_sources:
+                try:
+                    current_data = analysis_results
+                    for part in source_path.split('.'):
+                        if isinstance(current_data, dict) and part in current_data:
+                            current_data = current_data[part]
+                        else:
+                            current_data = None
+                            break
+                    
+                    if isinstance(current_data, list) and current_data:
+                        raw_workloads = current_data
+                        break
+                except Exception:
+                    continue
+        
+        # Limit and clean workloads
+        workloads = []
+        for wl in raw_workloads[:100]:  # Top 100 workloads only
+            if not isinstance(wl, dict):
+                continue
+                
+            workloads.append({
+                'namespace': wl.get('namespace'),
+                'name': wl.get('name'),
+                'kind': wl.get('kind', 'Deployment'),
+                'replicas': wl.get('replicas', 1),
+                
+                # Resource requests
+                'cpu_request': wl.get('cpu_request'),
+                'memory_request': wl.get('memory_request'),
+                'cpu_limit': wl.get('cpu_limit'),
+                'memory_limit': wl.get('memory_limit'),
+                
+                # Usage metrics
+                'cpu_usage_avg': wl.get('cpu_usage_avg'),
+                'memory_usage_avg': wl.get('memory_usage_avg'),
+                'cpu_usage_p95': wl.get('cpu_usage_p95'),
+                'memory_usage_p95': wl.get('memory_usage_p95'),
+                
+                # Analysis
+                'is_over_provisioned': wl.get('over_provisioned', False),
+                'is_under_provisioned': wl.get('under_provisioned', False),
+                'optimization_potential': wl.get('optimization_potential', 0),
+                'estimated_savings': wl.get('estimated_monthly_savings', 0),
+                
+                # HPA info
+                'has_hpa': wl.get('has_hpa', False),
+                'hpa_suitable': wl.get('hpa_suitability_score', 0) > 70
+            })
+        
+        print(f"   Workloads: {len(raw_workloads)} → {len(workloads)} (limited)")
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 4: HPAs (current state)
+        # ════════════════════════════════════════════════════════════
+        
+        hpas = analysis_results.get('hpas', [])
+        
+        # Try alternate sources for HPA data
+        if not hpas:
+            hpa_sources = ['hpa_recommendations', 'hpa_analysis', 'hpa_data']
+            for source in hpa_sources:
+                hpa_data = analysis_results.get(source, {})
+                if isinstance(hpa_data, dict):
+                    hpas = hpa_data.get('hpas', []) or hpa_data.get('current_hpas', [])
+                    if hpas:
+                        break
+        
+        # Clean HPA data
+        cleaned_hpas = []
+        for hpa in hpas:
+            if not isinstance(hpa, dict):
+                continue
+                
+            cleaned_hpas.append({
+                'name': hpa.get('name'),
+                'namespace': hpa.get('namespace'),
+                'target_deployment': hpa.get('target_ref'),
+                'min_replicas': hpa.get('min_replicas'),
+                'max_replicas': hpa.get('max_replicas'),
+                'current_replicas': hpa.get('current_replicas'),
+                'target_cpu': hpa.get('target_cpu_utilization'),
+                'target_memory': hpa.get('target_memory_utilization'),
+                'current_cpu': hpa.get('current_cpu_utilization'),
+                'current_memory': hpa.get('current_memory_utilization'),
+                'scaling_events_7d': hpa.get('scaling_events_last_7_days', 0)
+            })
+        
+        print(f"   HPAs: {len(cleaned_hpas)}")
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 5: OPTIMIZATION OPPORTUNITIES (top opportunities)
+        # ════════════════════════════════════════════════════════════
+        
+        raw_opportunities = analysis_results.get('optimization_opportunities', [])
+        
+        # Sort by savings and take top 50
+        sorted_opps = sorted(
+            raw_opportunities,
+            key=lambda x: x.get('potential_monthly_savings', 0) if isinstance(x, dict) else 0,
+            reverse=True
+        )[:50]
+        
+        opportunities = []
+        for opp in sorted_opps:
+            if not isinstance(opp, dict):
+                continue
+                
+            opportunities.append({
+                'type': opp.get('type'),
+                'severity': opp.get('severity', 'medium'),
+                'workload': opp.get('workload_name'),
+                'namespace': opp.get('namespace'),
+                'description': opp.get('description'),
+                'current_state': opp.get('current_state'),
+                'recommended_action': opp.get('recommended_action'),
+                'potential_savings': opp.get('potential_monthly_savings', 0),
+                'implementation_difficulty': opp.get('difficulty', 'medium'),
+                'risk_level': opp.get('risk', 'low')
+            })
+        
+        print(f"   Opportunities: {len(raw_opportunities)} → {len(opportunities)} (top 50)")
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 6: NAMESPACE SUMMARY
+        # ════════════════════════════════════════════════════════════
+        
+        namespace_summary = analysis_results.get('namespace_summary', [])
+        
+        cleaned_ns = []
+        for ns in namespace_summary:
+            if not isinstance(ns, dict):
+                continue
+                
+            cleaned_ns.append({
+                'name': ns.get('name'),
+                'workload_count': ns.get('workload_count', 0),
+                'total_cost': ns.get('total_cost', 0),
+                'total_pods': ns.get('pod_count', 0),
+                'cpu_request_total': ns.get('total_cpu_request'),
+                'memory_request_total': ns.get('total_memory_request'),
+                'optimization_opportunities': ns.get('optimization_count', 0)
+            })
+        
+        print(f"   Namespaces: {len(cleaned_ns)}")
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 7: NODE POOLS (if available)
+        # ════════════════════════════════════════════════════════════
+        
+        node_pools = []
+        if 'node_pools' in analysis_results:
+            for pool in analysis_results['node_pools']:
+                if not isinstance(pool, dict):
+                    continue
+                    
+                node_pools.append({
+                    'name': pool.get('name'),
+                    'vm_size': pool.get('vm_size'),
+                    'node_count': pool.get('count', 0),
+                    'cpu_per_node': pool.get('cpu_cores'),
+                    'memory_per_node': pool.get('memory_gb'),
+                    'avg_cpu_utilization': pool.get('avg_cpu_utilization'),
+                    'avg_memory_utilization': pool.get('avg_memory_utilization'),
+                    'monthly_cost': pool.get('monthly_cost', 0)
+                })
+        
+        # ════════════════════════════════════════════════════════════
+        # ASSEMBLE ENHANCED INPUT (structured, nested)
+        # ════════════════════════════════════════════════════════════
+        
+        enhanced_input = {
+            'cluster_info': cluster_info,
+            'cost_analysis': cost_analysis,
+            'workloads': workloads,
+            'hpas': cleaned_hpas,
+            'optimization_opportunities': opportunities,
+            'namespace_summary': cleaned_ns,
+            'node_pools': node_pools
+        }
+        
+        # Validate output
+        output_size = len(json.dumps(enhanced_input, default=str))
+        print(f"   Output size: {output_size:,} bytes")
+        print(f"   Output keys: {len(enhanced_input)}")
+        
+        input_size = len(json.dumps(analysis_results, default=str))
+        if input_size > 0:
+            reduction = (1 - output_size/input_size)*100
+            print(f"   Size reduction: {reduction:.1f}%")
+        
+        if output_size > 1_000_000:
+            print(f"   ⚠️ WARNING: Output still over 1MB, may need more reduction")
+        
+        return enhanced_input
+
     def update_cluster_analysis(self, cluster_id: str, analysis_data: dict, enhanced_input: dict = None):
         """
         Update cluster with analysis results - preserves ALL workload data
-        WITH inline implementation plan generation (legacy behavior)
+        (Implementation plans are generated separately via Claude API)
         """
-        return self._update_cluster_analysis_internal(cluster_id, analysis_data, enhanced_input, generate_plan=True)
+        return self._update_cluster_analysis_internal(cluster_id, analysis_data, enhanced_input)
     
-    def _update_cluster_analysis_internal(self, cluster_id: str, analysis_data: dict, enhanced_input: dict = None, generate_plan: bool = True):
+    def _update_cluster_analysis_internal(self, cluster_id: str, analysis_data: dict, enhanced_input: dict = None):
         """
-        Internal method for updating cluster analysis with optional plan generation
+        Internal method for updating cluster analysis (plan generation is handled separately)
         """
         print(f"\n{'='*60}")
         print(f"🔍 DEBUG: _update_cluster_analysis_internal called")
@@ -1417,7 +1684,6 @@ class EnhancedMultiSubscriptionClusterManager:
             print(f"  cluster_name from root: {cluster_name}")
         
         if not cluster_name:
-            # Final fallback - use cluster_id as cluster_name for display
             cluster_name = cluster_id
             print(f"  ⚠️ cluster_name not found in analysis_data, using cluster_id: {cluster_id}")
         
@@ -1437,14 +1703,14 @@ class EnhancedMultiSubscriptionClusterManager:
             
             enhanced_analysis_data['has_real_node_data'] = has_node_data
             
-            if has_node_data:
+            if has_node_data is not None and has_node_data:
                 node_data = None
                 for key in ['nodes', 'node_metrics', 'real_node_data']:
                     if enhanced_analysis_data.get(key):
                         node_data = enhanced_analysis_data[key]
                         break
                 
-                if node_data:
+                if node_data is not None and node_data:
                     enhanced_analysis_data['nodes'] = node_data
                     enhanced_analysis_data['node_metrics'] = node_data
                     enhanced_analysis_data['real_node_data'] = node_data
@@ -1513,7 +1779,7 @@ class EnhancedMultiSubscriptionClusterManager:
                     continue
             
             # Store ALL preserved workloads in the analysis data
-            if all_preserved_workloads:
+            if all_preserved_workloads is not None and all_preserved_workloads:
                 enhanced_analysis_data['all_workloads_preserved'] = all_preserved_workloads
                 enhanced_analysis_data['total_workloads_preserved'] = len(all_preserved_workloads)
                 total_workloads_saved = len(all_preserved_workloads)
@@ -1551,7 +1817,7 @@ class EnhancedMultiSubscriptionClusterManager:
                     workload_chars = hpa_recs.get('workload_characteristics', {})
                     high_cpu_workloads = workload_chars.get('high_cpu_workloads', [])
                     
-                    if high_cpu_workloads:
+                    if high_cpu_workloads is not None and high_cpu_workloads:
                         enhanced_analysis_data['high_cpu_workloads_preserved'] = high_cpu_workloads
                         high_cpu_workloads_saved = len(high_cpu_workloads)
                         self.logger.info(f"✅ DB SAVE: Preserved {high_cpu_workloads_saved} high CPU workloads for compatibility")
@@ -1559,53 +1825,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 else:
                     self.logger.warning(f"⚠️ DB SAVE: HPA structure incomplete for {cluster_id}")
             
-            # CONDITIONAL: Generate implementation plan BEFORE serialization (only if generate_plan=True)
-            if generate_plan and 'implementation_plan' not in enhanced_analysis_data:
-                try:
-                    from infrastructure.plan_generation.claude_plan_generator import ClaudePlanGenerator
-                    implementation_generator = ClaudePlanGenerator()
-                    
-                    # Use the new Claude API for plan generation
-                    if enhanced_input:
-                        self.logger.info("✅ Using enhanced input for Claude-based implementation plan generation")
-                        import asyncio
-                        # Run the async method
-                        implementation_plan = asyncio.run(implementation_generator.generate_plan(
-                            enhanced_input, cluster_name, cluster_id
-                        ))
-                    else:
-                        self.logger.info("ℹ️ Using basic analysis data as enhanced input for Claude generation")
-                        # Use the analysis data as enhanced input if no enhanced_input provided
-                        basic_enhanced_input = enhanced_analysis_data
-                        import asyncio
-                        implementation_plan = asyncio.run(implementation_generator.generate_plan(
-                            basic_enhanced_input, cluster_name, cluster_id
-                        ))
-                    
-                    enhanced_analysis_data['implementation_plan'] = implementation_plan
-                    self.logger.info("✅ Generated implementation plan for database")
-                    
-                    # Validate the plan has phases
-                    if implementation_plan and 'implementation_phases' in implementation_plan:
-                        phases_count = len(implementation_plan['implementation_phases'])
-                        self.logger.info(f"✅ Implementation plan has {phases_count} phases")
-                        
-                        # Log enhanced recommendations if available
-                        if enhanced_input and 'phase_1_quick_wins' in implementation_plan:
-                            quick_wins = implementation_plan['phase_1_quick_wins'].get('actions', [])
-                            self.logger.info(f"✅ Generated {len(quick_wins)} specific actionable recommendations")
-                        
-                except Exception as impl_error:
-                    self.logger.error(f"❌ Failed to generate implementation plan: {impl_error}")
-                    self.logger.error(f"❌ Error type: {type(impl_error).__name__}")
-                    self.logger.error(f"❌ Traceback:")
-                    import traceback
-                    traceback.print_exc()
-                    
-                    # Don't hide the error - let it bubble up for debugging
-                    raise impl_error
-            elif not generate_plan:
-                self.logger.info("ℹ️ Skipping inline implementation plan generation (using separated plan generation)")
+            # Implementation plans are generated separately via Claude API after analysis
             
             # ===== ADD METADATA ABOUT SAVED DATA =====
             enhanced_analysis_data['database_save_metadata'] = {
@@ -1633,12 +1853,26 @@ class EnhancedMultiSubscriptionClusterManager:
             
             # Prepare enhanced analysis data for storage
             enhanced_analysis_blob = None
-            if enhanced_input:
+            
+            # CRITICAL FIX: Extract enhanced input from full analysis if not provided
+            enhanced_input_to_save = enhanced_input
+            if not enhanced_input_to_save:
                 try:
-                    enhanced_analysis_blob = json.dumps(enhanced_input).encode('utf-8')
-                    self.logger.info(f"✅ DB SAVE: Enhanced analysis data prepared for storage ({len(enhanced_input.keys())} sections)")
+                    self.logger.info(f"🔧 Enhanced input not provided, extracting from analysis results...")
+                    enhanced_input_to_save = self._extract_enhanced_input_from_analysis(enhanced_analysis_data)
+                    self.logger.info(f"✅ Extracted enhanced input: {len(json.dumps(enhanced_input_to_save, default=str)):,} bytes")
+                except Exception as e:
+                    self.logger.error(f"❌ Failed to extract enhanced input: {e}")
+                    enhanced_input_to_save = None
+            
+            if enhanced_input_to_save is not None and enhanced_input_to_save:
+                try:
+                    enhanced_analysis_blob = json.dumps(enhanced_input_to_save).encode('utf-8')
+                    self.logger.info(f"✅ DB SAVE: Enhanced analysis data prepared for storage ({len(enhanced_input_to_save.keys())} sections)")
                 except Exception as e:
                     self.logger.error(f"❌ Failed to serialize enhanced analysis data: {e}")
+            else:
+                self.logger.warning(f"⚠️ No enhanced analysis data to save for {cluster_id}")
 
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute('''
@@ -1704,7 +1938,6 @@ class EnhancedMultiSubscriptionClusterManager:
                         self.logger.error(f"❌ Failed to load enhanced analysis data: {e}")
                         # Fall back to regular analysis data
                 
-                # Fallback: Query analysis_results table for regular analysis data
                 cursor = conn.execute('''
                     SELECT results, analysis_date, total_cost, total_savings
                     FROM analysis_results 
@@ -1743,14 +1976,14 @@ class EnhancedMultiSubscriptionClusterManager:
                         
                         analysis_data['has_real_node_data'] = has_node_data
                         
-                        if has_node_data:
+                        if has_node_data is not None and has_node_data:
                             node_data = None
                             for key in ['nodes', 'node_metrics', 'real_node_data']:
                                 if analysis_data.get(key):
                                     node_data = analysis_data[key]
                                     break
                             
-                            if node_data:
+                            if node_data is not None and node_data:
                                 analysis_data['nodes'] = node_data
                                 analysis_data['node_metrics'] = node_data
                                 analysis_data['real_node_data'] = node_data
@@ -1802,32 +2035,114 @@ class EnhancedMultiSubscriptionClusterManager:
             return None
     
     def get_enhanced_analysis_data(self, cluster_id: str) -> Optional[Dict[str, Any]]:
-        """Get enhanced analysis data specifically"""
+        """
+        Get enhanced analysis input for Claude API (NOT full analysis).
+        
+        Returns structured 200KB enhanced input, not 11MB full analysis.
+        
+        This is the method that should be called for plan generation.
+        """
         try:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.execute('''
-                    SELECT enhanced_analysis_data, last_analyzed
+                    SELECT enhanced_analysis_data, analysis_data, last_analyzed
                     FROM clusters 
-                    WHERE id = ? AND enhanced_analysis_data IS NOT NULL
+                    WHERE id = ?
                 ''', (cluster_id,))
                 
                 row = cursor.fetchone()
-                if row and row['enhanced_analysis_data']:
+                if not row:
+                    self.logger.warning(f"⚠️ No analysis found for cluster: {cluster_id}")
+                    return None
+                
+                # First try to get enhanced_analysis_data (correct column)
+                enhanced_data = row['enhanced_analysis_data']
+                
+                if enhanced_data is not None and enhanced_data:
                     try:
-                        enhanced_data = json.loads(row['enhanced_analysis_data'].decode('utf-8'))
-                        self.logger.info(f"✅ DB LOAD: Loaded enhanced analysis data for {cluster_id} ({len(enhanced_data.keys())} sections)")
-                        return enhanced_data
+                        enhanced_input = json.loads(enhanced_data.decode('utf-8'))
+                        
+                        # Validate it's the right structure
+                        if isinstance(enhanced_input, dict):
+                            size = len(json.dumps(enhanced_input, default=str))
+                            
+                            # Check for required keys
+                            required = ['cluster_info', 'cost_analysis']
+                            if all(k in enhanced_input for k in required):
+                                self.logger.info(f"✅ Retrieved enhanced input: {size:,} bytes, {len(enhanced_input)} keys")
+                                
+                                if size > 1_000_000:
+                                    self.logger.warning(f"⚠️ Enhanced input is large: {size:,} bytes")
+                                
+                                return enhanced_input
+                            else:
+                                self.logger.warning(f"⚠️ Enhanced input missing required keys: {[k for k in required if k not in enhanced_input]}")
+                        
                     except Exception as e:
                         self.logger.error(f"❌ Failed to decode enhanced analysis data: {e}")
-                        return None
-                else:
-                    self.logger.info(f"ℹ️ No enhanced analysis data found for {cluster_id}")
-                    return None
+                
+                self.logger.info(f"🔧 enhanced_analysis_data is NULL, extracting from analysis_data...")
+                
+                analysis_data = row['analysis_data']
+                if analysis_data is not None and analysis_data:
+                    try:
+                        # Load full analysis
+                        full_analysis = json.loads(analysis_data.decode('utf-8'))
+                        
+                        # Extract enhanced input on-the-fly
+                        enhanced_input = self._extract_enhanced_input_from_analysis(full_analysis)
+                        
+                        # Save it for next time (backfill)
+                        self._update_enhanced_analysis_data(cluster_id, enhanced_input)
+                        
+                        self.logger.info(f"✅ Extracted and backfilled enhanced input for {cluster_id}")
+                        return enhanced_input
+                        
+                    except Exception as e:
+                        self.logger.error(f"❌ Failed to extract enhanced input from analysis_data: {e}")
+                
+                self.logger.error(f"❌ No usable analysis data available for cluster: {cluster_id}")
+                return None
                     
         except Exception as e:
             self.logger.error(f"❌ Failed to get enhanced analysis data: {e}")
             return None
+
+    def _update_enhanced_analysis_data(self, cluster_id: str, enhanced_input: dict):
+        """Backfill enhanced_analysis_data for existing records"""
+        
+        if not cluster_id:
+            raise ValueError("cluster_id is required")
+        
+        if not enhanced_input or not isinstance(enhanced_input, dict):
+            raise ValueError("enhanced_input must be a non-empty dictionary")
+        
+        try:
+            enhanced_blob = json.dumps(enhanced_input).encode('utf-8')
+            
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute('''
+                    UPDATE clusters
+                    SET enhanced_analysis_data = ?
+                    WHERE id = ?
+                ''', (enhanced_blob, cluster_id))
+                conn.commit()
+            
+            self.logger.info(f"✅ Backfilled enhanced_analysis_data for {cluster_id}")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Failed to backfill enhanced_analysis_data: {e}")
+            raise RuntimeError(f"Failed to backfill enhanced analysis data for {cluster_id}: {e}") from e
+
+    def get_enhanced_analysis_input(self, cluster_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get enhanced input for Claude API (NOT full analysis).
+        
+        Returns structured 200KB enhanced input, not 11MB full analysis.
+        This is an alias for get_enhanced_analysis_data() for API consistency.
+        """
+        return self.get_enhanced_analysis_data(cluster_id)
 
     def update_analysis_status(self, cluster_id: str, status: str, progress: int = 0, message: str = ""):
         """Update analysis status for a cluster"""
@@ -1849,7 +2164,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 # DEBUG: Check data before update
                 cursor = conn.execute('SELECT last_cost, last_savings, last_analyzed FROM clusters WHERE id = ?', (cluster_id,))
                 before_data = cursor.fetchone()
-                if before_data:
+                if before_data is not None and before_data:
                     self.logger.info(f"🔍 BEFORE UPDATE: {cluster_id} → cost: ${before_data[0]}, savings: ${before_data[1]}, analyzed: {before_data[2]}")
                 else:
                     self.logger.info(f"🔍 BEFORE UPDATE: {cluster_id} → cluster not found")
@@ -1871,11 +2186,11 @@ class EnhancedMultiSubscriptionClusterManager:
                         ''', (cluster_id,))
                         current_data = check_cursor.fetchone()
                         
-                        if current_data:
+                        if current_data is not None and current_data:
                             current_status, last_analyzed, last_cost, last_savings = current_data
                             self.logger.info(f"🔍 BEFORE UPDATE: {cluster_id} → status={current_status}, last_analyzed={last_analyzed}, cost={last_cost}, savings={last_savings}")
                             
-                            if last_analyzed:
+                            if last_analyzed is not None and last_analyzed:
                                 self.logger.info(f"✅ PRESERVING previous successful analysis for {cluster_id}")
                             else:
                                 self.logger.info(f"❌ NO previous analysis found for {cluster_id}, setting to failed")
@@ -1903,7 +2218,7 @@ class EnhancedMultiSubscriptionClusterManager:
                             SELECT analysis_status FROM clusters WHERE id = ?
                         ''', (cluster_id,))
                         final_status = check_cursor.fetchone()
-                        if final_status:
+                        if final_status is not None and final_status:
                             self.logger.info(f"🔍 AFTER UPDATE: {cluster_id} → final status={final_status[0]}")
                         
                     else:
@@ -1955,7 +2270,6 @@ class EnhancedMultiSubscriptionClusterManager:
             if hasattr(self, '_sse_status_cache') and cluster_id in self._sse_status_cache:
                 return self._sse_status_cache[cluster_id]
             
-            # Fallback to existing database method
             return self.get_analysis_status(cluster_id)
             
         except Exception as e:
@@ -1975,7 +2289,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 ''', (cluster_id,))
                 
                 row = cursor.fetchone()
-                if row:
+                if row is not None and row:
                     return {
                         'cluster_id': cluster_id,
                         'status': row['analysis_status'] or 'pending',
@@ -2093,7 +2407,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 ''')
                 
                 row = cursor.fetchone()
-                if row:
+                if row is not None and row:
                     summary = dict(row)
                     summary['total_monthly_cost'] = summary['total_monthly_cost'] or 0
                     summary['total_potential_savings'] = summary['total_potential_savings'] or 0
@@ -2347,7 +2661,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 """, (cluster_id,))
                 
                 row = cursor.fetchone()
-                if row:
+                if row is not None and row:
                     from infrastructure.plan_generation.plan_schema import KubeOptImplementationPlan
                     return KubeOptImplementationPlan.model_validate_json(row[0])
                 return None
@@ -2366,7 +2680,7 @@ class EnhancedMultiSubscriptionClusterManager:
                 """, (plan_id,))
                 
                 row = cursor.fetchone()
-                if row:
+                if row is not None and row:
                     from infrastructure.plan_generation.plan_schema import KubeOptImplementationPlan
                     return KubeOptImplementationPlan.model_validate_json(row[0])
                 return None
@@ -2448,6 +2762,302 @@ class EnhancedMultiSubscriptionClusterManager:
                 
         except Exception as e:
             self.logger.error(f"❌ Failed to cleanup old plans: {e}")
+
+    def _extract_enhanced_input_from_analysis(self, analysis_results: dict) -> dict:
+        """
+        Transform full analysis results (11MB) into enhanced input (200KB).
+        
+        This is what Claude API actually needs - structured, concise, actionable data.
+        
+        Input: Full comprehensive analysis (98 flat keys, 11MB)
+        Output: Enhanced input (6 nested sections, 200KB)
+        """
+        
+        print(f"📦 Extracting enhanced input from analysis results...")
+        print(f"   Input size: {len(json.dumps(analysis_results, default=str)):,} bytes")
+        print(f"   Input keys: {len(analysis_results)}")
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 1: CLUSTER INFO (nested structure)
+        # ════════════════════════════════════════════════════════════
+        
+        cluster_info = {
+            'cluster_name': analysis_results.get('cluster_name'),
+            'resource_group': analysis_results.get('resource_group'),
+            'subscription_id': analysis_results.get('subscription_id'),
+            'location': analysis_results.get('location', 'Unknown'),
+            'kubernetes_version': analysis_results.get('kubernetes_version', 'Unknown'),
+            'node_count': analysis_results.get('current_node_count', 0),
+            'total_pods': analysis_results.get('total_pods', 0),
+            'total_namespaces': analysis_results.get('total_namespaces', 0),
+            'analysis_timestamp': analysis_results.get('analysis_timestamp', datetime.now().isoformat())
+        }
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 2: COST ANALYSIS (nested structure, no bloat)
+        # ════════════════════════════════════════════════════════════
+        
+        cost_analysis = {
+            'total_monthly_cost': analysis_results.get('total_cost', 0),
+            'compute_cost': analysis_results.get('node_cost', 0),
+            'storage_cost': analysis_results.get('storage_cost', 0),
+            'network_cost': analysis_results.get('networking_cost', 0),
+            'control_plane_cost': analysis_results.get('control_plane_cost', 0),
+            'registry_cost': analysis_results.get('registry_cost', 0),
+            'other_cost': analysis_results.get('other_cost', 0),
+            'potential_monthly_savings': analysis_results.get('total_savings', 0),
+            'savings_percentage': analysis_results.get('savings_percentage', 0),
+            'cost_period_days': analysis_results.get('analysis_period_days', 30),
+            'currency': 'USD'
+        }
+        
+        # Remove the massive cost_data array (6,194 items) - not needed!
+        # Claude doesn't need every single cost data point
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 3: WORKLOADS (limit to essentials)
+        # ════════════════════════════════════════════════════════════
+        
+        workloads = []
+        
+        # Get workloads from various sources in the analysis
+        workload_sources = []
+        if 'all_workloads_preserved' in analysis_results:
+            workload_sources = analysis_results['all_workloads_preserved']
+        elif 'workloadData' in analysis_results:
+            workload_sources = analysis_results['workloadData'].get('workloads', [])
+        elif 'workloads' in analysis_results:
+            workload_sources = analysis_results['workloads']
+        
+        # Limit and clean workloads
+        for wl in workload_sources[:100]:  # Top 100 workloads only
+            workloads.append({
+                'namespace': wl.get('namespace'),
+                'name': wl.get('name'),
+                'type': wl.get('kind', wl.get('type', 'Deployment')),
+                'replicas': wl.get('replicas', 1),
+                
+                # Resource requests
+                'resources': {
+                    'requests': {
+                        'cpu': wl.get('cpu_request', wl.get('cpu_millicores_request')),
+                        'memory': wl.get('memory_request', wl.get('memory_bytes_request'))
+                    },
+                    'limits': {
+                        'cpu': wl.get('cpu_limit'),
+                        'memory': wl.get('memory_limit')
+                    }
+                },
+                
+                # Usage metrics
+                'actual_usage': {
+                    'cpu': {
+                        'avg_millicores': wl.get('cpu_usage_avg'),
+                        'avg_percentage': wl.get('cpu_percentage')
+                    },
+                    'memory': {
+                        'avg_bytes': wl.get('memory_usage_avg'),
+                        'avg_percentage': wl.get('memory_percentage')
+                    }
+                },
+                
+                # Analysis flags
+                'optimization_candidate': wl.get('over_provisioned', False) or wl.get('under_provisioned', False),
+                'optimization_reasons': [],
+                'potential_monthly_savings': wl.get('estimated_monthly_savings', 0),
+                
+                # HPA info
+                'has_hpa': wl.get('has_hpa', False),
+                'hpa_suitable': wl.get('hpa_suitability_score', 0) > 0.7
+            })
+            
+            # Add optimization reasons
+            if wl.get('over_provisioned'):
+                workloads[-1]['optimization_reasons'].append('over_provisioned')
+            if wl.get('under_provisioned'):
+                workloads[-1]['optimization_reasons'].append('under_provisioned')
+            if wl.get('cpu_percentage', 0) < 20:
+                workloads[-1]['optimization_reasons'].append('low_cpu_utilization')
+            if wl.get('memory_percentage', 0) < 20:
+                workloads[-1]['optimization_reasons'].append('low_memory_utilization')
+        
+        print(f"   Workloads: {len(workload_sources)} → {len(workloads)} (limited)")
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 4: OPTIMIZATION OPPORTUNITIES (top opportunities)
+        # ════════════════════════════════════════════════════════════
+        
+        opportunities = []
+        
+        # Get optimization opportunities from analysis
+        raw_opportunities = analysis_results.get('optimization_opportunities', {})
+        
+        # Process different types of opportunities
+        if isinstance(raw_opportunities, dict):
+            # Process HPA opportunities
+            hpa_ops = raw_opportunities.get('hpa_scaling', [])
+            for opp in hpa_ops[:20]:  # Top 20 HPA opportunities
+                opportunities.append({
+                    'type': 'hpa_scaling',
+                    'workload': opp.get('name'),
+                    'namespace': opp.get('namespace'),
+                    'description': f"Enable HPA scaling for {opp.get('name')}",
+                    'current_state': f"Fixed replicas: {opp.get('current_replicas', 'unknown')}",
+                    'recommended_action': f"Set HPA: {opp.get('min_replicas')}-{opp.get('max_replicas')} replicas, {opp.get('cpu_target', 70)}% CPU target",
+                    'potential_monthly_savings': opp.get('monthly_savings', 0),
+                    'implementation_difficulty': 'medium',
+                    'risk_level': 'low'
+                })
+            
+            # Process rightsizing opportunities
+            rightsizing_ops = raw_opportunities.get('resource_rightsizing', [])
+            for opp in rightsizing_ops[:20]:  # Top 20 rightsizing opportunities
+                opportunities.append({
+                    'type': 'resource_rightsizing',
+                    'workload': opp.get('workload_name'),
+                    'namespace': opp.get('namespace'),
+                    'description': f"Rightsize {opp.get('resource_type')} for {opp.get('workload_name')}",
+                    'current_state': f"Current {opp.get('resource_type')}: {opp.get('current_value')}",
+                    'recommended_action': f"Reduce to {opp.get('recommended_value')} ({opp.get('optimization_ratio', '0%')} reduction)",
+                    'potential_monthly_savings': opp.get('monthly_savings', 0),
+                    'implementation_difficulty': 'low',
+                    'risk_level': 'low'
+                })
+            
+            # Process networking opportunities
+            network_ops = raw_opportunities.get('networking', [])
+            for opp in network_ops[:10]:  # Top 10 network opportunities
+                opportunities.append({
+                    'type': 'networking_optimization',
+                    'workload': 'cluster-wide',
+                    'namespace': 'all',
+                    'description': opp.get('description', 'Network optimization'),
+                    'current_state': f"Current configuration",
+                    'recommended_action': opp.get('implementation', 'Optimize network configuration'),
+                    'potential_monthly_savings': opp.get('monthly_savings', 0),
+                    'implementation_difficulty': 'medium',
+                    'risk_level': 'medium'
+                })
+        
+        # Sort by savings and take top 50
+        opportunities = sorted(opportunities, key=lambda x: x.get('potential_monthly_savings', 0), reverse=True)[:50]
+        
+        print(f"   Opportunities: {len(opportunities)} (top opportunities)")
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 5: NODE POOLS (if available)
+        # ════════════════════════════════════════════════════════════
+        
+        node_pools = []
+        if 'nodes' in analysis_results:
+            # Extract node pool information
+            nodes = analysis_results['nodes']
+            if isinstance(nodes, list) and len(nodes) > 0:
+                # Group nodes by VM SKU to create node pools
+                node_groups = {}
+                for node in nodes:
+                    vm_sku = node.get('vm_sku', 'Unknown')
+                    if vm_sku not in node_groups:
+                        node_groups[vm_sku] = []
+                    node_groups[vm_sku].append(node)
+                
+                for vm_sku, pool_nodes in node_groups.items():
+                    if pool_nodes is not None and pool_nodes:
+                        first_node = pool_nodes[0]
+                        avg_cpu = sum(n.get('cpu_percentage', 0) for n in pool_nodes) / len(pool_nodes)
+                        avg_memory = sum(n.get('memory_percentage', 0) for n in pool_nodes) / len(pool_nodes)
+                        
+                        node_pools.append({
+                            'name': f"pool-{vm_sku.lower()}",
+                            'vm_sku': vm_sku,
+                            'node_count': len(pool_nodes),
+                            'cpu_cores_per_node': first_node.get('cpu_cores', 0),
+                            'memory_gb_per_node': first_node.get('memory_gb', 0),
+                            'utilization': {
+                                'cpu_percentage': round(avg_cpu, 1),
+                                'memory_percentage': round(avg_memory, 1)
+                            },
+                            'monthly_cost': sum(n.get('monthly_cost', 0) for n in pool_nodes)
+                        })
+        
+        print(f"   Node pools: {len(node_pools)}")
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 6: NAMESPACE SUMMARY
+        # ════════════════════════════════════════════════════════════
+        
+        namespace_summary = []
+        namespace_data = analysis_results.get('namespaceData', {})
+        if isinstance(namespace_data, dict):
+            for ns_name, ns_info in namespace_data.items():
+                if isinstance(ns_info, dict):
+                    namespace_summary.append({
+                        'name': ns_name,
+                        'workload_count': ns_info.get('workload_count', 0),
+                        'pod_count': ns_info.get('pod_count', 0),
+                        'total_cost': ns_info.get('total_cost', 0),
+                        'cpu_request_total': ns_info.get('total_cpu_request'),
+                        'memory_request_total': ns_info.get('total_memory_request'),
+                        'optimization_opportunities': ns_info.get('optimization_count', 0)
+                    })
+        
+        # If no namespace data, try namespace_costs
+        if not namespace_summary and 'namespace_costs' in analysis_results:
+            ns_costs = analysis_results['namespace_costs']
+            if isinstance(ns_costs, dict):
+                for ns_name, cost in ns_costs.items():
+                    namespace_summary.append({
+                        'name': ns_name,
+                        'workload_count': 0,
+                        'pod_count': 0,
+                        'total_cost': cost,
+                        'optimization_opportunities': 0
+                    })
+        
+        print(f"   Namespaces: {len(namespace_summary)}")
+        
+        # ════════════════════════════════════════════════════════════
+        # SECTION 7: METADATA
+        # ════════════════════════════════════════════════════════════
+        
+        metadata = {
+            'schema_version': '2.0.0',
+            'collection_timestamp': analysis_results.get('analysis_timestamp', datetime.now().isoformat()),
+            'analysis_method': analysis_results.get('analysis_method', 'comprehensive_ml'),
+            'data_quality_score': analysis_results.get('data_quality_score', 0),
+            'analysis_confidence': analysis_results.get('analysis_confidence', 0),
+            'analysis_scope': {
+                'cost_analysis_period_days': analysis_results.get('analysis_period_days', 30),
+                'metrics_lookback_days': 7,
+                'include_system_namespaces': False
+            }
+        }
+        
+        # ════════════════════════════════════════════════════════════
+        # ASSEMBLE ENHANCED INPUT (structured, nested)
+        # ════════════════════════════════════════════════════════════
+        
+        enhanced_input = {
+            'cluster_info': cluster_info,
+            'cost_analysis': cost_analysis,
+            'workloads': workloads,
+            'optimization_opportunities': opportunities,
+            'node_pools': node_pools,
+            'namespace_summary': namespace_summary,
+            'metadata': metadata
+        }
+        
+        # Validate output
+        output_size = len(json.dumps(enhanced_input, default=str))
+        print(f"   Output size: {output_size:,} bytes")
+        print(f"   Output keys: {len(enhanced_input)}")
+        input_size = len(json.dumps(analysis_results, default=str))
+        print(f"   Size reduction: {(1 - output_size/input_size)*100:.1f}%")
+        
+        if output_size > 1_000_000:
+            print(f"   ⚠️ WARNING: Output still over 1MB, may need more reduction")
+        
+        return enhanced_input
 
 
 # Migration function to convert from JSON to SQLite

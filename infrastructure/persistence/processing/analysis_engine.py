@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -159,7 +160,7 @@ class MultiSubscriptionAnalysisEngine:
                     cache_date_range = f"{cache_start_date} to {cache_end_date}"
                     cached_data = cache.get(cluster_id, subscription_id, cache_date_range)
                     
-                    if cached_data:
+                    if cached_data is not None and cached_data:
                         logger.info(f"✅ CACHE HIT: Found file cached cost data for {cluster_name}")
                         cost_validation_result = {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}
                     else:
@@ -322,7 +323,7 @@ class MultiSubscriptionAnalysisEngine:
             )
             
             # CRITICAL: Add metrics_data to final_results for implementation_generator
-            if metrics_data:
+            if metrics_data is not None and metrics_data:
                 final_results['metrics_data'] = metrics_data
                 logger.info(f"✅ Session {session_id}: Added metrics_data to final_results for HPA analysis")
                 if 'hpa_implementation' in metrics_data:
@@ -410,7 +411,7 @@ class MultiSubscriptionAnalysisEngine:
             }
         }
         
-        if pod_data:
+        if pod_data is not None and pod_data:
             final_results['has_pod_costs'] = True
             final_results['pod_cost_analysis'] = pod_data
             
@@ -492,24 +493,6 @@ class MultiSubscriptionAnalysisEngine:
             else:
                 logger.warning(f"⚠️ Session {session_id}: No implementation generator available")
                 results['implementation_plan'] = None
-            
-            implementation_plan = results.get('implementation_plan')
-            if implementation_plan and isinstance(implementation_plan, dict):
-                phases = implementation_plan.get('implementation_phases', [])
-                if isinstance(phases, list) and len(phases) > 0:
-                    # Check if cluster config was used
-                    config_enhanced = implementation_plan.get('metadata', {}).get('version', '').endswith('cluster-config-enhanced')
-                    cluster_intelligence = implementation_plan.get('intelligenceInsights', {}).get('config_derived', False)
-                    
-                    logger.info(f"✅ Session {session_id}: Generated implementation plan: {len(phases)} phases")
-                    if config_enhanced:
-                        logger.info(f"🔧 Session {session_id}: Plan enhanced with cluster configuration intelligence")
-                    if cluster_intelligence:
-                        logger.info(f"🧠 Session {session_id}: Plan includes cluster intelligence insights")
-                else:
-                    logger.error(f"❌ Session {session_id}: Implementation plan phases empty")
-            else:
-                logger.error(f"❌ Session {session_id}: Implementation plan missing phases")
                 
         except Exception as impl_error:
             logger.error(f"❌ Session {session_id}: Implementation plan generation failed: {impl_error}")
@@ -702,11 +685,10 @@ class MultiSubscriptionAnalysisEngine:
         from analytics.collectors.aks_realtime_metrics import AKSRealTimeMetricsFetcher
         
         # CACHE-FIRST: Pass shared cache to avoid creating new cache instance
-        if shared_cache:
+        if shared_cache is not None and shared_cache:
             enhanced_fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name, config.subscription_id, cache=shared_cache)
             logger.info(f"🎯 Session {session_id}: Using shared cache for metrics fetching")
         else:
-            # Fallback to old behavior for backward compatibility
             enhanced_fetcher = AKSRealTimeMetricsFetcher(resource_group, cluster_name, config.subscription_id)
             logger.info(f"⚠️ Session {session_id}: No shared cache provided - creating new cache instance")
         
@@ -908,7 +890,6 @@ class MultiSubscriptionAnalysisEngine:
             
         except Exception as e:
             logger.error(f"❌ Failed to generate enhanced analysis input: {e}")
-            # Return minimal structure on failure
             return {
                 "cost_analysis": self._extract_cost_analysis(basic_analysis),
                 "cluster_info": self._get_cluster_info(cluster_id, basic_analysis),
@@ -1171,17 +1152,13 @@ class MultiSubscriptionAnalysisEngine:
         try:
             hpas = []
             
-            # Extract from HPA implementation data
+            # Use the same data source as workload extraction
             hpa_recs = basic_analysis.get('hpa_recommendations', {})
-            hpa_count = basic_analysis.get('hpa_count', 0)
+            workload_chars = hpa_recs.get('workload_characteristics', {})
             
-            # Extract from metrics data if available
-            metrics_data = basic_analysis.get('metrics_data', {})
-            hpa_implementation = metrics_data.get('hpa_implementation', {})
-            
-            # Get HPA details if available
-            all_hpa_details = hpa_implementation.get('all_hpa_details', [])
-            high_cpu_hpas = hpa_implementation.get('high_cpu_hpas', [])
+            # Get HPA details from the same source as workloads
+            all_hpa_details = workload_chars.get('all_hpa_details', [])
+            high_cpu_hpas = workload_chars.get('high_cpu_hpas', [])
             
             # Process existing HPAs
             processed_hpas = set()

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -104,7 +105,7 @@ class AzureSDKManager:
         self._lock = threading.Lock()
         self._subscription_cache: Dict[str, str] = {}  # Cache for subscription access
         
-        if AZURE_SDK_AVAILABLE:
+        if AZURE_SDK_AVAILABLE is not None and AZURE_SDK_AVAILABLE:
             self._initialize_credentials()
         else:
             logger.warning("⚠️ Azure SDK not available - some features will use fallbacks")
@@ -163,7 +164,7 @@ class AzureSDKManager:
                 except Exception as e:
                     logger.debug(f"Interactive browser credential not available: {e}")
             else:
-                if credential_chain:
+                if credential_chain is not None and credential_chain:
                     logger.debug("Skipping interactive browser credential - other credentials available")
                 else:
                     logger.debug("Skipping interactive browser credential due to placeholder/missing tenant ID")
@@ -229,7 +230,6 @@ class AzureSDKManager:
             logger.debug(f"✅ Using cached subscription ID: {self.subscription_id[:8]}...")
             return
         
-        # Try Azure SDK to get default subscription - no CLI fallback
         try:
             from azure.mgmt.subscription import SubscriptionClient
             from azure.identity import DefaultAzureCredential
@@ -239,7 +239,7 @@ class AzureSDKManager:
             
             # Get first enabled subscription as default
             subscriptions = list(subscription_client.subscriptions.list())
-            if subscriptions:
+            if subscriptions is not None and subscriptions:
                 default_subscription = subscriptions[0]
                 self.subscription_id = default_subscription.subscription_id
                 self._cached_subscription_id = self.subscription_id  # Cache it
@@ -287,7 +287,6 @@ class AzureSDKManager:
             if target_subscription not in self.clients:
                 self.clients[target_subscription] = {}
             
-            # Return cached client if available
             if client_type in self.clients[target_subscription]:
                 return self.clients[target_subscription][client_type]
             
@@ -318,19 +317,19 @@ class AzureSDKManager:
                 elif client_type == 'network':
                     client = NetworkManagementClient(self.credential, target_subscription, transport=transport)
                 elif client_type == 'loganalytics':
-                    if LOG_ANALYTICS_AVAILABLE:
+                    if LOG_ANALYTICS_AVAILABLE is not None and LOG_ANALYTICS_AVAILABLE:
                         client = LogAnalyticsManagementClient(self.credential, target_subscription, transport=transport)
                     else:
                         logger.error(f"❌ LogAnalyticsManagementClient not available - install azure-mgmt-loganalytics")
                         return None
                 elif client_type == 'applicationinsights':
-                    if APPLICATION_INSIGHTS_AVAILABLE:
+                    if APPLICATION_INSIGHTS_AVAILABLE is not None and APPLICATION_INSIGHTS_AVAILABLE:
                         client = ApplicationInsightsManagementClient(self.credential, target_subscription, transport=transport)
                     else:
                         logger.error(f"❌ ApplicationInsightsManagementClient not available - install azure-mgmt-applicationinsights")
                         return None
                 elif client_type == 'consumption':
-                    if CONSUMPTION_AVAILABLE:
+                    if CONSUMPTION_AVAILABLE is not None and CONSUMPTION_AVAILABLE:
                         client = ConsumptionManagementClient(self.credential, target_subscription, transport=transport)
                     else:
                         logger.error(f"❌ ConsumptionManagementClient not available - install azure-mgmt-consumption")
@@ -416,7 +415,7 @@ class AzureSDKManager:
     def clear_clients(self, subscription_id: Optional[str] = None):
         """Clear cached clients (useful for subscription switches)"""
         with self._lock:
-            if subscription_id:
+            if subscription_id is not None and subscription_id:
                 if subscription_id in self.clients:
                     del self.clients[subscription_id]
                     logger.info(f"🧹 Cleared Azure client cache for subscription {subscription_id[:8]}...")
@@ -440,9 +439,9 @@ class AzureSDKManager:
             self.clear_clients()
             
             # Reinitialize credentials with new settings
-            if AZURE_SDK_AVAILABLE:
+            if AZURE_SDK_AVAILABLE is not None and AZURE_SDK_AVAILABLE:
                 success = self._initialize_credentials()
-                if success:
+                if success is not None and success:
                     logger.info("✅ Azure credentials refreshed successfully")
                 else:
                     logger.warning("⚠️ Failed to refresh Azure credentials")
@@ -501,7 +500,7 @@ class AzureSDKManager:
             # Get cluster token for AAD-enabled clusters
             cluster_token = self._get_cluster_token_for_aad(subscription_id, resource_group, cluster_name)
             
-            if cluster_token:
+            if cluster_token is not None and cluster_token:
                 run_command_request = RunCommandRequest(
                     command=kubectl_command,
                     cluster_token=cluster_token

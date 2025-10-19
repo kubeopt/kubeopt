@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Comprehensive Cost Collector - Enhanced Azure Cost Data Collection
 ================================================================
 
@@ -563,7 +564,6 @@ class ComprehensiveCostCollector:
                 
         except Exception as e:
             logger.error(f"Azure SDK cost query failed: {e}")
-            # Return empty result to maintain compatibility
             return {'properties': {'columns': [], 'rows': []}}
     
     def _process_base_cost_results(self, cost_data: Dict, resource_group: str, cluster_name: str) -> Dict:
@@ -629,7 +629,6 @@ def integrate_comprehensive_cost_collection(resource_group: str, cluster_name: s
         
     except Exception as e:
         logger.error(f"❌ Comprehensive cost collection failed: {e}")
-        # Return minimal structure to prevent breaking existing code
         return {
             'total_cost': 0,
             'cost_breakdown': {},

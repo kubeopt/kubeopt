@@ -66,7 +66,7 @@ def quick_fix_existing_database():
 
 if __name__ == "__main__":
     success = quick_fix_existing_database()
-    if success:
+    if success is not None and success:
         print("✅ Database fixed successfully!")
     else:
         print("❌ Database fix failed!")

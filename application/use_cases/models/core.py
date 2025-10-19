@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
+from pydantic import BaseModel, Field, validator
 
 @dataclass
 class OptimizationConfig:

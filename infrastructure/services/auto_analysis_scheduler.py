@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer - KubeOpt
@@ -120,7 +121,7 @@ class AutoAnalysisScheduler:
                     # Run analysis with comprehensive error handling
                     success = self._run_scheduled_analysis()
                     
-                    if success:
+                    if success is not None and success:
                         self.last_analysis_time = datetime.now()
                         logger.info(f"✅ Scheduled analysis completed successfully")
                     else:
@@ -301,7 +302,7 @@ class AutoAnalysisScheduler:
                 valid_clusters.append(cluster)
                 logger.info(f"📋 Found valid cluster: {cluster_name} (ID: {cluster_id}, status: {cluster_status})")
             
-            if valid_clusters:
+            if valid_clusters is not None and valid_clusters:
                 cluster_names = [c.get('name', c.get('id')) for c in valid_clusters]
                 logger.info(f"✅ Auto-analysis will monitor {len(valid_clusters)} cluster(s): {', '.join(cluster_names)}")
             else:

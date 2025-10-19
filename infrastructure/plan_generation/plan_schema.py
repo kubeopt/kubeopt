@@ -478,3 +478,170 @@ def validate_plan_completeness(plan: KubeOptImplementationPlan) -> List[str]:
                 issues.append(f"Action {action.action_id} has no implementation steps")
     
     return issues
+
+
+# ═══════════════════════════════════════════════════════════════
+# SPLIT MODE SPECIFIC SCHEMAS
+# ═══════════════════════════════════════════════════════════════
+
+class SplitModeAction(BaseModel):
+    """Simplified action for split mode validation"""
+    name: Optional[str] = None
+    step: Optional[str] = None
+    steps: Optional[List[str]] = []
+    rollback: Optional[Union[str, List[str]]] = None
+    
+    @validator('steps', pre=True)
+    def ensure_steps_is_list(cls, v):
+        if isinstance(v, str):
+            return [v]
+        return v or []
+
+class SplitModePhase(BaseModel):
+    """Simplified phase for split mode validation"""
+    phase_number: int
+    name: Optional[str] = None
+    actions: List[SplitModeAction] = []
+    
+    @validator('actions', pre=True)
+    def convert_actions(cls, v):
+        if not v:
+            return []
+        
+        result = []
+        for action in v:
+            if isinstance(action, dict):
+                result.append(SplitModeAction(**action))
+            else:
+                result.append(action)
+        return result
+
+class SplitModeMetadata(BaseModel):
+    """Split mode metadata validation"""
+    plan_id: str
+    cluster_name: str
+    generated_date: str
+
+class SplitModeROISummary(BaseModel):
+    """Split mode ROI validation"""
+    monthly_savings: float = 0
+    annual_savings: float = 0
+    payback_months: Optional[int] = None
+    roi_percentage: Optional[float] = None
+
+class SplitModeMonitoring(BaseModel):
+    """Split mode monitoring validation"""
+    key_commands: List[str] = []
+    success_metrics: List[str] = []
+
+class SplitModeImplementationSummary(BaseModel):
+    """Split mode implementation summary"""
+    current_monthly_cost: float
+    estimated_monthly_savings: float = 0
+    duration: Optional[Union[str, int]] = None
+    phases_count: Optional[int] = None
+
+class SplitModePlanContent(BaseModel):
+    """Validation schema for split mode plan content"""
+    metadata: SplitModeMetadata
+    implementation_summary: SplitModeImplementationSummary
+    phases: List[SplitModePhase]
+    roi_summary: SplitModeROISummary
+    monitoring: SplitModeMonitoring
+    next_steps: List[str] = []
+    
+    # Optional detailed analysis sections
+    cluster_dna_analysis: Optional[Dict[str, Any]] = None
+    build_quality_assessment: Optional[Dict[str, Any]] = None
+    naming_conventions_analysis: Optional[Dict[str, Any]] = None
+    roi_analysis: Optional[Dict[str, Any]] = None
+    review_schedule: Optional[List[Dict[str, Any]]] = None
+    
+    @property
+    def total_actions(self) -> int:
+        """Calculate total actions across all phases"""
+        return sum(len(phase.actions) for phase in self.phases)
+    
+    @property
+    def total_monthly_savings(self) -> float:
+        """Get total monthly savings"""
+        return self.roi_summary.monthly_savings
+
+class SplitModeImplementationPlan(BaseModel):
+    """Complete split mode plan with metadata"""
+    implementation_plan: SplitModePlanContent
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    cluster_id: str
+    generated_by: str
+    version: str = "1.0"
+    generation_method: str = "split_dual_call"
+    schema_version: str = "1.0.0"
+    validation_passed: bool = True
+    validation_errors: Optional[List[str]] = None
+    
+    @property
+    def total_actions(self) -> int:
+        """Delegate to implementation plan"""
+        return self.implementation_plan.total_actions
+    
+    @property
+    def total_savings_monthly(self) -> float:
+        """Delegate to implementation plan"""
+        return self.implementation_plan.total_monthly_savings
+    
+    @property
+    def estimated_total_savings_monthly(self) -> float:
+        """Backward compatibility property for database storage"""
+        return self.implementation_plan.total_monthly_savings
+    
+    @property
+    def phases(self) -> List[SplitModePhase]:
+        """Delegate to implementation plan"""
+        return self.implementation_plan.phases
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+    
+    @classmethod
+    def create_validated(cls, data: dict, cluster_id: str, generated_by: str):
+        """Factory method that ensures validation"""
+        from pydantic import ValidationError
+        
+        try:
+            plan_content = SplitModePlanContent(**data)
+            
+            return cls(
+                implementation_plan=plan_content,
+                cluster_id=cluster_id,
+                generated_by=generated_by,
+                validation_passed=True,
+                validation_errors=None
+            )
+            
+        except ValidationError as e:
+            # Log validation errors but create plan anyway
+            errors = [f"{'.'.join(str(x) for x in err['loc'])}: {err['msg']}" for err in e.errors()]
+            
+            minimal_data = {
+                'metadata': data.get('metadata', {'plan_id': 'INVALID', 'cluster_name': cluster_id, 'generated_date': datetime.now().isoformat()}),
+                'implementation_summary': data.get('implementation_summary', {'current_monthly_cost': 0, 'estimated_monthly_savings': 0}),
+                'phases': data.get('phases', []),
+                'roi_summary': data.get('roi_summary', {'monthly_savings': 0, 'annual_savings': 0}),
+                'monitoring': data.get('monitoring', {'key_commands': [], 'success_metrics': []}),
+                'next_steps': data.get('next_steps', [])
+            }
+            
+            try:
+                plan_content = SplitModePlanContent(**minimal_data)
+                return cls(
+                    implementation_plan=plan_content,
+                    cluster_id=cluster_id,
+                    generated_by=generated_by,
+                    validation_passed=False,
+                    validation_errors=errors
+                )
+            except:
+                # Last resort - return with raw data (but mark as failed)
+                raise ValueError(f"Critical validation failure: {errors}")

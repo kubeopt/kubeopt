@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Operational Data Database Manager
 Handles operational metrics, performance data, and audit logs
 """
@@ -64,7 +65,7 @@ class OperationalDataDB:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 
-                if cluster_id:
+                if cluster_id is not None and cluster_id:
                     cursor = conn.execute('''
                         SELECT * FROM security_scan_results 
                         WHERE cluster_id = ?
@@ -131,7 +132,7 @@ class OperationalDataDB:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 
-                if metric_name:
+                if metric_name is not None and metric_name:
                     cursor = conn.execute('''
                         SELECT * FROM performance_metrics 
                         WHERE cluster_id = ? AND metric_name = ?
@@ -263,7 +264,7 @@ class OperationalDataDB:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 
-                if resource_type:
+                if resource_type is not None and resource_type:
                     cursor = conn.execute('''
                         SELECT * FROM resource_utilization 
                         WHERE cluster_id = ? AND resource_type = ?
@@ -334,11 +335,11 @@ class OperationalDataDB:
                 where_clauses = ['event_timestamp > datetime(?, "unixepoch")']
                 params = [cutoff_time]
                 
-                if cluster_id:
+                if cluster_id is not None and cluster_id:
                     where_clauses.append('cluster_id = ?')
                     params.append(cluster_id)
                 
-                if event_type:
+                if event_type is not None and event_type:
                     where_clauses.append('event_type = ?')
                     params.append(event_type)
                 
@@ -381,7 +382,7 @@ class OperationalDataDB:
             # Count cost analyses (last 30 days)
             cost_history = self.get_cost_analysis_history(cluster_id, days_back=30)
             summary['cost_analysis_count'] = len(cost_history)
-            if cost_history:
+            if cost_history is not None and cost_history:
                 summary['latest_cost_analysis'] = cost_history[0]
             
             # Count resource utilization entries (last 24 hours)

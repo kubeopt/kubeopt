@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -202,7 +203,6 @@ class ComplianceFrameworkEngineYAML:
                 elif framework_id == 'HIPAA':
                     self.hipaa_controls = self._load_framework_controls_yaml(framework_id, yaml_controls)
             else:
-                # No fallbacks - let it fail properly if YAML controls are missing
                 logger.warning(f"⚠️ No controls found in YAML for framework {framework_id}")
         
         logger.info(f"📋 Loaded {len(self.compliance_frameworks)} compliance frameworks from YAML")
@@ -937,7 +937,7 @@ class ComplianceFrameworkEngineYAML:
         failed_controls = [r for r in control_results if r['status'] == 'NON_COMPLIANT']
         partial_controls = [r for r in control_results if r['status'] == 'PARTIAL']
         
-        if failed_controls:
+        if failed_controls is not None and failed_controls:
             recommendations.append(f"🔴 URGENT: Address {len(failed_controls)} non-compliant controls")
             
             # Get critical failed controls
@@ -951,10 +951,10 @@ class ComplianceFrameworkEngineYAML:
                         critical_failed.append(ctrl.title)
                         break
             
-            if critical_failed:
+            if critical_failed is not None and critical_failed:
                 recommendations.append(f"⚠️ Critical controls requiring immediate attention: {', '.join(critical_failed[:3])}")
         
-        if partial_controls:
+        if partial_controls is not None and partial_controls:
             recommendations.append(f"🟡 MODERATE: Improve {len(partial_controls)} partially compliant controls")
         
         # Framework-specific recommendations

@@ -10,6 +10,7 @@ from .generators.aks_security_generator import AKSSecurityCommandGenerator
 from .generators.aks_performance_generator import AKSPerformanceCommandGenerator
 from .generators.aks_addons_generator import AKSAddonsCommandGenerator
 from .generators.core_optimization_generator import CoreOptimizationCommandGenerator
+from pydantic import BaseModel, Field, validator
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,7 @@ class AKSOptimizationOrchestrator:
         # Log command distribution for debugging
         logger.info(f"📊 Command distribution: Total={len(all_commands)}")
         for category, cmds in categorized_commands.items():
-            if cmds:
+            if cmds is not None and cmds:
                 logger.info(f"   {category}: {len(cmds)} commands")
         
         # Calculate totals
@@ -189,7 +190,7 @@ class AKSOptimizationOrchestrator:
         }
         
         # Enhance with cluster config if available
-        if cluster_config:
+        if cluster_config is not None and cluster_config:
             context.update({
                 'cluster_name': cluster_config.get('cluster_name', context['cluster_name']),
                 'resource_group': cluster_config.get('resource_group', context['resource_group']),

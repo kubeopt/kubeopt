@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -134,7 +135,7 @@ class AKSRealTimeMetricsFetcher:
         self.parser = KubernetesParsingUtils()
         
         # CACHE-FIRST: Use provided cache or create new one (backward compatibility)
-        if cache:
+        if cache is not None and cache:
             logger.info(f"🎯 {cluster_name}: Using shared cache instance for realtime metrics")
             self.cache = cache
         else:
@@ -247,7 +248,7 @@ class AKSRealTimeMetricsFetcher:
             return 'cpu_only'
         elif has_memory and not has_cpu:
             return 'memory_only'
-        elif has_custom:
+        elif has_custom is not None and has_custom:
             return 'custom'
         else:
             return 'unknown'
@@ -322,7 +323,7 @@ class AKSRealTimeMetricsFetcher:
             
             # Parse top nodes output
             node_usage = {}
-            if top_nodes_output:
+            if top_nodes_output is not None and top_nodes_output:
                 top_lines = top_nodes_output.strip().split('\n')
                 for line in top_lines:
                     if line.strip() and not line.startswith('NAME'):
@@ -423,7 +424,6 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Error processing enhanced node data: {e}")
-            # Return empty structure to maintain compatibility
             return {
                 'nodes': [],
                 'enhanced_data_available': False,
@@ -447,10 +447,8 @@ class AKSRealTimeMetricsFetcher:
             if not top_nodes:
                 logger.info("📊 Metrics server data unavailable, using resource request estimates")
             
-            # Use your original fallback strategy: Try JSON first, then text format
             node_info = cache_data.get('nodes', {})
             
-            # If JSON is empty or problematic, fallback to text format
             if not node_info or (isinstance(node_info, dict) and not node_info.get('items')):
                 logger.warning("🔄 JSON nodes data empty or invalid, attempting text format fallback")
                 logger.info(f"🔍 Debug: node_info type={type(node_info)}, content preview: {str(node_info)[:100]}...")
@@ -483,7 +481,6 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Enhanced node resource data failed: {e}")
-            # Return empty structure to maintain compatibility
             return {
                 'enhanced_data_available': False,
                 'error': str(e),
@@ -503,13 +500,12 @@ class AKSRealTimeMetricsFetcher:
             
             # Method 1: Use cached custom columns data (most efficient)
             describe_output = cache_data.get('pod_resources', '')
-            if describe_output:
+            if describe_output is not None and describe_output:
                 logger.info("✅ Using cached custom columns data for resource requests")
                 return self._parse_custom_columns_resource_requests(describe_output)
             
-            # Method 2: Use cached basic pod data as fallback
             basic_output = cache_data.get('pods_basic', '')
-            if basic_output:
+            if basic_output is not None and basic_output:
                 logger.info("✅ Using cached basic pod listing for resource estimation")
                 return self._estimate_resource_requests_from_basic_data(basic_output)
             
@@ -521,7 +517,6 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Pod resource requests collection failed: {e}")
-            # No fallback, fail if real data unavailable
             raise ValueError(f"Failed to collect pod resource requests: {e}")
 
     def _estimate_resource_requests_from_basic_data(self, output: str) -> Dict[str, Dict]:
@@ -567,7 +562,6 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Basic estimation failed: {e}")
-            # No fallback, fail if real data unavailable
             raise ValueError(f"Failed to estimate resource requests from basic data: {e}")
         
     def _parse_custom_columns_resource_requests(self, output: str) -> Dict[str, Dict]:
@@ -617,7 +611,6 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Custom columns parsing failed: {e}")
-            # No fallback, fail if real data unavailable  
             raise ValueError(f"Failed to parse custom columns resource requests: {e}")
 
     def get_hpa_metrics_with_high_cpu_detection(self) -> Dict:
@@ -711,7 +704,6 @@ class AKSRealTimeMetricsFetcher:
             if large_output.strip().startswith('{'):
                 # This was supposed to be JSON but got truncated
                 logger.warning("⚠️ ENHANCED: Large JSON detected, likely truncated")
-                return ""  # Return empty to trigger fallback
             
             # For text output, just clean and return
             return large_output.strip()
@@ -747,7 +739,6 @@ class AKSRealTimeMetricsFetcher:
                     return json_content
                 except json.JSONDecodeError as json_error:
                     logger.warning(f"⚠️ ENHANCED: JSON validation failed: {json_error}")
-                    return ""  # Return empty to trigger fallback
             
             return clean_output
             
@@ -770,7 +761,7 @@ class AKSRealTimeMetricsFetcher:
                 subscription_id=self.subscription_id
             )
             
-            if result:
+            if result is not None and result:
                 logger.info(f"✅ Successfully connected to AKS cluster{subscription_info}")
                 self.connection_verified = True
                 return True
@@ -838,7 +829,7 @@ class AKSRealTimeMetricsFetcher:
         """Safe kubectl YAML/JSON command execution"""
         try:
             output = self.execute_kubectl_command(kubectl_cmd, timeout)
-            if output:
+            if output is not None and output:
                 return json.loads(output)
             return None
         except json.JSONDecodeError as e:
@@ -895,7 +886,7 @@ class AKSRealTimeMetricsFetcher:
             
             # Parse top nodes output if available
             node_usage = {}
-            if top_nodes_output:
+            if top_nodes_output is not None and top_nodes_output:
                 logger.info(f"🔧 DEBUG: Processing top nodes output: {len(top_nodes_output)} chars")
                 top_lines = top_nodes_output.strip().split('\n')
                 
@@ -997,7 +988,6 @@ class AKSRealTimeMetricsFetcher:
         
         try:
             # STEP 1: Get basic HPA list with text output to avoid JSON truncation
-            # Use cached HPA data with fallback strategy  
             cache_data = self.cache.get_resource_usage_data()
             hpa_data = cache_data.get('hpa', {})
             
@@ -1009,7 +999,6 @@ class AKSRealTimeMetricsFetcher:
                     logger.warning("⚠️ Failed to parse HPA JSON data")
                     hpa_data = {}
             
-            # If JSON is empty or problematic, fallback to text format 
             if not hpa_data or (isinstance(hpa_data, dict) and not hpa_data.get('items')):
                 logger.info("🔄 HPA JSON data empty, using text format fallback")
                 hpa_text = cache_data.get('hpa_text', '') or cache_data.get('hpa_custom', '')
@@ -1204,7 +1193,6 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Enhanced node metrics failed: {e}")
-            # No fallback, fail if real data unavailable
             raise ValueError(f"Failed to collect enhanced node metrics: {e}")
 
     def _calculate_cpu_efficiency(self, cpu_usage: float) -> float:
@@ -1585,12 +1573,11 @@ class AKSRealTimeMetricsFetcher:
                     logger.info(f"✅ Simplified JSON parsing successful: {hpa_analysis['total_hpas']} HPAs")
                     return hpa_analysis
             
-            # STRATEGY 3: Fallback to basic text parsing using cached data
             logger.info("🔧 Using fallback text parsing with cached HPA data...")
             cache_data = self.cache.get_resource_usage_data()
             basic_output = cache_data.get('hpa_text', '')
             
-            if basic_output:
+            if basic_output is not None and basic_output:
                 hpa_analysis.update(self._parse_hpa_basic_text(basic_output))
                 logger.info(f"✅ Basic text parsing completed: {hpa_analysis['total_hpas']} HPAs found")
             else:
@@ -1602,7 +1589,6 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ All HPA parsing methods failed: {e}")
-            # No fallback, fail if real data unavailable
             raise ValueError(f"Failed to collect HPA data: {e}")
 
     def _parse_hpa_metrics(self, hpa_output: str) -> Dict:
@@ -1710,7 +1696,7 @@ class AKSRealTimeMetricsFetcher:
                 'resource_totals': {'cpu_millicores': 0, 'memory_bytes': 0}
             }
             
-            if pod_output:
+            if pod_output is not None and pod_output:
                 lines = pod_output.split('\n')
                 for line in lines:
                     if line.strip():
@@ -1792,7 +1778,6 @@ class AKSRealTimeMetricsFetcher:
                 logger.info("✅ Got enhanced node metrics")
             except Exception as node_error:
                 logger.error(f"❌ Enhanced node metrics failed: {node_error}")
-                # No fallback, fail if real data unavailable
                 raise ValueError(f"Failed to collect enhanced node metrics: {node_error}")
             
             # Step 2: Get HPA implementation status with detailed replica information
@@ -1948,7 +1933,6 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌  ML-ready metrics collection failed: {e}")
-            # Return empty but valid structure to maintain compatibility
             return {
                 'status': 'error',
                 'error': str(e),
@@ -1982,12 +1966,12 @@ class AKSRealTimeMetricsFetcher:
             
             # Add workload-level CPU/Memory data
             workload_metrics = self._get_workload_level_metrics()
-            if workload_metrics:
+            if workload_metrics is not None and workload_metrics:
                 enhanced_metrics['workload_metrics'] = workload_metrics
             
             # Add HPA performance data
             hpa_performance = self._get_hpa_performance_metrics()
-            if hpa_performance:
+            if hpa_performance is not None and hpa_performance:
                 enhanced_metrics['hpa_performance'] = hpa_performance
             
             # Add resource efficiency indicators
@@ -2003,7 +1987,6 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Enhanced metrics collection failed: {e}")
-            # No fallback, fail if real data unavailable
             raise ValueError(f"Failed to collect ML-ready metrics: {e}")
 
     def _get_workload_level_metrics(self) -> Optional[Dict]:
@@ -2044,7 +2027,6 @@ class AKSRealTimeMetricsFetcher:
             
             if not pod_output:
                 logger.warning("⚠️ Could not get pod-level metrics")
-                return workload_data  # Return empty structure instead of None
             
             # Enhanced parsing with better error handling
             lines = pod_output.split('\n')
@@ -2137,7 +2119,7 @@ class AKSRealTimeMetricsFetcher:
             workload_data['resource_totals']['memory_bytes'] = total_memory_bytes
             
             # CRITICAL FIX: Process HPA high CPU data to identify high CPU workloads
-            if hpa_high_cpu_output:
+            if hpa_high_cpu_output is not None and hpa_high_cpu_output:
                 logger.info(f"🔍 DEBUG: Processing HPA high CPU data for cluster {self.cluster_name}")
                 high_cpu_workloads_from_hpa = self._process_hpa_high_cpu_data(hpa_high_cpu_output)
                 logger.info(f"🔍 DEBUG: Found {len(high_cpu_workloads_from_hpa)} high CPU workloads from HPA data for {self.cluster_name}")
@@ -2260,7 +2242,6 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Error getting workload-level metrics: {e}")
-            # Return empty structure instead of None to maintain data flow
             return {
                 'pods': [],
                 'all_workloads': [],
@@ -2349,12 +2330,12 @@ class AKSRealTimeMetricsFetcher:
             cpu_utils = [node.get('cpu_usage_pct', 0) for node in nodes]
             memory_utils = [node.get('memory_usage_pct', 0) for node in nodes]
             
-            if cpu_utils:
+            if cpu_utils is not None and cpu_utils:
                 avg_cpu = np.mean(cpu_utils)
                 efficiency['cpu_efficiency'] = self._calculate_utilization_efficiency(avg_cpu, 70)
                 efficiency['cpu_variance'] = float(np.var(cpu_utils))
             
-            if memory_utils:
+            if memory_utils is not None and memory_utils:
                 avg_memory = np.mean(memory_utils)
                 efficiency['memory_efficiency'] = self._calculate_utilization_efficiency(avg_memory, 75)
                 efficiency['memory_variance'] = float(np.var(memory_utils))
@@ -2467,7 +2448,7 @@ class AKSRealTimeMetricsFetcher:
             
             # Debug: Check if customer-survey-genesis is in raw data
             survey_lines = [line for line in hpa_lines if 'customer-survey-genesis' in line]
-            if survey_lines:
+            if survey_lines is not None and survey_lines:
                 logger.info(f"🔍 DEBUG: Found {len(survey_lines)} customer-survey-genesis lines in raw HPA data")
                 for i, line in enumerate(survey_lines):
                     logger.info(f"🔍 DEBUG: Raw line {i}: '{line}'")
@@ -2479,7 +2460,7 @@ class AKSRealTimeMetricsFetcher:
             
             # Debug: Check if customer-survey-genesis survives filtering
             survey_filtered = [line for line in filtered_lines if 'customer-survey-genesis' in line]
-            if survey_filtered:
+            if survey_filtered is not None and survey_filtered:
                 logger.info(f"🔍 DEBUG: Found {len(survey_filtered)} customer-survey-genesis lines after filtering")
             else:
                 logger.info(f"🔍 DEBUG: No customer-survey-genesis lines found after filtering")
@@ -2568,7 +2549,7 @@ class AKSRealTimeMetricsFetcher:
             hpa_high_cpu_output = cache_data.get('hpa_high_cpu', '')
             
             # Filter out <none> values as the original command did with grep
-            if hpa_high_cpu_output:
+            if hpa_high_cpu_output is not None and hpa_high_cpu_output:
                 hpa_lines = hpa_high_cpu_output.split('\n')
                 filtered_lines = [line for line in hpa_lines if '<none>' not in line and line.strip()]
                 hpa_output = '\n'.join(filtered_lines)
@@ -2583,7 +2564,7 @@ class AKSRealTimeMetricsFetcher:
                 'analysis_timestamp': datetime.now().isoformat()
             }
             
-            if hpa_output:
+            if hpa_output is not None and hpa_output:
                 lines = hpa_output.split('\n')
                 for line in lines:
                     if line.strip() and not line.startswith('NAMESPACE'):

@@ -59,7 +59,7 @@ class PlanValidator:
             self._validate_kubeopt_plan(plan)
             
             # Step 3: Context optimization validation (if provided)
-            if context_optimization:
+            if context_optimization is not None and context_optimization:
                 self._validate_context_optimization(plan, context_optimization)
             
             # Step 4: Enrich with cluster metadata
@@ -136,7 +136,7 @@ class PlanValidator:
         
         # Validate completeness using schema utility
         issues = validate_plan_completeness(plan)
-        if issues:
+        if issues is not None and issues:
             raise ValueError(f"Plan completeness issues: {'; '.join(issues)}")
         
         # Validate savings calculations

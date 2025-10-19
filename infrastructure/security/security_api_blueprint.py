@@ -51,10 +51,11 @@ def get_cluster_id_from_request():
             # Extract cluster ID from URL path
             import re
             match = re.search(r'/cluster/([^/\?]+)', referer)
-            if match:
+            if match is not None and match:
                 return match.group(1)
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            raise
     
     # Don't return 'default_cluster' - return None if not found
     logger.warning("No valid cluster ID found in request")
@@ -103,11 +104,10 @@ def get_security_overview():
                     logger.info(f"📊 {framework_name} compliance: {compliance_score}%")
             
             # Calculate average
-            if compliance_scores:
+            if compliance_scores is not None and compliance_scores:
                 avg_compliance = sum(compliance_scores) / len(compliance_scores)
                 logger.info(f"📊 Average compliance calculated: {avg_compliance}%")
             else:
-                # Fallback to compliance_assessment if it exists
                 avg_compliance = analysis.get('compliance_assessment', {}).get('overall_compliance', 0)
                 logger.warning(f"📊 No framework scores found, using fallback: {avg_compliance}%")
             
@@ -123,7 +123,6 @@ def get_security_overview():
                 'data_source': 'stored_results'
             })
         
-        # Return default data if no results
         return jsonify({
             'overall_score': 0,
             'grade': 'N/A',
@@ -213,7 +212,6 @@ def get_detailed_security_score():
                 'last_updated': security_results['timestamp']
             })
         
-        # Return default structure
         return jsonify({
             'overall_score': 0,
             'grade': 'N/A',
@@ -255,7 +253,7 @@ def get_policy_violations():
             logger.info(f"Found {len(violations)} violations for cluster {cluster_id}")
             
             # Filter by severity if specified
-            if severity:
+            if severity is not None and severity:
                 violations = [v for v in violations if v.get('severity') == severity.upper()]
             
             # Limit results
@@ -298,7 +296,6 @@ def get_compliance_frameworks():
         cluster_id = get_cluster_id_from_request()
         
         if not SECURITY_MANAGER_AVAILABLE:
-            # Return static fallback only if security manager not available
             return jsonify({
                 'frameworks': [
                     {'id': 'CIS', 'name': 'CIS Kubernetes Benchmark', 'version': '1.6.0'},
@@ -424,8 +421,7 @@ def get_compliance_status(framework):
             compliance_frameworks = security_results['analysis'].get('compliance_frameworks', {})
             framework_data = compliance_frameworks.get(framework.upper(), {})
             
-            if framework_data:
-                # Return the full framework data including control details
+            if framework_data and isinstance(framework_data, dict) and framework_data:
                 return jsonify({
                     'framework': framework.upper(),
                     'overall_compliance': framework_data.get('overall_compliance', 0),
@@ -475,7 +471,7 @@ def get_security_alerts():
             logger.info(f"Found {len(alerts)} alerts for cluster {cluster_id}")
             
             # Filter by severity if specified
-            if severity:
+            if severity is not None and severity:
                 alerts = [a for a in alerts if a.get('severity') == severity.upper()]
             
             # Limit results
@@ -577,7 +573,7 @@ def get_vulnerabilities():
             vulnerabilities = vulnerability_assessment.get('vulnerabilities', [])
             
             # Filter by severity if specified
-            if severity:
+            if severity is not None and severity:
                 vulnerabilities = [v for v in vulnerabilities if v.get('severity') == severity.upper()]
             
             # Limit results
@@ -682,7 +678,7 @@ def get_security_trends(trend_type):
         
         data_points = []
         
-        if history:
+        if history is not None and history:
             for result in history:
                 analysis = result.get('analysis', {})
                 timestamp = result.get('timestamp', datetime.now().isoformat())
@@ -695,7 +691,7 @@ def get_security_trends(trend_type):
                 elif trend_type == 'compliance_percentage':
                     # Calculate average compliance from frameworks
                     frameworks = analysis.get('compliance_frameworks', {})
-                    if frameworks:
+                    if frameworks is not None and frameworks:
                         scores = [f.get('overall_compliance', 0) for f in frameworks.values()]
                         value = sum(scores) / len(scores) if scores else 0
                     else:
@@ -841,7 +837,7 @@ def get_audit_trail():
             all_events = audit_trail + rbac_events + policy_events + vuln_events + compliance_events
             
             # Filter by event type if specified
-            if event_type:
+            if event_type is not None and event_type:
                 all_events = [e for e in all_events if e.get('event_type') == event_type.upper()]
             
             # Sort by timestamp (newest first)
@@ -854,7 +850,6 @@ def get_audit_trail():
             
             return jsonify(all_events)
         
-        # Return empty if no data
         return jsonify([])
         
     except Exception as e:

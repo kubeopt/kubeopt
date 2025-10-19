@@ -86,7 +86,7 @@ def register_alerts_routes(app):
                                 continue
                             
                             # Strategy 2: Match by cluster name and resource group if cluster info available
-                            if cluster:
+                            if cluster is not None and cluster:
                                 if (alert.get('cluster_name') == cluster.get('name') and 
                                     alert.get('resource_group') == cluster.get('resource_group')):
                                     filtered_alerts.append(alert)
@@ -173,7 +173,7 @@ def register_alerts_routes(app):
                     if data.get('cluster_id') and enhanced_cluster_manager:
                         try:
                             cluster = enhanced_cluster_manager.get_cluster(data['cluster_id'])
-                            if cluster:
+                            if cluster is not None and cluster:
                                 data['cluster_name'] = cluster.get('name', data['cluster_id'])
                                 data['resource_group'] = cluster.get('resource_group', 'Unknown Resource Group')
                         except Exception:
@@ -352,7 +352,6 @@ def register_alerts_routes(app):
         """🆕 Get available notification frequency configurations"""
         try:
             if not alerts_manager or not alerts_manager.db:
-                # Return default configurations if database not available
                 default_configs = [
                     {
                         'frequency_type': 'immediate',
@@ -479,7 +478,7 @@ def register_alerts_routes(app):
             elif frequency == 'custom_4h':
                 preview_parts.append("Notifications will be sent every 4 hours during active monitoring")
             
-            if max_notifications_per_day:
+            if max_notifications_per_day is not None and max_notifications_per_day:
                 preview_parts.append(f"Maximum {max_notifications_per_day} notifications per day")
             
             if cooldown_period_hours > 0:
@@ -541,7 +540,7 @@ def register_alerts_routes(app):
                     errors.append("Cooldown period must be a number")
             
             frequency_at_time = data.get('frequency_at_time')
-            if frequency_at_time:
+            if frequency_at_time is not None and frequency_at_time:
                 try:
                     hour, minute = map(int, frequency_at_time.split(':'))
                     if not (0 <= hour <= 23 and 0 <= minute <= 59):
@@ -615,7 +614,7 @@ def register_alerts_routes(app):
             # Update single notification
             success = alerts_manager.db.update_notification_status([notification_id], 'mark_read')
             
-            if success:
+            if success is not None and success:
                 logger.info(f"📖 Marked notification {notification_id} as read")
                 return jsonify({
                     'status': 'success',
@@ -647,7 +646,7 @@ def register_alerts_routes(app):
             # Update single notification
             success = alerts_manager.db.update_notification_status([notification_id], 'dismiss')
             
-            if success:
+            if success is not None and success:
                 logger.info(f"🗑️ Dismissed notification {notification_id}")
                 return jsonify({
                     'status': 'success',
@@ -700,7 +699,7 @@ def register_alerts_routes(app):
             # Mark all as read
             success = alerts_manager.db.update_notification_status(notification_ids, 'mark_read')
             
-            if success:
+            if success is not None and success:
                 logger.info(f"📖 Marked {len(notification_ids)} notifications as read")
                 return jsonify({
                     'status': 'success',
@@ -747,7 +746,6 @@ def register_alerts_routes(app):
                         'unread_only': unread_only
                     })
                 else:
-                    # Fallback for when alerts manager is not available
                     return jsonify({
                         'status': 'success',
                         'notifications': [],
@@ -783,7 +781,7 @@ def register_alerts_routes(app):
                     }
                     notification_id = alerts_manager.db.create_in_app_notification(notification_data)
                 
-                if notification_id:
+                if notification_id is not None and notification_id:
                     logger.info(f"📱 In-app notification created: {notification_id}")
                     return jsonify({
                         'status': 'success',
@@ -812,7 +810,7 @@ def register_alerts_routes(app):
                 if alerts_manager and alerts_manager.db:
                     success = alerts_manager.db.update_notification_status(notification_ids, action)
                 
-                if success:
+                if success is not None and success:
                     logger.info(f"📱 Updated {len(notification_ids)} notifications: {action}")
                     return jsonify({
                         'status': 'success',
@@ -867,7 +865,7 @@ def register_alerts_routes(app):
                 try:
                     from shared import _get_analysis_data
                     analysis_data, data_source = _get_analysis_data(cluster_id)
-                    if analysis_data:
+                    if analysis_data is not None and analysis_data:
                         current_cost = analysis_data.get('total_cost', 0)
                         logger.info(f"💰 Retrieved current cost from {data_source}: ${current_cost}")
                 except Exception as cost_error:
@@ -934,7 +932,7 @@ def register_alerts_routes(app):
                 from shared import _get_analysis_data
                 analysis_data, data_source = _get_analysis_data(cluster_id)
                 
-                if analysis_data:
+                if analysis_data is not None and analysis_data:
                     current_cost = analysis_data.get('total_cost', 0)
                     return jsonify({
                         'status': 'success',
@@ -1322,7 +1320,7 @@ def register_alerts_routes(app):
             # Use the enhanced check_cluster_alerts method
             triggered_alerts = alerts_manager.check_cluster_alerts(cluster_id, current_cost)
             
-            if triggered_alerts:
+            if triggered_alerts is not None and triggered_alerts:
                 logger.info(f"🚨 SUMMARY: Triggered {len(triggered_alerts)} alerts for cluster {cluster_id}")
                 for triggered_alert in triggered_alerts:
                     alert = triggered_alert['alert']

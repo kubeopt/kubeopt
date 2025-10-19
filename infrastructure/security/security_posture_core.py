@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -281,7 +282,6 @@ class SecurityPostureEngineYAML:
     def _load_vulnerability_patterns_from_yaml(self):
         """Load vulnerability patterns from YAML configuration"""
         
-        # Try to load from YAML, with fallback to built-in patterns
         yaml_patterns = self.security_config.rule_context.get('vulnerability_patterns', {})
         
         # Base vulnerability patterns (can be overridden by YAML)
@@ -557,7 +557,7 @@ class SecurityPostureEngineYAML:
         security_resources = self.cluster_config.get('security_resources', {})
         
         # Check if RBAC is enabled (required by YAML config)
-        if rbac_enabled:
+        if rbac_enabled is not None and rbac_enabled:
             rbac_resources = security_resources.get('rbac', {})
             if not rbac_resources or rbac_resources.get('item_count', 0) == 0:
                 score -= 30.0
@@ -589,7 +589,7 @@ class SecurityPostureEngineYAML:
         score = 100.0
         
         # Check network policies
-        if require_network_policies:
+        if require_network_policies is not None and require_network_policies:
             network_resources = self.cluster_config.get('networking_resources', {})
             network_policies = network_resources.get('networkpolicies', {}).get('item_count', 0)
             
@@ -633,7 +633,7 @@ class SecurityPostureEngineYAML:
         deployments = self.cluster_config.get('workload_resources', {}).get('deployments', {})
         deployment_items = deployments.get('items', [])
         
-        if deployment_items:
+        if deployment_items is not None and deployment_items:
             deployments_using_secrets = 0
             deployments_with_hardcoded = 0
             
@@ -658,9 +658,9 @@ class SecurityPostureEngineYAML:
                                 if value and len(value) > 5 and value not in ['true', 'false', 'none', 'null']:
                                     has_hardcoded = True
                 
-                if uses_secrets:
+                if uses_secrets is not None and uses_secrets:
                     deployments_using_secrets += 1
-                if has_hardcoded:
+                if has_hardcoded is not None and has_hardcoded:
                     deployments_with_hardcoded += 1
             
             # Calculate secret usage ratio
@@ -830,7 +830,7 @@ class SecurityPostureEngineYAML:
             weighted_score = framework_score * priority_weight
             compliance_scores.append(weighted_score)
         
-        if compliance_scores:
+        if compliance_scores is not None and compliance_scores:
             return sum(compliance_scores) / len(compliance_scores)
         else:
             return 85.0  # Default if no frameworks configured

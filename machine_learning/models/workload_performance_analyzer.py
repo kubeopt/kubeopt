@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -247,7 +248,7 @@ class SelfLearningWorkloadClassifier:
             cpu_extreme = np.any(cpu_array > 200)
             memory_extreme = np.any(memory_array > 200)
             
-            if cpu_extreme:
+            if cpu_extreme is not None and cpu_extreme:
                 logger.warning(f"🔥 EXTREME CPU VALUES DETECTED: {cpu_array}")
                 # Cap extreme values for statistical calculations but preserve in max
                 cpu_stats_array = np.clip(cpu_array, 0, 200)
@@ -256,7 +257,7 @@ class SelfLearningWorkloadClassifier:
                 cpu_stats_array = cpu_array
                 cpu_max_actual = float(np.max(cpu_array))
                 
-            if memory_extreme:
+            if memory_extreme is not None and memory_extreme:
                 logger.warning(f"🔥 EXTREME MEMORY VALUES DETECTED: {memory_array}")
                 memory_stats_array = np.clip(memory_array, 0, 200)
                 memory_max_actual = float(np.max(memory_array))
@@ -902,7 +903,7 @@ class SelfLearningWorkloadClassifier:
                         ORDER BY timestamp DESC LIMIT 1
                     ''')
                     recent = cursor.fetchone()
-                    if recent:
+                    if recent is not None and recent:
                         analysis_timestamp = recent[0]
                         logger.info(f"🔄 Using most recent timestamp: {analysis_timestamp}")
                 
@@ -1202,7 +1203,7 @@ class EnhancedPerformanceAnomalyDetector:
             performance_indicators = self._extract_performance_indicators(current_metrics)
             
             # Add learning context to analysis
-            if learning_context:
+            if learning_context is not None and learning_context:
                 performance_indicators.update({
                     'historical_patterns': learning_context.get('historical_patterns', {}),
                     'feedback_trends': learning_context.get('feedback_trends', {}),
@@ -1517,7 +1518,7 @@ class EnhancedPerformanceAnomalyDetector:
             })
         
         # Select highest priority recommendation
-        if recommendations:
+        if recommendations is not None and recommendations:
             best_rec = max(recommendations, key=lambda x: x['priority'])
             
             return {
@@ -1778,7 +1779,7 @@ class SelfLearningIntelligentHPAEngine:
         
         # Get current utilization
         nodes = metrics_data.get('nodes', [])
-        if nodes:
+        if nodes is not None and nodes:
             avg_cpu = np.mean([node.get('cpu_usage_pct', 0) for node in nodes])
             avg_memory = np.mean([node.get('memory_usage_pct', 0) for node in nodes])
         else:

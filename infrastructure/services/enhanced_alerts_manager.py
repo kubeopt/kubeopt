@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
@@ -68,7 +69,7 @@ class EnhancedAlertsManager:
     def get_alerts_route(self, cluster_id: Optional[str] = None) -> Dict:
         """Get all alerts (API route handler)"""
         try:
-            if cluster_id:
+            if cluster_id is not None and cluster_id:
                 alerts = self.db.get_alerts(cluster_id=cluster_id)
             else:
                 alerts = self.db.get_alerts()
@@ -101,7 +102,7 @@ class EnhancedAlertsManager:
             
             missing_fields = [field for field in required_fields if field not in alert_data]
             
-            if missing_fields:
+            if missing_fields is not None and missing_fields:
                 return {
                     'status': 'error',
                     'message': f'Missing required fields: {", ".join(missing_fields)}'
@@ -110,7 +111,7 @@ class EnhancedAlertsManager:
             # Get cluster info if cluster_manager is available
             if self.cluster_manager:
                 cluster = self.cluster_manager.get_cluster(alert_data['cluster_id'])
-                if cluster:
+                if cluster is not None and cluster:
                     alert_data['subscription_id'] = cluster.get('subscription_id')
                     alert_data['subscription_name'] = cluster.get('subscription_name')
             
@@ -151,7 +152,7 @@ class EnhancedAlertsManager:
             # Update the alert
             success = self.db.update_alert(alert_id, updates)
             
-            if success:
+            if success is not None and success:
                 updated_alert = self.db.get_alert(alert_id)
                 return {
                     'status': 'success',
@@ -185,7 +186,7 @@ class EnhancedAlertsManager:
             # Delete the alert
             success = self.db.delete_alert(alert_id)
             
-            if success:
+            if success is not None and success:
                 return {
                     'status': 'success',
                     'message': 'Alert deleted successfully'
@@ -233,14 +234,14 @@ class EnhancedAlertsManager:
                 inapp_sent = self._send_test_in_app_notification(alert)
             
             channels_tested = []
-            if email_sent:
+            if email_sent is not None and email_sent:
                 channels_tested.append('email')
-            if slack_sent:
+            if slack_sent is not None and slack_sent:
                 channels_tested.append('slack')
-            if inapp_sent:
+            if inapp_sent is not None and inapp_sent:
                 channels_tested.append('in_app')
             
-            if channels_tested:
+            if channels_tested is not None and channels_tested:
                 return {
                     'status': 'success',
                     'message': f'Test notifications sent via: {", ".join(channels_tested)}',
@@ -348,7 +349,7 @@ class EnhancedAlertsManager:
                     
                     trigger_id = self.db.record_alert_trigger(trigger_data)
                     
-                    if trigger_id:
+                    if trigger_id is not None and trigger_id:
                         triggered_alert = {
                             'alert': alert,
                             'trigger_id': trigger_id,
@@ -398,7 +399,7 @@ class EnhancedAlertsManager:
                         )
                         
                         # Update alert's last notification sent time
-                        if notifications_sent:
+                        if notifications_sent is not None and notifications_sent:
                             self.db.update_notification_sent_time(alert['id'])
                         
                         triggered_alert['notifications_sent'] = notifications_sent
@@ -410,7 +411,7 @@ class EnhancedAlertsManager:
                 else:
                     self.logger.info(f"✅ Alert '{alert['name']}' not triggered: ${current_cost:.2f} < ${threshold:.2f}")
             
-            if triggered_alerts:
+            if triggered_alerts is not None and triggered_alerts:
                 self.logger.info(f"🚨 SUMMARY: {len(triggered_alerts)} alerts triggered for cluster {cluster_id}")
             else:
                 self.logger.info(f"✅ No alerts triggered for cluster {cluster_id}")
@@ -480,7 +481,7 @@ class EnhancedAlertsManager:
                         })
                 
                 # If any triggers, create notification
-                if cpu_triggers:
+                if cpu_triggers is not None and cpu_triggers:
                     for trigger in cpu_triggers:
                         trigger_data = {
                             'alert_id': alert['id'],
@@ -539,7 +540,7 @@ class EnhancedAlertsManager:
                 exceeded_by=exceeded_by
             )
             
-            if notification_id:
+            if notification_id is not None and notification_id:
                 self.logger.info(f"📱 ✅ In-app notification created successfully: {notification_id}")
                 return True
             else:
@@ -573,7 +574,7 @@ class EnhancedAlertsManager:
             
             notification_id = self.db.create_in_app_notification(test_notification_data)
             
-            if notification_id:
+            if notification_id is not None and notification_id:
                 self.logger.info(f"📱 Test in-app notification created: {notification_id}")
                 return True
             else:
@@ -906,7 +907,7 @@ AKS Cost Intelligence Team
             
             notification_id = self.db.create_notification(cpu_notification_data)
             
-            if notification_id:
+            if notification_id is not None and notification_id:
                 self.logger.info(f"📱 ✅ CPU in-app notification created: {notification_id}")
                 return True
             else:
@@ -968,7 +969,7 @@ def init_enhanced_alerts_service(cluster_manager=None):
 def shutdown_enhanced_alerts_service():
     """Shutdown the enhanced alerts service"""
     global _alerts_manager_instance
-    if _alerts_manager_instance:
+    if _alerts_manager_instance is not None and _alerts_manager_instance:
         logger.info("🔄 Enhanced alerts service shutdown")
         _alerts_manager_instance = None
 

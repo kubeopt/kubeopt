@@ -26,7 +26,6 @@ try:
     from infrastructure.persistence.cluster_database import EnhancedClusterManager
     from infrastructure.services.enhanced_alerts_manager import EnhancedAlertsManager
 except ImportError:
-    # Fallback for development
     EnhancedClusterManager = None
     EnhancedAlertsManager = None
 
@@ -77,7 +76,7 @@ def clear_analysis_cache(cluster_id: str = None):
     if not analysis_cache:
         return
         
-    if cluster_id:
+    if cluster_id is not None and cluster_id:
         if cluster_id in analysis_cache.get('clusters', {}):
             del analysis_cache['clusters'][cluster_id]
             logger.info(f"🧹 Cleared cache for cluster: {cluster_id}")
@@ -130,7 +129,7 @@ def test_implementation_plan_structure(plan: Dict) -> List[Dict]:
     })
     
     # Test 4: Phase structure validation
-    if phases:
+    if phases is not None and phases:
         valid_phases = 0
         for phase in phases:
             if (phase.get('title') and 
@@ -277,7 +276,7 @@ def api_overview_stats():
         }
         
         # Database statistics
-        if enhanced_cluster_manager:
+        if enhanced_cluster_manager is not None and enhanced_cluster_manager:
             try:
                 with sqlite3.connect(enhanced_cluster_manager.db_path) as conn:
                     cursor = conn.execute('SELECT COUNT(*) FROM clusters')
@@ -313,7 +312,7 @@ def api_overview_stats():
                 overview['database_stats'] = {'error': str(e)}
         
         # Cache statistics
-        if analysis_cache:
+        if analysis_cache is not None and analysis_cache:
             try:
                 clusters = analysis_cache.get('clusters', {})
                 valid_count = sum(1 for cid in clusters.keys() if is_cache_valid(cid))
@@ -357,7 +356,7 @@ def api_database_health_check():
         
         # Check main database
         try:
-            if enhanced_cluster_manager:
+            if enhanced_cluster_manager is not None and enhanced_cluster_manager:
                 with sqlite3.connect(enhanced_cluster_manager.db_path) as conn:
                     cursor = conn.execute('SELECT COUNT(*) FROM clusters')
                     cluster_count = cursor.fetchone()[0]
@@ -416,7 +415,7 @@ def api_database_health_check():
         
         # Check analysis data integrity
         try:
-            if enhanced_cluster_manager:
+            if enhanced_cluster_manager is not None and enhanced_cluster_manager:
                 with sqlite3.connect(enhanced_cluster_manager.db_path) as conn:
                     cursor = conn.execute('''
                         SELECT COUNT(*) FROM clusters 
@@ -440,7 +439,7 @@ def api_database_health_check():
         
         # Check cache status
         try:
-            if analysis_cache:
+            if analysis_cache is not None and analysis_cache:
                 cache_clusters = len(analysis_cache.get('clusters', {}))
                 health_status['checks'].append({
                     'component': 'Cache System',
@@ -499,11 +498,11 @@ def api_get_clusters_detailed():
             '''
             params = []
             
-            if status_filter:
+            if status_filter is not None and status_filter:
                 query += ' AND status = ?'
                 params.append(status_filter)
             
-            if environment_filter:
+            if environment_filter is not None and environment_filter:
                 query += ' AND environment = ?'
                 params.append(environment_filter)
             
@@ -557,11 +556,11 @@ def api_get_analysis_results():
             '''
             params = []
             
-            if cluster_id:
+            if cluster_id is not None and cluster_id:
                 query += ' AND id = ?'
                 params.append(cluster_id)
             
-            if days:
+            if days is not None and days:
                 query += ' AND last_analyzed > datetime("now", "-{} days")'.format(days)
             
             if has_implementation_plan == 'true':
@@ -1128,7 +1127,7 @@ def api_test_all_implementation_plans():
                     else:
                         test_summary['invalid_plans'] += 1
                     
-                    if warnings:
+                    if warnings is not None and warnings:
                         test_summary['plans_with_warnings'] += 1
                     
                     test_summary['critical_failures'] += len(critical_failures)
@@ -1386,7 +1385,7 @@ def api_cache_clear():
         data = request.get_json() or {}
         cluster_id = data.get('cluster_id') or request.args.get('cluster_id')
         
-        if cluster_id:
+        if cluster_id is not None and cluster_id:
             if cluster_id in analysis_cache.get('clusters', {}):
                 clear_analysis_cache(cluster_id)
                 message = f'Analysis cache cleared for cluster {cluster_id}'

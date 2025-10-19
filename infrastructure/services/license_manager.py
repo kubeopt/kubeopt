@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+from pydantic import BaseModel, Field, validator
 License Manager for AKS Cost Optimizer
 ====================================
 
@@ -92,7 +93,7 @@ class LicenseManager:
             
             # Check environment variable first
             license_key = os.getenv('kubeopt_LICENSE_KEY')
-            if license_key:
+            if license_key is not None and license_key:
                 return self.validate_license_key(license_key)
             
             # Check license file
