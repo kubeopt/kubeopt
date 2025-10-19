@@ -1337,6 +1337,33 @@ def register_api_routes(app):
                 'status': 'error', 
                 'message': str(e)
             }), 500
+    
+    @app.route('/api/claude-costs/summary', methods=['GET'])
+    def get_claude_costs_summary():
+        """Get Claude API cost summary"""
+        try:
+            from infrastructure.plan_generation.cost_tracker import get_cost_tracker
+            
+            days = request.args.get('days', 30, type=int)
+            tracker = get_cost_tracker()
+            summary = tracker.get_total_cost(days)
+            
+            # Also get cost breakdown by cluster
+            cluster_costs = tracker.get_cost_by_cluster(days)
+            
+            return jsonify({
+                "status": "success",
+                "summary": summary,
+                "cluster_breakdown": cluster_costs,
+                "timestamp": datetime.now().isoformat()
+            }), 200
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting Claude costs: {e}")
+            return jsonify({
+                "status": "error",
+                "message": str(e)
+            }), 500
 
     @app.route('/api/dashboard/recent-analysis', methods=['GET'])
     @auth_manager.require_auth  
@@ -1959,6 +1986,127 @@ def register_api_routes(app):
                 }), 500
         except Exception as e:
             logger.error(f"❌ Error forcing immediate analysis: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+
+    # ═══════════════════════════════════════════════════════════════
+    # IMPLEMENTATION PLAN API ENDPOINTS
+    # ═══════════════════════════════════════════════════════════════
+    
+    @app.route('/api/clusters/<path:cluster_id>/plan', methods=['GET'])
+    def get_cluster_implementation_plan(cluster_id):
+        """Get the latest implementation plan for a cluster"""
+        try:
+            plan = enhanced_cluster_manager.get_latest_plan(cluster_id)
+            if plan:
+                return jsonify({
+                    'status': 'success',
+                    'plan': plan.model_dump()
+                }), 200
+            else:
+                return jsonify({
+                    'status': 'not_found',
+                    'message': 'No implementation plan found for this cluster'
+                }), 404
+                
+        except Exception as e:
+            logger.error(f"❌ Error retrieving implementation plan for {cluster_id}: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+    
+    @app.route('/api/clusters/<path:cluster_id>/plans', methods=['GET'])
+    def get_plan_history(cluster_id):
+        """Get implementation plan history for a cluster"""
+        try:
+            limit = request.args.get('limit', 10, type=int)
+            history = enhanced_cluster_manager.list_plans_for_cluster(cluster_id, limit)
+            
+            return jsonify({
+                'status': 'success',
+                'plans': history
+            }), 200
+            
+        except Exception as e:
+            logger.error(f"❌ Error retrieving plan history for {cluster_id}: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+    
+    @app.route('/api/plans/<path:plan_id>', methods=['GET'])
+    def get_plan_by_id(plan_id):
+        """Get a specific implementation plan by ID"""
+        try:
+            plan = enhanced_cluster_manager.get_plan_by_id(plan_id)
+            if plan:
+                return jsonify({
+                    'status': 'success',
+                    'plan': plan.model_dump()
+                }), 200
+            else:
+                return jsonify({
+                    'status': 'not_found',
+                    'message': 'Implementation plan not found'
+                }), 404
+                
+        except Exception as e:
+            logger.error(f"❌ Error retrieving plan {plan_id}: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+    
+    @app.route('/api/clusters/<path:cluster_id>/plan/generate', methods=['POST'])
+    def generate_new_plan(cluster_id):
+        """Generate a new implementation plan for a cluster"""
+        try:
+            # Get the latest analysis data
+            analysis_data = enhanced_cluster_manager.get_latest_analysis(cluster_id)
+            if not analysis_data:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No analysis data found. Please run analysis first.'
+                }), 400
+            
+            # Trigger plan generation
+            cluster_name = analysis_data.get('cluster_info', {}).get('cluster_name', cluster_id)
+            
+            # Use the analysis engine to generate a new plan
+            enhanced_input = multi_subscription_analysis_engine.generate_enhanced_analysis_input(
+                cluster_id, analysis_data
+            )
+            
+            import asyncio
+            plan = asyncio.run(
+                multi_subscription_analysis_engine._generate_implementation_plan_async(
+                    enhanced_input, cluster_name, cluster_id
+                )
+            )
+            
+            if plan:
+                # Store the new plan
+                plan_id = enhanced_cluster_manager.store_implementation_plan(
+                    cluster_id, plan, analysis_data.get('cluster_info', {}).get('analysis_timestamp')
+                )
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Implementation plan generated successfully',
+                    'plan_id': plan_id,
+                    'plan': plan.model_dump()
+                }), 201
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Failed to generate implementation plan'
+                }), 500
+                
+        except Exception as e:
+            logger.error(f"❌ Error generating plan for {cluster_id}: {e}")
             return jsonify({
                 'status': 'error',
                 'message': str(e)

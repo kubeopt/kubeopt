@@ -440,9 +440,29 @@ class EnhancedMultiSubscriptionClusterManager:
                     )
                 ''')
                 
+                # Create implementation plans table
+                conn.execute('''
+                    CREATE TABLE IF NOT EXISTS implementation_plans (
+                        plan_id TEXT PRIMARY KEY,
+                        cluster_id TEXT NOT NULL,
+                        analysis_id TEXT,
+                        plan_data BLOB NOT NULL,
+                        generated_at TEXT NOT NULL,
+                        total_savings REAL,
+                        total_actions INTEGER,
+                        executed BOOLEAN DEFAULT 0,
+                        execution_status TEXT,
+                        version TEXT DEFAULT '1.0',
+                        generated_by TEXT,
+                        FOREIGN KEY (cluster_id) REFERENCES clusters(id)
+                    )
+                ''')
+                
                 # Create indexes
                 conn.execute('CREATE INDEX IF NOT EXISTS idx_cluster_id ON analysis_results(cluster_id)')
                 conn.execute('CREATE INDEX IF NOT EXISTS idx_analysis_date ON analysis_results(analysis_date)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_plans_cluster ON implementation_plans(cluster_id)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_plans_generated ON implementation_plans(generated_at DESC)')
                 
                 conn.commit()
                 self.logger.info("✅ Complete multi-subscription database initialized successfully")
@@ -1345,10 +1365,65 @@ class EnhancedMultiSubscriptionClusterManager:
         except Exception as e:
             self.logger.error(f"❌ Failed to update cluster subscription info: {e}")
 
+    def update_cluster_analysis_without_plan_generation(self, cluster_id: str, analysis_data: dict, enhanced_input: dict = None):
+        """
+        Update cluster with analysis results - preserves ALL workload data
+        WITHOUT generating implementation plan (for use with separated plan generation)
+        """
+        return self._update_cluster_analysis_internal(cluster_id, analysis_data, enhanced_input, generate_plan=False)
+    
     def update_cluster_analysis(self, cluster_id: str, analysis_data: dict, enhanced_input: dict = None):
         """
         Update cluster with analysis results - preserves ALL workload data
+        WITH inline implementation plan generation (legacy behavior)
         """
+        return self._update_cluster_analysis_internal(cluster_id, analysis_data, enhanced_input, generate_plan=True)
+    
+    def _update_cluster_analysis_internal(self, cluster_id: str, analysis_data: dict, enhanced_input: dict = None, generate_plan: bool = True):
+        """
+        Internal method for updating cluster analysis with optional plan generation
+        """
+        print(f"\n{'='*60}")
+        print(f"🔍 DEBUG: _update_cluster_analysis_internal called")
+        print(f"  cluster_id: {cluster_id}")
+        print(f"  analysis_data type: {type(analysis_data)}")
+        print(f"  analysis_data keys: {list(analysis_data.keys())[:10]}...")  # First 10 keys
+        
+        # VALIDATE INPUTS FIRST
+        if not cluster_id:
+            raise ValueError("cluster_id is required")
+        
+        if not isinstance(analysis_data, dict):
+            raise TypeError(f"analysis_data must be dict, got {type(analysis_data)}")
+        
+        if not analysis_data:
+            raise ValueError("analysis_data cannot be empty")
+        
+        # Extract cluster_name from analysis_data with validation
+        cluster_info = analysis_data.get("cluster_info", {})
+        cluster_name = None
+        
+        if isinstance(cluster_info, dict):
+            cluster_name = cluster_info.get("cluster_name")
+            print(f"  cluster_info type: {type(cluster_info)}")
+            print(f"  cluster_info keys: {list(cluster_info.keys())}")
+            print(f"  cluster_name in cluster_info: {'cluster_name' in cluster_info}")
+        else:
+            print(f"  ⚠️ cluster_info NOT A DICT: {type(cluster_info)}")
+        
+        if not cluster_name:
+            # Try alternate locations
+            cluster_name = analysis_data.get("cluster_name")
+            print(f"  cluster_name from root: {cluster_name}")
+        
+        if not cluster_name:
+            # Final fallback - use cluster_id as cluster_name for display
+            cluster_name = cluster_id
+            print(f"  ⚠️ cluster_name not found in analysis_data, using cluster_id: {cluster_id}")
+        
+        print(f"  ✓ Final cluster_name: {cluster_name}")
+        print(f"{'='*60}\n")
+        
         try:
             enhanced_analysis_data = analysis_data.copy()
             
@@ -1484,21 +1559,28 @@ class EnhancedMultiSubscriptionClusterManager:
                 else:
                     self.logger.warning(f"⚠️ DB SAVE: HPA structure incomplete for {cluster_id}")
             
-            # CRITICAL: Generate implementation plan BEFORE serialization
-            if 'implementation_plan' not in enhanced_analysis_data:
+            # CONDITIONAL: Generate implementation plan BEFORE serialization (only if generate_plan=True)
+            if generate_plan and 'implementation_plan' not in enhanced_analysis_data:
                 try:
-                    from machine_learning.core.implementation_generator import AKSImplementationGenerator
-                    implementation_generator = AKSImplementationGenerator()
+                    from infrastructure.plan_generation.claude_plan_generator import ClaudePlanGenerator
+                    implementation_generator = ClaudePlanGenerator()
                     
-                    # Use enhanced input if available for detailed recommendations
+                    # Use the new Claude API for plan generation
                     if enhanced_input:
-                        self.logger.info("✅ Using enhanced input for detailed implementation plan generation")
-                        implementation_plan = implementation_generator.generate_enhanced_implementation_plan(
-                            enhanced_analysis_data, enhanced_input
-                        )
+                        self.logger.info("✅ Using enhanced input for Claude-based implementation plan generation")
+                        import asyncio
+                        # Run the async method
+                        implementation_plan = asyncio.run(implementation_generator.generate_plan(
+                            enhanced_input, cluster_name, cluster_id
+                        ))
                     else:
-                        self.logger.info("ℹ️ Using basic analysis for standard implementation plan generation")
-                        implementation_plan = implementation_generator.generate_implementation_plan(enhanced_analysis_data)
+                        self.logger.info("ℹ️ Using basic analysis data as enhanced input for Claude generation")
+                        # Use the analysis data as enhanced input if no enhanced_input provided
+                        basic_enhanced_input = enhanced_analysis_data
+                        import asyncio
+                        implementation_plan = asyncio.run(implementation_generator.generate_plan(
+                            basic_enhanced_input, cluster_name, cluster_id
+                        ))
                     
                     enhanced_analysis_data['implementation_plan'] = implementation_plan
                     self.logger.info("✅ Generated implementation plan for database")
@@ -1515,7 +1597,15 @@ class EnhancedMultiSubscriptionClusterManager:
                         
                 except Exception as impl_error:
                     self.logger.error(f"❌ Failed to generate implementation plan: {impl_error}")
-                    self.logger.error(f"❌ Traceback: {traceback.format_exc()}")
+                    self.logger.error(f"❌ Error type: {type(impl_error).__name__}")
+                    self.logger.error(f"❌ Traceback:")
+                    import traceback
+                    traceback.print_exc()
+                    
+                    # Don't hide the error - let it bubble up for debugging
+                    raise impl_error
+            elif not generate_plan:
+                self.logger.info("ℹ️ Skipping inline implementation plan generation (using separated plan generation)")
             
             # ===== ADD METADATA ABOUT SAVED DATA =====
             enhanced_analysis_data['database_save_metadata'] = {
@@ -2197,6 +2287,167 @@ class EnhancedMultiSubscriptionClusterManager:
                 
         except Exception as e:
             self.logger.error(f"❌ Failed to cleanup old analyses: {e}")
+
+    def store_implementation_plan(
+        self,
+        cluster_id: str,
+        plan: 'KubeOptImplementationPlan',
+        analysis_id: str = None
+    ) -> str:
+        """
+        Store generated implementation plan with versioning.
+        
+        Args:
+            cluster_id: Cluster identifier
+            plan: ImplementationPlan object to store
+            analysis_id: Optional analysis ID this plan is based on
+            
+        Returns:
+            plan_id for retrieval
+        """
+        try:
+            plan_json = plan.model_dump_json()
+            plan_id = f"plan_{cluster_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+            
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    INSERT INTO implementation_plans 
+                    (plan_id, cluster_id, analysis_id, plan_data, generated_at, 
+                     total_savings, total_actions, version, generated_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    plan_id,
+                    cluster_id,
+                    analysis_id,
+                    plan_json,
+                    plan.generated_at.isoformat(),
+                    plan.estimated_total_savings_monthly,
+                    plan.total_actions,
+                    plan.version,
+                    plan.generated_by
+                ))
+                
+                conn.commit()
+                self.logger.info(f"✅ Stored implementation plan {plan_id} for cluster {cluster_id}")
+                return plan_id
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to store implementation plan: {e}")
+            raise
+
+    def get_latest_plan(self, cluster_id: str) -> 'Optional[KubeOptImplementationPlan]':
+        """Retrieve most recent plan for cluster"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("""
+                    SELECT plan_data FROM implementation_plans
+                    WHERE cluster_id = ?
+                    ORDER BY generated_at DESC
+                    LIMIT 1
+                """, (cluster_id,))
+                
+                row = cursor.fetchone()
+                if row:
+                    from infrastructure.plan_generation.plan_schema import KubeOptImplementationPlan
+                    return KubeOptImplementationPlan.model_validate_json(row[0])
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to retrieve latest plan for cluster {cluster_id}: {e}")
+            return None
+
+    def get_plan_by_id(self, plan_id: str) -> 'Optional[KubeOptImplementationPlan]':
+        """Retrieve specific plan by ID"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("""
+                    SELECT plan_data FROM implementation_plans
+                    WHERE plan_id = ?
+                """, (plan_id,))
+                
+                row = cursor.fetchone()
+                if row:
+                    from infrastructure.plan_generation.plan_schema import KubeOptImplementationPlan
+                    return KubeOptImplementationPlan.model_validate_json(row[0])
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to retrieve plan {plan_id}: {e}")
+            return None
+
+    def list_plans_for_cluster(self, cluster_id: str, limit: int = 10) -> List[Dict]:
+        """List recent plans for a cluster"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("""
+                    SELECT plan_id, generated_at, total_savings, total_actions, 
+                           executed, execution_status, version, generated_by
+                    FROM implementation_plans
+                    WHERE cluster_id = ?
+                    ORDER BY generated_at DESC
+                    LIMIT ?
+                """, (cluster_id, limit))
+                
+                plans = []
+                for row in cursor.fetchall():
+                    plans.append({
+                        'plan_id': row[0],
+                        'generated_at': row[1],
+                        'total_savings': row[2],
+                        'total_actions': row[3],
+                        'executed': bool(row[4]),
+                        'execution_status': row[5],
+                        'version': row[6],
+                        'generated_by': row[7]
+                    })
+                
+                return plans
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to list plans for cluster {cluster_id}: {e}")
+            return []
+
+    def mark_plan_executed(self, plan_id: str, execution_status: str = "completed"):
+        """Mark a plan as executed"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    UPDATE implementation_plans 
+                    SET executed = 1, execution_status = ?
+                    WHERE plan_id = ?
+                """, (execution_status, plan_id))
+                
+                conn.commit()
+                self.logger.info(f"✅ Marked plan {plan_id} as executed with status: {execution_status}")
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to mark plan {plan_id} as executed: {e}")
+
+    def cleanup_old_plans(self, days_to_keep: int = 30):
+        """Clean up old implementation plans to maintain database size"""
+        try:
+            cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute('''
+                    DELETE FROM implementation_plans 
+                    WHERE generated_at < ? 
+                    AND plan_id NOT IN (
+                        SELECT plan_id FROM implementation_plans 
+                        WHERE cluster_id IN (
+                            SELECT cluster_id FROM implementation_plans 
+                            GROUP BY cluster_id 
+                            ORDER BY generated_at DESC 
+                            LIMIT 1
+                        )
+                    )
+                ''', (cutoff_date.isoformat(),))
+                
+                conn.commit()
+                self.logger.info(f"🧹 Cleaned up {cursor.rowcount} old implementation plans")
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to cleanup old plans: {e}")
 
 
 # Migration function to convert from JSON to SQLite

@@ -90,6 +90,20 @@ def initialize_application():
     
     print("🌐 Initializing AKS Cost Optimizer (Production Mode)")
     
+    # CRITICAL: Validate YAML standards before doing anything else
+    print("🔍 Validating YAML-based standards configuration...")
+    try:
+        from shared.standards.standards_loader import validate_standards_available
+        validate_standards_available()
+        print("✅ YAML standards validation passed")
+    except Exception as e:
+        print(f"❌ YAML standards validation FAILED: {e}")
+        print("🚨 CRITICAL: System cannot start without valid standards configuration!")
+        print("   Check that these files exist and are valid:")
+        print("   - config/aks_scoring.yaml")
+        print("   - config/aks_implementation_standards.yaml")
+        return False
+    
     # Initialize configuration
     from shared.config.config import (
         initialize_application_with_multi_subscription,
