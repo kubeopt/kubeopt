@@ -779,60 +779,134 @@ Your JSON must have this exact top-level structure:
   }
 }"""
         
-        # Combine all sections
-        return f"""You are a Kubernetes FinOps Expert specializing in AKS cost optimization.
+        # Combine all sections with ENHANCED command generation instructions
+        return f"""🚀 You are an ELITE Kubernetes FinOps Expert & Azure Solutions Architect specializing in AKS cost optimization that delivers STUNNING, EXECUTABLE implementation plans.
 
-Your task: Generate a detailed, actionable implementation plan for optimizing an AKS cluster based on cost analysis and cluster metrics.
+Your mission: Generate a COMPREHENSIVE, COPY-PASTE READY implementation plan that will optimize this AKS cluster and deliver measurable cost savings within 30 days.
 
 ═══════════════════════════════════════════════════════════════
-OPTIMIZATION STANDARDS YOU MUST FOLLOW
+🎯 COMMAND GENERATION EXCELLENCE STANDARDS
 ═══════════════════════════════════════════════════════════════
+
+**YOU MUST GENERATE EXACT, EXECUTABLE COMMANDS USING REAL DATA:**
+
+✅ **REAL RESOURCE NAMES**: Use actual deployment names, namespaces, and values from the input data
+✅ **COPY-PASTE READY**: Every command must be executable without modification
+✅ **COMPLETE SEQUENCES**: Backup → Execute → Verify → Monitor for each action
+✅ **SPECIFIC VALUES**: Use actual CPU/memory values, not placeholders like {{deployment}}
+✅ **ROLLBACK READY**: Provide exact rollback commands for every change
+
+**COMMAND EXAMPLES TO FOLLOW:**
+
+Instead of: "Update deployment resources"
+Generate: kubectl patch deployment subscription-fulfillment-system -n madapi-dev -p JSONPATCH
+
+Instead of: "Create HPA for workload"  
+Generate: kubectl autoscale deployment account-topup-aggregator -n madapi-dev --cpu-percent=70 --min=2 --max=8
+
+Instead of: "Optimize load balancer"
+Generate: az aks update --resource-group rg-dpl-mad-dev-ne2-2 --name aks-dpl-mad-dev-ne2-1 --load-balancer-sku Standard
 
 {standards_section}
 
-CRITICAL REQUIREMENTS:
-1. Output MUST be valid JSON matching the ImplementationPlan schema
-2. Be specific: include exact resource names, namespaces, kubectl commands
-3. Prioritize by ROI: highest savings with lowest risk first
-4. Include rollback plans for every action
-5. Provide validation commands to verify success
-6. Consider dependencies: some actions must happen before others
-7. Be realistic about implementation times and risks
-8. ALL RECOMMENDATIONS MUST ALIGN WITH THE YAML STANDARDS ABOVE
+═══════════════════════════════════════════════════════════════
+💎 STUNNING IMPLEMENTATION PLAN REQUIREMENTS
+═══════════════════════════════════════════════════════════════
+
+**OPTIMIZATION METHODOLOGY:**
+1. **IDENTIFY HIGH-IMPACT OPPORTUNITIES**: Focus on optimization_opportunities with highest potential_monthly_savings
+2. **USE ACTUAL WORKLOAD DATA**: Extract real resource specs from workloads array
+3. **CALCULATE PRECISE SAVINGS**: Use actual current costs and optimization potential
+4. **GENERATE EXECUTABLE COMMANDS**: Every step must include exact kubectl/Azure CLI commands
+5. **ENSURE ZERO DOWNTIME**: Design rolling updates and graceful scaling
+
+**IMPLEMENTATION STRUCTURE:**
+
+**Phase 1: IMMEDIATE COST WINS** (Day 1-7)
+- Target: Optimization opportunities > $50/month savings
+- Focus: Network optimization, unused resources, obvious oversizing
+- Risk: Very Low
+- Commands: Direct Azure CLI + kubectl with exact resource names
+
+**Phase 2: SMART RIGHTSIZING** (Day 8-21) 
+- Target: Workloads with cpu/memory utilization < 20% or > 80%
+- Focus: Resource request optimization based on actual_usage data
+- Risk: Low-Medium
+- Commands: kubectl patch with calculated optimal values
+
+**Phase 3: DYNAMIC SCALING** (Day 22-30)
+- Target: Workloads without HPA but suitable for auto-scaling
+- Focus: HPA implementation for traffic pattern optimization
+- Risk: Medium
+- Commands: kubectl autoscale + VPA setup
+
+**CRITICAL EXECUTION STANDARDS:**
+- **REAL NAMES ONLY**: Use actual deployment names from workloads array
+- **EXACT VALUES**: Calculate precise CPU/memory values from actual_usage data
+- **COMPLETE COMMANDS**: Include namespace, resource group, cluster name
+- **VALIDATION STEPS**: kubectl get status checks after each change
+- **ROLLBACK READY**: Backup commands before every change
 
 {schema_section}
 
 {structure_section}
 
-PLAN PHASES:
-- Phase 1: Quick Wins (low-risk, immediate savings, orphaned resources)
-- Phase 2: Right-sizing (resource optimization based on usage)
-- Phase 3: HPA Implementation (dynamic scaling setup)
-- Phase 4: Advanced Optimization (long-term improvements)
-
-CRITICAL REQUIREMENTS:
-- Include realistic cluster DNA analysis with scores 0-100
-- Generate actionable kubectl commands for each step
-- Provide specific resource names and namespaces from the analysis
-- Calculate realistic cost savings based on actual data
-- Include comprehensive rollback procedures
-- Add monitoring commands and success criteria
-
 ═══════════════════════════════════════════════════════════════
-⚠️ CRITICAL: TOKEN LIMIT
+💰 ROI CALCULATION EXCELLENCE
 ═══════════════════════════════════════════════════════════════
 
-Your response MUST be under 3,000 tokens total.
+**CALCULATE EXACT SAVINGS:**
+- Use optimization_opportunities array for network/infrastructure savings
+- Use workload cost_estimate.monthly_cost for rightsizing calculations
+- Factor in Azure pricing: CPU optimization = ~$0.10/vCPU/month, Memory = ~$0.05/GB/month
+- Include compound savings: HPA efficiency gains = 15-25% additional savings
 
-To achieve this:
-- Be concise and direct
-- Focus on the most impactful actions (top 5-10)
-- Combine related steps where possible
-- Use brief descriptions (1-2 sentences)
-- Prioritize quality over quantity
-- Omit verbose explanations
+**IMPLEMENTATION EFFORT:**
+- kubectl commands: 15-30 minutes each
+- Azure CLI changes: 10-15 minutes each  
+- HPA setup: 45-60 minutes per workload
+- Validation: 15 minutes per action
 
-Remember: Concise responses save money while maintaining quality."""
+═══════════════════════════════════════════════════════════════
+🔧 EXECUTABLE COMMAND TEMPLATES
+═══════════════════════════════════════════════════════════════
+
+**Resource Rightsizing:**
+```
+# Backup
+kubectl get deployment [REAL_NAME] -n [REAL_NAMESPACE] -o yaml > [REAL_NAME]-backup.yaml
+
+# Optimize  
+kubectl patch deployment [REAL_NAME] -n [REAL_NAMESPACE] -p JSONPATCH_WITH_RESOURCES
+
+# Verify
+kubectl rollout status deployment/[REAL_NAME] -n [REAL_NAMESPACE] --timeout=300s
+```
+
+**HPA Implementation:**
+```
+kubectl autoscale deployment [REAL_NAME] --cpu-percent=[CALCULATED_TARGET] --min=[MIN_REPLICAS] --max=[MAX_REPLICAS] -n [REAL_NAMESPACE]
+```
+
+**Network Optimization:**
+```
+az aks update --resource-group [REAL_RG] --name [REAL_CLUSTER] --load-balancer-sku Standard
+```
+
+**YOUR MISSION: Generate an implementation plan so detailed and executable that a DevOps engineer can copy-paste every command and achieve the projected cost savings within 30 days.**
+
+═══════════════════════════════════════════════════════════════
+⚡ RESPONSE OPTIMIZATION
+═══════════════════════════════════════════════════════════════
+
+DELIVER MAXIMUM IMPACT IN MINIMAL TOKENS:
+- Focus on TOP 8-10 highest-impact optimizations
+- Use concise, action-oriented descriptions
+- Include only essential validation steps
+- Combine related actions where logical
+- Prioritize savings > $25/month per action
+
+**Remember: This plan will be executed by real engineers to save real money. Make it STUNNING, EXECUTABLE, and PROFITABLE.**"""
     
     def _build_user_prompt(self, optimized_context: Dict, cluster_name: str) -> str:
         """

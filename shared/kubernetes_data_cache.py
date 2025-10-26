@@ -39,10 +39,10 @@ class KubernetesDataCache:
     
     # === KUBERNETES RESOURCE PARSING UTILITIES ===
     
-    def _parse_cpu_millicores(self, cpu_str: str) -> float:
+    def _parse_cpu_millicores(self, cpu_str: str) -> Optional[float]:
         """Parse Kubernetes CPU value to cores (e.g., '7820m' -> 7.82)"""
-        if not cpu_str or cpu_str == '0':
-            return 0.0
+        if not cpu_str or cpu_str.strip() == '' or cpu_str.strip() == '0':
+            return None
         
         try:
             if cpu_str.endswith('m'):
@@ -56,12 +56,12 @@ class KubernetesDataCache:
                 return float(cpu_str)
         except (ValueError, TypeError) as e:
             logger.warning(f"⚠️ Failed to parse CPU value '{cpu_str}': {e}")
-            return 0.0
+            return None
     
-    def _parse_memory_bytes(self, memory_str: str) -> float:
+    def _parse_memory_bytes(self, memory_str: str) -> Optional[float]:
         """Parse Kubernetes memory value to bytes (e.g., '63437724Ki' -> bytes)"""
-        if not memory_str or memory_str == '0':
-            return 0.0
+        if not memory_str or memory_str.strip() == '' or memory_str.strip() == '0':
+            return None
         
         try:
             # Handle different memory units
@@ -84,7 +84,7 @@ class KubernetesDataCache:
                 return float(memory_str)
         except (ValueError, TypeError) as e:
             logger.warning(f"⚠️ Failed to parse memory value '{memory_str}': {e}")
-            return 0.0
+            return None
     
     def _process_nodes_data(self, raw_nodes_data: Any) -> List[Dict[str, Any]]:
         """
@@ -275,6 +275,60 @@ class KubernetesDataCache:
             # === SYSTEM COMPONENTS (Broader queries - always work) ===
             "kube_system_deployments": "kubectl get deployment -n kube-system",  # Alternative to specific deployments - filter results
             "kube_system_configmaps": "kubectl get configmap -n kube-system",   # Alternative to specific configmaps - filter results
+            
+            # === ENHANCED ANALYSIS: CLUSTER HEALTH METRICS ===
+            "pod_restart_counts": '''kubectl get pods --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,RESTARTS:.status.containerStatuses[*].restartCount,READY:.status.conditions[?(@.type=='Ready')].status,PHASE:.status.phase"''',
+            "pod_detailed_status": "kubectl get pods --all-namespaces -o json",
+            "node_conditions": '''kubectl get nodes -o custom-columns="NAME:.metadata.name,STATUS:.status.conditions[?(@.type=='Ready')].status,MEMORY_PRESSURE:.status.conditions[?(@.type=='MemoryPressure')].status,DISK_PRESSURE:.status.conditions[?(@.type=='DiskPressure')].status,PID_PRESSURE:.status.conditions[?(@.type=='PIDPressure')].status"''',
+            "events_critical": "kubectl get events --all-namespaces --field-selector type=Warning -o json",
+            "events_errors": "kubectl get events --all-namespaces --field-selector type=Error -o json",
+            "pvc_usage": '''kubectl get pvc --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,STATUS:.status.phase,CAPACITY:.status.capacity.storage,STORAGECLASS:.spec.storageClassName"''',
+            
+            # === ENHANCED ANALYSIS: SECURITY & COMPLIANCE ===
+            "pod_security_context": '''kubectl get pods --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,SECURITY_CONTEXT:.spec.securityContext,CONTAINER_SECURITY:.spec.containers[*].securityContext"''',
+            "pods_privileged": '''kubectl get pods --all-namespaces -o jsonpath='{range .items[?(@.spec.containers[*].securityContext.privileged==true)]}{.metadata.namespace}{","}{.metadata.name}{","}{.spec.containers[*].securityContext.privileged}{"\n"}{end}' 2>/dev/null || echo "No privileged pods found"''',
+            "pods_host_network": '''kubectl get pods --all-namespaces -o jsonpath='{range .items[?(@.spec.hostNetwork==true)]}{.metadata.namespace}{","}{.metadata.name}{","}{.spec.hostNetwork}{"\n"}{end}' 2>/dev/null || echo "No host network pods found"''',
+            "pods_running_as_root": '''kubectl get pods --all-namespaces -o jsonpath='{range .items[?(@.spec.containers[*].securityContext.runAsUser==0)]}{.metadata.namespace}{","}{.metadata.name}{","}{.spec.containers[*].securityContext.runAsUser}{"\n"}{end}' 2>/dev/null || echo "No root user pods found"''',
+            "pod_disruption_budgets": "kubectl get pdb --all-namespaces -o json",
+            "network_policies_detailed": "kubectl get networkpolicies --all-namespaces -o json",
+            "resource_quotas_usage": '''kubectl get resourcequotas --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,HARD:.status.hard,USED:.status.used"''',
+            
+            # === ENHANCED ANALYSIS: BUILD QUALITY & CONTAINER IMAGES ===
+            "container_images": '''kubectl get pods --all-namespaces -o jsonpath='{range .items[*]}{.metadata.namespace}{","}{.metadata.name}{","}{.spec.containers[*].image}{"\n"}{end}' | sort | uniq''',
+            "image_pull_policies": '''kubectl get pods --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,IMAGES:.spec.containers[*].image,PULL_POLICY:.spec.containers[*].imagePullPolicy"''',
+            "container_probes": '''kubectl get pods --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,LIVENESS:.spec.containers[*].livenessProbe,READINESS:.spec.containers[*].readinessProbe,STARTUP:.spec.containers[*].startupProbe"''',
+            "deployment_strategies": '''kubectl get deployments --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,STRATEGY:.spec.strategy.type,MAX_UNAVAILABLE:.spec.strategy.rollingUpdate.maxUnavailable,MAX_SURGE:.spec.strategy.rollingUpdate.maxSurge"''',
+            
+            # === ENHANCED ANALYSIS: RIGHTSIZING & RESOURCE UTILIZATION ===
+            "pod_resources_detailed": '''kubectl get pods --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,CPU_REQ:.spec.containers[*].resources.requests.cpu,CPU_LIM:.spec.containers[*].resources.limits.cpu,MEM_REQ:.spec.containers[*].resources.requests.memory,MEM_LIM:.spec.containers[*].resources.limits.memory,QOS:.status.qosClass"''',
+            "vpa_recommendations": "kubectl get vpa --all-namespaces -o json 2>/dev/null || echo '{\"items\":[]}'",
+            "node_allocatable": '''kubectl get nodes -o custom-columns="NAME:.metadata.name,CPU_ALLOCATABLE:.status.allocatable.cpu,MEMORY_ALLOCATABLE:.status.allocatable.memory,PODS_ALLOCATABLE:.status.allocatable.pods"''',
+            "node_capacity": '''kubectl get nodes -o custom-columns="NAME:.metadata.name,CPU_CAPACITY:.status.capacity.cpu,MEMORY_CAPACITY:.status.capacity.memory,PODS_CAPACITY:.status.capacity.pods"''',
+            
+            # === ENHANCED ANALYSIS: AZURE-SPECIFIC BEST PRACTICES ===
+            "aks_addon_profiles": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query addonProfiles --output json",
+            "aks_network_profile": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query networkProfile --output json",
+            "aks_service_principal": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query servicePrincipalProfile --output json",
+            "aks_auto_scaler_profile": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query autoScalerProfile --output json",
+            "aks_api_server_access_profile": f"az aks show --resource-group {self.resource_group} --name {self.cluster_name} --subscription {self.subscription_id} --query apiServerAccessProfile --output json",
+            
+            # === ENHANCED ANALYSIS: NAMING CONVENTIONS & STANDARDS ===
+            "all_resources_names": '''kubectl api-resources --verbs=list --namespaced -o name | xargs -I {} kubectl get {} --all-namespaces --no-headers 2>/dev/null | awk '{print $1","$2","NR}' | head -500''',
+            "ingress_resources": "kubectl get ingress --all-namespaces -o json",
+            "ingress_controllers": '''kubectl get pods --all-namespaces -l app.kubernetes.io/component=controller -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,IMAGE:.spec.containers[*].image"''',
+            
+            # === ENHANCED ANALYSIS: CERTIFICATE MANAGEMENT ===
+            "tls_certificates": '''kubectl get secrets --all-namespaces --field-selector type=kubernetes.io/tls -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,TYPE:.type,DATA:.data"''',
+            "cert_manager_certificates": "kubectl get certificates --all-namespaces -o json 2>/dev/null || echo '{\"items\":[]}'",
+            
+            # === COST OPTIMIZATION: STORAGE ANALYSIS ===
+            "storage_utilization": '''kubectl get pvc --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,CAPACITY:.spec.resources.requests.storage,STATUS:.status.phase,STORAGECLASS:.spec.storageClassName,VOLUME:.spec.volumeName"''',
+            "unused_configmaps": '''kubectl get configmaps --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,AGE:.metadata.creationTimestamp"''',
+            "unused_secrets": '''kubectl get secrets --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,TYPE:.type,AGE:.metadata.creationTimestamp"''',
+            
+            # === COST OPTIMIZATION: NETWORK RESOURCES ===
+            "service_endpoints": '''kubectl get endpoints --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,ADDRESSES:.subsets[*].addresses[*].ip"''',
+            "ingress_usage": '''kubectl get ingress --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,HOSTS:.spec.rules[*].host,BACKEND:.spec.rules[*].http.paths[*].backend.service.name"''',
         }
     
     def _execute_kubectl_command(self, cmd: str, timeout: int = None) -> Optional[str]:
@@ -699,7 +753,14 @@ class KubernetesDataCache:
             'namespaces_with_labels', 'all_namespaces_list', 'all_networkpolicies', 
             'all_storageclasses_list', 'kube_system_deployments', 'kube_system_configmaps',
             # Azure SDK commands that return text/version strings
-            'cluster_version_sdk'
+            'cluster_version_sdk',
+            # Enhanced analysis commands that return text
+            'pod_restart_counts', 'node_conditions', 'pvc_usage', 'pod_security_context',
+            'pods_privileged', 'pods_host_network', 'pods_running_as_root', 'resource_quotas_usage',
+            'container_images', 'image_pull_policies', 'container_probes', 'deployment_strategies',
+            'pod_resources_detailed', 'node_allocatable', 'node_capacity', 'all_resources_names',
+            'ingress_controllers', 'tls_certificates', 'storage_utilization', 'unused_configmaps',
+            'unused_secrets', 'service_endpoints', 'ingress_usage'
         }
         return key in text_commands
     

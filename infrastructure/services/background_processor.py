@@ -238,7 +238,8 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
                 logger.error(f"🔍 BACKGROUND_PROCESSOR: Available keys: {list(analysis_results_data.keys())[:20]}")
             
             # Store results in database with subscription context
-            enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_results_data)
+            # NOTE: Database save is already handled by analysis engine with enhanced input
+            # enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_results_data)  # REMOVED: Duplicate save
             
             # Update status to completed
             completion_message = f'Subscription-aware analysis completed! Found ${analysis_results_data.get("total_savings", 0):.0f}/month savings potential in {subscription_name}'

@@ -1,0 +1,972 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "KubeOpt Enhanced Input Schema",
+  "description": "Enhanced schema for comprehensive AKS cost analysis including workload-level details",
+  "type": "object",
+  "required": ["cost_analysis", "cluster_info"],
+  "properties": {
+    "cost_analysis": {
+      "description": "Existing cost breakdown structure - preserved as is",
+      "type": "object",
+      "properties": {
+        "total_cost": { "type": "number", "minimum": 0 },
+        "node_cost": { "type": "number", "minimum": 0 },
+        "storage_cost": { "type": "number", "minimum": 0 },
+        "networking_cost": { "type": "number", "minimum": 0 },
+        "control_plane_cost": { "type": "number", "minimum": 0 },
+        "registry_cost": { "type": "number", "minimum": 0 },
+        "other_cost": { "type": "number", "minimum": 0 },
+        "cost_period_days": { "type": "integer", "minimum": 1 },
+        "currency": { "type": "string", "default": "USD" }
+      }
+    },
+    
+    "cluster_info": {
+      "description": "Basic cluster identification and metadata",
+      "type": "object",
+      "required": ["cluster_name", "resource_group", "subscription_id"],
+      "properties": {
+        "cluster_name": { "type": "string" },
+        "resource_group": { "type": "string" },
+        "subscription_id": { "type": "string" },
+        "kubernetes_version": { "type": "string" },
+        "location": { "type": "string" },
+        "total_node_count": { "type": "integer", "minimum": 0 },
+        "analysis_timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+
+    "node_pools": {
+      "description": "Detailed node pool configurations and utilization",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "vm_sku", "node_count"],
+        "properties": {
+          "name": { "type": "string" },
+          "vm_sku": { "type": "string" },
+          "node_count": { "type": "integer", "minimum": 0 },
+          "min_count": { "type": "integer", "minimum": 0 },
+          "max_count": { "type": "integer", "minimum": 0 },
+          "cpu_cores_per_node": { "type": "number", "minimum": 0 },
+          "memory_gb_per_node": { "type": "number", "minimum": 0 },
+          "utilization": {
+            "type": "object",
+            "properties": {
+              "cpu_percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+              "memory_percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+              "avg_cpu_last_7d": { "type": "number", "minimum": 0, "maximum": 100 },
+              "avg_memory_last_7d": { "type": "number", "minimum": 0, "maximum": 100 },
+              "peak_cpu_last_7d": { "type": "number", "minimum": 0, "maximum": 100 },
+              "peak_memory_last_7d": { "type": "number", "minimum": 0, "maximum": 100 }
+            }
+          },
+          "monthly_cost": { "type": "number", "minimum": 0 },
+          "workload_type": { 
+            "type": "string", 
+            "enum": ["system", "user", "mixed"],
+            "default": "user"
+          },
+          "spot_enabled": { "type": "boolean", "default": false },
+          "taints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string" },
+                "value": { "type": "string" },
+                "effect": { "type": "string", "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"] }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "workloads": {
+      "description": "Detailed workload configurations and performance metrics",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["namespace", "name", "type"],
+        "properties": {
+          "namespace": { "type": "string" },
+          "name": { "type": "string" },
+          "type": { 
+            "type": "string", 
+            "enum": ["Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob"]
+          },
+          "replicas": {
+            "type": "object",
+            "properties": {
+              "desired": { "type": "integer", "minimum": 0 },
+              "ready": { "type": "integer", "minimum": 0 },
+              "available": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "has_hpa": { "type": "boolean", "default": false },
+          "hpa_name": { "type": "string" },
+          "resources": {
+            "type": "object",
+            "properties": {
+              "requests": {
+                "type": "object",
+                "properties": {
+                  "cpu": { "type": "string" },
+                  "memory": { "type": "string" }
+                }
+              },
+              "limits": {
+                "type": "object", 
+                "properties": {
+                  "cpu": { "type": "string" },
+                  "memory": { "type": "string" }
+                }
+              }
+            }
+          },
+          "actual_usage": {
+            "type": "object",
+            "properties": {
+              "cpu": {
+                "type": "object",
+                "properties": {
+                  "avg_millicores": { "type": "number", "minimum": 0 },
+                  "p95_millicores": { "type": "number", "minimum": 0 },
+                  "avg_percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+                  "p95_percentage": { "type": "number", "minimum": 0, "maximum": 100 }
+                }
+              },
+              "memory": {
+                "type": "object",
+                "properties": {
+                  "avg_bytes": { "type": "number", "minimum": 0 },
+                  "p95_bytes": { "type": "number", "minimum": 0 },
+                  "avg_percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+                  "p95_percentage": { "type": "number", "minimum": 0, "maximum": 100 }
+                }
+              }
+            }
+          },
+          "cost_estimate": {
+            "type": "object",
+            "properties": {
+              "monthly_cost": { "type": "number", "minimum": 0 },
+              "cpu_cost": { "type": "number", "minimum": 0 },
+              "memory_cost": { "type": "number", "minimum": 0 },
+              "storage_cost": { "type": "number", "minimum": 0 }
+            }
+          },
+          "traffic_pattern": {
+            "type": "object",
+            "properties": {
+              "pattern_type": { 
+                "type": "string", 
+                "enum": ["STEADY", "BURSTY", "PERIODIC", "LOW_UTILIZATION", "CPU_INTENSIVE", "MEMORY_INTENSIVE"],
+                "default": "STEADY"
+              },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+              "peak_hours": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 0, "maximum": 23 }
+              },
+              "scaling_events_last_7d": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"],
+            "default": "medium"
+          },
+          "environment": {
+            "type": "string",
+            "enum": ["production", "staging", "development", "testing"],
+            "default": "production"
+          },
+          "last_updated": { "type": "string", "format": "date-time" },
+          "optimization_candidate": { "type": "boolean", "default": false },
+          "optimization_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["over_provisioned", "under_utilized", "missing_hpa", "inefficient_scaling", "resource_imbalance"]
+            }
+          }
+        }
+      }
+    },
+
+    "storage_volumes": {
+      "description": "Persistent volume claims and storage utilization",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["pvc_name", "namespace", "size"],
+        "properties": {
+          "pvc_name": { "type": "string" },
+          "namespace": { "type": "string" },
+          "storage_class": { "type": "string" },
+          "size": {
+            "type": "object",
+            "properties": {
+              "requested_gb": { "type": "number", "minimum": 0 },
+              "used_gb": { "type": "number", "minimum": 0 },
+              "utilization_percentage": { "type": "number", "minimum": 0, "maximum": 100 }
+            }
+          },
+          "monthly_cost": { "type": "number", "minimum": 0 },
+          "performance_tier": {
+            "type": "string",
+            "enum": ["Standard_LRS", "Premium_LRS", "StandardSSD_LRS", "UltraSSD_LRS"]
+          },
+          "last_accessed": { "type": "string", "format": "date-time" },
+          "attached_workload": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "namespace": { "type": "string" },
+              "type": { "type": "string" }
+            }
+          },
+          "backup_enabled": { "type": "boolean", "default": false },
+          "snapshot_count": { "type": "integer", "minimum": 0 },
+          "iops_usage": {
+            "type": "object",
+            "properties": {
+              "avg_read_iops": { "type": "number", "minimum": 0 },
+              "avg_write_iops": { "type": "number", "minimum": 0 },
+              "peak_iops": { "type": "number", "minimum": 0 }
+            }
+          },
+          "optimization_candidate": { "type": "boolean", "default": false },
+          "optimization_reason": {
+            "type": "string",
+            "enum": ["oversized", "underutilized", "wrong_tier", "orphaned"]
+          }
+        }
+      }
+    },
+
+    "existing_hpas": {
+      "description": "Current HPA configurations and performance",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "namespace", "target_ref"],
+        "properties": {
+          "name": { "type": "string" },
+          "namespace": { "type": "string" },
+          "target_ref": {
+            "type": "object",
+            "properties": {
+              "kind": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          },
+          "min_replicas": { "type": "integer", "minimum": 1 },
+          "max_replicas": { "type": "integer", "minimum": 1 },
+          "current_replicas": { "type": "integer", "minimum": 0 },
+          "desired_replicas": { "type": "integer", "minimum": 0 },
+          "target_metrics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { 
+                  "type": "string", 
+                  "enum": ["Resource", "Pods", "Object", "External"]
+                },
+                "resource": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string", "enum": ["cpu", "memory"] },
+                    "target": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "enum": ["Utilization", "AverageValue"] },
+                        "averageUtilization": { "type": "integer", "minimum": 1, "maximum": 100 },
+                        "averageValue": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "current_metrics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "resource": { "type": "string" },
+                "current_utilization": { "type": "number", "minimum": 0 },
+                "target_utilization": { "type": "number", "minimum": 0 }
+              }
+            }
+          },
+          "scaling_events": {
+            "type": "object",
+            "properties": {
+              "last_7d": { "type": "integer", "minimum": 0 },
+              "last_24h": { "type": "integer", "minimum": 0 },
+              "scale_up_events": { "type": "integer", "minimum": 0 },
+              "scale_down_events": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "performance_metrics": {
+            "type": "object",
+            "properties": {
+              "effectiveness_score": { "type": "number", "minimum": 0, "maximum": 10 },
+              "avg_response_time_ms": { "type": "number", "minimum": 0 },
+              "stability_score": { "type": "number", "minimum": 0, "maximum": 1 },
+              "cost_efficiency": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          },
+          "last_scale_time": { "type": "string", "format": "date-time" },
+          "status": {
+            "type": "string",
+            "enum": ["Active", "Inactive", "ScalingLimited", "Unknown"]
+          }
+        }
+      }
+    },
+
+    "namespaces": {
+      "description": "Namespace-level resource aggregation and cost allocation",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "labels": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "resource_usage": {
+            "type": "object",
+            "properties": {
+              "pod_count": { "type": "integer", "minimum": 0 },
+              "deployment_count": { "type": "integer", "minimum": 0 },
+              "service_count": { "type": "integer", "minimum": 0 },
+              "pvc_count": { "type": "integer", "minimum": 0 },
+              "cpu_requests_total": { "type": "string" },
+              "memory_requests_total": { "type": "string" },
+              "cpu_limits_total": { "type": "string" },
+              "memory_limits_total": { "type": "string" },
+              "cpu_usage_avg": { "type": "number", "minimum": 0 },
+              "memory_usage_avg": { "type": "number", "minimum": 0 }
+            }
+          },
+          "monthly_cost_estimate": {
+            "type": "object",
+            "properties": {
+              "total": { "type": "number", "minimum": 0 },
+              "compute": { "type": "number", "minimum": 0 },
+              "storage": { "type": "number", "minimum": 0 },
+              "networking": { "type": "number", "minimum": 0 }
+            }
+          },
+          "environment_type": {
+            "type": "string",
+            "enum": ["production", "staging", "development", "testing", "system"],
+            "default": "production"
+          },
+          "team_owner": { "type": "string" },
+          "cost_center": { "type": "string" },
+          "optimization_score": { "type": "number", "minimum": 0, "maximum": 100 },
+          "inefficiencies": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["over_provisioned_pods", "unused_pvcs", "missing_resource_limits", "no_hpa_usage"]
+            }
+          }
+        }
+      }
+    },
+
+    "network_resources": {
+      "description": "Network-related resources and their costs",
+      "type": "object",
+      "properties": {
+        "public_ips": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "ip_address": { "type": "string" },
+              "allocation_method": { "type": "string", "enum": ["Static", "Dynamic"] },
+              "monthly_cost": { "type": "number", "minimum": 0 },
+              "attached_to": { "type": "string" },
+              "usage_gb_last_30d": { "type": "number", "minimum": 0 },
+              "utilization": { "type": "string", "enum": ["high", "medium", "low", "unused"] }
+            }
+          }
+        },
+        "load_balancers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string", "enum": ["Standard", "Basic"] },
+              "monthly_cost": { "type": "number", "minimum": 0 },
+              "rule_count": { "type": "integer", "minimum": 0 },
+              "backend_pool_count": { "type": "integer", "minimum": 0 },
+              "data_processed_gb": { "type": "number", "minimum": 0 },
+              "associated_services": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "ingress_resources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "namespace": { "type": "string" },
+              "controller": { "type": "string" },
+              "tls_enabled": { "type": "boolean" },
+              "rule_count": { "type": "integer", "minimum": 0 },
+              "monthly_requests": { "type": "number", "minimum": 0 },
+              "avg_response_time_ms": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "total_network_cost": { "type": "number", "minimum": 0 },
+        "egress_cost": { "type": "number", "minimum": 0 },
+        "ingress_cost": { "type": "number", "minimum": 0 }
+      }
+    },
+
+    "inefficient_workloads": {
+      "description": "Pre-identified optimization candidates with specific inefficiencies",
+      "type": "object",
+      "properties": {
+        "over_provisioned": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "workload": {
+                "type": "object",
+                "properties": {
+                  "namespace": { "type": "string" },
+                  "name": { "type": "string" },
+                  "type": { "type": "string" }
+                }
+              },
+              "inefficiency_details": {
+                "type": "object",
+                "properties": {
+                  "cpu_waste_percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+                  "memory_waste_percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+                  "monthly_waste_cost": { "type": "number", "minimum": 0 },
+                  "recommended_cpu": { "type": "string" },
+                  "recommended_memory": { "type": "string" },
+                  "potential_monthly_savings": { "type": "number", "minimum": 0 }
+                }
+              },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+              "priority": { "type": "string", "enum": ["high", "medium", "low"] }
+            }
+          }
+        },
+        "under_utilized": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "workload": {
+                "type": "object",
+                "properties": {
+                  "namespace": { "type": "string" },
+                  "name": { "type": "string" },
+                  "type": { "type": "string" }
+                }
+              },
+              "utilization_details": {
+                "type": "object",
+                "properties": {
+                  "avg_cpu_utilization": { "type": "number", "minimum": 0, "maximum": 100 },
+                  "avg_memory_utilization": { "type": "number", "minimum": 0, "maximum": 100 },
+                  "replica_efficiency": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "idle_time_percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+                  "scaling_opportunity": { "type": "boolean" }
+                }
+              },
+              "recommendations": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["reduce_replicas", "implement_hpa", "schedule_scaling", "consolidate_workload"]
+                }
+              }
+            }
+          }
+        },
+        "missing_hpa_candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "workload": {
+                "type": "object",
+                "properties": {
+                  "namespace": { "type": "string" },
+                  "name": { "type": "string" },
+                  "type": { "type": "string" }
+                }
+              },
+              "hpa_suitability": {
+                "type": "object",
+                "properties": {
+                  "traffic_variability": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "scaling_potential": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "stateless_score": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "estimated_savings": { "type": "number", "minimum": 0 },
+                  "recommended_hpa_config": {
+                    "type": "object",
+                    "properties": {
+                      "min_replicas": { "type": "integer", "minimum": 1 },
+                      "max_replicas": { "type": "integer", "minimum": 1 },
+                      "target_cpu": { "type": "integer", "minimum": 1, "maximum": 100 },
+                      "target_memory": { "type": "integer", "minimum": 1, "maximum": 100 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "orphaned_resources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resource_type": { 
+                "type": "string", 
+                "enum": ["PVC", "ConfigMap", "Secret", "Service", "PublicIP", "LoadBalancer"]
+              },
+              "name": { "type": "string" },
+              "namespace": { "type": "string" },
+              "last_used": { "type": "string", "format": "date-time" },
+              "monthly_cost": { "type": "number", "minimum": 0 },
+              "safe_to_delete": { "type": "boolean" },
+              "dependencies": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "total_optimization_opportunities": { "type": "integer", "minimum": 0 },
+            "total_potential_monthly_savings": { "type": "number", "minimum": 0 },
+            "high_priority_count": { "type": "integer", "minimum": 0 },
+            "medium_priority_count": { "type": "integer", "minimum": 0 },
+            "low_priority_count": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+
+    "metadata": {
+      "description": "Analysis metadata and configuration",
+      "type": "object",
+      "properties": {
+        "schema_version": { "type": "string", "default": "2.0.0" },
+        "collection_timestamp": { "type": "string", "format": "date-time" },
+        "analysis_scope": {
+          "type": "object",
+          "properties": {
+            "include_system_namespaces": { "type": "boolean", "default": false },
+            "cost_analysis_period_days": { "type": "integer", "minimum": 1, "default": 30 },
+            "metrics_lookback_days": { "type": "integer", "minimum": 1, "default": 7 }
+          }
+        },
+        "data_sources": {
+          "type": "object",
+          "properties": {
+            "azure_cost_management": { "type": "boolean" },
+            "prometheus_metrics": { "type": "boolean" },
+            "kubernetes_api": { "type": "boolean" },
+            "azure_monitor": { "type": "boolean" }
+          }
+        },
+        "collection_confidence": {
+          "type": "object",
+          "properties": {
+            "overall_score": { "type": "number", "minimum": 0, "maximum": 1 },
+            "cost_data_quality": { "type": "number", "minimum": 0, "maximum": 1 },
+            "metrics_completeness": { "type": "number", "minimum": 0, "maximum": 1 },
+            "workload_coverage": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      }
+    }
+  },
+  
+  "examples": [
+    {
+      "cost_analysis": {
+        "total_cost": 2111.71,
+        "node_cost": 179.09,
+        "storage_cost": 410.21,
+        "networking_cost": 748.59,
+        "control_plane_cost": 335.58,
+        "registry_cost": 83.46,
+        "other_cost": 354.77,
+        "cost_period_days": 30,
+        "currency": "USD"
+      },
+      
+      "cluster_info": {
+        "cluster_name": "aks-dpl-mad-uat-ne2-1",
+        "resource_group": "rg-dpl-mad-uat-ne2-2", 
+        "subscription_id": "772db8fd-7c22-4692-8a52-63d039bdf11f",
+        "kubernetes_version": "1.28.9",
+        "location": "northeurope",
+        "total_node_count": 6,
+        "analysis_timestamp": "2025-10-15T22:47:11.621676Z"
+      },
+
+      "node_pools": [
+        {
+          "name": "nodepool1",
+          "vm_sku": "Standard_D4s_v3",
+          "node_count": 6,
+          "min_count": 3,
+          "max_count": 10,
+          "cpu_cores_per_node": 4,
+          "memory_gb_per_node": 16,
+          "utilization": {
+            "cpu_percentage": 44.2,
+            "memory_percentage": 65.1,
+            "avg_cpu_last_7d": 42.8,
+            "avg_memory_last_7d": 63.4,
+            "peak_cpu_last_7d": 89.7,
+            "peak_memory_last_7d": 73.0
+          },
+          "monthly_cost": 1284.50,
+          "workload_type": "user",
+          "spot_enabled": false,
+          "taints": []
+        }
+      ],
+
+      "workloads": [
+        {
+          "namespace": "madapi-preprod",
+          "name": "service-activation-aggregator",
+          "type": "Deployment",
+          "replicas": {
+            "desired": 3,
+            "ready": 3,
+            "available": 3
+          },
+          "has_hpa": true,
+          "hpa_name": "service-activation-aggregator-hpa",
+          "resources": {
+            "requests": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "limits": {
+              "cpu": "500m", 
+              "memory": "512Mi"
+            }
+          },
+          "actual_usage": {
+            "cpu": {
+              "avg_millicores": 447,
+              "p95_millicores": 580,
+              "avg_percentage": 447.0,
+              "p95_percentage": 580.0
+            },
+            "memory": {
+              "avg_bytes": 104857600,
+              "p95_bytes": 134217728,
+              "avg_percentage": 78.1,
+              "p95_percentage": 100.0
+            }
+          },
+          "cost_estimate": {
+            "monthly_cost": 45.20,
+            "cpu_cost": 28.50,
+            "memory_cost": 16.70,
+            "storage_cost": 0.0
+          },
+          "traffic_pattern": {
+            "pattern_type": "BURSTY",
+            "confidence": 0.85,
+            "peak_hours": [9, 10, 11, 14, 15, 16],
+            "scaling_events_last_7d": 23
+          },
+          "priority": "high",
+          "environment": "staging",
+          "last_updated": "2025-10-15T22:30:00Z",
+          "optimization_candidate": true,
+          "optimization_reasons": ["over_provisioned", "inefficient_scaling"]
+        }
+      ],
+
+      "storage_volumes": [
+        {
+          "pvc_name": "data-elasticsearch-master-0",
+          "namespace": "logging",
+          "storage_class": "managed-premium",
+          "size": {
+            "requested_gb": 100,
+            "used_gb": 67.3,
+            "utilization_percentage": 67.3
+          },
+          "monthly_cost": 23.50,
+          "performance_tier": "Premium_LRS",
+          "last_accessed": "2025-10-15T22:45:00Z",
+          "attached_workload": {
+            "name": "elasticsearch-master",
+            "namespace": "logging",
+            "type": "StatefulSet"
+          },
+          "backup_enabled": true,
+          "snapshot_count": 7,
+          "iops_usage": {
+            "avg_read_iops": 150,
+            "avg_write_iops": 89,
+            "peak_iops": 450
+          },
+          "optimization_candidate": false
+        }
+      ],
+
+      "existing_hpas": [
+        {
+          "name": "service-activation-aggregator-hpa",
+          "namespace": "madapi-preprod", 
+          "target_ref": {
+            "kind": "Deployment",
+            "name": "service-activation-aggregator"
+          },
+          "min_replicas": 2,
+          "max_replicas": 10,
+          "current_replicas": 3,
+          "desired_replicas": 3,
+          "target_metrics": [
+            {
+              "type": "Resource",
+              "resource": {
+                "name": "cpu",
+                "target": {
+                  "type": "Utilization",
+                  "averageUtilization": 80
+                }
+              }
+            }
+          ],
+          "current_metrics": [
+            {
+              "resource": "cpu",
+              "current_utilization": 447.0,
+              "target_utilization": 80.0
+            }
+          ],
+          "scaling_events": {
+            "last_7d": 23,
+            "last_24h": 4,
+            "scale_up_events": 15,
+            "scale_down_events": 8
+          },
+          "performance_metrics": {
+            "effectiveness_score": 6.2,
+            "avg_response_time_ms": 125,
+            "stability_score": 0.74,
+            "cost_efficiency": 0.58
+          },
+          "last_scale_time": "2025-10-15T21:45:00Z",
+          "status": "Active"
+        }
+      ],
+
+      "namespaces": [
+        {
+          "name": "madapi-preprod",
+          "labels": {
+            "environment": "staging",
+            "team": "api-team",
+            "cost-center": "engineering"
+          },
+          "resource_usage": {
+            "pod_count": 45,
+            "deployment_count": 32,
+            "service_count": 28,
+            "pvc_count": 5,
+            "cpu_requests_total": "8500m",
+            "memory_requests_total": "12Gi",
+            "cpu_limits_total": "15000m", 
+            "memory_limits_total": "24Gi",
+            "cpu_usage_avg": 58.3,
+            "memory_usage_avg": 71.2
+          },
+          "monthly_cost_estimate": {
+            "total": 892.50,
+            "compute": 678.20,
+            "storage": 134.30,
+            "networking": 80.00
+          },
+          "environment_type": "staging",
+          "team_owner": "api-team",
+          "cost_center": "engineering",
+          "optimization_score": 65,
+          "inefficiencies": ["over_provisioned_pods", "missing_resource_limits"]
+        }
+      ],
+
+      "network_resources": {
+        "public_ips": [
+          {
+            "name": "aks-ingress-ip",
+            "ip_address": "20.123.45.67",
+            "allocation_method": "Static",
+            "monthly_cost": 3.65,
+            "attached_to": "ingress-nginx-controller",
+            "usage_gb_last_30d": 1250.5,
+            "utilization": "medium"
+          }
+        ],
+        "load_balancers": [
+          {
+            "name": "kubernetes",
+            "type": "Standard",
+            "monthly_cost": 21.90,
+            "rule_count": 12,
+            "backend_pool_count": 6,
+            "data_processed_gb": 2340.7,
+            "associated_services": ["ingress-nginx-controller", "api-gateway-service"]
+          }
+        ],
+        "ingress_resources": [
+          {
+            "name": "api-ingress",
+            "namespace": "madapi-preprod",
+            "controller": "nginx",
+            "tls_enabled": true,
+            "rule_count": 8,
+            "monthly_requests": 2450000,
+            "avg_response_time_ms": 145
+          }
+        ],
+        "total_network_cost": 748.59,
+        "egress_cost": 156.32,
+        "ingress_cost": 23.45
+      },
+
+      "inefficient_workloads": {
+        "over_provisioned": [
+          {
+            "workload": {
+              "namespace": "madapi-preprod",
+              "name": "service-activation-aggregator",
+              "type": "Deployment"
+            },
+            "inefficiency_details": {
+              "cpu_waste_percentage": 65.8,
+              "memory_waste_percentage": 22.1,
+              "monthly_waste_cost": 18.75,
+              "recommended_cpu": "200m",
+              "recommended_memory": "256Mi",
+              "potential_monthly_savings": 18.75
+            },
+            "confidence": 0.92,
+            "priority": "high"
+          }
+        ],
+        "under_utilized": [
+          {
+            "workload": {
+              "namespace": "system",
+              "name": "coredns",
+              "type": "Deployment"
+            },
+            "utilization_details": {
+              "avg_cpu_utilization": 12.5,
+              "avg_memory_utilization": 28.3,
+              "replica_efficiency": 0.35,
+              "idle_time_percentage": 78.4,
+              "scaling_opportunity": false
+            },
+            "recommendations": ["reduce_replicas"]
+          }
+        ],
+        "missing_hpa_candidates": [
+          {
+            "workload": {
+              "namespace": "ecommerce",
+              "name": "product-catalog",
+              "type": "Deployment"
+            },
+            "hpa_suitability": {
+              "traffic_variability": 0.78,
+              "scaling_potential": 0.85,
+              "stateless_score": 0.95,
+              "estimated_savings": 34.50,
+              "recommended_hpa_config": {
+                "min_replicas": 2,
+                "max_replicas": 8,
+                "target_cpu": 70,
+                "target_memory": 80
+              }
+            }
+          }
+        ],
+        "orphaned_resources": [
+          {
+            "resource_type": "PVC",
+            "name": "old-data-volume",
+            "namespace": "default",
+            "last_used": "2025-09-12T10:30:00Z",
+            "monthly_cost": 15.20,
+            "safe_to_delete": true,
+            "dependencies": []
+          }
+        ],
+        "summary": {
+          "total_optimization_opportunities": 23,
+          "total_potential_monthly_savings": 342.85,
+          "high_priority_count": 8,
+          "medium_priority_count": 11,
+          "low_priority_count": 4
+        }
+      },
+
+      "metadata": {
+        "schema_version": "2.0.0",
+        "collection_timestamp": "2025-10-15T22:47:11.621676Z",
+        "analysis_scope": {
+          "include_system_namespaces": false,
+          "cost_analysis_period_days": 30,
+          "metrics_lookback_days": 7
+        },
+        "data_sources": {
+          "azure_cost_management": true,
+          "prometheus_metrics": true,
+          "kubernetes_api": true,
+          "azure_monitor": true
+        },
+        "collection_confidence": {
+          "overall_score": 0.89,
+          "cost_data_quality": 0.95,
+          "metrics_completeness": 0.87,
+          "workload_coverage": 0.85
+        }
+      }
+    }
+  ]
+}

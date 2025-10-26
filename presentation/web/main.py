@@ -63,11 +63,11 @@ def register_all_routes_with_multi_subscription():
         logger.info("🛣️ Registering multi-subscription application routes...")
         
         # Register enhanced main routes (portfolio, dashboard) with subscription support
-        from interface.routes import register_routes
+        from presentation.api.routes import register_routes
         register_routes(app)
         
         # Register enhanced API routes with subscription awareness
-        from interface.api_routes import register_api_routes
+        from presentation.api.api_routes import register_api_routes
         register_api_routes(app)
         
         #  Register alerts routes (subscription-aware) 

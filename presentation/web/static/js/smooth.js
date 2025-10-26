@@ -286,8 +286,15 @@ class SmoothTabManager {
         if (typeof loadImplementationPlan === 'function') {
             loadImplementationPlan();
         } else {
-            // Fallback API call
-            fetch('/api/implementation-plan')
+            // Get current cluster ID and load implementation plan
+            const clusterId = getCurrentClusterId();
+            if (!clusterId) {
+                console.error('❌ No cluster ID available for implementation plan');
+                this.showImplementationError('No cluster selected');
+                return;
+            }
+            
+            fetch(`/api/implementation-plan?cluster_id=${encodeURIComponent(clusterId)}`)
                 .then(response => response.json())
                 .then(data => {
                     this.renderImplementationContent(data);
@@ -309,7 +316,13 @@ class SmoothTabManager {
         
         // Silent preload for faster tab switching
         if (!SmoothState.implementationLoaded) {
-            fetch('/api/implementation-plan')
+            const clusterId = getCurrentClusterId();
+            if (!clusterId) {
+                console.log('⚠️ No cluster ID available for implementation plan preload');
+                return;
+            }
+            
+            fetch(`/api/implementation-plan?cluster_id=${encodeURIComponent(clusterId)}`)
                 .then(response => response.json())
                 .then(data => {
                     // Cache the data
