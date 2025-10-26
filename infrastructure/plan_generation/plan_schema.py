@@ -41,6 +41,71 @@ class RiskLevel(str, Enum):
     CRITICAL = "Critical"
 
 
+class CostOptimizationCategory(str, Enum):
+    """Primary cost optimization categories for AKS"""
+    AZURE_PRICING_OPTIMIZATION = "azure_pricing_optimization"
+    WORKLOAD_RIGHTSIZING = "workload_rightsizing"
+    AUTO_SCALING_OPTIMIZATION = "auto_scaling_optimization"
+    STORAGE_COST_OPTIMIZATION = "storage_cost_optimization"
+    NETWORK_COST_OPTIMIZATION = "network_cost_optimization"
+    MONITORING_COST_OPTIMIZATION = "monitoring_cost_optimization"
+    RESOURCE_CLEANUP = "resource_cleanup"
+    SCHEDULE_BASED_OPTIMIZATION = "schedule_based_optimization"
+    AZURE_BEST_PRACTICES = "azure_best_practices"
+
+
+class AzurePricingActionType(str, Enum):
+    """Azure pricing optimization action types"""
+    RESERVED_INSTANCES = "reserved_instances"
+    SPOT_INSTANCES = "spot_instances"
+    SAVINGS_PLANS = "savings_plans"
+    HYBRID_BENEFIT = "hybrid_benefit"
+    DEV_TEST_PRICING = "dev_test_pricing"
+    COMPUTE_GALLERY = "compute_gallery"
+    BURSTABLE_VMS = "burstable_vms"
+
+
+class WorkloadOptimizationType(str, Enum):
+    """Workload optimization action types"""
+    CPU_RIGHTSIZING = "cpu_rightsizing"
+    MEMORY_RIGHTSIZING = "memory_rightsizing"
+    REPLICA_OPTIMIZATION = "replica_optimization"
+    RESOURCE_LIMITS = "resource_limits"
+    QUALITY_OF_SERVICE = "quality_of_service"
+    VERTICAL_SCALING = "vertical_scaling"
+    HORIZONTAL_SCALING = "horizontal_scaling"
+
+
+class AutoScalingActionType(str, Enum):
+    """Auto-scaling optimization action types"""
+    HPA_CONFIGURATION = "hpa_configuration"
+    VPA_CONFIGURATION = "vpa_configuration"
+    CLUSTER_AUTOSCALER = "cluster_autoscaler"
+    NODE_POOL_SCALING = "node_pool_scaling"
+    PREDICTIVE_SCALING = "predictive_scaling"
+    CUSTOM_METRICS_SCALING = "custom_metrics_scaling"
+
+
+class StorageOptimizationType(str, Enum):
+    """Storage cost optimization action types"""
+    STORAGE_CLASS_OPTIMIZATION = "storage_class_optimization"
+    VOLUME_RIGHTSIZING = "volume_rightsizing"
+    SNAPSHOT_LIFECYCLE = "snapshot_lifecycle"
+    BACKUP_OPTIMIZATION = "backup_optimization"
+    STORAGE_TIERING = "storage_tiering"
+    EPHEMERAL_STORAGE = "ephemeral_storage"
+
+
+class NetworkOptimizationType(str, Enum):
+    """Network cost optimization action types"""
+    BANDWIDTH_OPTIMIZATION = "bandwidth_optimization"
+    LOAD_BALANCER_OPTIMIZATION = "load_balancer_optimization"
+    INGRESS_OPTIMIZATION = "ingress_optimization"
+    INTER_AZ_TRAFFIC = "inter_az_traffic"
+    EGRESS_OPTIMIZATION = "egress_optimization"
+    CDN_INTEGRATION = "cdn_integration"
+
+
 class ColorType(str, Enum):
     EXCELLENT = "excellent"
     GOOD = "good"
@@ -221,9 +286,15 @@ class OptimizationAction(BaseModel):
     success_criteria: Optional[List[str]] = Field(None, description="Success criteria")
     rollback: Optional[ActionRollback] = Field(None, description="Rollback instructions")
     
+    # Cost optimization categorization
+    cost_category: CostOptimizationCategory = Field(description="Primary cost optimization category")
+    azure_action_type: Optional[Union[AzurePricingActionType, WorkloadOptimizationType, AutoScalingActionType, StorageOptimizationType, NetworkOptimizationType]] = Field(None, description="Specific Azure action type")
+    
     # Enhanced actionable fields
     target_resource: Optional[str] = Field(None, description="Target K8s resource (deployment/pod/etc)")
     target_namespace: Optional[str] = Field(None, description="Target namespace")
+    target_node_pool: Optional[str] = Field(None, description="Target AKS node pool")
+    target_resource_group: Optional[str] = Field(None, description="Target Azure resource group")
     prerequisites: List[str] = Field(default=[], description="Prerequisites before execution")
     dependencies: List[str] = Field(default=[], description="Other action IDs this depends on")
     estimated_downtime: Optional[str] = Field(None, description="Expected downtime duration")
@@ -232,6 +303,17 @@ class OptimizationAction(BaseModel):
     validation_timeout: Optional[str] = Field("5m", description="Timeout for validation steps")
     automation_ready: bool = Field(False, description="Whether action can be automated")
     requires_approval: bool = Field(False, description="Whether action requires stakeholder approval")
+    
+    # Azure-specific cost tracking
+    current_azure_cost_monthly: Optional[float] = Field(None, ge=0, description="Current Azure cost for this resource")
+    projected_azure_cost_monthly: Optional[float] = Field(None, ge=0, description="Projected Azure cost after optimization")
+    azure_resource_id: Optional[str] = Field(None, description="Azure resource ID for cost tracking")
+    cost_allocation_tags: Dict[str, str] = Field(default={}, description="Azure tags for cost allocation")
+    
+    # Implementation tracking
+    implementation_priority: int = Field(default=1, ge=1, le=5, description="Implementation priority (1=highest, 5=lowest)")
+    cost_impact_score: int = Field(default=1, ge=1, le=10, description="Cost impact score (1=low, 10=high)")
+    complexity_score: int = Field(default=1, ge=1, le=10, description="Implementation complexity (1=simple, 10=complex)")
 
 
 class ImplementationPhase(BaseModel):
@@ -382,7 +464,107 @@ KUBEOPT_IMPLEMENTATION_PLAN_SCHEMA = {
 }
 
 
+# Azure CLI and kubectl command templates for cost optimization
+AZURE_COST_OPTIMIZATION_COMMANDS = {
+    "azure_pricing_optimization": {
+        "check_eligible_vms": "az vm list --query '[].{Name:name, Size:hardwareProfile.vmSize, Location:location}' --output table",
+        "purchase_reservation": "az reservations reservation-order purchase --reserved-resource-type VirtualMachines --billing-scope-id {billing_scope} --term P1Y --billing-plan Monthly --quantity {quantity} --sku {vm_sku} --location {location}",
+        "check_reservations": "az reservations reservation list --query '[].{Name:name, State:properties.provisioningState, Quantity:properties.quantity}' --output table",
+        "create_spot_nodepool": "az aks nodepool add --resource-group {rg} --cluster-name {cluster} --name {nodepool} --priority Spot --eviction-policy Delete --spot-max-price {max_price} --enable-cluster-autoscaler --min-count {min} --max-count {max} --node-vm-size {vm_size}",
+        "check_spot_pricing": "az vm list-skus --location {location} --size {vm_family} --query '[].{Name:name, Locations:locations[0]}' --output table",
+        "enable_hybrid_benefit": "az aks update --resource-group {rg} --name {cluster} --enable-ahub"
+    },
+    "workload_rightsizing": {
+        "get_resource_usage": "kubectl top pods --all-namespaces --containers",
+        "patch_deployment_resources": "kubectl patch deployment {deployment} -n {namespace} -p '{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"{container}\",\"resources\":{\"requests\":{\"cpu\":\"{cpu}\",\"memory\":\"{memory}\"},\"limits\":{\"cpu\":\"{cpu_limit}\",\"memory\":\"{memory_limit}\"}}}]}}}}'",
+        "verify_deployment_status": "kubectl rollout status deployment/{deployment} -n {namespace}",
+        "get_vpa_recommendations": "kubectl describe vpa {vpa_name} -n {namespace}"
+    },
+    "auto_scaling_optimization": {
+        "create_hpa": "kubectl autoscale deployment {deployment} --cpu-percent={cpu_target} --min={min_replicas} --max={max_replicas} -n {namespace}",
+        "create_vpa": "kubectl apply -f - <<EOF\\napiVersion: autoscaling.k8s.io/v1\\nkind: VerticalPodAutoscaler\\nmetadata:\\n  name: {name}-vpa\\n  namespace: {namespace}\\nspec:\\n  targetRef:\\n    apiVersion: apps/v1\\n    kind: Deployment\\n    name: {deployment}\\n  updatePolicy:\\n    updateMode: 'Auto'\\nEOF",
+        "enable_cluster_autoscaler": "az aks nodepool update --resource-group {rg} --cluster-name {cluster} --name {nodepool} --enable-cluster-autoscaler --min-count {min} --max-count {max}",
+        "configure_scale_down_delay": "kubectl patch configmap cluster-autoscaler-status -n kube-system -p '{\"data\":{\"scale-down-delay-after-add\":\"{delay}\"}}'"
+    },
+    "storage_cost_optimization": {
+        "list_storage_classes": "kubectl get storageclass",
+        "create_premium_ssd_v2": "kubectl apply -f - <<EOF\\napiVersion: storage.k8s.io/v1\\nkind: StorageClass\\nmetadata:\\n  name: premium-ssd-v2\\nprovisioner: disk.csi.azure.com\\nparameters:\\n  skuName: PremiumV2_LRS\\nEOF",
+        "check_pv_usage": "kubectl get pv --no-headers | awk '{print $1}' | xargs -I {} kubectl describe pv {} | grep -E 'Name:|Capacity:|Used:'",
+        "resize_pvc": "kubectl patch pvc {pvc_name} -n {namespace} -p '{\"spec\":{\"resources\":{\"requests\":{\"storage\":\"{new_size}\"}}}}'"  
+    },
+    "network_cost_optimization": {
+        "create_internal_lb": "kubectl apply -f - <<EOF\\napiVersion: v1\\nkind: Service\\nmetadata\\n  name: {service_name}\\n  annotations:\\n    service.beta.kubernetes.io/azure-load-balancer-internal: 'true'\\nspec:\\n  type: LoadBalancer\\n  ports:\\n  - port: 80\\n  selector:\\n    app: {app_label}\\nEOF",
+        "check_network_policies": "kubectl get networkpolicy --all-namespaces",
+        "analyze_egress_traffic": "kubectl top nodes --use-protocol-buffers",
+        "optimize_service_mesh": "kubectl apply -f - <<EOF\\napiVersion: install.istio.io/v1alpha1\\nkind: IstioOperator\\nmetadata:\\n  name: control-plane\\nspec:\\n  values:\\n    pilot:\\n      env:\\n        EXTERNAL_ISTIOD: false\\nEOF"
+    },
+    "monitoring_cost_optimization": {
+        "configure_log_retention": "kubectl patch configmap fluent-bit-config -n azure-system -p '{\"data\":{\"retention\":\"{days}d\"}}'",
+        "reduce_metrics_frequency": "kubectl patch prometheus prometheus-kube-prometheus-prometheus -n monitoring --type='merge' -p '{\"spec\":{\"scrapeInterval\":\"{interval}\"}}'",
+        "disable_unused_addons": "az aks disable-addons --resource-group {rg} --name {cluster} --addons {addon_list}"
+    },
+    "resource_cleanup": {
+        "delete_unused_configmaps": "kubectl get configmaps --all-namespaces --no-headers | awk '{print $2 \" -n \" $1}' | xargs kubectl delete configmap",
+        "cleanup_completed_jobs": "kubectl delete jobs --field-selector status.successful=1 --all-namespaces",
+        "remove_unused_secrets": "kubectl get secrets --all-namespaces -o json | jq '.items[] | select(.metadata.name | startswith(\"default-token\") | not)' | kubectl delete -f -",
+        "cleanup_evicted_pods": "kubectl get pods --all-namespaces --field-selector=status.phase=Failed -o json | kubectl delete -f -"
+    },
+    "schedule_based_optimization": {
+        "create_cronjob_scaler": "kubectl apply -f - <<EOF\\napiVersion: batch/v1\\nkind: CronJob\\nmetadata:\\n  name: scale-down-{deployment}\\n  namespace: {namespace}\\nspec\\n  schedule: '{cron_schedule}'\\n  jobTemplate:\\n    spec:\\n      template:\\n        spec:\\n          containers:\\n          - name: kubectl\\n            image: bitnami/kubectl\\n            command: [\"kubectl\", \"scale\", \"deployment/{deployment}\", \"--replicas={replicas}\"]\\n          restartPolicy: Never\\nEOF",
+        "schedule_node_pool_scaling": "az aks nodepool update --resource-group {rg} --cluster-name {cluster} --name {nodepool} --min-count {min_count} --max-count {max_count}"
+    },
+    "azure_best_practices": {
+        "enable_managed_identity": "az aks update --resource-group {rg} --name {cluster} --enable-managed-identity",
+        "configure_azure_policy": "az aks enable-addons --resource-group {rg} --name {cluster} --addons azure-policy",
+        "enable_azure_defender": "az aks update --resource-group {rg} --name {cluster} --enable-defender",
+        "optimize_vm_sizes": "az aks nodepool update --resource-group {rg} --cluster-name {cluster} --name {nodepool} --node-vm-size {optimized_size}"
+    }
+}
+
+
 # Utility functions for plan generation
+def get_command_template(category: CostOptimizationCategory, action_type: str) -> Optional[str]:
+    """Get command template for specific optimization category and action"""
+    category_key = category.value
+    if category_key in AZURE_COST_OPTIMIZATION_COMMANDS:
+        return AZURE_COST_OPTIMIZATION_COMMANDS[category_key].get(action_type)
+    return None
+
+
+def create_optimization_action_template(
+    action_id: str,
+    title: str,
+    category: CostOptimizationCategory,
+    action_type: str,
+    target_resource: str = None,
+    target_namespace: str = None
+) -> OptimizationAction:
+    """Create optimization action with command templates"""
+    command_template = get_command_template(category, action_type)
+    
+    return OptimizationAction(
+        action_id=action_id,
+        title=title,
+        description=f"Cost optimization action for {category.value}",
+        savings_monthly=0.0,
+        risk=RiskLevel.LOW,
+        effort_hours=1.0,
+        issue_type=StatusType.INFO,
+        issue_text="Cost optimization opportunity identified",
+        cost_category=category,
+        target_resource=target_resource,
+        target_namespace=target_namespace,
+        steps=[
+            ActionStep(
+                step_number=1,
+                label=f"Execute {action_type}",
+                command=command_template or f"# Command template for {action_type}",
+                command_type=CommandType.AZURE_CLI if "az " in (command_template or "") else CommandType.KUBECTL
+            )
+        ] if command_template else []
+    )
+
+
 def create_empty_plan(cluster_name: str, plan_id: str = None) -> KubeOptImplementationPlan:
     """Create an empty plan template"""
     if not plan_id:
@@ -478,6 +660,127 @@ def validate_plan_completeness(plan: KubeOptImplementationPlan) -> List[str]:
                 issues.append(f"Action {action.action_id} has no implementation steps")
     
     return issues
+
+
+def create_cost_optimization_phase(
+    phase_number: int,
+    category: CostOptimizationCategory,
+    actions: List[OptimizationAction]
+) -> ImplementationPhase:
+    """Create a phase focused on specific cost optimization category"""
+    category_names = {
+        CostOptimizationCategory.AZURE_PRICING_OPTIMIZATION: "Azure Pricing Optimization",
+        CostOptimizationCategory.WORKLOAD_RIGHTSIZING: "Workload Rightsizing",
+        CostOptimizationCategory.AUTO_SCALING_OPTIMIZATION: "Auto-scaling Optimization",
+        CostOptimizationCategory.STORAGE_COST_OPTIMIZATION: "Storage Cost Optimization",
+        CostOptimizationCategory.NETWORK_COST_OPTIMIZATION: "Network Cost Optimization",
+        CostOptimizationCategory.MONITORING_COST_OPTIMIZATION: "Monitoring Cost Optimization",
+        CostOptimizationCategory.RESOURCE_CLEANUP: "Resource Cleanup",
+        CostOptimizationCategory.SCHEDULE_BASED_OPTIMIZATION: "Schedule-based Optimization",
+        CostOptimizationCategory.AZURE_BEST_PRACTICES: "Azure Best Practices"
+    }
+    
+    total_savings = sum(action.savings_monthly for action in actions)
+    total_effort = sum(action.effort_hours for action in actions)
+    
+    return ImplementationPhase(
+        phase_number=phase_number,
+        phase_name=category_names.get(category, category.value),
+        description=f"Implementation phase for {category_names.get(category, category.value).lower()}",
+        duration=f"{int(total_effort)}h",
+        start_date=date.today(),
+        end_date=date.today(),
+        total_savings_monthly=total_savings,
+        risk_level=RiskLevel.LOW,
+        effort_hours=total_effort,
+        actions=actions,
+        primary_cost_categories=[category]
+    )
+
+
+# ═══════════════════════════════════════════════════════════════
+# COST OPTIMIZATION COMMAND GENERATION UTILITIES
+# ═══════════════════════════════════════════════════════════════
+
+def generate_rightsizing_commands(deployment_name: str, namespace: str, new_cpu: str, new_memory: str) -> List[ActionStep]:
+    """Generate kubectl commands for workload rightsizing"""
+    return [
+        ActionStep(
+            step_number=1,
+            label="Backup current deployment",
+            command=f"kubectl get deployment {deployment_name} -n {namespace} -o yaml > {deployment_name}-backup.yaml",
+            command_type=CommandType.KUBECTL
+        ),
+        ActionStep(
+            step_number=2,
+            label="Update resource requests and limits",
+            command=f"kubectl patch deployment {deployment_name} -n {namespace} -p '{{\"spec\":{{\"template\":{{\"spec\":{{\"containers\":[{{\"name\":\"{deployment_name}\",\"resources\":{{\"requests\":{{\"cpu\":\"{new_cpu}\",\"memory\":\"{new_memory}\"}},\"limits\":{{\"cpu\":\"{new_cpu}\",\"memory\":\"{new_memory}\"}}}}}}]}}}}}}}}'",
+            command_type=CommandType.KUBECTL,
+            validation_command=f"kubectl get deployment {deployment_name} -n {namespace} -o jsonpath='{{.spec.template.spec.containers[0].resources}}'",
+            success_indicators=[f"cpu: {new_cpu}", f"memory: {new_memory}"]
+        ),
+        ActionStep(
+            step_number=3,
+            label="Verify deployment rollout",
+            command=f"kubectl rollout status deployment/{deployment_name} -n {namespace} --timeout=300s",
+            command_type=CommandType.KUBECTL,
+            success_indicators=["successfully rolled out"]
+        )
+    ]
+
+
+def generate_spot_instance_commands(cluster_name: str, resource_group: str, nodepool_name: str, vm_size: str, max_price: str) -> List[ActionStep]:
+    """Generate Azure CLI commands for spot instance node pool"""
+    return [
+        ActionStep(
+            step_number=1,
+            label="Check current node pool configuration",
+            command=f"az aks nodepool show --resource-group {resource_group} --cluster-name {cluster_name} --name {nodepool_name}",
+            command_type=CommandType.AZURE_CLI
+        ),
+        ActionStep(
+            step_number=2,
+            label="Create spot instance node pool",
+            command=f"az aks nodepool add --resource-group {resource_group} --cluster-name {cluster_name} --name {nodepool_name}-spot --priority Spot --eviction-policy Delete --spot-max-price {max_price} --enable-cluster-autoscaler --min-count 1 --max-count 10 --node-vm-size {vm_size}",
+            command_type=CommandType.AZURE_CLI,
+            validation_command=f"az aks nodepool show --resource-group {resource_group} --cluster-name {cluster_name} --name {nodepool_name}-spot --query 'scaleSetPriority'",
+            success_indicators=["Spot"]
+        ),
+        ActionStep(
+            step_number=3,
+            label="Verify node pool is ready",
+            command=f"kubectl get nodes -l agentpool={nodepool_name}-spot",
+            command_type=CommandType.KUBECTL,
+            success_indicators=["Ready"]
+        )
+    ]
+
+
+def generate_hpa_commands(deployment_name: str, namespace: str, min_replicas: int, max_replicas: int, cpu_target: int) -> List[ActionStep]:
+    """Generate kubectl commands for Horizontal Pod Autoscaler"""
+    return [
+        ActionStep(
+            step_number=1,
+            label="Check if HPA already exists",
+            command=f"kubectl get hpa {deployment_name} -n {namespace}",
+            command_type=CommandType.KUBECTL
+        ),
+        ActionStep(
+            step_number=2,
+            label="Create Horizontal Pod Autoscaler",
+            command=f"kubectl autoscale deployment {deployment_name} --cpu-percent={cpu_target} --min={min_replicas} --max={max_replicas} -n {namespace}",
+            command_type=CommandType.KUBECTL,
+            validation_command=f"kubectl get hpa {deployment_name} -n {namespace}",
+            success_indicators=["TARGETS", f"{cpu_target}%"]
+        ),
+        ActionStep(
+            step_number=3,
+            label="Monitor HPA status",
+            command=f"kubectl describe hpa {deployment_name} -n {namespace}",
+            command_type=CommandType.KUBECTL,
+            success_indicators=["ScalingActive", "True"]
+        )
+    ]
 
 
 # ═══════════════════════════════════════════════════════════════

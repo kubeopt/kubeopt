@@ -1992,11 +1992,13 @@ def register_api_routes(app):
         try:
             plan = enhanced_cluster_manager.get_latest_plan(cluster_id)
             if plan:
+                logger.info(f"✅ Found implementation plan for cluster {cluster_id}")
                 return jsonify({
                     'status': 'success',
-                    'plan': plan.model_dump()
+                    'plan': plan
                 }), 200
             else:
+                logger.info(f"📋 No implementation plan found for cluster {cluster_id}")
                 return jsonify({
                     'status': 'not_found',
                     'message': 'No implementation plan found for this cluster'

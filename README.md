@@ -146,8 +146,7 @@ aks-cost-optimizer/
 │       ├── models/                 # ML models
 │       │   ├── cost_anomaly_detection.py         # Anomaly detection
 │       │   ├── cpu_optimization_planner.py       # CPU optimization
-│       │   ├── workload_performance_analyzer.py  # Performance analysis
-│       │   └── dna_analyzer.py                   # Workload DNA analysis
+│       │   └── workload_performance_analyzer.py  # Performance analysis
 │       ├── training/               # Model training
 │       ├── inference/              # Model inference
 │       └── data/                   # ML data & models

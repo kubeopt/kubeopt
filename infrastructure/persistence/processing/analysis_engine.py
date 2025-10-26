@@ -293,6 +293,20 @@ class MultiSubscriptionAnalysisEngine:
             shared_cache = fetch_cluster_data(cluster_name, resource_group, config.subscription_id)
             logger.info(f"✅ Session {session_id}: Cache ready - all components will now use cached data")
             
+            # DEBUG: Inspect cache contents
+            try:
+                if hasattr(shared_cache, 'data') and shared_cache.data:
+                    logger.info(f"🔍 DEBUG Session {session_id}: Cache contains {len(shared_cache.data)} keys")
+                    resource_keys = [k for k in shared_cache.data.keys() if 'pod_resources' in k or 'deployment' in k or 'pods' in k]
+                    logger.info(f"🔍 DEBUG Session {session_id}: Resource-related keys: {resource_keys}")
+                    for key in resource_keys[:5]:  # Show first 5 resource keys
+                        value = shared_cache.data.get(key, "")
+                        logger.info(f"🔍 DEBUG Session {session_id}: {key} = {len(str(value))} chars")
+                else:
+                    logger.warning(f"⚠️ DEBUG Session {session_id}: Cache has no data or data attribute!")
+            except Exception as debug_error:
+                logger.error(f"❌ DEBUG Session {session_id}: Cache debug failed: {debug_error}")
+            
             # Step 1: Get cost data with subscription context
             cost_components, cost_label, total_period_cost, cost_df = self._get_cost_data(
                 resource_group, cluster_name, days, session_id, log_prefix, cluster_id, config
@@ -531,6 +545,7 @@ class MultiSubscriptionAnalysisEngine:
             # ENHANCED: Generate detailed analysis input before database update
             enhanced_input = self.generate_enhanced_analysis_input(cluster_id, results)
             logger.info(f"✅ Session {session_id}: Generated enhanced analysis input with {len(enhanced_input.get('workloads', []))} workloads")
+            logger.info(f"🔍 DEBUG Session {session_id}: Enhanced input type: {type(enhanced_input)}, keys: {list(enhanced_input.keys()) if enhanced_input else 'None'}")
             
             # Update results with enhanced input for implementation generator
             results['enhanced_analysis_input'] = enhanced_input
@@ -562,6 +577,7 @@ class MultiSubscriptionAnalysisEngine:
                 # Continue with analysis storage even if plan generation fails
             
             # Update database with analysis (without inline plan generation)
+            logger.info(f"🔍 DEBUG Session {session_id}: About to call database with enhanced_input type: {type(enhanced_input)}")
             enhanced_cluster_manager.update_cluster_analysis_without_plan_generation(cluster_id, results, enhanced_input)
             logger.info(f"✅ Session {session_id}: Updated database with subscription context")
             
@@ -878,6 +894,7 @@ class MultiSubscriptionAnalysisEngine:
                 "existing_hpas": self._get_hpa_details(cluster_id, basic_analysis),
                 "namespaces": self._get_namespace_summary(cluster_id, basic_analysis),
                 "network_resources": self._get_network_resources(cluster_id, basic_analysis),
+                "optimization_opportunities": self._get_optimization_opportunities(cluster_id, basic_analysis),
                 "inefficient_workloads": self._identify_optimization_candidates(cluster_id, basic_analysis),
                 "metadata": self._get_analysis_metadata(basic_analysis)
             }
@@ -919,13 +936,39 @@ class MultiSubscriptionAnalysisEngine:
     
     def _get_cluster_info(self, cluster_id: str, basic_analysis: dict) -> dict:
         """Extract cluster information"""
+        # Calculate actual pod and namespace counts from workload data
+        hpa_recs = basic_analysis.get('hpa_recommendations', {})
+        workload_chars = hpa_recs.get('workload_characteristics', {})
+        all_workloads = workload_chars.get('all_workloads', [])
+        if not all_workloads:
+            all_workloads = basic_analysis.get('all_workloads_preserved', [])
+        
+        # Extract unique namespaces and calculate pod count
+        namespaces = set()
+        total_pods = 0
+        for workload in all_workloads:
+            if isinstance(workload, dict):
+                ns = workload.get('namespace', 'default')
+                namespaces.add(ns)
+                # Estimate pods from replicas
+                replicas = workload.get('replicas') or workload.get('current_replicas') or workload.get('replica_count', 1)
+                total_pods += replicas
+        
+        # Extract actual data from kubectl results
+        kubernetes_version = self._extract_kubernetes_version(basic_analysis)
+        location = self._extract_cluster_location(basic_analysis)
+        actual_pod_count = self._count_kubectl_pods(basic_analysis)
+        actual_namespace_count = self._count_kubectl_namespaces(basic_analysis)
+        
         return {
             "cluster_name": basic_analysis.get('cluster_name', 'unknown'),
             "resource_group": basic_analysis.get('resource_group', 'unknown'),
             "subscription_id": basic_analysis.get('subscription_id', 'unknown'),
-            "kubernetes_version": basic_analysis.get('kubernetes_version', 'unknown'),
-            "location": basic_analysis.get('location', 'unknown'),
-            "total_node_count": basic_analysis.get('current_node_count', 0),
+            "kubernetes_version": kubernetes_version or basic_analysis.get('kubernetes_version', 'unknown'),
+            "location": location or basic_analysis.get('location', 'unknown'),
+            "node_count": basic_analysis.get('current_node_count', 0),
+            "total_pods": actual_pod_count if actual_pod_count > 0 else total_pods,
+            "total_namespaces": actual_namespace_count if actual_namespace_count > 0 else len(namespaces),
             "analysis_timestamp": basic_analysis.get('analysis_timestamp', datetime.now().isoformat())
         }
     
@@ -982,16 +1025,51 @@ class MultiSubscriptionAnalysisEngine:
             return []
     
     def _get_workload_details(self, cluster_id: str, basic_analysis: dict) -> List[dict]:
-        """Extract detailed workload information from analysis data"""
+        """Extract detailed workload information from analysis data and raw kubectl output"""
         try:
             workloads = []
             
-            # Extract workloads from HPA recommendations
+            # Get raw kubectl data from cluster database
+            from shared.kubernetes_data_cache import get_or_create_cache
+            
+            # Extract cluster info from cluster_id
+            parts = cluster_id.split('_')
+            if len(parts) >= 2:
+                resource_group = parts[0]
+                cluster_name = parts[1]
+                subscription_id = basic_analysis.get('subscription_id', 'unknown')
+                
+                # Get kubernetes cache to fetch raw resource data
+                try:
+                    kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False)
+                    pod_resources_data = kube_cache.get('pod_resources_detailed') or ""
+                    deployments_data = kube_cache.get('deployments') or ""
+                except Exception as cache_error:
+                    logger.warning(f"⚠️ Could not get kubernetes cache for {cluster_id}: {cache_error}")
+                    pod_resources_data = ""
+                    deployments_data = ""
+            else:
+                pod_resources_data = ""
+                deployments_data = ""
+            
+            # Parse resource data from kubectl output
+            resource_map = self._parse_pod_resources(pod_resources_data)
+            deployment_map = self._parse_deployments_json(deployments_data)
+            
+            # Log resource map summary
+            logger.info(f"🔍 {cluster_id}: Parsed {len(resource_map)} workload resource specifications from kubectl output")
+            
+            # Extract workloads from multiple sources
+            # Priority 1: HPA recommendations (contains CPU/memory utilization data)
             hpa_recs = basic_analysis.get('hpa_recommendations', {})
             workload_chars = hpa_recs.get('workload_characteristics', {})
             all_workloads = workload_chars.get('all_workloads', [])
             
-            # If no workloads in HPA, try other sources
+            # Priority 2: Direct workloads key 
+            if not all_workloads:
+                all_workloads = basic_analysis.get('workloads', [])
+            
+            # Priority 3: Preserved workloads
             if not all_workloads:
                 all_workloads = basic_analysis.get('all_workloads_preserved', [])
             
@@ -1011,13 +1089,46 @@ class MultiSubscriptionAnalysisEngine:
                 cost_data = workload_costs.get(workload_key, workload_costs.get(workload_name, {}))
                 monthly_cost = cost_data.get('cost', 0) if isinstance(cost_data, dict) else 0
                 
+                # Extract ACTUAL resource specifications from kubectl output
+                resource_key = f"{namespace}/{workload_name}"
+                resource_info = resource_map.get(resource_key, {})
+                deployment_info = deployment_map.get(resource_key, {})
+                
+                # Track successful resource lookups
+                resource_lookup_success = bool(resource_info and (resource_info.get('cpu_request') or resource_info.get('memory_request')))
+                
+                actual_cpu_request = resource_info.get('cpu_request')
+                actual_memory_request = resource_info.get('memory_request') 
+                actual_cpu_limit = resource_info.get('cpu_limit')
+                actual_memory_limit = resource_info.get('memory_limit')
+                
+                # Extract replicas from deployment info
+                actual_replicas = deployment_info.get('replicas', 1)
+                
+                # Extract ACTUAL usage data from workload analysis
+                actual_cpu_usage = workload.get('cpu_utilization') or workload.get('avg_cpu_usage') or workload.get('current_cpu_usage')
+                
+                # Memory usage - try workload-level first, then fall back to cluster-level estimate
+                actual_memory_usage = workload.get('memory_utilization') or workload.get('avg_memory_usage') or workload.get('current_memory_usage')
+                if not actual_memory_usage:
+                    # Fallback: Use cluster-level memory utilization as estimate
+                    cluster_memory_util = basic_analysis.get('current_memory_utilization') or basic_analysis.get('avg_memory_utilization', 0)
+                    # Scale by workload's CPU usage ratio (rough estimate)
+                    if actual_cpu_usage and cluster_memory_util:
+                        cluster_cpu_util = basic_analysis.get('current_cpu_utilization', 100)
+                        if cluster_cpu_util > 0:
+                            memory_ratio = actual_cpu_usage / cluster_cpu_util  
+                            actual_memory_usage = cluster_memory_util * memory_ratio
+                        else:
+                            actual_memory_usage = cluster_memory_util * 0.5  # Conservative estimate
+                
                 # Determine traffic pattern from workload type
                 workload_type = workload.get('type', 'unknown')
                 if 'high_cpu' in workload_type or workload.get('severity') == 'critical':
                     pattern_type = "BURSTY"
-                elif workload.get('cpu_utilization', 0) > 200:
+                elif (actual_cpu_usage or 0) > 200:
                     pattern_type = "CPU_INTENSIVE" 
-                elif workload.get('cpu_utilization', 0) < 20:
+                elif (actual_cpu_usage or 0) < 20:
                     pattern_type = "LOW_UTILIZATION"
                 else:
                     pattern_type = "STEADY"
@@ -1025,51 +1136,51 @@ class MultiSubscriptionAnalysisEngine:
                 # Check if workload has HPA
                 has_hpa = workload.get('hpa_detected', False) or 'hpa' in workload_type.lower()
                 
-                # Determine optimization candidates
-                cpu_util = workload.get('cpu_utilization', 0)
+                # Determine optimization candidates using actual usage
+                cpu_util = actual_cpu_usage or workload.get('cpu_utilization', 0)
                 is_optimization_candidate = cpu_util > 300 or cpu_util < 10 or not has_hpa
                 
                 optimization_reasons = []
                 if cpu_util > 300:
                     optimization_reasons.append("over_provisioned")
-                if cpu_util < 10:
+                elif cpu_util < 10:
                     optimization_reasons.append("under_utilized")
                 if not has_hpa and cpu_util > 50:
                     optimization_reasons.append("missing_hpa")
+                if not actual_cpu_request:
+                    optimization_reasons.append("no_resource_requests")
+                if not actual_memory_request:
+                    optimization_reasons.append("no_memory_requests")
                     
                 workload_detail = {
                     "namespace": namespace,
                     "name": workload_name,
-                    "type": "Deployment",  # Default assumption
-                    "replicas": {
-                        "desired": 1,  # Default
-                        "ready": 1,
-                        "available": 1
-                    },
+                    "type": workload.get('workload_type', 'Deployment'),
+                    "replicas": actual_replicas,  # Simplified for Claude API - only needs the count
                     "has_hpa": has_hpa,
                     "hpa_name": f"{workload_name}-hpa" if has_hpa else None,
                     "resources": {
                         "requests": {
-                            "cpu": "100m",  # Default
-                            "memory": "128Mi"
+                            "cpu": actual_cpu_request or None,  # Use actual or None
+                            "memory": actual_memory_request or None
                         },
                         "limits": {
-                            "cpu": "500m",
-                            "memory": "512Mi"
+                            "cpu": actual_cpu_limit or None,
+                            "memory": actual_memory_limit or None
                         }
                     },
                     "actual_usage": {
                         "cpu": {
-                            "avg_millicores": int(cpu_util * 10) if cpu_util else 100,
-                            "p95_millicores": int(cpu_util * 12) if cpu_util else 120,
-                            "avg_percentage": round(cpu_util, 1) if cpu_util else 10.0,
-                            "p95_percentage": round(cpu_util * 1.2, 1) if cpu_util else 12.0
+                            "avg_millicores": int(cpu_util * 10) if cpu_util else None,
+                            "p95_millicores": int(cpu_util * 12) if cpu_util else None,
+                            "avg_percentage": round(cpu_util, 1) if cpu_util else None,
+                            "p95_percentage": round(cpu_util * 1.2, 1) if cpu_util else None
                         },
                         "memory": {
-                            "avg_bytes": 104857600,  # 100MB default
-                            "p95_bytes": 134217728,  # 128MB default
-                            "avg_percentage": get_memory_target()['optimal'],
-                            "p95_percentage": get_memory_target()['target_max']
+                            "avg_bytes": int(actual_memory_usage * 1024 * 1024) if actual_memory_usage else None,  # Convert MB to bytes
+                            "p95_bytes": int(actual_memory_usage * 1.2 * 1024 * 1024) if actual_memory_usage else None,
+                            "avg_percentage": round(actual_memory_usage, 1) if actual_memory_usage else None,
+                            "p95_percentage": round(actual_memory_usage * 1.2, 1) if actual_memory_usage else None
                         }
                     },
                     "cost_estimate": {
@@ -1094,12 +1205,136 @@ class MultiSubscriptionAnalysisEngine:
                 workloads.append(workload_detail)
             
             logger.info(f"✅ Extracted {len(workloads)} workload details")
+            # Summary logging
+            workloads_with_resources = sum(1 for w in workloads if w.get('resources', {}).get('requests', {}).get('cpu') or w.get('resources', {}).get('requests', {}).get('memory'))
+            logger.info(f"✅ {cluster_id}: Generated {len(workloads)} workloads, {workloads_with_resources} with resource specifications")
+            
             return workloads
             
         except Exception as e:
             logger.error(f"❌ Failed to get workload details: {e}")
             return []
     
+    def _get_optimization_opportunities(self, cluster_id: str, basic_analysis: dict) -> List[dict]:
+        """Extract specific optimization opportunities with potential savings"""
+        try:
+            opportunities = []
+            
+            # Method 1: Extract from existing optimization data 
+            existing_opportunities = basic_analysis.get('optimization_opportunities', [])
+            
+            for opp in existing_opportunities:
+                if isinstance(opp, dict):
+                    opportunity = {
+                        "type": opp.get('type', 'unknown'),
+                        "workload": opp.get('workload', 'unknown'),
+                        "namespace": opp.get('namespace', 'default'),
+                        "description": opp.get('description', ''),
+                        "current_state": opp.get('current_state', ''),
+                        "recommended_action": opp.get('recommended_action', ''),
+                        "potential_monthly_savings": opp.get('potential_monthly_savings', 0),
+                        "implementation_difficulty": opp.get('implementation_difficulty', 'medium'),
+                        "risk_level": opp.get('risk_level', 'low'),
+                        "estimated_implementation_time": opp.get('estimated_implementation_time', '30min'),
+                        "category": self._categorize_optimization_type(opp.get('type', 'unknown'))
+                    }
+                    opportunities.append(opportunity)
+            
+            # Method 2: Generate from HPA recommendations
+            hpa_recs = basic_analysis.get('hpa_recommendations', {})
+            workload_chars = hpa_recs.get('workload_characteristics', {})
+            all_workloads = workload_chars.get('all_workloads', [])
+            
+            if not all_workloads:
+                all_workloads = basic_analysis.get('all_workloads_preserved', [])
+            
+            # Generate opportunities from workload analysis
+            for workload in all_workloads:
+                if not isinstance(workload, dict):
+                    continue
+                    
+                workload_name = workload.get('name', 'unknown')
+                namespace = workload.get('namespace', 'default')
+                workload_type = workload.get('type', 'unknown')
+                
+                # High CPU detected workloads
+                if 'high_cpu' in workload_type:
+                    opportunities.append({
+                        "type": "right_sizing",
+                        "workload": workload_name,
+                        "namespace": namespace,
+                        "description": f"Workload {workload_name} showing high CPU utilization patterns",
+                        "current_state": "High CPU utilization detected",
+                        "recommended_action": f"kubectl patch deployment {workload_name} -n {namespace} --type='merge' -p PATCH_SPEC_FOR_RIGHTSIZING",
+                        "potential_monthly_savings": 25.50,
+                        "implementation_difficulty": "low",
+                        "risk_level": "low",
+                        "estimated_implementation_time": "15min",
+                        "category": "workload_rightsizing"
+                    })
+                
+                # HPA opportunities
+                if 'hpa' not in workload_type.lower() and workload.get('cpu_utilization', 0) > 50:
+                    opportunities.append({
+                        "type": "horizontal_scaling",
+                        "workload": workload_name,
+                        "namespace": namespace,
+                        "description": f"Workload {workload_name} could benefit from Horizontal Pod Autoscaling",
+                        "current_state": "No HPA configured",
+                        "recommended_action": f"kubectl autoscale deployment {workload_name} -n {namespace} --cpu-percent=70 --min=1 --max=10",
+                        "potential_monthly_savings": 15.75,
+                        "implementation_difficulty": "low",
+                        "risk_level": "low",
+                        "estimated_implementation_time": "10min",
+                        "category": "auto_scaling_optimization"
+                    })
+            
+            # Method 3: Generate from cost analysis 
+            pod_cost_analysis = basic_analysis.get('pod_cost_analysis', {})
+            workload_costs = pod_cost_analysis.get('workload_costs', {})
+            
+            # Find high-cost workloads without resource requests
+            for workload_key, cost_data in workload_costs.items():
+                if isinstance(cost_data, dict) and cost_data.get('cost', 0) > 20:
+                    parts = workload_key.split('/')
+                    if len(parts) == 2:
+                        namespace, name = parts
+                        opportunities.append({
+                            "type": "resource_requests",
+                            "workload": name,
+                            "namespace": namespace,
+                            "description": f"High-cost workload {name} may benefit from resource requests optimization",
+                            "current_state": f"Monthly cost: ${cost_data.get('cost', 0):.2f}",
+                            "recommended_action": f"kubectl patch deployment {name} -n {namespace} --type='merge' -p PATCH_SPEC_FOR_RESOURCE_REQUESTS",
+                            "potential_monthly_savings": cost_data.get('cost', 0) * 0.15,  # 15% savings
+                            "implementation_difficulty": "low",
+                            "risk_level": "low",
+                            "estimated_implementation_time": "15min",
+                            "category": "workload_rightsizing"
+                        })
+            
+            logger.info(f"✅ Extracted {len(opportunities)} optimization opportunities from multiple sources")
+            return opportunities
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get optimization opportunities: {e}")
+            return []
+    
+    def _categorize_optimization_type(self, opt_type: str) -> str:
+        """Categorize optimization types for better Claude understanding"""
+        if 'networking' in opt_type.lower():
+            return "network_cost_optimization"
+        elif 'rightsizing' in opt_type.lower() or 'resource' in opt_type.lower():
+            return "workload_rightsizing"
+        elif 'hpa' in opt_type.lower() or 'scaling' in opt_type.lower():
+            return "auto_scaling_optimization"
+        elif 'storage' in opt_type.lower():
+            return "storage_cost_optimization"
+        elif 'node' in opt_type.lower():
+            return "azure_pricing_optimization"
+        else:
+            return "azure_best_practices"
+
     def _get_storage_details(self, cluster_id: str, basic_analysis: dict) -> List[dict]:
         """Extract storage volume details"""
         try:
@@ -1517,10 +1752,186 @@ class MultiSubscriptionAnalysisEngine:
             }
         }
 
+    def _parse_pod_resources(self, pod_resources_text: str) -> Dict[str, Dict]:
+        """Parse kubectl pod resources output to extract actual resource specifications"""
+        resource_map = {}
+        if not pod_resources_text:
+            return resource_map
+            
+        try:
+            lines = pod_resources_text.strip().split('\n')[1:]  # Skip header
+            
+            for i, line in enumerate(lines):
+                parts = line.split()
+                if len(parts) >= 7:
+                    namespace = parts[0]
+                    pod_name = parts[1]
+                    cpu_req = parts[2] if parts[2] != '<none>' else None
+                    cpu_lim = parts[3] if parts[3] != '<none>' else None  
+                    mem_req = parts[4] if parts[4] != '<none>' else None
+                    mem_lim = parts[5] if parts[5] != '<none>' else None
+                    
+                    # Extract workload name from pod name (remove pod suffix)
+                    # Kubernetes pods usually follow: workload-name-replicaset-hash-pod-hash
+                    # We need to remove the pod hash (last part) and replicaset hash (second to last)
+                    # But preserve multi-hyphen workload names like "subscription-fulfillment-system"
+                    
+                    workload_name = pod_name
+                    if '-' in pod_name:
+                        parts = pod_name.split('-')
+                        if len(parts) >= 3:
+                            # Remove last 2 parts (replicaset hash + pod hash)
+                            # Example: "momo-aggregator-7d8f9c6b4d-abc123" → "momo-aggregator"
+                            # Example: "subscription-fulfillment-system-5f7d8c-def456" → "subscription-fulfillment-system"
+                            workload_name = '-'.join(parts[:-2])
+                        elif len(parts) == 2:
+                            # Just remove last part (pod hash)
+                            workload_name = parts[0]
+                        # else: single word, keep as is
+                    
+                    key = f"{namespace}/{workload_name}"
+                    
+                    if key not in resource_map:
+                        resource_map[key] = {
+                            'cpu_request': cpu_req,
+                            'cpu_limit': cpu_lim,
+                            'memory_request': mem_req,
+                            'memory_limit': mem_lim
+                        }
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to parse pod resources: {e}")
+            
+        return resource_map
+    
+    def _parse_deployments_json(self, deployments_json: str) -> Dict[str, Dict]:
+        """Parse kubectl deployments JSON output to extract replica info"""
+        deployment_map = {}
+        if not deployments_json:
+            return deployment_map
+            
+        try:
+            import json
+            data = json.loads(deployments_json)
+            items = data.get('items', [])
+            
+            for item in items:
+                namespace = item.get('metadata', {}).get('namespace', 'default')
+                name = item.get('metadata', {}).get('name', 'unknown')
+                replicas = item.get('spec', {}).get('replicas', 1)
+                ready_replicas = item.get('status', {}).get('readyReplicas', 0)
+                
+                key = f"{namespace}/{name}"
+                deployment_map[key] = {
+                    'replicas': replicas,
+                    'ready_replicas': ready_replicas
+                }
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to parse deployments JSON: {e}")
+            
+        return deployment_map
+
+    def _extract_kubernetes_version(self, basic_analysis: dict) -> Optional[str]:
+        """Extract Kubernetes version from kubectl data"""
+        try:
+            kubectl_data = basic_analysis.get('kubectl_data', {})
+            
+            # Try from nodes first
+            nodes = kubectl_data.get('nodes', {})
+            if isinstance(nodes, dict) and 'items' in nodes and nodes['items']:
+                first_node = nodes['items'][0]
+                kubelet_version = first_node.get('status', {}).get('nodeInfo', {}).get('kubeletVersion')
+                if kubelet_version:
+                    logger.info(f"✅ Extracted Kubernetes version from node: {kubelet_version}")
+                    return kubelet_version
+            
+            # Try from cluster info
+            cluster_info = kubectl_data.get('cluster_info', {})
+            if isinstance(cluster_info, dict):
+                server_version = cluster_info.get('serverVersion', {}).get('gitVersion')
+                if server_version:
+                    logger.info(f"✅ Extracted Kubernetes version from cluster-info: {server_version}")
+                    return server_version
+            
+            logger.warning("⚠️ Could not extract Kubernetes version from kubectl data")
+            return None
+        except Exception as e:
+            logger.error(f"❌ Failed to extract Kubernetes version: {e}")
+            return None
+
+    def _extract_cluster_location(self, basic_analysis: dict) -> Optional[str]:
+        """Extract cluster location/region from kubectl data"""
+        try:
+            kubectl_data = basic_analysis.get('kubectl_data', {})
+            
+            # Try from node labels
+            nodes = kubectl_data.get('nodes', {})
+            if isinstance(nodes, dict) and 'items' in nodes and nodes['items']:
+                first_node = nodes['items'][0]
+                labels = first_node.get('metadata', {}).get('labels', {})
+                
+                # Check various region/zone labels
+                for label_key in ['topology.kubernetes.io/region', 'failure-domain.beta.kubernetes.io/region', 'kubernetes.io/region']:
+                    region = labels.get(label_key)
+                    if region:
+                        logger.info(f"✅ Extracted cluster location from node label {label_key}: {region}")
+                        return region
+                
+                # Also check zone if region not found
+                for label_key in ['topology.kubernetes.io/zone', 'failure-domain.beta.kubernetes.io/zone']:
+                    zone = labels.get(label_key)
+                    if zone:
+                        # Extract region from zone (e.g., 'eastus-1' -> 'eastus')
+                        region = zone.rsplit('-', 1)[0] if '-' in zone else zone
+                        logger.info(f"✅ Extracted cluster location from zone {label_key}: {region}")
+                        return region
+            
+            logger.warning("⚠️ Could not extract cluster location from kubectl data")
+            return None
+        except Exception as e:
+            logger.error(f"❌ Failed to extract cluster location: {e}")
+            return None
+
+    def _count_kubectl_pods(self, basic_analysis: dict) -> int:
+        """Count actual pods from kubectl data"""
+        try:
+            kubectl_data = basic_analysis.get('kubectl_data', {})
+            pods = kubectl_data.get('pods', {})
+            
+            if isinstance(pods, dict) and 'items' in pods:
+                pod_count = len(pods['items'])
+                logger.info(f"✅ Counted {pod_count} pods from kubectl data")
+                return pod_count
+            
+            logger.warning("⚠️ No kubectl pods data found")
+            return 0
+        except Exception as e:
+            logger.error(f"❌ Failed to count kubectl pods: {e}")
+            return 0
+
+    def _count_kubectl_namespaces(self, basic_analysis: dict) -> int:
+        """Count actual namespaces from kubectl data"""
+        try:
+            kubectl_data = basic_analysis.get('kubectl_data', {})
+            namespaces = kubectl_data.get('namespaces', {})
+            
+            if isinstance(namespaces, dict) and 'items' in namespaces:
+                ns_count = len(namespaces['items'])
+                logger.info(f"✅ Counted {ns_count} namespaces from kubectl data")
+                return ns_count
+            
+            logger.warning("⚠️ No kubectl namespaces data found")
+            return 0
+        except Exception as e:
+            logger.error(f"❌ Failed to count kubectl namespaces: {e}")
+            return 0
+
+
 # Create global multi-subscription analysis engine
 multi_subscription_analysis_engine = MultiSubscriptionAnalysisEngine()
 
 # Backward compatibility functions with subscription awareness
+
+
 def run_subscription_aware_analysis(resource_group: str, cluster_name: str, 
                                    subscription_id: Optional[str] = None,
                                    days: int = 30, enable_pod_analysis: bool = True) -> Dict[str, Any]:
