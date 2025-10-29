@@ -1740,6 +1740,12 @@ class EnhancedDynamicCostDistributionEngine:
                 'name': workload_name
             }
         
+        # Additionally generate deployment-level costs using actual deployment data from cache
+        deployment_costs = self._aggregate_pod_costs_to_deployments(workload_costs)
+        
+        # Add deployment costs to workload_costs (keeping both pod and deployment level)
+        workload_costs.update(deployment_costs)
+        
         # Generate metadata
         total_input_cost = sum(total_costs.values())
         total_distributed_cost = sum(namespace_costs.values())
@@ -1771,6 +1777,100 @@ class EnhancedDynamicCostDistributionEngine:
             success=True,
             analysis_method="enhanced_dynamic_subscription_aware"
         )
+    
+    def _aggregate_pod_costs_to_deployments(self, pod_costs: Dict[str, Dict]) -> Dict[str, Dict]:
+        """Aggregate pod-level costs to deployment-level using actual deployment data from cache"""
+        deployment_costs = {}
+        
+        try:
+            # Get deployment data from cache using same method as analysis engine
+            deployments_data = self.cache.get('deployments') or ""
+            
+            if not deployments_data:
+                logger.warning("⚠️ No deployment data found in cache, skipping deployment-level aggregation")
+                return deployment_costs
+            
+            # Parse deployment data to get pod-to-deployment mapping
+            deployment_to_pods = self._parse_deployment_pod_relationships(deployments_data, pod_costs)
+            
+            # Aggregate costs by deployment
+            for deployment_key, pod_list in deployment_to_pods.items():
+                total_cost = 0
+                namespace = deployment_key.split('/')[0]
+                deployment_name = deployment_key.split('/')[1]
+                
+                for pod_key in pod_list:
+                    if pod_key in pod_costs:
+                        total_cost += pod_costs[pod_key]['cost']
+                
+                if total_cost > 0:
+                    deployment_costs[deployment_key] = {
+                        'cost': total_cost,
+                        'type': 'Deployment',
+                        'namespace': namespace,
+                        'name': deployment_name,
+                        'pod_count': len(pod_list)
+                    }
+            
+            if deployment_costs:
+                logger.info(f"✅ Aggregated {len(pod_costs)} pod costs to {len(deployment_costs)} deployment costs")
+            else:
+                logger.warning(f"⚠️ No deployment costs generated from {len(pod_costs)} pod costs")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to aggregate pod costs to deployments: {e}")
+            import traceback
+            logger.error(f"❌ Stack trace: {traceback.format_exc()}")
+        
+        return deployment_costs
+    
+    def _parse_deployment_pod_relationships(self, deployments_data, pod_costs: Dict[str, Dict]) -> Dict[str, List[str]]:
+        """Parse deployment data to map deployments to their pods"""
+        deployment_to_pods = {}
+        
+        try:
+            import json
+            import re
+            
+            # Handle both dict and JSON string formats
+            if isinstance(deployments_data, str):
+                if not deployments_data.strip():
+                    logger.warning("⚠️ Empty deployment data string")
+                    return deployment_to_pods
+                deployments_parsed = json.loads(deployments_data)
+            elif isinstance(deployments_data, dict):
+                deployments_parsed = deployments_data
+            else:
+                logger.warning(f"⚠️ Unexpected deployment data type: {type(deployments_data)}")
+                return deployment_to_pods
+            
+            deployments = deployments_parsed.get('items', [])
+            logger.info(f"🔍 Found {len(deployments)} deployments in cache data")
+            
+            # Create mapping from deployment to expected pod name patterns
+            for deployment in deployments:
+                namespace = deployment.get('metadata', {}).get('namespace', '')
+                name = deployment.get('metadata', {}).get('name', '')
+                
+                if namespace and name:
+                    deployment_key = f"{namespace}/{name}"
+                    deployment_to_pods[deployment_key] = []
+                    
+                    # Find pods that belong to this deployment
+                    for pod_key in pod_costs.keys():
+                        pod_namespace, pod_name = pod_key.split('/', 1)
+                        
+                        if pod_namespace == namespace:
+                            # Check if pod name starts with deployment name (common pattern)
+                            if pod_name.startswith(f"{name}-"):
+                                deployment_to_pods[deployment_key].append(pod_key)
+            
+            logger.info(f"✅ Mapped {len(deployments)} deployments to pods")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to parse deployment-pod relationships: {e}")
+        
+        return deployment_to_pods
 
 # ============================================================================
 # PRESERVED WORKLOAD COST ANALYZER WITH ENHANCEMENTS
