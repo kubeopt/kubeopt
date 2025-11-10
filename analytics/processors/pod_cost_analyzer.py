@@ -1783,12 +1783,35 @@ class EnhancedDynamicCostDistributionEngine:
         deployment_costs = {}
         
         try:
+            # Debug: Show cache type and available methods
+            logger.info(f"🔍 Cache type: {type(self.cache)}, has data attr: {hasattr(self.cache, 'data')}")
+            
             # Get deployment data from cache using same method as analysis engine
             deployments_data = self.cache.get('deployments') or ""
             
             if not deployments_data:
-                logger.warning("⚠️ No deployment data found in cache, skipping deployment-level aggregation")
-                return deployment_costs
+                # Try alternative cache access methods
+                logger.debug("🔍 Deployment data not found with 'deployments' key, trying alternatives...")
+                
+                # Check if cache has data method (KubernetesDataCache)
+                if hasattr(self.cache, 'data'):
+                    # Show what keys are available in cache.data
+                    available_keys = list(self.cache.data.keys()) if self.cache.data else []
+                    logger.debug(f"🔍 Available cache.data keys: {[k for k in available_keys if 'deploy' in k.lower()]}")
+                    
+                    deployments_data = self.cache.data.get('deployments', "")
+                    if deployments_data:
+                        logger.info("✅ Found deployment data in cache.data")
+                        logger.info(f"🔍 Deployment data type: {type(deployments_data)}, length: {len(str(deployments_data))}")
+                    else:
+                        logger.warning("🔍 No deployment data in cache.data either")
+                        # Show all keys that might contain deployment info
+                        deploy_related = [k for k in available_keys if any(word in k.lower() for word in ['deploy', 'workload', 'replica'])]
+                        logger.debug(f"🔍 Deploy-related keys in cache: {deploy_related}")
+                
+                if not deployments_data:
+                    logger.warning("⚠️ No deployment data found in cache, skipping deployment-level aggregation")
+                    return deployment_costs
             
             # Parse deployment data to get pod-to-deployment mapping
             deployment_to_pods = self._parse_deployment_pod_relationships(deployments_data, pod_costs)
@@ -1846,6 +1869,14 @@ class EnhancedDynamicCostDistributionEngine:
             
             deployments = deployments_parsed.get('items', [])
             logger.info(f"🔍 Found {len(deployments)} deployments in cache data")
+            
+            if len(deployments) == 0:
+                logger.warning(f"⚠️ No deployments found in parsed data. Raw data type: {type(deployments_data)}, has 'items': {'items' in deployments_parsed}")
+                # Debug: Show first few characters of raw data
+                if isinstance(deployments_data, str):
+                    logger.debug(f"🔍 Raw deployment data preview: {deployments_data[:200]}...")
+                elif isinstance(deployments_data, dict):
+                    logger.debug(f"🔍 Deployment data keys: {list(deployments_data.keys())}")
             
             # Create mapping from deployment to expected pod name patterns
             for deployment in deployments:

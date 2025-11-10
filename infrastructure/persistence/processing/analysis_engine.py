@@ -595,6 +595,8 @@ class MultiSubscriptionAnalysisEngine:
             
         except Exception as update_error:
             logger.error(f"❌ Session {session_id}: Global state update failed: {update_error}")
+            # Re-raise the exception to prevent silent failures
+            raise ValueError(f"Database save operation failed: {update_error}") from update_error
     
     async def _generate_implementation_plan_async(self, enhanced_input: Dict, cluster_name: str, cluster_id: str):
         """Generate implementation plan using Claude API"""
@@ -910,18 +912,8 @@ class MultiSubscriptionAnalysisEngine:
             
         except Exception as e:
             logger.error(f"❌ Failed to generate enhanced analysis input: {e}")
-            return {
-                "cost_analysis": self._extract_cost_analysis(basic_analysis),
-                "cluster_info": self._get_cluster_info(cluster_id, basic_analysis),
-                "node_pools": [],
-                "workloads": [],
-                "storage_volumes": [],
-                "existing_hpas": [],
-                "namespaces": [],
-                "network_resources": {},
-                "inefficient_workloads": {"summary": {"total_optimization_opportunities": 0}},
-                "metadata": self._get_analysis_metadata(basic_analysis)
-            }
+            # Re-raise to expose data issues properly
+            raise ValueError(f"Enhanced analysis input generation failed: {e}") from e
     
     def _extract_cost_analysis(self, basic_analysis: dict) -> dict:
         """Extract cost analysis preserving existing structure"""
@@ -1014,11 +1006,14 @@ class MultiSubscriptionAnalysisEngine:
                     }
                     node_pools.append(node_pool)
             
+            if not node_pools:
+                raise ValueError("No node pool data available in analysis")
+            
             return node_pools
             
         except Exception as e:
             logger.error(f"❌ Failed to get node pool details: {e}")
-            return []
+            raise ValueError(f"Failed to extract node pool details: {e}") from e
     
     def _get_workload_details(self, cluster_id: str, basic_analysis: dict, pod_data: dict = None) -> List[dict]:
         """Extract detailed workload information from analysis data and raw kubectl output"""
@@ -1841,7 +1836,16 @@ class MultiSubscriptionAnalysisEngine:
             
         try:
             import json
-            data = json.loads(deployments_json)
+            
+            # Handle both JSON string and dict formats
+            if isinstance(deployments_json, str):
+                data = json.loads(deployments_json)
+            elif isinstance(deployments_json, dict):
+                data = deployments_json
+            else:
+                logger.warning(f"⚠️ Unexpected deployment data type: {type(deployments_json)}")
+                return deployment_map
+            
             items = data.get('items', [])
             
             for item in items:
@@ -1856,70 +1860,149 @@ class MultiSubscriptionAnalysisEngine:
                     'ready_replicas': ready_replicas
                 }
         except Exception as e:
-            logger.warning(f"⚠️ Failed to parse deployments JSON: {e}")
+            logger.warning(f"⚠️ Failed to parse deployments data: {e}")
             
         return deployment_map
 
-    def _extract_kubernetes_version(self, basic_analysis: dict) -> Optional[str]:
-        """Extract Kubernetes version from kubectl data"""
-        try:
-            kubectl_data = basic_analysis.get('kubectl_data', {})
-            
-            # Try from nodes first
-            nodes = kubectl_data.get('nodes', {})
-            if isinstance(nodes, dict) and 'items' in nodes and nodes['items']:
-                first_node = nodes['items'][0]
-                kubelet_version = first_node.get('status', {}).get('nodeInfo', {}).get('kubeletVersion')
-                if kubelet_version:
-                    logger.info(f"✅ Extracted Kubernetes version from node: {kubelet_version}")
-                    return kubelet_version
-            
-            # Try from cluster info
-            cluster_info = kubectl_data.get('cluster_info', {})
-            if isinstance(cluster_info, dict):
-                server_version = cluster_info.get('serverVersion', {}).get('gitVersion')
-                if server_version:
-                    logger.info(f"✅ Extracted Kubernetes version from cluster-info: {server_version}")
-                    return server_version
-            
-            logger.warning("⚠️ Could not extract Kubernetes version from kubectl data")
-            return None
-        except Exception as e:
-            logger.error(f"❌ Failed to extract Kubernetes version: {e}")
-            return None
+    def _extract_kubernetes_version(self, basic_analysis: dict) -> str:
+        """Extract Kubernetes version from analysis data and kubernetes cache"""
+        # Try from cluster_version_sdk in basic_analysis first (most reliable)
+        if 'cluster_version_sdk' in basic_analysis:
+            version = basic_analysis['cluster_version_sdk']
+            if version and version.strip():
+                return version.strip()
+        
+        # Try to get from kubernetes cache if cluster info is available
+        cluster_name = basic_analysis.get('cluster_name')
+        resource_group = basic_analysis.get('resource_group') 
+        subscription_id = basic_analysis.get('subscription_id')
+        
+        if cluster_name and resource_group and subscription_id:
+            try:
+                from shared.kubernetes_data_cache import get_or_create_cache
+                kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False)
+                
+                # Try cluster_version_sdk from cache
+                version = kube_cache.get('cluster_version_sdk')
+                if version and version.strip():
+                    logger.info(f"✅ Retrieved Kubernetes version from cache: {version}")
+                    return version.strip()
+                
+                # Try from aks_cluster_info in cache
+                aks_info = kube_cache.get('aks_cluster_info')
+                if aks_info:
+                    try:
+                        import json
+                        if isinstance(aks_info, str):
+                            aks_data = json.loads(aks_info)
+                        else:
+                            aks_data = aks_info
+                        k8s_version = aks_data.get('kubernetesVersion')
+                        if k8s_version:
+                            logger.info(f"✅ Retrieved Kubernetes version from AKS info: {k8s_version}")
+                            return k8s_version
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+                
+            except Exception as cache_error:
+                logger.warning(f"⚠️ Could not access kubernetes cache: {cache_error}")
+        
+        # Try from nodes data as fallback
+        nodes_data = basic_analysis.get('nodes')
+        if nodes_data:
+            try:
+                import json
+                if isinstance(nodes_data, str):
+                    nodes = json.loads(nodes_data)
+                else:
+                    nodes = nodes_data
+                
+                if isinstance(nodes, dict) and 'items' in nodes and nodes['items']:
+                    first_node = nodes['items'][0]
+                    kubelet_version = first_node.get('status', {}).get('nodeInfo', {}).get('kubeletVersion')
+                    if kubelet_version:
+                        return kubelet_version
+            except (json.JSONDecodeError, KeyError, IndexError):
+                pass
+        
+        # If we get here, we couldn't find the version anywhere
+        raise ValueError("No Kubernetes version found in analysis data or kubernetes cache")
 
-    def _extract_cluster_location(self, basic_analysis: dict) -> Optional[str]:
-        """Extract cluster location/region from kubectl data"""
-        try:
-            kubectl_data = basic_analysis.get('kubectl_data', {})
-            
-            # Try from node labels
-            nodes = kubectl_data.get('nodes', {})
-            if isinstance(nodes, dict) and 'items' in nodes and nodes['items']:
-                first_node = nodes['items'][0]
-                labels = first_node.get('metadata', {}).get('labels', {})
+    def _extract_cluster_location(self, basic_analysis: dict) -> str:
+        """Extract cluster location/region from analysis data and kubernetes cache"""
+        # Try to get from kubernetes cache if cluster info is available
+        cluster_name = basic_analysis.get('cluster_name')
+        resource_group = basic_analysis.get('resource_group') 
+        subscription_id = basic_analysis.get('subscription_id')
+        
+        if cluster_name and resource_group and subscription_id:
+            try:
+                from shared.kubernetes_data_cache import get_or_create_cache
+                kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False)
                 
-                # Check various region/zone labels
-                for label_key in ['topology.kubernetes.io/region', 'failure-domain.beta.kubernetes.io/region', 'kubernetes.io/region']:
-                    region = labels.get(label_key)
-                    if region:
-                        logger.info(f"✅ Extracted cluster location from node label {label_key}: {region}")
-                        return region
+                # Try from aks_cluster_info in cache
+                aks_info = kube_cache.get('aks_cluster_info')
+                if aks_info:
+                    try:
+                        import json
+                        if isinstance(aks_info, str):
+                            aks_data = json.loads(aks_info)
+                        else:
+                            aks_data = aks_info
+                        location = aks_data.get('location')
+                        if location:
+                            logger.info(f"✅ Retrieved cluster location from AKS info: {location}")
+                            return location
+                    except (json.JSONDecodeError, KeyError):
+                        pass
                 
-                # Also check zone if region not found
-                for label_key in ['topology.kubernetes.io/zone', 'failure-domain.beta.kubernetes.io/zone']:
-                    zone = labels.get(label_key)
-                    if zone:
-                        # Extract region from zone (e.g., 'eastus-1' -> 'eastus')
-                        region = zone.rsplit('-', 1)[0] if '-' in zone else zone
-                        logger.info(f"✅ Extracted cluster location from zone {label_key}: {region}")
-                        return region
-            
-            logger.warning("⚠️ Could not extract cluster location from kubectl data")
-            return None
-        except Exception as e:
-            logger.error(f"❌ Failed to extract cluster location: {e}")
-            return None
+                # Try from nodes in cache
+                nodes_data = kube_cache.get('nodes')
+                if nodes_data:
+                    try:
+                        import json
+                        if isinstance(nodes_data, str):
+                            nodes = json.loads(nodes_data)
+                        else:
+                            nodes = nodes_data
+                        
+                        if isinstance(nodes, dict) and 'items' in nodes and nodes['items']:
+                            first_node = nodes['items'][0]
+                            labels = first_node.get('metadata', {}).get('labels', {})
+                            
+                            # Check various region/zone labels
+                            for label_key in ['topology.kubernetes.io/region', 'failure-domain.beta.kubernetes.io/region', 'kubernetes.io/region']:
+                                region = labels.get(label_key)
+                                if region:
+                                    logger.info(f"✅ Extracted cluster location from node label {label_key}: {region}")
+                                    return region
+                            
+                            # Also check zone if region not found
+                            for label_key in ['topology.kubernetes.io/zone', 'failure-domain.beta.kubernetes.io/zone']:
+                                zone = labels.get(label_key)
+                                if zone:
+                                    # Extract region from zone (e.g., 'eastus-1' -> 'eastus')
+                                    region = zone.rsplit('-', 1)[0] if '-' in zone else zone
+                                    logger.info(f"✅ Extracted cluster location from zone {label_key}: {region}")
+                                    return region
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        pass
+                
+            except Exception as cache_error:
+                logger.warning(f"⚠️ Could not access kubernetes cache: {cache_error}")
+        
+        # Try from resource group name pattern as fallback
+        resource_group = basic_analysis.get('resource_group', '')
+        if resource_group:
+            # Many RGs follow pattern like rg-xxx-location-xxx
+            parts = resource_group.split('-')
+            for part in parts:
+                if any(region in part.lower() for region in ['east', 'west', 'north', 'south', 'central']):
+                    logger.info(f"✅ Extracted cluster location from resource group pattern: {part}")
+                    return part
+        
+        # If we get here, we couldn't find the location anywhere
+        raise ValueError("No cluster location found in analysis data or kubernetes cache")
 
     def _count_kubectl_pods(self, basic_analysis: dict) -> int:
         """Count actual pods from kubectl data"""
@@ -2156,8 +2239,37 @@ class MultiSubscriptionAnalysisEngine:
             # Try to get from current session's basic analysis data if available
             if hasattr(self, '_current_basic_analysis'):
                 basic_analysis = self._current_basic_analysis
+                cluster_name = basic_analysis.get('cluster_name')
+                resource_group = basic_analysis.get('resource_group') 
+                subscription_id = basic_analysis.get('subscription_id')
                 
-                # Look for pod usage data
+                # First try kubernetes cache for fresh pod usage data
+                if cluster_name and resource_group and subscription_id:
+                    try:
+                        from shared.kubernetes_data_cache import get_or_create_cache
+                        kube_cache = get_or_create_cache(cluster_name, resource_group, subscription_id, force_fetch=False)
+                        
+                        # Look for pod usage data from kubernetes cache
+                        pod_usage = kube_cache.get('pod_usage', '')
+                        if pod_usage:
+                            # Parse kubectl top pods output for this workload
+                            for line in pod_usage.split('\n'):
+                                if workload_name in line and namespace in line:
+                                    parts = line.split()
+                                    if len(parts) >= 4:
+                                        memory_str = parts[3]  # Memory column
+                                        # Parse memory value (e.g., "256Mi" -> 256)
+                                        if memory_str.endswith('Mi'):
+                                            return float(memory_str[:-2])
+                                        elif memory_str.endswith('Gi'):
+                                            return float(memory_str[:-2]) * 1024
+                                        else:
+                                            return float(memory_str)
+                        
+                    except Exception as cache_error:
+                        logger.debug(f"Could not access kubernetes cache for memory metrics: {cache_error}")
+                
+                # Fallback: Look for pod usage data in basic_analysis
                 pod_usage = basic_analysis.get('pod_usage', '')
                 if pod_usage:
                     # Parse kubectl top pods output for this workload
@@ -2185,7 +2297,7 @@ class MultiSubscriptionAnalysisEngine:
                             return float(memory_util)
             
             # If no usage data found, return reasonable default based on resource requests
-            logger.warning(f"No memory utilization metrics found for {namespace}/{workload_name}, using default")
+            logger.debug(f"No memory utilization metrics found for {namespace}/{workload_name}, using default")
             return 256.0  # Default 256Mi memory usage
             
         except Exception as e:
