@@ -916,8 +916,27 @@ class MultiSubscriptionAnalysisEngine:
             raise ValueError(f"Enhanced analysis input generation failed: {e}") from e
     
     def _extract_cost_analysis(self, basic_analysis: dict) -> dict:
-        """Extract cost analysis preserving existing structure"""
-        return {
+        """
+        Extract comprehensive cost analysis including savings calculations.
+        
+        Args:
+            basic_analysis: Analysis data containing cost breakdown and savings
+            
+        Returns:
+            Dict containing cost analysis with savings data
+            
+        Raises:
+            ValueError: If basic_analysis is invalid
+            TypeError: If basic_analysis is not a dict
+        """
+        if not isinstance(basic_analysis, dict):
+            raise TypeError(f"basic_analysis must be dict, got {type(basic_analysis)}")
+        
+        if not basic_analysis:
+            raise ValueError("basic_analysis cannot be empty")
+        
+        # Extract base cost data
+        cost_data = {
             "total_cost": basic_analysis.get('total_cost', 0),
             "node_cost": basic_analysis.get('node_cost', 0),
             "storage_cost": basic_analysis.get('storage_cost', 0),
@@ -927,6 +946,138 @@ class MultiSubscriptionAnalysisEngine:
             "other_cost": basic_analysis.get('other_cost', 0),
             "cost_period_days": basic_analysis.get('analysis_period_days', 30),
             "currency": "USD"
+        }
+        
+        # Extract cost savings data from analysis
+        cost_data["cost_savings"] = self._extract_cost_savings_data(basic_analysis)
+        
+        return cost_data
+    
+    def _extract_cost_savings_data(self, basic_analysis: dict) -> dict:
+        """
+        Extract comprehensive cost savings data from analysis.
+        
+        Args:
+            basic_analysis: Analysis data containing savings calculations
+            
+        Returns:
+            Dict containing structured savings data
+            
+        Raises:
+            ValueError: If analysis data is invalid
+        """
+        if not isinstance(basic_analysis, dict):
+            raise ValueError(f"basic_analysis must be dict, got {type(basic_analysis)}")
+        
+        # Extract primary savings metrics
+        total_savings = basic_analysis.get('total_savings', 0)
+        savings_percentage = basic_analysis.get('savings_percentage', 0)
+        annual_savings = basic_analysis.get('annual_savings', 0)
+        
+        # Extract optimization analysis data
+        opt_analysis = basic_analysis.get('optimization_analysis', {})
+        if not isinstance(opt_analysis, dict):
+            opt_analysis = {}
+        
+        # Extract node analysis data  
+        node_analysis = basic_analysis.get('node_analysis', {})
+        if not isinstance(node_analysis, dict):
+            node_analysis = {}
+        
+        # Build comprehensive savings structure
+        savings_data = {
+            "total_monthly_savings": total_savings,
+            "annual_savings": annual_savings,
+            "savings_percentage": savings_percentage,
+            "savings_breakdown": {
+                "hpa_optimization_savings": basic_analysis.get('hpa_savings', 0),
+                "right_sizing_savings": basic_analysis.get('right_sizing_savings', 0),
+                "storage_optimization_savings": basic_analysis.get('storage_savings', 0),
+                "networking_optimization_savings": opt_analysis.get('networking_monthly_savings', 0),
+                "node_optimization_savings": node_analysis.get('potential_savings', 0),
+                "core_optimization_savings": opt_analysis.get('core_optimization_savings', 0),
+                "compute_optimization_savings": opt_analysis.get('compute_optimization_savings', 0),
+                "infrastructure_savings": opt_analysis.get('infrastructure_savings', 0),
+                "control_plane_savings": opt_analysis.get('control_plane_monthly_savings', 0),
+                "registry_savings": opt_analysis.get('registry_monthly_savings', 0)
+            },
+            "roi_metrics": {
+                "current_monthly_cost": basic_analysis.get('total_cost', 0),
+                "projected_monthly_cost": basic_analysis.get('total_cost', 0) - total_savings,
+                "cost_reduction_percentage": savings_percentage,
+                "annual_savings": annual_savings,
+                "payback_period_months": self._calculate_payback_period(total_savings, opt_analysis)
+            },
+            "optimization_potential": {
+                "total_workloads_analyzed": self._count_analyzed_workloads(basic_analysis),
+                "optimization_candidates": self._count_optimization_candidates(basic_analysis),
+                "node_optimization_potential": {
+                    "current_nodes": node_analysis.get('current_node_count', 0),
+                    "underutilized_nodes": node_analysis.get('underutilized_nodes', 0),
+                    "optimization_type": node_analysis.get('optimization_type', 'unknown'),
+                    "potential_node_savings": node_analysis.get('potential_savings', 0)
+                },
+                "efficiency_metrics": self._extract_efficiency_metrics(basic_analysis)
+            },
+            "confidence_analysis": {
+                "overall_confidence": basic_analysis.get('analysis_confidence', 0),
+                "confidence_level": basic_analysis.get('confidence_level', 'Unknown'),
+                "data_quality_score": basic_analysis.get('data_quality_score', 0)
+            }
+        }
+        
+        return savings_data
+    
+    def _calculate_payback_period(self, monthly_savings: float, opt_analysis: dict) -> float:
+        """Calculate payback period based on implementation effort estimate"""
+        if monthly_savings <= 0:
+            return 0.0
+        
+        # Estimate implementation cost based on optimization complexity
+        base_implementation_cost = 2000.0  # Base cost in USD
+        complexity_multiplier = 1.0
+        
+        # Adjust complexity based on optimization types
+        if opt_analysis.get('core_optimization_savings', 0) > 0:
+            complexity_multiplier += 0.5
+        if opt_analysis.get('networking_monthly_savings', 0) > 0:
+            complexity_multiplier += 0.3
+            
+        total_implementation_cost = base_implementation_cost * complexity_multiplier
+        return round(total_implementation_cost / monthly_savings, 1)
+    
+    def _count_analyzed_workloads(self, basic_analysis: dict) -> int:
+        """Count total workloads analyzed"""
+        hpa_recs = basic_analysis.get('hpa_recommendations', {})
+        workload_chars = hpa_recs.get('workload_characteristics', {})
+        all_workloads = workload_chars.get('all_workloads', [])
+        
+        if not all_workloads:
+            all_workloads = basic_analysis.get('all_workloads_preserved', [])
+            
+        return len(all_workloads) if isinstance(all_workloads, list) else 0
+    
+    def _count_optimization_candidates(self, basic_analysis: dict) -> int:
+        """Count workloads that are optimization candidates"""
+        current_usage = basic_analysis.get('current_usage_analysis', {})
+        if isinstance(current_usage, dict):
+            high_cpu_count = current_usage.get('high_cpu_count', 0)
+            # Add other optimization indicators as they become available
+            return high_cpu_count
+        return 0
+    
+    def _extract_efficiency_metrics(self, basic_analysis: dict) -> dict:
+        """Extract efficiency metrics from analysis"""
+        efficiency = basic_analysis.get('efficiency_analysis', {})
+        if not isinstance(efficiency, dict):
+            return {}
+            
+        return {
+            "current_cpu_efficiency": efficiency.get('current_cpu_efficiency', 0),
+            "current_memory_efficiency": efficiency.get('current_memory_efficiency', 0),
+            "current_system_efficiency": efficiency.get('current_system_efficiency', 0),
+            "target_system_efficiency": efficiency.get('target_system_efficiency', 0),
+            "efficiency_improvement_potential": efficiency.get('system_efficiency_improvement', 0)
         }
     
     def _get_cluster_info(self, cluster_id: str, basic_analysis: dict) -> dict:
