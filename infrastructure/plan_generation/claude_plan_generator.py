@@ -707,8 +707,9 @@ class ClaudePlanGenerator:
     
     def _build_system_prompt(self) -> str:
         """
-        Defines Claude's role and output format with YAML-based standards.
-        Fixed f-string formatting issue by separating dynamic and static content.
+        Defines Claude's role and output format for comprehensive AKS implementation plans.
+        Enhanced to generate comprehensive plans with health analysis, standards compliance, 
+        DNS analysis, and detailed executable commands.
         """
         # Load standards from YAML configuration
         loader = get_standards_loader()
@@ -751,7 +752,96 @@ Optimization Decision Thresholds:
 - Minimum Savings Percentage: {opt_thresholds['minimum_savings_percentage']*100:.1f}%
 - High Priority Threshold: ${opt_thresholds['high_priority_savings']:.2f}/month"""
         
-        # Build static schema and structure section WITHOUT f-string to avoid brace issues
+        # Enhanced schema section with comprehensive structure
+        comprehensive_structure = """REQUIRED COMPREHENSIVE STRUCTURE:
+Your JSON must include ALL of these sections for a comprehensive plan:
+{
+  "implementation_plan": {
+    "metadata": {
+      "plan_id": "cluster-name-comprehensive-optimization-plan",
+      "cluster_name": "ACTUAL_CLUSTER_NAME",
+      "resource_group": "ACTUAL_RESOURCE_GROUP", 
+      "subscription_id": "ACTUAL_SUBSCRIPTION_ID",
+      "generated_date": "2025-11-17",
+      "plan_version": "2.0",
+      "analysis_confidence": "high|medium|low",
+      "implementation_complexity": "high|medium|low",
+      "estimated_duration_days": NUMBER
+    },
+    "executive_summary": {
+      "current_monthly_cost": NUMBER,
+      "potential_monthly_savings": NUMBER,
+      "savings_percentage": NUMBER,
+      "annual_savings": NUMBER,
+      "payback_period_months": NUMBER,
+      "roi_12_months": NUMBER,
+      "optimization_opportunities": NUMBER,
+      "critical_issues": NUMBER,
+      "implementation_phases": NUMBER
+    },
+    "cluster_health_analysis": {
+      "overall_cluster_score": NUMBER,
+      "cluster_grade": "A+|A|B+|B|C+|C|D+|D|F",
+      "health_categories": {
+        "cost_efficiency": { "score": NUMBER, "grade": "GRADE", "issues": [...] },
+        "performance_optimization": { "score": NUMBER, "grade": "GRADE", "issues": [...] },
+        "security_compliance": { "score": NUMBER, "grade": "GRADE", "issues": [...] },
+        "operational_excellence": { "score": NUMBER, "grade": "GRADE", "issues": [...] },
+        "dns_analysis": { 
+          "score": NUMBER, 
+          "grade": "GRADE", 
+          "current_setup": "description",
+          "issues": [...],
+          "recommendations": [...]
+        }
+      }
+    },
+    "standards_compliance_analysis": {
+      "cncf_finops_score": NUMBER,
+      "azure_waf_score": NUMBER,
+      "kubernetes_best_practices_score": NUMBER,
+      "compliance_gaps": {
+        "finops_foundation": [...],
+        "azure_well_architected": [...],
+        "kubernetes_standards": [...]
+      }
+    },
+    "phases": [...],
+    "roi_analysis": {...},
+    "success_metrics": {...},
+    "monitoring_and_alerting": {...},
+    "disaster_recovery": {...},
+    "compliance_and_governance": {...}
+  },
+  "next_steps": [...]
+}"""
+        
+        # Enhanced command generation requirements
+        command_excellence = """CRITICAL COMMAND GENERATION REQUIREMENTS:
+
+YOU MUST GENERATE EXACT, EXECUTABLE COMMANDS USING REAL DATA:
+
+✅ **REAL RESOURCE NAMES**: Use actual deployment names, namespaces, and values from the input data
+✅ **COPY-PASTE READY**: Every command must be executable without modification
+✅ **COMPLETE SEQUENCES**: Backup → Execute → Verify → Monitor for each action
+✅ **SPECIFIC VALUES**: Use actual CPU/memory values, not placeholders like {deployment}
+✅ **ROLLBACK READY**: Provide exact rollback commands for every change
+
+COMMAND EXAMPLES TO FOLLOW:
+- kubectl patch deployment momo-aggregator -n madapi-dev -p '{...real JSON...}'
+- az aks update --resource-group rg-dpl-mad-dev-ne2-2 --name aks-dpl-mad-dev-ne2-1 ...
+- kubectl autoscale deployment subscription-fulfillment-system -n madapi-dev --cpu-percent=70
+
+SCORING AND GRADING METHODOLOGY:
+- Cost Efficiency (0-100): Based on optimization_candidates %, utilization efficiency
+- Performance (0-100): Based on over/under-utilized workloads, resource limits coverage
+- Security (0-100): Based on network policies, admission controllers, RBAC coverage
+- Operations (0-100): Based on monitoring, backup, disaster recovery readiness
+- DNS (0-100): Based on CoreDNS config optimization, caching efficiency
+
+GRADE MAPPING: 90-100=A+, 80-89=A, 70-79=B+, 60-69=B, 50-59=C+, 40-49=C, 30-39=D+, 20-29=D, 0-19=F"""
+        
+        # Schema and format section
         schema_section = f"""SCHEMA YOU MUST FOLLOW:
 {schema_json}
 
@@ -760,153 +850,100 @@ OUTPUT FORMAT:
 - End with ```
 - No markdown except the code fence
 - No explanatory text outside the JSON
-- Structure must match the KubeOpt implementation_plan schema exactly"""
-        
-        # Static JSON structure example (no f-string, no formatting issues)
-        structure_section = """REQUIRED STRUCTURE:
-Your JSON must have this exact top-level structure:
-{
-  "implementation_plan": {
-    "metadata": { ... },
-    "cluster_dna_analysis": { ... },
-    "build_quality_assessment": { ... },
-    "naming_conventions_analysis": { ... },
-    "roi_analysis": { ... },
-    "implementation_summary": { ... },
-    "phases": [ ... ],
-    "monitoring": { ... },
-    "review_schedule": [ ... ]
-  }
-}"""
+- Structure must match the enhanced comprehensive schema exactly"""
         
         # Combine all sections with ENHANCED command generation instructions
-        return f"""🚀 You are an ELITE Kubernetes FinOps Expert & Azure Solutions Architect specializing in AKS cost optimization that delivers STUNNING, EXECUTABLE implementation plans.
+        return f"""🚀 You are an ELITE Kubernetes FinOps Expert & Azure Solutions Architect specializing in comprehensive AKS cost optimization.
 
-Your mission: Generate a COMPREHENSIVE, COPY-PASTE READY implementation plan that will optimize this AKS cluster and deliver measurable cost savings within 30 days.
+Your mission: Generate a COMPREHENSIVE, PRODUCTION-READY implementation plan that delivers measurable cost savings and operational excellence.
 
-═══════════════════════════════════════════════════════════════
-🎯 COMMAND GENERATION EXCELLENCE STANDARDS
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════════════════════════════════
+🎯 COMPREHENSIVE IMPLEMENTATION PLAN REQUIREMENTS
+═══════════════════════════════════════════════════════════════════════════════════════════
 
-**YOU MUST GENERATE EXACT, EXECUTABLE COMMANDS USING REAL DATA:**
+{comprehensive_structure}
 
-✅ **REAL RESOURCE NAMES**: Use actual deployment names, namespaces, and values from the input data
-✅ **COPY-PASTE READY**: Every command must be executable without modification
-✅ **COMPLETE SEQUENCES**: Backup → Execute → Verify → Monitor for each action
-✅ **SPECIFIC VALUES**: Use actual CPU/memory values, not placeholders like {{deployment}}
-✅ **ROLLBACK READY**: Provide exact rollback commands for every change
+═══════════════════════════════════════════════════════════════════════════════════════════
+🎯 CRITICAL DATA USAGE REQUIREMENTS  
+═══════════════════════════════════════════════════════════════════════════════════════════
 
-**COMMAND EXAMPLES TO FOLLOW:**
+**YOU MUST USE REAL DATA FROM THE INPUT:**
 
-Instead of: "Update deployment resources"
-Generate: kubectl patch deployment subscription-fulfillment-system -n madapi-dev -p JSONPATCH
+✅ **CLUSTER INFORMATION**: Use actual cluster_name, resource_group, subscription_id
+✅ **COST SAVINGS**: Use cost_savings.total_monthly_savings, annual_savings, savings_percentage  
+✅ **WORKLOAD NAMES**: Use actual workload names from workloads array
+✅ **NAMESPACES**: Use actual namespace names from workloads
+✅ **RESOURCE SPECS**: Use actual CPU/memory from resources.requests and actual_usage
+✅ **OPTIMIZATION CANDIDATES**: Use workloads with optimization_candidate: true
+✅ **NODE INFORMATION**: Use actual vm_sku, node_count from node_pools
+✅ **UTILIZATION DATA**: Use actual_usage.cpu/memory percentages
 
-Instead of: "Create HPA for workload"  
-Generate: kubectl autoscale deployment account-topup-aggregator -n madapi-dev --cpu-percent=70 --min=2 --max=8
+**CALCULATE PRECISE VALUES:**
+- Right-sizing: (current_requests - optimal_usage*1.2) × Azure_pricing_rates
+- HPA savings: estimated_replica_reduction × pod_cost  
+- Infrastructure: spot_instance_potential × 70% savings
+- Network: optimization_opportunities.networking_cost × improvement_percentage
 
-Instead of: "Optimize load balancer"
-Generate: az aks update --resource-group rg-dpl-mad-dev-ne2-2 --name aks-dpl-mad-dev-ne2-1 --load-balancer-sku Standard
+{command_excellence}
+
+═══════════════════════════════════════════════════════════════════════════════════════════
+🎯 PHASE STRUCTURE REQUIREMENTS
+═══════════════════════════════════════════════════════════════════════════════════════════
+
+**PHASE 1: CRITICAL ISSUES** (1-3 days)
+- Target: Workloads with >1000% CPU utilization or critical performance issues
+- Focus: Immediate stability and obvious cost wins
+- Risk: Very Low
+
+**PHASE 2: INFRASTRUCTURE OPTIMIZATION** (4-10 days)  
+- Target: Node pools, spot instances, cluster autoscaling
+- Focus: Foundation for scaling and cost efficiency
+- Risk: Low-Medium
+
+**PHASE 3: WORKLOAD RIGHT-SIZING** (11-21 days)
+- Target: Over-provisioned workloads based on actual usage
+- Focus: Systematic resource optimization
+- Risk: Medium  
+
+**PHASE 4: AUTO-SCALING & GOVERNANCE** (22-35 days)
+- Target: HPA/VPA implementation, resource quotas, policies
+- Focus: Dynamic scaling and compliance
+- Risk: Medium
+
+**PHASE 5: MONITORING & SECURITY** (36-42 days)
+- Target: Observability stack, security policies, cost governance
+- Focus: Operational excellence and compliance
+- Risk: Low
+
+**PHASE 6: ADVANCED OPTIMIZATION** (43+ days)
+- Target: ML-based scaling, GitOps, advanced features
+- Focus: Future-proofing and innovation
+- Risk: Low
 
 {standards_section}
 
-═══════════════════════════════════════════════════════════════
-💎 STUNNING IMPLEMENTATION PLAN REQUIREMENTS
-═══════════════════════════════════════════════════════════════
-
-**OPTIMIZATION METHODOLOGY:**
-1. **IDENTIFY HIGH-IMPACT OPPORTUNITIES**: Focus on optimization_opportunities with highest potential_monthly_savings
-2. **USE ACTUAL WORKLOAD DATA**: Extract real resource specs from workloads array
-3. **CALCULATE PRECISE SAVINGS**: Use actual current costs and optimization potential
-4. **GENERATE EXECUTABLE COMMANDS**: Every step must include exact kubectl/Azure CLI commands
-5. **ENSURE ZERO DOWNTIME**: Design rolling updates and graceful scaling
-
-**IMPLEMENTATION STRUCTURE:**
-
-**Phase 1: IMMEDIATE COST WINS** (Day 1-7)
-- Target: Optimization opportunities > $50/month savings
-- Focus: Network optimization, unused resources, obvious oversizing
-- Risk: Very Low
-- Commands: Direct Azure CLI + kubectl with exact resource names
-
-**Phase 2: SMART RIGHTSIZING** (Day 8-21) 
-- Target: Workloads with cpu/memory utilization < 20% or > 80%
-- Focus: Resource request optimization based on actual_usage data
-- Risk: Low-Medium
-- Commands: kubectl patch with calculated optimal values
-
-**Phase 3: DYNAMIC SCALING** (Day 22-30)
-- Target: Workloads without HPA but suitable for auto-scaling
-- Focus: HPA implementation for traffic pattern optimization
-- Risk: Medium
-- Commands: kubectl autoscale + VPA setup
-
-**CRITICAL EXECUTION STANDARDS:**
-- **REAL NAMES ONLY**: Use actual deployment names from workloads array
-- **EXACT VALUES**: Calculate precise CPU/memory values from actual_usage data
-- **COMPLETE COMMANDS**: Include namespace, resource group, cluster name
-- **VALIDATION STEPS**: kubectl get status checks after each change
-- **ROLLBACK READY**: Backup commands before every change
-
 {schema_section}
 
-{structure_section}
+═══════════════════════════════════════════════════════════════════════════════════════════
+🎯 CRITICAL SUCCESS REQUIREMENTS
+═══════════════════════════════════════════════════════════════════════════════════════════
 
-═══════════════════════════════════════════════════════════════
-💰 ROI CALCULATION EXCELLENCE
-═══════════════════════════════════════════════════════════════
+**RESPOND WITH:**
+- ONLY valid JSON wrapped in ```json code fence
+- NO explanatory text before or after
+- ALL strings in double quotes
+- Numbers without symbols (no $, %, etc.)
+- No trailing commas
+- No comments inside JSON
 
-**CALCULATE EXACT SAVINGS:**
-- Use optimization_opportunities array for network/infrastructure savings
-- Use workload cost_estimate.monthly_cost for rightsizing calculations
-- Factor in Azure pricing: CPU optimization = ~$0.10/vCPU/month, Memory = ~$0.05/GB/month
-- Include compound savings: HPA efficiency gains = 15-25% additional savings
+**QUALITY STANDARDS:**
+- Every command must be copy-paste executable
+- Every savings estimate must be calculated from real data
+- Every workload reference must use actual names
+- Every metric must be measurable and specific
+- Every timeline must be realistic and achievable
 
-**IMPLEMENTATION EFFORT:**
-- kubectl commands: 15-30 minutes each
-- Azure CLI changes: 10-15 minutes each  
-- HPA setup: 45-60 minutes per workload
-- Validation: 15 minutes per action
-
-═══════════════════════════════════════════════════════════════
-🔧 EXECUTABLE COMMAND TEMPLATES
-═══════════════════════════════════════════════════════════════
-
-**Resource Rightsizing:**
-```
-# Backup
-kubectl get deployment [REAL_NAME] -n [REAL_NAMESPACE] -o yaml > [REAL_NAME]-backup.yaml
-
-# Optimize  
-kubectl patch deployment [REAL_NAME] -n [REAL_NAMESPACE] -p JSONPATCH_WITH_RESOURCES
-
-# Verify
-kubectl rollout status deployment/[REAL_NAME] -n [REAL_NAMESPACE] --timeout=300s
-```
-
-**HPA Implementation:**
-```
-kubectl autoscale deployment [REAL_NAME] --cpu-percent=[CALCULATED_TARGET] --min=[MIN_REPLICAS] --max=[MAX_REPLICAS] -n [REAL_NAMESPACE]
-```
-
-**Network Optimization:**
-```
-az aks update --resource-group [REAL_RG] --name [REAL_CLUSTER] --load-balancer-sku Standard
-```
-
-**YOUR MISSION: Generate an implementation plan so detailed and executable that a DevOps engineer can copy-paste every command and achieve the projected cost savings within 30 days.**
-
-═══════════════════════════════════════════════════════════════
-⚡ RESPONSE OPTIMIZATION
-═══════════════════════════════════════════════════════════════
-
-DELIVER MAXIMUM IMPACT IN MINIMAL TOKENS:
-- Focus on TOP 8-10 highest-impact optimizations
-- Use concise, action-oriented descriptions
-- Include only essential validation steps
-- Combine related actions where logical
-- Prioritize savings > $25/month per action
-
-**Remember: This plan will be executed by real engineers to save real money. Make it STUNNING, EXECUTABLE, and PROFITABLE.**"""
+**YOUR MISSION: Generate the most comprehensive, executable, and profitable AKS optimization plan ever created.**"""
     
     def _build_user_prompt(self, optimized_context: Dict, cluster_name: str) -> str:
         """
@@ -922,43 +959,65 @@ DELIVER MAXIMUM IMPACT IN MINIMAL TOKENS:
             return self._build_compact_prompt(optimized_context, cluster_name)
     
     def _build_complete_prompt(self, optimized_context: Dict, cluster_name: str) -> str:
-        """Build prompt for complete data (small clusters)."""
+        """Build enhanced prompt for complete data (small clusters) including cost savings."""
         enhanced_input = optimized_context.get('data', {})
         cost_analysis = enhanced_input.get('cost_analysis', {})
-        total_cost = cost_analysis.get('total_cost', 0)
-        total_savings = cost_analysis.get('total_savings', 0)
-        current_usage = cost_analysis.get('current_usage', {})
-        savings_breakdown = cost_analysis.get('savings_breakdown', {})
+        cluster_info = enhanced_input.get('cluster_info', {})
+        workloads = enhanced_input.get('workloads', [])
+        node_pools = enhanced_input.get('node_pools', [])
         
-        return f"""Generate an implementation plan for optimizing this AKS cluster.
+        # Extract cost savings data (if available from our enhanced analysis)
+        cost_savings = cost_analysis.get('cost_savings', {})
+        total_cost = cost_analysis.get('total_cost', 0)
+        total_savings = cost_savings.get('total_monthly_savings', 0)
+        savings_breakdown = cost_savings.get('savings_breakdown', {})
+        
+        # Calculate optimization candidate count
+        optimization_candidates = len([w for w in workloads if w.get('optimization_candidate', False)])
+        
+        return f"""Generate a comprehensive implementation plan for AKS cluster: {cluster_name}
 
-CLUSTER: {cluster_name}
-CONTEXT: Complete cluster analysis (small cluster)
+CLUSTER CONTEXT:
+- Resource Group: {cluster_info.get('resource_group', 'unknown')}
+- Subscription: {cluster_info.get('subscription_id', 'unknown')}
+- Location: {cluster_info.get('location', 'unknown')}
+- Kubernetes Version: {cluster_info.get('kubernetes_version', 'unknown')}
+- Node Count: {cluster_info.get('node_count', 0)}
+- Total Pods: {cluster_info.get('total_pods', 0)}
+- Total Namespaces: {cluster_info.get('total_namespaces', 0)}
 
-ANALYSIS DATA:
+COST ANALYSIS SUMMARY:
+- Current Monthly Cost: ${total_cost:.2f}
+- Potential Monthly Savings: ${total_savings:.2f}
+- Node Cost: ${cost_analysis.get('node_cost', 0):.2f}
+- Storage Cost: ${cost_analysis.get('storage_cost', 0):.2f}
+- Networking Cost: ${cost_analysis.get('networking_cost', 0):.2f}
+
+OPTIMIZATION OPPORTUNITIES:
+- Total Workloads: {len(workloads)}
+- Optimization Candidates: {optimization_candidates}
+- HPA Savings Potential: ${savings_breakdown.get('hpa_optimization_savings', 0):.2f}
+- Right-sizing Savings: ${savings_breakdown.get('right_sizing_savings', 0):.2f}
+- Infrastructure Savings: ${savings_breakdown.get('infrastructure_savings', 0):.2f}
+
+COMPLETE ENHANCED ANALYSIS DATA:
 ```json
 {json.dumps(enhanced_input, indent=2)}
 ```
 
-FOCUS AREAS (based on the analysis):
-- Current monthly cost: ${total_cost:.2f}
-- Potential savings: ${total_savings:.2f}
-- CPU utilization: {current_usage.get('cpu_utilization', 'N/A')}%
-- Memory utilization: {current_usage.get('memory_utilization', 'N/A')}%
-- HPA savings opportunity: ${savings_breakdown.get('hpa_savings', 0):.2f}
-- Right-sizing savings opportunity: ${savings_breakdown.get('right_sizing_savings', 0):.2f}
-
 REQUIREMENTS:
-1. Generate a comprehensive, phased implementation plan
-2. Include specific kubectl commands for each action
-3. Provide accurate cost savings estimates
-4. Include proper rollback procedures
-5. Ensure all actions are executable and safe
+1. Generate a comprehensive plan using the EXACT structure shown in the system prompt
+2. Use REAL workload names, namespaces, and resource values from the data above
+3. Calculate precise savings estimates based on actual usage patterns
+4. Include executable kubectl and Azure CLI commands with actual parameter values
+5. Provide detailed scoring and grading for all health categories
+6. Include comprehensive ROI analysis and implementation timeline
+7. Ensure all commands are copy-paste ready with real cluster/resource names
 
-Generate the complete implementation plan as valid JSON matching the schema."""
+Generate the complete comprehensive implementation plan as valid JSON."""
 
     def _build_medium_prompt(self, optimized_context: Dict, cluster_name: str) -> str:
-        """Build prompt for medium optimization (medium clusters)."""
+        """Build enhanced prompt for medium optimization (medium clusters) with cost savings."""
         cost_analysis = optimized_context.get('cost_analysis', {})
         executive_summary = optimized_context.get('executive_summary', {})
         workloads = optimized_context.get('workloads', [])
@@ -966,16 +1025,31 @@ Generate the complete implementation plan as valid JSON matching the schema."""
         cluster_summary = executive_summary.get('cluster_analysis_summary', {})
         opportunities = executive_summary.get('optimization_opportunities', [])
         
-        return f"""Generate an implementation plan for optimizing this AKS cluster.
+        # Extract cost savings data if available
+        cost_savings = cost_analysis.get('cost_savings', {})
+        total_savings = cost_savings.get('total_monthly_savings', 0)
+        savings_breakdown = cost_savings.get('savings_breakdown', {})
+        
+        # Calculate optimization candidate count
+        optimization_candidates = len([w for w in workloads if w.get('optimization_candidate', False)])
+        
+        return f"""Generate a comprehensive implementation plan for AKS cluster: {cluster_name}
 
 CLUSTER: {cluster_name}
-CONTEXT: Medium cluster analysis - Top 30 resources with executive summary
+CONTEXT: Medium cluster analysis - Top 30 optimization targets with executive summary
 
 EXECUTIVE SUMMARY:
 - Total workloads: {cluster_summary.get('total_workloads', 0)}
 - Monthly cost: ${cluster_summary.get('total_monthly_cost', 0):.2f}
-- Optimization potential: ${cluster_summary.get('optimization_potential', 0):.2f}
+- Potential monthly savings: ${total_savings:.2f}
+- Optimization candidates: {optimization_candidates}
 - Cost reduction potential: {cluster_summary.get('cost_reduction_percentage', 0):.1f}%
+
+COST SAVINGS BREAKDOWN:
+- HPA Optimization: ${savings_breakdown.get('hpa_optimization_savings', 0):.2f}
+- Right-sizing Savings: ${savings_breakdown.get('right_sizing_savings', 0):.2f}
+- Infrastructure Optimization: ${savings_breakdown.get('infrastructure_savings', 0):.2f}
+- Network Optimization: ${savings_breakdown.get('networking_optimization_savings', 0):.2f}
 
 KEY OPTIMIZATION OPPORTUNITIES:
 {chr(10).join(f"- {opp}" for opp in opportunities)}
@@ -996,17 +1070,18 @@ CLUSTER PATTERNS:
 ```
 
 REQUIREMENTS:
-1. Focus on the top 30 workloads provided for detailed recommendations
-2. Generate phased implementation plan prioritizing highest ROI actions
-3. Include specific kubectl commands for each action
-4. Provide accurate cost savings estimates based on the data
-5. Include proper rollback procedures for all changes
-6. Consider cluster patterns in your recommendations
+1. Generate a comprehensive plan using the EXACT structure from the system prompt
+2. Focus on the top 30 workloads provided for detailed recommendations
+3. Use REAL workload names, namespaces, and resource values from the data
+4. Include executable kubectl and Azure CLI commands with actual parameter values
+5. Provide detailed cluster health analysis and standards compliance scoring
+6. Include comprehensive ROI analysis and phased implementation timeline
+7. Generate specific savings estimates for each optimization action
 
-Generate the complete implementation plan as valid JSON matching the schema."""
+Generate the complete comprehensive implementation plan as valid JSON."""
 
     def _build_compact_prompt(self, optimized_context: Dict, cluster_name: str) -> str:
-        """Build prompt for aggressive optimization (large clusters)."""
+        """Build enhanced prompt for aggressive optimization (large clusters) with cost savings."""
         cost_analysis = optimized_context.get('cost_analysis', {})
         executive_summary = optimized_context.get('executive_summary', {})
         aggregated_stats = optimized_context.get('aggregated_statistics', {})
@@ -1017,17 +1092,32 @@ Generate the complete implementation plan as valid JSON matching the schema."""
         opportunities = executive_summary.get('optimization_opportunities', [])
         complexity = executive_summary.get('complexity_indicators', {})
         
-        return f"""Generate an implementation plan for optimizing this large AKS cluster.
+        # Extract cost savings data if available
+        cost_savings = cost_analysis.get('cost_savings', {})
+        total_savings = cost_savings.get('total_monthly_savings', 0)
+        savings_breakdown = cost_savings.get('savings_breakdown', {})
+        
+        # Calculate optimization potential
+        optimization_candidates = len([t for t in top_targets if t.get('optimization_candidate', False)])
+        
+        return f"""Generate a comprehensive implementation plan for this large AKS cluster: {cluster_name}
 
 CLUSTER: {cluster_name}
-CONTEXT: Large cluster analysis - Aggregated statistics with top 10 targets
+CONTEXT: Large cluster analysis - Aggregated statistics with top 10 optimization targets
 
 CLUSTER OVERVIEW:
 - Total workloads: {cluster_summary.get('total_workloads', 0)}
 - Monthly cost: ${cluster_summary.get('total_monthly_cost', 0):.2f}
-- Optimization potential: ${cluster_summary.get('optimization_potential', 0):.2f}
+- Potential monthly savings: ${total_savings:.2f}
 - Complexity score: {complexity.get('complexity_score', 0)}/100
 - Namespaces: {complexity.get('namespace_count', 0)}
+- Top optimization targets: {optimization_candidates}
+
+COST SAVINGS POTENTIAL:
+- HPA Optimization: ${savings_breakdown.get('hpa_optimization_savings', 0):.2f}
+- Right-sizing Savings: ${savings_breakdown.get('right_sizing_savings', 0):.2f}
+- Infrastructure Optimization: ${savings_breakdown.get('infrastructure_savings', 0):.2f}
+- Network Optimization: ${savings_breakdown.get('networking_optimization_savings', 0):.2f}
 
 KEY OPTIMIZATION OPPORTUNITIES:
 {chr(10).join(f"- {opp}" for opp in opportunities)}
@@ -1053,15 +1143,16 @@ CLUSTER METADATA:
 ```
 
 REQUIREMENTS FOR LARGE CLUSTER:
-1. Focus recommendations on the top 10 targets provided
-2. Use aggregated statistics to inform cluster-wide recommendations
-3. Prioritize namespace-level and resource-type-level optimizations
+1. Generate a comprehensive plan using the EXACT structure from the system prompt
+2. Focus recommendations on the top 10 targets provided
+3. Use REAL workload names and resource values from the targets data
 4. Generate scalable implementation phases suitable for large clusters
-5. Include kubectl commands that can work with multiple resources
-6. Provide cost savings estimates based on aggregated data
-7. Consider cluster complexity in implementation timeline
+5. Include kubectl commands that work with multiple resources efficiently
+6. Provide detailed cluster health analysis and standards compliance scoring
+7. Calculate precise savings estimates based on aggregated data and actual targets
+8. Consider cluster complexity in implementation timeline and risk assessment
 
-Generate the complete implementation plan as valid JSON matching the schema."""
+Generate the complete comprehensive implementation plan as valid JSON."""
 
     def _extract_json(self, text: str) -> Dict:
         """Extract JSON from Claude's response with robust error handling."""
