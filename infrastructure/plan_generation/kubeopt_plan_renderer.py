@@ -560,30 +560,50 @@ class KubeOptPlanRenderer:
             <h1>🚀 KubeOpt Implementation Plan</h1>
             <div class="subtitle">
                 {{ plan.metadata.cluster_name }} • 
-                Generated {{ plan.metadata.generated_date.strftime('%B %d, %Y at %H:%M UTC') }} • 
-                Analysis from {{ plan.metadata.last_analyzed_display }}
+                Generated {{ plan.metadata.generated_date }} • 
+                Plan ID: {{ plan.metadata.plan_id }}
             </div>
         </div>
 
         <!-- Analysis Overview Grid -->
         <div class="analysis-grid">
-            <!-- Cluster DNA Analysis -->
+            <!-- Cluster Health Analysis -->
             <div class="analysis-card">
-                <h2>🧬 Cluster DNA Analysis</h2>
+                <h2>🏥 Cluster Health Analysis</h2>
                 <div class="dna-score">
-                    <div class="score">{{ plan.cluster_dna_analysis.overall_score }}</div>
-                    <div class="rating">{{ plan.cluster_dna_analysis.score_rating }}</div>
+                    <div class="score">{{ plan.cluster_health_analysis.overall_cluster_score }}</div>
+                    <div class="rating">{{ plan.cluster_health_analysis.cluster_grade }}</div>
                 </div>
-                <p>{{ plan.cluster_dna_analysis.description }}</p>
                 
                 <div class="metrics-grid">
-                    {% for metric in plan.cluster_dna_analysis.metrics %}
-                    <div class="metric {{ metric.color }}">
-                        <div class="label">{{ metric.label }}</div>
-                        <div class="value">{{ metric.value }}%</div>
+                    {% for category, details in plan.cluster_health_analysis.health_categories.items() %}
+                    <div class="metric poor">
+                        <div class="label">{{ category.replace('_', ' ').title() }}</div>
+                        <div class="value">{{ details.score }}/100</div>
+                        <div class="rating">{{ details.grade }}</div>
                     </div>
                     {% endfor %}
                 </div>
+                
+                <!-- DNS Analysis -->
+                <details class="expandable">
+                    <summary>🌐 DNS Analysis</summary>
+                    <div class="expandable-content">
+                        <p><strong>Setup:</strong> {{ plan.cluster_health_analysis.health_categories.dns_analysis.current_setup }}</p>
+                        <h5>Issues:</h5>
+                        <ul>
+                        {% for issue in plan.cluster_health_analysis.health_categories.dns_analysis.issues %}
+                            <li>{{ issue }}</li>
+                        {% endfor %}
+                        </ul>
+                        <h5>Recommendations:</h5>
+                        <ul>
+                        {% for rec in plan.cluster_health_analysis.health_categories.dns_analysis.recommendations %}
+                            <li>{{ rec }}</li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </details>
             </div>
 
             <!-- Build Quality Assessment -->
@@ -635,22 +655,34 @@ class KubeOptPlanRenderer:
                 </details>
             </div>
 
-            <!-- Naming Conventions -->
+            <!-- Standards Compliance Analysis -->
             <div class="analysis-card">
-                <h2>📝 Naming Conventions</h2>
-                <div class="dna-score">
-                    <div class="score">{{ plan.naming_conventions_analysis.overall_score }}</div>
-                    <div class="rating">{{ plan.naming_conventions_analysis.color.upper() }}</div>
+                <h2>📋 Standards Compliance</h2>
+                <div class="metrics-grid">
+                    <div class="metric poor">
+                        <div class="label">FinOps Score</div>
+                        <div class="value">{{ plan.standards_compliance_analysis.cncf_finops_score }}/100</div>
+                    </div>
+                    <div class="metric poor">
+                        <div class="label">Azure WAF Score</div>
+                        <div class="value">{{ plan.standards_compliance_analysis.azure_waf_score }}/100</div>
+                    </div>
+                    <div class="metric poor">
+                        <div class="label">K8s Best Practices</div>
+                        <div class="value">{{ plan.standards_compliance_analysis.kubernetes_best_practices_score }}/100</div>
+                    </div>
                 </div>
                 
                 <details class="expandable">
-                    <summary>🏷️ Resource Analysis</summary>
+                    <summary>🔍 Compliance Gaps</summary>
                     <div class="expandable-content">
-                        {% for resource in plan.naming_conventions_analysis.resources %}
-                        <div class="quality-check">
-                            <span>{{ resource.resource_type }}</span>
-                            <span class="status-badge {{ resource.badge_type }}">{{ resource.compliance }}</span>
-                        </div>
+                        {% for framework, gaps in plan.standards_compliance_analysis.compliance_gaps.items() %}
+                        <h5>{{ framework.replace('_', ' ').title() }}:</h5>
+                        <ul>
+                        {% for gap in gaps %}
+                            <li>{{ gap }}</li>
+                        {% endfor %}
+                        </ul>
                         {% endfor %}
                     </div>
                 </details>
@@ -826,6 +858,76 @@ class KubeOptPlanRenderer:
                 <div>{{ review.title }}</div>
             </div>
             {% endfor %}
+        </div>
+
+        <!-- Disaster Recovery -->
+        <div class="monitoring-section">
+            <h2>🔄 Disaster Recovery</h2>
+            <div class="analysis-grid">
+                <div class="analysis-card">
+                    <h3>💾 Backup Strategy</h3>
+                    <div class="quality-checks">
+                        <div class="quality-check">
+                            <span>ETCD Backups</span>
+                            <span>{{ plan.disaster_recovery.backup_strategy.etcd_backups }}</span>
+                        </div>
+                        <div class="quality-check">
+                            <span>Recovery Time Objective</span>
+                            <span>{{ plan.disaster_recovery.backup_strategy.recovery_time_objective }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="analysis-card">
+                    <h3>↩️ Rollback Procedures</h3>
+                    <div class="quality-checks">
+                        <div class="quality-check">
+                            <span>Deployment Rollback</span>
+                            <span>{{ plan.disaster_recovery.rollback_procedures.deployment_rollback }}</span>
+                        </div>
+                        <div class="quality-check">
+                            <span>Configuration Rollback</span>
+                            <span>{{ plan.disaster_recovery.rollback_procedures.configuration_rollback }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compliance and Governance -->
+        <div class="monitoring-section">
+            <h2>⚖️ Compliance & Governance</h2>
+            <div class="analysis-grid">
+                <div class="analysis-card">
+                    <h3>📋 Policy Frameworks</h3>
+                    <ul>
+                    {% for policy in plan.compliance_and_governance.policy_frameworks %}
+                        <li>{{ policy }}</li>
+                    {% endfor %}
+                    </ul>
+                </div>
+                <div class="analysis-card">
+                    <h3>📊 Compliance Scores</h3>
+                    <div class="quality-checks">
+                        {% for score_name, target in plan.compliance_and_governance.compliance_scores.items() %}
+                        <div class="quality-check">
+                            <span>{{ score_name.replace('_', ' ').title() }}</span>
+                            <span>{{ target }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="analysis-card">
+                    <h3>🔍 Audit Requirements</h3>
+                    <div class="quality-checks">
+                        {% for req_name, req_value in plan.compliance_and_governance.audit_requirements.items() %}
+                        <div class="quality-check">
+                            <span>{{ req_name.replace('_', ' ').title() }}</span>
+                            <span>{{ req_value }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- JSON Export -->

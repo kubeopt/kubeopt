@@ -60,7 +60,9 @@ class ClaudePlanGenerator:
         else:
             env_max_tokens = os.getenv("CLAUDE_MAX_OUTPUT_TOKENS")
             if env_max_tokens and env_max_tokens.strip():
-                self.max_output_tokens = int(env_max_tokens)
+                # Handle comments in environment variable values
+                clean_tokens = env_max_tokens.split('#')[0].strip()
+                self.max_output_tokens = int(clean_tokens)
             else:
                 # Use model-specific default
                 self.max_output_tokens = self._get_model_max_output_tokens(self.model)
@@ -448,16 +450,38 @@ class ClaudePlanGenerator:
         Returns: Combined complete plan dictionary
         """
         
-        print(f"\n{'='*70}")
-        print(f"🔀 SPLIT GENERATION MODE (2 API Calls)")
-        print(f"{'='*70}")
-        print(f"Cluster: {cluster_name}")
-        print(f"Model: {self.model}")
-        print(f"Expected cost: ~$0.008 (2 × $0.004)")
-        print(f"{'='*70}\n")
+        # Check if workload batching is needed
+        from .workload_batcher import WorkloadBatcher
+        batcher = WorkloadBatcher(max_tokens_per_batch=50000)
         
-        # Build optimized context
-        context = self.context_builder.build_optimized_context(enhanced_input, cluster_name)
+        enhanced_tokens = batcher.estimate_tokens(enhanced_input)
+        
+        # SMART ROUTING: Use hierarchical planning for multi-workload scenarios
+        workload_count = len(enhanced_input.get('workloads', []))
+        
+        if enhanced_tokens <= 50000 and workload_count <= 20:
+            print(f"\n{'='*70}")
+            print(f"🔀 SPLIT GENERATION MODE (2 API Calls)")
+            print(f"{'='*70}")
+            print(f"Cluster: {cluster_name}")
+            print(f"Model: {self.model}")
+            print(f"Enhanced input: {enhanced_tokens:,} tokens (no batching needed)")
+            print(f"Expected cost: ~$0.008 (2 × $0.004)")
+            print(f"{'='*70}\n")
+            
+            # Use original enhanced input directly
+            context = enhanced_input
+        else:
+            # Use hierarchical planning for large clusters
+            from .hierarchical_planner import HierarchicalPlanner
+            hierarchical_planner = HierarchicalPlanner(self, max_tokens_per_batch=45000)
+            
+            return await hierarchical_planner.generate_hierarchical_plan(
+                enhanced_input, cluster_name, cluster_id
+            )
+        
+        # Continue with original split mode for smaller inputs
+        context = enhanced_input
         
         # Track totals
         total_input_tokens = 0
@@ -479,7 +503,7 @@ class ClaudePlanGenerator:
             core_response = await asyncio.to_thread(
                 self.client.messages.create,
                 model=self.model,
-                max_tokens=3500,  # Safe buffer under 4,096
+                max_tokens=self.max_output_tokens,  # Use configured max tokens
                 temperature=0.3,
                 system=core_system_prompt,
                 messages=[{"role": "user", "content": core_user_prompt}]
@@ -496,7 +520,7 @@ class ClaudePlanGenerator:
             
             print(f"✅ Call 1 complete")
             print(f"   Input: {call1_input:,} tokens")
-            print(f"   Output: {call1_output:,} tokens ({call1_output/3500*100:.1f}% of limit)")
+            print(f"   Output: {call1_output:,} tokens ({call1_output/4000*100:.1f}% of limit)")
             print(f"   Cost: ${call1_cost:.6f}")
             
             # Parse JSON
@@ -534,7 +558,7 @@ class ClaudePlanGenerator:
             analysis_response = await asyncio.to_thread(
                 self.client.messages.create,
                 model=self.model,
-                max_tokens=3000,  # Slightly smaller
+                max_tokens=3500,  # Increased for comprehensive analysis
                 temperature=0.3,
                 system=analysis_system_prompt,
                 messages=[{"role": "user", "content": analysis_user_prompt}]
@@ -551,7 +575,7 @@ class ClaudePlanGenerator:
             
             print(f"✅ Call 2 complete")
             print(f"   Input: {call2_input:,} tokens")
-            print(f"   Output: {call2_output:,} tokens ({call2_output/3000*100:.1f}% of limit)")
+            print(f"   Output: {call2_output:,} tokens ({call2_output/3500*100:.1f}% of limit)")
             print(f"   Cost: ${call2_cost:.6f}")
             
             # Parse JSON
@@ -615,10 +639,19 @@ class ClaudePlanGenerator:
         print(f"🔍 Validating with Pydantic schemas...")
         print(f"{'─'*70}")
         
+        # 🔧 SMART MAPPING: Handle Claude's structure variations
+        implementation_summary = core_plan.get('implementation_summary', {})
+        executive_summary = core_plan.get('executive_summary', {})
+        
+        # Map executive_summary fields to implementation_summary if empty
+        if not implementation_summary and executive_summary:
+            print("🔄 Mapping executive_summary to implementation_summary for schema compatibility...")
+            implementation_summary = executive_summary
+        
         # Combine the two responses
         combined_plan_content = {
             'metadata': core_plan.get('metadata', {}),
-            'implementation_summary': core_plan.get('implementation_summary', {}),
+            'implementation_summary': implementation_summary,
             'phases': core_plan.get('phases', []),
             'roi_summary': core_plan.get('roi_summary', {}),
             'monitoring': core_plan.get('monitoring', {}),
@@ -705,6 +738,98 @@ class ClaudePlanGenerator:
         self.logger.info(f"Successfully generated split mode plan with {complete_plan.total_actions} actions")
         return complete_plan
     
+    async def _process_single_batch(self, batch_context: Dict, cluster_name: str, cluster_id: str) -> Dict:
+        """Process a single workload batch using split mode"""
+        
+        batch_meta = batch_context.get('_batch_metadata', {})
+        print(f"Processing batch {batch_meta.get('batch_number', 1)}: {batch_meta.get('workload_count', 0)} workloads")
+        
+        # ═══════════════════════════════════════════════════════
+        # CALL 1: CORE IMPLEMENTATION PLAN FOR THIS BATCH
+        # ═══════════════════════════════════════════════════════
+        
+        core_system_prompt = self._build_core_plan_system_prompt()
+        core_user_prompt = self._build_core_plan_user_prompt(batch_context, cluster_name)
+        
+        try:
+            core_response = await asyncio.to_thread(
+                self.client.messages.create,
+                model=self.model,
+                max_tokens=self.max_output_tokens,  # Use configured max tokens for comprehensive plans
+                temperature=0.3,
+                system=core_system_prompt,
+                messages=[{"role": "user", "content": core_user_prompt}]
+            )
+            
+            # Parse JSON
+            response_text = core_response.content[0].text
+            core_plan = self._extract_json_from_response(response_text)
+            
+            if not core_plan:
+                raise ValueError("Failed to extract JSON from core plan response")
+            
+            print(f"✅ Batch core plan parsed: {list(core_plan.keys())}")
+            
+        except Exception as e:
+            print(f"❌ Batch core plan failed: {e}")
+            raise RuntimeError(f"Batch core plan generation failed: {e}")
+        
+        # ═══════════════════════════════════════════════════════
+        # CALL 2: DETAILED ANALYSIS FOR THIS BATCH
+        # ═══════════════════════════════════════════════════════
+        
+        analysis_system_prompt = self._build_analysis_system_prompt()
+        analysis_user_prompt = self._build_analysis_user_prompt(batch_context, cluster_name)
+        
+        try:
+            analysis_response = await asyncio.to_thread(
+                self.client.messages.create,
+                model=self.model,
+                max_tokens=3500,
+                temperature=0.3,
+                system=analysis_system_prompt,
+                messages=[{"role": "user", "content": analysis_user_prompt}]
+            )
+            
+            # Parse JSON
+            analysis = self._extract_json_from_response(analysis_response.content[0].text)
+            
+            if not analysis:
+                print(f"⚠️ Batch analysis failed - using minimal analysis")
+                analysis = self._get_minimal_analysis()
+            else:
+                print(f"✅ Batch analysis parsed: {list(analysis.keys())}")
+                
+        except Exception as e:
+            print(f"⚠️ Batch analysis failed: {e}")
+            analysis = self._get_minimal_analysis()
+        
+        # ═══════════════════════════════════════════════════════
+        # COMBINE BATCH RESULTS
+        # ═══════════════════════════════════════════════════════
+        
+        batch_plan = {
+            'implementation_plan': {
+                # From Call 1 (Core)
+                'metadata': core_plan.get('metadata', {}),
+                'implementation_summary': core_plan.get('implementation_summary', {}),
+                'phases': core_plan.get('phases', []),
+                'roi_summary': core_plan.get('roi_summary', {}),
+                'monitoring': core_plan.get('monitoring', {}),
+                'next_steps': core_plan.get('next_steps', []),
+                
+                # From Call 2 (Analysis)
+                'cluster_dna_analysis': analysis.get('cluster_dna_analysis', {}),
+                'build_quality_assessment': analysis.get('build_quality_assessment', {}),
+                'naming_conventions_analysis': analysis.get('naming_conventions_analysis', {}),
+                'roi_analysis': analysis.get('roi_analysis', {}),
+                'review_schedule': analysis.get('review_schedule', []),
+            },
+            'source_data': batch_context  # Track which data was used
+        }
+        
+        return batch_plan
+    
     def _build_system_prompt(self) -> str:
         """
         Defines Claude's role and output format for comprehensive AKS implementation plans.
@@ -752,69 +877,103 @@ Optimization Decision Thresholds:
 - Minimum Savings Percentage: {opt_thresholds['minimum_savings_percentage']*100:.1f}%
 - High Priority Threshold: ${opt_thresholds['high_priority_savings']:.2f}/month"""
         
-        # Enhanced schema section with comprehensive structure
-        comprehensive_structure = """REQUIRED COMPREHENSIVE STRUCTURE:
-Your JSON must include ALL of these sections for a comprehensive plan:
+        # Enhanced schema section with comprehensive structure matching expected format
+        comprehensive_structure = """CRITICAL: YOUR RESPONSE MUST EXACTLY MATCH THIS STRUCTURE:
+
 {
   "implementation_plan": {
     "metadata": {
-      "plan_id": "cluster-name-comprehensive-optimization-plan",
+      "plan_id": "aks-dpl-mad-dev-ne2-1-comprehensive-optimization-plan",
       "cluster_name": "ACTUAL_CLUSTER_NAME",
       "resource_group": "ACTUAL_RESOURCE_GROUP", 
       "subscription_id": "ACTUAL_SUBSCRIPTION_ID",
-      "generated_date": "2025-11-17",
+      "generated_date": "2025-11-18",
       "plan_version": "2.0",
-      "analysis_confidence": "high|medium|low",
-      "implementation_complexity": "high|medium|low",
-      "estimated_duration_days": NUMBER
+      "analysis_confidence": "high",
+      "implementation_complexity": "high",
+      "estimated_duration_days": 45
     },
     "executive_summary": {
-      "current_monthly_cost": NUMBER,
-      "potential_monthly_savings": NUMBER,
-      "savings_percentage": NUMBER,
-      "annual_savings": NUMBER,
-      "payback_period_months": NUMBER,
-      "roi_12_months": NUMBER,
-      "optimization_opportunities": NUMBER,
-      "critical_issues": NUMBER,
-      "implementation_phases": NUMBER
+      "current_monthly_cost": 1842.15,
+      "potential_monthly_savings": 581.07,
+      "savings_percentage": 31.5,
+      "annual_savings": 6972.84,
+      "payback_period_months": 2.1,
+      "roi_12_months": 247.7,
+      "optimization_opportunities": 674,
+      "critical_issues": 12,
+      "implementation_phases": 6
     },
     "cluster_health_analysis": {
-      "overall_cluster_score": NUMBER,
-      "cluster_grade": "A+|A|B+|B|C+|C|D+|D|F",
+      "overall_cluster_score": 42,
+      "cluster_grade": "D+",
       "health_categories": {
-        "cost_efficiency": { "score": NUMBER, "grade": "GRADE", "issues": [...] },
-        "performance_optimization": { "score": NUMBER, "grade": "GRADE", "issues": [...] },
-        "security_compliance": { "score": NUMBER, "grade": "GRADE", "issues": [...] },
-        "operational_excellence": { "score": NUMBER, "grade": "GRADE", "issues": [...] },
+        "cost_efficiency": { 
+          "score": 18, 
+          "grade": "F", 
+          "issues": ["674 workloads over-provisioned (99.8% of total)", "CPU utilization at 30.9% (target: 70-80%)", "Zero HPA coverage (target: 80%)"]
+        },
+        "performance_optimization": { 
+          "score": 35, 
+          "grade": "F", 
+          "issues": ["Critical: momo-aggregator at 3813% CPU utilization", "High: subscription-fulfillment-system at 166% CPU", "No resource limits on 45% of workloads"]
+        },
+        "security_compliance": { 
+          "score": 55, 
+          "grade": "D", 
+          "issues": ["Network policies not implemented", "Pod security standards not enforced", "No admission controller policies"]
+        },
+        "operational_excellence": { 
+          "score": 48, 
+          "grade": "D-", 
+          "issues": ["No monitoring stack deployed", "Missing backup strategies", "No disaster recovery plan"]
+        },
         "dns_analysis": { 
-          "score": NUMBER, 
-          "grade": "GRADE", 
-          "current_setup": "description",
-          "issues": [...],
-          "recommendations": [...]
+          "score": 62, 
+          "grade": "D+", 
+          "current_setup": "Azure DNS with CoreDNS",
+          "issues": ["DNS caching not optimized", "External DNS queries high (cost impact)", "No DNS monitoring configured"],
+          "recommendations": ["Enable DNS caching optimization", "Implement DNS query monitoring", "Configure internal DNS forwarding"]
         }
       }
     },
     "standards_compliance_analysis": {
-      "cncf_finops_score": NUMBER,
-      "azure_waf_score": NUMBER,
-      "kubernetes_best_practices_score": NUMBER,
+      "cncf_finops_score": 23,
+      "azure_waf_score": 41,
+      "kubernetes_best_practices_score": 38,
       "compliance_gaps": {
-        "finops_foundation": [...],
-        "azure_well_architected": [...],
-        "kubernetes_standards": [...]
+        "finops_foundation": ["No cost allocation tags", "Missing resource quotas", "No showback/chargeback", "Lack of cost anomaly detection"],
+        "azure_well_architected": ["Poor resource utilization", "No autoscaling configured", "Missing monitoring baselines", "Inadequate backup strategy"],
+        "kubernetes_standards": ["No resource limits/requests ratio optimization", "Missing liveness/readiness probes on 67% workloads", "No pod security policies"]
       }
     },
     "phases": [...],
-    "roi_analysis": {...},
+    "roi_analysis": {
+      "implementation_costs": {"personnel_hours": 180, "hourly_rate": 150, "total_implementation_cost": 30700},
+      "savings_timeline": {"month_1": 127.50, "month_6": 581.07, "annual_savings": 6972.84},
+      "break_even_analysis": {"break_even_month": 4.4, "roi_12_months": 22.7}
+    },
     "success_metrics": {...},
     "monitoring_and_alerting": {...},
-    "disaster_recovery": {...},
-    "compliance_and_governance": {...}
+    "disaster_recovery": {
+      "backup_strategy": {"etcd_backups": "Every 6 hours to Azure Storage", "recovery_time_objective": "2 hours"},
+      "rollback_procedures": {"deployment_rollback": "kubectl rollout undo", "configuration_rollback": "ArgoCD sync to previous version"}
+    },
+    "compliance_and_governance": {
+      "policy_frameworks": ["CIS Kubernetes Benchmark", "Azure Security Baseline", "FinOps Foundation Principles"],
+      "audit_requirements": {"configuration_changes": "Git history + ArgoCD logs", "access_logs": "Azure AD integration"},
+      "compliance_scores": {"security_baseline": "Target: 90%", "cost_optimization": "Target: 85%"}
+    }
   },
-  "next_steps": [...]
-}"""
+  "next_steps": [
+    "Week 1: Execute Phase 1 (Critical Performance Issues)",
+    "Week 2-3: Execute Phase 2 (Infrastructure Optimization)",
+    "Month 3: Full optimization review and fine-tuning",
+    "Month 6: ROI assessment and next optimization cycle"
+  ]
+}
+
+CRITICAL: Your response MUST be wrapped in this exact structure. Do not put phases, roi_analysis, etc. at the top level."""
         
         # Enhanced command generation requirements
         command_excellence = """CRITICAL COMMAND GENERATION REQUIREMENTS:
@@ -956,7 +1115,8 @@ Your mission: Generate a COMPREHENSIVE, PRODUCTION-READY implementation plan tha
         elif context_type == 'medium_optimization':
             return self._build_medium_prompt(optimized_context, cluster_name)
         else:  # aggressive_optimization
-            return self._build_compact_prompt(optimized_context, cluster_name)
+            # Use enhanced compact prompt with proper schema
+            return self._build_enhanced_compact_prompt(optimized_context, cluster_name)
     
     def _build_complete_prompt(self, optimized_context: Dict, cluster_name: str) -> str:
         """Build enhanced prompt for complete data (small clusters) including cost savings."""
@@ -974,6 +1134,35 @@ Your mission: Generate a COMPREHENSIVE, PRODUCTION-READY implementation plan tha
         
         # Calculate optimization candidate count
         optimization_candidates = len([w for w in workloads if w.get('optimization_candidate', False)])
+        
+        # Extract critical workloads for specific targeting
+        critical_workloads = []
+        for workload in workloads:
+            if workload.get('optimization_candidate', False):
+                cpu_util = workload.get('cpu_utilization_percent', 0)
+                memory_util = workload.get('memory_utilization_percent', 0)
+                if cpu_util > 150 or memory_util > 150:  # Critical over-utilization
+                    critical_workloads.append({
+                        'name': workload.get('name', 'unknown'),
+                        'namespace': workload.get('namespace', 'default'),
+                        'cpu_util': cpu_util,
+                        'memory_util': memory_util,
+                        'current_cpu': workload.get('resources', {}).get('requests', {}).get('cpu', '0'),
+                        'current_memory': workload.get('resources', {}).get('requests', {}).get('memory', '0')
+                    })
+        
+        # Build critical workloads section
+        critical_workloads_text = ""
+        if critical_workloads:
+            critical_workloads_text = "\n\nCRITICAL WORKLOADS REQUIRING IMMEDIATE ATTENTION:"
+            for i, wl in enumerate(critical_workloads[:5]):  # Top 5 critical
+                critical_workloads_text += f"""
+- {wl['name']} (namespace: {wl['namespace']})
+  - CPU Utilization: {wl['cpu_util']:.1f}% (CRITICAL - target: 70-80%)
+  - Memory Utilization: {wl['memory_util']:.1f}%
+  - Current CPU Request: {wl['current_cpu']}
+  - Current Memory Request: {wl['current_memory']}
+  - USE THIS EXACT NAME AND NAMESPACE IN ALL COMMANDS"""
         
         return f"""Generate a comprehensive implementation plan for AKS cluster: {cluster_name}
 
@@ -1000,19 +1189,23 @@ OPTIMIZATION OPPORTUNITIES:
 - Right-sizing Savings: ${savings_breakdown.get('right_sizing_savings', 0):.2f}
 - Infrastructure Savings: ${savings_breakdown.get('infrastructure_savings', 0):.2f}
 
-COMPLETE ENHANCED ANALYSIS DATA:
+OPTIMIZED CLUSTER ANALYSIS DATA:
 ```json
-{json.dumps(enhanced_input, indent=2)}
+{json.dumps(context, indent=2)}
 ```
 
+{critical_workloads_text}
+
 REQUIREMENTS:
-1. Generate a comprehensive plan using the EXACT structure shown in the system prompt
-2. Use REAL workload names, namespaces, and resource values from the data above
-3. Calculate precise savings estimates based on actual usage patterns
-4. Include executable kubectl and Azure CLI commands with actual parameter values
-5. Provide detailed scoring and grading for all health categories
-6. Include comprehensive ROI analysis and implementation timeline
-7. Ensure all commands are copy-paste ready with real cluster/resource names
+1. Generate a plan using the EXACT structure from the system prompt (implementation_plan wrapper)
+2. Use REAL workload names and namespaces from the critical workloads list above
+3. Include ALL enterprise sections: roi_analysis, disaster_recovery, compliance_and_governance
+4. Generate workload-specific commands with actual names (e.g., kubectl patch deployment momo-aggregator -n madapi-dev)
+5. Calculate precise savings per workload based on actual utilization data
+6. Include comprehensive DNS analysis, compliance gaps, and timeline-based next steps
+7. Ensure schema matches expected format exactly
+
+CRITICAL: Wrap your entire response in the implementation_plan structure from the system prompt.
 
 Generate the complete comprehensive implementation plan as valid JSON."""
 
@@ -1077,6 +1270,66 @@ REQUIREMENTS:
 5. Provide detailed cluster health analysis and standards compliance scoring
 6. Include comprehensive ROI analysis and phased implementation timeline
 7. Generate specific savings estimates for each optimization action
+
+Generate the complete comprehensive implementation plan as valid JSON."""
+
+    def _build_enhanced_compact_prompt(self, optimized_context: Dict, cluster_name: str) -> str:
+        """Build enhanced compact prompt with proper schema and critical workload detection"""
+        
+        # Extract optimization targets (these contain the real workload data)
+        optimization_targets = optimized_context.get('top_optimization_targets', [])
+        cluster_overview = optimized_context.get('cluster_overview', {})
+        executive_summary = optimized_context.get('executive_summary', {})
+        
+        # Extract critical workloads from optimization targets
+        critical_workloads = []
+        for target in optimization_targets[:5]:  # Top 5 critical
+            cpu_util = target.get('cpu_utilization', 0)
+            memory_util = target.get('memory_utilization', 0)
+            if cpu_util > 100 or memory_util > 100:  # Critical threshold
+                critical_workloads.append({
+                    'name': target.get('name', 'unknown'),
+                    'namespace': target.get('namespace', 'default'),
+                    'cpu_util': cpu_util,
+                    'memory_util': memory_util,
+                    'current_cpu': target.get('cpu_request', '0'),
+                    'current_memory': target.get('memory_request', '0')
+                })
+        
+        # Build critical workloads section
+        critical_workloads_text = ""
+        if critical_workloads:
+            critical_workloads_text = "\n\nCRITICAL WORKLOADS REQUIRING IMMEDIATE ATTENTION:"
+            for wl in critical_workloads:
+                critical_workloads_text += f"""
+- {wl['name']} (namespace: {wl['namespace']})
+  - CPU Utilization: {wl['cpu_util']:.1f}% (CRITICAL - target: 70-80%)
+  - Memory Utilization: {wl['memory_util']:.1f}%
+  - Current CPU Request: {wl['current_cpu']}
+  - Current Memory Request: {wl['current_memory']}
+  - USE THIS EXACT NAME AND NAMESPACE IN ALL COMMANDS"""
+        
+        return f"""Generate a comprehensive optimization plan for: {cluster_name}
+
+CLUSTER CONTEXT:
+- Total workloads: {executive_summary.get('total_workloads', 0)}
+- Current monthly cost: ${executive_summary.get('current_monthly_cost', 0):.2f}
+- Optimization opportunities: {executive_summary.get('optimization_opportunities', 0)}
+
+TOP OPTIMIZATION TARGETS:
+{json.dumps(optimization_targets, indent=2)}
+
+{critical_workloads_text}
+
+REQUIREMENTS:
+1. Generate a plan using the EXACT structure from the system prompt (implementation_plan wrapper)
+2. Use REAL workload names from critical workloads and optimization targets above
+3. Include ALL enterprise sections: roi_analysis, disaster_recovery, compliance_and_governance
+4. Generate workload-specific commands with actual names and namespaces
+5. Include comprehensive DNS analysis and compliance gaps
+6. Ensure schema matches expected format exactly
+
+CRITICAL: Wrap your entire response in the implementation_plan structure from the system prompt.
 
 Generate the complete comprehensive implementation plan as valid JSON."""
 
@@ -1155,7 +1408,7 @@ REQUIREMENTS FOR LARGE CLUSTER:
 Generate the complete comprehensive implementation plan as valid JSON."""
 
     def _extract_json(self, text: str) -> Dict:
-        """Extract JSON from Claude's response with robust error handling."""
+        """Extract JSON from Claude's response with enhanced error handling for escape issues."""
         text = text.strip()
         
         # Remove markdown code fences
@@ -1174,7 +1427,45 @@ Generate the complete comprehensive implementation plan as valid JSON."""
             return json.loads(text)
         except json.JSONDecodeError as e:
             print(f"⚠️  Initial JSON parse failed: {e}")
-            print(f"   Attempting to clean JSON...")
+            print(f"   Error location: line {getattr(e, 'lineno', '?')} column {getattr(e, 'colno', '?')}")
+            print(f"   Error message: {str(e)}")
+            print(f"   Attempting enhanced JSON cleaning...")
+            
+            # Try common fixes for Claude response issues
+            if "Expecting property name enclosed in double quotes" in str(e):
+                print(f"   🔧 Fixing unquoted property names...")
+                fixed_text = self._fix_unquoted_properties(text)
+                try:
+                    result = json.loads(fixed_text)
+                    print(f"✅ Fixed unquoted property names successfully")
+                    return result
+                except json.JSONDecodeError as e_fixed:
+                    print(f"❌ Property name fix failed: {e_fixed}")
+                    text = fixed_text  # Use the fixed version for further processing
+            
+            # Try common fixes for missing delimiters
+            if "Expecting ',' delimiter" in str(e):
+                print(f"   🔧 Fixing missing commas...")
+                fixed_text = self._fix_missing_commas(text)
+                try:
+                    result = json.loads(fixed_text)
+                    print(f"✅ Fixed missing commas successfully")
+                    return result
+                except json.JSONDecodeError as e_fixed:
+                    print(f"❌ Comma fix failed: {e_fixed}")
+                    text = fixed_text
+            
+            # Try to fix truncated responses
+            if "Unterminated string" in str(e) or hasattr(e, 'pos'):
+                print(f"   🔧 Fixing truncated response...")
+                fixed_text = self._fix_truncated_response(text)
+                try:
+                    result = json.loads(fixed_text)
+                    print(f"✅ Fixed truncated response successfully")
+                    return result
+                except json.JSONDecodeError as e_fixed:
+                    print(f"❌ Truncation fix failed: {e_fixed}")
+                    text = fixed_text
             
             # Try to find JSON within the text
             start_idx = text.find('{')
@@ -1183,22 +1474,223 @@ Generate the complete comprehensive implementation plan as valid JSON."""
             if start_idx >= 0 and end_idx > start_idx:
                 json_text = text[start_idx:end_idx]
                 
-                # Clean common JSON issues
+                # Show problematic area for debugging
+                if hasattr(e, 'pos') and e.pos < len(json_text):
+                    error_context = json_text[max(0, e.pos-50):e.pos+50]
+                    print(f"   Error context: ...{error_context}...")
+                
+                # SMART FIX: Preserve comprehensive plans - avoid cleaning truncated JSON
+                error_msg = str(e)
+                
+                if "Unterminated string starting at" in error_msg or "Expecting value" in error_msg:
+                    print(f"   🚫 SMART BYPASS: Truncated JSON - cleaning would destroy comprehensive kubectl commands")
+                    print(f"   💡 Solution: Increase CLAUDE_MAX_OUTPUT_TOKENS or reduce workloads per batch")
+                    
+                    # Save debug but don't corrupt with cleaning
+                    from datetime import datetime
+                    debug_file = f"debug_json_truncation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                    with open(debug_file, 'w') as f:
+                        f.write(f"TRUNCATION ERROR - DO NOT CLEAN\n")
+                        f.write(f"Original error: {e}\n")
+                        f.write(f"JSON is truncated at: line {getattr(e, 'lineno', '?')} column {getattr(e, 'colno', '?')}\n")
+                        f.write(f"Truncated JSON (first 2000 chars):\n{json_text[:2000]}\n")
+                    
+                    raise e  # Don't clean truncated JSON - it makes it worse
+                
+                print(f"   Original JSON has syntax issues - applying targeted cleaning...")
+                
+                # Enhanced JSON cleaning for escape issues (only for malformed JSON)
                 cleaned_json = self._clean_json_text(json_text)
                 
                 try:
                     result = json.loads(cleaned_json)
-                    print(f"✅ JSON cleaned and parsed successfully")
+                    print(f"✅ JSON cleaned and parsed successfully after escape fixing")
                     return result
                 except json.JSONDecodeError as e2:
-                    print(f"❌ Cleaning failed: {e2}")
-                    raise e
+                    print(f"❌ Enhanced cleaning failed: {e2}")
+                    print(f"   Second error location: line {getattr(e2, 'lineno', '?')} column {getattr(e2, 'colno', '?')}")
+                    
+                    # Last resort: try to fix the specific error location
+                    if hasattr(e2, 'pos') and e2.pos < len(cleaned_json):
+                        print(f"   Attempting targeted fix at position {e2.pos}")
+                        fixed_json = self._fix_json_at_position(cleaned_json, e2.pos)
+                        try:
+                            result = json.loads(fixed_json)
+                            print(f"✅ JSON fixed with targeted repair")
+                            return result
+                        except json.JSONDecodeError as e3:
+                            print(f"❌ Targeted fix failed: {e3}")
+                    
+                    # Save the problematic JSON for debugging
+                    from datetime import datetime
+                    debug_file = f"debug_json_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                    try:
+                        with open(debug_file, 'w') as f:
+                            f.write(f"Original error: {e}\n")
+                            f.write(f"Enhanced cleaning error: {e2}\n")
+                            f.write(f"Original text:\n{text}\n\n")
+                            f.write(f"Cleaned JSON:\n{cleaned_json}\n")
+                        print(f"💾 Debug info saved to: {debug_file}")
+                    except Exception:
+                        pass
+                    
+                    raise e2
             else:
                 raise e
     
-    def _clean_json_text(self, json_text: str) -> str:
-        """Clean common JSON formatting issues from Claude responses"""
+    def _fix_json_at_position(self, json_text: str, error_pos: int) -> str:
+        """
+        Attempt to fix JSON at a specific error position.
+        Used as a last resort when general cleaning fails.
+        """
+        # Common fixes for specific positions
+        if error_pos < len(json_text):
+            char = json_text[error_pos]
+            
+            # If it's a backslash issue, try to escape it
+            if char == '\\':
+                # Look ahead to see what follows
+                if error_pos + 1 < len(json_text):
+                    next_char = json_text[error_pos + 1]
+                    # If it's not a valid escape sequence, double the backslash
+                    if next_char not in '"\\/bfnrtu':
+                        return json_text[:error_pos] + '\\' + json_text[error_pos:]
+            
+            # If it's an unescaped quote in a string, escape it
+            elif char == '"':
+                # Check if we're inside a string value (not a key)
+                # This is a simple heuristic
+                before_context = json_text[max(0, error_pos-10):error_pos]
+                if ':' in before_context and not before_context.strip().endswith(':'):
+                    return json_text[:error_pos] + '\\"' + json_text[error_pos+1:]
+        
+        return json_text
+    
+    def _fix_unquoted_properties(self, text: str) -> str:
+        """Fix unquoted property names in JSON (common Claude error)"""
         import re
+        
+        # Pattern to find unquoted property names
+        # Matches: word_chars: (but not "word_chars":)
+        pattern = r'(\s+)([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*'
+        
+        def quote_property(match):
+            whitespace = match.group(1)
+            prop_name = match.group(2)
+            
+            # Don't quote if already quoted or if it's a boolean/null
+            if prop_name in ['true', 'false', 'null']:
+                return match.group(0)
+            
+            return f'{whitespace}"{prop_name}": '
+        
+        # Apply the fix
+        fixed_text = re.sub(pattern, quote_property, text)
+        
+        # Also fix cases at the beginning of lines
+        fixed_text = re.sub(r'^([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*', r'"\1": ', fixed_text, flags=re.MULTILINE)
+        
+        return fixed_text
+    
+    def _fix_missing_commas(self, text: str) -> str:
+        """Fix missing commas in JSON (common Claude error)"""
+        import re
+        
+        # Pattern to find missing commas before closing braces or brackets
+        # Matches: "value"\n} or "value"\n] (missing comma)
+        
+        # Fix missing commas before closing braces
+        text = re.sub(r'"\s*\n\s*}', '"\n}', text)
+        text = re.sub(r']\s*\n\s*}', '],\n}', text)
+        text = re.sub(r'}\s*\n\s*}', '},\n}', text)
+        
+        # Fix missing commas before closing brackets  
+        text = re.sub(r'"\s*\n\s*]', '"\n]', text)
+        text = re.sub(r'}\s*\n\s*]', '},\n]', text)
+        text = re.sub(r']\s*\n\s*]', '],\n]', text)
+        
+        # Fix missing commas between object properties
+        text = re.sub(r'"\s*\n\s*"', '",\n"', text)
+        text = re.sub(r'}\s*\n\s*"', '},\n"', text)
+        text = re.sub(r']\s*\n\s*"', '],\n"', text)
+        
+        return text
+    
+    def _fix_truncated_response(self, text: str) -> str:
+        """Fix truncated JSON responses by completing incomplete structures"""
+        
+        # Find the last complete brace structure
+        brace_stack = []
+        last_complete_pos = 0
+        
+        for i, char in enumerate(text):
+            if char == '{':
+                brace_stack.append('{')
+            elif char == '}':
+                if brace_stack:
+                    brace_stack.pop()
+                    if not brace_stack:  # Found complete structure
+                        last_complete_pos = i + 1
+            elif char == '[':
+                brace_stack.append('[')
+            elif char == ']':
+                if brace_stack and brace_stack[-1] == '[':
+                    brace_stack.pop()
+        
+        if last_complete_pos > 0:
+            # Truncate at last complete structure
+            fixed_text = text[:last_complete_pos]
+            print(f"   Truncating at position {last_complete_pos} to complete structure")
+            return fixed_text
+        
+        # If no complete structure, try to close unclosed strings and brackets
+        lines = text.split('\n')
+        fixed_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Check for unterminated strings
+            if line.count('"') % 2 != 0:
+                # Odd number of quotes, close the string
+                if line.endswith('"'):
+                    fixed_lines.append(line)
+                else:
+                    # Find last quote and close it
+                    if '"' in line:
+                        fixed_lines.append(line + '"')
+                    else:
+                        fixed_lines.append(line)
+            else:
+                fixed_lines.append(line)
+        
+        # Close any unclosed braces
+        fixed_text = '\n'.join(fixed_lines)
+        
+        # Count and close missing braces
+        open_braces = fixed_text.count('{') - fixed_text.count('}')
+        open_brackets = fixed_text.count('[') - fixed_text.count(']')
+        
+        # Close missing structures
+        for _ in range(open_brackets):
+            fixed_text += '\n]'
+        for _ in range(open_braces):
+            fixed_text += '\n}'
+            
+        return fixed_text
+    
+    def _clean_json_text(self, json_text: str) -> str:
+        """
+        Clean common JSON formatting issues from Claude responses with enhanced escape handling.
+        Specifically handles kubectl commands and complex strings that cause JSON parsing errors.
+        """
+        import re
+        
+        # CRITICAL FIX: Handle invalid escape sequences first
+        # This is the main cause of "Invalid \escape" errors
+        json_text = self._fix_escape_sequences(json_text)
         
         # Fix percentage values (e.g., "120%" -> "120")
         json_text = re.sub(r':\s*(\d+(?:\.\d+)?)%', r': \1', json_text)
@@ -1222,6 +1714,14 @@ Generate the complete comprehensive implementation plan as valid JSON."""
             if ':' in line and not line.strip().startswith('"'):
                 # Match word characters followed by colon (property names)
                 lines[i] = re.sub(r'(\w+):', r'"\1":', line)
+            
+            # Fix unquoted property values that are not numbers
+            # Pattern: "property": unquoted_value  ->  "property": "quoted_value"
+            if ':' in line:
+                # Match quoted property followed by unquoted non-numeric value
+                lines[i] = re.sub(r'("[\w-]+"):\s*([a-zA-Z][a-zA-Z0-9-]*)\s*([,}])', r'\1: "\2"\3', line)
+                # Also handle case with dots like requests.cpu -> "requests.cpu"
+                lines[i] = re.sub(r'(\w+\.\w+):', r'"\1":', line)
         json_text = '\n'.join(lines)
         
         # Fix single quotes to double quotes (but be careful with contractions)
@@ -1236,6 +1736,296 @@ Generate the complete comprehensive implementation plan as valid JSON."""
         json_text = re.sub(r'"\s*\]\s*,\s*\[', r'"],\n[', json_text)
         
         return json_text
+    
+    def _fix_escape_sequences(self, text: str) -> str:
+        """
+        Fix invalid escape sequences that cause JSON parsing errors.
+        
+        This addresses the core issue: Claude generates kubectl commands with backslashes
+        that aren't properly escaped for JSON, causing "Invalid \\escape" errors.
+        """
+        import re
+        
+        # First, let's handle the most common kubectl command issues
+        # Fix unescaped backslashes in kubectl commands
+        # Pattern: Look for strings containing kubectl commands with unescaped backslashes
+        def fix_kubectl_escapes(match):
+            content = match.group(1)
+            # Escape any lone backslashes that aren't already escaped
+            # This is tricky - we need to escape backslashes but not break already valid escapes
+            content = re.sub(r'\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})', r'\\\\', content)
+            return '"' + content + '"'
+        
+        # Apply the fix to quoted strings (likely command strings)
+        text = re.sub(r'"([^"]*kubectl[^"]*)"', fix_kubectl_escapes, text)
+        
+        # CRITICAL FIX: Handle JSONPath expressions with unescaped quotes
+        # Pattern: kubectl ... -o jsonpath='{...=="value"...}' 
+        # The =="value" needs to be escaped as ==\\"value\\"
+        def fix_jsonpath_quotes(match):
+            full_string = match.group(0)  # Full quoted string
+            # Fix unescaped quotes in JSONPath expressions only
+            # Look for patterns like =="NoSchedule" and escape them as ==\\"NoSchedule\\"
+            fixed_string = re.sub(r'(==)"([^"]*)"', r'\1\\"\\2\\"', full_string)
+            # Also fix other JSONPath comparison operators
+            fixed_string = re.sub(r'(!=)"([^"]*)"', r'\1\\"\\2\\"', fixed_string)
+            fixed_string = re.sub(r'(@\.effect==)"([^"]*)"', r'\1\\"\\2\\"', fixed_string)
+            return fixed_string
+        
+        # Apply fix to any string containing kubectl with jsonpath
+        text = re.sub(r'"[^"]*kubectl[^"]*-o jsonpath=[^"]*"', fix_jsonpath_quotes, text)
+        
+        # ADDITIONAL FIX: Handle response truncation issues
+        # If the response is truncated, we often get incomplete JSON at the end
+        # Try to complete common incomplete patterns
+        text = self._fix_truncated_response(text)
+        
+        # Handle other common escape issues
+        # Fix unescaped backslashes in any quoted string
+        def fix_general_escapes(match):
+            content = match.group(1)
+            # Only escape lone backslashes, preserve valid JSON escapes
+            content = re.sub(r'\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})', r'\\\\', content)
+            return '"' + content + '"'
+        
+        # Apply to all remaining quoted strings that might have issues
+        text = re.sub(r'"([^"]*\\[^"]*)"', fix_general_escapes, text)
+        
+        # Fix specific problematic patterns that Claude commonly generates
+        # Fix namespace patterns like \n that should be \\n
+        text = re.sub(r'([^\\])\\n', r'\1\\\\n', text)
+        text = re.sub(r'([^\\])\\t', r'\1\\\\t', text)
+        text = re.sub(r'([^\\])\\r', r'\1\\\\r', text)
+        
+        # CRITICAL: Fix actual control characters (not escape sequences)
+        # These are real newlines/tabs in strings that need to be escaped
+        def escape_control_chars(match):
+            content = match.group(1)
+            # Replace actual control characters with their escaped versions
+            content = content.replace('\n', '\\n')
+            content = content.replace('\t', '\\t')
+            content = content.replace('\r', '\\r')
+            content = content.replace('\b', '\\b')
+            content = content.replace('\f', '\\f')
+            return '"' + content + '"'
+        
+        # Apply to quoted strings that might contain control characters
+        text = re.sub(r'"([^"]*[\n\t\r\b\f][^"]*)"', escape_control_chars, text)
+        
+        # Additional comprehensive control character fix for all JSON strings
+        # This catches cases the regex above might miss
+        import json
+        def fix_all_control_chars_in_strings(text):
+            # Handle the text as a single string to properly track JSON state
+            result = ""
+            in_string = False
+            escape_next = False
+            i = 0
+            
+            while i < len(text):
+                char = text[i]
+                
+                if escape_next:
+                    # Previous char was backslash, keep this char as is
+                    result += char
+                    escape_next = False
+                elif char == '\\' and in_string:
+                    # Check if it's already a valid escape sequence
+                    if i + 1 < len(text) and text[i + 1] in '"\\/bfnrtu':
+                        result += char  # Keep valid escape as is
+                        escape_next = True
+                    else:
+                        result += '\\\\'  # Escape lone backslash
+                elif char == '"':
+                    # Toggle string state (only if not escaped)
+                    in_string = not in_string
+                    result += char
+                elif in_string:
+                    # We're inside a JSON string, escape control characters
+                    if char == '\n':
+                        result += '\\n'
+                    elif char == '\t':
+                        result += '\\t'
+                    elif char == '\r':
+                        result += '\\r'
+                    elif char == '\b':
+                        result += '\\b'
+                    elif char == '\f':
+                        result += '\\f'
+                    elif ord(char) < 32:  # Any control character
+                        result += f'\\u{ord(char):04x}'
+                    else:
+                        result += char
+                else:
+                    # Outside string, copy as is
+                    result += char
+                
+                i += 1
+            
+            return result
+        
+        text = fix_all_control_chars_in_strings(text)
+        
+        # Fix kubectl patch JSON patterns that commonly break
+        # Pattern like: 'kubectl patch ... -p '{\"spec\":...}'
+        # The single quotes around JSON cause issues
+        def fix_kubectl_json_patch(match):
+            prefix = match.group(1)  # everything before -p
+            json_content = match.group(2)  # the JSON inside single quotes
+            
+            # The JSON content needs to be treated as a string, not parsed JSON
+            # So we need to escape it properly for inclusion in the outer JSON
+            escaped_json = json_content.replace('\\', '\\\\').replace('\"', '\\\"')
+            return f'kubectl patch {prefix} -p \'{escaped_json}\''
+        
+        text = re.sub(r"kubectl patch ([^']*) -p '([^']*)'", fix_kubectl_json_patch, text)
+        
+        # Fix kubectl apply with heredoc YAML content that breaks JSON
+        # Pattern: "kubectl apply -f - <<EOF\n<YAML content>\nEOF"
+        def fix_kubectl_yaml_heredoc(match):
+            command_start = match.group(1)
+            yaml_content = match.group(2)
+            
+            # Properly escape the entire kubectl command as a JSON string
+            # Replace actual newlines with \n, escape quotes, etc.
+            escaped_content = yaml_content.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\t', '\\t').replace('\r', '\\r')
+            full_command = f"{command_start}<<EOF\\n{escaped_content}\\nEOF"
+            return f'"{full_command}"'
+        
+        # Match kubectl apply commands with heredoc
+        text = re.sub(r'"(kubectl apply -f - )<<EOF\s*\n([^"]*?)\nEOF"', fix_kubectl_yaml_heredoc, text, flags=re.MULTILINE | re.DOTALL)
+        
+        # Fix common path separators in container paths
+        text = re.sub(r'(/[^"\s]*)', lambda m: m.group(1).replace('\\', '/'), text)
+        
+        # Final JSON validation and repair
+        text = self._final_json_repair(text)
+        
+        return text
+    
+    def _fix_truncated_response(self, text: str) -> str:
+        """
+        Fix common truncation issues in Claude responses where JSON is incomplete.
+        This often happens when the response hits token limits.
+        """
+        import re
+        
+        # Remove any trailing incomplete content that's clearly truncated
+        # Look for common truncation patterns
+        
+        # If JSON ends with incomplete string or structure
+        text = text.strip()
+        
+        # Find the last complete JSON structure
+        # Count braces to find where valid JSON might end
+        open_braces = 0
+        last_valid_pos = len(text)
+        
+        for i, char in enumerate(text):
+            if char == '{':
+                open_braces += 1
+            elif char == '}':
+                open_braces -= 1
+                if open_braces == 0:
+                    # Found a complete top-level object
+                    last_valid_pos = i + 1
+        
+        # If we have unclosed braces, truncate to last valid position
+        if open_braces > 0 and last_valid_pos < len(text):
+            print(f"🔧 Truncating response at position {last_valid_pos} to remove incomplete JSON")
+            text = text[:last_valid_pos]
+        
+        # Fix common truncation artifacts
+        # Remove trailing incomplete quotes or strings
+        text = re.sub(r'[^}]\s*$', '', text)  # Remove trailing non-brace content
+        
+        # If text ends with incomplete array or object, try to close it
+        if text.endswith(','):
+            text = text[:-1]  # Remove trailing comma
+        
+        # Ensure proper closing
+        if not text.endswith('}') and not text.endswith(']'):
+            # Try to find the last complete structure
+            for end_char in ['}', ']']:
+                last_pos = text.rfind(end_char)
+                if last_pos > 0:
+                    text = text[:last_pos + 1]
+                    break
+        
+        return text
+    
+    def _final_json_repair(self, text: str) -> str:
+        """Final attempt to repair JSON structure"""
+        import re
+        import json
+        
+        # Ensure the JSON is properly closed
+        text = text.strip()
+        
+        # Count braces to see if we need to close the JSON
+        open_braces = text.count('{')
+        close_braces = text.count('}')
+        
+        # Count brackets for arrays
+        open_brackets = text.count('[')
+        close_brackets = text.count(']')
+        
+        # Remove trailing commas before closing braces/brackets
+        text = re.sub(r',(\s*[}\]])', r'\1', text, flags=re.MULTILINE)
+        
+        # Fix incomplete arrays or objects at the end
+        # Look for incomplete structures like: "key": [
+        text = re.sub(r':\s*\[\s*$', r': []', text)
+        text = re.sub(r':\s*\{\s*$', r': {}', text)
+        
+        # Fix incomplete quoted strings at the end
+        # Count quotes to see if we have an unterminated string
+        quote_count = text.count('"')
+        if quote_count % 2 != 0:  # Odd number of quotes means unterminated string
+            # Find the last quote and close the string
+            last_quote_pos = text.rfind('"')
+            if last_quote_pos != -1:
+                # Check if this quote is at the very end or followed by incomplete content
+                remaining = text[last_quote_pos + 1:].strip()
+                if remaining and not remaining.startswith(',') and not remaining.startswith('}') and not remaining.startswith(']'):
+                    # Terminate the string
+                    text = text[:last_quote_pos + 1] + '"' + text[last_quote_pos + 1:]
+        
+        # Add missing closing brackets for arrays
+        while close_brackets < open_brackets:
+            text += '\n]'
+            close_brackets += 1
+        
+        # Add missing closing braces for objects
+        while close_braces < open_braces:
+            text += '\n}'
+            close_braces += 1
+        
+        # Fix any remaining double escape issues
+        text = re.sub(r'\\\\n', r'\\n', text)  # \\n -> \n
+        text = re.sub(r'\\\\t', r'\\t', text)  # \\t -> \t
+        text = re.sub(r'\\\\r', r'\\r', text)  # \\r -> \r
+        
+        # Final validation attempt
+        try:
+            json.loads(text)
+            return text
+        except json.JSONDecodeError as e:
+            # If it still fails, try to fix common issues
+            if "Expecting ',' delimiter" in str(e):
+                # Try to add missing commas before closing braces
+                text = re.sub(r'\n(\s*[}\]])', r',\n\1', text)
+                # Remove any double commas
+                text = re.sub(r',,+', r',', text)
+                # Remove comma before closing
+                text = re.sub(r',(\s*[}\]])', r'\1', text)
+            
+            elif "Expecting property name" in str(e):
+                # Try to fix missing property names
+                text = re.sub(r'{\s*,', r'{', text)
+                text = re.sub(r',\s*}', r'}', text)
+            
+            return text
     
     def _calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
         """Calculate cost based on model"""
@@ -1290,36 +2080,46 @@ Generate the complete comprehensive implementation plan as valid JSON."""
             'optimization_thresholds': optimization_thresholds
         })
         
-        return f"""You are a Kubernetes FinOps Expert creating actionable implementation plans.
+        return f"""You are a Kubernetes FinOps Expert creating comprehensive enterprise-grade implementation plans.
 
-CRITICAL: This is PART 1 of a 2-part response. Generate ONLY the core implementation plan.
+CRITICAL: This is PART 1 of a 2-part response. Generate ONLY the core implementation plan with enterprise-level detail.
 
-Your response must be under 3,000 tokens and include ONLY:
-✅ metadata (plan_id, cluster_name, generated_date)
-✅ implementation_summary (costs, savings, duration, phases count)
-✅ phases (2-4 phases with detailed actions containing steps, commands, rollback)
-✅ roi_summary (monthly_savings, annual_savings, payback_months, roi_percentage)
-✅ monitoring (key_commands array, success_metrics array)
-✅ next_steps (array of 3-5 milestone strings)
+Your response must be under 3,500 tokens and include ALL of these sections:
+
+✅ metadata (plan_id, cluster_name, generated_date, resource_group, subscription_id, plan_version, analysis_confidence, implementation_complexity, estimated_duration_days)
+✅ executive_summary (current_monthly_cost, potential_monthly_savings, savings_percentage, annual_savings, payback_period_months, roi_12_months, optimization_opportunities, critical_issues, implementation_phases)
+✅ cluster_health_analysis (overall_cluster_score, cluster_grade, health_categories with cost_efficiency, performance_optimization, security_compliance, operational_excellence scores and issues)
+✅ standards_compliance_analysis (cncf_finops_score, azure_waf_score, kubernetes_best_practices_score, compliance_gaps)
+✅ phases (4-6 phases with phase_number, name, priority, duration_days, estimated_savings, description, prerequisites, actions, monitoring)
+✅ success_metrics (cost_targets, operational_targets, governance_targets)
+✅ monitoring_and_alerting (cost_monitoring, performance_monitoring, security_monitoring)
 
 DO NOT INCLUDE (these are in Part 2):
 ❌ cluster_dna_analysis
-❌ build_quality_assessment
+❌ build_quality_assessment  
 ❌ naming_conventions_analysis
 ❌ roi_analysis (full breakdown)
-❌ detailed review_schedule
+❌ disaster_recovery
+❌ compliance_and_governance
+❌ next_steps
+
+ENTERPRISE REQUIREMENTS:
+- Each phase must have 2-4 detailed actions
+- Each action must include: action_id, name, priority, estimated_savings, commands (backup, implement, validate, rollback), success_criteria
+- Include comprehensive monitoring strategies
+- Provide detailed compliance analysis
+- Focus on production-ready implementations
 
 STANDARDS TO FOLLOW:
 {standards_text}
 
 OUTPUT FORMAT:
 Respond ONLY with valid JSON wrapped in ```json code fence.
-No explanatory text before or after.
 
 CRITICAL JSON RULES:
 - ALL strings must be in double quotes
 - Numbers must be pure numbers (no %, $, or other symbols)
-- Use decimal numbers for percentages (e.g., 0.75 not 75%)
+- Use decimal numbers for percentages (e.g., 0.315 not 31.5%)
 - Use numbers for currency (e.g., 342.85 not "$342.85")
 - No trailing commas
 - No comments inside JSON
@@ -1327,16 +2127,15 @@ CRITICAL JSON RULES:
 Example structure:
 ```json
 {{
-  "metadata": {{ "plan_id": "...", "cluster_name": "...", "generated_date": "..." }},
-  "implementation_summary": {{ "current_monthly_cost": 2111.71, "estimated_monthly_savings": 342.85 }},
-  "phases": [{{ "phase_number": 1, "actions": [...] }}],
-  "roi_summary": {{ "monthly_savings": 342.85, "roi_percentage": 1.2 }},
-  "monitoring": {{ "key_commands": [...], "success_metrics": [...] }},
-  "next_steps": ["Day 7: ...", "Day 21: ...", ...]
+  "metadata": {{ "plan_id": "...", "cluster_name": "...", "generated_date": "...", "plan_version": "2.0", "analysis_confidence": "high", "implementation_complexity": "high", "estimated_duration_days": 45 }},
+  "executive_summary": {{ "current_monthly_cost": 2111.71, "potential_monthly_savings": 682.45, "savings_percentage": 0.323, "annual_savings": 8189.4, "payback_period_months": 2.1, "roi_12_months": 287.3, "optimization_opportunities": 674, "critical_issues": 12, "implementation_phases": 6 }},
+  "cluster_health_analysis": {{ "overall_cluster_score": 42, "cluster_grade": "D+", "health_categories": {{ "cost_efficiency": {{ "score": 18, "grade": "F", "issues": [...] }}, "performance_optimization": {{ "score": 35, "grade": "F", "issues": [...] }} }} }},
+  "phases": [{{ "phase_number": 1, "name": "Critical Performance Issues Resolution", "priority": "critical", "duration_days": 3, "estimated_savings": 127.50, "actions": [{{ "action_id": "1.1", "name": "...", "priority": "critical", "estimated_savings": 67.30, "commands": {{ "backup": [...], "implement": [...], "validate": [...], "rollback": [...] }}, "success_criteria": [...] }}] }}],
+  "success_metrics": {{ "cost_targets": {{ "monthly_cost_reduction": 0.315 }}, "operational_targets": {{ "application_availability": 0.999 }} }}
 }}
 ```
 
-Be concise and actionable. Focus on high-impact optimizations."""
+Create a comprehensive, enterprise-grade implementation plan with detailed actions and monitoring."""
 
     def _build_core_plan_user_prompt(self, context: dict, cluster_name: str) -> str:
         """User prompt for core implementation plan"""
@@ -1344,36 +2143,62 @@ Be concise and actionable. Focus on high-impact optimizations."""
         import json
         context_json = json.dumps(context, indent=2)
         
-        return f"""Generate a core implementation plan for cluster: {cluster_name}
+        return f"""Generate a comprehensive enterprise-grade implementation plan for cluster: {cluster_name}
 
 Cluster context:
 {context_json}
 
-Generate phases with actionable steps, kubectl commands, and rollback procedures.
-Focus on the top 5-10 highest-impact optimizations.
-Keep response under 3,000 tokens."""
+REQUIREMENTS:
+- Create 4-6 implementation phases with detailed actions
+- Include comprehensive cluster health analysis with scoring
+- Provide standards compliance assessment (FinOps, Azure WAF, Kubernetes best practices)
+- Add executive summary with ROI projections
+- Include detailed monitoring and alerting strategies
+- Focus on production-ready, enterprise-grade optimizations
+- Ensure each action has backup, implement, validate, and rollback commands
+- Include success criteria and estimated savings per action
+
+CRITICAL FOCUS AREAS:
+1. Performance optimization (CPU/memory right-sizing, HPA, VPA)
+2. Infrastructure optimization (spot instances, autoscaling)
+3. Security compliance (network policies, pod security standards)
+4. Cost governance (resource quotas, monitoring, alerting)
+5. Operational excellence (monitoring stack, observability)
+
+Keep response under 3,500 tokens but include all required enterprise sections."""
 
     def _build_analysis_system_prompt(self) -> str:
         """System prompt for detailed analysis (Call 2)"""
         
-        return """You are a Kubernetes FinOps Expert analyzing cluster quality and compliance.
+        return """You are a Kubernetes FinOps Expert providing comprehensive enterprise analysis and governance.
 
-CRITICAL: This is PART 2 of a 2-part response. Generate ONLY the detailed analysis.
+CRITICAL: This is PART 2 of a 2-part response. Generate ONLY the detailed analysis and governance sections.
 
-Your response must be under 2,500 tokens and include ONLY:
-✅ cluster_dna_analysis (overall_score, metrics, data_sources)
-✅ build_quality_assessment (quality_checks, strengths, improvements, scorecard)
-✅ naming_conventions_analysis (overall_score, resources, recommendations)
-✅ roi_analysis (summary_metrics, calculation_breakdown, savings_by_phase)
-✅ review_schedule (array of milestone objects with day and title)
+Your response must be under 3,000 tokens and include ALL of these sections:
+
+✅ cluster_dna_analysis (overall_score, metrics with descriptions, data_sources)
+✅ build_quality_assessment (quality_checks, strengths, improvements, scorecard with quality_dimensions)
+✅ naming_conventions_analysis (overall_score, resources with types and scores, recommendations)
+✅ roi_analysis (summary_metrics, implementation_costs, savings_timeline, break_even_analysis, risk_factors)
+✅ disaster_recovery (backup_strategy, rollback_procedures with RTOs and RPOs)
+✅ compliance_and_governance (policy_frameworks, audit_requirements, compliance_scores)
+✅ next_steps (timeline-based milestones for weeks/months)
 
 DO NOT INCLUDE (already in Part 1):
 ❌ metadata
-❌ implementation_summary
+❌ executive_summary
+❌ cluster_health_analysis
+❌ standards_compliance_analysis
 ❌ phases
-❌ roi_summary
-❌ monitoring
-❌ next_steps
+❌ success_metrics
+❌ monitoring_and_alerting
+
+ENTERPRISE REQUIREMENTS:
+- ROI analysis must include implementation costs and break-even analysis
+- Disaster recovery must specify RTOs, RPOs, and detailed procedures
+- Compliance framework must reference industry standards (CIS, Azure Security Baseline, FinOps Foundation)
+- Include specific audit trails and governance controls
+- Provide risk assessment and mitigation strategies
 
 OUTPUT FORMAT:
 Respond ONLY with valid JSON wrapped in ```json code fence.
@@ -1389,15 +2214,15 @@ CRITICAL JSON RULES:
 Example structure:
 ```json
 {
-  "cluster_dna_analysis": { "overall_score": 0.89, "metrics": [...] },
-  "build_quality_assessment": { "quality_checks": [...] },
-  "naming_conventions_analysis": { "overall_score": 0.78 },
-  "roi_analysis": { "summary_metrics": [...] },
-  "review_schedule": [{"day": 7, "title": "..."}, ...]
+  "cluster_dna_analysis": { "overall_score": 0.89, "metrics": [{"name": "Workload Diversity", "score": 0.7, "description": "..."}], "data_sources": ["Kubernetes API", "Kubecost", "Prometheus"] },
+  "roi_analysis": { "implementation_costs": {"personnel_hours": 180, "hourly_rate": 150, "total_implementation_cost": 30700}, "savings_timeline": {"month_1": 127.50}, "break_even_analysis": {"break_even_month": 4.4, "roi_12_months": 22.7} },
+  "disaster_recovery": { "backup_strategy": {"etcd_backups": "Every 6 hours to Azure Storage", "recovery_time_objective": "2 hours", "recovery_point_objective": "15 minutes"} },
+  "compliance_and_governance": { "policy_frameworks": ["CIS Kubernetes Benchmark", "Azure Security Baseline"], "compliance_scores": {"security_baseline": "Target: 90%"} },
+  "next_steps": ["Week 1: Execute Phase 1 (Critical Performance Issues)", "Month 3: Full optimization review"]
 }
 ```
 
-Be thorough but concise. Stay under 2,500 tokens."""
+Provide enterprise-grade analysis with comprehensive governance and risk management."""
 
     def _build_analysis_user_prompt(self, context: dict, cluster_name: str) -> str:
         """User prompt for detailed analysis"""
@@ -1405,13 +2230,29 @@ Be thorough but concise. Stay under 2,500 tokens."""
         import json
         context_json = json.dumps(context, indent=2)
         
-        return f"""Generate detailed quality analysis for cluster: {cluster_name}
+        return f"""Generate comprehensive enterprise analysis and governance framework for cluster: {cluster_name}
 
 Cluster context:
 {context_json}
 
-Analyze cluster DNA, build quality, naming conventions, and provide detailed ROI breakdown.
-Keep response under 2,500 tokens."""
+REQUIREMENTS:
+- Analyze cluster DNA with detailed metrics and scoring
+- Assess build quality across multiple dimensions (scalability, security, observability)
+- Evaluate naming conventions and provide recommendations
+- Create detailed ROI analysis with implementation costs, savings timeline, and break-even analysis
+- Design disaster recovery strategy with RTOs, RPOs, and backup procedures
+- Establish compliance and governance framework with industry standards
+- Include risk assessment and mitigation strategies
+- Provide timeline-based next steps and milestones
+
+ENTERPRISE GOVERNANCE FOCUS:
+1. Financial governance (cost allocation, budget controls, anomaly detection)
+2. Security governance (policy enforcement, admission controllers, audit trails)
+3. Operational governance (SLIs, SLOs, monitoring, alerting)
+4. Compliance governance (CIS benchmarks, Azure Security Baseline, FinOps principles)
+5. Risk management (backup strategies, rollback procedures, business continuity)
+
+Keep response under 3,000 tokens but include all required governance sections."""
 
     def _format_standards_brief(self, standards: dict) -> str:
         """Format standards briefly for prompt"""
