@@ -48,10 +48,49 @@ class CostOptimizationCategory(str, Enum):
     AUTO_SCALING_OPTIMIZATION = "auto_scaling_optimization"
     STORAGE_COST_OPTIMIZATION = "storage_cost_optimization"
     NETWORK_COST_OPTIMIZATION = "network_cost_optimization"
-    MONITORING_COST_OPTIMIZATION = "monitoring_cost_optimization"
-    RESOURCE_CLEANUP = "resource_cleanup"
-    SCHEDULE_BASED_OPTIMIZATION = "schedule_based_optimization"
-    AZURE_BEST_PRACTICES = "azure_best_practices"
+    RESOURCE_GOVERNANCE = "resource_governance"
+    WORKLOAD_DECOMMISSIONING = "workload_decommissioning"
+
+
+# New models for aggregate workload handling
+class WorkloadCategoryStats(BaseModel):
+    """Statistics for a category of workloads"""
+    count: int = Field(..., description="Number of workloads in this category")
+    avg_monthly_cost: float = Field(..., description="Average monthly cost per workload")
+    total_monthly_cost: float = Field(..., description="Total monthly cost for category")
+    avg_cpu_request_millicores: float = Field(0, description="Average CPU request in millicores")
+    avg_memory_request_mb: float = Field(0, description="Average memory request in MB")
+    avg_cpu_usage_percent: float = Field(0, description="Average CPU utilization percentage")
+    avg_memory_usage_percent: float = Field(0, description="Average memory utilization percentage")
+
+
+class GovernanceIssueStats(BaseModel):
+    """Statistics for governance issues"""
+    count: int = Field(..., description="Number of workloads with this issue")
+    total_cost: float = Field(..., description="Total cost impact of this issue")
+    sample_names: Optional[List[str]] = Field(None, description="Sample workload names with this issue")
+    avg_cpu_waste: Optional[float] = Field(None, description="Average CPU waste percentage")
+    avg_memory_waste: Optional[float] = Field(None, description="Average memory waste percentage")
+
+
+class BulkOptimizationAction(BaseModel):
+    """Action for bulk optimization of workload categories"""
+    action_id: str = Field(..., description="Unique identifier for this bulk action")
+    category: str = Field(..., description="Workload category this applies to")
+    name: str = Field(..., description="Name of the bulk optimization action")
+    description: str = Field(..., description="Description of what this action does")
+    affected_workloads: int = Field(..., description="Number of workloads this action affects")
+    estimated_savings: float = Field(0, description="Estimated monthly savings in USD")
+    implementation_complexity: Literal["low", "medium", "high"] = Field(..., description="Implementation complexity")
+    
+    # Template commands for bulk application
+    template_commands: Dict[str, List[str]] = Field(..., description="Template kubectl commands")
+    validation_commands: List[str] = Field(default_factory=list, description="Commands to validate bulk changes")
+    rollback_procedure: List[str] = Field(default_factory=list, description="Steps to rollback if issues arise")
+    
+    prerequisites: List[str] = Field(default_factory=list, description="Prerequisites before applying bulk changes")
+    success_criteria: List[str] = Field(default_factory=list, description="Criteria to determine success")
+    risks: List[str] = Field(default_factory=list, description="Potential risks of bulk changes")
 
 
 class AzurePricingActionType(str, Enum):
@@ -327,7 +366,8 @@ class ImplementationPhase(BaseModel):
     total_savings_monthly: float = Field(ge=0, description="Total monthly savings")
     risk_level: RiskLevel = Field(description="Phase risk level")
     effort_hours: float = Field(ge=0, description="Total phase effort")
-    actions: List[OptimizationAction] = Field(description="Phase actions")
+    actions: List[OptimizationAction] = Field(description="Phase actions for individual workloads")
+    bulk_actions: List[BulkOptimizationAction] = Field(default_factory=list, description="Bulk optimization actions for workload categories")
     
     # Enhanced actionable fields
     prerequisites: List[str] = Field(default=[], description="Phase-level prerequisites")

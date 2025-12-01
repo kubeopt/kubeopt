@@ -19,31 +19,24 @@ sys.path.insert(0, current_dir)
 
 # Load environment variables
 def load_env_files():
-    """Load environment variables from .env files"""
+    """Load environment variables from single .env file"""
     
-    # First load main .env file
+    # Load only the main .env file
     main_env_file = os.path.join(current_dir, '.env')
     if os.path.exists(main_env_file):
-        print("🔧 Loading main environment (.env)...")
+        print("🔧 Loading environment variables from .env...")
         with open(main_env_file, 'r') as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith('#') and '=' in line:
                     key, value = line.split('=', 1)
+                    # Handle inline comments
+                    if '#' in value:
+                        value = value.split('#')[0].strip()
                     os.environ[key] = value
-        print("✅ Main environment (.env) loaded")
-    
-    # Then load development overrides if available
-    dev_env_file = os.path.join(current_dir, '.env.development')
-    if os.path.exists(dev_env_file):
-        print("🔧 Loading development environment (.env.development)...")
-        with open(dev_env_file, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    os.environ[key] = value
-        print("✅ Development environment (.env.development) loaded")
+        print("✅ Environment variables loaded from single .env file")
+    else:
+        print("⚠️ No .env file found")
 
 # Load environment variables
 load_env_files()
