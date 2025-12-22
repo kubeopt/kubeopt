@@ -452,6 +452,11 @@ class KubeOptImplementationPlan(BaseModel):
         return sum(phase.total_savings_monthly for phase in self.phases)
     
     @property
+    def estimated_total_savings_monthly(self) -> float:
+        """Alias for total_monthly_savings for backward compatibility"""
+        return self.total_monthly_savings
+    
+    @property
     def total_actions(self) -> int:
         """Count total actions across all phases"""
         return sum(len(phase.actions) for phase in self.phases)
@@ -664,7 +669,7 @@ def create_empty_plan(cluster_name: str, plan_id: str = None) -> KubeOptImplemen
             projected_monthly_cost=0,
             cost_reduction_percentage=0,
             implementation_duration="TBD",
-            total_phases=0,
+            total_phases=1,
             risk_level=RiskLevel.LOW
         ),
         phases=[],
