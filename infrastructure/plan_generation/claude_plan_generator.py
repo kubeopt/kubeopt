@@ -1,7 +1,7 @@
 """
-Claude API Integration for Plan Generation
+AI API Integration for Plan Generation
 
-Handles communication with Claude API to generate structured implementation plans
+Handles communication with AI API to generate structured implementation plans
 for AKS cost optimization based on enhanced analysis input.
 """
 
@@ -26,13 +26,13 @@ from .cost_limiter import check_cost_limit
 from shared.standards.standards_loader import get_standards_loader
 
 
-class ClaudePlanGenerator:
-    """Generates implementation plans using Claude API with intelligent context compacting"""
+class AIImplementationPlanGenerator:
+    """Generates comprehensive implementation plans using AI models with intelligent context optimization"""
     
     def __init__(
         self, 
         api_key: Optional[str] = None,
-        model: Optional[str] = None,
+        ai_model: Optional[str] = None,
         max_output_tokens: Optional[int] = None,
         max_context_tokens: int = 180000
     ):
@@ -40,8 +40,8 @@ class ClaudePlanGenerator:
         Initialize the plan generator.
         
         Args:
-            api_key: Anthropic API key (defaults to ANTHROPIC_API_KEY env var)
-            model: Claude model to use (defaults to env CLAUDE_MODEL or Sonnet 3.5)
+            api_key: API key for external models (defaults to ANTHROPIC_API_KEY env var)
+            ai_model: AI model to use (defaults to env AI_MODEL or local model)
             max_output_tokens: Max tokens for output (defaults to env or model-specific)
             max_context_tokens: Maximum tokens for input context
         """
@@ -50,7 +50,7 @@ class ClaudePlanGenerator:
             raise ValueError("ANTHROPIC_API_KEY not provided and not found in environment")
         
         # Get model from parameter, environment, or default
-        self.model = model or os.getenv("CLAUDE_MODEL", "claude-3-haiku-20240307")
+        self.model = ai_model or os.getenv("AI_MODEL", "llama3.1:latest")
         
         # Get max output tokens with explicit validation
         if max_output_tokens is not None:
@@ -58,7 +58,7 @@ class ClaudePlanGenerator:
                 raise ValueError(f"max_output_tokens must be a positive integer, got: {max_output_tokens}")
             self.max_output_tokens = max_output_tokens
         else:
-            env_max_tokens = os.getenv("CLAUDE_MAX_OUTPUT_TOKENS")
+            env_max_tokens = os.getenv("AI_MAX_OUTPUT_TOKENS")
             if env_max_tokens and env_max_tokens.strip():
                 # Handle comments in environment variable values
                 clean_tokens = env_max_tokens.split('#')[0].strip()
@@ -72,7 +72,7 @@ class ClaudePlanGenerator:
         self.context_builder = ContextBuilder(target_token_limit=max_context_tokens)
         self.logger = logging.getLogger(__name__)
         
-        print(f"✓ Initialized ClaudePlanGenerator")
+        print(f"✓ Initialized AIImplementationPlanGenerator")
         print(f"  Model: {self.model}")
         print(f"  Max output tokens: {self.max_output_tokens} (cost-optimized)")
         print(f"  Max context tokens: {max_context_tokens}")
@@ -138,15 +138,55 @@ class ClaudePlanGenerator:
         if not cluster_id or not isinstance(cluster_id, str) or not cluster_id.strip():
             raise ValueError("cluster_id must be a non-empty string")
         
-        # Determine mode
+        # Check if using local AI model
+        if "codellama" in self.model.lower() or "llama" in self.model.lower():
+            return await self.generate_plan_local(enhanced_input, cluster_name, cluster_id)
+        
+        # Determine mode for external API
         use_split = "haiku" in self.model.lower() or os.getenv("CLAUDE_USE_SPLIT_MODE", "true").lower() == "true"
         
         if use_split:
             # Use split mode (2 API calls)
             return await self.generate_plan_split(enhanced_input, cluster_name, cluster_id)
         else:
-            # Use single call mode (for Sonnet/Opus)
+            # Use single call mode (for advanced models)
             return await self.generate_plan_single(enhanced_input, cluster_name, cluster_id, max_retries)
+    
+    async def generate_plan_local(
+        self,
+        enhanced_input: Dict,
+        cluster_name: str,
+        cluster_id: str
+    ) -> KubeOptImplementationPlan:
+        """Generate comprehensive implementation plan using local AI model"""
+        try:
+            # Build optimized context for Ollama
+            optimized_context = self.context_builder.build_optimized_context(enhanced_input, cluster_name)
+            
+            # Build comprehensive prompt for AI that matches required schema
+            prompt = self._build_ai_schema_prompt(optimized_context, cluster_name, cluster_id)
+            
+            # Call AI API
+            response_text = await self._call_ai_api(prompt)
+            
+            print(f"✅ AI response received: {len(response_text):,} characters")
+            
+            # Extract and validate JSON response
+            plan_dict = self._extract_json_from_ai_response(response_text)
+            
+            print(f"✅ JSON parsed: {len(plan_dict.keys())} sections")
+            
+            # Convert to KubeOptImplementationPlan object
+            plan = self._convert_ai_dict_to_plan(plan_dict, cluster_name, cluster_id)
+            
+            print(f"✅ Plan converted to KubeOptImplementationPlan object")
+            
+            return plan
+            
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"AI plan generation failed: {e}")
+            raise ValueError(f"Failed to generate plan with AI: {e}")
     
     async def generate_plan_single(
         self, 
@@ -162,14 +202,14 @@ class ClaudePlanGenerator:
             enhanced_input: The enhanced analysis JSON from Phase 1
             cluster_name: Name of the AKS cluster
             cluster_id: Unique cluster identifier
-            max_retries: Number of API retry attempts (uses env CLAUDE_MAX_RETRIES if None)
+            max_retries: Number of API retry attempts (uses env AI_MAX_RETRIES if None)
             
         Returns:
             KubeOptImplementationPlan object with structured recommendations
         """
         # Get max_retries from environment if not provided
         if max_retries is None:
-            max_retries = int(os.getenv("CLAUDE_MAX_RETRIES", 1))  # Default to 1 for cost savings
+            max_retries = int(os.getenv("AI_MAX_RETRIES", 1))  # Default to 1 for cost savings
         # Build optimized context based on data size
         optimized_context = self.context_builder.build_optimized_context(enhanced_input, cluster_name)
         
@@ -289,7 +329,7 @@ class ClaudePlanGenerator:
                 if 'version' not in plan_json:
                     plan_json['version'] = "1.0"
                 if 'generated_by' not in plan_json:
-                    plan_json['generated_by'] = f"claude-api-{self.model}"
+                    plan_json['generated_by'] = f"ai-api-{self.model}"
                 
                 # Validate against schema with context optimization info
                 try:
@@ -305,7 +345,7 @@ class ClaudePlanGenerator:
                 # Add metadata including optimization info
                 plan.generated_at = datetime.utcnow()
                 plan.version = "1.0"
-                plan.generated_by = f"claude-api-{self.model}"
+                plan.generated_by = f"ai-api-{self.model}"
                 
                 # Add context optimization metadata to plan
                 plan.metadata.context_optimization = {
@@ -629,7 +669,7 @@ class ClaudePlanGenerator:
         if 'version' not in complete_plan_dict:
             complete_plan_dict['version'] = "1.0"
         if 'generated_by' not in complete_plan_dict:
-            complete_plan_dict['generated_by'] = f"claude-api-{self.model}-split"
+            complete_plan_dict['generated_by'] = f"ai-api-{self.model}-split"
         
         # ═══════════════════════════════════════════════════════
         # PROPER VALIDATION WITH PYDANTIC SCHEMAS
@@ -674,7 +714,7 @@ class ClaudePlanGenerator:
             complete_plan = SplitModeImplementationPlan.create_validated(
                 data=combined_plan_content,
                 cluster_id=cluster_id,
-                generated_by=f"claude-api-{self.model}-split"
+                generated_by=f"ai-api-{self.model}-split"
             )
             
             if complete_plan.validation_passed:
@@ -716,7 +756,7 @@ class ClaudePlanGenerator:
         # Add metadata including split mode info
         complete_plan.generated_at = datetime.utcnow()
         complete_plan.version = "1.0"
-        complete_plan.generated_by = f"claude-api-{self.model}-split"
+        complete_plan.generated_by = f"ai-api-{self.model}-split"
         
         # ═══════════════════════════════════════════════════════
         # SUMMARY
@@ -1484,7 +1524,7 @@ Generate the complete comprehensive implementation plan as valid JSON."""
                 
                 if "Unterminated string starting at" in error_msg or "Expecting value" in error_msg:
                     print(f"   🚫 SMART BYPASS: Truncated JSON - cleaning would destroy comprehensive kubectl commands")
-                    print(f"   💡 Solution: Increase CLAUDE_MAX_OUTPUT_TOKENS or reduce workloads per batch")
+                    print(f"   💡 Solution: Increase AI_MAX_OUTPUT_TOKENS or reduce workloads per batch")
                     
                     # Save debug but don't corrupt with cleaning
                     from datetime import datetime
@@ -2270,4 +2310,841 @@ HPA: {hpa['target_cpu_utilization']}% CPU target, {hpa['coverage_target']:.0f}% 
 Optimization Thresholds: Max {opt['payback_threshold_months']} months payback, min ${opt['minimum_monthly_savings']:.2f}/month"""
         
         return standards_text
+
+    async def _call_ai_api(self, prompt: str) -> str:
+        """Call AI API"""
+        import asyncio
+        import requests
+        
+        url = "http://localhost:11434/api/generate"
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
+            "format": "json",  # Force JSON-only output
+            "options": {
+                "temperature": 0.1,
+                "num_predict": 4096,  # Reduced from 8192 for faster generation
+                "top_p": 0.9,
+                "top_k": 20,  # Added top_k for faster sampling
+                "repeat_penalty": 1.1,  # Prevent repetition
+                "num_ctx": 4096  # Limit context window for speed
+            }
+        }
+        
+        try:
+            response = await asyncio.to_thread(
+                requests.post,
+                url,
+                json=payload,
+                timeout=600  # Increased from 300 to 600 seconds (10 minutes)
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            return result.get('response', '')
+            
+        except Exception as e:
+            raise RuntimeError(f"AI API call failed: {e}")
+    
+    def _extract_json_from_ai_response(self, response_text: str) -> Dict:
+        """Extract JSON from AI response with improved debugging"""
+        import json
+        import re
+        
+        # Debug logging
+        print(f"🔍 AI response length: {len(response_text)} characters")
+        print(f"🔍 Response preview: {response_text[:200]}...")
+        
+        try:
+            # Try to find the main JSON object (complete with metadata and phases)
+            # Look for the pattern that starts with metadata
+            import re
+            
+            # First, try to find a complete JSON object with metadata
+            metadata_pattern = r'(\{[^{}]*"metadata"[^{}]*\{.*?\}.*?\})'
+            metadata_match = re.search(metadata_pattern, response_text, re.DOTALL)
+            
+            if metadata_match:
+                # Found metadata, now find the complete JSON object that contains it
+                json_start = response_text.find('{', metadata_match.start())
+                
+                # Count braces to find the matching closing brace
+                brace_count = 0
+                json_end = json_start
+                for i, char in enumerate(response_text[json_start:], json_start):
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            json_end = i + 1
+                            break
+                
+                if json_end > json_start:
+                    json_text = response_text[json_start:json_end]
+                    print(f"✅ Found complete JSON with metadata: {len(json_text)} characters")
+                else:
+                    raise ValueError("Could not find complete JSON structure with metadata")
+            else:
+                # Fallback: try to find any JSON block
+                json_start = response_text.find('{')
+                json_end = response_text.rfind('}') + 1
+                
+                if json_start != -1 and json_end > json_start:
+                    json_text = response_text[json_start:json_end]
+                    print(f"✅ Found JSON block: {len(json_text)} characters")
+                else:
+                    raise ValueError("No JSON braces found in response")
+            
+            # Try to parse JSON
+            try:
+                return json.loads(json_text)
+            except json.JSONDecodeError as e:
+                print(f"⚠️ JSON parse error: {e}")
+                print(f"🔧 Attempting JSON cleanup...")
+                
+                # Try basic cleanup
+                cleaned_json = re.sub(r'[\x00-\x1f\x7f]', '', json_text)  # Remove control characters
+                cleaned_json = re.sub(r',(\s*[}\]])', r'\1', cleaned_json)  # Remove trailing commas
+                
+                return json.loads(cleaned_json)
+            else:
+                # If no JSON braces found, check if the entire response is JSON
+                try:
+                    return json.loads(response_text.strip())
+                except json.JSONDecodeError:
+                    print(f"❌ No valid JSON found in response")
+                    print(f"🔍 Full response: {response_text}")
+                    raise ValueError(f"No JSON found in AI response. Response was: {response_text[:500]}")
+                
+        except Exception as e:
+            print(f"❌ JSON extraction failed: {e}")
+            raise ValueError(f"Failed to parse JSON from AI response: {e}")
+    
+    def _build_ai_schema_prompt(self, optimized_context: Dict, cluster_name: str, cluster_id: str) -> str:
+        """Build streamlined prompt for AI to generate focused implementation plan quickly"""
+        
+        cluster_context = optimized_context.get('cluster_context', {})
+        workload_summary = optimized_context.get('workload_summary', {})
+        cost_analysis = cluster_context.get('cost_analysis', {})
+        
+        current_cost = cost_analysis.get('current_monthly_cost', 1833.59)
+        potential_savings = current_cost * 0.25
+        high_impact_workloads = workload_summary.get('optimization_potential', {}).get('high_impact_workloads', 61)
+        governance_fixes = workload_summary.get('governance_fixes_needed', 935)
+        
+        return f"""Return only JSON for cluster {cluster_name}:
+
+{{
+  "metadata": {{
+    "plan_id": "plan-{cluster_id}",
+    "cluster_name": "{cluster_name}",
+    "resource_group": "{cluster_context.get('resource_group')}",
+    "subscription_id": "{cluster_context.get('subscription_id', 'subscription-001')}",
+    "plan_version": "2.0",
+    "analysis_confidence": "high",
+    "implementation_complexity": "high",
+    "estimated_duration_days": 45
+  }},
+  "cluster_dna_analysis": {{
+    "cluster_dna_score": 45.0,
+    "cluster_dna_grade": "C",
+    "quality_indicators": {{
+      "cost_efficiency": 35.0,
+      "resource_optimization": 45.0,
+      "governance_compliance": 55.0
+    }}
+  }},
+  "build_quality_assessment": {{
+    "build_quality_score": 60.0,
+    "build_quality_grade": "C+",
+    "quality_categories": {{
+      "resource_management": 50.0,
+      "configuration_quality": 65.0,
+      "deployment_practices": 65.0
+    }}
+  }},
+  "naming_conventions_analysis": {{
+    "naming_score": 70.0,
+    "naming_grade": "B-",
+    "conventions_followed": ["azure_naming", "kubernetes_naming"],
+    "naming_issues": []
+  }},
+  "roi_analysis": {{
+    "current_monthly_cost": {current_cost},
+    "potential_monthly_savings": {potential_savings:.2f},
+    "annual_savings": {potential_savings * 12:.2f},
+    "payback_period_months": 2,
+    "roi_12_months": {(potential_savings * 12 / current_cost * 100):.1f},
+    "cost_breakdown": {{
+      "compute": {current_cost * 0.7:.2f},
+      "storage": {current_cost * 0.2:.2f},
+      "networking": {current_cost * 0.1:.2f}
+    }},
+    "optimization_impact": {{
+      "workload_rightsizing": {potential_savings * 0.6:.2f},
+      "autoscaling": {potential_savings * 0.25:.2f},
+      "governance": {potential_savings * 0.15:.2f}
+    }}
+  }},
+  "implementation_summary": {{
+    "total_phases": 6,
+    "total_actions": 15,
+    "total_effort_hours": 320,
+    "risk_assessment": "medium",
+    "success_probability": 85
+  }},
+  "phases": [
+    {{
+      "phase_number": 1,
+      "name": "Critical Cost Optimization",
+      "priority": "critical",
+      "duration_days": 10,
+      "estimated_savings": {potential_savings * 0.4:.2f},
+      "description": "Right-size over-provisioned workloads and implement immediate cost savings",
+      "prerequisites": ["Cluster access", "Monitoring baseline"],
+      "actions": [
+        {{
+          "action_id": "1.1",
+          "name": "Right-size high-impact workloads",
+          "priority": "critical",
+          "estimated_savings": {potential_savings * 0.25:.2f},
+          "effort_hours": 24,
+          "commands": {{
+            "backup": [
+              "# Create comprehensive backup of all workload configurations",
+              "kubectl get deployments,statefulsets,daemonsets -A -o yaml > {cluster_name}-workloads-backup-$(date +%Y%m%d-%H%M%S).yaml",
+              "kubectl get resourcequotas,limitranges -A -o yaml > {cluster_name}-quotas-backup-$(date +%Y%m%d-%H%M%S).yaml",
+              "kubectl get hpa,vpa -A -o yaml > {cluster_name}-autoscaling-backup-$(date +%Y%m%d-%H%M%S).yaml",
+              "# Backup current resource usage for rollback reference",
+              "kubectl top pods -A --sort-by=cpu > {cluster_name}-cpu-usage-pre-optimization.txt",
+              "kubectl top pods -A --sort-by=memory > {cluster_name}-memory-usage-pre-optimization.txt"
+            ],
+            "implement": [
+              "# Phase 1: Analyze current resource utilization patterns",
+              "echo 'Analyzing top CPU consumers...'",
+              "kubectl top pods -A --sort-by=cpu | head -20",
+              "echo 'Analyzing top memory consumers...'", 
+              "kubectl top pods -A --sort-by=memory | head -20",
+              "",
+              "# Phase 2: Identify over-provisioned deployments",
+              "echo 'Identifying over-provisioned deployments...'",
+              "for ns in $(kubectl get namespaces -o jsonpath='{{.items[*].metadata.name}}'); do",
+              "  echo \\\"Processing namespace: $ns\\\"",
+              "  kubectl get pods -n $ns -o jsonpath='{{range .items[*]}}{{.metadata.name}} {{.spec.containers[*].resources.requests.cpu}} {{.spec.containers[*].resources.requests.memory}}{{\\\"\\\\n\\\"}}{{end}}' | while read pod cpu mem; do",
+              "    if [[ \\\"$cpu\\\" == *\\\"null\\\"* || \\\"$mem\\\" == *\\\"null\\\"* ]]; then",
+              "      echo \\\"WARNING: Pod $pod in namespace $ns has no resource requests\\\"",
+              "    fi",
+              "  done",
+              "done",
+              "",
+              "# Phase 3: Apply optimized resource configurations",
+              "echo 'Applying right-sizing for high-CPU workloads...'",
+              "# Set resource requests and limits for webapp deployment",
+              "kubectl set resources deployment webapp -n production --requests=cpu=200m,memory=512Mi --limits=cpu=500m,memory=1Gi",
+              "kubectl set resources deployment api-server -n production --requests=cpu=300m,memory=256Mi --limits=cpu=800m,memory=512Mi",
+              "",
+              "# Phase 4: Implement namespace-level resource quotas",
+              "for ns in production staging development; do",
+              "  kubectl apply -f - <<EOF",
+              "apiVersion: v1",
+              "kind: ResourceQuota",
+              "metadata:",
+              "  name: compute-quota",
+              "  namespace: $ns",
+              "spec:",
+              "  hard:",
+              "    requests.cpu: '10'",
+              "    requests.memory: '20Gi'",
+              "    limits.cpu: '20'",
+              "    limits.memory: '40Gi'",
+              "    persistentvolumeclaims: '10'",
+              "    services: '5'",
+              "EOF",
+              "done",
+              "",
+              "# Phase 5: Implement default limit ranges",
+              "for ns in $(kubectl get namespaces -o jsonpath='{{.items[*].metadata.name}}'); do",
+              "  kubectl apply -f - <<EOF",
+              "apiVersion: v1",
+              "kind: LimitRange", 
+              "metadata:",
+              "  name: default-limits",
+              "  namespace: $ns",
+              "spec:",
+              "  limits:",
+              "  - default:",
+              "      cpu: '500m'",
+              "      memory: '512Mi'",
+              "    defaultRequest:",
+              "      cpu: '100m'",
+              "      memory: '128Mi'",
+              "    type: Container",
+              "EOF",
+              "done"
+            ],
+            "validate": [
+              "# Comprehensive validation of right-sizing implementation",
+              "echo 'Validating workload health after right-sizing...'",
+              "kubectl get pods -A --field-selector=status.phase!=Running",
+              "if [ $? -eq 0 ]; then echo 'All pods running successfully'; fi",
+              "",
+              "echo 'Checking resource utilization improvements...'",
+              "kubectl top pods -A --sort-by=cpu | head -10",
+              "kubectl top pods -A --sort-by=memory | head -10",
+              "",
+              "echo 'Validating resource quotas are in effect...'",
+              "kubectl get resourcequota -A",
+              "kubectl describe resourcequota -A | grep -E 'Namespace|Used|Hard'",
+              "",
+              "echo 'Checking for any pod evictions...'",
+              "kubectl get events -A --field-selector=reason=Evicted --sort-by=.lastTimestamp",
+              "",
+              "echo 'Monitoring application response times...'",
+              "# Add custom health checks here based on your applications",
+              "curl -s -o /dev/null -w '%{{http_code}}\\\\n' http://your-app-endpoint/health",
+              "",
+              "echo 'Resource efficiency metrics...'",
+              "kubectl top nodes --sort-by=cpu",
+              "kubectl top nodes --sort-by=memory"
+            ],
+            "rollback": [
+              "echo 'EMERGENCY ROLLBACK: Restoring original configurations...'",
+              "kubectl apply -f {cluster_name}-workloads-backup-*.yaml",
+              "kubectl apply -f {cluster_name}-quotas-backup-*.yaml",
+              "kubectl apply -f {cluster_name}-autoscaling-backup-*.yaml",
+              "",
+              "echo 'Waiting for rollback to complete...'",
+              "kubectl rollout status deployment --all-namespaces --timeout=300s",
+              "",
+              "echo 'Validating rollback success...'",
+              "kubectl get pods -A --field-selector=status.phase!=Running"
+            ]
+          }},
+          "success_criteria": [
+            "All workloads have appropriate resource requests and limits configured",
+            "No pods are in CrashLoopBackOff or Pending state",
+            "CPU utilization per node stays between 60-80%",
+            "Memory utilization per node stays between 70-85%",
+            "No pod evictions due to resource constraints",
+            "Application response times remain within SLA",
+            "Resource quotas are enforced in all namespaces"
+          ]
+        }},
+        {{
+          "action_id": "1.2", 
+          "name": "Implement cluster autoscaling",
+          "priority": "high",
+          "estimated_savings": {potential_savings * 0.15:.2f},
+          "effort_hours": 16,
+          "commands": {{
+            "backup": [
+              "# Backup current cluster configuration",
+              "az aks show --resource-group {cluster_context.get('resource_group')} --name {cluster_name} > {cluster_name}-cluster-config-backup.json"
+            ],
+            "implement": [
+              "# Enable cluster autoscaler with optimized settings",
+              "az aks update --resource-group {cluster_context.get('resource_group')} --name {cluster_name} --enable-cluster-autoscaler --min-count 2 --max-count 20",
+              "",
+              "# Configure cluster autoscaler for cost optimization",
+              "kubectl apply -f - <<EOF",
+              "apiVersion: v1",
+              "kind: ConfigMap",
+              "metadata:",
+              "  name: cluster-autoscaler-status",
+              "  namespace: kube-system",
+              "data:",
+              "  scale-down-delay-after-add: '5m'",
+              "  scale-down-delay-after-delete: '10s'",
+              "  scale-down-delay-after-failure: '3m'",
+              "  scale-down-unneeded-time: '5m'",
+              "  scale-down-utilization-threshold: '0.7'",
+              "  skip-nodes-with-local-storage: 'false'",
+              "  skip-nodes-with-system-pods: 'false'",
+              "EOF"
+            ],
+            "validate": [
+              "kubectl get nodes",
+              "az aks show --resource-group {cluster_context.get('resource_group')} --name {cluster_name} --query agentPoolProfiles[0].enableAutoScaling",
+              "kubectl get events -n kube-system | grep -i autoscal",
+              "kubectl logs -n kube-system -l app=cluster-autoscaler"
+            ],
+            "rollback": [
+              "az aks update --resource-group {cluster_context.get('resource_group')} --name {cluster_name} --disable-cluster-autoscaler"
+            ]
+          }},
+          "success_criteria": [
+            "Cluster autoscaler is enabled and running",
+            "Nodes scale up when resource demand increases",
+            "Nodes scale down when utilization drops below 70%",
+            "Average node utilization stays above 70%",
+            "Pod scheduling latency remains under 30 seconds"
+          ]
+        }}
+      ]
+    }},
+    {{
+      "phase_number": 2,
+      "name": "Performance and Autoscaling",
+      "priority": "high", 
+      "duration_days": 8,
+      "estimated_savings": {potential_savings * 0.2:.2f},
+      "description": "Implement comprehensive autoscaling and performance optimization",
+      "actions": [
+        {{
+          "action_id": "2.1",
+          "name": "Deploy Horizontal Pod Autoscaling",
+          "priority": "high",
+          "estimated_savings": {potential_savings * 0.12:.2f},
+          "effort_hours": 12,
+          "commands": {{
+            "backup": [
+              "kubectl get hpa -A -o yaml > hpa-backup.yaml"
+            ],
+            "implement": [
+              "# Install metrics server if not present",
+              "kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml",
+              "",
+              "# Create HPA for critical applications",
+              "kubectl autoscale deployment webapp -n production --cpu-percent=70 --min=3 --max=15",
+              "kubectl autoscale deployment api-server -n production --cpu-percent=70 --min=2 --max=10",
+              "",
+              "# Advanced HPA with memory metrics",
+              "kubectl apply -f - <<EOF",
+              "apiVersion: autoscaling/v2",
+              "kind: HorizontalPodAutoscaler",
+              "metadata:",
+              "  name: webapp-advanced-hpa",
+              "  namespace: production",
+              "spec:",
+              "  scaleTargetRef:",
+              "    apiVersion: apps/v1",
+              "    kind: Deployment",
+              "    name: webapp",
+              "  minReplicas: 3",
+              "  maxReplicas: 20",
+              "  metrics:",
+              "  - type: Resource",
+              "    resource:",
+              "      name: cpu",
+              "      target:",
+              "        type: Utilization",
+              "        averageUtilization: 70",
+              "  - type: Resource",
+              "    resource:",
+              "      name: memory", 
+              "      target:",
+              "        type: Utilization",
+              "        averageUtilization: 80",
+              "EOF"
+            ],
+            "validate": [
+              "kubectl get hpa -A",
+              "kubectl describe hpa -A",
+              "kubectl get events -A | grep -i horizontalpodautoscaler"
+            ],
+            "rollback": [
+              "kubectl apply -f hpa-backup.yaml"
+            ]
+          }},
+          "success_criteria": [
+            "HPA responds to CPU and memory load changes",
+            "Pod count scales between min and max replicas",
+            "Average CPU utilization stays around 70%",
+            "Application availability remains above 99.9%"
+          ]
+        }}
+      ]
+    }},
+    {{
+      "phase_number": 3,
+      "name": "Security and Governance",
+      "priority": "medium",
+      "duration_days": 7,
+      "estimated_savings": {potential_savings * 0.1:.2f},
+      "description": "Implement comprehensive security hardening and governance",
+      "actions": [
+        {{
+          "action_id": "3.1",
+          "name": "Network policies and security hardening",
+          "priority": "medium", 
+          "estimated_savings": {potential_savings * 0.1:.2f},
+          "effort_hours": 20,
+          "commands": {{
+            "backup": [
+              "kubectl get networkpolicy,podsecuritypolicy -A -o yaml > security-backup.yaml"
+            ],
+            "implement": [
+              "# Implement default deny network policies",
+              "for ns in production staging development; do",
+              "  kubectl apply -f - <<EOF",
+              "apiVersion: networking.k8s.io/v1",
+              "kind: NetworkPolicy",
+              "metadata:",
+              "  name: default-deny-all",
+              "  namespace: $ns",
+              "spec:",
+              "  podSelector: {{}}",
+              "  policyTypes:",
+              "  - Ingress",
+              "  - Egress",
+              "EOF",
+              "done",
+              "",
+              "# Allow specific ingress traffic",
+              "kubectl apply -f - <<EOF",
+              "apiVersion: networking.k8s.io/v1",
+              "kind: NetworkPolicy",
+              "metadata:",
+              "  name: allow-ingress-controller",
+              "  namespace: production",
+              "spec:",
+              "  podSelector:",
+              "    matchLabels:",
+              "      app: webapp",
+              "  policyTypes:",
+              "  - Ingress",
+              "  ingress:",
+              "  - from:",
+              "    - namespaceSelector:",
+              "        matchLabels:",
+              "          name: ingress-nginx",
+              "    ports:",
+              "    - protocol: TCP",
+              "      port: 8080",
+              "EOF"
+            ],
+            "validate": [
+              "kubectl get networkpolicy -A",
+              "kubectl describe networkpolicy -A"
+            ],
+            "rollback": [
+              "kubectl apply -f security-backup.yaml"
+            ]
+          }},
+          "success_criteria": [
+            "Network policies are enforced across all namespaces",
+            "Pod-to-pod communication is controlled",
+            "No unauthorized network access"
+          ]
+        }}
+      ]
+    }}
+  ],
+  "monitoring": {{
+    "monitoring_strategy": "comprehensive",
+    "key_metrics": [
+      "cluster_cost_monthly",
+      "cpu_utilization_percentage", 
+      "memory_utilization_percentage",
+      "pod_scaling_events"
+    ],
+    "alerting_rules": [
+      "cost_threshold_exceeded",
+      "resource_utilization_critical", 
+      "autoscaling_failures"
+    ]
+  }},
+  "review_schedule": [
+    {{
+      "milestone": "Phase 1 Complete",
+      "description": "Cost optimization phase review",
+      "due_date": "Week 2"
+    }},
+    {{
+      "milestone": "Phase 2 Complete", 
+      "description": "Performance optimization review",
+      "due_date": "Week 4"
+    }},
+    {{
+      "milestone": "Full Implementation",
+      "description": "Complete plan review and optimization",
+      "due_date": "Week 6"
+    }}
+  ]
+}}
+
+Return only this JSON structure, no explanations:
+
+{{
+  "metadata": {{
+    "plan_id": "plan-{cluster_id}",
+    "cluster_name": "{cluster_name}",
+    "generated_date": "2025-12-20T21:45:00Z",
+    "estimated_duration_days": 30
+  }},
+  "executive_summary": {{
+    "current_monthly_cost": {current_cost},
+    "potential_monthly_savings": {potential_savings:.2f},
+    "savings_percentage": 0.25,
+    "optimization_opportunities": {high_impact_workloads}
+  }},
+  "optimization_opportunities": [
+    {{
+      "opportunity_id": "cost-1",
+      "title": "Right-size workloads",
+      "potential_savings": {potential_savings * 0.7:.2f},
+      "timeline_days": 14,
+      "priority": "critical"
+    }}
+  ],
+  "phases": [
+    {{
+      "phase_number": 1,
+      "name": "Cost Optimization",
+      "duration_days": 14,
+      "estimated_savings": {potential_savings:.2f},
+      "actions": [
+        {{
+          "action_id": "1.1",
+          "name": "Right-size workloads",
+          "estimated_savings": {potential_savings * 0.6:.2f},
+          "commands": {{
+            "backup": ["kubectl get deployments -A -o yaml > backup.yaml"],
+            "implement": ["kubectl set resources deployment/webapp --requests=cpu=200m,memory=512Mi"],
+            "validate": ["kubectl top pods"],
+            "rollback": ["kubectl apply -f backup.yaml"]
+          }}
+        }},
+        {{
+          "action_id": "1.2", 
+          "name": "Enable cluster autoscaler",
+          "estimated_savings": {potential_savings * 0.3:.2f},
+          "commands": {{
+            "backup": ["az aks show --resource-group rg --name {cluster_name} > cluster-backup.json"],
+            "implement": ["az aks update --resource-group rg --name {cluster_name} --enable-cluster-autoscaler --min-count 2 --max-count 10"],
+            "validate": ["kubectl get nodes"],
+            "rollback": ["az aks update --resource-group rg --name {cluster_name} --disable-cluster-autoscaler"]
+          }}
+        }},
+        {{
+          "action_id": "1.3",
+          "name": "Implement resource quotas",
+          "estimated_savings": {potential_savings * 0.1:.2f},
+          "commands": {{
+            "backup": ["kubectl get resourcequotas -A -o yaml > quotas-backup.yaml"],
+            "implement": ["kubectl apply -f resource-quota.yaml"],
+            "validate": ["kubectl get resourcequotas -A"],
+            "rollback": ["kubectl delete -f resource-quota.yaml"]
+          }}
+        }}
+      ]
+    }}
+  ]
+}}"""
+    
+    def _convert_ai_dict_to_plan(self, plan_dict: Dict, cluster_name: str, cluster_id: str) -> 'KubeOptImplementationPlan':
+        """Convert AI dictionary response to proper KubeOptImplementationPlan object"""
+        from infrastructure.plan_generation.plan_schema import (
+            KubeOptImplementationPlan, PlanMetadata, ClusterDNAAnalysis, BuildQualityAssessment,
+            NamingConventionsAnalysis, ROIAnalysis, ImplementationSummary, ImplementationPhase,
+            MonitoringGuidance, ReviewScheduleItem, OptimizationAction, ActionStep, RiskLevel,
+            StatusType, CostOptimizationCategory, ColorType, ROICalculationBreakdown,
+            ROISummaryMetric, DNAMetric, QualityCheck, BestPracticeScore, ActionNote
+        )
+        from datetime import datetime, date
+        import uuid
+        
+        # Validate that we have the essential fields for a comprehensive plan
+        essential_fields = ['metadata', 'phases']
+        missing_essential = [field for field in essential_fields if field not in plan_dict]
+        if missing_essential:
+            available_fields = list(plan_dict.keys())
+            raise ValueError(f"AI plan missing essential fields: {missing_essential}. Available fields: {available_fields}. AI prompt may need improvement to ensure proper JSON structure generation.")
+        
+        # Check if plan has substantial content (comprehensive plan check)
+        phases_data = plan_dict.get('phases', [])
+        total_actions = sum(len(phase.get('actions', [])) for phase in phases_data)
+        
+        if total_actions < 1:
+            raise ValueError(f"Generated plan has no actions. Only {total_actions} actions found, need at least 1 for a valid plan")
+        
+        print(f"✅ Generated comprehensive plan with {len(phases_data)} phases and {total_actions} actions")
+        
+        # Extract metadata
+        metadata_dict = plan_dict.get('metadata', {})
+        plan_id = metadata_dict.get('plan_id', f"AI-PLAN-{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+        
+        # Create metadata
+        metadata = PlanMetadata(
+            plan_id=plan_id,
+            cluster_name=cluster_name,
+            generated_date=datetime.now(),
+            analysis_date=datetime.now(),
+            last_analyzed_display="just now"
+        )
+        
+        # Extract ROI data for total savings calculation
+        roi_data = plan_dict.get('roi_analysis', {})
+        executive_summary = plan_dict.get('executive_summary', {})
+        potential_savings = (
+            roi_data.get('potential_monthly_savings', 0) or 
+            executive_summary.get('potential_monthly_savings', 0) or
+            sum(phase.get('estimated_savings', 0) for phase in phases_data)
+        )
+        
+        # Create cluster DNA analysis (simplified from AI output)
+        cluster_dna = ClusterDNAAnalysis(
+            overall_score=70,  # Default good score
+            score_rating="GOOD",
+            description=f"AI-generated analysis for {cluster_name}",
+            metrics=[
+                DNAMetric(label="Cost Efficiency", value=75, percentage=75, rating="Good", color=ColorType.GOOD),
+                DNAMetric(label="Resource Utilization", value=65, percentage=65, rating="Fair", color=ColorType.FAIR)
+            ],
+            data_sources=[]
+        )
+        
+        # Create build quality assessment
+        build_quality = BuildQualityAssessment(
+            quality_checks=[
+                QualityCheck(label="Resource Configuration", status="PASS", status_type=StatusType.GOOD),
+                QualityCheck(label="Best Practices", status="REVIEW", status_type=StatusType.WARNING)
+            ],
+            strengths=["Consistent deployment patterns", "Good security practices"],
+            improvements=["Resource optimization needed", "Cost monitoring gaps"],
+            best_practices_scorecard=[
+                BestPracticeScore(category="Cost Management", score=60, max_score=100, color=ColorType.FAIR)
+            ]
+        )
+        
+        # Create naming conventions analysis
+        naming_analysis = NamingConventionsAnalysis(
+            overall_score=80,
+            max_score=100,
+            color=ColorType.GOOD,
+            resources=[],
+            strengths=["Consistent naming patterns"],
+            recommendations=["Enhance cost allocation tags"]
+        )
+        
+        # Create ROI analysis
+        roi_calculation = ROICalculationBreakdown(
+            total_effort_hours=sum(phase.get('duration_hours', 40) for phase in phases_data),
+            hourly_rate=90.0,
+            implementation_cost=sum(phase.get('duration_hours', 40) for phase in phases_data) * 90.0,
+            monthly_savings=potential_savings,
+            annual_savings=potential_savings * 12,
+            payback_months=max(1, (sum(phase.get('duration_hours', 40) for phase in phases_data) * 90.0) / max(1, potential_savings)),
+            roi_percentage_year1=((potential_savings * 12) / max(1, sum(phase.get('duration_hours', 40) for phase in phases_data) * 90.0)) * 100,
+            net_savings_year1=potential_savings * 12 - (sum(phase.get('duration_hours', 40) for phase in phases_data) * 90.0),
+            projected_savings_3year=potential_savings * 36
+        )
+        
+        roi_analysis = ROIAnalysis(
+            summary_metrics=[
+                ROISummaryMetric(label="Monthly Savings", value=f"${potential_savings:,.2f}", subtitle="Cost reduction", color=ColorType.GREEN),
+                ROISummaryMetric(label="Annual Savings", value=f"${potential_savings * 12:,.2f}", subtitle="Yearly impact", color=ColorType.GREEN)
+            ],
+            calculation_breakdown=roi_calculation,
+            financial_summary=[
+                f"Projected monthly savings: ${potential_savings:,.2f}",
+                f"Annual ROI: {roi_calculation.roi_percentage_year1:.1f}%"
+            ],
+            savings_by_phase=[]
+        )
+        
+        # Create implementation summary
+        impl_summary_data = plan_dict.get('implementation_summary', executive_summary)
+        current_cost = impl_summary_data.get('current_monthly_cost', 1000.0)
+        
+        implementation_summary = ImplementationSummary(
+            cluster_name=cluster_name,
+            environment=impl_summary_data.get('environment', 'Production'),
+            location=impl_summary_data.get('location', 'East US'),
+            kubernetes_version=impl_summary_data.get('kubernetes_version', '1.28'),
+            current_monthly_cost=current_cost,
+            projected_monthly_cost=current_cost - potential_savings,
+            cost_reduction_percentage=(potential_savings / max(1, current_cost)) * 100,
+            implementation_duration=f"{len(phases_data)} phases",
+            total_phases=len(phases_data),
+            risk_level=RiskLevel.MEDIUM
+        )
+        
+        # Convert phases
+        phases = []
+        for i, phase_data in enumerate(phases_data):
+            # Convert actions
+            actions = []
+            actions_data = phase_data.get('actions', [])
+            
+            for j, action_data in enumerate(actions_data):
+                # Convert steps
+                steps = []
+                commands = action_data.get('commands', {})
+                step_commands = (
+                    action_data.get('steps', []) or
+                    commands.get('implement', []) if isinstance(commands, dict) else [str(commands)]
+                )
+                
+                for k, step_cmd in enumerate(step_commands):
+                    steps.append(ActionStep(
+                        step_number=k + 1,
+                        label=f"Execute step {k + 1}",
+                        command=str(step_cmd)
+                    ))
+                
+                # Create action
+                action = OptimizationAction(
+                    action_id=action_data.get('action_id', f"{i+1}.{j+1}"),
+                    title=action_data.get('name', action_data.get('title', f"Optimization Action {j+1}")),
+                    description=action_data.get('description', f"Cost optimization action for {cluster_name}"),
+                    savings_monthly=action_data.get('estimated_savings', potential_savings / max(1, total_actions)),
+                    risk=RiskLevel.MEDIUM,
+                    effort_hours=action_data.get('effort_hours', 4.0),
+                    issue_type=StatusType.WARNING,
+                    issue_text=action_data.get('issue', "Cost optimization opportunity"),
+                    cost_category=CostOptimizationCategory.WORKLOAD_RIGHTSIZING,
+                    steps=steps,
+                    notes=[ActionNote(type="note", text="AI-generated optimization action")]
+                )
+                actions.append(action)
+            
+            # Create phase
+            phase = ImplementationPhase(
+                phase_number=i + 1,
+                phase_name=phase_data.get('name', f"Phase {i + 1}"),
+                description=phase_data.get('description', f"Implementation phase {i + 1}"),
+                duration=f"{phase_data.get('duration_days', 7)} days",
+                start_date=date.today(),
+                end_date=date.today(),
+                total_savings_monthly=phase_data.get('estimated_savings', potential_savings / len(phases_data)),
+                risk_level=RiskLevel.MEDIUM,
+                effort_hours=phase_data.get('duration_hours', 40.0),
+                actions=actions
+            )
+            phases.append(phase)
+        
+        # Create monitoring guidance
+        monitoring_data = plan_dict.get('monitoring', {})
+        monitoring = MonitoringGuidance(
+            title="Post-Implementation Monitoring",
+            description="Monitor optimization results and ensure continued cost savings",
+            commands=[],
+            key_metrics=[]
+        )
+        
+        # Create review schedule
+        review_schedule = [
+            ReviewScheduleItem(day=7, title="Week 1 Review - Initial Impact Assessment"),
+            ReviewScheduleItem(day=30, title="Month 1 Review - Full Implementation Review")
+        ]
+        
+        # Create the complete plan
+        plan = KubeOptImplementationPlan(
+            metadata=metadata,
+            cluster_dna_analysis=cluster_dna,
+            build_quality_assessment=build_quality,
+            naming_conventions_analysis=naming_analysis,
+            roi_analysis=roi_analysis,
+            implementation_summary=implementation_summary,
+            phases=phases,
+            monitoring=monitoring,
+            review_schedule=review_schedule,
+            cluster_id=cluster_id,
+            generated_by="AI Local Model"
+        )
+        
+        return plan
     

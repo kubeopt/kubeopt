@@ -17,7 +17,7 @@ import asyncio
 from shared.config.config import logger, enhanced_cluster_manager
 from shared.utils.shared import _get_analysis_data
 from machine_learning.core.enterprise_metrics import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
-from infrastructure.plan_generation.claude_plan_generator import ClaudePlanGenerator
+from infrastructure.plan_generation.claude_plan_generator import AIImplementationPlanGenerator
 from infrastructure.services.feature_guard import require_feature, get_ui_feature_flags
 from infrastructure.services.license_manager import FeatureFlag
 
@@ -180,7 +180,7 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
     """Generate dynamic action items using existing implementation"""
     try:
         # Create an instance of the implementation generator
-        generator = ClaudePlanGenerator()
+        generator = AIImplementationPlanGenerator()
         
         # Calculate scores for each metric (matching our enterprise metrics)
         scores = {

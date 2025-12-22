@@ -4,16 +4,16 @@ Plan Generation Module
 This module handles the separation of implementation plan generation from the
 core analysis engine. It provides:
 
-- Claude API integration for plan generation
+- AI API integration for plan generation
 - Schema validation for generated plans
 - Plan storage and versioning
 - HTML rendering for plan visualization
 
 Architecture:
-    Data Collection → Enhanced Input → Claude API → Plan Validation → Storage → Rendering
+    Data Collection → Enhanced Input → AI API → Plan Validation → Storage → Rendering
 """
 
-from .claude_plan_generator import ClaudePlanGenerator
+from .claude_plan_generator import AIImplementationPlanGenerator
 from .plan_schema import (
     KubeOptImplementationPlan, ImplementationPlanDocument, 
     OptimizationAction, ImplementationPhase, create_empty_plan
@@ -23,7 +23,7 @@ from .plan_renderer import PlanRenderer
 from .kubeopt_plan_renderer import KubeOptPlanRenderer, create_kubeopt_plan_renderer
 
 __all__ = [
-    'ClaudePlanGenerator',
+    'AIImplementationPlanGenerator',
     'KubeOptImplementationPlan',
     'ImplementationPlanDocument', 
     'ImplementationPhase',

@@ -37,7 +37,7 @@ from infrastructure.services.cache_manager import save_to_cache
 from shared.utils.utils import validate_cost_data
 
 # Import new plan generation modules
-from infrastructure.plan_generation import ClaudePlanGenerator
+from infrastructure.plan_generation import AIImplementationPlanGenerator
 import asyncio
 import os
 
@@ -606,7 +606,7 @@ class MultiSubscriptionAnalysisEngine:
                 logger.warning("ANTHROPIC_API_KEY not found - skipping Claude plan generation")
                 return None
             
-            plan_generator = ClaudePlanGenerator()
+            plan_generator = AIImplementationPlanGenerator()
             plan = await plan_generator.generate_plan(
                 enhanced_input=enhanced_input,
                 cluster_name=cluster_name,
