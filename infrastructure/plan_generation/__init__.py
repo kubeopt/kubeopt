@@ -13,7 +13,7 @@ Architecture:
     Data Collection → Enhanced Input → AI API → Plan Validation → Storage → Rendering
 """
 
-from .claude_plan_generator import AIImplementationPlanGenerator
+from .ai_plan_generator import AIImplementationPlanGenerator
 from .plan_schema import (
     KubeOptImplementationPlan, ImplementationPlanDocument, 
     OptimizationAction, ImplementationPhase, create_empty_plan
