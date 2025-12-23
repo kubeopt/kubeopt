@@ -66,7 +66,7 @@ analysis_cache = {
 
 # Initialize enhanced database components with multi-subscription support
 from infrastructure.persistence.cluster_database import EnhancedMultiSubscriptionClusterManager, migrate_database_for_multi_subscription
-from infrastructure.plan_generation.claude_plan_generator import AIImplementationPlanGenerator
+from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
 
 # Use the enhanced multi-subscription cluster manager
 enhanced_cluster_manager = EnhancedMultiSubscriptionClusterManager()

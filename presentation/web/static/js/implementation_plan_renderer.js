@@ -194,6 +194,16 @@ class ImplementationPlanRenderer {
     renderImplementationPlan() {
         const plan = this.currentPlan.implementation_plan || this.currentPlan;
         
+        // Require markdown content - no fallbacks per .clauderc
+        if (!this.currentPlan.markdown_content) {
+            throw new Error('Implementation plan must contain markdown_content field. No fallback rendering allowed.');
+        }
+        
+        this.renderMarkdownPlan(this.currentPlan.markdown_content, plan);
+        this.attachEventListeners();
+    }
+
+    renderMarkdownPlan(markdownContent, plan) {
         this.container.innerHTML = `
             <div class="clean-chart-card chart-card-full-width-mb">
                 <div class="chart-header">
@@ -204,587 +214,33 @@ class ImplementationPlanRenderer {
                         <h2 class="chart-title">Implementation Guide</h2>
                     </div>
                     <div class="chart-header-right">
-                        <span class="last-analyzed-time">Last analyzed: ${this.formatDate(plan.metadata?.generated_date)}</span>
-                    </div>
-                </div>
-                
-                ${this.renderClusterDnaSection(plan.cluster_dna_analysis)}
-                ${this.renderBuildQualitySection(plan.build_quality_assessment)}
-                ${this.renderNamingConventionsSection(plan.naming_conventions_analysis)}
-                ${this.renderRoiAnalysisSection(plan.roi_analysis || plan.roi_summary)}
-                ${this.renderImplementationSummarySection(plan.implementation_summary)}
-                ${this.renderPhasesSection(plan.phases)}
-                ${this.renderMonitoringSection(plan.monitoring)}
-                ${this.renderNextStepsSection(plan.next_steps)}
-            </div>
-        `;
-
-        this.attachEventListeners();
-    }
-
-    renderClusterDnaSection(dnaAnalysis) {
-        if (!dnaAnalysis) return '';
-        
-        // Handle different metrics structures
-        let metricsHtml = '';
-        
-        if (dnaAnalysis.metrics) {
-            if (Array.isArray(dnaAnalysis.metrics)) {
-                // Handle array structure
-                metricsHtml = dnaAnalysis.metrics.map(metric => {
-                    if (!metric || typeof metric !== 'object') {
-                        console.warn('Invalid DNA metric:', metric);
-                        return '';
-                    }
-                    // Adapt to database structure: metric.metric (not metric.label), metric.score (not metric.percentage)
-                    const label = metric.label || metric.metric || 'Metric';
-                    const value = metric.value || 0;
-                    const score = metric.score || metric.percentage || 0;
-                    const percentage = score * 100; // Convert score (0-1) to percentage
-                    const color = this.getColorForScore(score);
-                    
-                    return `
-            <div class="metric-item">
-                <div class="metric-label">${this.escapeHtml(label)}</div>
-                <div class="metric-value" style="color: ${color}">${value} (${percentage.toFixed(0)}%)</div>
-                <div class="metric-progress-bar">
-                    <div class="metric-progress" style="width: ${percentage}%; background-color: ${color};"></div>
-                </div>
-            </div>
-            `;
-                }).filter(html => html).join('');
-            } else if (typeof dnaAnalysis.metrics === 'object') {
-                // Handle object structure - create metrics from available data
-                console.log('DNA metrics is object, adapting:', dnaAnalysis.metrics);
-                metricsHtml = '<div class="metric-item"><div class="metric-label">Analysis Data Available</div><div class="metric-value">✓</div></div>';
-            }
-        }
-
-        return `
-            <div class="clean-chart-card" style="margin-bottom: 1.5rem;">
-                <div class="chart-header">
-                    <div class="chart-icon">
-                        <i class="fas fa-dna"></i>
-                    </div>
-                    <h3 class="chart-title">Cluster DNA Analysis</h3>
-                </div>
-                <div class="dna-score-card" style="background: linear-gradient(135deg, #6b46c1, #9333ea); color: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem;">
-                    <div style="font-size: 2.5rem; font-weight: 700;">${dnaAnalysis.overall_score || 0}</div>
-                    <div style="margin-top: 0.5rem;">${this.escapeHtml(dnaAnalysis.description || 'Analysis complete')}</div>
-                </div>
-                <div class="metrics-grid">
-                    ${metricsHtml}
-                </div>
-            </div>
-        `;
-    }
-
-    renderBuildQualitySection(buildQuality) {
-        if (!buildQuality) return '';
-        
-        // Validate that quality_checks is an array
-        if (buildQuality.quality_checks && !Array.isArray(buildQuality.quality_checks)) {
-            throw new Error(`Build Quality quality_checks must be an array, got ${typeof buildQuality.quality_checks}: ${JSON.stringify(buildQuality.quality_checks)}`);
-        }
-        
-        const qualityChecks = buildQuality.quality_checks || [];
-        const checksHtml = qualityChecks.map(check => {
-            if (!check || typeof check !== 'object') {
-                throw new Error(`Quality check must be an object, got ${typeof check}: ${JSON.stringify(check)}`);
-            }
-            // Use database structure: check.check, check.result, check.comments
-            const label = check.check || 'Quality Check';
-            const result = check.result || 'Unknown';
-            const statusType = this.getStatusTypeFromResult(result);
-            
-            return `
-            <div class="quality-check-item" style="margin-bottom: 1rem; padding: 0.75rem; background-color: #f8f9fa; border-radius: 6px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                    <span class="quality-label" style="font-weight: 600; color: #374151; flex: 1;">${this.escapeHtml(label)}</span>
-                    <span class="quality-badge quality-badge-${statusType}" style="margin-left: 1rem;">${this.escapeHtml(result)}</span>
-                </div>
-                ${check.comments ? `<div class="quality-comments" style="font-size: 0.875rem; color: #6b7280; line-height: 1.4;">${this.escapeHtml(check.comments)}</div>` : ''}
-                ${check.score !== undefined ? `<div style="margin-top: 0.5rem; font-size: 0.75rem; color: #7ba573;">Score: ${(check.score * 100).toFixed(0)}%</div>` : ''}
-            </div>
-            `;
-        }).join('');
-
-        // Validate that strengths is an array
-        if (buildQuality.strengths && !Array.isArray(buildQuality.strengths)) {
-            throw new Error(`Build Quality strengths must be an array, got ${typeof buildQuality.strengths}: ${JSON.stringify(buildQuality.strengths)}`);
-        }
-        
-        const strengths = buildQuality.strengths || [];
-        const strengthsHtml = strengths.map(strength => {
-            if (typeof strength !== 'string') {
-                throw new Error(`Strength must be a string, got ${typeof strength}: ${JSON.stringify(strength)}`);
-            }
-            return `<li>${this.escapeHtml(strength)}</li>`;
-        }).join('');
-
-        return `
-            <div class="clean-chart-card" style="margin-bottom: 1.5rem;">
-                <div class="chart-header">
-                    <div class="chart-icon">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                    <h3 class="chart-title">Build Quality Assessment</h3>
-                </div>
-                <div class="quality-checks">
-                    ${checksHtml}
-                </div>
-                ${strengthsHtml ? `
-                    <div style="margin-top: 1rem;">
-                        <h4 style="color: #7ba573; margin-bottom: 0.5rem;">Strengths</h4>
-                        <ul style="margin-left: 1rem;">${strengthsHtml}</ul>
-                    </div>
-                ` : ''}
-            </div>
-        `;
-    }
-
-    renderNamingConventionsSection(namingAnalysis) {
-        if (!namingAnalysis) return '';
-        
-        // Validate that resources is an array
-        if (namingAnalysis.resources && !Array.isArray(namingAnalysis.resources)) {
-            throw new Error(`Naming Analysis resources must be an array, got ${typeof namingAnalysis.resources}: ${JSON.stringify(namingAnalysis.resources)}`);
-        }
-        
-        const resources = namingAnalysis.resources || [];
-        const resourcesHtml = resources.map(resource => {
-            if (!resource || typeof resource !== 'object') {
-                throw new Error(`Naming resource must be an object, got ${typeof resource}: ${JSON.stringify(resource)}`);
-            }
-            return `
-            <tr>
-                <td>${this.escapeHtml(resource.resource_type)}</td>
-                <td><code>${this.escapeHtml(resource.example)}</code></td>
-                <td><code>${this.escapeHtml(resource.pattern)}</code></td>
-                <td><span class="badge badge-${resource.badge_type || 'success'}">${this.escapeHtml(resource.compliance)}</span></td>
-            </tr>
-            `;
-        }).join('');
-
-        return `
-            <div class="clean-chart-card" style="margin-bottom: 1.5rem;">
-                <div class="chart-header">
-                    <div class="chart-icon">
-                        <i class="fas fa-tag"></i>
-                    </div>
-                    <h3 class="chart-title">Naming Conventions Analysis</h3>
-                </div>
-                <div style="margin-bottom: 1rem;">
-                    <div style="font-size: 1.5rem; font-weight: 600; color: ${this.getColorForRating(namingAnalysis.color)};">
-                        ${namingAnalysis.overall_score || 0}/${namingAnalysis.max_score || 100}
-                    </div>
-                </div>
-                <table class="naming-table" style="width: 100%; border-collapse: collapse;">
-                    <thead>
-                        <tr style="background-color: #f8f9fa;">
-                            <th style="padding: 0.75rem; text-align: left; border: 1px solid #e5e7eb;">Resource Type</th>
-                            <th style="padding: 0.75rem; text-align: left; border: 1px solid #e5e7eb;">Example</th>
-                            <th style="padding: 0.75rem; text-align: left; border: 1px solid #e5e7eb;">Pattern</th>
-                            <th style="padding: 0.75rem; text-align: left; border: 1px solid #e5e7eb;">Compliance</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${resourcesHtml}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-
-    renderRoiAnalysisSection(roiAnalysis) {
-        if (!roiAnalysis) return '';
-        
-        // Handle the actual database structure where summary_metrics is an object
-        let summaryMetricsHtml = '';
-        
-        if (roiAnalysis.summary_metrics) {
-            if (typeof roiAnalysis.summary_metrics !== 'object') {
-                throw new Error(`ROI Analysis summary_metrics must be an object, got ${typeof roiAnalysis.summary_metrics}: ${JSON.stringify(roiAnalysis.summary_metrics)}`);
-            }
-            
-            const metrics = roiAnalysis.summary_metrics;
-            
-            // Create metric cards from the object data
-            const metricCards = [];
-            
-            if (metrics.total_monthly_cost !== undefined) {
-                metricCards.push(`
-                    <div class="roi-metric-card" style="background: linear-gradient(135deg, #dc2626, #ef4444); color: white; padding: 1rem; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 1.5rem; font-weight: 700;">$${this.formatNumber(metrics.total_monthly_cost)}</div>
-                        <div style="font-size: 0.875rem; margin-top: 0.25rem;">Current Monthly Cost</div>
-                    </div>
-                `);
-            }
-            
-            if (metrics.total_savings_potential !== undefined) {
-                metricCards.push(`
-                    <div class="roi-metric-card" style="background: linear-gradient(135deg, #16a34a, #22c55e); color: white; padding: 1rem; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 1.5rem; font-weight: 700;">$${this.formatNumber(metrics.total_savings_potential)}</div>
-                        <div style="font-size: 0.875rem; margin-top: 0.25rem;">Potential Monthly Savings</div>
-                    </div>
-                `);
-            }
-            
-            if (metrics.cost_reduction_percentage !== undefined) {
-                metricCards.push(`
-                    <div class="roi-metric-card" style="background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; padding: 1rem; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 1.5rem; font-weight: 700;">${metrics.cost_reduction_percentage}%</div>
-                        <div style="font-size: 0.875rem; margin-top: 0.25rem;">Cost Reduction</div>
-                    </div>
-                `);
-            }
-            
-            // Calculate additional metrics if possible
-            if (metrics.total_monthly_cost && metrics.total_savings_potential) {
-                const optimizedCost = metrics.total_monthly_cost - metrics.total_savings_potential;
-                metricCards.push(`
-                    <div class="roi-metric-card" style="background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; padding: 1rem; border-radius: 8px; text-align: center;">
-                        <div style="font-size: 1.5rem; font-weight: 700;">$${this.formatNumber(optimizedCost)}</div>
-                        <div style="font-size: 0.875rem; margin-top: 0.25rem;">Optimized Monthly Cost</div>
-                    </div>
-                `);
-            }
-            
-            summaryMetricsHtml = metricCards.join('');
-        }
-
-        return `
-            <div class="clean-chart-card" style="margin-bottom: 1.5rem;">
-                <div class="chart-header">
-                    <div class="chart-icon">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <h3 class="chart-title">ROI Analysis</h3>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
-                    ${summaryMetricsHtml}
-                </div>
-                ${this.renderRoiBreakdown(roiAnalysis.calculation_breakdown)}
-            </div>
-        `;
-    }
-
-    renderRoiBreakdown(breakdown) {
-        if (!breakdown) return '';
-        
-        return `
-            <div class="roi-breakdown" style="background-color: #f8f9fa; padding: 1rem; border-radius: 8px;">
-                <h4 style="margin-bottom: 0.75rem; color: #374151;">Financial Breakdown</h4>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; font-size: 0.875rem;">
-                    <div><strong>Implementation Cost:</strong> $${this.formatNumber(breakdown.implementation_cost)}</div>
-                    <div><strong>Monthly Savings:</strong> $${this.formatNumber(breakdown.monthly_savings)}</div>
-                    <div><strong>Annual Savings:</strong> $${this.formatNumber(breakdown.annual_savings)}</div>
-                    <div><strong>Payback Period:</strong> ${breakdown.payback_months} months</div>
-                    <div><strong>ROI Year 1:</strong> ${breakdown.roi_percentage_year1}%</div>
-                </div>
-            </div>
-        `;
-    }
-
-    renderImplementationSummarySection(summary) {
-        if (!summary) return '';
-        
-        return `
-            <div class="clean-chart-card" style="margin-bottom: 1.5rem;">
-                <div class="chart-header">
-                    <div class="chart-icon">
-                        <i class="fas fa-info-circle"></i>
-                    </div>
-                    <h3 class="chart-title">Implementation Summary</h3>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-                    <div class="summary-item">
-                        <div class="summary-label">Cluster</div>
-                        <div class="summary-value">${this.escapeHtml(summary.cluster_name || '')}</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Environment</div>
-                        <div class="summary-value">${this.escapeHtml(summary.environment || '')}</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Current Cost</div>
-                        <div class="summary-value">$${this.formatNumber(summary.current_monthly_cost)}/mo</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Projected Cost</div>
-                        <div class="summary-value">$${this.formatNumber(summary.projected_monthly_cost)}/mo</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Cost Reduction</div>
-                        <div class="summary-value" style="color: #16a34a;">${summary.cost_reduction_percentage}%</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Duration</div>
-                        <div class="summary-value">${this.escapeHtml(summary.implementation_duration || '')}</div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    renderPhasesSection(phases) {
-        if (!phases) return '';
-        
-        // Validate that phases is an array
-        if (!Array.isArray(phases)) {
-            throw new Error(`Phases must be an array, got ${typeof phases}: ${JSON.stringify(phases)}`);
-        }
-        
-        const phasesHtml = phases.map((phase, index) => {
-            if (!phase || typeof phase !== 'object') {
-                throw new Error(`Phase must be an object, got ${typeof phase}: ${JSON.stringify(phase)}`);
-            }
-            // Adapt to database structure: phase.name (not phase.phase_name), no description, no total_savings_monthly
-            const phaseName = phase.phase_name || phase.name || `Phase ${phase.phase_number}`;
-            const description = phase.description || `Implementation phase focusing on ${phaseName.toLowerCase()}`;
-            
-            return `
-            <div class="phase-card" style="border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 1rem;">
-                <div class="phase-header" onclick="togglePhase(${index})" style="padding: 1rem; background-color: #f8f9fa; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0;">
-                    <div>
-                        <h4 style="margin: 0; color: #374151;">Phase ${phase.phase_number}: ${this.escapeHtml(phaseName)}</h4>
-                        <p style="margin: 0.25rem 0 0 0; color: #6b7280; font-size: 0.875rem;">${this.escapeHtml(description)}</p>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <span style="background-color: #7ba573; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
-                            ${(phase.actions || []).length} action${(phase.actions || []).length !== 1 ? 's' : ''}
-                        </span>
-                        <i class="fas fa-chevron-down phase-toggle-icon" style="transition: transform 0.2s;"></i>
-                    </div>
-                </div>
-                <div class="phase-content" id="phase-content-${index}" style="display: none; padding: 1rem;">
-                    ${this.renderPhaseActions(phase.actions || [])}
-                </div>
-            </div>
-            `;
-        }).join('');
-
-        return `
-            <div class="clean-chart-card" style="margin-bottom: 1.5rem;">
-                <div class="chart-header">
-                    <div class="chart-icon">
-                        <i class="fas fa-tasks"></i>
-                    </div>
-                    <h3 class="chart-title">Implementation Phases</h3>
-                </div>
-                <div class="phases-container">
-                    ${phasesHtml}
-                </div>
-            </div>
-        `;
-    }
-
-    renderPhaseActions(actions) {
-        // Validate that actions is an array
-        if (!Array.isArray(actions)) {
-            throw new Error(`Phase actions must be an array, got ${typeof actions}: ${JSON.stringify(actions)}`);
-        }
-        
-        return actions.map(action => {
-            if (!action || typeof action !== 'object') {
-                throw new Error(`Action must be an object, got ${typeof action}: ${JSON.stringify(action)}`);
-            }
-            // Adapt to database structure: action.step (not action.title), no action.description, no savings_monthly
-            const title = action.title || action.step || 'Implementation Action';
-            const description = action.description || `Action: ${action.step || 'Execute implementation step'}`;
-            
-            return `
-            <div class="action-card" style="border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 1rem; padding: 1rem;">
-                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
-                    <h5 style="margin: 0; color: #374151;">${this.escapeHtml(title)}</h5>
-                    <span style="background-color: #6b7280; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
-                        Implementation Step
-                    </span>
-                </div>
-                <p style="margin-bottom: 1rem; color: #6b7280;">${this.escapeHtml(description)}</p>
-                
-                ${action.steps && action.steps.length > 0 ? `
-                    <div class="action-steps">
-                        <h6 style="margin-bottom: 0.5rem; color: #374151;">Implementation Steps:</h6>
-                        ${(() => {
-                            // Validate that steps is an array
-                            if (!Array.isArray(action.steps)) {
-                                throw new Error(`Action steps must be an array, got ${typeof action.steps}: ${JSON.stringify(action.steps)}`);
-                            }
-                            return action.steps.map((step, stepIndex) => {
-                                if (!step || typeof step !== 'object') {
-                                    throw new Error(`Step must be an object, got ${typeof step}: ${JSON.stringify(step)}`);
-                                }
-                                return `
-                            <div class="step-item" style="margin-bottom: 0.75rem;">
-                                <div style="font-weight: 600; margin-bottom: 0.25rem;">${step.step_number}. ${this.escapeHtml(step.label)}</div>
-                                ${step.command ? `
-                                    <div class="command-block" style="background-color: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.75rem; position: relative;">
-                                        <code style="font-family: 'Courier New', monospace; white-space: pre-wrap;">${this.escapeHtml(step.command)}</code>
-                                        <button class="copy-btn" onclick="copyToClipboard('${this.escapeForJs(step.command)}', this)" style="position: absolute; top: 0.5rem; right: 0.5rem; background-color: #7ba573; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
-                                            <i class="fas fa-copy"></i> Copy
-                                        </button>
-                                    </div>
-                                ` : ''}
-                                ${step.expected_output ? `
-                                    <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #6b7280;">
-                                        <strong>Expected output:</strong> ${this.escapeHtml(step.expected_output)}
-                                    </div>
-                                ` : ''}
-                            </div>
-                            `;
-                            }).join('');
-                        })()}
-                    </div>
-                ` : ''}
-                
-                ${action.rollback ? `
-                    <div class="rollback-section" style="margin-top: 1rem; padding: 0.75rem; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 4px;">
-                        <h6 style="margin-bottom: 0.5rem; color: #dc2626;">Rollback Instructions:</h6>
-                        <p style="margin-bottom: 0.5rem; font-size: 0.875rem; color: #6b7280;">${this.escapeHtml(action.rollback.description)}</p>
-                        <div class="command-block" style="background-color: #fff; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.75rem; position: relative;">
-                            <code style="font-family: 'Courier New', monospace; white-space: pre-wrap;">${this.escapeHtml(action.rollback.command)}</code>
-                            <button class="copy-btn" onclick="copyToClipboard('${this.escapeForJs(action.rollback.command)}', this)" style="position: absolute; top: 0.5rem; right: 0.5rem; background-color: #dc2626; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
-                                <i class="fas fa-copy"></i> Copy
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button onclick="implementationRenderer.downloadMarkdown()" class="clean-btn clean-btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                                <i class="fas fa-download"></i> Download MD
                             </button>
+                            <span class="last-analyzed-time">Last analyzed: ${this.formatDate(plan.metadata?.generated_date)}</span>
                         </div>
                     </div>
-                ` : ''}
-            </div>
-            `;
-        }).join('');
-    }
-
-    renderMonitoringSection(monitoring) {
-        if (!monitoring) return '';
-        
-        // Adapt to database structure: monitoring.key_commands (simple strings, not objects)
-        const commands = monitoring.commands || monitoring.key_commands || [];
-        
-        // Validate that commands is an array
-        if (!Array.isArray(commands)) {
-            throw new Error(`Monitoring commands must be an array, got ${typeof commands}: ${JSON.stringify(commands)}`);
-        }
-        
-        const commandsHtml = commands.map(cmd => {
-            // Handle both string commands and object commands
-            let command, label;
-            
-            if (typeof cmd === 'string') {
-                command = cmd;
-                label = this.generateLabelFromCommand(cmd);
-            } else if (cmd && typeof cmd === 'object') {
-                command = cmd.command || cmd;
-                label = cmd.label || this.generateLabelFromCommand(command);
-            } else {
-                console.warn('Invalid monitoring command:', cmd);
-                return '';
-            }
-            
-            return `
-            <div class="command-block" style="background-color: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.75rem; margin-bottom: 0.75rem; position: relative;">
-                <div style="font-weight: 600; margin-bottom: 0.5rem;">${this.escapeHtml(label)}</div>
-                <code style="font-family: 'Courier New', monospace; white-space: pre-wrap;">${this.escapeHtml(command)}</code>
-                <button class="copy-btn" onclick="copyToClipboard('${this.escapeForJs(command)}', this)" style="position: absolute; top: 0.5rem; right: 0.5rem; background-color: #7ba573; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">
-                    <i class="fas fa-copy"></i> Copy
-                </button>
-            </div>
-            `;
-        }).filter(html => html).join('');
-
-        return `
-            <div class="clean-chart-card" style="margin-bottom: 1.5rem;">
-                <div class="chart-header">
-                    <div class="chart-icon">
-                        <i class="fas fa-eye"></i>
-                    </div>
-                    <h3 class="chart-title">${this.escapeHtml(monitoring.title || 'Monitoring')}</h3>
                 </div>
-                <p style="margin-bottom: 1rem; color: #6b7280;">${this.escapeHtml(monitoring.description || '')}</p>
-                <div class="monitoring-commands">
-                    ${commandsHtml}
+                
+                <div class="markdown-content" style="padding: 1.5rem; max-width: none;">
+                    ${this.convertMarkdownToHtml(markdownContent)}
                 </div>
             </div>
         `;
     }
 
-    renderReviewScheduleSection(reviewSchedule) {
-        if (!reviewSchedule) return '';
-        
-        // Validate that reviewSchedule is an array
-        if (!Array.isArray(reviewSchedule)) {
-            throw new Error(`Review schedule must be an array, got ${typeof reviewSchedule}: ${JSON.stringify(reviewSchedule)}`);
-        }
-        
-        const scheduleHtml = reviewSchedule.map(item => {
-            if (!item || typeof item !== 'object') {
-                throw new Error(`Review schedule item must be an object, got ${typeof item}: ${JSON.stringify(item)}`);
-            }
-            return `
-            <div class="review-item" style="display: flex; align-items: center; padding: 0.75rem; background-color: #f8f9fa; border-radius: 4px; margin-bottom: 0.5rem;">
-                <div style="background-color: #7ba573; color: white; border-radius: 50%; width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; font-weight: 600; margin-right: 1rem;">
-                    ${item.day}
-                </div>
-                <div>${this.escapeHtml(item.title)}</div>
-            </div>
-            `;
-        }).join('');
 
-        return `
-            <div class="clean-chart-card" style="margin-bottom: 1.5rem;">
-                <div class="chart-header">
-                    <div class="chart-icon">
-                        <i class="fas fa-calendar-check"></i>
-                    </div>
-                    <h3 class="chart-title">Review Schedule</h3>
-                </div>
-                <div class="review-schedule">
-                    ${scheduleHtml}
-                </div>
-            </div>
-        `;
-    }
 
-    renderNextStepsSection(nextSteps) {
-        if (!nextSteps) return '';
-        
-        // Validate that nextSteps is an array
-        if (!Array.isArray(nextSteps)) {
-            throw new Error(`Next steps must be an array, got ${typeof nextSteps}: ${JSON.stringify(nextSteps)}`);
-        }
-        
-        const stepsHtml = nextSteps.map((step, index) => {
-            if (typeof step !== 'string') {
-                console.warn('Invalid next step:', step);
-                return '';
-            }
-            
-            return `
-            <div class="next-step-item" style="display: flex; align-items: center; padding: 0.75rem; background-color: #f8f9fa; border-radius: 4px; margin-bottom: 0.5rem;">
-                <div style="background-color: #7ba573; color: white; border-radius: 50%; width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; font-weight: 600; margin-right: 1rem; font-size: 0.875rem;">
-                    ${index + 1}
-                </div>
-                <div style="flex: 1;">
-                    <div style="font-weight: 500; color: #374151;">${this.escapeHtml(step)}</div>
-                </div>
-            </div>
-            `;
-        }).filter(html => html).join('');
 
-        return `
-            <div class="clean-chart-card" style="margin-bottom: 1.5rem;">
-                <div class="chart-header">
-                    <div class="chart-icon">
-                        <i class="fas fa-list-check"></i>
-                    </div>
-                    <h3 class="chart-title">Next Steps</h3>
-                </div>
-                <div class="next-steps-container">
-                    ${stepsHtml}
-                </div>
-            </div>
-        `;
-    }
+
+
+
+
+
+
+
+
 
     attachEventListeners() {
         // Phase toggle functionality
@@ -843,6 +299,93 @@ class ImplementationPlanRenderer {
         return String(text).replace(/[&<>"']/g, (m) => map[m]);
     }
 
+    convertMarkdownToHtml(markdown) {
+        if (!markdown || typeof markdown !== 'string') {
+            return '<p>No implementation plan content available.</p>';
+        }
+
+        let html = markdown;
+        
+        // Clean up malformed markdown
+        html = html.replace(/```+/g, '```');
+        html = html.replace(/^`+$/gm, '');
+        
+        // Convert headers
+        html = html.replace(/^##### (.*$)/gim, '<h5 class="md-h5">$1</h5>');
+        html = html.replace(/^#### (.*$)/gim, '<h4 class="md-h4">$1</h4>');
+        html = html.replace(/^### (.*$)/gim, '<h3 class="md-h3">$1</h3>');
+        html = html.replace(/^## (.*$)/gim, '<h2 class="md-h2">$1</h2>');
+        html = html.replace(/^# (.*$)/gim, '<h1 class="md-h1">$1</h1>');
+        
+        // Convert horizontal rules
+        html = html.replace(/^---$/gim, '<hr class="md-hr">');
+        
+        // Convert bold and italic
+        html = html.replace(/\*\*(.*?)\*\*/gim, '<strong class="md-strong">$1</strong>');
+        html = html.replace(/\*(.*?)\*/gim, '<em class="md-em">$1</em>');
+        
+        // Convert code blocks
+        html = html.replace(/```(\w*)\n([\s\S]*?)\n```/gim, (match, lang, code) => {
+            const escapedCode = this.escapeHtml(code.trim());
+            const codeId = 'code-' + Math.random().toString(36).substr(2, 9);
+            const language = lang || 'text';
+            
+            return `<div class="code-block-container">
+    <div class="code-block-header">
+        <span class="code-block-language">${language}</span>
+        <button class="code-copy-btn" onclick="copyCodeBlock('${codeId}', this)">
+            <i class="fas fa-copy"></i> Copy
+        </button>
+    </div>
+    <pre class="code-block" id="${codeId}"><code class="language-${language}">${escapedCode}</code></pre>
+</div>`;
+        });
+        
+        // Convert inline code
+        html = html.replace(/`([^`\n]+)`/gim, '<code class="inline-code">$1</code>');
+        
+        // Convert to paragraphs
+        const lines = html.split('\n');
+        const processedLines = [];
+        
+        for (let line of lines) {
+            const trimmed = line.trim();
+            
+            if (!trimmed) {
+                processedLines.push('<div class="md-spacer"></div>');
+            } else if (trimmed.startsWith('<')) {
+                processedLines.push(line);
+            } else if (trimmed.match(/^[-*+] /)) {
+                const content = trimmed.replace(/^[-*+] /, '');
+                processedLines.push(`<p class="md-p">• ${content}</p>`);
+            } else if (trimmed.match(/^\d+\. /)) {
+                processedLines.push(`<p class="md-p">${trimmed}</p>`);
+            } else {
+                processedLines.push(`<p class="md-p">${trimmed}</p>`);
+            }
+        }
+        
+        return processedLines.join('\n');
+    }
+
+    downloadMarkdown() {
+        if (!this.currentPlan.markdown_content) {
+            console.error('No markdown content available for download');
+            return;
+        }
+
+        const blob = new Blob([this.currentPlan.markdown_content], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `implementation-plan-${this.clusterInfo?.name || 'cluster'}-${new Date().toISOString().split('T')[0]}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+
     escapeForJs(text) {
         if (text === null || text === undefined) return '';
         return String(text).replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r');
@@ -862,57 +405,10 @@ class ImplementationPlanRenderer {
         return new Intl.NumberFormat().format(num);
     }
 
-    getColorForRating(rating) {
-        const colorMap = {
-            'excellent': '#16a34a',
-            'good': '#7ba573',
-            'fair': '#f59e0b',
-            'poor': '#dc2626'
-        };
-        return colorMap[rating] || '#6b7280';
-    }
 
-    getColorForScore(score) {
-        // Convert numeric score (0-1) to color
-        if (score >= 0.8) return '#16a34a'; // excellent - green
-        if (score >= 0.6) return '#7ba573'; // good - light green
-        if (score >= 0.4) return '#f59e0b'; // fair - orange
-        return '#dc2626'; // poor - red
-    }
 
-    getStatusTypeFromResult(result) {
-        // Convert database result strings to CSS class suffixes
-        const resultLower = String(result).toLowerCase();
-        if (resultLower.includes('low') || resultLower.includes('good') || resultLower.includes('pass')) return 'good';
-        if (resultLower.includes('medium') || resultLower.includes('warning') || resultLower.includes('high')) return 'warning';
-        if (resultLower.includes('error') || resultLower.includes('fail') || resultLower.includes('poor')) return 'error';
-        return 'good'; // default
-    }
 
-    generateLabelFromCommand(command) {
-        // Generate a user-friendly label from a kubectl command
-        if (!command) return 'Monitoring Command';
-        
-        if (command.includes('kubectl top')) return 'Check Resource Usage';
-        if (command.includes('kubectl get hpa')) return 'Check HPA Status';
-        if (command.includes('kubectl describe hpa')) return 'Get HPA Details';
-        if (command.includes('kubectl describe resourcequota')) return 'Check Resource Quotas';
-        if (command.includes('kubectl describe pods')) return 'Get Pod Details';
-        if (command.includes('kubectl get')) return 'List Resources';
-        if (command.includes('kubectl describe')) return 'Describe Resource';
-        
-        return 'Kubectl Command';
-    }
 
-    getGradientForColor(color) {
-        const gradientMap = {
-            'green': '#16a34a, #22c55e',
-            'blue': '#2563eb, #3b82f6',
-            'purple': '#7c3aed, #a855f7',
-            'red': '#dc2626, #ef4444'
-        };
-        return gradientMap[color] || '#6b7280, #9ca3af';
-    }
 }
 
 // Global implementation renderer instance
@@ -958,12 +454,203 @@ function loadImplementationPlan() {
     }
 }
 
+// Global functions for markdown rendering
+window.copyCodeBlock = function(codeId, button) {
+    const codeElement = document.getElementById(codeId);
+    if (!codeElement) return;
+    
+    const text = codeElement.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        button.style.backgroundColor = '#22c55e';
+        
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.style.backgroundColor = '#7ba573';
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy code:', err);
+        button.innerHTML = '<i class="fas fa-times"></i> Error';
+        button.style.backgroundColor = '#ef4444';
+        
+        setTimeout(() => {
+            button.innerHTML = '<i class="fas fa-copy"></i> Copy';
+            button.style.backgroundColor = '#7ba573';
+        }, 2000);
+    });
+};
+
 // CSS styles for implementation plan
 const implementationStyles = `
 <style>
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* Simple GitHub-like Markdown Styles */
+.markdown-content {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    color: #24292f;
+    max-width: none;
+}
+
+.md-spacer {
+    height: 8px;
+}
+
+.md-h1 {
+    font-size: 2em;
+    font-weight: 600;
+    color: #24292f;
+    margin: 16px 0 8px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #d1d9e0;
+}
+
+.md-h2 {
+    font-size: 1.5em;
+    font-weight: 600;
+    color: #24292f;
+    margin: 16px 0 8px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #d1d9e0;
+}
+
+.md-h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    color: #24292f;
+    margin: 12px 0 6px 0;
+}
+
+.md-h4 {
+    font-size: 1em;
+    font-weight: 600;
+    color: #24292f;
+    margin: 12px 0 6px 0;
+}
+
+.md-h5 {
+    font-size: 0.875em;
+    font-weight: 600;
+    color: #24292f;
+    margin: 10px 0 5px 0;
+}
+
+.md-hr {
+    border: none;
+    height: 1px;
+    background-color: #e5e7eb;
+    margin: 2rem 0;
+}
+
+.md-p {
+    margin: 0 0 10px 0;
+    line-height: 1.6;
+    color: #24292f;
+}
+
+.md-p.command-step {
+    margin: 8px 0;
+    padding: 6px 0;
+    color: #0969da;
+    border-left: 3px solid #0969da;
+    padding-left: 12px;
+    background-color: rgba(9, 105, 218, 0.05);
+}
+
+.md-strong {
+    font-weight: 600;
+}
+
+.md-em {
+    font-style: italic;
+}
+
+.md-ul, .md-ol {
+    margin: 0 0 10px 0;
+    padding-left: 2em;
+}
+
+.md-ul {
+    list-style-type: disc;
+}
+
+.md-ol {
+    list-style-type: decimal;
+}
+
+.md-li, .md-li-ordered {
+    margin: 2px 0;
+    line-height: 1.6;
+    color: #24292f;
+}
+
+.code-block-container {
+    margin: 8px 0;
+    border: 1px solid #d1d9e0;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #f6f8fa;
+}
+
+.code-block-header {
+    background: #f6f8fa;
+    border-bottom: 1px solid #d1d9e0;
+    padding: 8px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #656d76;
+}
+
+.code-block-language {
+    font-weight: 600;
+    text-transform: lowercase;
+}
+
+.code-copy-btn {
+    background: none;
+    border: 1px solid #d1d9e0;
+    color: #24292f;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.code-copy-btn:hover {
+    background: #f3f4f6;
+}
+
+.code-block {
+    background: #f6f8fa;
+    padding: 16px;
+    margin: 0;
+    overflow-x: auto;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.code-block code {
+    background: none;
+    color: #24292f;
+    white-space: pre;
+}
+
+.inline-code {
+    background: rgba(175, 184, 193, 0.2);
+    color: #24292f;
+    padding: 0.2em 0.4em;
+    border-radius: 6px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 85%;
 }
 
 .metric-item {
