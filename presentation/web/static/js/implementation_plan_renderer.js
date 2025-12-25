@@ -1,9 +1,16 @@
 /**
- * Implementation Plan Renderer - Production-ready implementation without fallbacks
+ * Implementation Plan Renderer - Markdown Display Mode
  * Developer: Srinivas Kondepudi
  * Organization: Nivaya Technologies & kubeopt
  * Project: AKS Cost Optimizer
  */
+
+// Add marked.js for markdown rendering
+if (!window.marked) {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+    document.head.appendChild(script);
+}
 
 class ImplementationPlanRenderer {
     constructor(containerId = 'implementation-content') {
@@ -52,7 +59,13 @@ class ImplementationPlanRenderer {
             const planData = await this.fetchImplementationPlan();
             this.validatePlanData(planData);
             
-            this.currentPlan = planData.plan;
+            // For markdown format, use the data directly
+            if (planData.plan_type === 'markdown') {
+                this.currentPlan = planData;
+            } else {
+                // Legacy format with nested plan
+                this.currentPlan = planData.plan;
+            }
             this.renderImplementationPlan();
             
         } catch (error) {
@@ -99,6 +112,15 @@ class ImplementationPlanRenderer {
             throw new Error('Invalid plan data received from API');
         }
 
+        // For markdown format, check for markdown_content directly
+        if (data.plan_type === 'markdown') {
+            if (!data.markdown_content) {
+                throw new Error('Markdown implementation plan data is missing markdown_content');
+            }
+            return; // Valid markdown plan
+        }
+
+        // Legacy plan format validation (if needed)
         if (!data.plan || typeof data.plan !== 'object') {
             throw new Error('Implementation plan data is missing or invalid');
         }
@@ -195,11 +217,12 @@ class ImplementationPlanRenderer {
         const plan = this.currentPlan.implementation_plan || this.currentPlan;
         
         // Require markdown content - no fallbacks per .clauderc
-        if (!this.currentPlan.markdown_content) {
-            throw new Error('Implementation plan must contain markdown_content field. No fallback rendering allowed.');
+        const markdownContent = this.currentPlan.markdown_content || this.currentPlan.raw_markdown;
+        if (!markdownContent) {
+            throw new Error('Implementation plan must contain markdown_content or raw_markdown field. No fallback rendering allowed.');
         }
         
-        this.renderMarkdownPlan(this.currentPlan.markdown_content, plan);
+        this.renderMarkdownPlan(markdownContent, plan);
         this.attachEventListeners();
     }
 
@@ -223,7 +246,7 @@ class ImplementationPlanRenderer {
                     </div>
                 </div>
                 
-                <div class="markdown-content" style="padding: 1.5rem; max-width: none;">
+                <div class="markdown-content markdown-body" style="padding: 1.5rem; max-width: none;">
                     ${this.convertMarkdownToHtml(markdownContent)}
                 </div>
             </div>
@@ -304,68 +327,35 @@ class ImplementationPlanRenderer {
             return '<p>No implementation plan content available.</p>';
         }
 
-        let html = markdown;
-        
-        // Clean up malformed markdown
-        html = html.replace(/```+/g, '```');
-        html = html.replace(/^`+$/gm, '');
-        
-        // Convert headers
-        html = html.replace(/^##### (.*$)/gim, '<h5 class="md-h5">$1</h5>');
-        html = html.replace(/^#### (.*$)/gim, '<h4 class="md-h4">$1</h4>');
-        html = html.replace(/^### (.*$)/gim, '<h3 class="md-h3">$1</h3>');
-        html = html.replace(/^## (.*$)/gim, '<h2 class="md-h2">$1</h2>');
-        html = html.replace(/^# (.*$)/gim, '<h1 class="md-h1">$1</h1>');
-        
-        // Convert horizontal rules
-        html = html.replace(/^---$/gim, '<hr class="md-hr">');
-        
-        // Convert bold and italic
-        html = html.replace(/\*\*(.*?)\*\*/gim, '<strong class="md-strong">$1</strong>');
-        html = html.replace(/\*(.*?)\*/gim, '<em class="md-em">$1</em>');
-        
-        // Convert code blocks
-        html = html.replace(/```(\w*)\n([\s\S]*?)\n```/gim, (match, lang, code) => {
-            const escapedCode = this.escapeHtml(code.trim());
-            const codeId = 'code-' + Math.random().toString(36).substr(2, 9);
-            const language = lang || 'text';
-            
-            return `<div class="code-block-container">
-    <div class="code-block-header">
-        <span class="code-block-language">${language}</span>
-        <button class="code-copy-btn" onclick="copyCodeBlock('${codeId}', this)">
-            <i class="fas fa-copy"></i> Copy
-        </button>
-    </div>
-    <pre class="code-block" id="${codeId}"><code class="language-${language}">${escapedCode}</code></pre>
-</div>`;
-        });
-        
-        // Convert inline code
-        html = html.replace(/`([^`\n]+)`/gim, '<code class="inline-code">$1</code>');
-        
-        // Convert to paragraphs
-        const lines = html.split('\n');
-        const processedLines = [];
-        
-        for (let line of lines) {
-            const trimmed = line.trim();
-            
-            if (!trimmed) {
-                processedLines.push('<div class="md-spacer"></div>');
-            } else if (trimmed.startsWith('<')) {
-                processedLines.push(line);
-            } else if (trimmed.match(/^[-*+] /)) {
-                const content = trimmed.replace(/^[-*+] /, '');
-                processedLines.push(`<p class="md-p">• ${content}</p>`);
-            } else if (trimmed.match(/^\d+\. /)) {
-                processedLines.push(`<p class="md-p">${trimmed}</p>`);
-            } else {
-                processedLines.push(`<p class="md-p">${trimmed}</p>`);
+        // Use marked.js for proper markdown rendering
+        if (window.marked) {
+            try {
+                // Configure marked.js for better code highlighting
+                marked.setOptions({
+                    highlight: function(code, language) {
+                        // Basic syntax highlighting for bash/shell commands
+                        if (language === 'bash' || language === 'shell') {
+                            return code
+                                .replace(/(kubectl|az|helm|docker)/g, '<span class="cmd-keyword">$1</span>')
+                                .replace(/(get|apply|patch|scale|delete|create)/g, '<span class="cmd-verb">$1</span>')
+                                .replace(/--[\w-]+/g, '<span class="cmd-flag">$&</span>');
+                        }
+                        return code;
+                    },
+                    breaks: true,
+                    gfm: true
+                });
+                
+                const html = marked.parse(markdown);
+                return html;
+            } catch (error) {
+                console.error('Markdown parsing error:', error);
+                return `<pre class="markdown-raw">${markdown}</pre>`;
             }
         }
         
-        return processedLines.join('\n');
+        // Fallback if marked.js not loaded
+        return `<pre class="markdown-raw">${markdown}</pre>`;
     }
 
     downloadMarkdown() {

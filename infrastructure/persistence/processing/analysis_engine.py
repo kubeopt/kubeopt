@@ -613,7 +613,7 @@ class MultiSubscriptionAnalysisEngine:
                 cluster_id=cluster_id
             )
             
-            logger.info(f"✅ Generated Claude API plan for {cluster_name} with {plan.total_actions} actions")
+            logger.info(f"✅ Generated Claude API plan for {cluster_name} in markdown format")
             return plan
             
         except Exception as e:
