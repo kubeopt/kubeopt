@@ -70,6 +70,11 @@ def register_all_routes_with_multi_subscription():
         from presentation.api.api_routes import register_api_routes
         register_api_routes(app)
         
+        # Register authentication routes
+        from presentation.api.auth_routes import register_auth_routes
+        register_auth_routes(app)
+        logger.info("✅ Auth routes registered successfully")
+        
         #  Register alerts routes (subscription-aware) 
         try:
             from alerts import register_alerts_routes
