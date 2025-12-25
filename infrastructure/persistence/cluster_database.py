@@ -2603,94 +2603,9 @@ class EnhancedMultiSubscriptionClusterManager:
         except Exception as e:
             self.logger.error(f"❌ Failed to cleanup old analyses: {e}")
 
-    def store_implementation_plan(
-        self,
-        cluster_id: str,
-        plan: 'KubeOptImplementationPlan',
-        analysis_id: str = None
-    ) -> str:
-        """
-        Store generated implementation plan with versioning.
-        
-        Args:
-            cluster_id: Cluster identifier
-            plan: ImplementationPlan object to store
-            analysis_id: Optional analysis ID this plan is based on
-            
-        Returns:
-            plan_id for retrieval
-        """
-        try:
-            plan_json = plan.model_dump_json()
-            plan_id = f"plan_{cluster_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
-            
-            with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
-                    INSERT INTO implementation_plans 
-                    (plan_id, cluster_id, analysis_id, plan_data, generated_at, 
-                     total_savings, total_actions, version, generated_by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    plan_id,
-                    cluster_id,
-                    analysis_id,
-                    plan_json,
-                    plan.generated_at.isoformat(),
-                    plan.estimated_total_savings_monthly,
-                    plan.total_actions,
-                    plan.version,
-                    plan.generated_by
-                ))
-                
-                conn.commit()
-                self.logger.info(f"✅ Stored implementation plan {plan_id} for cluster {cluster_id}")
-                return plan_id
-                
-        except Exception as e:
-            self.logger.error(f"❌ Failed to store implementation plan: {e}")
-            raise
+    # Old JSON-based plan storage methods removed - now using markdown-only approach
 
-    def get_latest_plan(self, cluster_id: str) -> 'Optional[Dict]':
-        """Retrieve most recent plan for cluster as raw dict"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute("""
-                    SELECT plan_data FROM implementation_plans
-                    WHERE cluster_id = ?
-                    ORDER BY generated_at DESC
-                    LIMIT 1
-                """, (cluster_id,))
-                
-                row = cursor.fetchone()
-                if row is not None and row:
-                    import json
-                    plan_data = json.loads(row[0])
-                    self.logger.info(f"✅ Retrieved implementation plan for cluster {cluster_id}")
-                    return plan_data
-                return None
-                
-        except Exception as e:
-            self.logger.error(f"❌ Failed to retrieve latest plan for cluster {cluster_id}: {e}")
-            return None
-
-    def get_plan_by_id(self, plan_id: str) -> 'Optional[KubeOptImplementationPlan]':
-        """Retrieve specific plan by ID"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute("""
-                    SELECT plan_data FROM implementation_plans
-                    WHERE plan_id = ?
-                """, (plan_id,))
-                
-                row = cursor.fetchone()
-                if row is not None and row:
-                    from infrastructure.plan_generation.plan_schema import KubeOptImplementationPlan
-                    return KubeOptImplementationPlan.model_validate_json(row[0])
-                return None
-                
-        except Exception as e:
-            self.logger.error(f"❌ Failed to retrieve plan {plan_id}: {e}")
-            return None
+    # get_plan_by_id removed - use save_implementation_plan/markdown approach instead
 
     def list_plans_for_cluster(self, cluster_id: str, limit: int = 10) -> List[Dict]:
         """List recent plans for a cluster"""
@@ -2765,6 +2680,76 @@ class EnhancedMultiSubscriptionClusterManager:
                 
         except Exception as e:
             self.logger.error(f"❌ Failed to cleanup old plans: {e}")
+
+    def get_latest_plan(self, cluster_id: str) -> Optional[Dict]:
+        """Retrieve most recent plan for cluster as raw dict (markdown format)"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("""
+                    SELECT plan_data FROM implementation_plans
+                    WHERE cluster_id = ?
+                    ORDER BY generated_at DESC
+                    LIMIT 1
+                """, (cluster_id,))
+                
+                row = cursor.fetchone()
+                if row is not None and row:
+                    import json
+                    plan_data = json.loads(row[0])
+                    self.logger.info(f"✅ Retrieved latest implementation plan for cluster {cluster_id}")
+                    return plan_data
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to retrieve latest plan for cluster {cluster_id}: {e}")
+            return None
+
+    def save_implementation_plan(self, cluster_id: str, plan_data: dict):
+        """Save implementation plan to database (supports raw markdown format)"""
+        try:
+            import json
+            from datetime import datetime
+            
+            # Generate plan ID
+            plan_id = f"plan_{cluster_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+            
+            # Ensure plan_data is JSON serializable
+            plan_json = json.dumps(plan_data, default=str)
+            
+            # Extract metadata for indexing
+            total_savings = 0
+            total_actions = 0
+            generated_by = plan_data.get('plan_type', 'Claude')
+            
+            # Try to extract some metrics if available
+            if 'total_monthly_savings' in plan_data:
+                total_savings = plan_data['total_monthly_savings']
+            
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    INSERT INTO implementation_plans 
+                    (plan_id, cluster_id, analysis_id, plan_data, generated_at, 
+                     total_savings, total_actions, version, generated_by)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    plan_id,
+                    cluster_id,
+                    None,  # analysis_id
+                    plan_json.encode('utf-8'),  # Store as BLOB
+                    datetime.utcnow().isoformat(),
+                    total_savings,
+                    total_actions,
+                    "2.0",  # version for new markdown format
+                    generated_by
+                ))
+                
+                conn.commit()
+                self.logger.info(f"✅ Saved implementation plan {plan_id} for cluster {cluster_id}")
+                return plan_id
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to save implementation plan: {e}")
+            raise
 
     def _extract_enhanced_input_from_analysis(self, analysis_results: dict) -> dict:
         """

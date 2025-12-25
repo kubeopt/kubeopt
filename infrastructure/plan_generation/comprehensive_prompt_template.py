@@ -1148,6 +1148,6 @@ def get_sample_usage():
         resource_group="rg-production"
     )
     
-    # Send this prompt to your AI model (Ollama, Claude, etc.)
+    # Send this prompt to Claude API
     # The response will be a comprehensive 900+ line implementation plan
     """

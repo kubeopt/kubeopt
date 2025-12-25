@@ -1,8 +1,17 @@
 """
-Claude AI Plan Generator - High-Quality Markdown Implementation
+Claude AI Plan Generator - Comprehensive Implementation Plan Generation
 
-Generates cost optimization plans using Claude API with superior markdown output
-for better reliability and formatting quality.
+Generates extensive, production-ready cost optimization plans using Claude API
+with deep analysis of all available cluster data, validated commands, and
+comprehensive rollback procedures.
+
+Key Improvements:
+- Extracts and uses ALL available data from enhanced_input
+- Generates 8 comprehensive implementation phases
+- Creates specific, validated kubectl/az commands for each action
+- Includes backup and rollback procedures for all changes
+- Provides detailed ROI analysis and monitoring guidance
+- Uses real workload names, namespaces, and cost figures
 """
 
 import json
@@ -10,7 +19,7 @@ import asyncio
 import os
 import re
 import requests
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple, Any
 from datetime import datetime, date, timedelta
 import logging
 
@@ -21,7 +30,7 @@ from .plan_schema import (
     MonitoringMetric, ReviewScheduleItem,
     ClusterDNAAnalysis, BuildQualityAssessment, NamingConventionsAnalysis,
     ROIAnalysis, ImplementationSummary, ROICalculationBreakdown,
-    ROISummaryMetric, ColorType
+    ROISummaryMetric, ColorType, DataSource
 )
 from .context_builder import ContextBuilder
 
@@ -29,1281 +38,1373 @@ logger = logging.getLogger(__name__)
 
 
 class AIImplementationPlanGenerator:
-    """Claude AI plan generator with cost tracking"""
+    """
+    Claude AI plan generator with comprehensive analysis and cost tracking.
+    
+    This generator creates extensive, production-ready implementation plans by:
+    1. Extracting all available data from cluster analysis
+    2. Categorizing and prioritizing optimization opportunities
+    3. Generating validated kubectl/az commands with rollback procedures
+    4. Creating phased implementation approach with risk management
+    5. Providing detailed ROI projections and monitoring guidance
+    """
+    
+    # Phase definitions with priorities, durations, and focus areas
+    OPTIMIZATION_PHASES = [
+        {
+            "name": "Emergency Stabilization & Baseline",
+            "priority": 1,
+            "duration_days": 3,
+            "risk": "low",
+            "focus": ["backup_creation", "monitoring_baseline", "critical_assessment"],
+            "description": "Establish safety measures and document current cluster state"
+        },
+        {
+            "name": "Quick Wins - Resource Right-Sizing",
+            "priority": 2,
+            "duration_days": 7,
+            "risk": "low",
+            "focus": ["over_provisioned_workloads", "cpu_optimization", "memory_optimization"],
+            "description": "Low-risk, high-impact resource adjustments for immediate savings"
+        },
+        {
+            "name": "HPA Implementation & Autoscaling",
+            "priority": 3,
+            "duration_days": 7,
+            "risk": "medium",
+            "focus": ["missing_hpa", "hpa_tuning", "scaling_policies", "vpa_evaluation"],
+            "description": "Deploy and configure Horizontal Pod Autoscalers"
+        },
+        {
+            "name": "Namespace Governance & Resource Quotas",
+            "priority": 4,
+            "duration_days": 7,
+            "risk": "medium",
+            "focus": ["resource_quotas", "limit_ranges", "namespace_policies", "rbac_optimization"],
+            "description": "Establish comprehensive resource governance"
+        },
+        {
+            "name": "Storage Optimization & Cleanup",
+            "priority": 5,
+            "duration_days": 7,
+            "risk": "medium",
+            "focus": ["pvc_rightsizing", "storage_class_optimization", "orphaned_volumes", "snapshot_cleanup"],
+            "description": "Optimize persistent storage and clean up waste"
+        },
+        {
+            "name": "Network Cost Reduction",
+            "priority": 6,
+            "duration_days": 7,
+            "risk": "medium",
+            "focus": ["load_balancer_consolidation", "ingress_optimization", "egress_reduction", "private_endpoints"],
+            "description": "Optimize network architecture and reduce egress costs"
+        },
+        {
+            "name": "Node Pool Optimization",
+            "priority": 7,
+            "duration_days": 14,
+            "risk": "high",
+            "focus": ["node_rightsizing", "spot_instances", "node_pool_consolidation", "autoscaler_tuning"],
+            "description": "Optimize compute infrastructure and enable intelligent scaling"
+        },
+        {
+            "name": "Advanced Optimization & Continuous Improvement",
+            "priority": 8,
+            "duration_days": 14,
+            "risk": "medium",
+            "focus": ["pod_disruption_budgets", "priority_classes", "advanced_scheduling", "cost_alerting"],
+            "description": "Implement advanced features and establish ongoing optimization"
+        }
+    ]
     
     def __init__(self, ai_model: str = None, **kwargs):
         """
-        Initialize Claude AI generator
+        Initialize Claude AI generator with comprehensive configuration.
         
         Args:
-            ai_model: Model name for Claude (defaults to claude-3-5-sonnet-20241022)
-            **kwargs: Ignored for backward compatibility
+            ai_model: Claude model to use (defaults to claude-3-5-sonnet-20241022)
+            **kwargs: Additional configuration options
         """
         self.model = ai_model or os.getenv("AI_MODEL", "claude-3-5-haiku-20241022")
         self.claude_api_key = os.getenv("ANTHROPIC_API_KEY")
         self.claude_url = "https://api.anthropic.com/v1/messages"
-        self.context_builder = ContextBuilder(target_token_limit=8000)
+        self.context_builder = ContextBuilder(target_token_limit=12000)
         
         # Cost tracking
         self.total_input_tokens = 0
         self.total_output_tokens = 0
         self.total_cost = 0.0
         
-        # Claude pricing (as of December 2024)
-        self.input_cost_per_1k = 0.003  # $3 per 1M tokens
-        self.output_cost_per_1k = 0.015  # $15 per 1M tokens
+        # Claude pricing per 1K tokens (as of December 2024)
+        self.pricing = {
+            "claude-3-5-sonnet-latest": {"input": 0.003, "output": 0.015},
+            "claude-3-5-sonnet-20241218": {"input": 0.003, "output": 0.015},
+            "claude-3-5-sonnet-20241022": {"input": 0.003, "output": 0.015},
+            "claude-3-5-haiku-20241022": {"input": 0.001, "output": 0.005},
+            "claude-3-opus-20240229": {"input": 0.015, "output": 0.075}
+        }
+        
+        model_pricing = self.pricing.get(self.model, {"input": 0.003, "output": 0.015})
+        self.input_cost_per_1k = model_pricing["input"]
+        self.output_cost_per_1k = model_pricing["output"]
         
         if not self.claude_api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable is required")
         
-        print(f"✓ Initialized Claude AI Generator")
+        print(f"✓ Initialized Claude AI Generator (Comprehensive Mode)")
         print(f"  Model: {self.model}")
         print(f"  Endpoint: {self.claude_url}")
-        print(f"  Cost tracking: Enabled")
+        print(f"  Pricing: ${self.input_cost_per_1k}/1K input, ${self.output_cost_per_1k}/1K output")
+        print(f"  Phases: {len(self.OPTIMIZATION_PHASES)} comprehensive phases configured")
     
     async def generate_plan(
         self,
         enhanced_input: Dict,
         cluster_name: str,
         cluster_id: str,
-        **kwargs  # Accept but ignore extra params for compatibility
-    ) -> KubeOptImplementationPlan:
-        """Generate optimization plan using local AI with markdown output"""
+        **kwargs
+    ) -> Dict:
+        """
+        Generate comprehensive optimization plan using Claude AI.
         
+        This method orchestrates the complete plan generation process:
+        1. Builds comprehensive context from all available data
+        2. Generates detailed analysis sections
+        3. Creates the implementation plan via Claude API
+        4. Returns raw markdown for display
+        
+        Args:
+            enhanced_input: Complete cluster analysis data from previous stages
+            cluster_name: Name of the AKS cluster
+            cluster_id: Unique cluster identifier
+            **kwargs: Additional parameters for extensibility
+            
+        Returns:
+            Dict: Raw markdown plan for UI display
+        """
         try:
-            # 1. Build simplified context
-            context = self._build_simple_context(enhanced_input)
+            print(f"\n🔍 Building comprehensive context for {cluster_name}...")
             
-            # 2. Generate markdown plan from AI
-            markdown_plan = await self._generate_markdown_plan(context, cluster_name)
+            # 1. Extract and structure all available data
+            context = self._build_comprehensive_context(enhanced_input)
             
-            # Save raw markdown for debugging
+            print(f"   Found {context['total_optimization_count']} optimization opportunities")
+            print(f"   Potential savings: ${context['total_potential_savings']:,.2f}/month")
+            
+            # 2. Generate detailed analysis sections for the prompt
+            print(f"\n📊 Generating analysis sections...")
+            analysis_sections = self._generate_analysis_sections(context)
+            
+            # 3. Generate implementation plan via Claude
+            print(f"\n🤖 Generating comprehensive plan via Claude...")
+            markdown_plan = await self._generate_comprehensive_plan(
+                context, 
+                analysis_sections, 
+                cluster_name
+            )
+            
+            # 4. Save raw markdown for debugging
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            debug_file = f"debug_claude_raw_response_{cluster_id}_{timestamp}.md"
+            debug_file = f"debug_comprehensive_plan_{cluster_id}_{timestamp}.md"
             with open(debug_file, 'w') as f:
                 f.write(markdown_plan)
             logger.info(f"Raw Claude response saved to: {debug_file}")
+            print(f"   📝 Debug output saved to: {debug_file}")
             
-            # 3. Parse markdown into structured plan
-            plan = self._parse_markdown_to_plan(markdown_plan, cluster_name, cluster_id, context)
+            # 5. Return raw markdown plan (no parsing needed)
+            print(f"\n✅ Claude plan generation complete!")
+            print(f"   📄 Raw markdown plan ready for UI display")
+            print(f"   📝 Plan saved to: {debug_file}")
             
-            return plan
+            # Return a simple plan object with just the markdown
+            return {
+                'status': 'success',
+                'plan_type': 'markdown',
+                'raw_markdown': markdown_plan,
+                'cluster_id': cluster_id,
+                'cluster_name': cluster_name,
+                'generated_at': datetime.now().isoformat(),
+                'debug_file': debug_file
+            }
             
         except Exception as e:
             logger.error(f"Failed to generate plan: {e}")
             raise ValueError(f"Plan generation failed for cluster {cluster_name}: {e}")
     
-    def _build_simple_context(self, enhanced_input: Dict) -> Dict:
-        """Build comprehensive context from enhanced analysis data for Claude"""
+    # ==========================================================================
+    # CONTEXT BUILDING METHODS
+    # ==========================================================================
+    
+    def _build_comprehensive_context(self, enhanced_input: Dict) -> Dict:
+        """
+        Build comprehensive context extracting ALL available data points.
         
-        # Extract all real data from enhanced input
+        This method performs deep extraction of every useful piece of information
+        from the enhanced input to provide Claude with maximum context.
+        """
+        # Core analysis data
         cost_analysis = enhanced_input.get('cost_analysis', {})
         cluster_info = enhanced_input.get('cluster_info', {})
         node_pools = enhanced_input.get('node_pools', [])
         optimization_opportunities = enhanced_input.get('optimization_opportunities', [])
         
-        # Get real cost data
+        # Cost metrics extraction
         current_cost = cost_analysis.get('total_cost', 0.0)
         cost_savings = cost_analysis.get('cost_savings', {})
         potential_savings = cost_savings.get('total_monthly_savings', 0.0)
         savings_breakdown = cost_savings.get('savings_breakdown', {})
         
-        # Get efficiency data
+        # Efficiency data
         optimization_potential = cost_savings.get('optimization_potential', {})
         efficiency_metrics = optimization_potential.get('efficiency_metrics', {})
         node_optimization = optimization_potential.get('node_optimization_potential', {})
         
-        # Group optimization opportunities by type
-        opportunities_by_type = {}
-        for opp in optimization_opportunities:
-            opp_type = opp.get('type', 'other')
-            if opp_type not in opportunities_by_type:
-                opportunities_by_type[opp_type] = []
-            opportunities_by_type[opp_type].append(opp)
+        # Categorize opportunities with enriched metadata
+        opportunities_by_type = self._categorize_opportunities(optimization_opportunities)
         
-        # Get detailed workload data for comprehensive analysis
+        # Deep workload analysis
         workloads = enhanced_input.get('workloads', [])
-        workload_details = []
+        workload_analysis = self._analyze_workloads(workloads, optimization_opportunities)
         
-        # Extract workloads that have optimization opportunities
-        opportunity_workloads = set()
-        for opp in optimization_opportunities:
-            opportunity_workloads.add(opp.get('workload', ''))
-        
-        for workload in workloads:
-            workload_name = workload.get('name', '')
-            if workload_name in opportunity_workloads:
-                workload_details.append({
-                    'name': workload_name,
-                    'namespace': workload.get('namespace', 'default'),
-                    'type': workload.get('type', 'Deployment'),
-                    'replicas': workload.get('replicas', 1),
-                    'current_resources': workload.get('resources', {}),
-                    'has_hpa': workload.get('has_hpa', False),
-                    'monthly_cost': workload.get('cost_estimate', {}).get('monthly_cost', 0),
-                    'cpu_usage_avg': workload.get('actual_usage', {}).get('cpu', {}).get('avg_percentage', 0),
-                    'memory_usage_avg': workload.get('actual_usage', {}).get('memory', {}).get('avg_percentage', 0)
-                })
-        
-        # Extract ALL analysis components
+        # Namespace governance analysis
         namespaces = enhanced_input.get('namespaces', [])
+        namespace_analysis = self._analyze_namespaces(namespaces)
+        
+        # Storage waste analysis
         storage_volumes = enhanced_input.get('storage_volumes', [])
-        inefficient_workloads = enhanced_input.get('inefficient_workloads', {})
+        storage_analysis = self._analyze_storage(storage_volumes)
+        
+        # Network cost analysis
         network_resources = enhanced_input.get('network_resources', {})
+        network_analysis = self._analyze_network(network_resources)
+        
+        # Inefficiency root cause analysis
+        inefficient_workloads = enhanced_input.get('inefficient_workloads', {})
+        inefficiency_analysis = self._analyze_inefficiencies(inefficient_workloads)
+        
+        # HPA coverage analysis
         existing_hpas = enhanced_input.get('existing_hpas', [])
+        hpa_analysis = self._analyze_hpas(existing_hpas, workloads)
+        
+        # Cluster metadata
         metadata = enhanced_input.get('metadata', {})
-
+        
+        # Calculate derived metrics
+        savings_percentage = (potential_savings / current_cost * 100) if current_cost > 0 else 0
+        target_efficiency = efficiency_metrics.get('target_system_efficiency', 0.8)
+        current_efficiency = efficiency_metrics.get('current_system_efficiency', 0)
+        efficiency_gap = target_efficiency - current_efficiency
+        
         return {
+            # Cluster identification
             'cluster_info': cluster_info,
+            'cluster_metadata': metadata,
+            
+            # Cost metrics
             'current_monthly_cost': current_cost,
             'total_potential_savings': potential_savings,
             'annual_savings': potential_savings * 12,
+            'savings_percentage': savings_percentage,
             'savings_breakdown': savings_breakdown,
+            
+            # Infrastructure details
             'node_pools': node_pools,
-            'optimization_opportunities': opportunities_by_type,
-            'efficiency_metrics': efficiency_metrics,
+            'node_pool_count': len(node_pools),
+            'total_nodes': sum(pool.get('node_count', 0) for pool in node_pools),
             'node_optimization': node_optimization,
-            'workload_details': workload_details,
-            'namespaces_analysis': namespaces,
-            'storage_analysis': storage_volumes,
-            'inefficient_workloads': inefficient_workloads,
-            'network_analysis': network_resources,
-            'existing_hpas': existing_hpas,
-            'cluster_metadata': metadata,
-            'total_optimization_count': len(optimization_opportunities)
+            
+            # Efficiency metrics
+            'efficiency_metrics': efficiency_metrics,
+            'efficiency_gap': efficiency_gap,
+            'target_efficiency': target_efficiency,
+            'current_efficiency': current_efficiency,
+            
+            # Categorized opportunities
+            'optimization_opportunities': opportunities_by_type,
+            'total_optimization_count': len(optimization_opportunities),
+            'raw_opportunities': optimization_opportunities,
+            
+            # Detailed analyses
+            'workload_analysis': workload_analysis,
+            'namespace_analysis': namespace_analysis,
+            'storage_analysis': storage_analysis,
+            'network_analysis': network_analysis,
+            'inefficiency_analysis': inefficiency_analysis,
+            'hpa_analysis': hpa_analysis,
+            
+            # Raw data for command generation
+            'raw_workloads': workloads,
+            'raw_namespaces': namespaces,
+            'raw_storage': storage_volumes,
+            'raw_network': network_resources,
+            'raw_inefficient': inefficient_workloads,
+            'raw_hpas': existing_hpas
         }
     
-    async def _generate_markdown_plan(self, context: Dict, cluster_name: str) -> str:
-        """Generate markdown plan from Claude API"""
+    def _categorize_opportunities(self, opportunities: List[Dict]) -> Dict[str, List[Dict]]:
+        """Categorize and enrich optimization opportunities by type."""
+        categorized = {
+            'right_sizing': [],
+            'hpa_optimization': [],
+            'networking': [],
+            'storage': [],
+            'node_optimization': [],
+            'governance': [],
+            'security': [],
+            'other': []
+        }
         
-        # Build comprehensive prompt with real data
+        for opp in opportunities:
+            opp_type = opp.get('type', 'other').lower()
+            
+            # Map to standard categories
+            if any(x in opp_type for x in ['right', 'size', 'resource']):
+                category = 'right_sizing'
+            elif any(x in opp_type for x in ['hpa', 'autoscal', 'scaling']):
+                category = 'hpa_optimization'
+            elif any(x in opp_type for x in ['network', 'load', 'egress', 'ingress']):
+                category = 'networking'
+            elif any(x in opp_type for x in ['storage', 'pvc', 'volume', 'disk']):
+                category = 'storage'
+            elif any(x in opp_type for x in ['node', 'pool', 'vm', 'compute']):
+                category = 'node_optimization'
+            elif any(x in opp_type for x in ['quota', 'limit', 'governance']):
+                category = 'governance'
+            elif any(x in opp_type for x in ['security', 'policy', 'rbac']):
+                category = 'security'
+            else:
+                category = 'other'
+            
+            # Enrich with priority and complexity
+            enriched = {
+                **opp,
+                'category': category,
+                'priority': self._calculate_priority(opp),
+                'complexity': self._assess_complexity(opp),
+                'estimated_effort_hours': self._estimate_effort(opp)
+            }
+            categorized[category].append(enriched)
+        
+        # Sort each category by priority
+        for category in categorized:
+            categorized[category].sort(key=lambda x: (x.get('priority', 5), -x.get('potential_monthly_savings', 0)))
+        
+        return categorized
+    
+    def _calculate_priority(self, opportunity: Dict) -> int:
+        """Calculate priority (1=highest, 5=lowest) based on impact and risk."""
+        savings = opportunity.get('potential_monthly_savings', 0)
+        risk = opportunity.get('risk', 'medium').lower()
+        confidence = opportunity.get('confidence', 0.7)
+        
+        # Savings-based priority
+        if savings > 500:
+            savings_score = 1
+        elif savings > 200:
+            savings_score = 2
+        elif savings > 50:
+            savings_score = 3
+        elif savings > 10:
+            savings_score = 4
+        else:
+            savings_score = 5
+        
+        # Risk adjustment
+        risk_adjustment = {'low': 0, 'medium': 1, 'high': 2}.get(risk, 1)
+        
+        # Confidence adjustment
+        if confidence < 0.5:
+            confidence_adjustment = 1
+        else:
+            confidence_adjustment = 0
+        
+        return min(5, savings_score + risk_adjustment + confidence_adjustment)
+    
+    def _assess_complexity(self, opportunity: Dict) -> str:
+        """Assess implementation complexity."""
+        opp_type = opportunity.get('type', '').lower()
+        
+        if any(x in opp_type for x in ['right_sizing', 'resource']):
+            return 'low'
+        elif any(x in opp_type for x in ['hpa', 'quota', 'limit']):
+            return 'medium'
+        elif any(x in opp_type for x in ['node', 'network', 'storage']):
+            return 'high'
+        return 'medium'
+    
+    def _estimate_effort(self, opportunity: Dict) -> float:
+        """Estimate implementation effort in hours."""
+        complexity = self._assess_complexity(opportunity)
+        base_hours = {'low': 1, 'medium': 2, 'high': 4}.get(complexity, 2)
+        
+        # Adjust for number of affected resources
+        affected = opportunity.get('affected_resources', 1)
+        if affected > 5:
+            base_hours *= 1.5
+        if affected > 10:
+            base_hours *= 2
+        
+        return base_hours
+    
+    def _analyze_workloads(self, workloads: List[Dict], opportunities: List[Dict]) -> Dict:
+        """Perform deep analysis of workloads for optimization."""
+        opportunity_workloads = {opp.get('workload', '') for opp in opportunities}
+        
+        analyzed = {
+            'total_count': len(workloads),
+            'needing_optimization': 0,
+            'with_hpa': 0,
+            'without_hpa': 0,
+            'over_provisioned': [],
+            'under_provisioned': [],
+            'right_sized': [],
+            'by_namespace': {},
+            'by_type': {},
+            'total_monthly_cost': 0,
+            'potential_savings': 0
+        }
+        
+        for workload in workloads:
+            name = workload.get('name', '')
+            namespace = workload.get('namespace', 'default')
+            workload_type = workload.get('type', 'Deployment')
+            has_hpa = workload.get('has_hpa', False)
+            
+            # HPA tracking
+            if has_hpa:
+                analyzed['with_hpa'] += 1
+            else:
+                analyzed['without_hpa'] += 1
+            
+            # Usage metrics
+            actual_usage = workload.get('actual_usage', {})
+            cpu_usage = actual_usage.get('cpu', {}).get('avg_percentage', 50)
+            memory_usage = actual_usage.get('memory', {}).get('avg_percentage', 50)
+            
+            # Cost tracking
+            cost_estimate = workload.get('cost_estimate', {})
+            monthly_cost = cost_estimate.get('monthly_cost', 0)
+            analyzed['total_monthly_cost'] += monthly_cost
+            
+            # Resource details
+            resources = workload.get('resources', {})
+            requests = resources.get('requests', {})
+            limits = resources.get('limits', {})
+            
+            workload_detail = {
+                'name': name,
+                'namespace': namespace,
+                'type': workload_type,
+                'replicas': workload.get('replicas', 1),
+                'cpu_usage': cpu_usage,
+                'memory_usage': memory_usage,
+                'monthly_cost': monthly_cost,
+                'has_hpa': has_hpa,
+                'cpu_request': requests.get('cpu', 'not set'),
+                'memory_request': requests.get('memory', 'not set'),
+                'cpu_limit': limits.get('cpu', 'not set'),
+                'memory_limit': limits.get('memory', 'not set'),
+                'needs_optimization': name in opportunity_workloads
+            }
+            
+            # Categorize by efficiency
+            if cpu_usage < 30 or memory_usage < 30:
+                analyzed['over_provisioned'].append(workload_detail)
+                analyzed['needing_optimization'] += 1
+            elif cpu_usage > 85 or memory_usage > 85:
+                analyzed['under_provisioned'].append(workload_detail)
+                analyzed['needing_optimization'] += 1
+            else:
+                analyzed['right_sized'].append(workload_detail)
+            
+            # Track by namespace
+            if namespace not in analyzed['by_namespace']:
+                analyzed['by_namespace'][namespace] = {
+                    'count': 0, 'cost': 0, 'workloads': []
+                }
+            analyzed['by_namespace'][namespace]['count'] += 1
+            analyzed['by_namespace'][namespace]['cost'] += monthly_cost
+            analyzed['by_namespace'][namespace]['workloads'].append(name)
+            
+            # Track by type
+            if workload_type not in analyzed['by_type']:
+                analyzed['by_type'][workload_type] = {'count': 0, 'cost': 0}
+            analyzed['by_type'][workload_type]['count'] += 1
+            analyzed['by_type'][workload_type]['cost'] += monthly_cost
+        
+        return analyzed
+    
+    def _analyze_namespaces(self, namespaces: List[Dict]) -> Dict:
+        """Comprehensive namespace governance analysis."""
+        analyzed = {
+            'total_count': len(namespaces),
+            'total_cost': 0,
+            'with_quotas': 0,
+            'without_quotas': 0,
+            'with_limitranges': 0,
+            'without_limitranges': 0,
+            'governance_issues': [],
+            'by_cost_center': {},
+            'by_team': {},
+            'by_environment': {},
+            'inefficiency_summary': {},
+            'high_cost_namespaces': []
+        }
+        
+        for ns in namespaces:
+            name = ns.get('name', '')
+            cost = ns.get('monthly_cost_estimate', {}).get('total', 0)
+            analyzed['total_cost'] += cost
+            
+            inefficiencies = ns.get('inefficiencies', [])
+            
+            # Quota tracking
+            if 'missing_resource_limits' in inefficiencies or 'no_resource_quota' in inefficiencies:
+                analyzed['without_quotas'] += 1
+            else:
+                analyzed['with_quotas'] += 1
+            
+            if 'missing_limit_range' in inefficiencies or 'no_limit_range' in inefficiencies:
+                analyzed['without_limitranges'] += 1
+            else:
+                analyzed['with_limitranges'] += 1
+            
+            # Governance issues tracking
+            if inefficiencies:
+                analyzed['governance_issues'].append({
+                    'namespace': name,
+                    'issues': inefficiencies,
+                    'issue_count': len(inefficiencies),
+                    'cost': cost,
+                    'score': ns.get('optimization_score', 0),
+                    'owner': ns.get('team_owner', 'unknown'),
+                    'environment': ns.get('environment', 'unknown')
+                })
+                
+                for issue in inefficiencies:
+                    if issue not in analyzed['inefficiency_summary']:
+                        analyzed['inefficiency_summary'][issue] = {
+                            'count': 0, 'cost': 0, 'namespaces': []
+                        }
+                    analyzed['inefficiency_summary'][issue]['count'] += 1
+                    analyzed['inefficiency_summary'][issue]['cost'] += cost
+                    analyzed['inefficiency_summary'][issue]['namespaces'].append(name)
+            
+            # Cost center tracking
+            cost_center = ns.get('cost_center', 'unknown')
+            if cost_center not in analyzed['by_cost_center']:
+                analyzed['by_cost_center'][cost_center] = {
+                    'count': 0, 'cost': 0, 'namespaces': []
+                }
+            analyzed['by_cost_center'][cost_center]['count'] += 1
+            analyzed['by_cost_center'][cost_center]['cost'] += cost
+            analyzed['by_cost_center'][cost_center]['namespaces'].append(name)
+            
+            # Team tracking
+            team = ns.get('team_owner', 'unknown')
+            if team not in analyzed['by_team']:
+                analyzed['by_team'][team] = {'count': 0, 'cost': 0, 'namespaces': []}
+            analyzed['by_team'][team]['count'] += 1
+            analyzed['by_team'][team]['cost'] += cost
+            analyzed['by_team'][team]['namespaces'].append(name)
+            
+            # Environment tracking
+            env = ns.get('environment', 'unknown')
+            if env not in analyzed['by_environment']:
+                analyzed['by_environment'][env] = {'count': 0, 'cost': 0, 'namespaces': []}
+            analyzed['by_environment'][env]['count'] += 1
+            analyzed['by_environment'][env]['cost'] += cost
+            analyzed['by_environment'][env]['namespaces'].append(name)
+            
+            # High-cost namespace tracking
+            if cost > 100:
+                analyzed['high_cost_namespaces'].append({
+                    'name': name,
+                    'cost': cost,
+                    'issues': inefficiencies
+                })
+        
+        # Sort governance issues by cost impact
+        analyzed['governance_issues'].sort(key=lambda x: x['cost'], reverse=True)
+        analyzed['high_cost_namespaces'].sort(key=lambda x: x['cost'], reverse=True)
+        
+        return analyzed
+    
+    def _analyze_storage(self, volumes: List[Dict]) -> Dict:
+        """Storage waste and optimization analysis."""
+        analyzed = {
+            'total_volumes': len(volumes),
+            'total_requested_gb': 0,
+            'total_used_gb': 0,
+            'total_waste_gb': 0,
+            'waste_cost_monthly': 0,
+            'average_utilization': 0,
+            'under_utilized': [],
+            'well_utilized': [],
+            'orphaned': [],
+            'by_storage_class': {},
+            'by_namespace': {},
+            'optimization_potential': 0
+        }
+        
+        utilization_sum = 0
+        utilized_count = 0
+        
+        for vol in volumes:
+            size_info = vol.get('size', {}) if isinstance(vol.get('size'), dict) else {}
+            requested = size_info.get('requested_gb', 0)
+            used = size_info.get('used_gb', 0)
+            
+            namespace = vol.get('namespace', 'default')
+            storage_class = vol.get('storage_class', 'default')
+            
+            analyzed['total_requested_gb'] += requested
+            analyzed['total_used_gb'] += used
+            
+            if requested > 0:
+                waste = max(0, requested - used)
+                utilization = (used / requested * 100)
+                
+                utilization_sum += utilization
+                utilized_count += 1
+                
+                analyzed['total_waste_gb'] += waste
+                
+                vol_detail = {
+                    'name': vol.get('name', 'unknown'),
+                    'namespace': namespace,
+                    'requested_gb': requested,
+                    'used_gb': used,
+                    'utilization': utilization,
+                    'waste_gb': waste,
+                    'waste_cost': waste * 0.10,  # ~$0.10/GB/month for Azure managed disks
+                    'storage_class': storage_class,
+                    'access_mode': vol.get('access_mode', 'ReadWriteOnce'),
+                    'status': vol.get('status', 'Bound')
+                }
+                
+                if utilization < 50:
+                    analyzed['under_utilized'].append(vol_detail)
+                else:
+                    analyzed['well_utilized'].append(vol_detail)
+                
+                # Track by storage class
+                if storage_class not in analyzed['by_storage_class']:
+                    analyzed['by_storage_class'][storage_class] = {
+                        'count': 0, 'total_gb': 0, 'used_gb': 0, 'waste_gb': 0
+                    }
+                analyzed['by_storage_class'][storage_class]['count'] += 1
+                analyzed['by_storage_class'][storage_class]['total_gb'] += requested
+                analyzed['by_storage_class'][storage_class]['used_gb'] += used
+                analyzed['by_storage_class'][storage_class]['waste_gb'] += waste
+                
+                # Track by namespace
+                if namespace not in analyzed['by_namespace']:
+                    analyzed['by_namespace'][namespace] = {
+                        'count': 0, 'total_gb': 0, 'used_gb': 0
+                    }
+                analyzed['by_namespace'][namespace]['count'] += 1
+                analyzed['by_namespace'][namespace]['total_gb'] += requested
+                analyzed['by_namespace'][namespace]['used_gb'] += used
+            
+            # Check for orphaned volumes
+            if vol.get('status') == 'Available' or vol.get('bound_pod') is None:
+                analyzed['orphaned'].append({
+                    'name': vol.get('name', 'unknown'),
+                    'namespace': namespace,
+                    'size_gb': requested,
+                    'age_days': vol.get('age_days', 0),
+                    'storage_class': storage_class
+                })
+        
+        # Calculate waste cost and averages
+        analyzed['waste_cost_monthly'] = analyzed['total_waste_gb'] * 0.10
+        analyzed['average_utilization'] = utilization_sum / utilized_count if utilized_count > 0 else 0
+        
+        # Sort by waste
+        analyzed['under_utilized'].sort(key=lambda x: x['waste_gb'], reverse=True)
+        
+        return analyzed
+    
+    def _analyze_network(self, network_data: Dict) -> Dict:
+        """Network resource and cost analysis."""
+        analyzed = {
+            'total_cost': network_data.get('total_network_cost', 0),
+            'egress_cost': network_data.get('egress_cost', 0),
+            'ingress_cost': network_data.get('ingress_cost', 0),
+            'public_ips': network_data.get('public_ips', []),
+            'load_balancers': network_data.get('load_balancers', []),
+            'public_ip_count': len(network_data.get('public_ips', [])),
+            'load_balancer_count': len(network_data.get('load_balancers', [])),
+            'public_ip_cost': 0,
+            'load_balancer_cost': 0,
+            'optimization_potential': 0,
+            'recommendations': []
+        }
+        
+        # Calculate costs
+        analyzed['public_ip_cost'] = analyzed['public_ip_count'] * 3.65  # $3.65/month per static IP
+        analyzed['load_balancer_cost'] = analyzed['load_balancer_count'] * 18.25  # $18.25/month base
+        
+        # Generate recommendations
+        if analyzed['public_ip_count'] > 3:
+            potential = (analyzed['public_ip_count'] - 3) * 3.65
+            analyzed['recommendations'].append({
+                'type': 'consolidate_public_ips',
+                'description': f"Consolidate {analyzed['public_ip_count']} public IPs to 3 or fewer",
+                'savings': potential,
+                'priority': 'medium',
+                'effort': 'medium'
+            })
+            analyzed['optimization_potential'] += potential
+        
+        if analyzed['load_balancer_count'] > 1:
+            potential = (analyzed['load_balancer_count'] - 1) * 18.25
+            analyzed['recommendations'].append({
+                'type': 'consolidate_load_balancers',
+                'description': f"Use shared ingress controller instead of {analyzed['load_balancer_count']} load balancers",
+                'savings': potential,
+                'priority': 'high',
+                'effort': 'high'
+            })
+            analyzed['optimization_potential'] += potential
+        
+        if analyzed['egress_cost'] > 100:
+            potential = analyzed['egress_cost'] * 0.3
+            analyzed['recommendations'].append({
+                'type': 'reduce_egress',
+                'description': "Implement CDN, optimize inter-region traffic, review external API calls",
+                'savings': potential,
+                'priority': 'medium',
+                'effort': 'medium'
+            })
+            analyzed['optimization_potential'] += potential
+        
+        return analyzed
+    
+    def _analyze_inefficiencies(self, inefficient_data: Dict) -> Dict:
+        """Analyze and categorize all inefficiencies with root cause analysis."""
+        analyzed = {
+            'over_provisioned': {
+                'count': 0,
+                'total_waste_cost': 0,
+                'workloads': [],
+                'by_namespace': {}
+            },
+            'under_utilized': {
+                'count': 0,
+                'workloads': []
+            },
+            'missing_hpa': {
+                'count': 0,
+                'potential_savings': 0,
+                'workloads': []
+            },
+            'orphaned_resources': {
+                'count': 0,
+                'potential_savings': 0,
+                'resources': []
+            },
+            'summary': {
+                'total_issues': 0,
+                'total_waste_cost': 0,
+                'priority_actions': []
+            }
+        }
+        
+        # Process over-provisioned workloads
+        for item in inefficient_data.get('over_provisioned', []):
+            workload = item.get('workload', {})
+            details = item.get('inefficiency_details', {})
+            waste_cost = details.get('monthly_waste_cost', 0)
+            namespace = workload.get('namespace', 'default')
+            
+            analyzed['over_provisioned']['count'] += 1
+            analyzed['over_provisioned']['total_waste_cost'] += waste_cost
+            
+            workload_info = {
+                'name': workload.get('name', 'unknown'),
+                'namespace': namespace,
+                'type': workload.get('type', 'Deployment'),
+                'cpu_waste': details.get('cpu_waste_percentage', 0),
+                'memory_waste': details.get('memory_waste_percentage', 0),
+                'monthly_waste': waste_cost,
+                'current_cpu': details.get('current_cpu', 'unknown'),
+                'current_memory': details.get('current_memory', 'unknown'),
+                'recommended_cpu': details.get('recommended_cpu', '100m'),
+                'recommended_memory': details.get('recommended_memory', '256Mi'),
+                'confidence': item.get('confidence', 0.8),
+                'priority': item.get('priority', 'medium')
+            }
+            analyzed['over_provisioned']['workloads'].append(workload_info)
+            
+            # Track by namespace
+            if namespace not in analyzed['over_provisioned']['by_namespace']:
+                analyzed['over_provisioned']['by_namespace'][namespace] = {
+                    'count': 0, 'waste': 0
+                }
+            analyzed['over_provisioned']['by_namespace'][namespace]['count'] += 1
+            analyzed['over_provisioned']['by_namespace'][namespace]['waste'] += waste_cost
+        
+        # Sort by waste cost
+        analyzed['over_provisioned']['workloads'].sort(
+            key=lambda x: x['monthly_waste'], reverse=True
+        )
+        
+        # Process under-utilized workloads
+        for item in inefficient_data.get('under_utilized', []):
+            workload = item.get('workload', {})
+            analyzed['under_utilized']['count'] += 1
+            analyzed['under_utilized']['workloads'].append({
+                'name': workload.get('name', 'unknown'),
+                'namespace': workload.get('namespace', 'default'),
+                'type': workload.get('type', 'Deployment'),
+                'replicas': workload.get('replicas', 1),
+                'recommendation': 'Consider scaling down or consolidating'
+            })
+        
+        # Process missing HPA candidates
+        for workload in inefficient_data.get('missing_hpa_candidates', []):
+            analyzed['missing_hpa']['count'] += 1
+            
+            # Estimate HPA savings (typically 20-30% for variable workloads)
+            replicas = workload.get('replicas', 2)
+            cost_per_replica = 50  # Approximate
+            potential_savings = replicas * cost_per_replica * 0.25
+            analyzed['missing_hpa']['potential_savings'] += potential_savings
+            
+            analyzed['missing_hpa']['workloads'].append({
+                'name': workload.get('name', 'unknown'),
+                'namespace': workload.get('namespace', 'default'),
+                'type': workload.get('type', 'Deployment'),
+                'current_replicas': replicas,
+                'estimated_savings': potential_savings
+            })
+        
+        # Process orphaned resources
+        for resource in inefficient_data.get('orphaned_resources', []):
+            analyzed['orphaned_resources']['count'] += 1
+            
+            # Estimate cost based on resource type
+            resource_type = resource.get('type', 'unknown')
+            if 'pvc' in resource_type.lower() or 'volume' in resource_type.lower():
+                estimated_cost = 10  # ~$10/month for average PVC
+            elif 'service' in resource_type.lower():
+                estimated_cost = 5
+            else:
+                estimated_cost = 2
+            
+            analyzed['orphaned_resources']['potential_savings'] += estimated_cost
+            
+            analyzed['orphaned_resources']['resources'].append({
+                'name': resource.get('name', 'unknown'),
+                'type': resource_type,
+                'namespace': resource.get('namespace', 'default'),
+                'age_days': resource.get('age_days', 0),
+                'estimated_cost': estimated_cost
+            })
+        
+        # Create summary
+        analyzed['summary']['total_issues'] = (
+            analyzed['over_provisioned']['count'] +
+            analyzed['under_utilized']['count'] +
+            analyzed['missing_hpa']['count'] +
+            analyzed['orphaned_resources']['count']
+        )
+        analyzed['summary']['total_waste_cost'] = (
+            analyzed['over_provisioned']['total_waste_cost'] +
+            analyzed['missing_hpa']['potential_savings'] +
+            analyzed['orphaned_resources']['potential_savings']
+        )
+        
+        # Generate priority actions
+        if analyzed['over_provisioned']['workloads']:
+            top_waste = analyzed['over_provisioned']['workloads'][:3]
+            for w in top_waste:
+                analyzed['summary']['priority_actions'].append({
+                    'action': f"Right-size {w['name']}",
+                    'savings': w['monthly_waste'],
+                    'priority': 'high'
+                })
+        
+        return analyzed
+    
+    def _analyze_hpas(self, existing_hpas: List[Dict], workloads: List[Dict]) -> Dict:
+        """Analyze HPA coverage and configuration quality."""
+        analyzed = {
+            'existing_count': len(existing_hpas),
+            'workloads_with_hpa': set(),
+            'workloads_without_hpa': [],
+            'hpa_details': [],
+            'configuration_issues': [],
+            'recommendations': [],
+            'coverage_percentage': 0,
+            'potential_savings': 0
+        }
+        
+        # Map existing HPAs
+        for hpa in existing_hpas:
+            target = hpa.get('target', {})
+            workload_name = target.get('name', '')
+            analyzed['workloads_with_hpa'].add(workload_name)
+            
+            min_replicas = hpa.get('min_replicas', 1)
+            max_replicas = hpa.get('max_replicas', 10)
+            metrics = hpa.get('metrics', [])
+            
+            hpa_detail = {
+                'name': hpa.get('name', 'unknown'),
+                'namespace': hpa.get('namespace', 'default'),
+                'target_workload': workload_name,
+                'min_replicas': min_replicas,
+                'max_replicas': max_replicas,
+                'current_replicas': hpa.get('current_replicas', min_replicas),
+                'metrics_count': len(metrics),
+                'metrics': metrics
+            }
+            analyzed['hpa_details'].append(hpa_detail)
+            
+            # Check for configuration issues
+            if max_replicas <= min_replicas:
+                analyzed['configuration_issues'].append({
+                    'hpa': hpa.get('name'),
+                    'issue': 'max_replicas <= min_replicas',
+                    'recommendation': f'Set max_replicas > {min_replicas}'
+                })
+            
+            if not metrics:
+                analyzed['configuration_issues'].append({
+                    'hpa': hpa.get('name'),
+                    'issue': 'No metrics configured',
+                    'recommendation': 'Add CPU or memory metrics'
+                })
+        
+        # Find workloads without HPA
+        deployment_count = 0
+        for workload in workloads:
+            name = workload.get('name', '')
+            workload_type = workload.get('type', 'Deployment')
+            
+            if workload_type == 'Deployment':
+                deployment_count += 1
+                
+                if name not in analyzed['workloads_with_hpa']:
+                    replicas = workload.get('replicas', 1)
+                    
+                    # Check if good HPA candidate
+                    if replicas >= 1:
+                        # Estimate savings from HPA
+                        cost_per_replica = 50  # Approximate monthly cost
+                        potential_savings = replicas * cost_per_replica * 0.25
+                        analyzed['potential_savings'] += potential_savings
+                        
+                        analyzed['workloads_without_hpa'].append({
+                            'name': name,
+                            'namespace': workload.get('namespace', 'default'),
+                            'replicas': replicas,
+                            'monthly_cost': workload.get('cost_estimate', {}).get('monthly_cost', 0),
+                            'estimated_savings': potential_savings,
+                            'priority': 'high' if replicas > 2 else 'medium'
+                        })
+        
+        # Calculate coverage
+        if deployment_count > 0:
+            analyzed['coverage_percentage'] = (
+                len(analyzed['workloads_with_hpa']) / deployment_count * 100
+            )
+        
+        # Sort candidates by potential savings
+        analyzed['workloads_without_hpa'].sort(
+            key=lambda x: x['estimated_savings'], reverse=True
+        )
+        
+        # Generate recommendations
+        if analyzed['workloads_without_hpa']:
+            analyzed['recommendations'].append({
+                'type': 'add_hpa',
+                'count': len(analyzed['workloads_without_hpa']),
+                'description': f"Add HPA to {len(analyzed['workloads_without_hpa'])} workloads",
+                'potential_savings': analyzed['potential_savings']
+            })
+        
+        if analyzed['configuration_issues']:
+            analyzed['recommendations'].append({
+                'type': 'fix_hpa_config',
+                'count': len(analyzed['configuration_issues']),
+                'description': f"Fix configuration issues in {len(analyzed['configuration_issues'])} HPAs"
+            })
+        
+        return analyzed
+    
+    # ==========================================================================
+    # ANALYSIS SECTION GENERATION METHODS
+    # ==========================================================================
+    
+    def _generate_analysis_sections(self, context: Dict) -> Dict[str, str]:
+        """Generate detailed analysis sections for the Claude prompt."""
+        sections = {}
+        
+        sections['executive_summary'] = self._format_executive_summary(context)
+        sections['infrastructure'] = self._format_infrastructure_details(context)
+        sections['cost_analysis'] = self._format_cost_analysis(context)
+        sections['workload_analysis'] = self._format_workload_analysis(context)
+        sections['namespace_governance'] = self._format_namespace_governance(context)
+        sections['storage_analysis'] = self._format_storage_analysis(context)
+        sections['network_analysis'] = self._format_network_analysis(context)
+        sections['inefficiency_analysis'] = self._format_inefficiency_analysis(context)
+        sections['hpa_analysis'] = self._format_hpa_analysis(context)
+        sections['validated_commands'] = self._generate_all_validated_commands(context)
+        
+        return sections
+    
+    def _format_executive_summary(self, context: Dict) -> str:
+        """Format executive summary with health assessment."""
+        efficiency = context.get('efficiency_metrics', {})
+        cpu_eff = efficiency.get('current_cpu_efficiency', 0) * 100
+        mem_eff = efficiency.get('current_memory_efficiency', 0) * 100
+        
+        if cpu_eff < 50:
+            health_status = "🔴 CRITICAL"
+            health_desc = "Severe resource over-provisioning - immediate action required"
+        elif cpu_eff < 70:
+            health_status = "🟡 WARNING"
+            health_desc = "Moderate inefficiency - optimization recommended"
+        else:
+            health_status = "🟢 GOOD"
+            health_desc = "Cluster efficiency within acceptable range"
+        
+        return f"""
+## EXECUTIVE SUMMARY
+
+**Cluster Health Status:** {health_status}
+**Assessment:** {health_desc}
+
+### Key Performance Metrics
+| Metric | Current | Target | Gap |
+|--------|---------|--------|-----|
+| CPU Efficiency | {cpu_eff:.1f}% | 80.0% | {max(0, 80 - cpu_eff):.1f}% |
+| Memory Efficiency | {mem_eff:.1f}% | 80.0% | {max(0, 80 - mem_eff):.1f}% |
+| Monthly Spend | ${context['current_monthly_cost']:,.2f} | ${context['current_monthly_cost'] - context['total_potential_savings']:,.2f} | -${context['total_potential_savings']:,.2f} |
+
+### Financial Impact Summary
+- **Monthly Savings Potential:** ${context['total_potential_savings']:,.2f}
+- **Annual Savings Potential:** ${context['annual_savings']:,.2f}
+- **Optimization Opportunities Identified:** {context['total_optimization_count']}
+"""
+    
+    def _format_infrastructure_details(self, context: Dict) -> str:
+        """Format infrastructure details section."""
         cluster_info = context['cluster_info']
         node_pools = context['node_pools']
-        optimization_opps = context['optimization_opportunities']
-        efficiency = context['efficiency_metrics']
-        savings_breakdown = context['savings_breakdown']
         
-        # Get all the additional analysis data
-        namespaces_data = context.get('namespaces_analysis', [])
-        storage_data = context.get('storage_analysis', [])
-        inefficient_data = context.get('inefficient_workloads', {})
-        network_data = context.get('network_analysis', {})
+        lines = ["## CLUSTER INFRASTRUCTURE\n"]
+        lines.append(f"- **Cluster Name:** {cluster_info.get('cluster_name', 'unknown')}")
+        lines.append(f"- **Resource Group:** {cluster_info.get('resource_group', 'unknown')}")
+        lines.append(f"- **Kubernetes Version:** {cluster_info.get('kubernetes_version', 'unknown')}")
+        lines.append(f"- **Node Pools:** {context['node_pool_count']}")
+        lines.append(f"- **Total Nodes:** {context['total_nodes']}")
         
-        # Create ALL analysis components - comprehensive approach
-        backup_commands = self._generate_validated_backup_commands(context)
-        workload_optimizations = self._generate_validated_workload_commands(context)
-        namespace_fixes = self._generate_validated_namespace_commands(namespaces_data)
-        
-        # ADD detailed analysis components
-        detailed_workload_analysis = self._generate_detailed_workload_analysis(context)
-        comprehensive_namespace_analysis = self._generate_comprehensive_namespace_analysis(namespaces_data)
-        storage_waste_analysis = self._generate_storage_waste_analysis(storage_data)
-        network_cost_analysis = self._generate_network_cost_analysis(network_data)
-        inefficiency_root_cause_analysis = self._generate_inefficiency_analysis(inefficient_data)
-        cluster_health_assessment = self._generate_cluster_health_assessment(context)
-        naming_convention_analysis = self._generate_naming_convention_analysis(namespaces_data)
-        security_compliance_analysis = self._generate_security_compliance_analysis(context)
-        
-        prompt = f"""You are a Senior Kubernetes Cost Optimization Consultant. Generate a COMPLETE, COMPREHENSIVE implementation plan for {cluster_name} using ALL the analysis data below.
-
-## 🚨 CRITICAL CLUSTER HEALTH CRISIS
-**CPU Efficiency:** {efficiency.get('current_cpu_efficiency', 0)*100:.1f}% (CRITICAL - Target: {efficiency.get('target_system_efficiency', 0)*100:.1f}%)
-**Monthly Waste:** ${context['total_potential_savings']:.2f} out of ${context['current_monthly_cost']:.2f}
-**System Health Score:** {efficiency.get('current_system_efficiency', 0)*100:.1f}%
-
-## 📋 CLUSTER INFRASTRUCTURE DETAILS
-**Cluster:** {cluster_info.get('cluster_name')}
-**Resource Group:** {cluster_info.get('resource_group')}  
-**Kubernetes Version:** {cluster_info.get('kubernetes_version')}
-**Node Pools:** {len(node_pools)} pools, {sum(pool.get('node_count', 0) for pool in node_pools)} total nodes
-**Total Namespaces:** {len(namespaces_data)} ({', '.join([ns.get('name', 'unknown') for ns in namespaces_data[:5]])}...)
-**Total Workloads:** {context.get('total_optimization_count', 0)} optimization opportunities identified
-
-## 💰 COMPREHENSIVE COST BREAKDOWN & SAVINGS OPPORTUNITIES
-**Current Monthly Cost:** ${context['current_monthly_cost']:.2f}
-**Proven Savings Available:**
-- Right-sizing Workloads: ${savings_breakdown.get('right_sizing_savings', 0):.2f}/month  
-- HPA Optimization: ${savings_breakdown.get('hpa_optimization_savings', 0):.2f}/month
-- Networking Optimization: ${savings_breakdown.get('networking_optimization_savings', 0):.2f}/month
-- Node Pool Optimization: ${savings_breakdown.get('node_optimization_savings', 0):.2f}/month
-- Compute Optimization: ${savings_breakdown.get('compute_optimization_savings', 0):.2f}/month
-- Core Infrastructure: ${savings_breakdown.get('core_optimization_savings', 0):.2f}/month
-**Total Potential:** ${context['total_potential_savings']:.2f}/month (${context['annual_savings']:.2f}/year)
-
-## 🔍 DETAILED WORKLOAD ANALYSIS
-{detailed_workload_analysis}
-
-## 🏗️ COMPREHENSIVE NAMESPACE GOVERNANCE ANALYSIS  
-{comprehensive_namespace_analysis}
-
-## 📦 STORAGE WASTE IDENTIFICATION & ANALYSIS
-{storage_waste_analysis}
-
-## 🌐 NETWORK COST ANALYSIS & OPTIMIZATION OPPORTUNITIES
-{network_cost_analysis}
-
-## 🗑️ INEFFICIENCY ROOT CAUSE ANALYSIS
-{inefficiency_root_cause_analysis}
-
-## 🏥 CLUSTER HEALTH & GOVERNANCE ASSESSMENT
-{cluster_health_assessment}
-
-## 🏷️ NAMING CONVENTION & COMPLIANCE ANALYSIS
-{naming_convention_analysis}
-
-## 🔒 SECURITY & COMPLIANCE GAP ANALYSIS
-{security_compliance_analysis}
-
-## ⚙️ VALIDATED IMPLEMENTATION COMMANDS
-{backup_commands}
-
-{workload_optimizations}
-
-{namespace_fixes}
-
-## 📐 COMPREHENSIVE IMPLEMENTATION REQUIREMENTS
-You MUST generate a plan that includes:
-
-### 🔧 OPTIMIZATION PHASES (8 phases minimum)
-1. **Emergency Workload Right-Sizing** - Address CPU efficiency crisis
-2. **HPA Implementation** - Autoscaling for dynamic workloads  
-3. **Namespace Governance** - Resource quotas and limits
-4. **Storage Optimization** - PVC cleanup and right-sizing
-5. **Network Cost Reduction** - Load balancer and egress optimization
-6. **Node Pool Optimization** - VM sizing and scaling  
-7. **Security & Compliance** - Policy implementation
-8. **Monitoring & Alerting** - Continuous optimization
-
-### 📋 BACKUP & ROLLBACK PROCEDURES
-- Complete backup commands before every change
-- Step-by-step rollback procedures
-- Validation commands for each phase
-- Emergency recovery procedures
-
-### 🏷️ NAMING CONVENTION FIXES
-- Identify non-compliant resource naming
-- Provide rename commands and procedures
-- Establish naming standards
-
-### 🧹 WASTE RESOURCE CLEANUP
-- Orphaned resource identification and removal
-- Storage cleanup procedures  
-- Unused service cleanup
-
-### 🏥 CLUSTER HEALTH MONITORING
-- Ongoing health check commands
-- Performance monitoring setup
-- Cost tracking implementation
-- Efficiency measurement procedures
-
-### 🔒 SECURITY & COMPLIANCE IMPLEMENTATION
-- ResourceQuota and LimitRange creation
-- Pod Security Policy implementation  
-- Network Policy configuration
-- RBAC optimization
-
-### 📊 POST-IMPLEMENTATION VALIDATION
-- Cost impact measurement
-- Performance validation
-- Security compliance verification
-- Ongoing monitoring setup
-
-## 🎯 MANDATORY OUTPUT FORMAT
-Generate a comprehensive plan using the exact structure below with ALL validated commands and analysis provided above:
-
-# COMPREHENSIVE KUBERNETES COST OPTIMIZATION IMPLEMENTATION PLAN
-**Cluster:** {cluster_name}
-**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
-**Total Potential Savings:** ${context['total_potential_savings']:.2f}/month
-
-[Include ALL 8 phases with specific commands, analysis, and procedures using the data provided above]
-
-USE ALL THE ANALYSIS DATA AND VALIDATED COMMANDS PROVIDED - DO NOT CREATE GENERIC EXAMPLES.
-
-# Implementation Plan
-**Cluster:** {cluster_name}  
-**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
-**Generated By:** AKS Cost Optimizer
-
-## Implementation Phases
-
-### Phase 1: Quick Wins
-**Duration:** 7 days  
-**Risk Level:** Low  
-**Total Savings:** $[use real HPA + right-sizing savings]/month
-
-**Actions:**
-
-##### 1.1: [Use specific right-sizing opportunity from data]
-**Monthly Savings:** $[actual amount from right_sizing_savings]  
-**Risk:** Low  
-**Effort:** [actual implementation time]
-
-**Implementation Steps:**
-1. Backup current configuration
-```bash
-[use actual kubectl commands from optimization opportunities]
-```
-
-2. [Use real workload names and namespaces]
-```bash
-[actual kubectl patch commands from the data]
-```
-
-### Phase 2: Resource Optimization  
-**Duration:** 14 days  
-**Risk Level:** Medium  
-**Total Savings:** $[networking + compute savings]/month
-
-**Actions:**
-
-##### 2.1: Node Pool Optimization
-**Monthly Savings:** $[node_optimization_savings]  
-**Risk:** Medium  
-**Effort:** 4 hours
-
-**Implementation Steps:**
-1. Analyze current node pool utilization
-```bash
-az aks nodepool show --resource-group {cluster_info.get('resource_group')} --cluster-name {cluster_name} --name [actual node pool name]
-```
-
-### Phase 3: Advanced Optimization
-[Continue with remaining optimizations]
-
----
-
-## Post-Implementation Monitoring
-[Include standard monitoring commands]
-
-Generated by AKS Cost Optimizer
-
-# Implementation Plan
-**Cluster:** {cluster_name}  
-**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}  
-**Generated By:** AKS Cost Optimizer
-
-## Implementation Phases
-
-### Phase 1: Quick Wins
-**Duration:** 7 days  
-**Risk Level:** Low  
-**Total Savings:** $[total]/month
-
-**Actions:**
-
-##### 1.1: [First Action Name]
-**Monthly Savings:** $[amount]  
-**Risk:** Low  
-**Effort:** 4 hours
-
-**Implementation Steps:**
-1. Backup current configuration
-```bash
-kubectl get all -n production -o yaml > backup-phase1-action1.yaml
-```
-
-2. [Step description]
-```bash
-[actual kubectl/az command]
-```
-
-3. [Step description]
-```bash
-[actual kubectl/az command]
-```
-
-##### 1.2: [Second Action Name]
-[Same structure as above]
-
-### Phase 2: Resource Optimization
-**Duration:** 14 days  
-**Risk Level:** Medium  
-**Total Savings:** $[total]/month
-
-**Actions:**
-
-##### 2.1: [Action Name]
-[Same structure as Phase 1]
-
-### Phase 3: Advanced Optimization
-**Duration:** 14 days  
-**Risk Level:** Medium  
-**Total Savings:** $[total]/month
-
-**Actions:**
-
-##### 3.1: [Action Name]
-[Same structure as above]
-
----
-
-## Post-Implementation Monitoring
-
-**Commands to Monitor Progress:**
-
-- **Check node resource usage**
-```bash
-kubectl top nodes
-```
-
-- **Check pod resource usage**
-```bash
-kubectl top pods --all-namespaces
-```
-
-- **Check autoscaler status**
-```bash
-kubectl get hpa --all-namespaces
-```
-
-### Key Metrics to Track:
-- cpu_utilization: < 70% average across nodes
-- memory_utilization: < 80% average across nodes  
-- pod_count: Stable with HPA managing scale
-- cost_per_day: < $[target]
-
-## Review Schedule
-- **Day 7:** Week 1 Review - Quick Wins Assessment
-- **Day 14:** Week 2 Review - Resource Optimization  
-- **Day 30:** Month 1 Review - Full Impact Analysis
-- **Day 90:** Quarter Review - Long-term Optimization
-
-Generated by AKS Cost Optimizer  
-Timestamp: {datetime.now().isoformat()}
-
-REQUIREMENTS:
-- Include at least 6 optimization actions total
-- Use actual kubectl/az commands that work with AKS
-- Focus on cost savings with realistic dollar amounts
-- Ensure proper markdown formatting with headers, code blocks, and lists
-- Commands should be production-ready and safe to execute"""
-        
-        # Call Claude API and return the result
-        return await self._call_claude_api(prompt)
-        
-    def _format_node_pools(self, node_pools: List[Dict]) -> str:
-        """Format node pool information for prompt"""
-        if not node_pools:
-            return "- No node pool data available"
-        
-        lines = []
-        for pool in node_pools:
-            lines.append(f"- **{pool.get('name')}**: {pool.get('vm_sku')}, {pool.get('node_count')} nodes, ${pool.get('monthly_cost', 0):.2f}/month")
-        return '\n'.join(lines)
-    
-    def _format_optimization_opportunities(self, opportunities: Dict[str, List]) -> str:
-        """Format optimization opportunities for prompt"""
-        if not opportunities:
-            return "- No specific optimization opportunities identified"
-        
-        lines = []
-        for opp_type, opps in opportunities.items():
-            if opps:
-                lines.append(f"\n**{opp_type.upper()} OPPORTUNITIES:**")
-                for opp in opps[:3]:  # Show top 3 per type
-                    workload = opp.get('workload', 'unknown')
-                    namespace = opp.get('namespace', 'default')
-                    savings = opp.get('potential_monthly_savings', 0)
-                    command = opp.get('recommended_action', 'No action specified')
-                    lines.append(f"- {workload} ({namespace}): ${savings:.2f}/month")
-                    lines.append(f"  Command: {command}")
+        if node_pools:
+            lines.append("\n### Node Pool Details")
+            for pool in node_pools:
+                lines.append(f"- **{pool.get('name')}:** {pool.get('vm_sku')}, {pool.get('node_count')} nodes, ${pool.get('monthly_cost', 0):,.2f}/month")
         
         return '\n'.join(lines)
     
-    def _format_comprehensive_savings_breakdown(self, savings_breakdown: Dict) -> str:
-        """Format comprehensive savings breakdown for prompt"""
-        lines = []
-        for category, amount in savings_breakdown.items():
+    def _format_cost_analysis(self, context: Dict) -> str:
+        """Format comprehensive cost breakdown."""
+        savings = context['savings_breakdown']
+        lines = [f"## COST ANALYSIS\n**Total Monthly:** ${context['current_monthly_cost']:,.2f}\n"]
+        
+        for category, amount in sorted(savings.items(), key=lambda x: x[1], reverse=True):
             if amount > 0:
-                category_name = category.replace('_', ' ').title().replace('Optimization ', '').replace('Savings', '')
-                lines.append(f"- **{category_name}**: ${amount:.2f}/month")
+                lines.append(f"- {category.replace('_', ' ').title()}: ${amount:,.2f}/month")
+        
+        lines.append(f"\n**Total Potential Savings:** ${context['total_potential_savings']:,.2f}/month")
         return '\n'.join(lines)
     
-    def _format_detailed_workload_data(self, workload_details: List[Dict]) -> str:
-        """Format detailed workload data for prompt"""
-        if not workload_details:
-            return "- No detailed workload data available"
+    def _format_workload_analysis(self, context: Dict) -> str:
+        """Format detailed workload analysis."""
+        analysis = context['workload_analysis']
+        lines = [f"## WORKLOAD ANALYSIS\n- Total: {analysis['total_count']}\n- Needing optimization: {analysis['needing_optimization']}\n"]
         
-        lines = []
-        for workload in workload_details:
-            name = workload['name']
-            namespace = workload['namespace']
-            current_cpu = workload['current_resources'].get('requests', {}).get('cpu', 'unknown')
-            current_memory = workload['current_resources'].get('requests', {}).get('memory', 'unknown')
-            cpu_usage = workload['cpu_usage_avg']
-            memory_usage = workload['memory_usage_avg']
-            monthly_cost = workload['monthly_cost']
-            
-            lines.append(f"\n**{name}** ({namespace}):")
-            lines.append(f"- Current CPU Request: {current_cpu}")
-            lines.append(f"- Current Memory Request: {current_memory}")  
-            lines.append(f"- Actual CPU Usage: {cpu_usage:.1f}%")
-            lines.append(f"- Actual Memory Usage: {memory_usage:.1f}%")
-            lines.append(f"- Monthly Cost: ${monthly_cost:.2f}")
-            lines.append(f"- HPA Enabled: {workload['has_hpa']}")
-            
-            # Calculate recommended resources based on usage
-            if cpu_usage > 0:
-                if cpu_usage < 30:
-                    recommended_cpu = "100m"  # Scale down
-                elif cpu_usage < 60:
-                    recommended_cpu = "250m"  # Moderate
-                else:
-                    recommended_cpu = "500m"  # Scale up
-            else:
-                recommended_cpu = "200m"  # Default
-                
-            if memory_usage > 0:
-                if memory_usage < 30:
-                    recommended_memory = "256Mi"  # Scale down
-                elif memory_usage < 60:
-                    recommended_memory = "512Mi"  # Moderate  
-                else:
-                    recommended_memory = "1Gi"  # Scale up
-            else:
-                recommended_memory = "512Mi"  # Default
-                
-            lines.append(f"- **Recommended CPU**: {recommended_cpu}")
-            lines.append(f"- **Recommended Memory**: {recommended_memory}")
+        if analysis['over_provisioned']:
+            lines.append(f"\n### Over-Provisioned ({len(analysis['over_provisioned'])})")
+            for w in analysis['over_provisioned'][:8]:
+                lines.append(f"- **{w['name']}** ({w['namespace']}): CPU {w['cpu_usage']:.1f}%, Mem {w['memory_usage']:.1f}%, ${w['monthly_cost']:.2f}/mo")
         
         return '\n'.join(lines)
     
-    def _format_namespace_analysis(self, namespaces: List[Dict]) -> str:
-        """Format namespace analysis for prompt"""
-        if not namespaces:
-            return "- No namespace analysis available"
+    def _format_namespace_governance(self, context: Dict) -> str:
+        """Format namespace governance analysis."""
+        analysis = context['namespace_analysis']
+        lines = [f"## NAMESPACE GOVERNANCE\n- Total: {analysis['total_count']}\n- Without quotas: {analysis['without_quotas']}\n"]
         
-        lines = ["**NAMESPACE GOVERNANCE ISSUES:**"]
-        for ns in namespaces[:10]:  # Top 10 namespaces
-            name = ns.get('name', 'unknown')
-            cost = ns.get('monthly_cost_estimate', {}).get('total', 0)
-            inefficiencies = ns.get('inefficiencies', [])
-            optimization_score = ns.get('optimization_score', 0)
-            
-            lines.append(f"\n- **{name}**: ${cost:.2f}/month (Score: {optimization_score}/100)")
-            if inefficiencies:
-                lines.append(f"  Issues: {', '.join(inefficiencies)}")
+        if analysis['governance_issues']:
+            lines.append(f"\n### Issues ({len(analysis['governance_issues'])} namespaces)")
+            for issue in analysis['governance_issues'][:8]:
+                lines.append(f"- **{issue['namespace']}:** {', '.join(issue['issues'][:3])}")
         
         return '\n'.join(lines)
     
-    def _format_storage_analysis(self, storage_volumes: List[Dict]) -> str:
-        """Format storage analysis for prompt"""
-        if not storage_volumes:
-            return "- No storage waste identified"
+    def _format_storage_analysis(self, context: Dict) -> str:
+        """Format storage waste analysis."""
+        analysis = context['storage_analysis']
+        return f"""## STORAGE ANALYSIS
+- Total Volumes: {analysis['total_volumes']}
+- Waste: {analysis['total_waste_gb']:.1f} GB (${analysis['waste_cost_monthly']:.2f}/month)
+- Under-utilized: {len(analysis['under_utilized'])}
+- Orphaned: {len(analysis['orphaned'])}
+"""
+    
+    def _format_network_analysis(self, context: Dict) -> str:
+        """Format network cost analysis."""
+        analysis = context['network_analysis']
+        return f"""## NETWORK ANALYSIS
+- Total: ${analysis['total_cost']:,.2f}/month
+- Public IPs ({analysis['public_ip_count']}): ${analysis['public_ip_cost']:,.2f}
+- Load Balancers ({analysis['load_balancer_count']}): ${analysis['load_balancer_cost']:,.2f}
+- Optimization Potential: ${analysis['optimization_potential']:,.2f}/month
+"""
+    
+    def _format_inefficiency_analysis(self, context: Dict) -> str:
+        """Format inefficiency root cause analysis."""
+        analysis = context['inefficiency_analysis']
+        lines = [f"## INEFFICIENCY ANALYSIS\n- Total Issues: {analysis['summary']['total_issues']}\n- Total Waste: ${analysis['summary']['total_waste_cost']:,.2f}/month\n"]
         
-        lines = ["**STORAGE WASTE IDENTIFIED:**"]
-        total_wasted_gb = 0
-        
-        for vol in storage_volumes:
-            if isinstance(vol, dict) and 'size' in str(vol):
-                size_info = vol.get('size', {})
-                if isinstance(size_info, dict):
-                    requested = size_info.get('requested_gb', 0)
-                    used = size_info.get('used_gb', 0)
-                    if requested > used:
-                        waste = requested - used
-                        total_wasted_gb += waste
-                        utilization = (used / requested * 100) if requested > 0 else 0
-                        lines.append(f"- Volume: {waste:.1f}GB wasted ({utilization:.1f}% utilized)")
-        
-        if total_wasted_gb > 0:
-            lines.append(f"\n**Total Storage Waste:** {total_wasted_gb:.1f}GB (≈${total_wasted_gb * 0.1:.2f}/month)")
+        if analysis['over_provisioned']['workloads']:
+            lines.append(f"\n### Over-Provisioned ({analysis['over_provisioned']['count']})")
+            for w in analysis['over_provisioned']['workloads'][:8]:
+                lines.append(f"- **{w['name']}** ({w['namespace']}): ${w['monthly_waste']:.2f}/mo waste, recommend CPU={w['recommended_cpu']}, Mem={w['recommended_memory']}")
         
         return '\n'.join(lines)
     
-    def _format_inefficient_workloads_analysis(self, inefficient_workloads: Dict) -> str:
-        """Format inefficient workloads analysis for prompt"""
-        lines = ["**WORKLOAD EFFICIENCY PROBLEMS:**"]
+    def _format_hpa_analysis(self, context: Dict) -> str:
+        """Format HPA coverage analysis."""
+        analysis = context['hpa_analysis']
+        lines = [f"## HPA ANALYSIS\n- Existing: {analysis['existing_count']}\n- Coverage: {analysis['coverage_percentage']:.1f}%\n- Candidates: {len(analysis['workloads_without_hpa'])}\n"]
         
-        # Over-provisioned workloads
-        over_provisioned = inefficient_workloads.get('over_provisioned', [])
-        if over_provisioned:
-            lines.append(f"\n**Over-Provisioned ({len(over_provisioned)} workloads):**")
-            for workload_data in over_provisioned[:5]:
-                workload = workload_data.get('workload', {})
-                details = workload_data.get('inefficiency_details', {})
-                name = workload.get('name', 'unknown')
-                namespace = workload.get('namespace', 'unknown')
-                waste_cost = details.get('monthly_waste_cost', 0)
-                lines.append(f"- {name} ({namespace}): ${waste_cost:.2f}/month waste")
-        
-        # Under-utilized workloads
-        under_utilized = inefficient_workloads.get('under_utilized', [])
-        if under_utilized:
-            lines.append(f"\n**Under-Utilized ({len(under_utilized)} workloads):**")
-            for workload_data in under_utilized[:3]:
-                workload = workload_data.get('workload', {})
-                name = workload.get('name', 'unknown')
-                namespace = workload.get('namespace', 'unknown')
-                lines.append(f"- {name} ({namespace}): Scale down candidate")
-        
-        # Missing HPA candidates
-        missing_hpa = inefficient_workloads.get('missing_hpa_candidates', [])
-        if missing_hpa:
-            lines.append(f"\n**Missing HPA ({len(missing_hpa)} workloads):**")
-            for workload in missing_hpa[:3]:
-                name = workload.get('name', 'unknown')
-                namespace = workload.get('namespace', 'unknown')
-                lines.append(f"- {name} ({namespace}): Needs autoscaling")
-        
-        # Orphaned resources
-        orphaned = inefficient_workloads.get('orphaned_resources', [])
-        if orphaned:
-            lines.append(f"\n**Orphaned Resources ({len(orphaned)} items):**")
-            for resource in orphaned[:3]:
-                name = resource.get('name', 'unknown')
-                resource_type = resource.get('type', 'unknown')
-                lines.append(f"- {name} ({resource_type}): Can be deleted")
+        if analysis['workloads_without_hpa']:
+            lines.append("\n### HPA Candidates")
+            for w in analysis['workloads_without_hpa'][:10]:
+                lines.append(f"- **{w['name']}** ({w['namespace']}): {w['replicas']} replicas")
         
         return '\n'.join(lines)
     
-    def _format_network_analysis(self, network_data: Dict) -> str:
-        """Format network analysis for prompt"""
-        if not network_data:
-            return "- No network optimization opportunities identified"
+    def _generate_all_validated_commands(self, context: Dict) -> str:
+        """Generate all validated implementation commands."""
+        cluster_info = context['cluster_info']
+        rg = cluster_info.get('resource_group', 'myResourceGroup')
+        cluster = cluster_info.get('cluster_name', 'myCluster')
         
-        lines = ["**NETWORK COST OPTIMIZATION:**"]
+        sections = [self._gen_backup_commands(rg, cluster)]
+        sections.append(self._gen_rightsizing_commands(context))
+        sections.append(self._gen_hpa_commands(context))
+        sections.append(self._gen_governance_commands(context))
         
-        total_network_cost = network_data.get('total_network_cost', 0)
-        egress_cost = network_data.get('egress_cost', 0)
-        public_ips = network_data.get('public_ips', [])
-        load_balancers = network_data.get('load_balancers', [])
-        
-        if total_network_cost > 0:
-            lines.append(f"- Total Network Cost: ${total_network_cost:.2f}/month")
-        if egress_cost > 0:
-            lines.append(f"- Egress Cost: ${egress_cost:.2f}/month")
-        if public_ips:
-            lines.append(f"- Public IPs: {len(public_ips)} (${len(public_ips) * 3.65:.2f}/month)")
-        if load_balancers:
-            lines.append(f"- Load Balancers: {len(load_balancers)} (review for consolidation)")
-        
-        return '\n'.join(lines)
+        return '\n'.join(sections)
     
-    def _generate_validated_backup_commands(self, context: Dict) -> str:
-        """Generate production-ready backup commands"""
-        cluster_info = context.get('cluster_info', {})
-        workload_details = context.get('workload_details', [])
-        namespaces_data = context.get('namespaces_analysis', [])
-        
-        backup_commands = []
-        backup_commands.append("**COMPREHENSIVE BACKUP PROCEDURES:**")
-        
-        # Cluster-level backup
-        backup_commands.append(f"""
-**1. Full Cluster Backup:**
+    def _gen_backup_commands(self, rg: str, cluster: str) -> str:
+        """Generate backup commands."""
+        return f"""
+## VALIDATED COMMANDS
+
+### BACKUP (Execute First)
 ```bash
-# Create backup directory
-mkdir -p cluster-backup-$(date +%Y%m%d-%H%M%S)
-cd cluster-backup-$(date +%Y%m%d-%H%M%S)
-
-# Backup all deployments in target namespace
-kubectl get deployments -n madapi-preprod -o yaml > deployments-backup.yaml
-
-# Backup all services
-kubectl get services -n madapi-preprod -o yaml > services-backup.yaml
-
-# Backup all configmaps  
-kubectl get configmaps -n madapi-preprod -o yaml > configmaps-backup.yaml
-
-# Backup node configurations
-kubectl get nodes -o yaml > nodes-backup.yaml
-```""")
-        
-        # Workload-specific backups
-        if workload_details:
-            backup_commands.append("**2. Workload-Specific Backups:**")
-            for workload in workload_details[:3]:
-                name = workload.get('name', 'unknown')
-                namespace = workload.get('namespace', 'default')
-                backup_commands.append(f"""```bash
-# Backup {name}
-kubectl get deployment {name} -n {namespace} -o yaml > {name}-backup.yaml
-```""")
-        
-        # Namespace backups
-        backup_commands.append("**3. Namespace Resource Backups:**")
-        for ns in namespaces_data[:5]:
-            ns_name = ns.get('name', 'unknown')
-            backup_commands.append(f"""```bash
-kubectl get all -n {ns_name} -o yaml > {ns_name}-all-resources-backup.yaml
-```""")
-            
-        return '\n'.join(backup_commands)
+BACKUP_DIR="./backup-$(date +%Y%m%d)"
+mkdir -p $BACKUP_DIR
+kubectl get deployments --all-namespaces -o yaml > $BACKUP_DIR/deployments.yaml
+kubectl get hpa --all-namespaces -o yaml > $BACKUP_DIR/hpas.yaml
+kubectl get resourcequotas --all-namespaces -o yaml > $BACKUP_DIR/quotas.yaml
+```
+"""
     
-    def _generate_validated_workload_commands(self, context: Dict) -> str:
-        """Generate validated kubectl commands for workload optimization"""
-        workload_details = context.get('workload_details', [])
-        commands = []
+    def _gen_rightsizing_commands(self, context: Dict) -> str:
+        """Generate right-sizing commands."""
+        workloads = context['inefficiency_analysis']['over_provisioned']['workloads'][:5]
+        lines = ["\n### RIGHT-SIZING COMMANDS\n"]
         
-        commands.append("**VALIDATED WORKLOAD OPTIMIZATION COMMANDS:**")
-        
-        for workload in workload_details:
-            name = workload.get('name')
-            namespace = workload.get('namespace', 'default')
-            current_cpu = workload.get('current_resources', {}).get('requests', {}).get('cpu', '15m')
-            current_memory = workload.get('current_resources', {}).get('requests', {}).get('memory', '256Mi')
-            recommended_cpu = workload.get('recommended_cpu', '500m')
-            recommended_memory = workload.get('recommended_memory', '512Mi')
-            
-            commands.append(f"""
-**{name}:**
-- Current: CPU {current_cpu}, Memory {current_memory}  
-- Target: CPU {recommended_cpu}, Memory {recommended_memory}
-
+        for w in workloads:
+            lines.append(f"""
+**{w['name']}** ({w['namespace']}) - ${w['monthly_waste']:.2f}/month savings
 ```bash
-# 1. Backup current deployment
-kubectl get deployment {name} -n {namespace} -o yaml > {name}-pre-optimization-backup.yaml
-
-# 2. Apply resource optimization
-kubectl patch deployment {name} -n {namespace} --type='merge' -p='{{
-  "spec": {{
-    "template": {{
-      "spec": {{
-        "containers": [{{
-          "name": "container-0",
-          "resources": {{
-            "requests": {{
-              "cpu": "{recommended_cpu}",
-              "memory": "{recommended_memory}"
-            }},
-            "limits": {{
-              "cpu": "{self._calculate_cpu_limit(recommended_cpu)}",
-              "memory": "{self._calculate_memory_limit(recommended_memory)}"
-            }}
-          }}
-        }}]
-      }}
-    }}
-  }}
-}}'
-
-# 3. Verify deployment status
-kubectl rollout status deployment/{name} -n {namespace}
-
-# 4. Rollback command (if needed)
-# kubectl rollout undo deployment/{name} -n {namespace}
-```""")
-        
-        return '\n'.join(commands)
+kubectl patch deployment {w['name']} -n {w['namespace']} --type=strategic -p='
+spec:
+  template:
+    spec:
+      containers:
+      - name: {w['name']}
+        resources:
+          requests:
+            cpu: "{w['recommended_cpu']}"
+            memory: "{w['recommended_memory']}"
+'
+# Rollback: kubectl rollout undo deployment/{w['name']} -n {w['namespace']}
+```
+""")
+        return '\n'.join(lines)
     
-    def _generate_validated_namespace_commands(self, namespaces_data: List[Dict]) -> str:
-        """Generate validated namespace governance commands"""
-        commands = []
-        commands.append("**VALIDATED NAMESPACE GOVERNANCE COMMANDS:**")
+    def _gen_hpa_commands(self, context: Dict) -> str:
+        """Generate HPA commands."""
+        candidates = context['hpa_analysis']['workloads_without_hpa'][:5]
+        lines = ["\n### HPA COMMANDS\n"]
         
-        for ns in namespaces_data[:5]:  # Top 5 namespaces needing governance
-            name = ns.get('name', 'unknown')
-            inefficiencies = ns.get('inefficiencies', [])
-            cost = ns.get('monthly_cost_estimate', {}).get('total', 0)
-            
-            if 'missing_resource_limits' in inefficiencies:
-                commands.append(f"""
-**{name}** (${cost:.2f}/month) - Missing Resource Limits:
-
+        for w in candidates:
+            min_r = max(1, w['replicas'] - 1)
+            max_r = w['replicas'] * 3
+            lines.append(f"""
+**{w['name']}** ({w['namespace']})
 ```bash
-# 1. Backup existing namespace
-kubectl get namespace {name} -o yaml > {name}-namespace-backup.yaml
-
-# 2. Create ResourceQuota (correct syntax)
+kubectl apply -f - <<EOF
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {w['name']}-hpa
+  namespace: {w['namespace']}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {w['name']}
+  minReplicas: {min_r}
+  maxReplicas: {max_r}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+EOF
+```
+""")
+        return '\n'.join(lines)
+    
+    def _gen_governance_commands(self, context: Dict) -> str:
+        """Generate governance commands."""
+        issues = context['namespace_analysis']['governance_issues'][:3]
+        lines = ["\n### GOVERNANCE COMMANDS\n"]
+        
+        for issue in issues:
+            ns = issue['namespace']
+            lines.append(f"""
+**{ns}**
+```bash
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: ResourceQuota
 metadata:
-  name: {name}-quota
-  namespace: {name}
+  name: {ns}-quota
+  namespace: {ns}
 spec:
   hard:
-    requests.cpu: "1"
-    requests.memory: "2Gi"
-    limits.cpu: "2"
-    limits.memory: "4Gi"
-    pods: "10"
+    requests.cpu: "4"
+    requests.memory: "8Gi"
+    limits.cpu: "8"
+    limits.memory: "16Gi"
 EOF
+```
+""")
+        return '\n'.join(lines)
+    
+    # ==========================================================================
+    # CLAUDE API INTERACTION
+    # ==========================================================================
+    
+    async def _generate_comprehensive_plan(self, context: Dict, analysis_sections: Dict[str, str], cluster_name: str) -> str:
+        """Generate the implementation plan via Claude API."""
+        prompt = self._build_prompt(context, analysis_sections, cluster_name)
+        return await self._call_claude_api(prompt)
+    
+    def _build_prompt(self, context: Dict, sections: Dict[str, str], cluster_name: str) -> str:
+        """Build the comprehensive prompt for Claude."""
+        cluster_info = context['cluster_info']
+        
+        return f"""Generate a COMPREHENSIVE 8-phase implementation plan for AKS cluster "{cluster_name}". 
 
-# 3. Create LimitRange for default limits
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: LimitRange
-metadata:
-  name: {name}-limits
-  namespace: {name}
-spec:
-  limits:
-  - default:
-      cpu: "500m"
-      memory: "512Mi"
-    defaultRequest:
-      cpu: "100m"
-      memory: "128Mi"
-    type: Container
-EOF
+DO NOT ask questions. Generate the complete plan immediately based on the provided data.
 
-# 4. Verify quota creation
-kubectl get resourcequota -n {name}
+# CLUSTER ANALYSIS DATA
 
-# 5. Rollback (if needed)
-# kubectl delete resourcequota {name}-quota -n {name}
-# kubectl delete limitrange {name}-limits -n {name}
-```""")
-        
-        return '\n'.join(commands)
-    
-    def _calculate_cpu_limit(self, cpu_request: str) -> str:
-        """Calculate appropriate CPU limit from request"""
-        if cpu_request.endswith('m'):
-            request_val = int(cpu_request[:-1])
-            limit_val = min(request_val * 2, 2000)  # Max 2 cores
-            return f"{limit_val}m"
-        return "1000m"  # Default
-    
-    def _calculate_memory_limit(self, memory_request: str) -> str:
-        """Calculate appropriate memory limit from request"""
-        if memory_request.endswith('Mi'):
-            request_val = int(memory_request[:-2])
-            limit_val = request_val * 2  # 2x request
-            return f"{limit_val}Mi"
-        return "1Gi"  # Default
-    
-    def _generate_detailed_workload_analysis(self, context: Dict) -> str:
-        """Generate comprehensive workload analysis"""
-        workload_details = context.get('workload_details', [])
-        inefficient_workloads = context.get('inefficient_workloads', {})
-        
-        analysis = ["## DETAILED WORKLOAD EFFICIENCY ANALYSIS"]
-        
-        # Current workload problems
-        over_provisioned = inefficient_workloads.get('over_provisioned', [])
-        if over_provisioned:
-            analysis.append(f"\n### OVER-PROVISIONED WORKLOADS ({len(over_provisioned)} identified):")
-            for workload_data in over_provisioned:
-                workload = workload_data.get('workload', {})
-                details = workload_data.get('inefficiency_details', {})
-                name = workload.get('name', 'unknown')
-                namespace = workload.get('namespace', 'unknown')
-                cpu_waste = details.get('cpu_waste_percentage', 0)
-                memory_waste = details.get('memory_waste_percentage', 0)
-                waste_cost = details.get('monthly_waste_cost', 0)
-                rec_cpu = details.get('recommended_cpu', 'unknown')
-                rec_memory = details.get('recommended_memory', 'unknown')
-                
-                analysis.append(f"""
-**{name}** (namespace: {namespace})
-- CPU Waste: {cpu_waste}%, Memory Waste: {memory_waste}%
-- Monthly Waste Cost: ${waste_cost:.2f}
-- Current Resources: Unknown → Recommended: {rec_cpu} CPU, {rec_memory} Memory
-- Priority: {workload_data.get('priority', 'medium')}
-- Confidence: {workload_data.get('confidence', 0)*100:.0f}%""")
-        
-        # Workload details from optimization opportunities  
-        if workload_details:
-            analysis.append(f"\n### OPTIMIZATION TARGET WORKLOADS ({len(workload_details)} workloads):")
-            for workload in workload_details:
-                name = workload.get('name', 'unknown')
-                namespace = workload.get('namespace', 'default')
-                current_cpu = workload.get('current_resources', {}).get('requests', {}).get('cpu', 'unknown')
-                current_memory = workload.get('current_resources', {}).get('requests', {}).get('memory', 'unknown')
-                cpu_usage = workload.get('cpu_usage_avg', 0)
-                memory_usage = workload.get('memory_usage_avg', 0)
-                monthly_cost = workload.get('monthly_cost', 0)
-                has_hpa = workload.get('has_hpa', False)
-                
-                analysis.append(f"""
-**{name}** (namespace: {namespace})
-- Current Resources: {current_cpu} CPU, {current_memory} Memory
-- Actual Usage: {cpu_usage:.1f}% CPU, {memory_usage:.1f}% Memory  
-- Monthly Cost: ${monthly_cost:.2f}
-- HPA Configured: {'Yes' if has_hpa else 'No'}
-- Optimization Needed: {'High' if cpu_usage < 30 or cpu_usage > 80 else 'Medium'}""")
-        
-        return '\n'.join(analysis)
-    
-    def _generate_comprehensive_namespace_analysis(self, namespaces_data: List[Dict]) -> str:
-        """Generate detailed namespace governance analysis"""
-        if not namespaces_data:
-            return "No namespace analysis data available"
-        
-        analysis = ["## COMPREHENSIVE NAMESPACE GOVERNANCE ANALYSIS"]
-        
-        total_namespace_cost = sum(ns.get('monthly_cost_estimate', {}).get('total', 0) for ns in namespaces_data)
-        analysis.append(f"\n**Total Namespace Costs:** ${total_namespace_cost:.2f}/month across {len(namespaces_data)} namespaces")
-        
-        # Governance issues breakdown
-        governance_issues = {}
-        for ns in namespaces_data:
-            for issue in ns.get('inefficiencies', []):
-                if issue not in governance_issues:
-                    governance_issues[issue] = []
-                governance_issues[issue].append(ns)
-        
-        if governance_issues:
-            analysis.append("\n### GOVERNANCE ISSUES IDENTIFIED:")
-            for issue, namespaces in governance_issues.items():
-                total_cost = sum(ns.get('monthly_cost_estimate', {}).get('total', 0) for ns in namespaces)
-                analysis.append(f"\n**{issue.replace('_', ' ').title()}** - {len(namespaces)} namespaces affected (${total_cost:.2f}/month):")
-                for ns in namespaces[:10]:  # Top 10
-                    name = ns.get('name', 'unknown')
-                    cost = ns.get('monthly_cost_estimate', {}).get('total', 0)
-                    score = ns.get('optimization_score', 0)
-                    owner = ns.get('team_owner', 'unknown')
-                    analysis.append(f"  - {name}: ${cost:.2f}/month, Score: {score}/100, Owner: {owner}")
-        
-        # Cost center breakdown
-        cost_centers = {}
-        for ns in namespaces_data:
-            cc = ns.get('cost_center', 'unknown')
-            if cc not in cost_centers:
-                cost_centers[cc] = {'cost': 0, 'namespaces': []}
-            cost_centers[cc]['cost'] += ns.get('monthly_cost_estimate', {}).get('total', 0)
-            cost_centers[cc]['namespaces'].append(ns.get('name', 'unknown'))
-        
-        if cost_centers:
-            analysis.append("\n### COST CENTER BREAKDOWN:")
-            for cc, data in sorted(cost_centers.items(), key=lambda x: x[1]['cost'], reverse=True):
-                analysis.append(f"  - {cc}: ${data['cost']:.2f}/month ({len(data['namespaces'])} namespaces)")
-        
-        return '\n'.join(analysis)
-    
-    def _generate_storage_waste_analysis(self, storage_data: List[Dict]) -> str:
-        """Generate detailed storage waste analysis"""
-        if not storage_data:
-            return "No storage waste analysis available"
-        
-        analysis = ["## COMPREHENSIVE STORAGE WASTE ANALYSIS"]
-        
-        total_requested = 0
-        total_used = 0
-        total_waste = 0
-        
-        for vol in storage_data:
-            if 'size' in str(vol):
-                size_info = vol.get('size', {}) if isinstance(vol.get('size'), dict) else {}
-                requested = size_info.get('requested_gb', 0)
-                used = size_info.get('used_gb', 0)
-                
-                if requested > 0 and used >= 0:
-                    waste = max(0, requested - used)
-                    total_requested += requested
-                    total_used += used
-                    total_waste += waste
-                    
-                    utilization = (used / requested * 100) if requested > 0 else 0
-                    if utilization < 80:  # Under-utilized storage
-                        analysis.append(f"""
-**Volume {vol.get('name', 'unknown')}:**
-- Requested: {requested}GB, Used: {used}GB
-- Utilization: {utilization:.1f}% 
-- Waste: {waste}GB (${waste * 0.1:.2f}/month)
-- Recommendation: {'Resize to ' + str(int(used * 1.2)) + 'GB' if waste > 10 else 'Monitor usage'}""")
-        
-        if total_waste > 0:
-            total_waste_cost = total_waste * 0.1  # Approximate cost per GB
-            overall_utilization = (total_used / total_requested * 100) if total_requested > 0 else 0
-            analysis.append(f"""
-### STORAGE WASTE SUMMARY:
-- Total Storage Requested: {total_requested:.1f}GB
-- Total Storage Used: {total_used:.1f}GB  
-- Total Storage Waste: {total_waste:.1f}GB
-- Overall Utilization: {overall_utilization:.1f}%
-- Monthly Waste Cost: ${total_waste_cost:.2f}
-- Optimization Potential: {'High' if overall_utilization < 60 else 'Medium' if overall_utilization < 80 else 'Low'}""")
-        
-        return '\n'.join(analysis)
-    
-    def _generate_network_cost_analysis(self, network_data: Dict) -> str:
-        """Generate detailed network cost analysis"""
-        if not network_data:
-            return "No network cost analysis available"
-        
-        analysis = ["## COMPREHENSIVE NETWORK COST ANALYSIS"]
-        
-        total_network_cost = network_data.get('total_network_cost', 0)
-        egress_cost = network_data.get('egress_cost', 0) 
-        public_ips = network_data.get('public_ips', [])
-        load_balancers = network_data.get('load_balancers', [])
-        
-        analysis.append(f"""
-### NETWORK COST BREAKDOWN:
-- Total Network Cost: ${total_network_cost:.2f}/month
-- Data Egress Cost: ${egress_cost:.2f}/month  
-- Public IP Cost: ${len(public_ips) * 3.65:.2f}/month ({len(public_ips)} IPs)
-- Load Balancer Cost: ${len(load_balancers) * 18.25:.2f}/month ({len(load_balancers)} LBs)""")
-        
-        if len(public_ips) > 5:
-            analysis.append(f"""
-### PUBLIC IP OPTIMIZATION OPPORTUNITY:
-- Current Public IPs: {len(public_ips)}
-- Recommended: Review for consolidation  
-- Potential Savings: ${(len(public_ips) - 3) * 3.65:.2f}/month (keep 3, remove {len(public_ips) - 3})""")
-        
-        if len(load_balancers) > 2:
-            analysis.append(f"""
-### LOAD BALANCER OPTIMIZATION:
-- Current Load Balancers: {len(load_balancers)}
-- Optimization: Consolidate to shared ingress controller
-- Potential Savings: ${(len(load_balancers) - 1) * 18.25:.2f}/month""")
-        
-        if egress_cost > 50:
-            analysis.append(f"""
-### DATA EGRESS OPTIMIZATION:
-- Current Egress Cost: ${egress_cost:.2f}/month (HIGH)
-- Recommendations:
-  - Implement CDN for static content
-  - Optimize inter-region data transfer
-  - Review external API calls
-  - Potential Savings: ${egress_cost * 0.3:.2f}/month""")
-        
-        return '\n'.join(analysis)
-    
-    def _generate_inefficiency_analysis(self, inefficient_data: Dict) -> str:
-        """Generate root cause inefficiency analysis"""
-        if not inefficient_data:
-            return "No inefficiency analysis available"
-        
-        analysis = ["## INEFFICIENCY ROOT CAUSE ANALYSIS"]
-        
-        # Analyze each category
-        categories = ['over_provisioned', 'under_utilized', 'missing_hpa_candidates', 'orphaned_resources']
-        
-        for category in categories:
-            items = inefficient_data.get(category, [])
-            if items:
-                category_name = category.replace('_', ' ').title()
-                analysis.append(f"\n### {category_name} ({len(items)} items):")
-                
-                if category == 'over_provisioned':
-                    total_waste = sum(item.get('inefficiency_details', {}).get('monthly_waste_cost', 0) for item in items)
-                    analysis.append(f"**Total Waste Cost:** ${total_waste:.2f}/month")
-                    
-                    for item in items[:5]:
-                        workload = item.get('workload', {})
-                        details = item.get('inefficiency_details', {})
-                        name = workload.get('name', 'unknown')
-                        namespace = workload.get('namespace', 'unknown')
-                        waste = details.get('monthly_waste_cost', 0)
-                        cpu_waste = details.get('cpu_waste_percentage', 0)
-                        memory_waste = details.get('memory_waste_percentage', 0)
-                        
-                        analysis.append(f"""
-**{name}** ({namespace}):
-- Monthly Waste: ${waste:.2f}
-- CPU Over-provision: {cpu_waste}%  
-- Memory Over-provision: {memory_waste}%
-- Root Cause: {'Resource requests too high' if cpu_waste > 50 else 'Minor over-allocation'}
-- Fix Priority: {'High' if waste > 10 else 'Medium'}""")
-                
-                elif category == 'orphaned_resources':
-                    for item in items[:10]:
-                        name = item.get('name', 'unknown')
-                        resource_type = item.get('type', 'unknown') 
-                        namespace = item.get('namespace', 'unknown')
-                        last_used = item.get('last_used', 'unknown')
-                        
-                        analysis.append(f"  - {name} ({resource_type}) in {namespace}, last used: {last_used}")
-        
-        # Summary
-        total_issues = sum(len(inefficient_data.get(cat, [])) for cat in categories)
-        analysis.append(f"""
-### INEFFICIENCY SUMMARY:
-- Total Issues Identified: {total_issues}
-- Primary Root Cause: Over-provisioned CPU requests (causing 43.3% efficiency)
-- Secondary Issues: Missing autoscaling, orphaned resources
-- Estimated Fix Time: 2-4 weeks with phased approach
-- Risk Level: Medium (with proper backup/rollback procedures)""")
-        
-        return '\n'.join(analysis)
-    
-    def _generate_cluster_health_assessment(self, context: Dict) -> str:
-        """Generate comprehensive cluster health assessment"""
-        efficiency = context.get('efficiency_metrics', {})
-        cluster_info = context.get('cluster_info', {})
-        
-        analysis = ["## CLUSTER HEALTH & GOVERNANCE ASSESSMENT"]
-        
-        # Overall health score
-        cpu_efficiency = efficiency.get('current_cpu_efficiency', 0) * 100
-        memory_efficiency = efficiency.get('current_memory_efficiency', 0) * 100
-        system_efficiency = efficiency.get('current_system_efficiency', 0) * 100
-        target_efficiency = efficiency.get('target_system_efficiency', 0) * 100
-        
-        analysis.append(f"""
-### OVERALL HEALTH METRICS:
-- **CPU Efficiency:** {cpu_efficiency:.1f}% ({'🔴 CRITICAL' if cpu_efficiency < 50 else '🟡 WARNING' if cpu_efficiency < 70 else '🟢 GOOD'})
-- **Memory Efficiency:** {memory_efficiency:.1f}% ({'🔴 CRITICAL' if memory_efficiency < 50 else '🟡 WARNING' if memory_efficiency < 70 else '🟢 GOOD'})  
-- **System Efficiency:** {system_efficiency:.1f}% (Target: {target_efficiency:.1f}%)
-- **Improvement Potential:** {efficiency.get('efficiency_improvement_potential', 0)*100:.1f}%""")
-        
-        # Health diagnosis
-        health_issues = []
-        if cpu_efficiency < 50:
-            health_issues.append("🔴 CRITICAL: Severe CPU over-provisioning")
-        if memory_efficiency > 95:
-            health_issues.append("🟡 WARNING: Memory near capacity limits")
-        if system_efficiency < 70:
-            health_issues.append("🟡 WARNING: Overall system inefficiency")
-        
-        if health_issues:
-            analysis.append("\n### HEALTH ISSUES IDENTIFIED:")
-            for issue in health_issues:
-                analysis.append(f"  {issue}")
-        
-        # Governance assessment
-        k8s_version = cluster_info.get('kubernetes_version', 'unknown')
-        analysis.append(f"""
-### GOVERNANCE & COMPLIANCE STATUS:
-- **Kubernetes Version:** {k8s_version} ({'🟢 CURRENT' if '1.3' in k8s_version else '🟡 REVIEW NEEDED'})
-- **Resource Quotas:** Missing in multiple namespaces  
-- **Security Policies:** Not consistently applied
-- **Monitoring:** Basic monitoring in place
-- **Cost Tracking:** Manual/periodic analysis
-- **Backup Strategy:** Not verified
-- **Disaster Recovery:** Not assessed""")
-        
-        # Recommendations
-        analysis.append("""
-### IMMEDIATE HEALTH ACTIONS REQUIRED:
-1. **Emergency:** Address CPU over-provisioning (43.3% → 84.1% efficiency)
-2. **High Priority:** Implement resource quotas across all namespaces
-3. **Medium Priority:** Establish automated monitoring and alerting
-4. **Low Priority:** Upgrade monitoring stack for better observability""")
-        
-        return '\n'.join(analysis)
-    
-    def _generate_naming_convention_analysis(self, namespaces_data: List[Dict]) -> str:
-        """Generate naming convention compliance analysis"""
-        if not namespaces_data:
-            return "No naming convention analysis available"
-        
-        analysis = ["## NAMING CONVENTION & COMPLIANCE ANALYSIS"]
-        
-        # Analyze namespace naming patterns
-        naming_patterns = {
-            'compliant': [],
-            'non_compliant': [],
-            'missing_labels': []
-        }
-        
-        for ns in namespaces_data:
-            name = ns.get('name', '')
-            labels = ns.get('labels', {})
-            
-            # Check naming compliance (example: should follow env-team-service pattern)
-            if '-' in name and len(name.split('-')) >= 2:
-                naming_patterns['compliant'].append(name)
-            else:
-                naming_patterns['non_compliant'].append(name)
-            
-            # Check required labels
-            required_labels = ['environment', 'team_owner', 'cost_center']
-            missing_labels = [label for label in required_labels if label not in labels]
-            if missing_labels:
-                naming_patterns['missing_labels'].append({'name': name, 'missing': missing_labels})
-        
-        analysis.append(f"""
-### NAMING COMPLIANCE STATUS:
-- **Compliant Namespaces:** {len(naming_patterns['compliant'])} ({len(naming_patterns['compliant'])/len(namespaces_data)*100:.0f}%)
-- **Non-compliant Namespaces:** {len(naming_patterns['non_compliant'])} ({len(naming_patterns['non_compliant'])/len(namespaces_data)*100:.0f}%)
-- **Missing Required Labels:** {len(naming_patterns['missing_labels'])} namespaces""")
-        
-        if naming_patterns['non_compliant']:
-            analysis.append(f"\n### NON-COMPLIANT NAMESPACE NAMES:")
-            for name in naming_patterns['non_compliant']:
-                suggested = f"env-team-{name}" if not '-' in name else name
-                analysis.append(f"  - {name} → Suggested: {suggested}")
-        
-        if naming_patterns['missing_labels']:
-            analysis.append(f"\n### MISSING REQUIRED LABELS:")
-            for item in naming_patterns['missing_labels'][:10]:
-                analysis.append(f"  - {item['name']}: Missing {', '.join(item['missing'])}")
-        
-        # Naming standards recommendation
-        analysis.append("""
-### RECOMMENDED NAMING STANDARDS:
-**Namespaces:** {environment}-{team}-{service} (e.g., prod-api-customerservice)
-**Deployments:** {service}-{component} (e.g., api-gateway, db-primary)  
-**Services:** {deployment-name}-svc
-**ConfigMaps:** {service}-config
-**Secrets:** {service}-secret
+{sections['executive_summary']}
+{sections['infrastructure']}
+{sections['cost_analysis']}
+{sections['workload_analysis']}
+{sections['namespace_governance']}
+{sections['storage_analysis']}
+{sections['network_analysis']}
+{sections['inefficiency_analysis']}
+{sections['hpa_analysis']}
+{sections['validated_commands']}
 
-### REQUIRED LABELS:
-- environment: (prod/staging/dev)
-- team: (team responsible)
-- cost-center: (billing allocation)
-- service: (application name)
-- version: (semantic version)""")
-        
-        return '\n'.join(analysis)
-    
-    def _generate_security_compliance_analysis(self, context: Dict) -> str:
-        """Generate security and compliance gap analysis"""
-        namespaces_data = context.get('namespaces_analysis', [])
-        
-        analysis = ["## SECURITY & COMPLIANCE GAP ANALYSIS"]
-        
-        # Resource governance gaps
-        governance_gaps = 0
-        security_gaps = 0
-        
-        for ns in namespaces_data:
-            inefficiencies = ns.get('inefficiencies', [])
-            if 'missing_resource_limits' in inefficiencies:
-                governance_gaps += 1
-            # Add more security checks here based on available data
-        
-        analysis.append(f"""
-### RESOURCE GOVERNANCE COMPLIANCE:
-- **Resource Quotas Missing:** {governance_gaps} namespaces  
-- **LimitRanges Missing:** {governance_gaps} namespaces
-- **Compliance Score:** {((len(namespaces_data) - governance_gaps) / len(namespaces_data) * 100):.0f}%""")
-        
-        # Security policy gaps
-        analysis.append("""
-### SECURITY POLICY GAPS IDENTIFIED:
-🔴 **Critical Gaps:**
-- Pod Security Standards not enforced
-- Network Policies missing in production namespaces
-- RBAC permissions not following least privilege
+---
 
-🟡 **Medium Priority Gaps:**
-- No admission controllers for security validation
-- Container image scanning not enforced
-- Resource requests/limits not mandatory
+# GENERATE 8 IMPLEMENTATION PHASES
 
-🟢 **Best Practice Improvements:**
-- Service mesh for improved security
-- Secrets management integration
-- Automated compliance scanning""")
-        
-        # Compliance recommendations
-        analysis.append(f"""
-### COMPLIANCE RECOMMENDATIONS:
-**Phase 1: Resource Governance**
-- Implement ResourceQuota in {governance_gaps} namespaces
-- Create default LimitRange policies
-- Enforce resource requests/limits
+Use this EXACT structure for each phase:
 
-**Phase 2: Security Policies**  
-- Deploy Pod Security Standards
-- Implement Network Policies for namespace isolation
-- Review and optimize RBAC permissions
+### Phase N: [Phase Name]
+**Duration:** X days
+**Risk Level:** Low/Medium/High
+**Total Savings:** $X.XX/month
 
-**Phase 3: Advanced Security**
-- Implement admission controllers
-- Integrate secrets management (Azure Key Vault)
-- Set up automated security scanning
+**Actions:**
 
-### COMPLIANCE BENEFITS:
-- Improved security posture
-- Better cost control through resource governance  
-- Regulatory compliance preparation
-- Reduced blast radius of security incidents""")
-        
-        return '\n'.join(analysis)
+##### N.1: [Action Title - $X.XX/month]
+**Monthly Savings:** $X.XX
+**Risk:** Low/Medium/High
+**Effort:** X hours
+
+**Implementation Steps:**
+```bash
+kubectl command 1
+kubectl command 2
+```
+
+**Rollback:**
+```bash
+rollback command
+```
+
+---
+
+Generate phases for:
+1. Emergency Stabilization (Days 1-3) - Backup, baseline
+2. Quick Wins (Days 4-10) - Right-sizing
+3. HPA Implementation (Days 11-17) - Autoscaling
+4. Namespace Governance (Days 18-24) - Quotas, limits
+5. Storage Optimization (Days 25-31) - PVC cleanup
+6. Network Optimization (Days 32-38) - LB consolidation
+7. Node Pool Optimization (Days 39-52) - VM sizing
+8. Continuous Improvement (Days 53-66) - Monitoring
+
+## Post-Implementation Monitoring
+
+```bash
+kubectl top nodes
+kubectl top pods --all-namespaces
+kubectl get hpa --all-namespaces
+```
+
+## Review Schedule
+- Day 7: Phase 1-2 Review
+- Day 30: Month 1 Assessment
+- Day 90: Quarter Review
+
+---
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+REQUIREMENTS:
+- Minimum 20 actions across all phases
+- Use REAL workload names from analysis
+- Include actual kubectl/az commands
+- Every action needs specific $ savings
+- Include backup and rollback procedures
+
+GENERATE ALL 8 PHASES IMMEDIATELY. BE CONCISE BUT COMPLETE. DO NOT STOP OR ASK QUESTIONS."""
     
     async def _call_claude_api(self, prompt: str) -> str:
-        """Call Claude API with the prompt"""
-        # Call Claude API
+        """Call Claude API and return response."""
         try:
             headers = {
                 "Content-Type": "application/json",
@@ -1313,28 +1414,17 @@ kubectl get resourcequota -n {name}
             
             payload = {
                 "model": self.model,
-                "max_tokens": 4000,
-                "temperature": 0.2,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                "max_tokens": 8000,
+                "temperature": 0.3,
+                "messages": [{"role": "user", "content": prompt}]
             }
             
             response = await asyncio.to_thread(
-                requests.post,
-                self.claude_url,
-                headers=headers,
-                json=payload,
-                timeout=120
+                requests.post, self.claude_url, headers=headers, json=payload, timeout=180
             )
             
             if response.status_code == 200:
                 result = response.json()
-                
-                # Track usage and costs
                 usage = result.get('usage', {})
                 input_tokens = usage.get('input_tokens', 0)
                 output_tokens = usage.get('output_tokens', 0)
@@ -1342,415 +1432,32 @@ kubectl get resourcequota -n {name}
                 self.total_input_tokens += input_tokens
                 self.total_output_tokens += output_tokens
                 
-                # Calculate costs
                 input_cost = (input_tokens / 1000) * self.input_cost_per_1k
                 output_cost = (output_tokens / 1000) * self.output_cost_per_1k
-                call_cost = input_cost + output_cost
-                self.total_cost += call_cost
+                self.total_cost += input_cost + output_cost
                 
-                # Log cost information
-                print(f"\n💰 Claude API Usage for this call:")
-                print(f"   Input tokens:  {input_tokens:,} (${input_cost:.4f})")
-                print(f"   Output tokens: {output_tokens:,} (${output_cost:.4f})")
-                print(f"   Call cost:     ${call_cost:.4f}")
-                print(f"   Total cost:    ${self.total_cost:.4f}")
+                print(f"\n💰 Claude API: {input_tokens:,} in, {output_tokens:,} out, ${self.total_cost:.4f} total")
                 
-                markdown_response = result.get('content', [{}])[0].get('text', '')
-                if not markdown_response:
-                    raise ValueError("Claude returned empty response")
-                
-                # Log the response for debugging
-                logger.info(f"Claude response length: {len(markdown_response)} characters")
-                logger.debug(f"Claude response preview: {markdown_response[:500]}...")
-                
-                return markdown_response
+                text = result.get('content', [{}])[0].get('text', '')
+                if not text:
+                    raise ValueError("Empty response")
+                return text
             else:
-                error_text = response.text if hasattr(response, 'text') else str(response.content)
-                raise ValueError(f"Claude API error {response.status_code}: {error_text}")
-                
+                raise ValueError(f"API error {response.status_code}: {response.text}")
         except Exception as e:
-            logger.error(f"Failed to call Claude API: {e}")
-            raise ValueError(f"Failed to generate markdown plan from Claude: {e}")
+            logger.error(f"Claude API failed: {e}")
+            raise
     
-    def _format_workload_list(self, workloads: List[Dict]) -> str:
-        """Format workload list for prompt"""
-        if not workloads:
-            return "- No specific workload data available"
-            
-        lines = []
-        for w in workloads[:5]:
-            lines.append(f"- {w['name']} ({w['namespace']}): ${w['waste']:.2f}/month waste, CPU: {w['cpu_usage']:.1f}%, Memory: {w['memory_usage']:.1f}%")
-        return '\n'.join(lines)
-    
-    def _parse_markdown_to_plan(self, markdown: str, cluster_name: str, cluster_id: str, context: Dict) -> KubeOptImplementationPlan:
-        """Parse markdown output into structured plan"""
-        
-        # Save markdown for debugging
-        debug_file = f"debug_ollama_markdown_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
-        with open(debug_file, 'w') as f:
-            f.write(markdown)
-        logger.info(f"Saved Ollama markdown to: {debug_file}")
-        
-        # Extract sections using regex - look for next ## or end of string
-        quick_wins = self._extract_section(markdown, r'## Quick Wins.*?(?=\n## |$)', 'Quick Wins')
-        resource_opt = self._extract_section(markdown, r'## Resource Optimization.*?(?=\n## |$)', 'Resource Optimization')
-        advanced_opt = self._extract_section(markdown, r'## Advanced Optimization.*?(?=\n## |$)', 'Advanced Optimization')
-        
-        # Parse actions from each section
-        phases = []
-        
-        if quick_wins:
-            phases.append(self._parse_phase(quick_wins, 1, "Quick Wins", 7))
-        
-        if resource_opt:
-            phases.append(self._parse_phase(resource_opt, 2, "Resource Optimization", 14))
-        
-        if advanced_opt:
-            phases.append(self._parse_phase(advanced_opt, 3, "Advanced Optimization", 14))
-        
-        # If no phases parsed, raise error
-        if not phases:
-            raise ValueError("Failed to parse any optimization phases from AI response")
-        
-        # Calculate total savings
-        total_savings = sum(
-            action.savings_monthly 
-            for phase in phases 
-            for action in phase.actions
-        )
-        
-        # Create plan structure with markdown content
-        return self._create_plan_structure(
-            cluster_name=cluster_name,
-            cluster_id=cluster_id,
-            phases=phases,
-            total_savings=total_savings,
-            current_cost=context.get('current_monthly_cost', 2000.0),
-            markdown_content=markdown
-        )
-    
-    def _extract_section(self, markdown: str, pattern: str, section_name: str) -> Optional[str]:
-        """Extract a section from markdown"""
-        match = re.search(pattern, markdown, re.DOTALL | re.IGNORECASE)
-        if match:
-            return match.group(0)
-        return None
-    
-    def _parse_phase(self, section: str, phase_num: int, phase_name: str, duration_days: int) -> ImplementationPhase:
-        """Parse a markdown section into a phase"""
-        
-        # Split section into action blocks (each starting with ###)
-        action_blocks = re.split(r'(?=### Action:)', section)
-        
-        actions = []
-        for i, block in enumerate(action_blocks):
-            if not block.strip() or '### Action:' not in block:
-                continue
-                
-            # Extract action title and savings
-            title_match = re.search(r'### Action:\s*(.+?)(?:\s*-\s*\$([0-9,.]+)/month)?(?:\n|$)', block)
-            if not title_match:
-                continue
-            
-            action_name = title_match.group(1).strip()
-            savings_str = title_match.group(2) if title_match.group(2) else "100"
-            
-            # Extract risk level
-            risk_match = re.search(r'\*\*Risk:\*\*\s*(\w+)', block)
-            risk = risk_match.group(1) if risk_match else "Medium"
-            
-            # Extract commands from code block
-            commands_match = re.search(r'```(?:bash)?\n(.*?)\n```', block, re.DOTALL)
-            commands = commands_match.group(1) if commands_match else ""
-            
-            # Parse savings (handle combined amounts like "350.00 + 300.00")
-            try:
-                # Check if there's addition in savings
-                if '+' in savings_str:
-                    parts = savings_str.split('+')
-                    savings_amount = sum(float(p.strip().replace(',', '').replace('$', '')) for p in parts)
-                else:
-                    savings_amount = float(savings_str.replace(',', ''))
-            except:
-                savings_amount = 100.0  # Default
-            
-            # Parse risk
-            risk_level = RiskLevel.LOW if 'low' in risk.lower() else RiskLevel.MEDIUM
-            
-            # Parse commands
-            if not commands:
-                continue  # Skip action if no commands found
-            command_lines = [cmd.strip() for cmd in commands.strip().split('\n') if cmd.strip()]
-            
-            # Create action with backup commands
-            action = OptimizationAction(
-                action_id=f"{phase_num}.{i+1}",
-                title=action_name.strip(),
-                description=f"Optimization action for {phase_name}",
-                savings_monthly=savings_amount,
-                risk=risk_level,
-                effort_hours=4.0,
-                issue_type=StatusType.WARNING,
-                issue_text="Optimization opportunity",
-                cost_category=CostOptimizationCategory.WORKLOAD_RIGHTSIZING,
-                steps=[
-                    ActionStep(
-                        step_number=1,
-                        label="Backup current configuration",
-                        command=f"kubectl get all -n production -o yaml > backup-phase{phase_num}-action{i+1}.yaml"
-                    )
-                ] + [
-                    ActionStep(
-                        step_number=j+2,
-                        label=f"Execute: {cmd[:50]}..." if len(cmd) > 50 else f"Execute: {cmd}",
-                        command=cmd
-                    )
-                    for j, cmd in enumerate(command_lines)
-                ]
-            )
-            actions.append(action)
-        
-        # Create phase
-        return ImplementationPhase(
-            phase_number=phase_num,
-            phase_name=phase_name,
-            description=f"{phase_name} - Week {phase_num}",
-            duration=f"{duration_days} days",
-            start_date=date.today() + timedelta(days=(phase_num-1)*7),
-            end_date=date.today() + timedelta(days=phase_num*7),
-            total_savings_monthly=sum(a.savings_monthly for a in actions),
-            risk_level=RiskLevel.LOW if phase_num == 1 else RiskLevel.MEDIUM,
-            effort_hours=len(actions) * 4.0,
-            actions=actions
-        )
-        
-        # Validate phase has actions
-        if not actions:
-            raise ValueError(f"Phase '{phase_name}' has no valid actions parsed from AI response")
-        
-        return phase
-    
-    def _validate_parsed_phase(self, phase: ImplementationPhase) -> None:
-        """Validate a parsed phase meets requirements"""
-        if not phase.actions:
-            raise ValueError(f"Phase {phase.phase_name} has no actions")
-        if phase.total_savings_monthly <= 0:
-            raise ValueError(f"Phase {phase.phase_name} has no savings")
-        if not phase.phase_name:
-            raise ValueError(f"Phase {phase.phase_number} missing name"
-        )
-    
-    def _validate_action(self, action: OptimizationAction) -> None:
-        """Validate an action meets requirements"""
-        if not action.title:
-            raise ValueError(f"Action {action.action_id} missing title")
-        if action.savings_monthly <= 0:
-            raise ValueError(f"Action {action.title} has no savings")
-        if not action.steps:
-            raise ValueError(f"Action {action.title} has no steps")
-    
-    def _validate_phases(self, phases: List[ImplementationPhase]) -> None:
-        """Validate all phases meet requirements"""
-        if not phases:
-            raise ValueError("No phases in plan")
-        
-        for phase in phases:
-            self._validate_parsed_phase(phase)
-            for action in phase.actions:
-                self._validate_action(action)
-    
-    def _create_plan_structure(
-        self,
-        cluster_name: str,
-        cluster_id: str,
-        phases: List[ImplementationPhase],
-        total_savings: float,
-        current_cost: float,
-        markdown_content: str = None
-    ) -> KubeOptImplementationPlan:
-        """Create complete plan structure with all required sections"""
-        
-        # Create metadata
-        metadata = PlanMetadata(
-            plan_id=f"PLAN-{cluster_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            cluster_name=cluster_name,
-            generated_date=datetime.now(),
-            analysis_date=datetime.now(),
-            last_analyzed_display="just now"
-        )
-        
-        # Create minimal analysis sections - these should eventually come from AI
-        cluster_dna = ClusterDNAAnalysis(
-            overall_score=70,
-            score_rating="GOOD",
-            description=f"Identified ${total_savings:.0f}/month optimization potential",
-            metrics=[],
-            data_sources=[]
-        )
-        
-        build_quality = BuildQualityAssessment(
-            quality_checks=[],
-            strengths=[f"Generated {sum(len(p.actions) for p in phases)} optimization actions"],
-            improvements=["Review and implement recommended actions"],
-            best_practices_scorecard=[]
-        )
-        
-        naming_analysis = NamingConventionsAnalysis(
-            overall_score=75,
-            max_score=100,
-            color=ColorType.GOOD,
-            resources=[],
-            strengths=[],
-            recommendations=[]
-        )
-        
-        # Create ROI analysis
-        total_effort_hours = sum(p.effort_hours for p in phases)
-        implementation_cost = total_effort_hours * 90.0
-        
-        roi_analysis = ROIAnalysis(
-            summary_metrics=[
-                ROISummaryMetric(
-                    label="Monthly Savings",
-                    value=f"${total_savings:,.2f}",
-                    subtitle="Estimated reduction",
-                    color=ColorType.GREEN
-                ),
-                ROISummaryMetric(
-                    label="Annual Savings",
-                    value=f"${total_savings * 12:,.2f}",
-                    subtitle="Yearly impact",
-                    color=ColorType.GREEN
-                ),
-                ROISummaryMetric(
-                    label="ROI",
-                    value=f"{((total_savings * 12) / max(1, implementation_cost)) * 100:.0f}%",
-                    subtitle="First year",
-                    color=ColorType.GREEN
-                )
-            ],
-            calculation_breakdown=ROICalculationBreakdown(
-                total_effort_hours=total_effort_hours,
-                hourly_rate=90.0,
-                implementation_cost=implementation_cost,
-                monthly_savings=total_savings,
-                annual_savings=total_savings * 12,
-                payback_months=max(1, implementation_cost / max(1, total_savings)),
-                roi_percentage_year1=((total_savings * 12) / max(1, implementation_cost)) * 100,
-                net_savings_year1=(total_savings * 12) - implementation_cost,
-                projected_savings_3year=total_savings * 36
-            ),
-            financial_summary=[
-                f"Total optimization potential: ${total_savings:,.2f}/month",
-                f"Implementation effort: {total_effort_hours:.0f} hours",
-                f"Payback period: {max(1, implementation_cost / max(1, total_savings)):.1f} months"
-            ],
-            savings_by_phase=[]
-        )
-        
-        # Create implementation summary
-        implementation_summary = ImplementationSummary(
-            cluster_name=cluster_name,
-            environment="Production",
-            location="Azure",
-            kubernetes_version="1.28",
-            current_monthly_cost=current_cost,
-            projected_monthly_cost=current_cost - total_savings,
-            cost_reduction_percentage=(total_savings / max(1, current_cost)) * 100,
-            implementation_duration=f"{len(phases)} phases over {len(phases) * 7} days",
-            total_phases=max(1, len(phases)),
-            risk_level=RiskLevel.MEDIUM
-        )
-        
-        # Create monitoring guidance
-        monitoring = MonitoringGuidance(
-            title="Post-Implementation Monitoring",
-            description="Track optimization results",
-            commands=[
-                MonitoringCommand(label="Check node resource usage", command="kubectl top nodes"),
-                MonitoringCommand(label="Check pod resource usage", command="kubectl top pods --all-namespaces"),
-                MonitoringCommand(label="Check autoscaler status", command="kubectl get hpa --all-namespaces")
-            ],
-            key_metrics=[
-                MonitoringMetric(metric="cpu_utilization", target="< 70% average across nodes"),
-                MonitoringMetric(metric="memory_utilization", target="< 80% average across nodes"),
-                MonitoringMetric(metric="pod_count", target="Stable with HPA managing scale"),
-                MonitoringMetric(metric="cost_per_day", target=f"< ${(current_cost - total_savings) / 30:.2f}")
-            ]
-        )
-        
-        # Create review schedule
-        review_schedule = [
-            ReviewScheduleItem(day=7, title="Week 1 Review - Quick Wins Assessment"),
-            ReviewScheduleItem(day=14, title="Week 2 Review - Resource Optimization"),
-            ReviewScheduleItem(day=30, title="Month 1 Review - Full Impact Analysis"),
-            ReviewScheduleItem(day=90, title="Quarter Review - Long-term Optimization")
-        ]
-        
-        print(f"""
-✅ OPTIMIZATION PLAN GENERATED WITH CLAUDE:
-   Cluster: {cluster_name}
-   Phases: {len(phases)}
-   Total Actions: {sum(len(p.actions) for p in phases)}
-   Monthly Savings: ${total_savings:,.2f}
-   Annual Savings: ${total_savings * 12:,.2f}
-   ROI: {roi_analysis.calculation_breakdown.roi_percentage_year1:.0f}%
-   
-💰 CLAUDE API COSTS:
-   Total Input Tokens:  {self.total_input_tokens:,}
-   Total Output Tokens: {self.total_output_tokens:,}
-   Total Cost: ${self.total_cost:.4f}
-        """)
-        
-        # Validate phases before creating plan
-        self._validate_phases(phases)
-        
-        # Create plan with markdown content
-        plan = KubeOptImplementationPlan(
-            metadata=metadata,
-            cluster_dna_analysis=cluster_dna,
-            build_quality_assessment=build_quality,
-            naming_conventions_analysis=naming_analysis,
-            roi_analysis=roi_analysis,
-            implementation_summary=implementation_summary,
-            phases=phases,
-            monitoring=monitoring,
-            review_schedule=review_schedule,
-            cluster_id=cluster_id,
-            generated_by="Claude AI",
-            version="2.0",
-            markdown_content=markdown_content  # Add the raw markdown
-        )
-        
-        # Final validation
-        self._validate_complete_plan(plan)
-        
-        return plan
-    
-    def _validate_complete_plan(self, plan: KubeOptImplementationPlan) -> None:
-        """Validate the complete plan meets all requirements"""
-        if not plan.phases:
-            raise ValueError("Plan has no phases")
-        if not plan.metadata:
-            raise ValueError("Plan missing metadata")
-        if plan.total_monthly_savings <= 0:
-            raise ValueError("Plan has no savings")
-        
-        total_actions = sum(len(phase.actions) for phase in plan.phases)
-        if total_actions == 0:
-            raise ValueError("Plan has no optimization actions")
-        
-        logger.info(f"✅ Validated plan with {len(plan.phases)} phases and {total_actions} actions")
+    # ==========================================================================
+    # OLD JSON PARSING METHODS - COMPLETELY REMOVED
+    # ==========================================================================
+    # All parsing methods removed - we now use pure markdown display
     
     def get_cost_summary(self) -> Dict:
-        """Get detailed cost summary for this session"""
+        """Get API cost summary."""
         return {
             "total_input_tokens": self.total_input_tokens,
             "total_output_tokens": self.total_output_tokens,
             "total_cost_usd": round(self.total_cost, 4),
-            "input_cost_usd": round((self.total_input_tokens / 1000) * self.input_cost_per_1k, 4),
-            "output_cost_usd": round((self.total_output_tokens / 1000) * self.output_cost_per_1k, 4),
-            "model": self.model,
-            "cost_per_analysis": round(self.total_cost, 4)
+            "model": self.model
         }
-    

@@ -976,23 +976,31 @@ def register_api_routes(app):
             )
             
             if needs_generation:
-                logger.info(f"🔄 API: Generating SAVINGS-AWARE implementation plan for {cluster_id} in {format_type} format")
+                logger.info(f"🔄 API: Generating CLAUDE implementation plan for {cluster_id} in {format_type} format")
                 try:
-                    from shared.config.config import implementation_generator
-                    from machine_learning.core.savings_aware_implementation_generator import SavingsAwareImplementationGenerator
+                    from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
                     from infrastructure.services.cache_manager import save_to_cache
                     
-                    # 🎯 NEW: Use savings-aware generator for better ROI-focused commands
-                    savings_generator = SavingsAwareImplementationGenerator()
-                    fresh_plan = savings_generator.generate_savings_focused_plan(current_analysis)
+                    # 🎯 NEW: Use Claude API generator for enterprise-grade plans
+                    claude_generator = AIImplementationPlanGenerator()
+                    enhanced_input = enhanced_cluster_manager.get_enhanced_analysis_input(cluster_id)
                     
-                    # Fallback to original generator if savings-aware fails
-                    if not fresh_plan or not isinstance(fresh_plan, dict):
-                        logger.warning("⚠️ Savings-aware generator failed, falling back to original")
-                        fresh_plan = implementation_generator.generate_implementation_plan_for_api(
-                            current_analysis, 
-                            output_format=format_type
-                        )
+                    if enhanced_input:
+                        import asyncio
+                        fresh_plan = asyncio.run(claude_generator.generate_plan(
+                            enhanced_input, 
+                            cluster_id.split('_')[-1],  # Extract cluster name
+                            cluster_id
+                        ))
+                        
+                        # Convert Claude plan to expected format
+                        if fresh_plan and hasattr(fresh_plan, 'model_dump'):
+                            fresh_plan = fresh_plan.model_dump()
+                        elif fresh_plan and hasattr(fresh_plan, '__dict__'):
+                            fresh_plan = fresh_plan.__dict__
+                    else:
+                        logger.error("❌ No enhanced analysis input found for Claude generation")
+                        fresh_plan = None
                     
                     # Validate the generated plan
                     if not isinstance(fresh_plan, dict):
@@ -1051,18 +1059,10 @@ def register_api_routes(app):
             else:
                 logger.info(f"✅ API: Using existing implementation plan for {cluster_id}")
                 
-                # If we have existing comprehensive plan but timeline format requested, convert it
+                # Claude plans are already in the correct format - no conversion needed
                 if format_type == 'timeline' and 'weeks' not in implementation_plan:
-                    logger.info(f"🔄 Converting existing plan to timeline format for {cluster_id}")
-                    try:
-                        from shared.config.config import implementation_generator
-                        converted_plan = implementation_generator._convert_to_timeline_format(
-                            implementation_plan, current_analysis, {'session_id': 'api-conversion'}
-                        )
-                        implementation_plan = converted_plan
-                    except Exception as convert_error:
-                        logger.warning(f"⚠️ Timeline conversion failed: {convert_error}")
-                        # Continue with original plan
+                    logger.info(f"📋 Claude plan is comprehensive format, timeline conversion skipped for {cluster_id}")
+                    # Claude plans include all necessary information in markdown format
             
             # REMOVED: Problematic framework mapping logic - now handled by implementation generator
             
@@ -2151,22 +2151,60 @@ def register_api_routes(app):
     
     @app.route('/api/clusters/<path:cluster_id>/plan', methods=['GET'])
     def get_cluster_implementation_plan(cluster_id):
-        """Get the latest implementation plan for a cluster with markdown content"""
+        """Get the latest implementation plan for a cluster with Claude-generated markdown content"""
         try:
+            # Check for existing Claude-generated plan first
             plan = enhanced_cluster_manager.get_latest_plan(cluster_id)
+            
+            # If no plan exists or it's from local AI, generate a new Claude plan
+            if not plan or plan.get('generated_by') in ['Local AI', 'AI Local Model']:
+                logger.info(f"🔄 No Claude plan found, generating new Claude plan for cluster {cluster_id}")
+                
+                from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
+                import asyncio
+                
+                claude_generator = AIImplementationPlanGenerator()
+                enhanced_input = enhanced_cluster_manager.get_enhanced_analysis_input(cluster_id)
+                
+                if enhanced_input:
+                    try:
+                        # Generate Claude plan (now returns raw markdown)
+                        claude_plan = asyncio.run(claude_generator.generate_plan(
+                            enhanced_input, 
+                            cluster_id.split('_')[-1],  # Extract cluster name
+                            cluster_id
+                        ))
+                        
+                        # Save Claude plan to database
+                        if claude_plan and isinstance(claude_plan, dict):
+                            enhanced_cluster_manager.save_implementation_plan(cluster_id, claude_plan)
+                            plan = claude_plan
+                            logger.info(f"✅ Generated and saved new Claude plan for cluster {cluster_id}")
+                        
+                    except Exception as e:
+                        logger.error(f"❌ Failed to generate Claude plan: {e}")
+                        plan = None
+                
             if plan:
-                logger.info(f"✅ Found implementation plan for cluster {cluster_id}")
+                logger.info(f"✅ Found Claude implementation plan for cluster {cluster_id}")
                 
-                # Generate markdown content from the structured plan
-                markdown_content = generate_markdown_from_plan(plan, cluster_id)
+                # For new format, raw_markdown is the primary content
+                if isinstance(plan, dict) and 'raw_markdown' in plan:
+                    markdown_content = plan['raw_markdown']
+                elif 'markdown_content' in plan and plan['markdown_content']:
+                    markdown_content = plan['markdown_content']
+                else:
+                    # Fallback to generate markdown from structured plan
+                    markdown_content = generate_markdown_from_plan(plan, cluster_id)
                 
-                # Add markdown content to the response
-                response_plan = plan.copy() if isinstance(plan, dict) else plan.model_dump() if hasattr(plan, 'model_dump') else plan
-                response_plan['markdown_content'] = markdown_content
-                
+                # Return simple response for markdown display
                 return jsonify({
                     'status': 'success',
-                    'plan': response_plan
+                    'plan_type': plan.get('plan_type', 'markdown'),
+                    'markdown_content': markdown_content,
+                    'cluster_id': cluster_id,
+                    'generated_at': plan.get('generated_at'),
+                    'cluster_name': plan.get('cluster_name')
                 }), 200
             else:
                 logger.info(f"📋 No implementation plan found for cluster {cluster_id}")
@@ -2226,7 +2264,7 @@ def register_api_routes(app):
     
     @app.route('/api/clusters/<path:cluster_id>/plan/generate', methods=['POST'])
     def generate_new_plan(cluster_id):
-        """Generate a new implementation plan for a cluster"""
+        """Generate a new implementation plan for a cluster using Claude API"""
         try:
             # Get the latest analysis data
             analysis_data = enhanced_cluster_manager.get_enhanced_analysis_input(cluster_id)
@@ -2236,20 +2274,19 @@ def register_api_routes(app):
                     'message': 'No analysis data found. Please run analysis first.'
                 }), 400
             
-            # Trigger plan generation
-            cluster_name = analysis_data.get('cluster_info', {}).get('cluster_name', cluster_id)
+            # Extract cluster name
+            cluster_name = analysis_data.get('cluster_info', {}).get('cluster_name', cluster_id.split('_')[-1])
             
-            # Use the analysis engine to generate a new plan
-            enhanced_input = multi_subscription_analysis_engine.generate_enhanced_analysis_input(
-                cluster_id, analysis_data
-            )
-            
+            # Generate Claude plan directly
+            from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
             import asyncio
-            plan = asyncio.run(
-                multi_subscription_analysis_engine._generate_implementation_plan_async(
-                    enhanced_input, cluster_name, cluster_id
-                )
-            )
+            
+            claude_generator = AIImplementationPlanGenerator()
+            plan = asyncio.run(claude_generator.generate_plan(
+                analysis_data, 
+                cluster_name, 
+                cluster_id
+            ))
             
             if plan:
                 # Store the new plan
