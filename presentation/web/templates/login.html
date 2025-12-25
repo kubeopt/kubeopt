@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>kubeopt - Your Third Eye for Kubernetes</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" />
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Remove external Font Awesome dependency for login page -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/clean-auth.css') }}">
 </head>
 <body class="auth-page">
@@ -34,7 +34,7 @@
             <div class="form-group">
                 <label for="username" class="form-label">Username</label>
                 <div class="form-input-wrapper">
-                    <i class="fas fa-user form-input-icon"></i>
+                    <span class="form-input-icon">👤</span>
                     <input type="text" id="username" name="username" required
                            class="form-input"
                            autocomplete="username"
@@ -45,7 +45,7 @@
             <div class="form-group">
                 <label for="password" class="form-label">Password</label>
                 <div class="form-input-wrapper">
-                    <i class="fas fa-lock form-input-icon"></i>
+                    <span class="form-input-icon">🔒</span>
                     <input type="password" id="password" name="password" required
                            class="form-input"
                            autocomplete="current-password"
@@ -59,7 +59,7 @@
             </div>
 
             <button type="submit" class="login-btn">
-                <i class="fas fa-sign-in-alt"></i>
+                <span>🚀</span>
                 Sign in
             </button>
         </form>
