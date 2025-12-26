@@ -1,0 +1,933 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if cluster %}{{ cluster.name }} - {% endif %}AKS Cost Intelligence - kubeopt
+{% endblock %}
+
+{% block description %}
+kubeopt is an intelligent AKS cost optimization platform leveraging ML insights for actionable cloud savings.
+{% endblock %}
+
+{% block extra_css %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Logger must be loaded first -->
+    <script src="{{ url_for('static', filename='js/logger.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/index.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/smooth.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/enhanced-ui.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/implementation_plan_renderer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/alerts/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/controls/controls.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/enterprise-metrics.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/security/charts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/security/pure-backend-dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/auto-analysis-scheduler.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/feature-lock.js') }}"></script>
+    <!-- <script type="module" src="{{ url_for('static', filename='js/aks-excellence.js') }}"></script> -->
+
+    
+    <!-- <script src="{{ url_for('static', filename='js/magic.js') }}"></script> -->
+    
+    <!-- Clean Design CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/clean-minimal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/brand-icons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/implementation-plan.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/clean-security.css') }}">
+    
+    <style>
+        /* Prevent FOUC (Flash of Unstyled Content) */
+        body {
+            visibility: hidden;
+        }
+        body.loaded {
+            visibility: visible;
+        }
+        
+        /* Additional theme-specific styles to ensure consistency */
+        .bg-azure-50 {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+
+        /* Custom scrollbar for the execution plan */
+        .max-h-64::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .max-h-64::-webkit-scrollbar-track {
+            background: rgba(75, 85, 99, 0.2);
+            border-radius: 3px;
+        }
+
+        .max-h-64::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.5);
+            border-radius: 3px;
+        }
+
+        .max-h-64::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.8);
+        }
+
+        /* Transition effects */
+        .transition-colors {
+            transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+        }
+
+        /* Status badge transitions */
+        [id$="-status"] {
+            transition: all 0.3s ease-in-out;
+        }
+
+        /* Card hover effects */
+        .bg-gray-800:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            transition: box-shadow 0.3s ease-in-out;
+        }
+        .bg-gray-800{
+            --tw-bg-opacity: 1;
+            background-color: rgb(34 40 61);
+        }
+
+        /* Fix tab content isolation */
+.tab-content-panel {
+    display: none !important;
+}
+
+.tab-content-panel:not(.hidden) {
+    display: block !important;
+}
+
+/* Ensure consistent tab content alignment */
+.tab-content {
+    margin: 0;
+    padding: 0;
+    text-align: left;
+}
+
+.tab-content .clean-chart-card {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+#securityposture-content {
+    display: none;
+}
+
+#securityposture-content:not(.hidden) {
+    display: block;
+}
+
+/* Ensure security content is properly contained */
+.security-tab-content {
+    display: none;
+}
+
+.security-tab-content:not(.hidden) {
+    display: block;
+}
+
+/* Auto-Analysis Scheduler Styles */
+.scheduler-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.scheduler-indicator {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.scheduler-indicator:hover {
+    opacity: 0.8;
+}
+
+    </style>
+    <script>
+        // Show body once page is loaded to prevent flickering
+        window.addEventListener('load', function() {
+            document.body.classList.add('loaded');
+        });
+    </script>
+{% endblock %}
+
+{% block content %}
+    <div class="modern-layout">
+        <!-- Expandable Sidebar -->
+        <aside class="expandable-sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="brand-section">
+                    <img src="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" alt="kubeopt Eye Icon" class="kubeopt-eye">
+                    <h1 class="sidebar-brand">kubeopt</h1>
+                </div>
+               
+            </div>
+            <nav class="sidebar-nav">
+                <ul class="nav-list">
+                    <li class="nav-item">
+                        <a href="/" class="nav-link" title="Portfolio">
+                            <i class="fas fa-arrow-left nav-icon"></i>
+                            <span class="nav-text">Portfolio</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" data-target="#dashboard-content" onclick="showContent('dashboard', this); return false;" class="nav-link active" title="Dashboard">
+                            <i class="fas fa-chart-line nav-icon"></i>
+                            <span class="nav-text">Overview</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" data-target="#implementation-content" onclick="showContent('implementation', this); return false;" class="nav-link" title="Implementation">
+                            <i class="fas fa-rocket nav-icon"></i>
+                            <span class="nav-text">Implementation</span>
+                        </a>
+                    </li>
+                    <!-- <li class="nav-item">
+                        <a href="#" data-target="#enterprise-metrics-content" onclick="showContent('enterprise-metrics', this); return false;" class="nav-link" title="Enterprise Metrics">
+                            <i class="fas fa-building nav-icon"></i>
+                            <span class="nav-text">Enterprise Metrics</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#" data-target="#securityposture-content" onclick="showContent('securityposture', this); return false;" class="nav-link" title="Security Posture">
+                            <i class="fas fa-shield-alt nav-icon"></i>
+                            <span class="nav-text">Security Posture</span>
+                        </a>
+                    </li> -->
+                    <li class="nav-item">
+                        <a href="#" data-target="#alerts-content" onclick="showContent('alerts', this); return false;" class="nav-link" title="Alerts">
+                            <i class="fas fa-bell nav-icon"></i>
+                            <span class="nav-text">Alerts</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Modern Main Content -->
+        <main class="main-content-area">
+            <!-- Compact Top Bar -->
+            <div class="top-bar">
+                {% if cluster %}
+                <div class="top-bar-info">
+                    <h2 class="cluster-title">{{ cluster.name }}</h2>
+                    <div class="cluster-badges">
+                        <span class="clean-status-badge">
+                            <i class="fas fa-circle"></i>
+                            {{ cluster.environment.upper() if cluster.environment else 'UNKNOWN' }}
+                        </span>
+                        {% if cluster.region %}
+                        <span class="clean-status-badge">
+                            <i class="fas fa-map-marker-alt"></i>
+                            {{ cluster.region }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="top-bar-info">
+                    <h2 class="cluster-title">AKS Cost Intelligence</h2>
+                    <p class="top-bar-subtitle">Optimize your Kubernetes costs with intelligent insights</p>
+                </div>
+                {% endif %}
+
+                <div class="top-bar-actions">
+                    {% if cluster %}
+                    <!-- <button onclick="triggerAnalysis('{{ cluster.id }}')" class="clean-btn clean-btn-primary">
+                        <i class="fas fa-play"></i>
+                        <span>Analyze</span>
+                    </button> -->
+                    {% endif %}
+                    
+                    <div class="relative">
+                        <i id="global-notification-badge" class="fa-regular fa-bell notification-badge" title="Notifications"></i>
+                    </div>
+                    
+                    <div class="clean-user-menu">
+                        <div class="user-avatar" onclick="window.toggleUserMenu(); return false;">
+                            <i class="fas fa-user"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Simple Content Body -->
+            <div class="content-body-fullscreen">
+                <!-- Dashboard Content -->
+                <div id="dashboard-content" class="content-section active">
+                    <!-- Simple Metrics Grid -->
+                    <div class="metrics-grid-simple">
+                        {% for metric in [
+                            {'id': 'current-cost', 'icon': 'fa-dollar-sign', 'label': 'Current Monthly Cost', 'trend_id': 'cost-trend', 'trend_label': 'Limited optimization'},
+                            {'id': 'potential-savings', 'icon': 'fa-piggy-bank', 'label': 'Predicted Savings', 'trend_id': 'savings-percentage', 'trend_label': '0.0%'},
+                            {'id': 'hpa-efficiency', 'icon': 'fa-tachometer-alt', 'label': 'HPA Efficiency', 'trend_label': 'Optimized scaling'},
+                            {'id': 'optimization-score', 'icon': 'fa-star', 'label': 'Optimization Score', 'trend_label': 'Overall efficiency'}
+                        ] %}
+                            <div class="simple-metric-card">
+                                <div class="metric-header">
+                                    <div class="metric-icon">
+                                        <i class="fas {{ metric.icon }}"></i>
+                                    </div>
+                                    <h3 class="metric-title">{{ metric.label }}</h3>
+                                </div>
+                                <div class="metric-value" id="{{ metric.id }}">--</div>
+                                <div class="metric-trend">
+                                    {% if metric.trend_id %}
+                                    <span id="{{ metric.trend_id }}">{{ metric.trend_label }}</span>
+                                    {% else %}
+                                    <span>{{ metric.trend_label }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                        </div>
+
+
+                        <!-- CPU Metrics Container -->
+                        <div id="cpu-metrics-container"></div>
+
+                        <!-- Clean Charts Grid -->
+                        <div class="clean-charts-grid">
+                            <div class="clean-chart-card chart-card-full-width">
+                                <div class="chart-header">
+                                    <div class="chart-icon">
+                                        <i class="fas fa-chart-line"></i>
+                                    </div>
+                                    <h3 class="chart-title">Cost Trend Analysis</h3>
+                                </div>
+                                <div class="chart-container">
+                                    <canvas id="mainTrendChart"></canvas>
+                                    <div id="mainTrendChart-loading" class="chart-loading">
+                                        <p>Preparing trend analysis...</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            
+                            <div class="clean-chart-card">
+                                <div class="chart-header">
+                                    <div class="chart-icon">
+                                        <i class="fas fa-chart-pie"></i>
+                                    </div>
+                                    <h3 class="chart-title">Cost Distribution</h3>
+                                </div>
+                                <div class="chart-container">
+                                    <canvas id="costBreakdownChart"></canvas>
+                                    <div id="costBreakdownChart-loading" class="chart-loading">
+                                        <p>Loading cost breakdown...</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                                                        
+                            <div class="clean-chart-card">
+                                <div class="chart-header">
+                                    <div class="chart-icon">
+                                        <i class="fas fa-bullseye"></i>
+                                    </div>
+                                    <h3 class="chart-title">Savings Breakdown</h3>
+                                </div>
+                                <div class="chart-container">
+                                    <canvas id="savingsBreakdownChart"></canvas>
+                                    <div id="savingsBreakdownChart-loading" class="chart-loading">
+                                        <p>Calculating savings potential...</p>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                                                        
+                            <div class="clean-chart-card">
+                                <div class="chart-header">
+                                    <div class="chart-icon">
+                                        <i class="fas fa-server"></i>
+                                    </div>
+                                    <h3 class="chart-title">Node Resource Utilization</h3>
+                                </div>
+                                <div class="chart-container">
+                                    <canvas id="nodeUtilizationChart"></canvas>
+                                    <div id="nodeUtilizationChart-loading" class="chart-loading">
+                                        <p>Analyzing node performance...</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                                                        
+                            <div class="clean-chart-card">
+                                <div class="chart-header">
+                                    <div class="chart-icon">
+                                        <i class="fas fa-chart-bar"></i>
+                                    </div>
+                                    <h3 class="chart-title">HPA Optimization Impact</h3>
+                                </div>
+                                <div class="chart-container">
+                                    <canvas id="hpaComparisonChart"></canvas>
+                                </div>
+                                <div id="hpa-count-display" class="hpa-count-display">
+                                    Active HPAs: <span id="active-hpa-count" class="hpa-count-badge">0</span>
+                                </div>
+                            </div>
+
+                            <div class="clean-chart-card">
+                                <div class="chart-header">
+                                    <div class="chart-icon">
+                                        <i class="fas fa-layer-group"></i>
+                                    </div>
+                                    <h3 class="chart-title">Cost by Namespace</h3>
+                                </div>
+                                <div class="chart-container">
+                                    <canvas id="namespaceCostChart"></canvas>
+                                    <div id="namespaceCostChart-loading" class="chart-loading">
+                                        <p>Categorizing namespace costs...</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="clean-chart-card">
+                                <div class="chart-header">
+                                    <div class="chart-icon">
+                                        <i class="fas fa-chart-bar"></i>
+                                    </div>
+                                    <h3 class="chart-title">Top Workloads</h3>
+                                </div>
+                                <div class="chart-container">
+                                    <canvas id="workloadCostChart"></canvas>
+                                    <div id="workloadCostChart-loading" class="chart-loading">
+                                        <p>Ranking workload costs...</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                        
+                        <!-- Additional Metrics Row -->
+                        <div class="clean-metrics-grid">
+                            <div class="clean-metric-card">
+                                <div class="metric-header">
+                                    <div class="metric-icon">
+                                        <i class="fas fa-layer-group"></i>
+                                    </div>
+                                    <h3 class="metric-title">Top Namespace Cost</h3>
+                                </div>
+                                <div class="metric-value" id="top-namespace-cost" data-metric="namespace-cost">$0</div>
+                            </div>
+                            <div class="clean-metric-card">
+                                <div class="metric-header">
+                                    <div class="metric-icon">
+                                        <i class="fas fa-cubes"></i>
+                                    </div>
+                                    <h3 class="metric-title">Namespaces Analyzed</h3>
+                                </div>
+                                <div class="metric-value" id="total-namespaces" data-metric="namespaces">0</div>
+                            </div>
+                            <div class="clean-metric-card">
+                                <div class="metric-header">
+                                    <div class="metric-icon">
+                                        <i class="fas fa-shield-alt"></i>
+                                    </div>
+                                    <h3 class="metric-title">Workloads Found</h3>
+                                </div>
+                                <div class="metric-value" id="total-workloads">--</div>
+                            </div>
+                            <div class="clean-metric-card">
+                                <div class="metric-header">
+                                    <div class="metric-icon">
+                                        <i class="fas fa-chart-line"></i>
+                                    </div>
+                                    <h3 class="metric-title">Analysis Accuracy</h3>
+                                </div>
+                                <div class="metric-value" id="analysis-accuracy" data-metric="accuracy">Loading...</div>
+                            </div>
+                        </div>
+                        
+                        
+                        <!-- Clean Insights Section -->
+                        <div class="clean-chart-card chart-card-full-width">
+                            <div class="chart-header">
+                                <div class="chart-icon">
+                                    <i class="fas fa-lightbulb"></i>
+                                </div>
+                                <h3 class="chart-title">Analysis Insights</h3>
+                            </div>
+                            <div id="insights-container" class="insights-container">
+                                <div class="insights-placeholder">
+                                    <div class="insights-placeholder-icon">
+                                        <i class="fas fa-robot"></i>
+                                    </div>
+                                    <h4 class="insights-placeholder-title">AI Analysis Ready</h4>
+                                    <p class="insights-placeholder-text">AI analysis will generate personalized insights here...</p>
+                                    <span class="insights-placeholder-note">Run an analysis to see optimization recommendations</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Clean Implementation Content -->
+                    <div id="implementation-content" class="tab-content hidden">
+                        <div class="clean-chart-card chart-card-full-width-mb">
+                            <div class="chart-header">
+                                <div class="chart-header-left">
+                                    <div class="chart-icon">
+                                        <i class="fas fa-rocket"></i>
+                                    </div>
+                                    <h2 class="chart-title">Implementation Guide</h2>
+                                </div>
+                                <div class="chart-header-right">
+                                    <span class="last-analyzed-time" id="implementation-last-analyzed">Last analyzed: --</span>
+                                </div>
+                            </div>
+                            <div id="implementation-plan-container" class="implementation-container">
+                                <div class="implementation-icon">
+                                    <i class="fas fa-clipboard-list"></i>
+                                </div>
+                                <h4 class="implementation-title">Ready to Implement</h4>
+                                <p class="implementation-text">Run an analysis to generate your personalized implementation plan. Step-by-step optimization instructions will appear here.</p>
+                            </div>
+                        </div>
+                    </div>
+
+
+                   
+
+                    <!-- CLEAN ENTERPRISE METRICS TAB CONTENT -->
+                    <div id="enterprise-metrics-content" class="tab-content hidden">
+                        <div class="clean-chart-card chart-card-full-width-mb">
+                            <div class="chart-header">
+                                <div class="chart-header-left">
+                                    <div class="chart-icon">
+                                        <i class="fas fa-building"></i>
+                                    </div>
+                                    <h2 class="chart-title">Enterprise Operational Metrics</h2>
+                                </div>
+                                <div class="chart-header-right">
+                                    <span class="last-analyzed-time" id="enterprise-last-analyzed">Last analyzed: --</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Enterprise Metrics Controls -->
+                            <div class="enterprise-metrics-controls">
+                                <div class="enterprise-metrics-left">
+                                    <span class="enterprise-badge">
+                                        <span id="maturity-level">DEFINED</span>
+                                        <span id="maturity-score">69</span>
+                                    </span>
+                                </div>
+                                <button id="export-enterprise-metrics" class="clean-btn clean-btn-primary clean-btn-small">
+                                    <i class="fas fa-download"></i>Export
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Loading State -->
+                        <div id="enterprise-loading" class="hidden loading-container">
+                            <div class="loading-spinner"></div>
+                            <p class="loading-text">Calculating enterprise metrics...</p>
+                        </div>
+
+                        <!-- Error State -->
+                        <div id="enterprise-error" class="hidden clean-alert alert-error">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <div>
+                                <h3 style="margin: 0; font-weight: 600;">Enterprise Metrics Error</h3>
+                                <p id="enterprise-error-message" style="margin: 0.5rem 0 0 0;"></p>
+                            </div>
+                        </div>
+
+                        <!-- Main Content -->
+                        <div id="enterprise-main-content" class="block">
+                            
+
+                            <!-- Clean Metrics Grid -->
+                            <div class="clean-metrics-grid">
+                                
+                                <!-- Kubernetes Upgrade Readiness -->
+                                <div class="clean-metric-card" data-metric="kubernetes_upgrade_readiness">
+                                    <div class="metric-header">
+                                        <div class="metric-icon">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </div>
+                                        <h3 class="metric-title">Upgrade Readiness</h3>
+                                    </div>
+                                    <div class="metric-value">
+                                        <span class="metric-score" style="font-size: 2rem; font-weight: 700;">0</span>
+                                    </div>
+                                    <div class="metric-details" style="margin: 1rem 0; min-height: 2rem; color: var(--text-secondary); font-size: 0.875rem;"></div>
+                                    <div style="background: var(--bg-primary); border-radius: 9999px; height: 6px;">
+                                        <div style="background: var(--primary-green); height: 6px; border-radius: 9999px; width: 0%; transition: width 0.3s ease;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Disaster Recovery Score -->
+                                <div class="clean-metric-card" data-metric="disaster_recovery_score">
+                                    <div class="metric-header">
+                                        <div class="metric-icon">
+                                            <i class="fas fa-shield-alt"></i>
+                                        </div>
+                                        <h3 class="metric-title">Disaster Recovery</h3>
+                                    </div>
+                                    <div class="metric-value">
+                                        <span class="metric-score" style="font-size: 2rem; font-weight: 700;">0</span>
+                                    </div>
+                                    <div class="metric-details" style="margin: 1rem 0; min-height: 2rem; color: var(--text-secondary); font-size: 0.875rem;"></div>
+                                    <div style="background: var(--bg-primary); border-radius: 9999px; height: 6px;">
+                                        <div style="background: var(--primary-green); height: 6px; border-radius: 9999px; width: 0%; transition: width 0.3s ease;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Operational Maturity -->
+                                <div class="clean-metric-card" data-metric="operational_maturity">
+                                    <div class="metric-header">
+                                        <div class="metric-icon">
+                                            <i class="fas fa-cogs"></i>
+                                        </div>
+                                        <h3 class="metric-title">Operational Maturity</h3>
+                                    </div>
+                                    <div class="metric-value">
+                                        <span class="metric-score" style="font-size: 2rem; font-weight: 700;">0</span>
+                                    </div>
+                                    <div class="metric-details" style="margin: 1rem 0; min-height: 2rem; color: var(--text-secondary); font-size: 0.875rem;"></div>
+                                    <div style="background: var(--bg-primary); border-radius: 9999px; height: 6px;">
+                                        <div style="background: var(--primary-green); height: 6px; border-radius: 9999px; width: 0%; transition: width 0.3s ease;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Capacity Planning -->
+                                <div class="clean-metric-card" data-metric="capacity_planning">
+                                    <div class="metric-header">
+                                        <div class="metric-icon">
+                                            <i class="fas fa-chart-line"></i>
+                                        </div>
+                                        <h3 class="metric-title">Capacity Planning</h3>
+                                    </div>
+                                    <div class="metric-value">
+                                        <span class="metric-score" style="font-size: 2rem; font-weight: 700;">0</span>
+                                    </div>
+                                    <div class="metric-details" style="margin: 1rem 0; min-height: 2rem; color: var(--text-secondary); font-size: 0.875rem;"></div>
+                                    <div style="background: var(--bg-primary); border-radius: 9999px; height: 6px;">
+                                        <div style="background: var(--primary-green); height: 6px; border-radius: 9999px; width: 0%; transition: width 0.3s ease;"></div>
+                                    </div>
+                                </div>
+
+
+                                <!-- Team Velocity -->
+                                <div class="clean-metric-card" data-metric="team_velocity">
+                                    <div class="metric-header">
+                                        <div class="metric-icon">
+                                            <i class="fas fa-rocket"></i>
+                                        </div>
+                                        <h3 class="metric-title">Team Velocity</h3>
+                                    </div>
+                                    <div class="metric-value">
+                                        <span class="metric-score" style="font-size: 2rem; font-weight: 700;">0</span>
+                                    </div>
+                                    <div class="metric-details" style="margin: 1rem 0; min-height: 2rem; color: var(--text-secondary); font-size: 0.875rem;"></div>
+                                    <div style="background: var(--bg-primary); border-radius: 9999px; height: 6px;">
+                                        <div style="background: var(--primary-green); height: 6px; border-radius: 9999px; width: 0%; transition: width 0.3s ease;"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Items -->
+                            <div class="clean-chart-card" style="margin-top: 2rem;">
+                                <div class="chart-header">
+                                    <div class="chart-icon">
+                                        <i class="fas fa-tasks"></i>
+                                    </div>
+                                    <h3 class="chart-title">Priority Action Items</h3>
+                                </div>
+                                <div id="action-items-list">
+                                    <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                        <div style="font-size: 3rem; margin-bottom: 1rem; color: var(--primary-green);">
+                                            <i class="fas fa-clipboard-list"></i>
+                                        </div>
+                                        <p style="margin: 0;">Action items will be populated dynamically based on analysis results</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="securityposture-content" class="tab-content hidden">
+                        <div class="clean-chart-card chart-card-full-width-mb">
+                            <div class="chart-header">
+                                <div class="chart-header-left">
+                                    <div class="chart-icon">
+                                        <i class="fas fa-shield-alt"></i>
+                                    </div>
+                                    <h2 class="chart-title">Security Posture</h2>
+                                </div>
+                                <div class="chart-header-right">
+                                    <span class="last-analyzed-time" id="security-last-analyzed">Last analyzed: --</span>
+                                </div>
+                            </div>
+                            <!-- Security Analysis Results Container -->
+                            <div id="security-analysis-results">
+                                <!-- Dynamic security analysis content will be injected here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced Alerts Content -->
+
+                        <!-- Clean Alerts Content -->
+                        <div id="alerts-content" class="tab-content hidden">
+                            <div class="clean-chart-card chart-card-full-width-mb">
+                                <div class="chart-header">
+                                    <div class="chart-header-left">
+                                        <div class="chart-icon">
+                                            <i class="fas fa-bell"></i>
+                                        </div>
+                                        <h2 class="chart-title">Alerts Management</h2>
+                                    </div>
+                                    <div class="chart-header-right">
+                                        <span class="last-analyzed-time" id="alerts-last-analyzed">Last analyzed: --</span>
+                                    </div>
+                                </div>
+                                <div class="alerts-header-controls">
+                                    <button onclick="showCreateAlertModal()" class="clean-btn clean-btn-primary clean-btn-small">
+                                        <i class="fas fa-plus"></i>New Alert
+                                    </button>
+                                </div>
+
+                                <!-- Clean Tab Navigation -->
+                                <div class="clean-tabs">
+                                    <ul class="tab-list">
+                                        <li class="tab-item">
+                                            <button onclick="switchAlertsTab('alerts')" id="alerts-tab-btn" class="tab-link active">
+                                                All Alerts
+                                                <span style="background: var(--primary-green); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;" id="total-alerts-count">0</span>
+                                            </button>
+                                        </li>
+                                        <li class="tab-item">
+                                            <button onclick="switchAlertsTab('notifications')" id="notifications-tab-btn" class="tab-link">
+                                                Recent Notifications
+                                                <span style="background: #dc2626; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem; display: none;" id="notification-badge">0</span>
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                    <!-- Alerts Tab Content -->
+                                    <div id="alerts-tab-content" class="alerts-tab-content">
+                                        <!-- Filter buttons -->
+                                        <!-- <div class="flex justify-between items-center mb-4">
+                                            <div id="alerts-filter-buttons" class="flex space-x-2">
+                                                <button onclick="filterAlerts('all')" class="filter-btn active px-3 py-1 text-sm rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                                                    All (<span id="all-count">0</span>)
+                                                </button>
+                                                <button onclick="filterAlerts('active')" class="filter-btn px-3 py-1 text-sm rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                                                    Active (<span id="active-count">0</span>)
+                                                </button>
+                                                <button onclick="filterAlerts('paused')" class="filter-btn px-3 py-1 text-sm rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                                                    Paused (<span id="paused-count">0</span>)
+                                                </button>
+                                            </div>
+                                        </div> -->
+                                        
+                                        <!-- Alerts List Container -->
+                                        <div id="alerts-list-container" class="space-y-3" style="max-height: 32rem; overflow-y: auto;">
+                                            <!-- Dynamic alerts will be inserted here -->
+                                        </div>
+                                    </div>
+
+                                    <!-- Notifications Tab Content -->
+                                    <div id="notifications-tab-content" class="alerts-tab-content hidden">
+                                        <div id="in-app-notifications-container" class="space-y-3" style="max-height: 32rem; overflow-y: auto;">
+                                            <!-- Dynamic notifications will be inserted here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Enhanced Delete Confirmation Modal -->
+    <div id="deleteCurrentClusterModal" class="delete-modal-overlay hidden">
+        <div class="delete-modal-content">
+            <div class="delete-modal-body">
+                <div class="delete-modal-icon-wrapper">
+                    <i class="fas fa-exclamation-triangle delete-modal-icon"></i>
+                </div>
+                <h3 class="delete-modal-title">Delete Cluster</h3>
+                <div class="delete-modal-content-body">
+                    <p class="delete-modal-text">Are you sure you want to delete this cluster? This action cannot be undone.</p>
+                    {% if cluster %}
+                    <div class="clean-alert alert-error delete-modal-alert">
+                        <i class="fas fa-info-circle"></i>
+                        <div><strong>Cluster:</strong> {{ cluster.name }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="delete-modal-buttons">
+                    <button id="confirmCurrentDeleteBtn" class="delete-confirm-btn">
+                        <i class="fas fa-trash"></i>Delete Cluster
+                    </button>
+                    <button onclick="document.getElementById('deleteCurrentClusterModal').classList.add('hidden'); document.getElementById('deleteCurrentClusterModal').style.display='none';" class="clean-btn clean-btn-secondary">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Make cluster information available to JavaScript -->
+    <script>
+        // Sidebar toggle functionality
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+            
+            // Store the preference in localStorage
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            localStorage.setItem('sidebarCollapsed', isCollapsed);
+            
+            // Debug log
+            console.log('Sidebar toggled. Collapsed:', isCollapsed);
+        }
+
+        // Restore sidebar state on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            
+            if (isCollapsed) {
+                sidebar.classList.add('collapsed');
+            }
+        });
+
+        // Cluster information for alerts and other JavaScript modules
+        {% if cluster %}
+        window.clusterInfo = {
+            id: '{{ cluster.id }}',
+            name: '{{ cluster.name }}',
+            cluster_name: '{{ cluster.name }}',
+            resource_group: '{{ cluster.resource_group }}',
+            environment: '{{ cluster.environment }}',
+            region: '{{ cluster.region }}',
+            subscription_id: '{{ cluster.subscription_id }}'
+        };
+        
+        // For backward compatibility
+        window.currentClusterId = '{{ cluster.id }}';
+        window.currentClusterName = '{{ cluster.name }}';
+        window.currentResourceGroup = '{{ cluster.resource_group }}';
+        {% endif %}
+        
+        // Analysis data with AKS Excellence scores
+        {% if analysis %}
+        window.analysisData = {{ analysis | tojson }};
+        {% else %}
+        window.analysisData = null;
+        {% endif %}
+        
+    </script>
+
+    <script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>
+    
+    <!-- Global Auto-Refresh Manager -->
+    <script src="{{ url_for('static', filename='js/global-refresh-manager.js') }}"></script>
+    
+    <!-- Dashboard-specific update functions -->
+    <script src="{{ url_for('static', filename='js/dashboard-updates.js') }}"></script>
+
+    <!-- Last Analyzed Time Updates -->
+    <script>
+        // Function to format timestamp for display
+        function formatLastAnalyzed(timestamp) {
+            if (!timestamp) return '--';
+            
+            try {
+                const date = new Date(timestamp);
+                if (isNaN(date.getTime())) return '--';
+                
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMins = Math.floor(diffMs / (1000 * 60));
+                const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                
+                if (diffMins < 1) return 'Just now';
+                if (diffMins < 60) return `${diffMins}m ago`;
+                if (diffHours < 24) return `${diffHours}h ago`;
+                if (diffDays < 7) return `${diffDays}d ago`;
+                
+                return date.toLocaleDateString();
+            } catch (e) {
+                return '--';
+            }
+        }
+
+        // Function to update all last analyzed times
+        function updateLastAnalyzedTimes() {
+            const analysisData = window.analysisData;
+            if (!analysisData) return;
+
+            // Get the latest analysis timestamp
+            const lastAnalyzedTime = analysisData.timestamp || analysisData.analysis_timestamp || analysisData.created_at;
+            const formattedTime = formatLastAnalyzed(lastAnalyzedTime);
+
+            // Update all tab headers
+            const elements = [
+                'implementation-last-analyzed',
+                'enterprise-last-analyzed', 
+                'security-last-analyzed',
+                'alerts-last-analyzed'
+            ];
+
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = `Last analyzed: ${formattedTime}`;
+                }
+            });
+        }
+
+        // Update on page load and when analysis data changes
+        document.addEventListener('DOMContentLoaded', updateLastAnalyzedTimes);
+        
+        // Update when charts are refreshed
+        if (window.updateDashboardMetrics) {
+            const originalUpdate = window.updateDashboardMetrics;
+            window.updateDashboardMetrics = function(...args) {
+                originalUpdate.apply(this, args);
+                updateLastAnalyzedTimes();
+            };
+        }
+    </script>
+
+    <!-- User Dropdown Menu - At end of body for maximum visibility -->
+<div id="userDropdownMenu" class="user-dropdown hidden user-dropdown-menu">
+    <div class="user-dropdown-content">
+        <div class="user-dropdown-header">
+            <p class="user-dropdown-label">Signed in as</p>
+            <p class="user-dropdown-username">{{ session.username or 'Admin' }}</p>
+        </div>
+        <a href="{{ url_for('settings') }}" class="user-menu-item">
+            <i class="fas fa-cog user-menu-icon"></i>
+            Settings
+        </a>
+        <a href="{{ url_for('logout') }}" class="user-menu-item logout">
+            <i class="fas fa-sign-out-alt user-menu-icon"></i>
+            Logout
+        </a>
+    </div>
+</div>
+
+</body>
+
+<footer class="footer mt-auto py-3 text-center text-muted">
+  <div class="container">
+    <small class="d-block mb-1">
+      © {{ current_year }} <strong>kubeopt</strong> · Built for Kubernetes · Intelligent. Insightful. Illuminating.
+    </small>
+    <small class="d-block">
+      All rights reserved by <strong>Nivaya Technologies</strong>
+    </small>
+  </div>
+</footer>
+</html>

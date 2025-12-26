@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}kubeopt - Your Third Eye for Kubernetes{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" />
+    
+    <!-- Meta tags -->
+    <meta name="description" content="{% block description %}kubeopt is an intelligent AKS cost optimization platform leveraging AI insights for actionable cloud savings{% endblock %}">
+    <meta name="author" content="NIVAYA">
+    <meta name="theme-color" content="#0ea5e9" />
+    <meta name="log-level" content="{{ config.get('LOG_LEVEL', 'INFO') }}">
+    <meta name="production-mode" content="{{ config.get('PRODUCTION_MODE', 'false') }}">
+
+    <!-- Modern CSS Framework - Using Tailwind for consistency -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'sans': ['Inter', 'system-ui', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Icons with fallback -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" onerror="console.log('Font Awesome CDN blocked by tracking prevention')">
+    
+    <!-- Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    
+    <!-- Modern CSS -->
+    <style>
+        /* Modern CSS Variables for Theme */
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #f1f5f9;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --border-color: #e2e8f0;
+            --accent-color: #0ea5e9;
+            --accent-hover: #0284c7;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --radius-sm: 0.375rem;
+            --radius-md: 0.5rem;
+            --radius-lg: 0.75rem;
+        }
+        
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #64748b;
+            --border-color: #374151;
+            --accent-color: #0ea5e9;
+            --accent-hover: #0284c7;
+        }
+        
+        * {
+            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        }
+        
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        
+        /* Smooth scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--text-muted);
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+    <!-- Modern Navigation Bar -->
+    <nav class="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Brand Logo -->
+                <div class="flex items-center space-x-3">
+                    <a href="/" class="flex items-center space-x-3 text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
+                        <img src="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" alt="kubeopt" class="h-8 w-8 rounded-lg">
+                        <div class="flex flex-col">
+                            <span class="text-lg font-bold">kubeopt</span>
+                            <span class="text-xs text-gray-500 dark:text-gray-400 -mt-1">Your Third Eye for Kubernetes</span>
+                        </div>
+                    </a>
+                </div>
+
+                <!-- Navigation Actions -->
+                <div class="flex items-center space-x-4">
+                    <!-- Theme Toggle -->
+                    <button onclick="toggleTheme()" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                        <i class="fas fa-sun dark:hidden text-yellow-500"></i>
+                        <i class="fas fa-moon hidden dark:block text-blue-400"></i>
+                    </button>
+
+                    <!-- User Menu -->
+                    <div class="relative">
+                        <button onclick="toggleUserMenu()" class="flex items-center space-x-2 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                            <div class="h-6 w-6 bg-primary-500 rounded-full flex items-center justify-center">
+                                <i class="fas fa-user text-white text-xs"></i>
+                            </div>
+                            <span class="hidden sm:block text-sm font-medium">{{ session.username or 'Admin' }}</span>
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </button>
+                        
+                        <!-- User Dropdown -->
+                        <div id="userDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1">
+                            <a href="{{ url_for('settings') }}" class="flex items-center space-x-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                <i class="fas fa-cog"></i>
+                                <span>Settings</span>
+                            </a>
+                            <a href="{{ url_for('logout') }}" class="flex items-center space-x-2 px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span>Logout</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="pt-16 min-h-screen">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+            {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg border {% if category == 'error' %}bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200{% elif category == 'success' %}bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-200{% else %}bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200{% endif %}">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        {% if category == 'success' %}
+                        <i class="fas fa-check-circle"></i>
+                        {% elif category == 'error' %}
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {% else %}
+                        <i class="fas fa-info-circle"></i>
+                        {% endif %}
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium">{{ message }}</p>
+                    </div>
+                    <button onclick="this.parentElement.parentElement.remove()" class="ml-auto -mx-1.5 -my-1.5 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <i class="fas fa-times text-sm"></i>
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Page Content -->
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Modern JavaScript -->
+    <script>
+        // Theme Management
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const theme = savedTheme === 'auto' ? (prefersDark ? 'dark' : 'light') : savedTheme;
+            
+            document.documentElement.setAttribute('data-theme', theme);
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.classList.contains('dark');
+            const newTheme = isDark ? 'light' : 'dark';
+            
+            if (newTheme === 'dark') {
+                html.classList.add('dark');
+            } else {
+                html.classList.remove('dark');
+            }
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+
+        // User Menu Management
+        function toggleUserMenu() {
+            const dropdown = document.getElementById('userDropdown');
+            if (dropdown) {
+                dropdown.classList.toggle('hidden');
+            }
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('userDropdown');
+            const button = event.target.closest('button[onclick="toggleUserMenu()"]');
+            
+            if (!button && dropdown && !dropdown.contains(event.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        // Initialize theme on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initTheme();
+        });
+
+        // Handle system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+            if (localStorage.getItem('theme') === 'auto') {
+                initTheme();
+            }
+        });
+        
+        // Chart initialization helper
+        function initializeChart(canvasId, config) {
+            try {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) {
+                    console.warn(`Canvas with id '${canvasId}' not found`);
+                    return null;
+                }
+                
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    console.warn(`Unable to get 2D context for canvas '${canvasId}'`);
+                    return null;
+                }
+                
+                if (typeof Chart === 'undefined') {
+                    console.error('Chart.js is not loaded');
+                    return null;
+                }
+                
+                return new Chart(ctx, config);
+            } catch (error) {
+                console.error(`Error creating chart for '${canvasId}':`, error);
+                return null;
+            }
+        }
+
+        // Chart color helper for theme changes
+        function getChartColors() {
+            const isDark = document.documentElement.classList.contains('dark');
+            return {
+                textColor: isDark ? '#f7fafc' : '#2d3748',
+                gridColor: isDark ? '#4a5568' : '#e2e8f0',
+                backgroundColor: isDark ? '#2d3748' : '#ffffff'
+            };
+        }
+    </script>
+    
+    <!-- Additional Scripts -->
+    {% block scripts %}{% endblock %}
+    
+    <!-- Modern Footer -->
+    <footer class="mt-auto py-8 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col items-center justify-center space-y-2">
+                <div class="flex items-center space-x-2 text-gray-600 dark:text-gray-400">
+                    <img src="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" alt="kubeopt" class="h-5 w-5 rounded">
+                    <span class="text-sm">© 2024 <strong class="text-gray-900 dark:text-white">kubeopt</strong> · Built for Kubernetes</span>
+                </div>
+                <div class="text-xs text-gray-500 dark:text-gray-500">
+                    Intelligent. Insightful. Illuminating. · All rights reserved by <strong>Nivaya Technologies</strong>
+                </div>
+            </div>
+        </div>
+    </footer>
+</body>
+
+
+</html>

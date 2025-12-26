@@ -1,19 +1,214 @@
 /**
- * ============================================================================
- * AKS COST INTELLIGENCE - UTILITY FUNCTIONS
- * ============================================================================
- * Common utility functions for formatting, validation, and general helpers
- * ============================================================================
+ * AKS Cost Optimizer - Utility Functions  
+ * Core utilities for the application
  */
 
+// Initialize global AppState immediately
+window.AppState = {
+    currentClusterId: null,
+    currentClusterName: null,
+    isLoading: false,
+    charts: {},
+    theme: 'light'
+};
+
 /**
- * Formats numeric values based on specified format type
+ * Validate that a value is not null or undefined
  */
-export function formatValue(value, format) {
-    const num = parseFloat(value) || 0;
+function validateNotNull(value, name) {
+    if (value === null || value === undefined) {
+        throw new Error(`${name} is required but was null or undefined`);
+    }
+    return value;
+}
+
+/**
+ * Validate DOM element exists
+ */
+function validateElement(selector) {
+    const element = document.querySelector(selector);
+    if (!element) {
+        throw new Error(`Required DOM element not found: ${selector}`);
+    }
+    return element;
+}
+
+/**
+ * Set cluster context for the application
+ */
+window.setClusterContext = function(clusterInfo) {
+    if (!clusterInfo) {
+        console.warn('Cannot set cluster context: no cluster info provided');
+        return false;
+    }
+    validateNotNull(clusterInfo.id, 'clusterInfo.id');
+    
+    window.AppState.currentClusterId = clusterInfo.id;
+    window.AppState.currentClusterName = clusterInfo.name || clusterInfo.id;
+    console.log(`Cluster context set: ${clusterInfo.id}`);
+    return true;
+};
+
+/**
+ * Get cluster info from global window object or URL
+ */
+window.getClusterInfo = function() {
+    // Try to get from global window object first (set by template)
+    if (window.clusterInfo) {
+        return window.clusterInfo;
+    }
+    
+    // Try to extract from URL
+    const path = window.location.pathname;
+    const match = path.match(/\/clusters?\/([^\/]+)/);
+    if (match) {
+        return { id: match[1], name: match[1] };
+    }
+    
+    // Return null if no cluster info available (not on a cluster-specific page)
+    return null;
+};
+
+/**
+ * Initialize cluster context from template data
+ */
+window.initClusterContext = function() {
+    const clusterInfo = window.getClusterInfo();
+    if (clusterInfo) {
+        window.setClusterContext(clusterInfo);
+        console.log('Cluster context initialized:', clusterInfo);
+        return true;
+    }
+    console.log('No cluster context available (not on cluster page)');
+    return false;
+};
+
+/**
+ * Show toast notification
+ */
+window.showToast = function(message, type = 'info', duration = 5000) {
+    validateNotNull(message, 'message');
+    
+    // Remove existing toasts
+    const existingToasts = document.querySelectorAll('.toast');
+    existingToasts.forEach(toast => toast.remove());
+    
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()" class="toast-close">&times;</button>
+    `;
+    
+    // Add toast styles if not already present
+    if (!document.querySelector('#toast-styles')) {
+        const style = document.createElement('style');
+        style.id = 'toast-styles';
+        style.textContent = `
+            .toast {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 16px;
+                border-radius: 8px;
+                color: white;
+                font-size: 14px;
+                font-weight: 500;
+                box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+                z-index: 1000;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                max-width: 400px;
+                animation: slideIn 0.3s ease;
+            }
+            .toast-info { background: #3b82f6; }
+            .toast-success { background: #10b981; }
+            .toast-warning { background: #f59e0b; }
+            .toast-error { background: #ef4444; }
+            .toast-close {
+                background: none;
+                border: none;
+                color: white;
+                font-size: 16px;
+                cursor: pointer;
+                padding: 0;
+                margin-left: auto;
+            }
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // Add to page
+    document.body.appendChild(toast);
+    
+    // Auto remove
+    if (duration > 0) {
+        setTimeout(() => toast.remove(), duration);
+    }
+};
+
+/**
+ * Format number with appropriate units
+ */
+window.formatNumber = function(value, decimals = 1) {
+    const num = parseFloat(value);
     if (isNaN(num)) {
-        console.log('⚠️ Invalid number for formatting:', value);
-        return '0';
+        throw new Error(`Invalid number for formatting: ${value}`);
+    }
+    
+    if (num >= 1000000) {
+        return (num / 1000000).toFixed(decimals) + 'M';
+    } else if (num >= 1000) {
+        return (num / 1000).toFixed(decimals) + 'K';
+    } else {
+        return num.toFixed(decimals);
+    }
+};
+
+/**
+ * Format currency with appropriate symbol
+ */
+window.formatCurrency = function(value, currency = 'USD') {
+    const num = parseFloat(value);
+    if (isNaN(num)) {
+        throw new Error(`Invalid number for currency formatting: ${value}`);
+    }
+    
+    const formatter = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+    
+    return formatter.format(num);
+};
+
+/**
+ * Format percentage
+ */
+window.formatPercentage = function(value, decimals = 1) {
+    const num = parseFloat(value);
+    if (isNaN(num)) {
+        throw new Error(`Invalid number for percentage formatting: ${value}`);
+    }
+    
+    return `${num.toFixed(decimals)}%`;
+};
+
+/**
+ * Format value based on type
+ */
+window.formatValue = function(value, format) {
+    const num = parseFloat(value);
+    if (isNaN(num)) {
+        throw new Error(`Invalid number for formatting: ${value}`);
     }
     
     switch(format) {
@@ -28,25 +223,15 @@ export function formatValue(value, format) {
         default:
             return Math.round(num).toLocaleString();
     }
-}
+};
 
 /**
- * Gets chart color scheme based on current theme
+ * Debounce function calls
  */
-export function getChartColors() {
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    return {
-        textColor: '#2d3748',
-        gridColor: '#e2e8f0',
-        backgroundColor: '#ffffff'
-    };
-}
-
-
-/**
- * Debounce function to limit API calls
- */
-export function debounce(func, wait) {
+window.debounce = function(func, wait) {
+    validateNotNull(func, 'func');
+    validateNotNull(wait, 'wait');
+    
     let timeout;
     return function executedFunction(...args) {
         const later = () => {
@@ -56,191 +241,133 @@ export function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
-}
+};
 
 /**
- * Escapes HTML characters to prevent XSS
+ * Destroy Chart.js instance
  */
-export function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+window.destroyChart = function(chartId) {
+    validateNotNull(chartId, 'chartId');
+    
+    if (window.AppState.charts[chartId]) {
+        window.AppState.charts[chartId].destroy();
+        delete window.AppState.charts[chartId];
+        console.log(`Chart destroyed: ${chartId}`);
+    }
+};
 
 /**
- * Gets accuracy badge class for pod analysis
+ * Create Chart.js instance with validation
  */
-export function getAccuracyBadgeClass(accuracy) {
-    switch (accuracy?.toLowerCase()) {
-        case 'very high': return 'bg-success';
-        case 'high': return 'bg-info';
-        case 'good': return 'bg-warning';
-        case 'basic': return 'bg-secondary';
-        default: return 'bg-secondary';
+window.createChart = function(canvasId, config) {
+    validateNotNull(canvasId, 'canvasId');
+    validateNotNull(config, 'config');
+    
+    // Destroy existing chart if present
+    window.destroyChart(canvasId);
+    
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) {
+        throw new Error(`Canvas element not found: ${canvasId}`);
     }
-}
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        throw new Error(`Failed to get 2D context for canvas: ${canvasId}`);
+    }
+    
+    const chart = new Chart(ctx, config);
+    window.AppState.charts[canvasId] = chart;
+    console.log(`Chart created: ${canvasId}`);
+    return chart;
+};
 
 /**
- * Helper function to get priority color
+ * Toggle sidebar - Removed to avoid conflicts, now handled by UI module
  */
-export function getPriorityColor(priority) {
-    switch (priority?.toLowerCase()) {
-        case 'high': return 'danger';
-        case 'medium': return 'warning';
-        case 'low': return 'success';
-        default: return 'secondary';
-    }
-}
 
 /**
- * Helper function to get risk color
+ * Make API request with proper error handling
  */
-export function getRiskColor(risk) {
-    switch (risk?.toLowerCase()) {
-        case 'high': return 'danger';
-        case 'medium': return 'warning';  
-        case 'low': return 'success';
-        default: return 'secondary';
-    }
-}
-
-/**
- * Get cluster name from current context
- */
-export function getClusterNameFromContext() {
-    // Try to get from URL
-    const urlPath = window.location.pathname;
-    const clusterMatch = urlPath.match(/\/cluster\/([^\/]+)/);
-    if (clusterMatch) {
-        return clusterMatch[1];
-    }
+window.apiRequest = async function(endpoint, options = {}) {
+    validateNotNull(endpoint, 'endpoint');
     
-    // Try to get from page title or heading
-    const heading = document.querySelector('h2, h4');
-    if (heading && heading.textContent.includes('Analysis')) {
-        const parts = heading.textContent.split(' ');
-        return parts[0] || 'cluster';
-    }
-    
-    return 'current-cluster';
-}
-
-/**
- * Get appropriate icon for insight type
- */
-export function getInsightIcon(type) {
-    const icons = {
-        'rightsizing': 'expand-arrows-alt',
-        'storage': 'hdd',
-        'overall': 'chart-line',
-        'cost': 'dollar-sign',
-        'hpa': 'rocket'
-    };
-    return icons[type] || 'lightbulb';
-}
-
-/**
- * Tests API connectivity
- */
-export function testAPIConnectivity() {
-    const API_BASE_URL = '/api'; // Import from config if needed
-    
-    return fetch(`${API_BASE_URL}/clusters`)
-        .then(response => response.json())
-        .then(data => {
-            console.log('✅ API connectivity test passed');
-            if (data.clusters?.length > 0) {
-                console.log('📊 Found existing clusters');
-            }
-            return { success: true, data };
-        })
-        .catch(error => {
-            console.error('❌ API connectivity test failed:', error);
-            return { success: false, error };
-        });
-}
-
-/**
- * Validates form inputs with custom rules
- */
-export function validateInput(value, rules = {}) {
-    const errors = [];
-    
-    if (rules.required && (!value || value.trim() === '')) {
-        errors.push('This field is required');
-    }
-    
-    if (rules.minLength && value && value.length < rules.minLength) {
-        errors.push(`Must be at least ${rules.minLength} characters`);
-    }
-    
-    if (rules.maxLength && value && value.length > rules.maxLength) {
-        errors.push(`Must be no more than ${rules.maxLength} characters`);
-    }
-    
-    if (rules.pattern && value && !rules.pattern.test(value)) {
-        errors.push(rules.patternMessage || 'Invalid format');
-    }
-    
-    return {
-        isValid: errors.length === 0,
-        errors
-    };
-}
-
-/**
- * Generates a unique ID
- */
-export function generateId(prefix = 'id') {
-    return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-/**
- * Deep clone an object
- */
-export function deepClone(obj) {
-    if (obj === null || typeof obj !== 'object') {
-        return obj;
-    }
-    
-    if (obj instanceof Date) {
-        return new Date(obj.getTime());
-    }
-    
-    if (obj instanceof Array) {
-        return obj.map(item => deepClone(item));
-    }
-    
-    if (typeof obj === 'object') {
-        const cloned = {};
-        for (const key in obj) {
-            if (obj.hasOwnProperty(key)) {
-                cloned[key] = deepClone(obj[key]);
-            }
+    const config = {
+        method: options.method || 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
         }
-        return cloned;
-    }
-}
-
-/**
- * Throttle function to limit function calls
- */
-export function throttle(func, delay) {
-    let timeoutId;
-    let lastExecTime = 0;
+    };
     
-    return function (...args) {
-        const currentTime = Date.now();
+    // Add cluster context if available
+    const clusterId = window.AppState.currentClusterId;
+    if (clusterId) {
+        config.headers['X-Cluster-ID'] = clusterId;
+    }
+    
+    // Add body if provided
+    if (options.body) {
+        config.body = typeof options.body === 'string' 
+            ? options.body 
+            : JSON.stringify(options.body);
+    }
+    
+    try {
+        const response = await fetch(endpoint, config);
         
-        if (currentTime - lastExecTime > delay) {
-            func.apply(this, args);
-            lastExecTime = currentTime;
-        } else {
-            clearTimeout(timeoutId);
-            timeoutId = setTimeout(() => {
-                func.apply(this, args);
-                lastExecTime = Date.now();
-            }, delay - (currentTime - lastExecTime));
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-    };
+        
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return await response.json();
+        } else {
+            return await response.text();
+        }
+    } catch (error) {
+        console.error(`API request failed for ${endpoint}:`, error);
+        window.showToast(`Request failed: ${error.message}`, 'error');
+        throw error;
+    }
+};
+
+/**
+ * Initialize utilities module
+ */
+window.initUtils = function() {
+    console.log('Utilities initialized');
+    
+    // Set up global error handling for unhandled promise rejections
+    window.addEventListener('unhandledrejection', function(event) {
+        console.error('Unhandled promise rejection:', event.reason);
+        window.showToast('An unexpected error occurred', 'error');
+    });
+    
+    // Initialize cluster context if available
+    window.initClusterContext();
+};
+
+// Create Utils namespace for compatibility
+window.Utils = {
+    formatValue: window.formatValue,
+    formatNumber: window.formatNumber,
+    formatCurrency: window.formatCurrency,
+    formatPercentage: window.formatPercentage,
+    showToast: window.showToast,
+    createChart: window.createChart,
+    destroyChart: window.destroyChart,
+    debounce: window.debounce,
+    setClusterContext: window.setClusterContext,
+    getClusterInfo: window.getClusterInfo,
+    initClusterContext: window.initClusterContext,
+    apiRequest: window.apiRequest
+};
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', window.initUtils);
+} else {
+    window.initUtils();
 }
