@@ -216,9 +216,14 @@ function showContent(contentType, element) {
             break;
             
         case 'alerts':
-            // Load alerts data
-            if (typeof loadAlertsData === 'function') {
-                loadAlertsData();
+            // Show alerts content directly and load alerts data
+            const alertsContent = document.getElementById('alerts-content');
+            if (alertsContent) {
+                alertsContent.classList.remove('hidden');
+                alertsContent.style.display = 'block';
+            }
+            if (typeof loadAlerts === 'function') {
+                loadAlerts();
             }
             break;
             
@@ -1044,3 +1049,46 @@ function toggleInsightDetail(key) {
         tile.classList.toggle('expanded', !isExpanded);
     }
 }
+
+//=====================================
+// UNIFIED DASHBOARD SIDEBAR MANAGEMENT
+//=====================================
+
+// Optimized Sidebar Management with throttling
+let isToggling = false;
+
+function toggleSidebar() {
+    if (isToggling) return; // Prevent rapid clicking
+    isToggling = true;
+    
+    const sidebar = safeQuerySelector('.expandable-sidebar');
+    const main = document.getElementById('mainContent');
+    
+    if (!sidebar || !main) {
+        isToggling = false;
+        return;
+    }
+    
+    // Use requestAnimationFrame for smooth animation
+    requestAnimationFrame(() => {
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        
+        if (isCollapsed) {
+            // Expanding
+            sidebar.classList.remove('collapsed');
+            main.style.marginLeft = '280px';
+        } else {
+            // Collapsing
+            sidebar.classList.add('collapsed');
+            main.style.marginLeft = '70px';
+        }
+        
+        // Reset throttle after animation completes - Faster
+        setTimeout(() => {
+            isToggling = false;
+        }, 100);
+    });
+}
+
+// Make function globally available
+window.toggleSidebar = toggleSidebar;
