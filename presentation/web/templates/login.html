@@ -1,75 +1,483 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>kubeopt - Your Third Eye for Kubernetes</title>
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" />
-    <!-- Remove external Font Awesome dependency for login page -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/clean-auth.css') }}">
-</head>
-<body class="auth-page">
+{% extends "base.html" %}
+
+{% block title %}
+Login - kubeopt
+{% endblock %}
+
+{% block content %}
+<div class="login-layout">
     <div class="login-container">
-        <div>
-            <div class="brand-icon">
-                <img src="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" alt="kubeopt Eye Icon" class="eye-icon">
-            </div>
-            <h1 class="brand-title">kubeopt</h1>
-            <p class="brand-subtitle">Your Third Eye for Kubernetes</p>
-        </div>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div>
-            {% for category, message in messages %}
-            <div class="alert {% if category == 'error' %}alert-error{% else %}alert-success{% endif %}">
-                {{ message }}
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endwith %}
-
-        <form method="POST">
-            <div class="form-group">
-                <label for="username" class="form-label">Username</label>
-                <div class="form-input-wrapper">
-                    <span class="form-input-icon">👤</span>
-                    <input type="text" id="username" name="username" required
-                           class="form-input"
-                           autocomplete="username"
-                           placeholder="Enter your username">
+        <div class="login-card">
+            <!-- Header -->
+            <div class="login-header">
+                <div class="login-logo">
+                    <img src="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" alt="kubeopt" class="kubeopt-eye-icon">
                 </div>
+                <h1 class="login-title">kubeopt</h1>
+                <p class="login-subtitle">Your Third Eye for Kubernetes</p>
             </div>
-
-            <div class="form-group">
-                <label for="password" class="form-label">Password</label>
-                <div class="form-input-wrapper">
-                    <span class="form-input-icon">🔒</span>
-                    <input type="password" id="password" name="password" required
-                           class="form-input"
-                           autocomplete="current-password"
-                           placeholder="Enter your password">
+            
+            <!-- Login Form -->
+            <form class="login-form" method="POST" action="{{ url_for('login') }}">
+                <div class="form-group">
+                    <label for="username" class="form-label">Username</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-user input-icon"></i>
+                        <input 
+                            type="text" 
+                            id="username" 
+                            name="username" 
+                            class="form-input" 
+                            placeholder="Enter your username"
+                            required
+                        >
+                    </div>
                 </div>
+                
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            class="form-input" 
+                            placeholder="Enter your password"
+                            required
+                        >
+                        <button type="button" class="toggle-password" onclick="togglePassword()">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="form-options">
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" name="remember" id="remember">
+                        <span class="checkbox-custom"></span>
+                        <span class="checkbox-label">Remember me</span>
+                    </label>
+                </div>
+                
+                <button type="submit" class="login-button">
+                    <span class="button-text">Sign In</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+            </form>
+            
+            <!-- Footer -->
+            <div class="login-footer">
+                <div class="footer-links">
+                    <a href="#" class="footer-link">Need help?</a>
+                    <a href="#" class="footer-link">Privacy Policy</a>
+                </div>
+                <p class="footer-text">
+                    Enterprise Kubernetes Optimization Platform
+                </p>
             </div>
-
-            <div class="checkbox-wrapper">
-                <input id="remember-me" name="remember-me" type="checkbox" class="checkbox">
-                <label for="remember-me" class="checkbox-label">Remember me</label>
-            </div>
-
-            <button type="submit" class="login-btn">
-                <span>🚀</span>
-                Sign in
-            </button>
-        </form>
-
-        <div class="footer-text">
-            Default Admin: kubeopt / kubeopt<br>
-            Powered by Nivaya Technologies
+        </div>
+        
+        <!-- Background Pattern -->
+        <div class="background-pattern">
+            <div class="pattern-circle pattern-1"></div>
+            <div class="pattern-circle pattern-2"></div>
+            <div class="pattern-circle pattern-3"></div>
         </div>
     </div>
+</div>
 
-    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
-</body>
-</html>
+<style>
+.login-layout {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.login-container {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 400px;
+    padding: 2rem;
+}
+
+.login-card {
+    background: white;
+    border-radius: 1.5rem;
+    padding: 2rem;
+    box-shadow: 
+        0 20px 25px -5px rgb(0 0 0 / 0.1), 
+        0 10px 10px -5px rgb(0 0 0 / 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+}
+
+/* Header */
+.login-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.login-logo {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, var(--primary-green), var(--primary-green-light));
+    border-radius: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    color: white;
+    font-size: 1.5rem;
+}
+
+.login-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.login-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+/* Form */
+.login-form {
+    margin-bottom: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.input-wrapper {
+    position: relative;
+}
+
+.input-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-light);
+    font-size: 0.875rem;
+    z-index: 1;
+}
+
+.form-input {
+    width: 100%;
+    padding: 1rem 1rem 1rem 2.75rem;
+    border: 2px solid var(--gray-200);
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    background: white;
+    color: var(--text-primary);
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--primary-green);
+    box-shadow: 0 0 0 3px rgba(127, 176, 105, 0.1);
+}
+
+.form-input::placeholder {
+    color: var(--text-light);
+}
+
+.toggle-password {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    transition: color 0.2s ease;
+}
+
+.toggle-password:hover {
+    color: var(--text-secondary);
+}
+
+/* Options */
+.form-options {
+    margin-bottom: 1.5rem;
+}
+
+.checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.checkbox-wrapper input[type="checkbox"] {
+    display: none;
+}
+
+.checkbox-custom {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--gray-300);
+    border-radius: 4px;
+    position: relative;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.checkbox-wrapper input[type="checkbox"]:checked + .checkbox-custom {
+    background: var(--primary-green);
+    border-color: var(--primary-green);
+}
+
+.checkbox-wrapper input[type="checkbox"]:checked + .checkbox-custom::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Login Button */
+.login-button {
+    width: 100%;
+    padding: 1rem;
+    background: linear-gradient(135deg, var(--primary-green), var(--primary-green-light));
+    border: none;
+    border-radius: 0.75rem;
+    color: white;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.login-button:hover {
+    background: linear-gradient(135deg, var(--primary-green-dark), var(--primary-green));
+    transform: translateY(-1px);
+    box-shadow: 0 10px 15px -3px rgba(127, 176, 105, 0.3);
+}
+
+.login-button:active {
+    transform: translateY(0);
+}
+
+/* Footer */
+.login-footer {
+    text-align: center;
+    border-top: 1px solid var(--gray-200);
+    padding-top: 1.5rem;
+}
+
+.footer-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.footer-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.75rem;
+    transition: color 0.2s ease;
+}
+
+.footer-link:hover {
+    color: var(--primary-green);
+}
+
+.footer-text {
+    color: var(--text-light);
+    font-size: 0.75rem;
+}
+
+/* Background Pattern */
+.background-pattern {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.pattern-circle {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(127, 176, 105, 0.05);
+    animation: float 20s infinite ease-in-out;
+}
+
+.pattern-1 {
+    width: 300px;
+    height: 300px;
+    top: -150px;
+    right: -150px;
+    animation-delay: 0s;
+}
+
+.pattern-2 {
+    width: 200px;
+    height: 200px;
+    bottom: -100px;
+    left: -100px;
+    animation-delay: 7s;
+}
+
+.pattern-3 {
+    width: 150px;
+    height: 150px;
+    top: 50%;
+    right: -75px;
+    animation-delay: 14s;
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-20px) rotate(10deg);
+    }
+}
+
+/* Dark theme support */
+[data-theme="dark"] .login-card {
+    background: var(--bg-secondary);
+    border-color: var(--gray-700);
+}
+
+[data-theme="dark"] .form-input {
+    background: var(--bg-primary);
+    border-color: var(--gray-600);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .form-input:focus {
+    border-color: var(--primary-green);
+}
+
+[data-theme="dark"] .footer-links {
+    border-color: var(--gray-700);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .login-container {
+        padding: 1rem;
+    }
+    
+    .login-card {
+        padding: 2rem;
+    }
+    
+    .footer-links {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+}
+
+/* Loading state */
+.login-button.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.login-button.loading .button-text::after {
+    content: '...';
+    animation: dots 1.5s infinite;
+}
+
+@keyframes dots {
+    0%, 20% { content: '...'; }
+    40% { content: ''; }
+    60% { content: '.'; }
+    80% { content: '..'; }
+}
+</style>
+
+<script>
+// Toggle password visibility
+function togglePassword() {
+    const passwordInput = document.getElementById('password');
+    const toggleIcon = document.querySelector('.toggle-password i');
+    
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        toggleIcon.className = 'fas fa-eye-slash';
+    } else {
+        passwordInput.type = 'password';
+        toggleIcon.className = 'fas fa-eye';
+    }
+}
+
+// Form submission handling
+document.querySelector('.login-form').addEventListener('submit', function(e) {
+    const button = this.querySelector('.login-button');
+    button.classList.add('loading');
+    
+    // Remove loading state if form submission fails
+    setTimeout(() => {
+        button.classList.remove('loading');
+    }, 5000);
+});
+
+// Auto-focus on username field
+document.addEventListener('DOMContentLoaded', function() {
+    const usernameField = document.getElementById('username');
+    if (usernameField) {
+        usernameField.focus();
+    }
+});
+
+// Handle enter key on form fields
+document.querySelectorAll('.form-input').forEach(input => {
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            const form = this.closest('form');
+            const inputs = Array.from(form.querySelectorAll('.form-input'));
+            const currentIndex = inputs.indexOf(this);
+            
+            if (currentIndex < inputs.length - 1) {
+                // Focus next input
+                inputs[currentIndex + 1].focus();
+            } else {
+                // Submit form
+                form.submit();
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

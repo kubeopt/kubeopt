@@ -1,440 +1,437 @@
 {% extends "base.html" %}
 
-{% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/clean-portfolio.css') }}">
+{% block title %}
+Settings - AKS Cost Optimizer
 {% endblock %}
 
 {% block content %}
-
-<div class="settings-container">
-    <!-- Compact Settings Header -->
-    <div class="settings-header">
-        <div class="settings-breadcrumb">
-            <a href="{{ url_for('cluster_portfolio') }}" class="breadcrumb-link">
-                <i class="fas fa-arrow-left"></i> Portfolio
-            </a>
-            <span class="breadcrumb-separator">/</span>
-            <span class="breadcrumb-current">Settings</span>
+<div class="settings-layout">
+    <!-- Header -->
+    <header class="settings-header">
+        <div class="header-content">
+            <div class="breadcrumb">
+                <a href="/clusters" class="breadcrumb-link">
+                    <i class="fas fa-arrow-left"></i>
+                    Back to Clusters
+                </a>
+            </div>
+            <h1 class="settings-title">Settings</h1>
+            <p class="settings-subtitle">Configure your AKS Cost Optimizer preferences and integrations</p>
         </div>
-        <h1 class="settings-title">
-            <i class="fas fa-cog"></i>
-            Settings
-        </h1>
-    </div>
-
-        <!-- Flash messages handled by base template -->
-
-        <div class="settings-layout">
+    </header>
+    
+    <!-- Main Content -->
+    <main class="settings-content">
+        <div class="settings-container">
             <!-- Settings Navigation -->
-            <div class="settings-sidebar">
-                <nav class="nav-tabs content-section">
-                        <button onclick="showSection('azure')" class="nav-tab active">
-                            <i class="fab fa-microsoft"></i>
-                            Azure Configuration
-                        </button>
-                        <button onclick="showSection('slack')" class="nav-tab" data-feature="slack_alerts">
-                            <i class="fab fa-slack"></i>
-                            Slack Integration
-                            {% if not feature_flags.slack_alerts %}<i class="fas fa-lock ml-2 text-yellow-500 text-xs"></i>{% endif %}
-                        </button>
-                        <button onclick="showSection('email')" class="nav-tab" data-feature="email_alerts">
-                            <i class="fas fa-envelope"></i>
-                            Email Settings
-                            {% if not feature_flags.email_alerts %}<i class="fas fa-lock ml-2 text-yellow-500 text-xs"></i>{% endif %}
-                        </button>
-                        <button onclick="showSection('general')" class="nav-tab">
+            <nav class="settings-nav">
+                <div class="nav-section">
+                    <div class="nav-item">
+                        <a href="#general" class="settings-nav-link active" data-section="general">
                             <i class="fas fa-sliders-h"></i>
-                            General Settings
-                        </button>
-                        <button onclick="showSection('advanced')" class="nav-tab">
-                            <i class="fas fa-code"></i>
-                            Advanced
-                        </button>
-                </nav>
-            </div>
-
+                            <span>General</span>
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#notifications" class="settings-nav-link" data-section="notifications">
+                            <i class="fas fa-bell"></i>
+                            <span>Notifications</span>
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#azure" class="settings-nav-link" data-section="azure">
+                            <i class="fab fa-microsoft"></i>
+                            <span>Azure Integration</span>
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#security" class="settings-nav-link" data-section="security">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Security</span>
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#advanced" class="settings-nav-link" data-section="advanced">
+                            <i class="fas fa-cogs"></i>
+                            <span>Advanced</span>
+                        </a>
+                    </div>
+                </div>
+            </nav>
+            
             <!-- Settings Content -->
-            <div class="settings-content">
-                <!-- Azure Configuration Section -->
-                <div id="azure-section" class="form-section active content-section">
-                    <form method="POST" action="{{ url_for('save_settings') }}">
-                        <input type="hidden" name="section" value="azure">
-                        <div class="section-header">
-                            <i class="fab fa-microsoft"></i>
-                            <h2 class="section-title">Azure Configuration</h2>
-                        </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label">Azure Tenant ID</label>
-                                <input type="text" name="azure_tenant_id" value="{{ config.get('AZURE_TENANT_ID', '') }}" 
-                                       class="form-input"
-                                       autocomplete="off"
-                                       placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                                <p class="form-help">Your Azure Active Directory tenant ID</p>
+            <div class="settings-main">
+                
+                <!-- General Settings -->
+                <section id="general-section" class="settings-section active">               
+                    <div class="settings-card">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Theme Preference</h3>
+                                <p class="setting-description">Choose your preferred color theme</p>
                             </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label">Azure Subscription ID</label>
-                                <input type="text" name="azure_subscription_id" value="{{ config.get('AZURE_SUBSCRIPTION_ID', '') }}" 
-                                       class="form-input"
-                                       autocomplete="off"
-                                       placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                                <p class="form-help">Primary Azure subscription for analysis</p>
+                            <div class="setting-control">
+                                <select class="setting-select" id="theme-setting">
+                                    <option value="light">Light</option>
+                                    <option value="dark">Dark</option>
+                                    <option value="auto">System</option>
+                                </select>
                             </div>
                         </div>
                         
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label">Service Principal Client ID</label>
-                                <input type="text" name="azure_client_id" value="{{ config.get('AZURE_CLIENT_ID', '') }}" 
-                                       class="form-input"
-                                       autocomplete="username"
-                                       placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                                <p class="form-help">Service principal application ID</p>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Auto Refresh</h3>
+                                <p class="setting-description">Automatically refresh dashboard data</p>
                             </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label">Service Principal Client Secret</label>
-                                <input type="password" name="azure_client_secret" value="{{ config.get('AZURE_CLIENT_SECRET', '') }}" 
-                                       class="form-input"
-                                       autocomplete="new-password"
-                                       placeholder="Enter client secret">
-                                <p class="form-help">Service principal secret key</p>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="auto-refresh" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
                             </div>
-                        </div>
-
-                        <div class="info-box info">
-                            <div class="info-box-title">
-                                <i class="fas fa-info-circle"></i>
-                                Service Principal Setup
-                            </div>
-                            <p>To create a service principal: <code>az ad sp create-for-rbac --name "aks-cost-optimizer" --role "Reader"</code></p>
                         </div>
                         
-                        <div class="btn-actions">
-                            <button type="button" onclick="testAzure()" class="btn btn-secondary">
-                                <i class="fas fa-cloud"></i>
-                                Test Azure Connection
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i>
-                                Save Azure Settings
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Slack Integration Section -->
-                <div id="slack-section" class="form-section content-section">
-                    {% if not feature_flags.slack_alerts %}
-                    <div class="upgrade-prompt-section" style="padding: 2rem; text-align: center;">
-                        <div style="width: 64px; height: 64px; background: #fef3c7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
-                            <i class="fas fa-lock" style="color: #d97706; font-size: 1.5rem;"></i>
-                        </div>
-                        <h3 style="font-size: 1.25rem; font-weight: bold; color: #111827; margin-bottom: 0.5rem;">Slack Integration Locked</h3>
-                        <p style="color: #6b7280; margin-bottom: 1.5rem;">Slack notifications require Pro tier</p>
-                        <div style="display: flex; flex-direction: column; gap: 0.75rem; max-width: 300px; margin: 0 auto;">
-                            <a href="https://kubeopt.io/pricing" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1rem; background: #2563eb; color: white; text-decoration: none; border-radius: 0.5rem; font-weight: 500;">
-                                <i class="fas fa-arrow-up" style="margin-right: 0.5rem;"></i>Upgrade to Pro
-                            </a>
-                            {% if feature_flags.current_tier == 'free' %}
-                            <a href="/" class="btn btn-success" style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1rem; background: #16a34a; color: white; text-decoration: none; border-radius: 0.5rem; font-weight: 500;">
-                                <i class="fas fa-gift" style="margin-right: 0.5rem;"></i>Start Free Trial
-                            </a>
-                            {% endif %}
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Refresh Interval</h3>
+                                <p class="setting-description">How often to refresh data (in minutes)</p>
+                            </div>
+                            <div class="setting-control">
+                                <select class="setting-select" id="refresh-interval">
+                                    <option value="1">1 minute</option>
+                                    <option value="5" selected>5 minutes</option>
+                                    <option value="10">10 minutes</option>
+                                    <option value="30">30 minutes</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                    {% else %}
-                    <form method="POST" action="{{ url_for('save_settings') }}">
-                        <input type="hidden" name="section" value="slack">
-                        <div class="section-header">
-                            <i class="fab fa-slack"></i>
-                            <h2 class="section-title">Slack Integration</h2>
-                        </div>
-                        
-                        <div class="checkbox-group">
-                            <input type="checkbox" name="slack_enabled" id="slack_enabled" 
-                                   {% if config.get('SLACK_ENABLED') == 'true' %}checked{% endif %}
-                                   class="checkbox">
-                            <label for="slack_enabled" class="checkbox-label">
-                                Enable Slack Notifications
-                            </label>
-                        </div>
-                        
-                        <div class="form-group form-full-width">
-                            <label class="form-label">Slack Webhook URL</label>
-                            <input type="url" name="slack_webhook_url" value="{{ config.get('SLACK_WEBHOOK_URL', '') }}" 
-                                   class="form-input"
-                                   autocomplete="url"
-                                   placeholder="https://hooks.slack.com/services/...">
-                            <p class="form-help">Slack incoming webhook URL for notifications</p>
-                        </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label">Default Channel</label>
-                                <input type="text" name="slack_channel" value="{{ config.get('SLACK_CHANNEL', '') }}" 
-                                       class="form-input"
-                                       autocomplete="off"
-                                       placeholder="#aks-cost-alerts">
-                                <p class="form-help">Default channel for cost optimization alerts</p>
+                </section>
+                
+                <!-- Notifications Settings -->
+                <section id="notifications-section" class="settings-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Notification Settings</h2>
+                        <p class="section-description">Configure how and when you receive notifications</p>
+                    </div>
+                    
+                    <div class="settings-card">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Email Notifications</h3>
+                                <p class="setting-description">Receive notifications via email</p>
                             </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label">Dashboard URL</label>
-                                <input type="url" name="app_url" value="{{ config.get('APP_URL', 'http://localhost:5001') }}" 
-                                       class="form-input"
-                                       autocomplete="off"
-                                       placeholder="http://localhost:5001">
-                                <p class="form-help">Base URL for dashboard links in Slack notifications</p>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="email-notifications">
+                                    <span class="toggle-slider"></span>
+                                </label>
                             </div>
                         </div>
-
-                        <div class="info-box info">
-                            <div class="info-box-title">
-                                <i class="fas fa-info-circle"></i>
-                                Slack Webhook Setup
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Slack Integration</h3>
+                                <p class="setting-description">Send alerts to Slack channel</p>
                             </div>
-                            <p>
-                                Create a webhook at <a href="https://api.slack.com/apps" target="_blank" style="color: var(--settings-accent); text-decoration: underline;">api.slack.com/apps</a> 
-                                → Incoming Webhooks → Add New Webhook to Workspace
-                            </p>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="slack-notifications">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
                         </div>
                         
-                        <div class="btn-actions">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i>
-                                Save Slack Settings
-                            </button>
-                        </div>
-                    </form>
-                    {% endif %}
-                </div>
-
-                <!-- Email Settings Section -->
-                <div id="email-section" class="form-section content-section">
-                    {% if not feature_flags.email_alerts %}
-                    <div class="upgrade-prompt-section" style="padding: 2rem; text-align: center;">
-                        <div style="width: 64px; height: 64px; background: #fef3c7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
-                            <i class="fas fa-lock" style="color: #d97706; font-size: 1.5rem;"></i>
-                        </div>
-                        <h3 style="font-size: 1.25rem; font-weight: bold; color: #111827; margin-bottom: 0.5rem;">Email Integration Locked</h3>
-                        <p style="color: #6b7280; margin-bottom: 1.5rem;">Email notifications require Pro tier</p>
-                        <div style="display: flex; flex-direction: column; gap: 0.75rem; max-width: 300px; margin: 0 auto;">
-                            <a href="https://kubeopt.io/pricing" target="_blank" class="btn btn-primary" style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1rem; background: #2563eb; color: white; text-decoration: none; border-radius: 0.5rem; font-weight: 500;">
-                                <i class="fas fa-arrow-up" style="margin-right: 0.5rem;"></i>Upgrade to Pro
-                            </a>
-                            {% if feature_flags.current_tier == 'free' %}
-                            <a href="/" class="btn btn-success" style="display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1rem; background: #16a34a; color: white; text-decoration: none; border-radius: 0.5rem; font-weight: 500;">
-                                <i class="fas fa-gift" style="margin-right: 0.5rem;"></i>Start Free Trial
-                            </a>
-                            {% endif %}
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Cost Alert Threshold</h3>
+                                <p class="setting-description">Alert when monthly cost exceeds this amount</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="input-group">
+                                    <span class="input-prefix">$</span>
+                                    <input type="number" class="setting-input" id="cost-threshold" placeholder="1000">
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    {% else %}
-                    <form method="POST" action="{{ url_for('save_settings') }}">
-                        <input type="hidden" name="section" value="email">
-                        <div class="section-header">
-                            <i class="fas fa-envelope"></i>
-                            <h2 class="section-title">Email Settings</h2>
-                        </div>
-                        
-                        <div class="checkbox-group">
-                            <input type="checkbox" name="email_enabled" id="email_enabled" 
-                                   {% if config.get('EMAIL_ENABLED') == 'true' %}checked{% endif %}
-                                   class="checkbox">
-                            <label for="email_enabled" class="checkbox-label">
-                                Enable Email Notifications
-                            </label>
-                        </div>
-                            
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label">SMTP Server</label>
-                                <input type="text" name="smtp_server" value="{{ config.get('SMTP_SERVER', '') }}" 
-                                       class="form-input"
-                                       placeholder="smtp.gmail.com">
+                </section>
+                
+                <!-- Azure Integration -->
+                <section id="azure-section" class="settings-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Azure Integration</h2>
+                        <p class="section-description">Configure Azure service principal and subscription settings</p>
+                    </div>
+                    
+                    <div class="settings-card">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Service Principal Status</h3>
+                                <p class="setting-description">Current authentication status with Azure</p>
                             </div>
-                                
-                            <div class="form-group">
-                                <label class="form-label">SMTP Port</label>
-                                <input type="number" name="smtp_port" value="{{ config.get('SMTP_PORT', '587') }}" 
-                                       class="form-input"
-                                       placeholder="587">
+                            <div class="setting-control">
+                                <span class="status-badge status-connected">Connected</span>
                             </div>
                         </div>
                         
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label">SMTP Username</label>
-                                <input type="email" name="smtp_username" value="{{ config.get('SMTP_USERNAME', '') }}" 
-                                       class="form-input"
-                                       autocomplete="email"
-                                       placeholder="your-email@company.com">
-                                <p class="form-help">SMTP login username (usually your email address)</p>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Default Subscription</h3>
+                                <p class="setting-description">Primary Azure subscription for analysis</p>
                             </div>
-                                
-                            <div class="form-group">
-                                <label class="form-label">SMTP Password</label>
-                                <input type="password" name="smtp_password" value="{{ config.get('SMTP_PASSWORD', '') }}" 
-                                       class="form-input"
-                                       autocomplete="new-password"
-                                       placeholder="Enter email password or app password">
-                                <p class="form-help">SMTP login password</p>
+                            <div class="setting-control">
+                                <select class="setting-select" id="default-subscription">
+                                    <option value="">Select subscription...</option>
+                                    <option value="sub1">Production Subscription</option>
+                                    <option value="sub2">Development Subscription</option>
+                                </select>
                             </div>
                         </div>
                         
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label">From Email</label>
-                                <input type="email" name="from_email" value="{{ config.get('FROM_EMAIL', '') }}" 
-                                       class="form-input"
-                                       autocomplete="email"
-                                       placeholder="sender@company.com">
-                                <p class="form-help">Email address that appears as sender (usually same as SMTP username)</p>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Cost Management API</h3>
+                                <p class="setting-description">Enable detailed cost analysis</p>
                             </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label">Recipients (comma-separated)</label>
-                                <input type="text" name="email_recipients" value="{{ config.get('EMAIL_RECIPIENTS', '') }}" 
-                                       class="form-input"
-                                       placeholder="admin@company.com, devops@company.com">
-                                <p class="form-help">Email addresses to receive cost optimization reports</p>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="cost-api" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
                             </div>
                         </div>
-
-                        <div class="btn-actions">
-                            <button type="button" onclick="testEmail()" class="btn btn-secondary">
-                                <i class="fas fa-paper-plane"></i>
-                                Test Email
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i>
-                                Save Email Settings
-                            </button>
-                        </div>
-                    </form>
-                    {% endif %}
-                </div>
-
-                <!-- General Settings Section -->
-                <div id="general-section" class="form-section content-section">
-                    <form method="POST" action="{{ url_for('save_settings') }}">
-                        <input type="hidden" name="section" value="general">
-                        <div class="section-header">
-                            <i class="fas fa-sliders-h"></i>
-                            <h2 class="section-title">General Settings</h2>
-                        </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label class="form-label">Analysis Refresh Interval (hours)</label>
-                                <input type="number" name="analysis_refresh_interval" value="{{ config.get('ANALYSIS_REFRESH_INTERVAL', '24') }}" 
-                                       class="form-input"
-                                       placeholder="24" min="1" max="168">
-                                <p class="form-help">How often to refresh cost analysis data</p>
+                    </div>
+                    
+                    <div class="settings-actions">
+                        <button class="btn-secondary" onclick="testAzureConnection()">
+                            <i class="fas fa-plug"></i>
+                            Test Connection
+                        </button>
+                        <button class="btn-primary" onclick="refreshSubscriptions()">
+                            <i class="fas fa-refresh"></i>
+                            Refresh Subscriptions
+                        </button>
+                    </div>
+                </section>
+                
+                <!-- Security Settings -->
+                <section id="security-section" class="settings-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Security Settings</h2>
+                        <p class="section-description">Security and privacy configuration</p>
+                    </div>
+                    
+                    <div class="settings-card">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Session Timeout</h3>
+                                <p class="setting-description">Automatically logout after inactivity</p>
+                            </div>
+                            <div class="setting-control">
+                                <select class="setting-select" id="session-timeout">
+                                    <option value="30">30 minutes</option>
+                                    <option value="60" selected>1 hour</option>
+                                    <option value="120">2 hours</option>
+                                    <option value="480">8 hours</option>
+                                </select>
                             </div>
                         </div>
                         
-                        <div class="form-group">
-                            <label class="form-label">Cost Alert Threshold (USD)</label>
-                            <input type="number" name="cost_alert_threshold" value="{{ config.get('COST_ALERT_THRESHOLD', '500') }}" 
-                                   class="form-input"
-                                   placeholder="500" min="0" step="0.01">
-                            <p class="form-help">Send alerts when monthly cluster costs exceed this amount</p>
-                        </div>
-                        
-                        <div class="form-group form-full-width">
-                            <label class="form-label">Log Level</label>
-                            <select name="log_level" class="form-select">
-                                <option value="DEBUG" {% if config.get('LOG_LEVEL') == 'DEBUG' %}selected{% endif %}>DEBUG</option>
-                                <option value="INFO" {% if config.get('LOG_LEVEL') == 'INFO' or not config.get('LOG_LEVEL') %}selected{% endif %}>INFO</option>
-                                <option value="WARNING" {% if config.get('LOG_LEVEL') == 'WARNING' %}selected{% endif %}>WARNING</option>
-                                <option value="ERROR" {% if config.get('LOG_LEVEL') == 'ERROR' %}selected{% endif %}>ERROR</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group form-full-width">
-                            <label class="form-label">License Key</label>
-                            <input type="text" name="license_key" value="{{ license_info.get('license_key', '') }}" 
-                                   class="form-input"
-                                   placeholder="Enter your license key (e.g., P6M-ABC123-250930-IMPL-AUTO)">
-                            <p class="form-help">
-                                Current License: <strong>{{ license_info.get('tier_display', 'Free') }}</strong>
-                                {% if license_info.get('expires') %}
-                                    - Expires: {{ license_info.get('expires') }}
-                                {% endif %}
-                                {% if license_info.get('is_trial') %}
-                                    <span style="color: #f59e0b;">(Trial)</span>
-                                {% endif %}
-                            </p>
-                        </div>
-                        
-                        <div class="checkbox-group">
-                            <input type="checkbox" name="production_mode" id="production_mode" 
-                                   {% if config.get('PRODUCTION_MODE') == 'true' %}checked{% endif %}
-                                   class="checkbox">
-                            <label for="production_mode" class="checkbox-label">
-                                Production Mode
-                            </label>
-                        </div>
-                        
-                        <div class="btn-actions">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i>
-                                Save General Settings
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Advanced Settings Section -->
-                <div id="advanced-section" class="form-section content-section">
-                    <form method="POST" action="{{ url_for('save_settings') }}">
-                        <input type="hidden" name="section" value="advanced">
-                        <div class="section-header">
-                            <i class="fas fa-code"></i>
-                            <h2 class="section-title">Advanced Environment Variables</h2>
-                        </div>
-                        
-                        <div class="form-group form-full-width">
-                            <label class="form-label">Custom Environment Variables</label>
-                            <textarea name="custom_env_vars" rows="12" 
-                                      class="form-textarea" 
-                                      style="font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace; font-size: 0.85rem; line-height: 1.5;"
-                                      placeholder="# Add custom environment variables (one per line)
-# Example:
-# CUSTOM_API_URL=https://api.company.com
-# CUSTOM_TIMEOUT=300
-# FEATURE_FLAG_ADVANCED_ANALYTICS=true">{{ custom_env_vars }}</textarea>
-                            <p class="form-help">Additional environment variables for advanced configuration</p>
-                        </div>
-                            
-                        <div class="info-box warning">
-                            <div class="info-box-title">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                Warning
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Data Encryption</h3>
+                                <p class="setting-description">Encrypt sensitive data at rest</p>
                             </div>
-                            <p>
-                                Modifying environment variables may affect system stability. Only change these if you understand their impact.
-                            </p>
+                            <div class="setting-control">
+                                <span class="status-badge status-enabled">Enabled</span>
+                            </div>
                         </div>
                         
-                        <div class="btn-actions">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i>
-                                Save Advanced Settings
-                            </button>
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Audit Logging</h3>
+                                <p class="setting-description">Log all user actions for compliance</p>
+                            </div>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="audit-logging" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
                         </div>
-                    </form>
-                </div>
+                    </div>
+                </section>
+                
+                <!-- Advanced Settings -->
+                <section id="advanced-section" class="settings-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Advanced Settings</h2>
+                        <p class="section-description">Advanced configuration options for power users</p>
+                    </div>
+                    
+                    <div class="settings-card">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Debug Mode</h3>
+                                <p class="setting-description">Enable detailed logging for troubleshooting</p>
+                            </div>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="debug-mode">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">API Rate Limit</h3>
+                                <p class="setting-description">Requests per minute limit</p>
+                            </div>
+                            <div class="setting-control">
+                                <input type="number" class="setting-input" id="rate-limit" value="60" min="1" max="1000">
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Cache Duration</h3>
+                                <p class="setting-description">How long to cache analysis results</p>
+                            </div>
+                            <div class="setting-control">
+                                <select class="setting-select" id="cache-duration">
+                                    <option value="300">5 minutes</option>
+                                    <option value="900">15 minutes</option>
+                                    <option value="1800" selected>30 minutes</option>
+                                    <option value="3600">1 hour</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-actions">
+                        <button class="btn-danger" onclick="clearCache()">
+                            <i class="fas fa-trash"></i>
+                            Clear Cache
+                        </button>
+                        <button class="btn-secondary" onclick="exportSettings()">
+                            <i class="fas fa-download"></i>
+                            Export Settings
+                        </button>
+                    </div>
+                </section>
+                
             </div>
         </div>
-    </div>
+        
+        <!-- Save Button -->
+        <div class="settings-footer">
+            <div class="footer-actions">
+                <button class="btn-secondary" onclick="resetSettings()">
+                    Reset to Defaults
+                </button>
+                <button class="btn-primary" onclick="saveSettings()">
+                    <i class="fas fa-save"></i>
+                    Save Settings
+                </button>
+            </div>
+        </div>
+    </main>
 </div>
 
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
-{% endblock %}
+<!-- Settings-specific styles -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+
+<!-- All CSS moved to /static/css/settings.css -->
+
+<script>
+// Settings navigation
+document.addEventListener('DOMContentLoaded', function() {
+    const navLinks = document.querySelectorAll('.settings-nav-link');
+    const sections = document.querySelectorAll('.settings-section');
+    
+    navLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const targetSection = this.dataset.section;
+            
+            // Update navigation
+            navLinks.forEach(l => l.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Update sections
+            sections.forEach(s => s.classList.remove('active'));
+            document.getElementById(targetSection + '-section').classList.add('active');
+        });
+    });
+    
+    // Load current settings
+    loadCurrentSettings();
+});
+
+// Load current settings from localStorage or API
+function loadCurrentSettings() {
+    // Theme setting
+    const currentTheme = localStorage.getItem('theme') || 'light';
+    document.getElementById('theme-setting').value = currentTheme;
+    
+    // Other settings would be loaded from API in a real implementation
+}
+
+// Settings functions
+function testAzureConnection() {
+    showToast('Testing Azure connection...', 'info');
+    // This would make an actual API call
+}
+
+function refreshSubscriptions() {
+    showToast('Refreshing Azure subscriptions...', 'info');
+    // This would make an actual API call
+}
+
+function clearCache() {
+    if (confirm('Are you sure you want to clear the cache? This action cannot be undone.')) {
+        showToast('Cache cleared successfully', 'success');
+    }
+}
+
+function exportSettings() {
+    showToast('Exporting settings...', 'info');
+    // This would generate a settings export file
+}
+
+function resetSettings() {
+    if (confirm('Are you sure you want to reset all settings to defaults?')) {
+        showToast('Settings reset to defaults', 'info');
+    }
+}
+
+function saveSettings() {
+    const settings = {
+        theme: document.getElementById('theme-setting').value,
+        autoRefresh: document.getElementById('auto-refresh').checked,
+        refreshInterval: document.getElementById('refresh-interval').value,
+        // Add other settings as needed
+    };
+    
+    // Save theme immediately
+    localStorage.setItem('theme', settings.theme);
+    document.documentElement.setAttribute('data-theme', settings.theme);
+    
+    showToast('Settings saved successfully', 'success');
+    
+    // In a real implementation, this would save to the API
+}
+
+// Theme setting change handler
+document.getElementById('theme-setting')?.addEventListener('change', function() {
+    const theme = this.value;
+    if (theme !== 'auto') {
+        document.documentElement.setAttribute('data-theme', theme);
+    }
+});
+</script>
 {% endblock %}

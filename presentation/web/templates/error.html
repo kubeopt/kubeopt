@@ -1,72 +1,156 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="light">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Error - AKS Cost Optimizer</title>
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/nivaya_fevicon.png') }}" />
-    <meta name="description" content="AKS Cost Optimizer - Error Page">
-    <meta name="author" content="NIVAYA">
-    <meta name="theme-color" content="#dc3545" />
-    
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-    <div class="container-fluid">
-        <div class="row justify-content-center align-items-center min-vh-100">
-            <div class="col-md-8 col-lg-6">
-                <div class="card shadow-lg border-0">
-                    <div class="card-header bg-danger text-white text-center">
-                        <h3 class="mb-0">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            Application Error
-                        </h3>
-                    </div>
-                    <div class="card-body text-center p-5">
-                        <div class="mb-4">
-                            <i class="fas fa-bug text-danger" style="font-size: 4rem;"></i>
-                        </div>
-                        
-                        <h4 class="text-danger mb-3">Oops! Something went wrong</h4>
-                        
-                        <div class="alert alert-danger text-start" role="alert">
-                            <strong>Error Details:</strong><br>
-                            <code>{{ error if error else 'An unexpected error occurred' }}</code>
-                        </div>
-                        
-                        <p class="text-muted mb-4">
-                            We're sorry for the inconvenience. The error has been logged and our team will investigate.
-                        </p>
-                        
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
-                            <a href="/" class="btn btn-primary me-md-2">
-                                <i class="fas fa-home me-2"></i>
-                                Return Home
-                            </a>
-                            <button onclick="window.history.back()" class="btn btn-outline-secondary">
-                                <i class="fas fa-arrow-left me-2"></i>
-                                Go Back
-                            </button>
-                            <button onclick="window.location.reload()" class="btn btn-outline-info">
-                                <i class="fas fa-refresh me-2"></i>
-                                Retry
-                            </button>
-                        </div>
-                    </div>
-                    <div class="card-footer text-center text-muted">
-                        <small>
-                            <i class="fas fa-clock me-1"></i>
-                            {{ moment().format('YYYY-MM-DD HH:mm:ss') if moment else 'Error occurred' }} | 
-                            <i class="fas fa-shield-alt me-1"></i>
-                            AKS Cost Optimizer v2.0
-                        </small>
-                    </div>
-                </div>
-            </div>
+{% extends "base.html" %}
+
+{% block title %}Error - AKS Cost Optimizer{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-content">
+        <div class="error-icon">
+            <i class="fas fa-exclamation-triangle"></i>
         </div>
+        
+        <h1 class="error-title">Oops! Something went wrong</h1>
+        
+        <div class="error-message">
+            <p>{{ error if error else 'An unexpected error occurred.' }}</p>
+        </div>
+        
+        <div class="error-actions">
+            <a href="{{ url_for('main_routes.cluster_portfolio') }}" class="btn-primary">
+                <i class="fas fa-arrow-left"></i>
+                Go Back to Dashboard
+            </a>
+            
+            <button onclick="window.location.reload()" class="btn-secondary">
+                <i class="fas fa-refresh"></i>
+                Refresh Page
+            </button>
+        </div>
+        
+        {% if request.endpoint %}
+        <div class="error-details">
+            <small class="text-muted">
+                Error occurred on: {{ request.endpoint }}
+            </small>
+        </div>
+        {% endif %}
     </div>
+</div>
+
+<style>
+.error-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    padding: 2rem;
+}
+
+.error-content {
+    text-align: center;
+    max-width: 600px;
+    padding: 3rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.error-icon {
+    margin-bottom: 1.5rem;
+}
+
+.error-icon i {
+    font-size: 4rem;
+    color: #ef4444;
+}
+
+.error-title {
+    font-size: 2rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 1rem;
+}
+
+.error-message {
+    margin-bottom: 2rem;
+}
+
+.error-message p {
+    font-size: 1.1rem;
+    color: #6b7280;
+    line-height: 1.6;
+}
+
+.error-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.error-details {
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.btn-primary, .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.btn-primary {
+    background: var(--primary-green, #7FB069);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-green-dark, #6BA055);
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+}
+
+.btn-secondary:hover {
+    background: #e5e7eb;
+    transform: translateY(-1px);
+}
+
+.text-muted {
+    color: #9ca3af;
+}
+
+@media (max-width: 640px) {
+    .error-content {
+        padding: 2rem 1.5rem;
+    }
     
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    .error-title {
+        font-size: 1.5rem;
+    }
+    
+    .error-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .btn-primary, .btn-secondary {
+        width: 100%;
+        max-width: 200px;
+    }
+}
+</style>
+{% endblock %}
