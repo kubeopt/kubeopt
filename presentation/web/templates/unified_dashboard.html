@@ -17,481 +17,81 @@ Intelligent AKS cost optimization platform with real-time insights, ML-powered a
 <script src="{{ url_for('static', filename='js/implementation_plan_renderer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/alerts/main.js') }}"></script>
 <script src="{{ url_for('static', filename='js/controls/controls.js') }}"></script>
+<!-- COMMENTED OUT - Enterprise metrics disabled
 <script src="{{ url_for('static', filename='js/enterprise-metrics.js') }}"></script>
+-->
+<!-- COMMENTED OUT - Security dashboard disabled
 <script src="{{ url_for('static', filename='js/security/charts.js') }}"></script>
 <script src="{{ url_for('static', filename='js/security/pure-backend-dashboard.js') }}"></script>
+-->
 
 <link rel="stylesheet" href="{{ url_for('static', filename='css/clean-minimal.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/brand-icons.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/implementation-plan.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/clean-security.css') }}">
-<style>
-    /* Modern Dashboard Specific Styles */
-    .dashboard-card {
-        @apply bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-all duration-200 hover:shadow-md;
-    }
-    
-    .metric-card {
-        @apply p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200;
-    }
-    
-    .tab-button {
-        @apply px-4 py-2 text-sm font-medium rounded-lg transition-colors duration-200;
-    }
-    
-    .tab-button.active {
-        @apply bg-primary-500 text-white shadow-sm;
-    }
-    
-    .tab-button:not(.active) {
-        @apply text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800;
-    }
-    
-    /* Smooth animations */
-    .fade-in {
-        animation: fadeIn 0.3s ease-in-out;
-    }
-    
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    /* Chart containers */
-    .chart-container {
-        @apply relative bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700;
-    }
-    
-    /* Loading states */
-    .loading-spinner {
-        @apply inline-block w-4 h-4 border-2 border-gray-300 border-t-primary-500 rounded-full animate-spin;
-    }
-    
-    /* Sidebar nav link styling */
-    .nav-link {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.875rem 1.5rem;
-        color: rgba(255, 255, 255, 0.8);
-        text-decoration: none;
-        transition: all 0.2s ease;
-        border-radius: 0;
-        margin: 0.125rem 0;
-    }
-    
-    .nav-link:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: white;
-        text-decoration: none;
-    }
-    
-    .nav-link.active {
-        background: rgba(255, 255, 255, 0.15);
-        color: white;
-        border-right: 3px solid rgba(255, 255, 255, 0.8);
-    }
-    
-    .nav-icon {
-        width: 20px;
-        height: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    
-    .nav-text {
-        font-size: 0.875rem;
-        font-weight: 500;
-        transition: all 0.3s ease;
-    }
-    
-    /* Tab content visibility */
-    .tab-content {
-        display: none;
-    }
-    
-    .tab-content:not(.hidden) {
-        display: block !important;
-    }
-    
-    .hidden {
-        display: none !important;
-    }
-    
-    /* Ensure charts are visible */
-    .chart-container canvas {
-        max-width: 100%;
-        height: 400px !important;
-    }
-    
-    /* Metric cards proper styling */
-    .metric-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 0.75rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        border: 1px solid #e5e7eb;
-    }
-    
-    [data-theme="dark"] .metric-card {
-        background: #1f2937;
-        border-color: #374151;
-    }
-    
-    /* Grid layout fixes */
-    .grid {
-        display: grid;
-    }
-    
-    .grid-cols-1 {
-        grid-template-columns: repeat(1, minmax(0, 1fr));
-    }
-    
-    @media (min-width: 768px) {
-        .md\:grid-cols-2 {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-    
-    @media (min-width: 1024px) {
-        .lg\:grid-cols-4 {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-        }
-        
-        .lg\:grid-cols-2 {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-    }
-    
-    .gap-6 {
-        gap: 1.5rem;
-    }
-    
-    .mb-8 {
-        margin-bottom: 2rem;
-    }
-    
-    /* Additional utility classes to ensure Tailwind compatibility */
-    .flex {
-        display: flex;
-    }
-    
-    .items-center {
-        align-items: center;
-    }
-    
-    .justify-between {
-        justify-content: space-between;
-    }
-    
-    .text-sm {
-        font-size: 0.875rem;
-    }
-    
-    .text-2xl {
-        font-size: 1.5rem;
-    }
-    
-    .text-xs {
-        font-size: 0.75rem;
-    }
-    
-    .font-bold {
-        font-weight: 700;
-    }
-    
-    .p-3 {
-        padding: 0.75rem;
-    }
-    
-    .rounded-lg {
-        border-radius: 0.5rem;
-    }
-    
-    .text-gray-600 {
-        color: #4b5563;
-    }
-    
-    .text-gray-900 {
-        color: #111827;
-    }
-    
-    .text-gray-500 {
-        color: #6b7280;
-    }
-    
-    .text-white {
-        color: #ffffff;
-    }
-    
-    .text-gray-400 {
-        color: #9ca3af;
-    }
-    
-    .text-green-600 {
-        color: #16a34a;
-    }
-    
-    .text-green-400 {
-        color: #4ade80;
-    }
-    
-    .text-yellow-600 {
-        color: #ca8a04;
-    }
-    
-    .text-yellow-400 {
-        color: #facc15;
-    }
-    
-    .text-blue-600 {
-        color: #2563eb;
-    }
-    
-    .text-blue-400 {
-        color: #60a5fa;
-    }
-    
-    .text-purple-600 {
-        color: #9333ea;
-    }
-    
-    .text-purple-400 {
-        color: #a78bfa;
-    }
-    
-    .bg-blue-100 {
-        background-color: #dbeafe;
-    }
-    
-    .bg-green-100 {
-        background-color: #dcfce7;
-    }
-    
-    .bg-yellow-100 {
-        background-color: #fef3c7;
-    }
-    
-    .bg-purple-100 {
-        background-color: #f3e8ff;
-    }
-    
-    [data-theme="dark"] .bg-blue-900\/20 {
-        background-color: rgba(30, 58, 138, 0.2);
-    }
-    
-    [data-theme="dark"] .bg-green-900\/20 {
-        background-color: rgba(20, 83, 45, 0.2);
-    }
-    
-    [data-theme="dark"] .bg-yellow-900\/20 {
-        background-color: rgba(120, 53, 15, 0.2);
-    }
-    
-    [data-theme="dark"] .bg-purple-900\/20 {
-        background-color: rgba(88, 28, 135, 0.2);
-    }
-    
-    [data-theme="dark"] .text-gray-600 {
-        color: #9ca3af;
-    }
-    
-    [data-theme="dark"] .text-gray-900 {
-        color: #f9fafb;
-    }
-    
-    [data-theme="dark"] .text-gray-500 {
-        color: #6b7280;
-    }
-    
-    [data-theme="dark"] .text-gray-400 {
-        color: #9ca3af;
-    }
-    
-    /* Responsive sidebar */
-    @media (max-width: 768px) {
-        .expandable-sidebar {
-            transform: translateX(-100%);
-            transition: transform 0.3s ease;
-        }
-        
-        .expandable-sidebar.mobile-open {
-            transform: translateX(0);
-        }
-        
-        main {
-            margin-left: 0 !important;
-        }
-        
-        .lg\:grid-cols-4 {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-        
-        .lg\:grid-cols-2 {
-            grid-template-columns: repeat(1, minmax(0, 1fr));
-        }
-    }
-</style>
+<!-- Styles moved to clean-minimal.css -->
 {% endblock %}
-    
-    <style>
-        /* Prevent FOUC (Flash of Unstyled Content) */
-        body {
-            visibility: hidden;
-        }
-        body.loaded {
-            visibility: visible;
-        }
-        
-        /* Additional theme-specific styles to ensure consistency */
-        .bg-azure-50 {
-            background-color: rgba(59, 130, 246, 0.1);
-        }
 
-        /* Custom scrollbar for the execution plan */
-        .max-h-64::-webkit-scrollbar {
-            width: 6px;
-        }
+<!-- Clean HTML - Styles moved to clean-minimal.css -->
 
-        .max-h-64::-webkit-scrollbar-track {
-            background: rgba(75, 85, 99, 0.2);
-            border-radius: 3px;
-        }
-
-        .max-h-64::-webkit-scrollbar-thumb {
-            background: rgba(156, 163, 175, 0.5);
-            border-radius: 3px;
-        }
-
-        .max-h-64::-webkit-scrollbar-thumb:hover {
-            background: rgba(156, 163, 175, 0.8);
-        }
-
-        /* Transition effects */
-        .transition-colors {
-            transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
-        }
-
-        /* Status badge transitions */
-        [id$="-status"] {
-            transition: all 0.3s ease-in-out;
-        }
-
-        /* Card hover effects */
-        .bg-gray-800:hover {
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-            transition: box-shadow 0.3s ease-in-out;
-        }
-        .bg-gray-800{
-            --tw-bg-opacity: 1;
-            background-color: rgb(34 40 61);
-        }
-
-        /* Fix tab content isolation */
-.tab-content-panel {
-    display: none !important;
-}
-
-.tab-content-panel:not(.hidden) {
-    display: block !important;
-}
-
-/* Ensure consistent tab content alignment */
-.tab-content {
-    margin: 0;
-    padding: 0;
-    text-align: left;
-}
-
-.tab-content .clean-chart-card {
-    margin-left: 0;
-    margin-right: 0;
-}
-
-#securityposture-content {
-    display: none;
-}
-
-#securityposture-content:not(.hidden) {
-    display: block;
-}
-
-/* Ensure security content is properly contained */
-.security-tab-content {
-    display: none;
-}
-
-.security-tab-content:not(.hidden) {
-    display: block;
-}
-
-/* Auto-Analysis Scheduler Styles */
-.scheduler-status {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.scheduler-indicator {
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.scheduler-indicator:hover {
-    opacity: 0.8;
-}
-
-    </style>
 
 {% block content %}
-<div class="dashboard-container" style="display: flex; min-height: 100vh; padding-top: 0;">
+<div class="dashboard-container">
     <!-- Vertical Sidebar -->
-    <aside class="expandable-sidebar" style="position: fixed; left: 0; top: 64px; bottom: 0; z-index: 40;">
+    <aside class="expandable-sidebar">
+        <!-- Sidebar Edge Toggle Button -->
+        <button class="sidebar-edge-toggle" onclick="toggleSidebar()" id="sidebarToggleBtn" title="Toggle Sidebar">
+        </button>
+
         <!-- Sidebar Header -->
-        <div class="sidebar-header" style="padding: 1.5rem;">
-            <div class="brand-section" style="display: flex; align-items: center; gap: 0.75rem;">
-                <img src="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" alt="kubeopt" class="kubeopt-eye sidebar-eye-icon" style="width: 32px; height: 32px; border-radius: 8px;">
+        <div class="sidebar-header">
+            <div class="brand-section">
+                <img src="{{ url_for('static', filename='images/kubeopt_eyecon.png') }}" alt="kubeopt" class="kubeopt-eye sidebar-eye-icon">
                 <div class="sidebar-brand">
-                    <div style="color: white; font-weight: 600; font-size: 1.1rem;">kubeopt</div>
-                    <div style="color: rgba(255,255,255,0.7); font-size: 0.75rem;">{% if cluster %}{{ cluster.name }}{% else %}Dashboard{% endif %}</div>
+                    <div class="brand-title">kubeopt</div>
+                    <div class="brand-subtitle">{% if cluster %}{{ cluster.name }}{% else %}Dashboard{% endif %}</div>
                 </div>
             </div>
-            <button class="sidebar-toggle" onclick="toggleSidebar()" style="background: none; border: none; color: white; padding: 8px; border-radius: 6px; cursor: pointer;">
-                <i class="fas fa-bars"></i>
-            </button>
         </div>
 
         <!-- Sidebar Navigation -->
         <nav class="sidebar-nav">
             <div class="nav-menu">
+                <a href="/" class="nav-link" title="Back to Clusters">
+                    <div class="nav-icon">
+                        ←
+                    </div>
+                    <span class="nav-text">Portfolio</span>
+                </a>
                 <a href="#" data-target="#dashboard-content" onclick="showContent('dashboard', this); return false;" class="nav-link active" title="Overview">
                     <div class="nav-icon">
-                        <i class="fas fa-chart-line"></i>
+                        📊
                     </div>
                     <span class="nav-text">Overview</span>
                 </a>
                 <a href="#" data-target="#implementation-content" onclick="showContent('implementation', this); return false;" class="nav-link" title="Implementation Plan">
                     <div class="nav-icon">
-                        <i class="fas fa-rocket"></i>
+                        🚀
                     </div>
                     <span class="nav-text">Implementation</span>
                 </a>
+                <!-- Commented out Enterprise and Security tabs
                 <a href="#" data-target="#enterprise-metrics-content" onclick="showContent('enterprise-metrics', this); return false;" class="nav-link" title="Enterprise Metrics">
                     <div class="nav-icon">
-                        <i class="fas fa-building"></i>
+                        🏢
                     </div>
                     <span class="nav-text">Metrics</span>
                 </a>
                 <a href="#" data-target="#securityposture-content" onclick="showContent('securityposture', this); return false;" class="nav-link" title="Security Posture">
                     <div class="nav-icon">
-                        <i class="fas fa-shield-alt"></i>
+                        🛡️
                     </div>
                     <span class="nav-text">Security</span>
                 </a>
-                <a href="#" data-target="#alerts-content" onclick="showContent('alerts', this); return false;" class="nav-link" title="Alerts">
-                    <div class="nav-icon">
-                        <i class="fas fa-bell"></i>
+                -->
+                <a href="#" data-target="#alerts-content" data-tab="alerts" onclick="showContent('alerts', this); return false;" class="nav-link" title="Alerts">
+                    <div class="nav-icon" id="global-notification-badge">
+                        🔔
                     </div>
                     <span class="nav-text">Alerts</span>
                 </a>
@@ -501,26 +101,26 @@ Intelligent AKS cost optimization platform with real-time insights, ML-powered a
         <!-- Sidebar Footer -->
         <div class="sidebar-footer">
             <div style="display: flex; items-center: space-x-2; color: rgba(255,255,255,0.7); font-size: 0.75rem;">
-                <i class="fas fa-clock"></i>
+                🕐
                 <span id="last-updated-sidebar">Last updated: --</span>
             </div>
             <button onclick="refreshDashboard()" style="width: 100%; margin-top: 0.75rem; padding: 8px 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 6px; font-size: 0.875rem; cursor: pointer; transition: all 0.2s;">
-                <i class="fas fa-sync-alt"></i>
+                🔄
                 <span class="nav-text" style="margin-left: 6px;">Refresh</span>
             </button>
         </div>
     </aside>
 
     <!-- Main Content -->
-    <main style="margin-left: 280px; flex: 1; padding: 2rem; background: var(--bg-primary);">
+    <main id="mainContent" class="main-content-dashboard">
         <!-- Dashboard Header -->
-        <div class="dashboard-header" style="margin-bottom: 2rem;">
-            <div style="display: flex; align-items: center; justify-content: between; flex-wrap: wrap; gap: 1rem;">
+        <div class="dashboard-header">
+            <div class="header-content">
                 <div>
-                    <h1 style="font-size: 2rem; font-weight: 700; color: var(--text-primary); margin: 0;">
+                    <h1>
                         {% if cluster %}{{ cluster.name }}{% else %}Cluster Dashboard{% endif %}
                     </h1>
-                    <p style="color: var(--text-secondary); margin: 0.5rem 0 0 0;">
+                    <p>
                         {% if cluster %}
                             Real-time cost insights and optimization for {{ cluster.resource_group or 'your cluster' }}
                         {% else %}
@@ -565,101 +165,181 @@ Intelligent AKS cost optimization platform with real-time insights, ML-powered a
                 <!-- CPU Metrics Container -->
                 <div id="cpu-metrics-container"></div>
 
-                <!-- Clean Charts Grid -->
-                <div class="clean-charts-grid">
-                    <!-- Total Cost Card -->
-                    <div class="metric-card">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm text-gray-600 dark:text-gray-400">Total Cost</p>
-                                <p class="text-2xl font-bold text-gray-900 dark:text-white" id="total-cost">$--</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-500">Monthly</p>
+             
+                
+
+                <!-- Cost Trend Chart - Full Width -->
+                <div class="clean-chart-card chart-card-full-width mb-8">
+                    <div class="chart-header">
+                        <div class="chart-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <h3 class="chart-title">Cost Trend Analysis</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="mainTrendChart"></canvas>
+                        <div id="mainTrendChart-loading" class="chart-loading hidden">
+                            <p>Preparing trend analysis...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cost and Savings Charts Row -->
+                <div class="clean-charts-grid grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <!-- Cost Breakdown Chart -->
+                    <div class="clean-chart-card">
+                        <div class="chart-header">
+                            <div class="chart-icon">
+                                <i class="fas fa-chart-pie"></i>
                             </div>
-                            <div class="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                                <i class="fas fa-dollar-sign text-blue-600 dark:text-blue-400"></i>
+                            <h3 class="chart-title">Cost Breakdown</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="costBreakdownChart"></canvas>
+                            <div id="costBreakdownChart-loading" class="chart-loading hidden">
+                                <p>Loading cost breakdown...</p>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Potential Savings Card -->
-                    <div class="metric-card">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm text-gray-600 dark:text-gray-400">Potential Savings</p>
-                                <p class="text-2xl font-bold text-green-600 dark:text-green-400" id="potential-savings">$--</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-500">Monthly</p>
+                    <!-- Savings Breakdown Chart -->
+                    <div class="clean-chart-card">
+                        <div class="chart-header">
+                            <div class="chart-icon">
+                                <i class="fas fa-bullseye"></i>
                             </div>
-                            <div class="p-3 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                                <i class="fas fa-piggy-bank text-green-600 dark:text-green-400"></i>
-                            </div>
+                            <h3 class="chart-title">Savings Breakdown</h3>
                         </div>
-                    </div>
-
-                    <!-- CPU Utilization Card -->
-                    <div class="metric-card">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm text-gray-600 dark:text-gray-400">CPU Utilization</p>
-                                <p class="text-2xl font-bold text-yellow-600 dark:text-yellow-400" id="cpu-utilization">--%</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-500">Average</p>
-                            </div>
-                            <div class="p-3 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
-                                <i class="fas fa-microchip text-yellow-600 dark:text-yellow-400"></i>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Node Count Card -->
-                    <div class="metric-card">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm text-gray-600 dark:text-gray-400">Active Nodes</p>
-                                <p class="text-2xl font-bold text-purple-600 dark:text-purple-400" id="node-count">--</p>
-                                <p class="text-xs text-gray-500 dark:text-gray-500">Running</p>
-                            </div>
-                            <div class="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                                <i class="fas fa-server text-purple-600 dark:text-purple-400"></i>
+                        <div class="chart-container">
+                            <canvas id="savingsBreakdownChart"></canvas>
+                            <div id="savingsBreakdownChart-loading" class="chart-loading hidden">
+                                <p>Calculating savings potential...</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Charts Grid -->
-                <div class="charts-grid grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <!-- Cost Trend Chart -->
-                    <div class="chart-container">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Cost Trend</h3>
-                            <div class="loading-spinner hidden" id="mainTrendChart-loading"></div>
-                        </div>
-                        <canvas id="mainTrendChart"></canvas>
-                    </div>
-
-                    <!-- Cost Breakdown Chart -->
-                    <div class="chart-container">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Cost Breakdown</h3>
-                            <div class="loading-spinner hidden" id="costBreakdownChart-loading"></div>
-                        </div>
-                        <canvas id="costBreakdownChart"></canvas>
-                    </div>
-
+                <!-- Node and Workload Charts Row -->
+                <div class="clean-charts-grid grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                     <!-- Node Utilization Chart -->
-                    <div class="chart-container">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Node Utilization</h3>
-                            <div class="loading-spinner hidden" id="nodeUtilizationChart-loading"></div>
+                    <div class="clean-chart-card">
+                        <div class="chart-header">
+                            <div class="chart-icon">
+                                <i class="fas fa-server"></i>
+                            </div>
+                            <h3 class="chart-title">Node Resource Utilization</h3>
                         </div>
-                        <canvas id="nodeUtilizationChart"></canvas>
+                        <div class="chart-container">
+                            <canvas id="nodeUtilizationChart"></canvas>
+                            <div id="nodeUtilizationChart-loading" class="chart-loading hidden">
+                                <p>Analyzing node performance...</p>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- HPA Impact Chart -->
-                    <div class="chart-container">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">HPA Optimization</h3>
-                            <div class="loading-spinner hidden" id="hpaComparisonChart-loading"></div>
+                    <!-- Top Workloads Chart -->
+                    <div class="clean-chart-card">
+                        <div class="chart-header">
+                            <div class="chart-icon">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                            <h3 class="chart-title">Top Workloads</h3>
                         </div>
-                        <canvas id="hpaComparisonChart"></canvas>
+                        <div class="chart-container">
+                            <canvas id="workloadCostChart"></canvas>
+                            <div id="workloadCostChart-loading" class="chart-loading hidden">
+                                <p>Ranking workload costs...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Charts Row -->
+                <div class="clean-charts-grid grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <!-- HPA Impact Chart -->
+                    <div class="clean-chart-card">
+                        <div class="chart-header">
+                            <div class="chart-icon">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                            <h3 class="chart-title">HPA Optimization Impact</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="hpaComparisonChart"></canvas>
+                            <div id="hpaComparisonChart-loading" class="chart-loading hidden">
+                                <p>Analyzing HPA performance...</p>
+                            </div>
+                        </div>
+                        <div id="hpa-count-display" class="hpa-count-display">
+                            Active HPAs: <span id="active-hpa-count" class="hpa-count-badge">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Namespace Cost Chart -->
+                    <div class="clean-chart-card">
+                        <div class="chart-header">
+                            <div class="chart-icon">
+                                <i class="fas fa-layer-group"></i>
+                            </div>
+                            <h3 class="chart-title">Cost by Namespace</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="namespaceCostChart"></canvas>
+                            <div id="namespaceCostChart-loading" class="chart-loading hidden">
+                                <p>Categorizing namespace costs...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Metrics Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400">Top Namespace Cost</h3>
+                                <div class="text-2xl font-bold text-gray-900 dark:text-white" id="top-namespace-cost">$0</div>
+                            </div>
+                            <div class="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                                <i class="fas fa-layer-group text-blue-600 dark:text-blue-400"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400">Namespaces Analyzed</h3>
+                                <div class="text-2xl font-bold text-gray-900 dark:text-white" id="total-namespaces">0</div>
+                            </div>
+                            <div class="p-3 bg-green-100 dark:bg-green-900/20 rounded-lg">
+                                <i class="fas fa-cubes text-green-600 dark:text-green-400"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400">Workloads Found</h3>
+                                <div class="text-2xl font-bold text-gray-900 dark:text-white" id="total-workloads">--</div>
+                            </div>
+                            <div class="p-3 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
+                                <i class="fas fa-shield-alt text-yellow-600 dark:text-yellow-400"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400">Analysis Accuracy</h3>
+                                <div class="text-2xl font-bold text-gray-900 dark:text-white" id="analysis-accuracy">Loading...</div>
+                            </div>
+                            <div class="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                                <i class="fas fa-chart-line text-purple-600 dark:text-purple-400"></i>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -668,7 +348,7 @@ Intelligent AKS cost optimization platform with real-time insights, ML-powered a
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">AI Insights</h3>
                     <div id="insights-container" class="space-y-4">
                         <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                            <i class="fas fa-robot text-3xl mb-2"></i>
+                            <div class="text-3xl mb-2">🤖</div>
                             <p>Analyzing your cluster for optimization opportunities...</p>
                         </div>
                     </div>
@@ -676,53 +356,107 @@ Intelligent AKS cost optimization platform with real-time insights, ML-powered a
                 </div> <!-- Close dashboard-content -->
             </div>
 
-            <!-- Implementation Plan Tab -->
-            <div id="implementation-tab" class="tab-content hidden">
-                <div class="dashboard-card p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Implementation Plan</h3>
-                    <div id="implementation-content">
-                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                            <i class="fas fa-clipboard-list text-3xl mb-2"></i>
-                            <p>Loading implementation plan...</p>
+            <!-- Clean Implementation Content -->
+            <div id="implementation-content" class="tab-content hidden">
+                <div class="clean-chart-card chart-card-full-width-mb">
+                    <div class="chart-header">
+                        <div class="chart-header-left">
+                            <div class="chart-icon">
+                                🚀
+                            </div>
+                            <h2 class="chart-title">Implementation Guide</h2>
                         </div>
+                        <div class="chart-header-right">
+                            <span class="last-analyzed-time" id="implementation-last-analyzed">Last analyzed: --</span>
+                        </div>
+                    </div>
+                    <div id="implementation-plan-container" class="implementation-container">
+                        <div class="implementation-icon">
+                            <span style="font-size: 2em;">📋</span>
+                        </div>
+                        <h4 class="implementation-title">Ready to Implement</h4>
+                        <p class="implementation-text">Run an analysis to generate your personalized implementation plan. Step-by-step optimization instructions will appear here.</p>
                     </div>
                 </div>
             </div>
 
-            <!-- Enterprise Metrics Tab -->
+            <!-- Enterprise Metrics Tab - COMMENTED OUT
             <div id="metrics-tab" class="tab-content hidden">
                 <div class="dashboard-card p-6">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Enterprise Metrics</h3>
                     <div id="enterprise-metrics-content">
                         <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                            <i class="fas fa-tachometer-alt text-3xl mb-2"></i>
+                            <div class="text-3xl mb-2">📊</div>
                             <p>Loading enterprise metrics...</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Security Posture Tab -->
+            <!-- Security Posture Tab - COMMENTED OUT
             <div id="security-tab" class="tab-content hidden">
                 <div class="dashboard-card p-6">
                     <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Security Posture</h3>
                     <div id="securityposture-content">
                         <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                            <i class="fas fa-shield-alt text-3xl mb-2"></i>
-                            <p>Analyzing security posture...</p>
+                            <div class="text-3xl mb-2">🛡️</div>
+                            <p>Security dashboard will be dynamically loaded here</p>
                         </div>
                     </div>
                 </div>
             </div>
+            -->
 
-            <!-- Alerts Tab -->
-            <div id="alerts-tab" class="tab-content hidden">
-                <div class="dashboard-card p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Alerts & Notifications</h3>
-                    <div id="alerts-content">
-                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-                            <i class="fas fa-bell text-3xl mb-2"></i>
-                            <p>Loading alerts...</p>
+            <!-- Enhanced Alerts Content -->
+            <div id="alerts-content" class="tab-content hidden">
+                <div class="clean-chart-card chart-card-full-width-mb">
+                    <div class="chart-header">
+                        <div class="chart-header-left">
+                            <div class="chart-icon">
+                                <i class="fas fa-bell"></i>
+                            </div>
+                            <h2 class="chart-title">Alerts Management</h2>
+                        </div>
+                        <div class="chart-header-right">
+                            <span class="last-analyzed-time" id="alerts-last-analyzed">Last analyzed: --</span>
+                        </div>
+                    </div>
+                    <div class="alerts-header-controls">
+                        <button onclick="showCreateAlertModal()" class="clean-btn clean-btn-primary clean-btn-small">
+                            <i class="fas fa-plus"></i>New Alert
+                        </button>
+                    </div>
+
+                    <!-- Clean Tab Navigation -->
+                    <div class="clean-tabs">
+                        <ul class="tab-list">
+                            <li class="tab-item">
+                                <button onclick="switchAlertsTab('alerts')" id="alerts-tab-btn" class="tab-link active">
+                                    All Alerts
+                                    <span style="background: var(--primary-green); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;" id="total-alerts-count">0</span>
+                                </button>
+                            </li>
+                            <li class="tab-item">
+                                <button onclick="switchAlertsTab('notifications')" id="notifications-tab-btn" class="tab-link">
+                                    Recent Notifications
+                                    <span style="background: #dc2626; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem; display: none;" id="notification-badge">0</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Alerts Tab Content -->
+                    <div id="alerts-tab-content" class="alerts-tab-content">
+                        <!-- Alerts List Container -->
+                        <div id="alerts-list-container" class="space-y-3" style="max-height: 32rem; overflow-y: auto;">
+                            <!-- Dynamic alerts will be inserted here -->
+                        </div>
+                    </div>
+
+                    <!-- Notifications Tab Content -->
+                    <div id="notifications-tab-content" class="alerts-tab-content hidden">
+                        <div id="in-app-notifications-container" class="space-y-3" style="max-height: 32rem; overflow-y: auto;">
+                            <!-- Dynamic notifications will be inserted here -->
                         </div>
                     </div>
                 </div>
@@ -734,20 +468,25 @@ Intelligent AKS cost optimization platform with real-time insights, ML-powered a
 
 {% block scripts %}
 <script>
-    // Sidebar Management
-    function toggleSidebar() {
-        const sidebar = document.querySelector('.expandable-sidebar');
-        const main = document.querySelector('main');
-        
-        if (sidebar && main) {
-            sidebar.classList.toggle('collapsed');
-            if (sidebar.classList.contains('collapsed')) {
-                main.style.marginLeft = '70px';
-            } else {
-                main.style.marginLeft = '280px';
-            }
-        }
-    }
+    // Cluster information for JavaScript modules - Set immediately
+    {% if cluster %}
+    window.clusterInfo = {
+        id: '{{ cluster.id }}',
+        name: '{{ cluster.name }}',
+        cluster_name: '{{ cluster.name }}',
+        resource_group: '{{ cluster.resource_group }}',
+        environment: '{{ cluster.environment }}',
+        region: '{{ cluster.region }}',
+        subscription_id: '{{ cluster.subscription_id }}'
+    };
+    
+    // For backward compatibility
+    window.currentClusterId = '{{ cluster.id }}';
+    window.currentClusterName = '{{ cluster.name }}';
+    window.currentResourceGroup = '{{ cluster.resource_group }}';
+    {% endif %}
+    
+    // Sidebar toggle function moved to enhanced-ui.js
     
     // Modern Tab Management
     let activeTab = 'overview';
@@ -818,6 +557,7 @@ Intelligent AKS cost optimization platform with real-time insights, ML-powered a
                     window.loadedTabs.add('implementation');
                 }
                 break;
+            /* COMMENTED OUT - METRICS AND SECURITY TABS DISABLED
             case 'metrics':
                 if (!window.loadedTabs.has('metrics')) {
                     loadEnterpriseMetrics();
@@ -830,6 +570,7 @@ Intelligent AKS cost optimization platform with real-time insights, ML-powered a
                     window.loadedTabs.add('security');
                 }
                 break;
+            */
             case 'alerts':
                 if (!window.loadedTabs.has('alerts')) {
                     loadAlerts();
@@ -947,6 +688,7 @@ Intelligent AKS cost optimization platform with real-time insights, ML-powered a
         }
     }
     
+    /* COMMENTED OUT - ENTERPRISE METRICS AND SECURITY FUNCTIONS DISABLED
     function loadEnterpriseMetrics() {
         console.log('📊 Loading enterprise metrics...');
         // Placeholder for enterprise metrics loading
@@ -962,60 +704,146 @@ Intelligent AKS cost optimization platform with real-time insights, ML-powered a
             window.showContent('securityposture');
         }
     }
+    */
     
     function loadAlerts() {
         console.log('🔔 Loading alerts...');
-        // Placeholder for alerts loading
-        if (typeof window.loadAlerts === 'function') {
-            window.loadAlerts();
+        // Load alerts data from API
+        try {
+            fetch('/api/alerts')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('✅ Alerts loaded:', data);
+                    // Update alerts display if container exists
+                    const alertsContainer = document.querySelector('#alerts-container');
+                    if (alertsContainer && data.alerts) {
+                        // Display alerts in the container
+                        alertsContainer.innerHTML = data.alerts.map(alert => 
+                            `<div class="alert alert-${alert.severity}">${alert.message}</div>`
+                        ).join('');
+                    }
+                })
+                .catch(error => {
+                    console.log('ℹ️ Alerts API not available:', error.message);
+                });
+        } catch (error) {
+            console.log('ℹ️ Alerts loading skipped:', error.message);
         }
     }
     
-    // Initialize dashboard
-    document.addEventListener('DOMContentLoaded', function() {
-        // Set up cluster info for JavaScript modules
-        window.clusterInfo = {
-            {% if cluster %}
-            id: '{{ cluster.id or cluster.cluster_id or "unknown" }}',
-            name: '{{ cluster.name or cluster.cluster_name or "Unknown Cluster" }}',
-            resourceGroup: '{{ cluster.resource_group or cluster.resourceGroup or "unknown" }}',
-            resource_group: '{{ cluster.resource_group or cluster.resourceGroup or "unknown" }}',
-            region: '{{ cluster.region or "unknown" }}',
-            environment: '{{ cluster.environment or "unknown" }}',
-            subscriptionId: '{{ cluster.subscription_id or "unknown" }}',
-            subscription_id: '{{ cluster.subscription_id or "unknown" }}'
-            {% else %}
-            id: 'unknown',
-            name: 'Unknown Cluster',
-            resourceGroup: 'unknown',
-            resource_group: 'unknown',
-            region: 'unknown',
-            environment: 'unknown',
-            subscriptionId: 'unknown',
-            subscription_id: 'unknown'
-            {% endif %}
-        };
+    // Cluster information already set at beginning of script block
+    
+    // Analysis data with AKS Excellence scores
+    {% if analysis %}
+    window.analysisData = {{ analysis | tojson }};
+    {% else %}
+    window.analysisData = null;
+    {% endif %}
+</script>
+
+<!-- Additional JavaScript files from working version -->
+<script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>
+
+<!-- Global Auto-Refresh Manager -->
+<script src="{{ url_for('static', filename='js/global-refresh-manager.js') }}"></script>
+
+<!-- Dashboard-specific update functions -->
+<script src="{{ url_for('static', filename='js/dashboard-updates.js') }}"></script>
+
+<!-- Last Analyzed Time Updates -->
+<script>
+    // Function to format timestamp for display
+    function formatLastAnalyzed(timestamp) {
+        if (!timestamp) return '--';
         
-        // Initialize the dashboard
-        showTab('overview');
-        updateLastUpdated();
-        
-        // Load dashboard data once after DOM is ready
-        setTimeout(() => {
-            if (!window.loadedTabs || !window.loadedTabs.has('overview')) {
-                loadDashboardData();
-                if (!window.loadedTabs) window.loadedTabs = new Set();
-                window.loadedTabs.add('overview');
+        try {
+            const date = new Date(timestamp);
+            if (isNaN(date.getTime())) return '--';
+            
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / (1000 * 60));
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+            if (diffDays < 7) return `${diffDays}d ago`;
+            
+            return date.toLocaleDateString();
+        } catch (e) {
+            return '--';
+        }
+    }
+
+    // Function to update all last analyzed times
+    function updateLastAnalyzedTimes() {
+        const analysisData = window.analysisData;
+        if (!analysisData) return;
+
+        // Get the latest analysis timestamp
+        const lastAnalyzedTime = analysisData.timestamp || analysisData.analysis_timestamp || analysisData.created_at;
+        const formattedTime = formatLastAnalyzed(lastAnalyzedTime);
+
+        // Update all tab headers
+        const elements = [
+            'implementation-last-analyzed',
+            'enterprise-last-analyzed', 
+            'security-last-analyzed',
+            'alerts-last-analyzed'
+        ];
+
+        elements.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = `Last analyzed: ${formattedTime}`;
             }
-        }, 500);
-        
-        // Set up periodic refresh for timestamps only
-        setInterval(updateLastUpdated, 60000); // Update every minute
+        });
+    }
+
+    // Update on page load and when analysis data changes
+    document.addEventListener('DOMContentLoaded', updateLastAnalyzedTimes);
+    
+    // Update when charts are refreshed
+    if (window.updateDashboardMetrics) {
+        const originalUpdate = window.updateDashboardMetrics;
+        window.updateDashboardMetrics = function(...args) {
+            originalUpdate.apply(this, args);
+            updateLastAnalyzedTimes();
+        };
+    }
+    
+    // Initialize implementation plan renderer
+    document.addEventListener('DOMContentLoaded', function() {
+        try {
+            if (typeof ImplementationPlanRenderer !== 'undefined') {
+                window.implementationRenderer = new ImplementationPlanRenderer('implementation-plan-container');
+                console.log('✅ Implementation plan renderer initialized');
+            } else {
+                console.warn('⚠️ ImplementationPlanRenderer class not found');
+            }
+        } catch (error) {
+            console.error('❌ Failed to initialize implementation renderer:', error);
+        }
     });
 </script>
 
-<!-- Include existing JavaScript files -->
-<script src="{{ url_for('static', filename='js/logger.js') }}"></script>
-<script src="{{ url_for('static', filename='js/implementation_plan_renderer.js') }}"></script>
-<script src="{{ url_for('static', filename='js/enhanced-ui.js') }}"></script>
+<!-- User Dropdown Menu -->
+<div id="userDropdownMenu" class="user-dropdown hidden user-dropdown-menu">
+    <div class="user-dropdown-content">
+        <div class="user-dropdown-header">
+            <p class="user-dropdown-label">Signed in as</p>
+            <p class="user-dropdown-username">{{ session.username or 'Admin' }}</p>
+        </div>
+        <a href="{{ url_for('settings') }}" class="user-menu-item">
+            ⚙️
+            Settings
+        </a>
+        <a href="{{ url_for('logout') }}" class="user-menu-item logout">
+            🚪
+            Logout
+        </a>
+    </div>
+</div>
 {% endblock %}
