@@ -76,6 +76,15 @@
         
         <!-- Dashboard Content -->
         <div class="dashboard-content" id="dashboard-content">
+        
+        <!-- Cluster information for JavaScript -->
+        <script>
+            window.AppState = {
+                currentClusterId: "{{ cluster.id }}",
+                currentClusterName: "{{ cluster.name }}",
+                currentResourceGroup: "{{ cluster.resource_group }}"
+            };
+        </script>
             
             <!-- Overview Section (Default) -->
             <div id="overview-section" class="dashboard-section active">
@@ -326,43 +335,18 @@
             </div>
             
             <!-- Implementation Section -->
-            <div id="implementation-section" class="dashboard-section hidden">
-                <div class="chart-card">
-                    <div class="chart-header">
-                        <h3 class="chart-title">Implementation Plan</h3>
-                        <button class="btn-secondary" onclick="generateNewPlan()">
-                            <i class="fas fa-refresh"></i> Generate New Plan
-                        </button>
-                    </div>
-                    <div class="implementation-content" id="implementation-plan-content">
-                        <div class="loading-state">
-                            <div class="loading-spinner"></div>
-                            <span>Loading implementation plan...</span>
-                        </div>
+            <div id="implementation-section" class="dashboard-section">
+                <div id="implementation-content">
+                    <div id="implementation-plan-container" class="implementation-container">
+                        <!-- Content will be loaded by JavaScript -->
                     </div>
                 </div>
             </div>
             
             <!-- Alerts Section -->
-            <div id="alerts-section" class="dashboard-section hidden">
-                <div class="activity-section">
-                    <div class="activity-header">
-                        <h3 class="activity-title">Active Alerts</h3>
-                        <button class="btn-primary" onclick="createAlert()">
-                            <i class="fas fa-plus"></i> New Alert
-                        </button>
-                    </div>
-                    <div class="activity-list" id="alerts-list">
-                        <!-- Alert items will be populated by JavaScript -->
-                        <div class="activity-item">
-                            <div class="activity-avatar">!</div>
-                            <div class="activity-content">
-                                <div class="activity-name">Loading alerts...</div>
-                                <div class="activity-description">Please wait while we fetch the latest alerts</div>
-                            </div>
-                            <div class="activity-time">--</div>
-                        </div>
-                    </div>
+            <div id="alerts-section" class="dashboard-section">
+                <div id="alerts-list">
+                    <!-- Alerts content will be loaded by JavaScript -->
                 </div>
             </div>
             
@@ -590,6 +574,14 @@ document.addEventListener('DOMContentLoaded', function() {
             toggleBtn.className = isCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
             toggleBtn.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
         }
+    }
+    
+    // Initialize Dashboard module
+    if (window.Dashboard && typeof window.Dashboard.init === 'function') {
+        console.log('Initializing Dashboard module...');
+        window.Dashboard.init();
+    } else {
+        console.error('Dashboard module not available or missing init function');
     }
 });
 

@@ -57,26 +57,33 @@ Cluster Portfolio - AKS Cost Optimizer
         <div class="clusters-section">
             <div class="section-header">
                 <h2 class="section-title">Your Clusters</h2>
-                <div class="filter-controls">
-                    <select class="filter-select" id="environment-filter">
-                        <option value="">All Environments</option>
-                        <option value="production">Production</option>
-                        <option value="staging">Staging</option>
-                        <option value="development">Development</option>
-                    </select>
+                <div class="section-controls">
+                    <div class="filter-controls">
+                        <select class="filter-select" id="environment-filter">
+                            <option value="">All Environments</option>
+                            <option value="production">Production</option>
+                            <option value="staging">Staging</option>
+                            <option value="development">Development</option>
+                        </select>
+                        
+                        <select class="filter-select" id="sort-by">
+                            <option value="name">Sort by Name</option>
+                            <option value="cost">Sort by Cost</option>
+                            <option value="savings">Sort by Savings</option>
+                            <option value="last_analyzed">Sort by Last Analyzed</option>
+                        </select>
+                    </div>
                     
-                    <select class="filter-select" id="sort-by">
-                        <option value="name">Sort by Name</option>
-                        <option value="cost">Sort by Cost</option>
-                        <option value="savings">Sort by Savings</option>
-                        <option value="last_analyzed">Sort by Last Analyzed</option>
-                    </select>
+                    <button class="btn-primary add-cluster-btn" onclick="openAddClusterModal()">
+                        <i class="fas fa-plus"></i>
+                        Add Cluster
+                    </button>
                 </div>
             </div>
             
             <div class="clusters-grid" id="clusters-grid">
                 {% for cluster in clusters %}
-                <div class="cluster-card" data-environment="{{ cluster.environment or 'unknown' }}">
+                <div class="cluster-card" data-cluster-id="{{ cluster.id }}" data-environment="{{ cluster.environment or 'unknown' }}">
                     <div class="cluster-header">
                         <div class="cluster-info">
                             <h3 class="cluster-name">{{ cluster.name }}</h3>
@@ -112,11 +119,11 @@ Cluster Portfolio - AKS Cost Optimizer
                         <div class="metric-row">
                             <div class="metric-item">
                                 <div class="metric-label">Nodes</div>
-                                <div class="metric-value">{{ cluster.node_count or 0 }}</div>
+                                <div class="metric-value" data-metric="nodes">{{ cluster.node_count or 0 }}</div>
                             </div>
                             <div class="metric-item">
                                 <div class="metric-label">Optimization Score</div>
-                                <div class="metric-value">{{ '{:.0f}%'.format(cluster.optimization_score or 0) }}</div>
+                                <div class="metric-value" data-metric="optimization">{{ '{:.0f}%'.format(cluster.optimization_score or 0) }}</div>
                             </div>
                         </div>
                     </div>
@@ -161,11 +168,17 @@ Cluster Portfolio - AKS Cost Optimizer
                         <i class="fas fa-cubes"></i>
                     </div>
                     <h3 class="empty-title">No clusters found</h3>
-                    <p class="empty-description">No AKS clusters are currently configured for optimization analysis.</p>
-                    <a href="/settings" class="btn-primary">
-                        <i class="fas fa-cog"></i>
-                        Configure Settings
-                    </a>
+                    <p class="empty-description">Add your first AKS cluster to start optimizing costs and analyzing performance.</p>
+                    <div class="empty-actions">
+                        <button class="btn-primary" onclick="openAddClusterModal()">
+                            <i class="fas fa-plus"></i>
+                            Add First Cluster
+                        </button>
+                        <a href="/settings" class="btn-secondary">
+                            <i class="fas fa-cog"></i>
+                            Configure Settings
+                        </a>
+                    </div>
                 </div>
                 {% endif %}
             </div>
@@ -173,10 +186,326 @@ Cluster Portfolio - AKS Cost Optimizer
     </main>
 </div>
 
+<!-- Add Cluster Modal -->
+<div id="addClusterModal" class="modal-overlay" onclick="closeAddClusterModal(event)">
+    <div class="modal-container" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <i class="fas fa-plus-circle"></i>
+                Add New Cluster
+            </h3>
+            <button class="modal-close" onclick="closeAddClusterModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            <form id="addClusterForm" onsubmit="submitAddCluster(event)">
+                <div class="form-section">
+                    <h4 class="section-title">
+                        <i class="fas fa-cloud"></i>
+                        Azure Subscription
+                    </h4>
+                    <div class="form-group required">
+                        <label for="subscriptionSelect">Subscription *</label>
+                        <select id="subscriptionSelect" name="subscription_id" required onchange="clearFieldError(this)">
+                            <option value="">Select a subscription...</option>
+                        </select>
+                        <div class="form-help">Select the Azure subscription containing your cluster</div>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h4 class="section-title">
+                        <i class="fas fa-cube"></i>
+                        Cluster Details
+                    </h4>
+                    <div class="form-row">
+                        <div class="form-group required">
+                            <label for="clusterName">Cluster Name *</label>
+                            <input type="text" id="clusterName" name="cluster_name" required 
+                                   placeholder="e.g., production-aks-east" oninput="clearFieldError(this)">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="resourceGroup">Resource Group</label>
+                            <input type="text" id="resourceGroup" name="resource_group" 
+                                   placeholder="Auto-discovery if empty">
+                            <div class="form-help">Leave empty for automatic resource group discovery</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="environment">Environment</label>
+                            <select id="environment" name="environment">
+                                <option value="">Select Environment...</option>
+                                <option value="development">Development</option>
+                                <option value="staging">Staging</option>
+                                <option value="production">Production</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="region">Region</label>
+                            <input type="text" id="region" name="region" 
+                                   placeholder="e.g., East US" list="azureRegions">
+                            <datalist id="azureRegions">
+                                <option value="East US"></option>
+                                <option value="West US"></option>
+                                <option value="Central US"></option>
+                                <option value="North Europe"></option>
+                                <option value="West Europe"></option>
+                                <option value="Southeast Asia"></option>
+                            </datalist>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <textarea id="description" name="description" rows="3" 
+                                  placeholder="Optional cluster description"></textarea>
+                    </div>
+                    
+                </div>
+            </form>
+        </div>
+        
+        <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeAddClusterModal()">
+                <i class="fas fa-times"></i>
+                Cancel
+            </button>
+            <button type="button" class="btn-primary" id="addClusterSubmit" onclick="submitAddCluster()">
+                <i class="fas fa-plus"></i>
+                <span class="btn-text">Add Cluster</span>
+                <span class="btn-loading hidden">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    Adding...
+                </span>
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Portfolio-specific styles -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/cluster-portfolio.css') }}">
 
 <script>
+// Add Cluster Modal Functions
+function openAddClusterModal() {
+    const modal = document.getElementById('addClusterModal');
+    if (modal) {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        
+        // Load subscriptions
+        loadSubscriptions();
+        
+        // Focus first input
+        setTimeout(() => {
+            const clusterNameInput = document.getElementById('clusterName');
+            if (clusterNameInput) clusterNameInput.focus();
+        }, 200);
+    }
+}
+
+function closeAddClusterModal(event) {
+    if (event && event.target !== event.currentTarget) return;
+    
+    const modal = document.getElementById('addClusterModal');
+    if (modal) {
+        modal.classList.remove('active');
+        document.body.style.overflow = '';
+        
+        // Reset form
+        const form = document.getElementById('addClusterForm');
+        if (form) form.reset();
+    }
+}
+
+async function loadSubscriptions() {
+    const select = document.getElementById('subscriptionSelect');
+    if (!select) return;
+    
+    try {
+        // Use the dropdown endpoint which has the correct format
+        const response = await fetch('/api/subscriptions/dropdown');
+        const data = await response.json();
+        
+        if (data.status === 'success' && data.subscriptions) {
+            select.innerHTML = '<option value="">Select a subscription...</option>';
+            data.subscriptions.forEach(sub => {
+                const option = document.createElement('option');
+                option.value = sub.id;
+                option.textContent = sub.display_name;
+                select.appendChild(option);
+            });
+        } else {
+            select.innerHTML = '<option value="">No subscriptions available</option>';
+        }
+    } catch (error) {
+        console.error('Error loading subscriptions:', error);
+        select.innerHTML = '<option value="">Error loading subscriptions</option>';
+    }
+}
+
+// Clear field errors when user starts typing
+function clearFieldError(input) {
+    const formGroup = input.closest('.form-group');
+    if (formGroup) {
+        formGroup.classList.remove('error');
+    }
+}
+
+// Highlight required fields that are empty
+function highlightEmptyRequiredFields() {
+    let hasErrors = false;
+    
+    // Check required fields - just highlight, no messages
+    const requiredFields = ['subscriptionSelect', 'clusterName'];
+    
+    requiredFields.forEach(fieldId => {
+        const input = document.getElementById(fieldId);
+        const formGroup = input?.closest('.form-group');
+        
+        if (!input?.value?.trim()) {
+            hasErrors = true;
+            if (formGroup) formGroup.classList.add('error');
+        } else {
+            if (formGroup) formGroup.classList.remove('error');
+        }
+    });
+    
+    return !hasErrors;
+}
+
+// Simple validation function - no messages, just validation
+async function validateClusterAccess() {
+    const subscriptionId = document.getElementById('subscriptionSelect')?.value;
+    const clusterName = document.getElementById('clusterName')?.value?.trim();
+    const resourceGroup = document.getElementById('resourceGroup')?.value?.trim();
+    
+    // Only validate if we have subscription and cluster name
+    if (!subscriptionId || !clusterName) {
+        return false;
+    }
+    
+    try {
+        const response = await fetch(`/api/subscriptions/${subscriptionId}/validate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                cluster_name: clusterName,
+                resource_group: resourceGroup || ''
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success' && result.validation_result?.valid) {
+            // Success - auto-fill resource group if discovered
+            if (result.validation_result.auto_discovered && !resourceGroup) {
+                document.getElementById('resourceGroup').value = result.validation_result.discovered_resource_group;
+            }
+            return true;
+        } else {
+            return false;
+        }
+        
+    } catch (error) {
+        console.error('Error validating cluster:', error);
+        return false;
+    }
+}
+
+async function submitAddCluster(event) {
+    if (event) event.preventDefault();
+    
+    const form = document.getElementById('addClusterForm');
+    const submitBtn = document.getElementById('addClusterSubmit');
+    
+    if (!form || !submitBtn) return;
+    
+    // Get form data
+    const formData = new FormData(form);
+    const clusterData = {
+        subscription_id: formData.get('subscription_id'),
+        cluster_name: formData.get('cluster_name'),
+        resource_group: formData.get('resource_group') || '',
+        environment: formData.get('environment') || '',
+        region: formData.get('region') || '',
+        description: formData.get('description') || '',
+        auto_analyze: true
+    };
+    
+    // Validate required fields with highlighting (no messages)
+    if (!highlightEmptyRequiredFields()) {
+        return;
+    }
+    
+    // Validate cluster access (no messages)
+    const validationPassed = await validateClusterAccess();
+    if (!validationPassed) {
+        const clusterFormGroup = document.getElementById('clusterName')?.closest('.form-group');
+        if (clusterFormGroup) clusterFormGroup.classList.add('error');
+        return;
+    }
+    
+    // Show loading state
+    const btnText = submitBtn.querySelector('.btn-text');
+    const btnLoading = submitBtn.querySelector('.btn-loading');
+    if (btnText && btnLoading) {
+        btnText.classList.add('hidden');
+        btnLoading.classList.remove('hidden');
+    }
+    submitBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/clusters', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(clusterData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            showToast(`Cluster "${clusterData.cluster_name}" added successfully!`, 'success');
+            closeAddClusterModal();
+            
+            // Refresh page to show new cluster
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            throw new Error(result.message || 'Failed to add cluster');
+        }
+        
+    } catch (error) {
+        console.error('Error adding cluster:', error);
+        showToast(`Failed to add cluster: ${error.message}`, 'error');
+    } finally {
+        // Reset button state
+        if (btnText && btnLoading) {
+            btnText.classList.remove('hidden');
+            btnLoading.classList.add('hidden');
+        }
+        submitBtn.disabled = false;
+    }
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeAddClusterModal();
+    }
+});
+
 // Search functionality
 document.getElementById('cluster-search')?.addEventListener('input', function(e) {
     const searchTerm = e.target.value.toLowerCase();
@@ -209,43 +538,226 @@ document.getElementById('environment-filter')?.addEventListener('change', functi
 });
 
 // Analyze cluster function
-function analyzeCluster(clusterId) {
+async function analyzeCluster(clusterId) {
+    if (!clusterId) {
+        showToast('Invalid cluster ID', 'error');
+        return;
+    }
+    
     showToast(`Starting analysis for cluster: ${clusterId}`, 'info');
-    // This will be implemented with actual API call
+    
+    try {
+        const response = await fetch(`/api/clusters/${clusterId}/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({})
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+            showToast(`Analysis started successfully for ${clusterId}`, 'success');
+            // Optionally refresh the page after a delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            throw new Error(data.message || 'Analysis failed');
+        }
+    } catch (error) {
+        console.error('Analysis error:', error);
+        showToast(`Failed to start analysis: ${error.message}`, 'error');
+    }
 }
 
 // Show cluster menu
 function showClusterMenu(clusterId) {
-    showToast(`Cluster menu for: ${clusterId}`, 'info');
-    // This will be implemented with actual menu modal
+    if (!clusterId) {
+        showToast('Invalid cluster ID', 'error');
+        return;
+    }
+    
+    // Create a simple confirm dialog for delete action
+    const clusterName = document.querySelector(`[data-cluster-id="${clusterId}"] .cluster-title h3`)?.textContent || clusterId;
+    
+    if (confirm(`Are you sure you want to delete cluster "${clusterName}"? This action cannot be undone.`)) {
+        deleteCluster(clusterId);
+    }
 }
 
-// Load portfolio stats
+// Delete cluster function
+async function deleteCluster(clusterId) {
+    if (!clusterId) {
+        showToast('Invalid cluster ID', 'error');
+        return;
+    }
+    
+    showToast(`Deleting cluster: ${clusterId}`, 'info');
+    
+    try {
+        const response = await fetch(`/cluster/${clusterId}/remove`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'success') {
+            showToast(`Cluster ${clusterId} deleted successfully`, 'success');
+            // Remove the cluster card from the UI
+            const clusterCard = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+            if (clusterCard) {
+                clusterCard.remove();
+            }
+            // Refresh portfolio stats
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            throw new Error(data.message || 'Delete failed');
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        showToast(`Failed to delete cluster: ${error.message}`, 'error');
+    }
+}
+
+// Load portfolio stats and cluster details
 document.addEventListener('DOMContentLoaded', function() {
     loadPortfolioStats();
+    enrichClusterCards();
 });
 
 async function loadPortfolioStats() {
     try {
-        const response = await apiRequest('/api/portfolio/summary');
-        if (response) {
-            updatePortfolioStats(response);
+        const response = await fetch('/api/portfolio/summary');
+        
+        if (!response.ok) {
+            console.error(`Portfolio stats endpoint not available: HTTP ${response.status}`);
+            return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.status === 'success' && data.portfolio_summary) {
+            updatePortfolioStats(data.portfolio_summary);
+        } else {
+            console.error('Portfolio stats not available:', data.message || 'Unknown error');
         }
     } catch (error) {
         console.error('Error loading portfolio stats:', error);
     }
 }
 
-function updatePortfolioStats(data) {
-    if (data.total_cost !== undefined) {
-        document.getElementById('total-cost').textContent = formatCurrency(data.total_cost);
+// Enrich cluster cards with analysis data - no fallbacks allowed
+async function enrichClusterCards() {
+    const clusterCards = document.querySelectorAll('.cluster-card[data-cluster-id]');
+    let totalNodes = 0;
+    let hasAnyNodeData = false;
+    
+    for (const card of clusterCards) {
+        const clusterId = card.getAttribute('data-cluster-id');
+        if (!clusterId) {
+            throw new Error('Cluster card missing data-cluster-id attribute');
+        }
+        
+        const nodeCount = await loadClusterAnalysisData(clusterId, card);
+        if (nodeCount !== null && nodeCount !== undefined && !isNaN(nodeCount)) {
+            totalNodes += parseInt(nodeCount);
+            hasAnyNodeData = true;
+        }
     }
-    if (data.total_savings !== undefined) {
-        document.getElementById('total-savings').textContent = formatCurrency(data.total_savings);
+    
+    // Only update total nodes if we have real data
+    if (hasAnyNodeData && totalNodes > 0) {
+        const totalNodesEl = document.getElementById('total-nodes');
+        if (totalNodesEl) {
+            totalNodesEl.textContent = totalNodes.toString();
+        }
     }
-    if (data.total_nodes !== undefined) {
-        document.getElementById('total-nodes').textContent = data.total_nodes.toString();
+}
+
+async function loadClusterAnalysisData(clusterId, card) {
+    try {
+        const clustersResponse = await fetch('/api/clusters');
+        
+        if (!clustersResponse.ok) {
+            console.error(`Failed to fetch clusters data: HTTP ${clustersResponse.status}`);
+            return null;
+        }
+        
+        const clustersData = await clustersResponse.json();
+        
+        if (clustersData.status !== 'success') {
+            console.error(`Clusters API error: ${clustersData.message || 'Unknown error'}`);
+            return null;
+        }
+        
+        if (!clustersData.clusters || !Array.isArray(clustersData.clusters)) {
+            console.error('Invalid clusters data structure');
+            return null;
+        }
+        
+        const cluster = clustersData.clusters.find(c => c.id === clusterId);
+        if (!cluster) {
+            console.error(`Cluster ${clusterId} not found in API response`);
+            return null;
+        }
+        
+        // Only update if real data exists - no fallbacks allowed
+        if (cluster.node_count !== undefined && cluster.node_count !== null && !isNaN(cluster.node_count)) {
+            const nodeCountEl = card.querySelector('.metric-value[data-metric="nodes"]');
+            if (nodeCountEl) {
+                nodeCountEl.textContent = cluster.node_count.toString();
+            }
+        }
+        
+        if (cluster.optimization_score !== undefined && cluster.optimization_score !== null && !isNaN(cluster.optimization_score)) {
+            const optimizationScoreEl = card.querySelector('.metric-value[data-metric="optimization"]');
+            if (optimizationScoreEl) {
+                optimizationScoreEl.textContent = `${Math.round(cluster.optimization_score)}%`;
+            }
+        }
+        
+        return cluster.node_count || null;
+        
+    } catch (error) {
+        console.error(`Error loading cluster analysis data for ${clusterId}:`, error);
+        return null;
     }
+}
+
+function updatePortfolioStats(portfolioData) {
+    // Update total cost using the correct field name from backend
+    const totalCostEl = document.getElementById('total-cost');
+    if (totalCostEl && portfolioData.total_monthly_cost !== undefined) {
+        totalCostEl.textContent = formatCurrency(portfolioData.total_monthly_cost);
+    }
+    
+    // Update total savings using the correct field name from backend
+    const totalSavingsEl = document.getElementById('total-savings');
+    if (totalSavingsEl && portfolioData.total_potential_savings !== undefined) {
+        totalSavingsEl.textContent = formatCurrency(portfolioData.total_potential_savings);
+    }
+    
+    // Update total nodes if available from portfolio data
+    const totalNodesEl = document.getElementById('total-nodes');
+    if (totalNodesEl && portfolioData.total_nodes !== undefined && portfolioData.total_nodes !== null) {
+        totalNodesEl.textContent = portfolioData.total_nodes.toString();
+    }
+}
+
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(amount || 0);
 }
 </script>
 {% endblock %}
