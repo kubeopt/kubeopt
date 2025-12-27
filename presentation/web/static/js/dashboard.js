@@ -255,7 +255,63 @@ window.Dashboard = (function() {
         if (hpaEfficiencyEl && data.hpaComparison?.actual_hpa_efficiency !== undefined) {
             hpaEfficiencyEl.textContent = window.Utils.formatPercentage(data.hpaComparison.actual_hpa_efficiency);
         }
+        
+        // Update CPU metrics for Resource Utilization chart
+        updateCPUMetrics(data);
     }
+    
+    /**
+     * Update CPU metrics below Resource Utilization chart
+     */
+    function updateCPUMetrics(data) {
+        let cpuOptimization = '--';
+        let maxCPU = '--';
+        let avgCPU = '--';
+        
+        try {
+            if (data.cpuWorkloadMetrics) {
+                const cpuMetrics = data.cpuWorkloadMetrics;
+                
+                if (cpuMetrics.average_cpu_utilization !== undefined) {
+                    avgCPU = `${Math.round(cpuMetrics.average_cpu_utilization)}%`;
+                }
+                
+                if (cpuMetrics.max_cpu_utilization !== undefined) {
+                    maxCPU = `${Math.round(cpuMetrics.max_cpu_utilization)}%`;
+                }
+                
+                if (cpuMetrics.cpu_optimization_score !== undefined) {
+                    cpuOptimization = `${Math.round(cpuMetrics.cpu_optimization_score)}%`;
+                } else if (cpuMetrics.optimization_score !== undefined) {
+                    cpuOptimization = `${Math.round(cpuMetrics.optimization_score)}%`;
+                } else if (cpuMetrics.cpu_efficiency !== undefined) {
+                    cpuOptimization = `${Math.round(cpuMetrics.cpu_efficiency)}%`;
+                } else if (cpuMetrics.efficiency_score !== undefined) {
+                    cpuOptimization = `${Math.round(cpuMetrics.efficiency_score)}%`;
+                }
+            }
+        } catch (error) {
+            console.warn('Error extracting CPU metrics:', error);
+        }
+        
+        const cpuOptimizationEl = document.getElementById('cpu-optimization-metric');
+        if (cpuOptimizationEl && cpuOptimization !== '--') {
+            cpuOptimizationEl.textContent = cpuOptimization;
+        }
+        
+        const maxCPUEl = document.getElementById('max-cpu-metric');
+        if (maxCPUEl && maxCPU !== '--') {
+            maxCPUEl.textContent = maxCPU;
+        }
+        
+        const avgCPUEl = document.getElementById('avg-cpu-metric');
+        if (avgCPUEl && avgCPU !== '--') {
+            avgCPUEl.textContent = avgCPU;
+        }
+    }
+    
+    // Make updateCPUMetrics globally available
+    window.updateCPUMetrics = updateCPUMetrics;
 
     /**
      * Update overview metrics
@@ -444,22 +500,96 @@ window.Dashboard = (function() {
         
         let insightsHTML = '';
         
-        // Cost insights
-        if (insights.cost_breakdown) {
-            insightsHTML += createInsightCard('Cost Analysis', insights.cost_breakdown, 'fa-chart-pie', 'cost');
+        // Dynamically display ALL insights from backend as clean bullet points
+        const insightKeys = Object.keys(insights);
+        
+        insightKeys.forEach(key => {
+            if (insights[key] && typeof insights[key] === 'string') {
+                const icon = getInsightIcon(key);
+                
+                insightsHTML += `
+                    <div class="insight-highlight">
+                        <i class="fas ${icon} insight-bullet"></i>
+                        <span class="insight-text">${insights[key]}</span>
+                    </div>
+                `;
+            }
+        });
+        
+        // Fallback message if no valid insights
+        if (!insightsHTML) {
+            container.innerHTML = `
+                <div class="insights-loading">
+                    <i class="fas fa-info-circle insights-loading-icon"></i>
+                    <p>No insights available for this cluster yet. Analysis may still be processing.</p>
+                </div>
+            `;
+            return;
         }
         
-        // HPA insights 
-        if (insights.hpa_comparison) {
-            insightsHTML += createInsightCard('HPA Recommendations', insights.hpa_comparison, 'fa-expand-arrows-alt', 'hpa');
-        }
+        container.innerHTML = `
+            <div class="insights-list">
+                ${insightsHTML}
+            </div>
+        `;
+    }
+    
+    /**
+     * Format insight key to human-readable title
+     */
+    function formatInsightTitle(key) {
+        const titleMap = {
+            'cost_breakdown': 'Cost Analysis',
+            'cost_analysis': 'Cost Analysis',
+            'hpa_comparison': 'HPA Recommendations',
+            'hpa_recommendations': 'HPA Recommendations',
+            'resource_optimization': 'Resource Optimization',
+            'resource_analysis': 'Resource Analysis',
+            'security_analysis': 'Security Analysis',
+            'performance_analysis': 'Performance Analysis',
+            'workload_analysis': 'Workload Analysis',
+            'namespace_analysis': 'Namespace Analysis',
+            'node_analysis': 'Node Analysis',
+            'storage_analysis': 'Storage Analysis',
+            'network_analysis': 'Network Analysis'
+        };
         
-        // Resource insights
-        if (insights.resource_optimization) {
-            insightsHTML += createInsightCard('Resource Optimization', insights.resource_optimization, 'fa-tachometer-alt', 'resource');
-        }
+        return titleMap[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+    
+    /**
+     * Get appropriate icon for insight type
+     */
+    function getInsightIcon(key) {
+        const iconMap = {
+            'cost_breakdown': 'fa-chart-pie',
+            'cost_analysis': 'fa-dollar-sign',
+            'hpa_comparison': 'fa-expand-arrows-alt',
+            'hpa_recommendations': 'fa-expand-arrows-alt',
+            'resource_optimization': 'fa-tachometer-alt',
+            'resource_analysis': 'fa-microchip',
+            'security_analysis': 'fa-shield-alt',
+            'performance_analysis': 'fa-rocket',
+            'workload_analysis': 'fa-cubes',
+            'namespace_analysis': 'fa-layer-group',
+            'node_analysis': 'fa-server',
+            'storage_analysis': 'fa-hdd',
+            'network_analysis': 'fa-network-wired'
+        };
         
-        container.innerHTML = insightsHTML;
+        return iconMap[key] || 'fa-lightbulb';
+    }
+    
+    /**
+     * Get insight category for styling
+     */
+    function getInsightCategory(key) {
+        if (key.includes('cost')) return 'cost';
+        if (key.includes('hpa')) return 'hpa';
+        if (key.includes('resource')) return 'resource';
+        if (key.includes('security')) return 'security';
+        if (key.includes('performance')) return 'performance';
+        return 'general';
     }
     
     /**
@@ -481,31 +611,18 @@ window.Dashboard = (function() {
      * Generate insights from chart data
      */
     function generateInsights(data) {
+        // Use backend-generated insights if available
+        if (data.insights) {
+            return data.insights;
+        }
+        
+        // Fallback: minimal insights if backend insights not available
+        console.warn('⚠️ No backend insights available, using fallback');
         const insights = {};
         
-        // Cost breakdown insights
         if (data.costBreakdown && data.costBreakdown.total_cost) {
             const cost = data.costBreakdown.total_cost;
-            insights.cost_breakdown = `Your cluster costs $${cost.toFixed(2)}/month. Node pools represent the largest cost component, offering primary optimization opportunities.`;
-        }
-        
-        // HPA insights
-        if (data.hpaComparison) {
-            const hpaCount = data.hpaComparison.existing_hpas?.length || 0;
-            const efficiency = data.hpaComparison.actual_hpa_efficiency || 0;
-            const savings = data.hpaComparison.actual_hpa_savings || 0;
-            
-            insights.hpa_comparison = `${hpaCount} HPAs detected with ${efficiency.toFixed(1)}% efficiency. Potential savings of $${savings.toFixed(2)}/month through optimized scaling policies.`;
-        }
-        
-        // Resource optimization insights
-        if (data.nodeUtilization) {
-            const avgCpu = data.nodeUtilization.cpuActual ? 
-                (data.nodeUtilization.cpuActual.reduce((a, b) => a + b, 0) / data.nodeUtilization.cpuActual.length) : 0;
-            const avgMemory = data.nodeUtilization.memoryActual ? 
-                (data.nodeUtilization.memoryActual.reduce((a, b) => a + b, 0) / data.nodeUtilization.memoryActual.length) : 0;
-            
-            insights.resource_optimization = `Average CPU utilization: ${avgCpu.toFixed(1)}%, Memory: ${avgMemory.toFixed(1)}%. ${avgCpu < 60 ? 'Consider rightsizing to optimize costs.' : 'Utilization looks healthy.'}`;
+            insights.cost_analysis = `Your cluster costs $${cost.toFixed(2)}/month. Full analysis available after data processing.`;
         }
         
         return insights;

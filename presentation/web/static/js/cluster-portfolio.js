@@ -6,8 +6,8 @@
 class ClusterPortfolio {
     constructor() {
         this.autoRefreshInterval = null;
-        this.pollInterval = 3000; // 3 seconds
-        this.maxPolls = 60; // 3 minutes max
+        this.pollInterval = 5000; // 5 seconds
+        this.maxPolls = 60; // 5 minutes max
         
         this.init();
     }
@@ -265,7 +265,8 @@ class ClusterPortfolio {
         });
     }
 
-    // Cluster Analysis
+
+    // Cluster Analysis - Simple Implementation
     async analyzeCluster(clusterId) {
         if (!clusterId) {
             showToast('Invalid cluster ID', 'error');
@@ -276,6 +277,7 @@ class ClusterPortfolio {
         const analyzeIcon = analyzeBtn?.querySelector('.analyze-icon');
         const spinner = analyzeBtn?.querySelector('.analyzing-spinner');
         
+        // Show spinner
         if (analyzeIcon && spinner) {
             analyzeIcon.classList.add('hidden');
             spinner.classList.remove('hidden');
@@ -287,7 +289,7 @@ class ClusterPortfolio {
         showToast(`Starting analysis for cluster: ${clusterId}`, 'info');
         
         try {
-            const response = await fetch(`/api/clusters/${clusterId}/analyze`, {
+            const response = await fetch(`/api/clusters/${encodeURIComponent(clusterId)}/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
@@ -351,42 +353,43 @@ class ClusterPortfolio {
             pollCount++;
             
             try {
-                const response = await fetch(`/api/clusters/${clusterId}/status`);
+                const response = await fetch(`/api/clusters/${encodeURIComponent(clusterId)}/analysis-status`);
+                
+                if (!response.ok) {
+                    if (pollCount >= this.maxPolls) {
+                        this.resetAnalyzeButton(clusterId, 'error');
+                        showToast(`Analysis status check failed for ${clusterId}`, 'error');
+                        return;
+                    }
+                    setTimeout(pollAnalysisStatus, this.pollInterval);
+                    return;
+                }
+                
                 const data = await response.json();
                 
-                if (response.ok && data.status === 'success') {
-                    const cluster = data.cluster;
-                    
-                    if (cluster.analysis_status === 'completed') {
+                if (data.status === 'success') {
+                    if (data.analysis_status === 'completed') {
                         this.updateClusterStatus(clusterId, 'completed');
                         this.resetAnalyzeButton(clusterId, 'completed');
-                        showToast(`Analysis completed for cluster: ${clusterId}`, 'success');
-                        this.updateClusterMetrics(clusterId, cluster);
+                        showToast(`Analysis completed for ${clusterId}`, 'success');
+                        this.updateClusterMetrics(clusterId, data);
                         return;
                         
-                    } else if (cluster.analysis_status === 'failed') {
+                    } else if (data.analysis_status === 'failed') {
                         this.updateClusterStatus(clusterId, 'failed');
                         this.resetAnalyzeButton(clusterId, 'failed');
-                        showToast(`Analysis failed for cluster: ${clusterId}`, 'error');
+                        showToast(`Analysis failed for ${clusterId}`, 'error');
                         return;
                         
-                    } else if (cluster.analysis_status === 'analyzing' || cluster.analysis_status === 'running') {
+                    } else if (data.analysis_status === 'analyzing' || data.analysis_status === 'running') {
                         this.updateClusterStatus(clusterId, 'analyzing');
                     }
                     
                     if (pollCount < this.maxPolls) {
                         setTimeout(pollAnalysisStatus, this.pollInterval);
                     } else {
-                        showToast(`Analysis polling timeout for cluster: ${clusterId}`, 'warning');
+                        showToast(`Analysis polling timeout for ${clusterId}`, 'warning');
                         this.resetAnalyzeButton(clusterId, 'timeout');
-                    }
-                    
-                } else {
-                    console.error('Failed to get cluster status:', data);
-                    if (pollCount < this.maxPolls) {
-                        setTimeout(pollAnalysisStatus, this.pollInterval);
-                    } else {
-                        this.resetAnalyzeButton(clusterId, 'error');
                     }
                 }
                 
@@ -503,7 +506,7 @@ class ClusterPortfolio {
         showToast(`Deleting cluster: ${clusterId}`, 'info');
         
         try {
-            const response = await fetch(`/cluster/${clusterId}/remove`, {
+            const response = await fetch(`/cluster/${encodeURIComponent(clusterId)}/remove`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -548,42 +551,11 @@ class ClusterPortfolio {
     async silentRefresh() {
         try {
             await this.loadPortfolioStats();
-            await this.refreshAnalysisStatuses();
         } catch (error) {
             console.error('❌ Silent refresh failed:', error);
         }
     }
 
-    async refreshAnalysisStatuses() {
-        try {
-            const analyzingCards = document.querySelectorAll('.analyze-btn:disabled');
-            
-            for (const button of analyzingCards) {
-                const clusterId = button.getAttribute('data-cluster-id');
-                if (clusterId) {
-                    const response = await fetch(`/api/clusters/${clusterId}/status`);
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.status === 'success' && data.cluster) {
-                            const cluster = data.cluster;
-                            
-                            if (cluster.analysis_status === 'completed') {
-                                this.resetAnalyzeButton(clusterId, 'completed');
-                                this.updateClusterStatus(clusterId, 'completed');
-                                this.updateClusterMetrics(clusterId, cluster);
-                                showToast(`Analysis completed for ${clusterId}`, 'success');
-                            } else if (cluster.analysis_status === 'failed') {
-                                this.resetAnalyzeButton(clusterId, 'failed');
-                                this.updateClusterStatus(clusterId, 'failed');
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error refreshing analysis statuses:', error);
-        }
-    }
 
     async loadPortfolioStats() {
         try {

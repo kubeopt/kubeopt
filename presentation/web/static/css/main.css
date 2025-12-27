@@ -129,3 +129,46 @@
 .dashboard-section.active {
   display: block;
 }
+
+/* Chart Metrics */
+.chart-metrics {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.metric-item {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  flex: 1;
+}
+
+.metric-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.metric-value {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .chart-metrics {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .metric-item {
+    flex-direction: row;
+    justify-content: space-between;
+    text-align: left;
+  }
+}
