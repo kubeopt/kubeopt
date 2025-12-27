@@ -123,8 +123,11 @@ window.API = (function() {
     /**
      * Get alerts data
      */
-    async function getAlerts() {
-        return await request('/api/alerts');
+    async function getAlerts(clusterId) {
+        const url = clusterId 
+            ? `/api/alerts?cluster_id=${encodeURIComponent(clusterId)}`
+            : '/api/alerts';
+        return await request(url);
     }
 
     /**
@@ -144,6 +147,25 @@ window.API = (function() {
         return await request(`/api/alerts/${alertId}/pause`, {
             method: 'POST',
             body: JSON.stringify({ action })
+        });
+    }
+
+    /**
+     * Update alert
+     */
+    async function updateAlert(alertId, alertData) {
+        return await request(`/api/alerts/${alertId}`, {
+            method: 'PUT',
+            body: JSON.stringify(alertData)
+        });
+    }
+
+    /**
+     * Delete alert
+     */
+    async function deleteAlert(alertId) {
+        return await request(`/api/alerts/${alertId}`, {
+            method: 'DELETE'
         });
     }
 
@@ -208,7 +230,9 @@ window.API = (function() {
         // Alerts methods
         getAlerts,
         createAlert,
+        updateAlert,
         toggleAlert,
+        deleteAlert,
         
         // Notifications methods
         getNotifications,

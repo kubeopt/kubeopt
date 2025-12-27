@@ -62,7 +62,109 @@ class SettingsPage {
     // Settings Management
     loadCurrentSettings() {
         this.loadThemeSetting();
-        // Other settings would be loaded from API in a real implementation
+        this.loadSettingsFromAPI();
+    }
+    
+    async loadSettingsFromAPI() {
+        try {
+            const response = await fetch('/api/settings');
+            if (response.ok) {
+                const settings = await response.json();
+                this.populateFormFields(settings);
+            }
+        } catch (error) {
+            console.error('Error loading settings from API:', error);
+        }
+    }
+    
+    populateFormFields(settings) {
+        // Map backend field names to UI form field IDs
+        const fieldMapping = {
+            'AZURE_TENANT_ID': 'azure-tenant-id',
+            'AZURE_SUBSCRIPTION_ID': 'azure-subscription-id', 
+            'AZURE_CLIENT_ID': 'azure-client-id',
+            'AZURE_CLIENT_SECRET': 'azure-client-secret',
+            'SLACK_ENABLED': 'slack-notifications',
+            'SLACK_WEBHOOK_URL': 'slack-webhook-url',
+            'SLACK_CHANNEL': 'slack-channel',
+            'EMAIL_ENABLED': 'email-notifications',
+            'SMTP_SERVER': 'smtp-server',
+            'SMTP_PORT': 'smtp-port',
+            'SMTP_USERNAME': 'smtp-username',
+            'SMTP_PASSWORD': 'smtp-password',
+            'FROM_EMAIL': 'from-email',
+            'EMAIL_RECIPIENTS': 'email-recipients',
+            'COST_ALERT_THRESHOLD': 'cost-threshold',
+            'ANALYSIS_REFRESH_INTERVAL': 'refresh-interval',
+            'LOG_LEVEL': 'log-level',
+            'PRODUCTION_MODE': 'production-mode',
+            'AUTO_ANALYSIS_ENABLED': 'auto-refresh',
+            'AUTO_ANALYSIS_INTERVAL': 'auto-analysis-interval'
+        };
+        
+        Object.entries(fieldMapping).forEach(([backendKey, uiFieldId]) => {
+            const element = document.getElementById(uiFieldId);
+            const value = settings[backendKey];
+            
+            if (element && value !== undefined) {
+                if (element.type === 'checkbox') {
+                    element.checked = value === 'true' || value === true;
+                } else {
+                    element.value = value;
+                }
+            }
+        });
+    }
+    
+    mapToBackendFields(settings) {
+        // Map UI settings to backend expected field names
+        const backendMapping = {
+            theme: 'theme',
+            autoRefresh: 'auto_analysis_enabled',
+            refreshInterval: 'analysis_refresh_interval',
+            emailNotifications: 'email_enabled',
+            slackNotifications: 'slack_enabled',
+            costThreshold: 'cost_alert_threshold',
+            defaultSubscription: 'azure_subscription_id',
+            costApi: 'cost_api_enabled',
+            sessionTimeout: 'session_timeout',
+            auditLogging: 'audit_logging',
+            debugMode: 'debug_mode',
+            rateLimit: 'rate_limit',
+            cacheDuration: 'cache_duration'
+        };
+        
+        const backendSettings = {};
+        Object.entries(settings).forEach(([key, value]) => {
+            const backendKey = backendMapping[key] || key;
+            backendSettings[backendKey] = value;
+        });
+        
+        return backendSettings;
+    }
+    
+    validateCurrentSettings() {
+        const errors = [];
+        
+        // Validate cost threshold
+        const costThreshold = document.getElementById('cost-threshold')?.value;
+        if (costThreshold && (isNaN(parseFloat(costThreshold)) || parseFloat(costThreshold) < 0)) {
+            errors.push('Cost threshold must be a positive number');
+        }
+        
+        // Validate refresh interval
+        const refreshInterval = document.getElementById('refresh-interval')?.value;
+        if (refreshInterval && (isNaN(parseInt(refreshInterval)) || parseInt(refreshInterval) < 1)) {
+            errors.push('Refresh interval must be a positive number');
+        }
+        
+        // Validate rate limit
+        const rateLimit = document.getElementById('rate-limit')?.value;
+        if (rateLimit && (isNaN(parseInt(rateLimit)) || parseInt(rateLimit) < 1)) {
+            errors.push('Rate limit must be a positive number');
+        }
+        
+        return errors;
     }
 
     loadThemeSetting() {
@@ -86,17 +188,27 @@ class SettingsPage {
     }
 
     // Settings Actions
-    saveSettings() {
+    async saveSettings() {
+        const validationErrors = this.validateCurrentSettings();
+        if (validationErrors.length > 0) {
+            this.showValidationErrors(validationErrors);
+            return;
+        }
+        
         const settings = this.gatherSettingsData();
         
-        // Save theme immediately
+        // Save theme immediately to localStorage
         localStorage.setItem('theme', settings.theme);
         document.documentElement.setAttribute('data-theme', settings.theme);
         
-        showToast('Settings saved successfully', 'success');
-        
-        // In a real implementation, this would save to the API
-        this.saveToAPI(settings);
+        try {
+            // Save to backend API
+            await this.saveToAPI(settings);
+                this.showToast('Settings saved successfully', 'success');
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            this.showToast('Failed to save settings: ' + error.message, 'error');
+        }
     }
 
     gatherSettingsData() {
@@ -113,24 +225,61 @@ class SettingsPage {
             auditLogging: document.getElementById('audit-logging')?.checked || false,
             debugMode: document.getElementById('debug-mode')?.checked || false,
             rateLimit: document.getElementById('rate-limit')?.value || '60',
-            cacheDuration: document.getElementById('cache-duration')?.value || '1800'
+            cacheDuration: document.getElementById('cache-duration')?.value || '1800',
+            
+            // Additional fields for backend integration
+            azureTenantId: document.getElementById('azure-tenant-id')?.value || '',
+            azureSubscriptionId: document.getElementById('azure-subscription-id')?.value || '',
+            azureClientId: document.getElementById('azure-client-id')?.value || '',
+            azureClientSecret: document.getElementById('azure-client-secret')?.value || '',
+            slackWebhookUrl: document.getElementById('slack-webhook-url')?.value || '',
+            slackChannel: document.getElementById('slack-channel')?.value || '',
+            smtpServer: document.getElementById('smtp-server')?.value || '',
+            smtpPort: document.getElementById('smtp-port')?.value || '',
+            smtpUsername: document.getElementById('smtp-username')?.value || '',
+            smtpPassword: document.getElementById('smtp-password')?.value || '',
+            fromEmail: document.getElementById('from-email')?.value || '',
+            emailRecipients: document.getElementById('email-recipients')?.value || ''
         };
     }
 
     async saveToAPI(settings) {
         try {
-            // This would make an actual API call in a real implementation
-            console.log('Settings to save:', settings);
+            // Map UI field names to backend field names
+            const backendSettings = this.mapToBackendFields(settings);
+            
+            // Create FormData for the API call
+            const formData = new FormData();
+            Object.entries(backendSettings).forEach(([key, value]) => {
+                formData.append(key, value);
+            });
+            
+            const response = await fetch('/save_settings', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                console.log('Settings saved successfully:', settings);
+            } else {
+                throw new Error(data.message || 'Failed to save settings');
+            }
         } catch (error) {
             console.error('Error saving settings:', error);
-            showToast('Failed to save settings', 'error');
+            throw error; // Re-throw for proper error handling in saveSettings
         }
     }
 
     resetSettings() {
         if (confirm('Are you sure you want to reset all settings to defaults?')) {
             this.loadDefaultSettings();
-            showToast('Settings reset to defaults', 'info');
+            this.showToast('Settings reset to defaults', 'info');
         }
     }
 
@@ -170,51 +319,133 @@ class SettingsPage {
 
     // Azure Integration Actions
     async testAzureConnection() {
-        showToast('Testing Azure connection...', 'info');
+        this.showToast('Testing Azure connection...', 'info');
         
         try {
-            // This would make an actual API call
-            // const response = await fetch('/api/azure/test-connection', { method: 'POST' });
-            // const result = await response.json();
+            // First save current Azure settings before testing
+            const azureSettings = {
+                azure_tenant_id: document.getElementById('azure-tenant-id')?.value || '',
+                azure_subscription_id: document.getElementById('azure-subscription-id')?.value || '',
+                azure_client_id: document.getElementById('azure-client-id')?.value || '',
+                azure_client_secret: document.getElementById('azure-client-secret')?.value || ''
+            };
             
-            // Simulate success for now
-            setTimeout(() => {
-                showToast('Azure connection test successful', 'success');
-            }, 2000);
+            // Save Azure settings first
+            const formData = new FormData();
+            formData.append('section', 'azure');
+            Object.entries(azureSettings).forEach(([key, value]) => {
+                formData.append(key, value);
+            });
+            
+            await fetch('/save_settings', {
+                method: 'POST',
+                body: formData
+            });
+            
+            // Now test the connection
+            const response = await fetch('/test_azure', { method: 'POST' });
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showToast('Azure connection test successful! ' + result.message, 'success');
+            } else {
+                this.showToast('Azure connection test failed: ' + result.message, 'error');
+            }
             
         } catch (error) {
             console.error('Azure connection test failed:', error);
-            showToast('Azure connection test failed', 'error');
+            this.showToast('Azure connection test failed: ' + error.message, 'error');
         }
     }
 
     async refreshSubscriptions() {
-        showToast('Refreshing Azure subscriptions...', 'info');
+        this.showToast('Refreshing Azure subscriptions...', 'info');
         
         try {
-            // This would make an actual API call
-            // const response = await fetch('/api/azure/subscriptions/refresh', { method: 'POST' });
-            // const result = await response.json();
+            const response = await fetch('/api/azure/subscriptions', { method: 'GET' });
+            const result = await response.json();
             
-            // Simulate success for now
-            setTimeout(() => {
-                showToast('Azure subscriptions refreshed', 'success');
-                // Update dropdown with new subscriptions
-                this.updateSubscriptionDropdown();
-            }, 2000);
+            if (result.success && result.subscriptions) {
+                this.updateSubscriptionDropdown(result.subscriptions);
+                this.showToast('Azure subscriptions refreshed', 'success');
+            } else {
+                this.showToast('Failed to refresh subscriptions: ' + (result.message || 'Unknown error'), 'error');
+            }
             
         } catch (error) {
             console.error('Failed to refresh subscriptions:', error);
-            showToast('Failed to refresh subscriptions', 'error');
+            this.showToast('Failed to refresh subscriptions: ' + error.message, 'error');
+        }
+    }
+    
+    async testSlackIntegration() {
+        this.showToast('Testing Slack integration...', 'info');
+        
+        try {
+            const response = await fetch('/test_slack', { method: 'POST' });
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showToast('Slack test message sent successfully! ' + result.message, 'success');
+            } else {
+                this.showToast('Slack test failed: ' + result.message, 'error');
+            }
+            
+        } catch (error) {
+            console.error('Slack test failed:', error);
+            this.showToast('Slack test failed: ' + error.message, 'error');
+        }
+    }
+    
+    async testEmailConfiguration() {
+        this.showToast('Testing email configuration...', 'info');
+        
+        try {
+            const formData = new FormData();
+            formData.append('test_email', 'true');
+            formData.append('smtp_server', document.getElementById('smtp-server')?.value || '');
+            formData.append('smtp_port', document.getElementById('smtp-port')?.value || '');
+            formData.append('smtp_username', document.getElementById('smtp-username')?.value || '');
+            formData.append('smtp_password', document.getElementById('smtp-password')?.value || '');
+            formData.append('from_email', document.getElementById('from-email')?.value || '');
+            formData.append('email_recipients', document.getElementById('email-recipients')?.value || '');
+            
+            const response = await fetch('/test_email', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showToast('Test email sent successfully! ' + result.message, 'success');
+            } else {
+                this.showToast('Email test failed: ' + result.message, 'error');
+            }
+            
+        } catch (error) {
+            console.error('Email test failed:', error);
+            this.showToast('Email test failed: ' + error.message, 'error');
         }
     }
 
-    updateSubscriptionDropdown() {
-        // This would update the subscription dropdown with fresh data
+    updateSubscriptionDropdown(subscriptions = []) {
         const dropdown = document.getElementById('default-subscription');
-        if (dropdown) {
-            // Add new options or update existing ones
-            console.log('Subscription dropdown updated');
+        if (dropdown && subscriptions) {
+            // Clear existing options except the first one
+            while (dropdown.children.length > 1) {
+                dropdown.removeChild(dropdown.lastChild);
+            }
+            
+            // Add new subscription options
+            subscriptions.forEach(sub => {
+                const option = document.createElement('option');
+                option.value = sub.subscriptionId;
+                option.textContent = `${sub.displayName} (${sub.subscriptionId.substring(0, 8)}...)`;
+                dropdown.appendChild(option);
+            });
+            
+            console.log(`Updated subscription dropdown with ${subscriptions.length} subscriptions`);
         }
     }
 
@@ -227,19 +458,23 @@ class SettingsPage {
 
     async performCacheClear() {
         try {
-            // This would make an actual API call
-            // const response = await fetch('/api/cache/clear', { method: 'POST' });
+            const response = await fetch('/api/cache/clear', { method: 'POST' });
+            const result = await response.json();
             
-            showToast('Cache cleared successfully', 'success');
+            if (result.success) {
+                this.showToast('Cache cleared successfully', 'success');
+            } else {
+                throw new Error(result.message || 'Unknown error');
+            }
             
         } catch (error) {
             console.error('Failed to clear cache:', error);
-            showToast('Failed to clear cache', 'error');
+            this.showToast('Failed to clear cache: ' + error.message, 'error');
         }
     }
 
     exportSettings() {
-        showToast('Exporting settings...', 'info');
+        this.showToast('Exporting settings...', 'info');
         
         try {
             const settings = this.gatherSettingsData();
@@ -258,11 +493,11 @@ class SettingsPage {
             
             URL.revokeObjectURL(url);
             
-            showToast('Settings exported successfully', 'success');
+            this.showToast('Settings exported successfully', 'success');
             
         } catch (error) {
             console.error('Failed to export settings:', error);
-            showToast('Failed to export settings', 'error');
+            this.showToast('Failed to export settings', 'error');
         }
     }
 
@@ -283,8 +518,44 @@ class SettingsPage {
 
     showValidationErrors(errors) {
         errors.forEach(error => {
-            showToast(error, 'error');
+            this.showToast(error, 'error');
         });
+    }
+    
+    showToast(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `flash-message flash-${type}`;
+        
+        // Create message content
+        const messageSpan = document.createElement('span');
+        messageSpan.textContent = message;
+        
+        // Create close button
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'flash-close';
+        closeBtn.innerHTML = '×';
+        closeBtn.onclick = () => notification.remove();
+        
+        notification.appendChild(messageSpan);
+        notification.appendChild(closeBtn);
+        
+        // Add to flash messages container
+        let flashContainer = document.querySelector('.flash-messages');
+        if (!flashContainer) {
+            flashContainer = document.createElement('div');
+            flashContainer.className = 'flash-messages';
+            document.body.appendChild(flashContainer);
+        }
+        
+        flashContainer.appendChild(notification);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.remove();
+            }
+        }, 5000);
     }
 }
 
@@ -302,6 +573,14 @@ function testAzureConnection() {
 
 function refreshSubscriptions() {
     settingsPage?.refreshSubscriptions();
+}
+
+function testSlack() {
+    settingsPage?.testSlackIntegration();
+}
+
+function testEmail() {
+    settingsPage?.testEmailConfiguration();
 }
 
 function clearCache() {

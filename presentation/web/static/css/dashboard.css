@@ -868,3 +868,42 @@ body {
   color: var(--text-primary);
   font-weight: 600;
 }
+
+/* ==========================================
+   AI Insights Highlight Styles 
+   ========================================== */
+
+.insight-highlight {
+  display: flex;
+  align-items: flex-start;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: rgba(127, 176, 105, 0.05);
+  border-left: 3px solid var(--primary-green);
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+}
+
+.insight-highlight:hover {
+  background: rgba(127, 176, 105, 0.08);
+  transform: translateX(2px);
+}
+
+.insight-bullet {
+  color: var(--primary-green);
+  margin-right: 0.75rem;
+  margin-top: 0.125rem;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.insight-text {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.insights-container .insight-highlight:last-child {
+  margin-bottom: 0;
+}
