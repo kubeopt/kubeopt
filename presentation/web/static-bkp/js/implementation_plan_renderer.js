@@ -216,7 +216,7 @@ class ImplementationPlanRenderer {
     renderImplementationPlan() {
         const plan = this.currentPlan.implementation_plan || this.currentPlan;
         
-        // Require markdown content - no fallbacks per .clauderc
+        // Require markdown content
         const markdownContent = this.currentPlan.markdown_content || this.currentPlan.raw_markdown;
         if (!markdownContent) {
             throw new Error('Implementation plan must contain markdown_content or raw_markdown field. No fallback rendering allowed.');

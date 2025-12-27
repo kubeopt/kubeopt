@@ -2432,33 +2432,11 @@ class EnhancedMultiSubscriptionClusterManager:
                     
                     return summary
                 
-            return {
-                'total_clusters': 0,
-                'total_monthly_cost': 0,
-                'total_potential_savings': 0,
-                'avg_optimization_pct': 0,
-                'analyzed_clusters': 0,
-                'pending_clusters': 0,
-                'analyzing_clusters': 0,
-                'failed_clusters': 0,
-                'environments': [],
-                'last_updated': datetime.now().isoformat()
-            }
+            raise ValueError("No cluster data found")
             
         except Exception as e:
             self.logger.error(f"❌ Failed to get portfolio summary: {e}")
-            return {
-                'total_clusters': 0,
-                'total_monthly_cost': 0,
-                'total_potential_savings': 0,
-                'avg_optimization_pct': 0,
-                'analyzed_clusters': 0,
-                'pending_clusters': 0,
-                'analyzing_clusters': 0,
-                'failed_clusters': 0,
-                'environments': [],
-                'last_updated': datetime.now().isoformat()
-            }
+            raise ValueError(f"Failed to get portfolio summary: {e}")
 
     def get_enhanced_portfolio_summary(self) -> Dict:
         """Get enhanced portfolio summary with analysis status"""

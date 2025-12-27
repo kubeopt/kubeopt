@@ -57,19 +57,26 @@ window.Dashboard = (function() {
      * Switch between dashboard views
      */
     function switchView(viewName) {
-        console.log(`Switching to view: ${viewName}`);
+        console.log(`🔄 Switching to view: ${viewName}`);
         
         currentView = viewName;
         setActiveNavigation(viewName);
         
         // Hide all sections
         const sections = document.querySelectorAll('.dashboard-section');
-        sections.forEach(section => section.classList.remove('active'));
+        console.log(`📋 Found ${sections.length} dashboard sections`);
+        sections.forEach(section => {
+            section.classList.remove('active');
+            console.log(`➡️ Removed active from: ${section.id}`);
+        });
         
         // Show target section
         const targetSection = document.getElementById(`${viewName}-section`);
+        console.log(`🎯 Target section: ${viewName}-section, found:`, !!targetSection);
+        
         if (targetSection) {
             targetSection.classList.add('active');
+            console.log(`✅ Added active to: ${targetSection.id}`);
             
             // Notify ChartManager of view change
             if (window.ChartManager) {
@@ -77,6 +84,8 @@ window.Dashboard = (function() {
             }
             
             loadViewContent(viewName);
+        } else {
+            console.error(`❌ Target section not found: ${viewName}-section`);
         }
     }
 
@@ -229,23 +238,16 @@ window.Dashboard = (function() {
             console.log(`Updated potential-savings to: ${window.Utils.formatCurrency(totalSavings)} from data.metrics.total_savings`);
         }
         
-        // Update optimization score - calculate from overall cluster health
+        // Update optimization score - use real optimization score from analysis
         const optimizationScoreEl = document.getElementById('optimization-score');
         if (optimizationScoreEl) {
-            let optimizationScore = 0;
-            
-            // Use current health score if available, otherwise calculate from costs
-            if (data.current_health_score !== undefined) {
-                optimizationScore = data.current_health_score;
-            } else if (data.costBreakdown?.total_cost && data.hpaComparison?.actual_hpa_savings) {
-                // Calculate based on potential savings percentage
-                const savingsPercentage = (data.hpaComparison.actual_hpa_savings / data.costBreakdown.total_cost) * 100;
-                optimizationScore = Math.max(0, Math.min(100, 85 - savingsPercentage)); // Higher savings = lower optimization (more room for improvement)
+            // Use real optimization_score from metrics (stored in database)
+            if (data.metrics?.optimization_score !== undefined && data.metrics.optimization_score !== null) {
+                const optimizationScore = data.metrics.optimization_score;
+                optimizationScoreEl.textContent = window.Utils.formatPercentage(optimizationScore);
             } else {
-                optimizationScore = 75; // Default reasonable score
+                throw new Error('No optimization score available in analysis data');
             }
-            
-            optimizationScoreEl.textContent = window.Utils.formatPercentage(optimizationScore);
         }
         
         // Update HPA efficiency - keep using actual HPA data
@@ -339,58 +341,10 @@ window.Dashboard = (function() {
      * Load implementation plan
      */
     async function loadImplementationPlan() {
-        const clusterId = window.AppState?.currentClusterId;
-        if (!clusterId) {
-            console.warn('No cluster ID available for implementation plan');
-            return;
-        }
-        
-        const planContainer = document.getElementById('implementation-plan-content');
-        if (planContainer) {
-            planContainer.innerHTML = `
-                <div class="loading-state">
-                    <div class="loading-spinner"></div>
-                    <span>Loading implementation plan...</span>
-                </div>
-            `;
-        }
-
-        try {
-            const planData = await window.API.getImplementationPlan(clusterId);
-            if (planData) {
-                updateImplementationPlan(planData);
-            }
-        } catch (error) {
-            console.error('Error loading implementation plan:', error);
-            if (planContainer) {
-                planContainer.innerHTML = `
-                    <div class="text-center py-8">
-                        <p class="text-gray-500">Failed to load implementation plan</p>
-                        <button onclick="Dashboard.loadImplementationPlan()" class="btn-primary mt-3">
-                            <i class="fas fa-refresh"></i> Retry
-                        </button>
-                    </div>
-                `;
-            }
-        }
-    }
-
-    /**
-     * Update implementation plan content
-     */
-    function updateImplementationPlan(planData) {
-        const planContainer = document.getElementById('implementation-plan-content');
-        if (planContainer && planData.content) {
-            // Simple markdown-like rendering
-            const htmlContent = planData.content
-                .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-                .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-                .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                .replace(/\n/g, '<br>');
-                
-            planContainer.innerHTML = htmlContent;
+        if (window.ImplementationPlan) {
+            await window.ImplementationPlan.loadPlan();
+        } else {
+            console.error('ImplementationPlan module not available');
         }
     }
 
@@ -398,28 +352,10 @@ window.Dashboard = (function() {
      * Generate new implementation plan
      */
     async function generateNewPlan() {
-        const clusterId = window.AppState?.currentClusterId;
-        if (!clusterId) {
-            console.warn('No cluster ID available for plan generation');
-            return;
-        }
-
-        if (window.showToast) {
-            window.showToast('Generating new implementation plan...', 'info');
-        }
-
-        try {
-            await window.API.generateImplementationPlan(clusterId);
-            await loadImplementationPlan(); // Reload the plan
-            
-            if (window.showToast) {
-                window.showToast('Implementation plan generated successfully', 'success');
-            }
-        } catch (error) {
-            console.error('Error generating implementation plan:', error);
-            if (window.showToast) {
-                window.showToast('Failed to generate implementation plan', 'error');
-            }
+        if (window.ImplementationPlan) {
+            await window.ImplementationPlan.generatePlan();
+        } else {
+            console.error('ImplementationPlan module not available');
         }
     }
 
@@ -427,69 +363,10 @@ window.Dashboard = (function() {
      * Load alerts data
      */
     async function loadAlertsData() {
-        const alertsList = document.getElementById('alerts-list');
-        if (alertsList) {
-            alertsList.innerHTML = `
-                <div class="activity-item">
-                    <div class="activity-avatar">
-                        <div class="loading-spinner"></div>
-                    </div>
-                    <div class="activity-content">
-                        <div class="activity-name">Loading alerts...</div>
-                    </div>
-                </div>
-            `;
-        }
-
-        try {
-            const alertsData = await window.API.getAlerts();
-            if (alertsData) {
-                updateAlertsSection(alertsData);
-            }
-        } catch (error) {
-            console.error('Error loading alerts data:', error);
-            if (alertsList) {
-                alertsList.innerHTML = `
-                    <div class="activity-item">
-                        <div class="activity-avatar">!</div>
-                        <div class="activity-content">
-                            <div class="activity-name">Failed to load alerts</div>
-                            <div class="activity-description">Please try again later</div>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-    }
-
-    /**
-     * Update alerts section
-     */
-    function updateAlertsSection(alertsData) {
-        const alertsList = document.getElementById('alerts-list');
-        if (alertsList && alertsData.alerts && alertsData.alerts.length > 0) {
-            const alertsHtml = alertsData.alerts.map(alert => `
-                <div class="activity-item">
-                    <div class="activity-avatar">!</div>
-                    <div class="activity-content">
-                        <div class="activity-name">${alert.title || 'Alert'}</div>
-                        <div class="activity-description">${alert.description || ''}</div>
-                    </div>
-                    <div class="activity-time">${alert.created_at || ''}</div>
-                </div>
-            `).join('');
-            
-            alertsList.innerHTML = alertsHtml;
-        } else if (alertsList) {
-            alertsList.innerHTML = `
-                <div class="activity-item">
-                    <div class="activity-avatar">✓</div>
-                    <div class="activity-content">
-                        <div class="activity-name">No active alerts</div>
-                        <div class="activity-description">Your cluster is running smoothly</div>
-                    </div>
-                </div>
-            `;
+        if (window.Alerts) {
+            await window.Alerts.loadAlerts();
+        } else {
+            console.error('Alerts module not available');
         }
     }
 
