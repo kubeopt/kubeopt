@@ -19,6 +19,7 @@ azure-common==1.1.28
 
 # Additional Azure packages that might be dependencies
 azure-mgmt-core==1.4.0
+azure-mgmt-subscription==3.1.0
 azure-mgmt-compute==30.0.0
 azure-mgmt-network==23.0.0
 azure-mgmt-storage==21.0.0
