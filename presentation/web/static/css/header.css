@@ -729,6 +729,10 @@
   background: rgba(0, 0, 0, 0.3);
 }
 
+[data-theme="dark"] .dropdown-header {
+  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .header-bar {

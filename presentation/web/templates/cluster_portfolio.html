@@ -136,12 +136,14 @@ Cluster Portfolio - AKS Cost Optimizer
                         
                         <div class="action-buttons">
                             {% if cluster.last_analyzed %}
-                            <button class="btn-icon" onclick="analyzeCluster('{{ cluster.id }}')" title="Re-analyze">
-                                <i class="fas fa-refresh"></i>
+                            <button class="btn-icon analyze-btn" onclick="analyzeCluster('{{ cluster.id }}')" title="Re-analyze" data-cluster-id="{{ cluster.id }}">
+                                <i class="fas fa-refresh analyze-icon"></i>
+                                <i class="fas fa-spinner fa-spin analyzing-spinner hidden"></i>
                             </button>
                             {% else %}
-                            <button class="btn-icon analyze-btn" onclick="analyzeCluster('{{ cluster.id }}')" title="Analyze">
-                                <i class="fas fa-play"></i>
+                            <button class="btn-icon analyze-btn" onclick="analyzeCluster('{{ cluster.id }}')" title="Analyze" data-cluster-id="{{ cluster.id }}">
+                                <i class="fas fa-play analyze-icon"></i>
+                                <i class="fas fa-spinner fa-spin analyzing-spinner hidden"></i>
                             </button>
                             {% endif %}
                             
@@ -622,13 +624,13 @@ async function analyzeCluster(clusterId) {
     }
     
     // Find the analyze button for this cluster
-    const analyzeBtn = document.querySelector(`[data-cluster-id="${clusterId}"] .analyze-btn`);
-    const playIcon = analyzeBtn?.querySelector('.fa-play');
+    const analyzeBtn = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+    const analyzeIcon = analyzeBtn?.querySelector('.analyze-icon');
     const spinner = analyzeBtn?.querySelector('.analyzing-spinner');
     
     // Update button to show analyzing state
-    if (playIcon && spinner) {
-        playIcon.classList.add('hidden');
+    if (analyzeIcon && spinner) {
+        analyzeIcon.classList.add('hidden');
         spinner.classList.remove('hidden');
         analyzeBtn.disabled = true;
         analyzeBtn.title = 'Analyzing...';
@@ -658,11 +660,11 @@ async function analyzeCluster(clusterId) {
             
         } else {
             // Reset button state on error
-            if (playIcon && spinner) {
-                playIcon.classList.remove('hidden');
+            if (analyzeIcon && spinner) {
+                analyzeIcon.classList.remove('hidden');
                 spinner.classList.add('hidden');
                 analyzeBtn.disabled = false;
-                analyzeBtn.title = 'Analyze';
+                analyzeBtn.title = analyzeIcon.classList.contains('fa-refresh') ? 'Re-analyze' : 'Analyze';
             }
             updateClusterStatus(clusterId, 'failed');
             throw new Error(data.message || 'Analysis failed');
@@ -672,11 +674,11 @@ async function analyzeCluster(clusterId) {
         showToast(`Failed to start analysis: ${error.message}`, 'error');
         
         // Reset button state on error
-        if (playIcon && spinner) {
-            playIcon.classList.remove('hidden');
+        if (analyzeIcon && spinner) {
+            analyzeIcon.classList.remove('hidden');
             spinner.classList.add('hidden');
             analyzeBtn.disabled = false;
-            analyzeBtn.title = 'Analyze';
+            analyzeBtn.title = analyzeIcon.classList.contains('fa-refresh') ? 'Re-analyze' : 'Analyze';
         }
         updateClusterStatus(clusterId, 'failed');
     }
@@ -788,19 +790,19 @@ function startAnalysisPolling(clusterId) {
 
 // Reset analyze button state
 function resetAnalyzeButton(clusterId, result) {
-    const analyzeBtn = document.querySelector(`[data-cluster-id="${clusterId}"] .analyze-btn`);
-    const playIcon = analyzeBtn?.querySelector('.fa-play');
+    const analyzeBtn = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+    const analyzeIcon = analyzeBtn?.querySelector('.analyze-icon');
     const spinner = analyzeBtn?.querySelector('.analyzing-spinner');
     
-    if (playIcon && spinner) {
-        playIcon.classList.remove('hidden');
+    if (analyzeIcon && spinner) {
+        analyzeIcon.classList.remove('hidden');
         spinner.classList.add('hidden');
         analyzeBtn.disabled = false;
         
         if (result === 'completed') {
             analyzeBtn.title = 'Re-analyze';
         } else {
-            analyzeBtn.title = 'Analyze';
+            analyzeBtn.title = analyzeIcon.classList.contains('fa-refresh') ? 'Re-analyze' : 'Analyze';
         }
     }
 }
@@ -933,12 +935,81 @@ async function deleteCluster(clusterId) {
 // Load portfolio stats and cluster details
 document.addEventListener('DOMContentLoaded', function() {
     loadPortfolioStats();
-    // The cluster data should already be in the template, no need to fetch again
+    
+    // Start silent auto-refresh (every 30 seconds)
+    startAutoRefresh();
 });
+
+// Auto-refresh functionality  
+let autoRefreshInterval;
+
+function startAutoRefresh() {
+    // Refresh every 30 seconds
+    autoRefreshInterval = setInterval(() => {
+        silentRefresh();
+    }, 30000);
+    
+    console.log('🔄 Auto-refresh started (every 30 seconds)');
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        console.log('⏹️ Auto-refresh stopped');
+    }
+}
+
+async function silentRefresh() {
+    try {
+        // Update portfolio stats silently
+        await loadPortfolioStats();
+        
+        // Update any analysis status changes
+        await refreshAnalysisStatuses();
+        
+    } catch (error) {
+        console.error('❌ Silent refresh failed:', error);
+    }
+}
+
+async function refreshAnalysisStatuses() {
+    try {
+        // Get current running analyses and update their status
+        const analyzingCards = document.querySelectorAll('.analyze-btn:disabled');
+        
+        for (const button of analyzingCards) {
+            const clusterId = button.getAttribute('data-cluster-id');
+            if (clusterId) {
+                // Check if analysis completed
+                const response = await fetch(`/api/clusters/${clusterId}/status`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'success' && data.cluster) {
+                        const cluster = data.cluster;
+                        
+                        if (cluster.analysis_status === 'completed') {
+                            // Analysis completed - reset button and update metrics
+                            resetAnalyzeButton(clusterId, 'completed');
+                            updateClusterStatus(clusterId, 'completed');
+                            updateClusterMetrics(clusterId, cluster);
+                            showToast(`Analysis completed for ${clusterId}`, 'success');
+                        } else if (cluster.analysis_status === 'failed') {
+                            // Analysis failed - reset button
+                            resetAnalyzeButton(clusterId, 'failed');
+                            updateClusterStatus(clusterId, 'failed');
+                        }
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error refreshing analysis statuses:', error);
+    }
+}
 
 async function loadPortfolioStats() {
     try {
-        console.log('🔄 Loading portfolio stats from API...');
         const response = await fetch('/api/portfolio/summary');
         
         if (!response.ok) {
@@ -947,10 +1018,8 @@ async function loadPortfolioStats() {
         }
         
         const data = await response.json();
-        console.log('📊 Portfolio API response:', data);
         
         if (data.status === 'success' && data.portfolio_summary) {
-            console.log('📈 Portfolio summary data:', data.portfolio_summary);
             updatePortfolioStats(data.portfolio_summary);
         } else {
             console.error('Portfolio stats not available:', data.message || 'Unknown error');
@@ -978,9 +1047,6 @@ function updatePortfolioStats(portfolioData) {
     const totalNodesEl = document.getElementById('total-nodes');
     if (totalNodesEl && portfolioData.total_nodes !== undefined && portfolioData.total_nodes !== null) {
         totalNodesEl.textContent = portfolioData.total_nodes.toString();
-        console.log('✅ Updated total nodes from API:', portfolioData.total_nodes);
-    } else {
-        console.log('⚠️ No total_nodes in portfolio data, keeping existing value:', totalNodesEl.textContent);
     }
 }
 

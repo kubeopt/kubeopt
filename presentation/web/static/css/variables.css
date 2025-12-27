@@ -51,6 +51,7 @@
   --error-color: #ef4444;
   --error-color-dark: #dc2626;
   --info-color: #3b82f6;
+  --danger: #ef4444;
   
   /* Border radius */
   --radius-sm: 0.375rem;
@@ -101,4 +102,5 @@
   --warning-color: #fbbf24;
   --error-color: #f87171;
   --info-color: #60a5fa;
+  --danger: #f87171;
 }

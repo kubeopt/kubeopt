@@ -63,7 +63,6 @@
                             <div class="user-avatar">
                                 <i class="fas fa-user"></i>
                             </div>
-                            <i class="fas fa-chevron-down dropdown-arrow"></i>
                         </button>
                         
                         <div class="user-dropdown-menu" id="userDropdownMenu">
@@ -209,7 +208,6 @@
             const dropdown = document.getElementById('userDropdown');
             const dropdownMenu = document.getElementById('userDropdownMenu');
             const trigger = dropdown.querySelector('.user-dropdown-trigger');
-            const arrow = trigger.querySelector('.dropdown-arrow');
             
             const isOpen = dropdown.classList.contains('open');
             
@@ -217,12 +215,10 @@
                 dropdown.classList.remove('open');
                 dropdownMenu.style.display = 'none';
                 trigger.setAttribute('aria-expanded', 'false');
-                arrow.style.transform = 'rotate(0deg)';
             } else {
                 dropdown.classList.add('open');
                 dropdownMenu.style.display = 'block';
                 trigger.setAttribute('aria-expanded', 'true');
-                arrow.style.transform = 'rotate(180deg)';
             }
         }
 
@@ -231,13 +227,11 @@
             const dropdown = document.getElementById('userDropdown');
             const dropdownMenu = document.getElementById('userDropdownMenu');
             const trigger = dropdown?.querySelector('.user-dropdown-trigger');
-            const arrow = trigger?.querySelector('.dropdown-arrow');
             
             if (dropdown && dropdown.classList.contains('open')) {
                 dropdown.classList.remove('open');
                 if (dropdownMenu) dropdownMenu.style.display = 'none';
                 if (trigger) trigger.setAttribute('aria-expanded', 'false');
-                if (arrow) arrow.style.transform = 'rotate(0deg)';
             }
         }
 
