@@ -2,6 +2,190 @@
    Cluster Portfolio Page Styles
    ========================================== */
 
+/* Delete Confirmation Modal Styles */
+.delete-confirm-modal {
+    max-width: 500px;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.delete-confirm-modal .modal-header {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    border-bottom: 1px solid #fca5a5;
+    padding: 1.5rem;
+    border-radius: 12px 12px 0 0;
+}
+
+.delete-confirm-modal .modal-title {
+    color: #dc2626;
+    font-weight: 600;
+    font-size: 1.25rem;
+    margin: 0;
+}
+
+.delete-confirm-modal .modal-title i {
+    margin-right: 0.5rem;
+    color: #ef4444;
+}
+
+.warning-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.warning-icon {
+    background: #fee2e2;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #dc2626;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.warning-text h4 {
+    margin: 0 0 0.5rem 0;
+    color: #374151;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.warning-text p {
+    margin: 0 0 0.5rem 0;
+    color: #6b7280;
+    line-height: 1.5;
+}
+
+.warning-note {
+    font-size: 0.875rem;
+    color: #dc2626 !important;
+    font-weight: 500;
+}
+
+.cluster-info-display {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.info-row:last-child {
+    margin-bottom: 0;
+}
+
+.info-label {
+    font-weight: 500;
+    color: #374151;
+    font-size: 0.875rem;
+}
+
+.info-value {
+    font-weight: 600;
+    color: #111827;
+    font-size: 0.875rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.confirmation-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #92400e;
+    font-weight: 500;
+    margin: 0;
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: #dc2626;
+}
+
+.checkmark {
+    display: none;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    color: white;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.btn-danger:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-danger .btn-loading {
+    display: none;
+}
+
+.btn-danger .btn-loading.active {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-danger .btn-loading.active ~ .btn-text {
+    display: none;
+}
+
+.text-danger {
+    color: #dc2626;
+}
+
+/* Button danger variant for action icons */
+.action-buttons .btn-icon.btn-danger {
+    background: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+}
+
+.action-buttons .btn-icon.btn-danger:hover {
+    background: #fecaca;
+    color: #b91c1c;
+    border-color: #f87171;
+    transform: translateY(-1px);
+}
+
 .portfolio-layout {
     min-height: 100vh;
     background: var(--bg-secondary);

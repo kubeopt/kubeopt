@@ -52,8 +52,39 @@ def register_routes(app):
             # Get clusters with subscription info (using existing method)
             clusters_data = enhanced_cluster_manager.get_clusters_with_subscription_info()
             
+            # Enhance each cluster with analysis data (like dashboard does)
+            total_nodes = 0
+            for cluster in clusters_data:
+                cluster_id = cluster.get('id')
+                if cluster_id:
+                    # Get analysis data for this cluster (same method as dashboard)
+                    cached_analysis, data_source = _get_analysis_data(cluster_id)
+                    
+                    if cached_analysis:
+                        # Merge analysis data into cluster data
+                        cluster['node_count'] = cached_analysis.get('current_node_count', cached_analysis.get('total_nodes', cached_analysis.get('node_count', 0)))
+                        cluster['optimization_score'] = cached_analysis.get('optimization_score', 0)
+                        
+                        # Also update cost/savings from analysis if available
+                        if cached_analysis.get('total_cost', 0) > 0:
+                            cluster['last_cost'] = cached_analysis.get('total_cost', cluster.get('last_cost', 0))
+                        if cached_analysis.get('total_savings', 0) > 0:
+                            cluster['last_savings'] = cached_analysis.get('total_savings', cluster.get('last_savings', 0))
+                        
+                        logger.debug(f"✅ Enhanced cluster {cluster_id} with analysis data: nodes={cluster['node_count']}, opt_score={cluster['optimization_score']}")
+                    else:
+                        # No analysis data available - keep defaults
+                        cluster['node_count'] = cluster.get('node_count', 0)
+                        cluster['optimization_score'] = cluster.get('optimization_score', 0)
+                    
+                    # Add to total node count
+                    total_nodes += cluster.get('node_count', 0)
+            
             # Get portfolio summary (using existing method)
             portfolio_summary = enhanced_cluster_manager.get_portfolio_summary()
+            
+            # Add total nodes to portfolio summary
+            portfolio_summary['total_nodes'] = total_nodes
             
             # Get analysis status for all clusters
             analysis_statuses = {}

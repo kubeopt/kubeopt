@@ -1411,9 +1411,24 @@ def register_api_routes(app):
             # Get fresh portfolio summary with previous results during analysis
             portfolio_summary = enhanced_cluster_manager.get_portfolio_summary()
             
+            # Calculate total nodes from analysis data (same as main route)
+            clusters_data = enhanced_cluster_manager.get_clusters_with_subscription_info()
+            total_nodes = 0
+            for cluster in clusters_data:
+                cluster_id = cluster.get('id')
+                if cluster_id:
+                    # Get analysis data for this cluster (same method as dashboard)
+                    cached_analysis, data_source = _get_analysis_data(cluster_id)
+                    if cached_analysis:
+                        node_count = cached_analysis.get('current_node_count', cached_analysis.get('total_nodes', cached_analysis.get('node_count', 0)))
+                        total_nodes += node_count
+            
+            # Add total nodes to portfolio summary
+            portfolio_summary['total_nodes'] = total_nodes
+            
             logger.info(f"📊 Portfolio summary API called - Cost: ${portfolio_summary.get('total_monthly_cost', 0):.2f}, "
                        f"Savings: ${portfolio_summary.get('total_potential_savings', 0):.2f}, "
-                       f"Analyzing: {portfolio_summary.get('analyzing_clusters', 0)} clusters")
+                       f"Nodes: {total_nodes}, Analyzing: {portfolio_summary.get('analyzing_clusters', 0)} clusters")
             
             return jsonify({
                 'status': 'success',
