@@ -747,3 +747,124 @@ body {
   line-height: 1.5;
   font-size: 0.875rem;
 }
+
+/* ==========================================
+   Loading Spinner Styles 
+   ========================================== */
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--gray-200);
+  border-top: 2px solid var(--primary-green);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--text-light);
+  font-size: 0.875rem;
+}
+
+.chart-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--text-light);
+  font-size: 0.875rem;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 0.5rem;
+}
+
+.chart-loading.hidden {
+  display: none;
+}
+
+/* ==========================================
+   Button Styles 
+   ========================================== */
+
+.btn-primary, .btn-secondary {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--primary-green);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--primary-green-dark);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--gray-100);
+  color: var(--text-primary);
+  border: 1px solid var(--gray-200);
+}
+
+.btn-secondary:hover {
+  background: var(--gray-200);
+}
+
+/* ==========================================
+   Link Styles 
+   ========================================== */
+
+.view-all-link {
+  color: var(--primary-green);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.view-all-link:hover {
+  color: var(--primary-green-dark);
+}
+
+/* ==========================================
+   Implementation Content Styles 
+   ========================================== */
+
+.implementation-content {
+  padding: 1rem;
+  line-height: 1.6;
+}
+
+.implementation-content h1,
+.implementation-content h2,
+.implementation-content h3 {
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.implementation-content p {
+  margin-bottom: 1rem;
+  color: var(--text-secondary);
+}
+
+.implementation-content strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
