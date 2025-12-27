@@ -341,97 +341,14 @@ Settings - AKS Cost Optimizer
     </main>
 </div>
 
+{% endblock %}
+
+{% block extra_css %}
 <!-- Settings-specific styles -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+{% endblock %}
 
-<!-- All CSS moved to /static/css/settings.css -->
-
-<script>
-// Settings navigation
-document.addEventListener('DOMContentLoaded', function() {
-    const navLinks = document.querySelectorAll('.settings-nav-link');
-    const sections = document.querySelectorAll('.settings-section');
-    
-    navLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            const targetSection = this.dataset.section;
-            
-            // Update navigation
-            navLinks.forEach(l => l.classList.remove('active'));
-            this.classList.add('active');
-            
-            // Update sections
-            sections.forEach(s => s.classList.remove('active'));
-            document.getElementById(targetSection + '-section').classList.add('active');
-        });
-    });
-    
-    // Load current settings
-    loadCurrentSettings();
-});
-
-// Load current settings from localStorage or API
-function loadCurrentSettings() {
-    // Theme setting
-    const currentTheme = localStorage.getItem('theme') || 'light';
-    document.getElementById('theme-setting').value = currentTheme;
-    
-    // Other settings would be loaded from API in a real implementation
-}
-
-// Settings functions
-function testAzureConnection() {
-    showToast('Testing Azure connection...', 'info');
-    // This would make an actual API call
-}
-
-function refreshSubscriptions() {
-    showToast('Refreshing Azure subscriptions...', 'info');
-    // This would make an actual API call
-}
-
-function clearCache() {
-    if (confirm('Are you sure you want to clear the cache? This action cannot be undone.')) {
-        showToast('Cache cleared successfully', 'success');
-    }
-}
-
-function exportSettings() {
-    showToast('Exporting settings...', 'info');
-    // This would generate a settings export file
-}
-
-function resetSettings() {
-    if (confirm('Are you sure you want to reset all settings to defaults?')) {
-        showToast('Settings reset to defaults', 'info');
-    }
-}
-
-function saveSettings() {
-    const settings = {
-        theme: document.getElementById('theme-setting').value,
-        autoRefresh: document.getElementById('auto-refresh').checked,
-        refreshInterval: document.getElementById('refresh-interval').value,
-        // Add other settings as needed
-    };
-    
-    // Save theme immediately
-    localStorage.setItem('theme', settings.theme);
-    document.documentElement.setAttribute('data-theme', settings.theme);
-    
-    showToast('Settings saved successfully', 'success');
-    
-    // In a real implementation, this would save to the API
-}
-
-// Theme setting change handler
-document.getElementById('theme-setting')?.addEventListener('change', function() {
-    const theme = this.value;
-    if (theme !== 'auto') {
-        document.documentElement.setAttribute('data-theme', theme);
-    }
-});
-</script>
+{% block extra_js %}
+<!-- Settings-specific JavaScript -->
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
 {% endblock %}

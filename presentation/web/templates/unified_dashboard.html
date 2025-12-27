@@ -84,6 +84,18 @@
                 currentClusterName: "{{ cluster.name }}",
                 currentResourceGroup: "{{ cluster.resource_group }}"
             };
+            
+            {% if cluster %}
+            window.clusterInfo = {
+                id: '{{ cluster.id }}',
+                name: '{{ cluster.name }}',
+                cluster_name: '{{ cluster.name }}',
+                resource_group: '{{ cluster.resource_group }}',
+                environment: '{{ cluster.environment }}',
+                region: '{{ cluster.region }}',
+                subscription_id: '{{ cluster.subscription_id }}'
+            };
+            {% endif %}
         </script>
             
             <!-- Overview Section (Default) -->
@@ -354,246 +366,14 @@
     </main>
 </div>
 
-<!-- Add loading spinner styles -->
-<style>
-.loading-spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid var(--gray-200);
-    border-top: 2px solid var(--primary-green);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-right: 8px;
-}
+{% endblock %}
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
+{% block extra_css %}
+<!-- Dashboard-specific styles -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
 
-.loading-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    color: var(--text-light);
-    font-size: 0.875rem;
-}
-
-.chart-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    color: var(--text-light);
-    font-size: 0.875rem;
-    background: rgba(0, 0, 0, 0.02);
-    border-radius: 0.5rem;
-}
-
-.chart-loading.hidden {
-    display: none;
-}
-
-/* Moved all custom styles to main.css */
-
-.btn-primary, .btn-secondary {
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    border: none;
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition: all 0.2s ease;
-}
-
-.btn-primary {
-    background: var(--primary-green);
-    color: white;
-}
-
-.btn-primary:hover {
-    background: var(--primary-green-dark);
-    transform: translateY(-1px);
-}
-
-.btn-secondary {
-    background: var(--gray-100);
-    color: var(--text-primary);
-    border: 1px solid var(--gray-200);
-}
-
-.btn-secondary:hover {
-    background: var(--gray-200);
-}
-
-.view-all-link {
-    color: var(--primary-green);
-    text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 500;
-}
-
-.view-all-link:hover {
-    color: var(--primary-green-dark);
-}
-
-.implementation-content {
-    padding: 1rem;
-    line-height: 1.6;
-}
-
-.implementation-content h1,
-.implementation-content h2,
-.implementation-content h3 {
-    margin-bottom: 1rem;
-    color: var(--text-primary);
-}
-
-.implementation-content p {
-    margin-bottom: 1rem;
-    color: var(--text-secondary);
-}
-
-.implementation-content strong {
-    color: var(--text-primary);
-    font-weight: 600;
-}
-</style>
-
-<script>
-// Global toggle function - defined immediately
-function toggleSidebar() {
-    console.log('Toggle sidebar function called');
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) {
-        sidebar.classList.toggle('collapsed');
-        
-        // Save state
-        const isCollapsed = sidebar.classList.contains('collapsed');
-        localStorage.setItem('sidebarCollapsed', isCollapsed);
-        
-        // Update toggle button icon based on state
-        const toggleBtn = document.querySelector('.sidebar-toggle i');
-        if (toggleBtn) {
-            toggleBtn.className = isCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
-            // Add visual feedback
-            toggleBtn.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
-        }
-        
-        // Trigger chart resize after sidebar animation completes
-        setTimeout(() => {
-            triggerChartResize();
-        }, 350); // Wait for sidebar transition to complete
-        
-        console.log('Sidebar collapsed state:', isCollapsed);
-    } else {
-        console.error('Sidebar element not found');
-    }
-}
-
-// Function to trigger chart resize
-function triggerChartResize() {
-    console.log('Triggering chart resize...');
-    
-    // Trigger window resize event to make charts responsive
-    window.dispatchEvent(new Event('resize'));
-    
-    // If Chart.js is available, resize all charts
-    if (window.Chart && window.Chart.instances) {
-        Object.values(window.Chart.instances).forEach(chart => {
-            if (chart && typeof chart.resize === 'function') {
-                chart.resize();
-            }
-        });
-    }
-    
-    // Alternative method for Chart.js v3+
-    if (window.Chart && window.Chart.registry) {
-        Object.values(window.Chart.registry.controllers.items).forEach(controller => {
-            if (controller.chart && typeof controller.chart.resize === 'function') {
-                controller.chart.resize();
-            }
-        });
-    }
-    
-    // If using a global chart manager
-    if (window.ChartManager && typeof window.ChartManager.resizeAll === 'function') {
-        window.ChartManager.resizeAll();
-    }
-    
-    console.log('Chart resize triggered');
-}
-
-// Set cluster information for JavaScript modules
-{% if cluster %}
-window.clusterInfo = {
-    id: '{{ cluster.id }}',
-    name: '{{ cluster.name }}',
-    cluster_name: '{{ cluster.name }}',
-    resource_group: '{{ cluster.resource_group }}',
-    environment: '{{ cluster.environment }}',
-    region: '{{ cluster.region }}',
-    subscription_id: '{{ cluster.subscription_id }}'
-};
-
-// Cluster context is set by utils.js - no inline code needed
-{% endif %}
-
-// Initialize page functionality
-document.addEventListener('DOMContentLoaded', function() {
-    // Set current date
-    const dateEl = document.getElementById('current-date');
-    if (dateEl) {
-        const today = new Date();
-        const options = { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-        };
-        dateEl.textContent = today.toLocaleDateString('en-US', options);
-    }
-    
-    // Restore sidebar state on load
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) {
-        const savedState = localStorage.getItem('sidebarCollapsed');
-        const isCollapsed = savedState === 'true';
-        
-        if (isCollapsed) {
-            sidebar.classList.add('collapsed');
-        }
-        
-        // Set correct icon based on state
-        const toggleBtn = document.querySelector('.sidebar-toggle i');
-        if (toggleBtn) {
-            toggleBtn.className = isCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
-            toggleBtn.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
-        }
-    }
-    
-    // Initialize Dashboard module
-    if (window.Dashboard && typeof window.Dashboard.init === 'function') {
-        console.log('Initializing Dashboard module...');
-        window.Dashboard.init();
-    } else {
-        console.error('Dashboard module not available or missing init function');
-    }
-});
-
-// Placeholder functions for buttons - make them globally available
-window.generateNewPlan = function() {
-    showToast('Generating new implementation plan...', 'info');
-    // This will be implemented with actual API call
-};
-
-window.createAlert = function() {
-    showToast('Alert creation modal would open here', 'info');
-    // This will be implemented with actual modal
-};
-</script>
+{% block extra_js %}
+<!-- Dashboard-specific JavaScript -->
+<script src="{{ url_for('static', filename='js/unified-dashboard.js') }}"></script>
 {% endblock %}
