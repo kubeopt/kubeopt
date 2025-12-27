@@ -47,7 +47,7 @@ Cluster Portfolio - AKS Cost Optimizer
                     <i class="fas fa-server"></i>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-value" id="total-nodes">0</div>
+                    <div class="stat-value" id="total-nodes">{{ portfolio_summary.total_nodes or 0 }}</div>
                     <div class="stat-label">Total Nodes</div>
                 </div>
             </div>
@@ -108,11 +108,11 @@ Cluster Portfolio - AKS Cost Optimizer
                         <div class="metric-row">
                             <div class="metric-item">
                                 <div class="metric-label">Monthly Cost</div>
-                                <div class="metric-value">{{ '${:.2f}'.format(cluster.last_cost or 0) }}</div>
+                                <div class="metric-value" data-metric="cost">{{ '${:.2f}'.format(cluster.last_cost or 0) }}</div>
                             </div>
                             <div class="metric-item">
                                 <div class="metric-label">Potential Savings</div>
-                                <div class="metric-value savings">{{ '${:.2f}'.format(cluster.last_savings or 0) }}</div>
+                                <div class="metric-value savings" data-metric="savings">{{ '${:.2f}'.format(cluster.last_savings or 0) }}</div>
                             </div>
                         </div>
                         
@@ -145,8 +145,8 @@ Cluster Portfolio - AKS Cost Optimizer
                             </button>
                             {% endif %}
                             
-                            <button class="btn-icon" onclick="showClusterMenu('{{ cluster.id }}')" title="More options">
-                                <i class="fas fa-ellipsis-v"></i>
+                            <button class="btn-icon btn-danger" onclick="deleteClusterConfirm('{{ cluster.id }}')" title="Delete cluster">
+                                <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>
                     </div>
@@ -282,6 +282,70 @@ Cluster Portfolio - AKS Cost Optimizer
                 <span class="btn-loading hidden">
                     <i class="fas fa-spinner fa-spin"></i>
                     Adding...
+                </span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteConfirmModal" class="modal-overlay" onclick="closeDeleteConfirmModal(event)">
+    <div class="modal-container delete-confirm-modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <i class="fas fa-exclamation-triangle text-danger"></i>
+                Confirm Deletion
+            </h3>
+            <button class="modal-close" onclick="closeDeleteConfirmModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            <div class="warning-content">
+                <div class="warning-icon">
+                    <i class="fas fa-trash-alt"></i>
+                </div>
+                <div class="warning-text">
+                    <h4>Delete Cluster</h4>
+                    <p>Are you sure you want to delete cluster <strong id="deleteClusterNameDisplay"></strong>?</p>
+                    <p class="warning-note">This action will remove all analysis data and cannot be undone.</p>
+                </div>
+            </div>
+            
+            <div class="cluster-info-display">
+                <div class="info-row">
+                    <span class="info-label">Cluster Name:</span>
+                    <span class="info-value" id="deleteClusterNameInfo"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Resource Group:</span>
+                    <span class="info-value" id="deleteResourceGroupInfo"></span>
+                </div>
+            </div>
+            
+            <div class="confirmation-checkbox">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="deleteConfirmCheck">
+                    <span class="checkmark"></span>
+                    I understand this action cannot be undone
+                </label>
+            </div>
+        </div>
+        
+        <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeDeleteConfirmModal()">
+                <i class="fas fa-times"></i>
+                Cancel
+            </button>
+            <button type="button" class="btn-danger" id="confirmDeleteButton" onclick="executeClusterDelete()" disabled>
+                <span class="btn-text">
+                    <i class="fas fa-trash-alt"></i>
+                    Delete Cluster
+                </span>
+                <span class="btn-loading hidden">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    Deleting...
                 </span>
             </button>
         </div>
@@ -503,6 +567,19 @@ async function submitAddCluster(event) {
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         closeAddClusterModal();
+        closeDeleteConfirmModal();
+    }
+});
+
+// Handle delete confirmation checkbox
+document.addEventListener('DOMContentLoaded', function() {
+    const deleteCheckbox = document.getElementById('deleteConfirmCheck');
+    const deleteButton = document.getElementById('confirmDeleteButton');
+    
+    if (deleteCheckbox && deleteButton) {
+        deleteCheckbox.addEventListener('change', function() {
+            deleteButton.disabled = !this.checked;
+        });
     }
 });
 
@@ -537,12 +614,28 @@ document.getElementById('environment-filter')?.addEventListener('change', functi
     });
 });
 
-// Analyze cluster function
+// Analyze cluster function with enhanced progress tracking
 async function analyzeCluster(clusterId) {
     if (!clusterId) {
         showToast('Invalid cluster ID', 'error');
         return;
     }
+    
+    // Find the analyze button for this cluster
+    const analyzeBtn = document.querySelector(`[data-cluster-id="${clusterId}"] .analyze-btn`);
+    const playIcon = analyzeBtn?.querySelector('.fa-play');
+    const spinner = analyzeBtn?.querySelector('.analyzing-spinner');
+    
+    // Update button to show analyzing state
+    if (playIcon && spinner) {
+        playIcon.classList.add('hidden');
+        spinner.classList.remove('hidden');
+        analyzeBtn.disabled = true;
+        analyzeBtn.title = 'Analyzing...';
+    }
+    
+    // Update cluster status in the footer
+    updateClusterStatus(clusterId, 'analyzing');
     
     showToast(`Starting analysis for cluster: ${clusterId}`, 'info');
     
@@ -559,32 +652,243 @@ async function analyzeCluster(clusterId) {
         
         if (response.ok && data.status === 'success') {
             showToast(`Analysis started successfully for ${clusterId}`, 'success');
-            // Optionally refresh the page after a delay
-            setTimeout(() => {
-                window.location.reload();
-            }, 2000);
+            
+            // Start polling for analysis status
+            startAnalysisPolling(clusterId);
+            
         } else {
+            // Reset button state on error
+            if (playIcon && spinner) {
+                playIcon.classList.remove('hidden');
+                spinner.classList.add('hidden');
+                analyzeBtn.disabled = false;
+                analyzeBtn.title = 'Analyze';
+            }
+            updateClusterStatus(clusterId, 'failed');
             throw new Error(data.message || 'Analysis failed');
         }
     } catch (error) {
         console.error('Analysis error:', error);
         showToast(`Failed to start analysis: ${error.message}`, 'error');
+        
+        // Reset button state on error
+        if (playIcon && spinner) {
+            playIcon.classList.remove('hidden');
+            spinner.classList.add('hidden');
+            analyzeBtn.disabled = false;
+            analyzeBtn.title = 'Analyze';
+        }
+        updateClusterStatus(clusterId, 'failed');
     }
 }
 
-// Show cluster menu
-function showClusterMenu(clusterId) {
+// Update cluster status in the card footer
+function updateClusterStatus(clusterId, status) {
+    const statusInfo = document.querySelector(`[data-cluster-id="${clusterId}"] .status-info`);
+    if (!statusInfo) return;
+    
+    statusInfo.innerHTML = '';
+    
+    switch (status) {
+        case 'analyzing':
+            statusInfo.innerHTML = `
+                <i class="fas fa-cog fa-spin analyzing-icon"></i>
+                <span class="analyzing-text">Analyzing...</span>
+            `;
+            break;
+        case 'completed':
+            statusInfo.innerHTML = `
+                <i class="fas fa-check-circle success-icon"></i>
+                <span class="status-text">Analyzed</span>
+            `;
+            break;
+        case 'failed':
+            statusInfo.innerHTML = `
+                <i class="fas fa-exclamation-triangle error-icon"></i>
+                <span class="status-text">Failed</span>
+            `;
+            break;
+        default:
+            statusInfo.innerHTML = `
+                <i class="fas fa-clock warning-icon"></i>
+                <span class="status-text">Pending</span>
+            `;
+    }
+}
+
+// Start polling for analysis status
+function startAnalysisPolling(clusterId) {
+    const pollInterval = 3000; // Poll every 3 seconds
+    const maxPolls = 60; // Maximum 3 minutes
+    let pollCount = 0;
+    
+    const pollAnalysisStatus = async () => {
+        pollCount++;
+        
+        try {
+            const response = await fetch(`/api/clusters/${clusterId}/status`);
+            const data = await response.json();
+            
+            if (response.ok && data.status === 'success') {
+                const cluster = data.cluster;
+                
+                if (cluster.analysis_status === 'completed') {
+                    // Analysis completed successfully
+                    updateClusterStatus(clusterId, 'completed');
+                    resetAnalyzeButton(clusterId, 'completed');
+                    showToast(`Analysis completed for cluster: ${clusterId}`, 'success');
+                    
+                    // Update metrics in the card
+                    updateClusterMetrics(clusterId, cluster);
+                    return; // Stop polling
+                    
+                } else if (cluster.analysis_status === 'failed') {
+                    // Analysis failed
+                    updateClusterStatus(clusterId, 'failed');
+                    resetAnalyzeButton(clusterId, 'failed');
+                    showToast(`Analysis failed for cluster: ${clusterId}`, 'error');
+                    return; // Stop polling
+                    
+                } else if (cluster.analysis_status === 'analyzing' || cluster.analysis_status === 'running') {
+                    // Continue polling
+                    updateClusterStatus(clusterId, 'analyzing');
+                }
+                
+                // Continue polling if status is still analyzing and we haven't exceeded max polls
+                if (pollCount < maxPolls) {
+                    setTimeout(pollAnalysisStatus, pollInterval);
+                } else {
+                    // Timeout reached
+                    showToast(`Analysis polling timeout for cluster: ${clusterId}`, 'warning');
+                    resetAnalyzeButton(clusterId, 'timeout');
+                }
+                
+            } else {
+                console.error('Failed to get cluster status:', data);
+                if (pollCount < maxPolls) {
+                    setTimeout(pollAnalysisStatus, pollInterval);
+                } else {
+                    resetAnalyzeButton(clusterId, 'error');
+                }
+            }
+            
+        } catch (error) {
+            console.error('Error polling analysis status:', error);
+            if (pollCount < maxPolls) {
+                setTimeout(pollAnalysisStatus, pollInterval);
+            } else {
+                resetAnalyzeButton(clusterId, 'error');
+            }
+        }
+    };
+    
+    // Start polling
+    setTimeout(pollAnalysisStatus, pollInterval);
+}
+
+// Reset analyze button state
+function resetAnalyzeButton(clusterId, result) {
+    const analyzeBtn = document.querySelector(`[data-cluster-id="${clusterId}"] .analyze-btn`);
+    const playIcon = analyzeBtn?.querySelector('.fa-play');
+    const spinner = analyzeBtn?.querySelector('.analyzing-spinner');
+    
+    if (playIcon && spinner) {
+        playIcon.classList.remove('hidden');
+        spinner.classList.add('hidden');
+        analyzeBtn.disabled = false;
+        
+        if (result === 'completed') {
+            analyzeBtn.title = 'Re-analyze';
+        } else {
+            analyzeBtn.title = 'Analyze';
+        }
+    }
+}
+
+// Update cluster metrics in the card (simplified since data comes from template)
+function updateClusterMetrics(clusterId, clusterData) {
+    const clusterCard = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+    if (!clusterCard) return;
+    
+    // Update cost metric
+    const costValue = clusterCard.querySelector('.metric-value[data-metric="cost"]');
+    if (costValue && clusterData.last_cost !== undefined) {
+        costValue.textContent = `$${clusterData.last_cost.toFixed(2)}`;
+    }
+    
+    // Update savings metric
+    const savingsValue = clusterCard.querySelector('.metric-value[data-metric="savings"]');
+    if (savingsValue && clusterData.last_savings !== undefined) {
+        savingsValue.textContent = `$${clusterData.last_savings.toFixed(2)}`;
+    }
+    
+    // Update optimization score
+    const optimizationValue = clusterCard.querySelector('.metric-value[data-metric="optimization"]');
+    if (optimizationValue && clusterData.optimization_score !== undefined) {
+        optimizationValue.textContent = `${Math.round(clusterData.optimization_score)}%`;
+    }
+    
+    // Update node count
+    const nodeValue = clusterCard.querySelector('.metric-value[data-metric="nodes"]');
+    if (nodeValue && clusterData.node_count !== undefined) {
+        nodeValue.textContent = clusterData.node_count.toString();
+    }
+}
+
+// Show enhanced delete confirmation modal
+function deleteClusterConfirm(clusterId) {
     if (!clusterId) {
         showToast('Invalid cluster ID', 'error');
         return;
     }
     
-    // Create a simple confirm dialog for delete action
-    const clusterName = document.querySelector(`[data-cluster-id="${clusterId}"] .cluster-title h3`)?.textContent || clusterId;
+    // Get cluster information from the cluster card
+    const clusterCard = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+    const clusterName = clusterCard?.querySelector('.cluster-name')?.textContent || clusterId;
+    const clusterRegion = clusterCard?.querySelector('.cluster-region')?.textContent || 'Unknown Region';
     
-    if (confirm(`Are you sure you want to delete cluster "${clusterName}"? This action cannot be undone.`)) {
-        deleteCluster(clusterId);
+    // Store cluster ID for deletion
+    window.pendingDeleteClusterId = clusterId;
+    
+    // Populate modal with cluster information
+    document.getElementById('deleteClusterNameDisplay').textContent = clusterName;
+    document.getElementById('deleteClusterNameInfo').textContent = clusterName;
+    document.getElementById('deleteResourceGroupInfo').textContent = clusterRegion;
+    
+    // Reset confirmation checkbox and button state
+    const checkbox = document.getElementById('deleteConfirmCheck');
+    const deleteButton = document.getElementById('confirmDeleteButton');
+    checkbox.checked = false;
+    deleteButton.disabled = true;
+    
+    // Show the modal
+    const modal = document.getElementById('deleteConfirmModal');
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+// Close delete confirmation modal
+function closeDeleteConfirmModal(event) {
+    if (event && event.target !== event.currentTarget) return;
+    
+    const modal = document.getElementById('deleteConfirmModal');
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    
+    // Clear pending delete ID
+    window.pendingDeleteClusterId = null;
+}
+
+// Execute cluster deletion
+function executeClusterDelete() {
+    const clusterId = window.pendingDeleteClusterId;
+    if (!clusterId) {
+        showToast('No cluster selected for deletion', 'error');
+        return;
     }
+    
+    deleteCluster(clusterId);
+    closeDeleteConfirmModal();
 }
 
 // Delete cluster function
@@ -629,11 +933,12 @@ async function deleteCluster(clusterId) {
 // Load portfolio stats and cluster details
 document.addEventListener('DOMContentLoaded', function() {
     loadPortfolioStats();
-    enrichClusterCards();
+    // The cluster data should already be in the template, no need to fetch again
 });
 
 async function loadPortfolioStats() {
     try {
+        console.log('🔄 Loading portfolio stats from API...');
         const response = await fetch('/api/portfolio/summary');
         
         if (!response.ok) {
@@ -642,8 +947,10 @@ async function loadPortfolioStats() {
         }
         
         const data = await response.json();
+        console.log('📊 Portfolio API response:', data);
         
         if (data.status === 'success' && data.portfolio_summary) {
+            console.log('📈 Portfolio summary data:', data.portfolio_summary);
             updatePortfolioStats(data.portfolio_summary);
         } else {
             console.error('Portfolio stats not available:', data.message || 'Unknown error');
@@ -653,83 +960,6 @@ async function loadPortfolioStats() {
     }
 }
 
-// Enrich cluster cards with analysis data - no fallbacks allowed
-async function enrichClusterCards() {
-    const clusterCards = document.querySelectorAll('.cluster-card[data-cluster-id]');
-    let totalNodes = 0;
-    let hasAnyNodeData = false;
-    
-    for (const card of clusterCards) {
-        const clusterId = card.getAttribute('data-cluster-id');
-        if (!clusterId) {
-            throw new Error('Cluster card missing data-cluster-id attribute');
-        }
-        
-        const nodeCount = await loadClusterAnalysisData(clusterId, card);
-        if (nodeCount !== null && nodeCount !== undefined && !isNaN(nodeCount)) {
-            totalNodes += parseInt(nodeCount);
-            hasAnyNodeData = true;
-        }
-    }
-    
-    // Only update total nodes if we have real data
-    if (hasAnyNodeData && totalNodes > 0) {
-        const totalNodesEl = document.getElementById('total-nodes');
-        if (totalNodesEl) {
-            totalNodesEl.textContent = totalNodes.toString();
-        }
-    }
-}
-
-async function loadClusterAnalysisData(clusterId, card) {
-    try {
-        const clustersResponse = await fetch('/api/clusters');
-        
-        if (!clustersResponse.ok) {
-            console.error(`Failed to fetch clusters data: HTTP ${clustersResponse.status}`);
-            return null;
-        }
-        
-        const clustersData = await clustersResponse.json();
-        
-        if (clustersData.status !== 'success') {
-            console.error(`Clusters API error: ${clustersData.message || 'Unknown error'}`);
-            return null;
-        }
-        
-        if (!clustersData.clusters || !Array.isArray(clustersData.clusters)) {
-            console.error('Invalid clusters data structure');
-            return null;
-        }
-        
-        const cluster = clustersData.clusters.find(c => c.id === clusterId);
-        if (!cluster) {
-            console.error(`Cluster ${clusterId} not found in API response`);
-            return null;
-        }
-        
-        // Only update if real data exists - no fallbacks allowed
-        if (cluster.node_count !== undefined && cluster.node_count !== null && !isNaN(cluster.node_count)) {
-            const nodeCountEl = card.querySelector('.metric-value[data-metric="nodes"]');
-            if (nodeCountEl) {
-                nodeCountEl.textContent = cluster.node_count.toString();
-            }
-        }
-        
-        if (cluster.optimization_score !== undefined && cluster.optimization_score !== null && !isNaN(cluster.optimization_score)) {
-            const optimizationScoreEl = card.querySelector('.metric-value[data-metric="optimization"]');
-            if (optimizationScoreEl) {
-                optimizationScoreEl.textContent = `${Math.round(cluster.optimization_score)}%`;
-            }
-        }
-        
-        return cluster.node_count || null;
-        
-    } catch (error) {
-        console.error(`Error loading cluster analysis data for ${clusterId}:`, error);
-        return null;
-    }
-}
 
 function updatePortfolioStats(portfolioData) {
     // Update total cost using the correct field name from backend
@@ -748,6 +978,9 @@ function updatePortfolioStats(portfolioData) {
     const totalNodesEl = document.getElementById('total-nodes');
     if (totalNodesEl && portfolioData.total_nodes !== undefined && portfolioData.total_nodes !== null) {
         totalNodesEl.textContent = portfolioData.total_nodes.toString();
+        console.log('✅ Updated total nodes from API:', portfolioData.total_nodes);
+    } else {
+        console.log('⚠️ No total_nodes in portfolio data, keeping existing value:', totalNodesEl.textContent);
     }
 }
 
