@@ -733,6 +733,69 @@
   background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
 }
 
+/* ==========================================
+   Cluster Switcher Submenu Styles
+   ========================================== */
+
+/* Cluster Switcher - Simplified inline version */
+.cluster-switcher-section {
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  margin: var(--space-xs) 0;
+}
+
+.cluster-list-container {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.loading-clusters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  color: var(--text-light);
+  font-size: 0.875rem;
+}
+
+.loading-clusters i {
+  font-size: 0.875rem;
+}
+
+.no-clusters {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-light);
+  font-size: 0.875rem;
+}
+
+/* Dark theme styles */
+[data-theme="dark"] .cluster-submenu {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .submenu-header {
+  border-color: var(--border-color);
+  background: rgba(127, 176, 105, 0.08);
+}
+
+[data-theme="dark"] .cluster-item:hover {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .cluster-item.current {
+  background: rgba(127, 176, 105, 0.15);
+}
+
+/* Responsive positioning */
+@media (max-width: 768px) {
+  .cluster-submenu {
+    left: -280px;
+    margin-left: 0;
+  }
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .header-bar {
