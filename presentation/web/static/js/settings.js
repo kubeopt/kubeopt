@@ -566,6 +566,159 @@ document.addEventListener('DOMContentLoaded', function() {
     settingsPage = new SettingsPage();
 });
 
+// Working backend integration functions from backup
+function testAzure() {
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+    button.disabled = true;
+    
+    // First save the current Azure settings
+    const form = new FormData();
+    form.append('section', 'azure');
+    form.append('azure_tenant_id', document.querySelector('input[name="azure_tenant_id"]').value);
+    form.append('azure_subscription_id', document.querySelector('input[name="azure_subscription_id"]').value);
+    form.append('azure_client_id', document.querySelector('input[name="azure_client_id"]').value);
+    form.append('azure_client_secret', document.querySelector('input[name="azure_client_secret"]').value);
+    
+    // Save settings first, then test
+    fetch('/save_settings', {
+        method: 'POST',
+        body: form
+    })
+    .then(() => {
+        // Now test the Azure connection
+        return fetch('/test_azure', {
+            method: 'POST'
+        });
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Azure connection successful! ' + data.message, 'success');
+        } else {
+            showToast('Azure connection failed: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Error testing Azure connection: ' + error, 'error');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+function testEmail() {
+    const form = new FormData();
+    form.append('test_email', 'true');
+    form.append('smtp_server', document.querySelector('input[name="smtp_server"]').value);
+    form.append('smtp_port', document.querySelector('input[name="smtp_port"]').value);
+    form.append('smtp_username', document.querySelector('input[name="smtp_username"]').value);
+    form.append('smtp_password', document.querySelector('input[name="smtp_password"]').value);
+    form.append('from_email', document.querySelector('input[name="from_email"]').value);
+    form.append('email_recipients', document.querySelector('input[name="email_recipients"]').value);
+    
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+    button.disabled = true;
+    
+    fetch('/test_email', {
+        method: 'POST',
+        body: form
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Test email sent successfully!', 'success');
+        } else {
+            showToast('Test email failed: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Error testing email: ' + error, 'error');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+function testSlack() {
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+    button.disabled = true;
+    
+    fetch('/test_slack', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Test Slack message sent successfully!', 'success');
+        } else {
+            showToast('Slack test failed: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('Error testing Slack: ' + error, 'error');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+function showToast(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type} notification-toast`;
+    notification.textContent = message;
+    
+    // Style the notification
+    notification.style.position = 'fixed';
+    notification.style.top = '20px';
+    notification.style.right = '20px';
+    notification.style.zIndex = '9999';
+    notification.style.minWidth = '300px';
+    notification.style.maxWidth = '500px';
+    notification.style.padding = '1rem';
+    notification.style.borderRadius = '0.5rem';
+    notification.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+    notification.style.fontWeight = '500';
+    
+    // Set colors based on type
+    if (type === 'success') {
+        notification.style.background = '#10b981';
+        notification.style.color = 'white';
+    } else if (type === 'error') {
+        notification.style.background = '#ef4444';
+        notification.style.color = 'white';
+    } else {
+        notification.style.background = '#3b82f6';
+        notification.style.color = 'white';
+    }
+    
+    // Add to page
+    document.body.appendChild(notification);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 5000);
+    
+    // Allow manual dismissal on click
+    notification.addEventListener('click', () => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    });
+}
+
 // Global functions for template onclick handlers
 function testAzureConnection() {
     settingsPage?.testAzureConnection();
@@ -573,14 +726,6 @@ function testAzureConnection() {
 
 function refreshSubscriptions() {
     settingsPage?.refreshSubscriptions();
-}
-
-function testSlack() {
-    settingsPage?.testSlackIntegration();
-}
-
-function testEmail() {
-    settingsPage?.testEmailConfiguration();
 }
 
 function clearCache() {
@@ -597,4 +742,27 @@ function resetSettings() {
 
 function saveSettings() {
     settingsPage?.saveSettings();
+}
+
+// Navigation function for settings tabs
+function showSection(sectionName) {
+    // Hide all sections
+    const sections = document.querySelectorAll('.settings-section');
+    sections.forEach(section => section.classList.remove('active'));
+    
+    // Remove active class from all nav links
+    const links = document.querySelectorAll('.settings-nav-link');
+    links.forEach(link => link.classList.remove('active'));
+    
+    // Show selected section
+    const targetSection = document.getElementById(sectionName + '-section');
+    if (targetSection) {
+        targetSection.classList.add('active');
+    }
+    
+    // Add active class to clicked link
+    const targetLink = document.querySelector(`[data-section="${sectionName}"]`);
+    if (targetLink) {
+        targetLink.classList.add('active');
+    }
 }

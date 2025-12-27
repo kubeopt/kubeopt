@@ -27,31 +27,31 @@ Settings - AKS Cost Optimizer
             <nav class="settings-nav">
                 <div class="nav-section">
                     <div class="nav-item">
-                        <a href="#general" class="settings-nav-link active" data-section="general">
+                        <a href="#general" class="settings-nav-link active" data-section="general" onclick="showSection('general'); return false;">
                             <i class="fas fa-sliders-h"></i>
                             <span>General</span>
                         </a>
                     </div>
                     <div class="nav-item">
-                        <a href="#notifications" class="settings-nav-link" data-section="notifications">
+                        <a href="#notifications" class="settings-nav-link" data-section="notifications" onclick="showSection('notifications'); return false;">
                             <i class="fas fa-bell"></i>
                             <span>Notifications</span>
                         </a>
                     </div>
                     <div class="nav-item">
-                        <a href="#azure" class="settings-nav-link" data-section="azure">
+                        <a href="#azure" class="settings-nav-link" data-section="azure" onclick="showSection('azure'); return false;">
                             <i class="fab fa-microsoft"></i>
                             <span>Azure Integration</span>
                         </a>
                     </div>
                     <div class="nav-item">
-                        <a href="#security" class="settings-nav-link" data-section="security">
+                        <a href="#security" class="settings-nav-link" data-section="security" onclick="showSection('security'); return false;">
                             <i class="fas fa-shield-alt"></i>
                             <span>Security</span>
                         </a>
                     </div>
                     <div class="nav-item">
-                        <a href="#advanced" class="settings-nav-link" data-section="advanced">
+                        <a href="#advanced" class="settings-nav-link" data-section="advanced" onclick="showSection('advanced'); return false;">
                             <i class="fas fa-cogs"></i>
                             <span>Advanced</span>
                         </a>
@@ -63,50 +63,75 @@ Settings - AKS Cost Optimizer
             <div class="settings-main">
                 
                 <!-- General Settings -->
-                <section id="general-section" class="settings-section active">               
-                    <div class="settings-card">
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Theme Preference</h3>
-                                <p class="setting-description">Choose your preferred color theme</p>
+                <section id="general-section" class="settings-section active">
+                    <form id="general-form" method="POST" action="{{ url_for('save_settings') }}">
+                        <input type="hidden" name="section" value="general">
+                        
+                        <div class="settings-card">
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Analysis Refresh Interval</h3>
+                                    <p class="setting-description">How often to refresh cost analysis data (hours)</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="number" name="analysis_refresh_interval" value="{{ config.get('ANALYSIS_REFRESH_INTERVAL', '24') }}" 
+                                           class="setting-input" placeholder="24" min="1" max="168">
+                                </div>
                             </div>
-                            <div class="setting-control">
-                                <select class="setting-select" id="theme-setting">
-                                    <option value="light">Light</option>
-                                    <option value="dark">Dark</option>
-                                    <option value="auto">System</option>
-                                </select>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Cost Alert Threshold</h3>
+                                    <p class="setting-description">Send alerts when monthly cluster costs exceed this amount (USD)</p>
+                                </div>
+                                <div class="setting-control">
+                                    <div class="input-group">
+                                        <span class="input-prefix">$</span>
+                                        <input type="number" name="cost_alert_threshold" value="{{ config.get('COST_ALERT_THRESHOLD', '500') }}" 
+                                               class="setting-input" placeholder="500" min="0" step="0.01">
+                                    </div>
+                                </div>
                             </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Log Level</h3>
+                                    <p class="setting-description">Application logging detail level</p>
+                                </div>
+                                <div class="setting-control">
+                                    <select name="log_level" class="setting-select">
+                                        <option value="DEBUG" {% if config.get('LOG_LEVEL') == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                                        <option value="INFO" {% if config.get('LOG_LEVEL') == 'INFO' or not config.get('LOG_LEVEL') %}selected{% endif %}>INFO</option>
+                                        <option value="WARNING" {% if config.get('LOG_LEVEL') == 'WARNING' %}selected{% endif %}>WARNING</option>
+                                        <option value="ERROR" {% if config.get('LOG_LEVEL') == 'ERROR' %}selected{% endif %}>ERROR</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">License Key</h3>
+                                    <p class="setting-description">
+                                        Current License: <strong>{{ license_info.get('tier_display', 'Free') }}</strong>
+                                        {% if license_info.get('expires') %} - Expires: {{ license_info.get('expires') }}{% endif %}
+                                        {% if license_info.get('is_trial') %}<span style="color: #f59e0b;"> (Trial)</span>{% endif %}
+                                    </p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" name="license_key" value="{{ license_info.get('license_key', '') }}" 
+                                           class="setting-input" placeholder="Enter your license key (e.g., P6M-ABC123-250930-IMPL-AUTO)">
+                                </div>
+                            </div>
+                            
                         </div>
                         
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Auto Refresh</h3>
-                                <p class="setting-description">Automatically refresh dashboard data</p>
-                            </div>
-                            <div class="setting-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="auto-refresh" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
+                        <div class="settings-actions">
+                            <button type="submit" class="btn-primary">
+                                <i class="fas fa-save"></i>
+                                Save General Settings
+                            </button>
                         </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Refresh Interval</h3>
-                                <p class="setting-description">How often to refresh data (in minutes)</p>
-                            </div>
-                            <div class="setting-control">
-                                <select class="setting-select" id="refresh-interval">
-                                    <option value="1">1 minute</option>
-                                    <option value="5" selected>5 minutes</option>
-                                    <option value="10">10 minutes</option>
-                                    <option value="30">30 minutes</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
+                    </form>
                 </section>
                 
                 <!-- Notifications Settings -->
@@ -161,59 +186,78 @@ Settings - AKS Cost Optimizer
                 <!-- Azure Integration -->
                 <section id="azure-section" class="settings-section">
                     <div class="section-header">
-                        <h2 class="section-title">Azure Integration</h2>
+                        <h2 class="section-title">Azure Configuration</h2>
                         <p class="section-description">Configure Azure service principal and subscription settings</p>
                     </div>
                     
-                    <div class="settings-card">
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Service Principal Status</h3>
-                                <p class="setting-description">Current authentication status with Azure</p>
+                    <form id="azure-form" method="POST" action="{{ url_for('save_settings') }}">
+                        <input type="hidden" name="section" value="azure">
+                        
+                        <div class="settings-card">
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Azure Tenant ID</h3>
+                                    <p class="setting-description">Your Azure Active Directory tenant ID</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" name="azure_tenant_id" value="{{ config.get('AZURE_TENANT_ID', '') }}" 
+                                           class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+                                </div>
                             </div>
-                            <div class="setting-control">
-                                <span class="status-badge status-connected">Connected</span>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Azure Subscription ID</h3>
+                                    <p class="setting-description">Primary Azure subscription for analysis</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" name="azure_subscription_id" value="{{ config.get('AZURE_SUBSCRIPTION_ID', '') }}" 
+                                           class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Service Principal Client ID</h3>
+                                    <p class="setting-description">Service principal application ID</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" name="azure_client_id" value="{{ config.get('AZURE_CLIENT_ID', '') }}" 
+                                           class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="username">
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Service Principal Client Secret</h3>
+                                    <p class="setting-description">Service principal secret key</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="password" name="azure_client_secret" value="{{ config.get('AZURE_CLIENT_SECRET', '') }}" 
+                                           class="setting-input" placeholder="Enter client secret" autocomplete="new-password">
+                                </div>
                             </div>
                         </div>
                         
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Default Subscription</h3>
-                                <p class="setting-description">Primary Azure subscription for analysis</p>
+                        <div class="info-box info" style="margin: 1rem 0; padding: 1rem; background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 0.375rem;">
+                            <div class="info-box-title" style="font-weight: 600; margin-bottom: 0.5rem; color: #1e40af;">
+                                <i class="fas fa-info-circle" style="margin-right: 0.5rem;"></i>
+                                Service Principal Setup
                             </div>
-                            <div class="setting-control">
-                                <select class="setting-select" id="default-subscription">
-                                    <option value="">Select subscription...</option>
-                                    <option value="sub1">Production Subscription</option>
-                                    <option value="sub2">Development Subscription</option>
-                                </select>
-                            </div>
+                            <p style="margin: 0; color: #1e40af;">To create a service principal: <code style="background: #dbeafe; padding: 0.125rem 0.25rem; border-radius: 0.25rem;">az ad sp create-for-rbac --name "aks-cost-optimizer" --role "Reader"</code></p>
                         </div>
                         
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Cost Management API</h3>
-                                <p class="setting-description">Enable detailed cost analysis</p>
-                            </div>
-                            <div class="setting-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="cost-api" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
+                        <div class="settings-actions">
+                            <button type="button" onclick="testAzure()" class="btn-secondary">
+                                <i class="fas fa-cloud"></i>
+                                Test Azure Connection
+                            </button>
+                            <button type="submit" class="btn-primary">
+                                <i class="fas fa-save"></i>
+                                Save Azure Settings
+                            </button>
                         </div>
-                    </div>
-                    
-                    <div class="settings-actions">
-                        <button class="btn-secondary" onclick="testAzureConnection()">
-                            <i class="fas fa-plug"></i>
-                            Test Connection
-                        </button>
-                        <button class="btn-primary" onclick="refreshSubscriptions()">
-                            <i class="fas fa-refresh"></i>
-                            Refresh Subscriptions
-                        </button>
-                    </div>
+                    </form>
                 </section>
                 
                 <!-- Security Settings -->
@@ -326,18 +370,6 @@ Settings - AKS Cost Optimizer
             </div>
         </div>
         
-        <!-- Save Button -->
-        <div class="settings-footer">
-            <div class="footer-actions">
-                <button class="btn-secondary" onclick="resetSettings()">
-                    Reset to Defaults
-                </button>
-                <button class="btn-primary" onclick="saveSettings()">
-                    <i class="fas fa-save"></i>
-                    Save Settings
-                </button>
-            </div>
-        </div>
     </main>
 </div>
 
