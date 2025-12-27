@@ -170,8 +170,7 @@ class AuthManager:
         """
         def wrapper(*args, **kwargs):
             if not self.validate_session():
-                from flask import redirect, url_for, flash
-                flash('Please log in to access this page', 'error')
+                from flask import redirect, url_for
                 return redirect(url_for('login'))
             return f(*args, **kwargs)
         wrapper.__name__ = f.__name__

@@ -43,11 +43,6 @@
                 
                 <!-- Header Actions -->
                 <div class="unified-header-actions">
-                    <!-- Search Bar -->
-                    <div class="search-bar">
-                        <i class="fas fa-search search-icon"></i>
-                        <input type="text" class="search-input" placeholder="Search metrics, workloads...">
-                    </div>
                     
                     <!-- Date Display -->
                     <div class="header-date">
@@ -142,19 +137,21 @@
         </header>
         {% endif %}
 
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div id="flash-messages" class="flash-messages">
-                    {% for category, message in messages %}
-                        <div class="flash-message flash-{{ category }}">
-                            <span>{{ message }}</span>
-                            <button onclick="this.parentElement.remove()" class="flash-close">&times;</button>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
+        <!-- Flash Messages (exclude from login page) -->
+        {% if request.endpoint != 'login' %}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div id="flash-messages" class="flash-messages">
+                        {% for category, message in messages %}
+                            <div class="flash-message flash-{{ category }}">
+                                <span>{{ message }}</span>
+                                <button onclick="this.parentElement.remove()" class="flash-close">&times;</button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+        {% endif %}
 
         <!-- Main Content -->
         <main class="main-wrapper">

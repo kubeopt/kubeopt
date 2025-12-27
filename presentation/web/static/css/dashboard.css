@@ -292,34 +292,6 @@ body {
   gap: var(--space-md);
 }
 
-.search-bar {
-  position: relative;
-}
-
-.search-input {
-  width: 300px;
-  padding: var(--space-sm) var(--space-md) var(--space-sm) 2.5rem;
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-lg);
-  font-size: 0.875rem;
-  background: white;
-  transition: border-color 0.2s ease;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: var(--primary-green);
-  box-shadow: 0 0 0 3px rgba(127, 176, 105, 0.1);
-}
-
-.search-icon {
-  position: absolute;
-  left: var(--space-md);
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-light);
-  font-size: 0.875rem;
-}
 
 .header-date {
   display: flex;
@@ -591,9 +563,6 @@ body {
     padding: var(--space-md);
   }
   
-  .search-input {
-    width: 200px;
-  }
 }
 
 /* Utility Classes */

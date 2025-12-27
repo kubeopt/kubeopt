@@ -56,7 +56,6 @@ def register_auth_routes(app):
         username = user.get('username', 'Unknown')
         
         auth_manager.destroy_session()
-        flash(f'Session ended for {username}. Thank you for using kubeopt.', 'success')
         return redirect(url_for('login'))
     
     @app.route('/settings')
