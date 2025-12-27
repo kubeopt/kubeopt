@@ -237,4 +237,62 @@ def register_routes(app):
             logger.error(f"Error displaying results: {e}")
             return render_template('error.html', error=str(e))
     
+    @app.route('/api/clusters/dropdown')
+    @auth_manager.require_auth
+    def clusters_dropdown():
+        """API endpoint for cluster dropdown - returns simplified cluster list"""
+        try:
+            # Get clusters with subscription info
+            clusters_data = enhanced_cluster_manager.get_clusters_with_subscription_info()
+            
+            # Simplify for dropdown usage
+            dropdown_clusters = []
+            for cluster in clusters_data:
+                dropdown_clusters.append({
+                    'id': cluster.get('id'),
+                    'name': cluster.get('name'),
+                    'environment': cluster.get('environment'),
+                    'region': cluster.get('region'),
+                    'subscription_id': cluster.get('subscription_id')
+                })
+            
+            return jsonify({
+                'status': 'success',
+                'clusters': dropdown_clusters,
+                'total': len(dropdown_clusters)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in clusters_dropdown: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'clusters': []
+            }), 500
+
+    @app.route('/api/portfolio/summary')
+    @auth_manager.require_auth  
+    def portfolio_summary_api():
+        """API endpoint for portfolio summary data"""
+        try:
+            # Get clusters with subscription info
+            clusters_data = enhanced_cluster_manager.get_clusters_with_subscription_info()
+            
+            # Get portfolio summary
+            portfolio_summary = enhanced_cluster_manager.get_portfolio_summary()
+            
+            return jsonify({
+                'status': 'success', 
+                'portfolio_summary': portfolio_summary,
+                'clusters': clusters_data,
+                'total_clusters': len(clusters_data)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in portfolio_summary_api: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+    
     logger.info("✅ Routes registered successfully")

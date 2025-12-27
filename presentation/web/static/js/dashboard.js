@@ -134,7 +134,7 @@ window.Dashboard = (function() {
     async function loadDashboardData() {
         const clusterId = window.AppState?.currentClusterId;
         if (!clusterId) {
-            console.warn('No cluster ID available for dashboard data');
+            console.log('ℹ️ No cluster ID available - likely on portfolio page, skipping dashboard data load');
             return;
         }
 

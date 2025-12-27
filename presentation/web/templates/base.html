@@ -78,6 +78,25 @@
                             
                             <div class="dropdown-divider"></div>
                             
+                            <!-- Cluster Switcher Section -->
+                            <div class="cluster-switcher-section" id="cluster-switcher-section">
+                                <div class="dropdown-item" id="cluster-toggle" style="cursor: pointer;">
+                                    <i class="fas fa-server"></i>
+                                    <span>Clusters</span>
+                                    <i class="fas fa-chevron-down item-arrow" id="cluster-arrow"></i>
+                                </div>
+                                
+                                <!-- Clusters List (inline, hidden by default) -->
+                                <div class="cluster-list-container" id="cluster-list-container" style="display: none; padding-left: 1.5rem;">
+                                    <div id="cluster-list">
+                                        <div class="loading-clusters" style="padding: 0.5rem 1rem; color: var(--text-secondary);">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                            Loading clusters...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div class="dropdown-section">
                                 <a href="/settings" class="dropdown-item">
                                     <i class="fas fa-cog"></i>
@@ -161,6 +180,7 @@
     <!-- Modular JavaScript - Load in order -->
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
     <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/header.js') }}"></script>
     <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
     <script src="{{ url_for('static', filename='js/chart-manager.js') }}"></script>
     <script src="{{ url_for('static', filename='js/implementation-plan.js') }}"></script>
@@ -203,60 +223,10 @@
             });
         }
 
-        // Toggle user dropdown
-        function toggleUserDropdown() {
-            const dropdown = document.getElementById('userDropdown');
-            const dropdownMenu = document.getElementById('userDropdownMenu');
-            const trigger = dropdown.querySelector('.user-dropdown-trigger');
-            
-            const isOpen = dropdown.classList.contains('open');
-            
-            if (isOpen) {
-                dropdown.classList.remove('open');
-                dropdownMenu.style.display = 'none';
-                trigger.setAttribute('aria-expanded', 'false');
-            } else {
-                dropdown.classList.add('open');
-                dropdownMenu.style.display = 'block';
-                trigger.setAttribute('aria-expanded', 'true');
-            }
-        }
-
-        // Close dropdown when clicking outside
-        function closeUserDropdown() {
-            const dropdown = document.getElementById('userDropdown');
-            const dropdownMenu = document.getElementById('userDropdownMenu');
-            const trigger = dropdown?.querySelector('.user-dropdown-trigger');
-            
-            if (dropdown && dropdown.classList.contains('open')) {
-                dropdown.classList.remove('open');
-                if (dropdownMenu) dropdownMenu.style.display = 'none';
-                if (trigger) trigger.setAttribute('aria-expanded', 'false');
-            }
-        }
-
         // Initialize on load
         document.addEventListener('DOMContentLoaded', function() {
             initTheme();
             updateDate();
-            
-            // Add event listeners for dropdown
-            document.addEventListener('click', function(event) {
-                const dropdown = document.getElementById('userDropdown');
-                const trigger = dropdown?.querySelector('.user-dropdown-trigger');
-                
-                // Close dropdown if clicking outside
-                if (dropdown && !dropdown.contains(event.target)) {
-                    closeUserDropdown();
-                }
-            });
-            
-            // Close dropdown on escape key
-            document.addEventListener('keydown', function(event) {
-                if (event.key === 'Escape') {
-                    closeUserDropdown();
-                }
-            });
         });
         
         // Update date function
