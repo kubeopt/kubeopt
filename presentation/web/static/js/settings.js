@@ -573,24 +573,18 @@ function testAzure() {
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
     button.disabled = true;
     
-    // First save the current Azure settings
-    const form = new FormData();
-    form.append('section', 'azure');
-    form.append('azure_tenant_id', document.querySelector('input[name="azure_tenant_id"]').value);
-    form.append('azure_subscription_id', document.querySelector('input[name="azure_subscription_id"]').value);
-    form.append('azure_client_id', document.querySelector('input[name="azure_client_id"]').value);
-    form.append('azure_client_secret', document.querySelector('input[name="azure_client_secret"]').value);
+    // Get current form values without saving them
+    const testData = new FormData();
+    testData.append('test_azure', 'true');
+    testData.append('azure_tenant_id', document.querySelector('input[name="azure_tenant_id"]').value);
+    testData.append('azure_subscription_id', document.querySelector('input[name="azure_subscription_id"]').value);
+    testData.append('azure_client_id', document.querySelector('input[name="azure_client_id"]').value);
+    testData.append('azure_client_secret', document.querySelector('input[name="azure_client_secret"]').value);
     
-    // Save settings first, then test
-    fetch('/save_settings', {
+    // Test Azure connection with form values (without saving)
+    fetch('/test_azure', {
         method: 'POST',
-        body: form
-    })
-    .then(() => {
-        // Now test the Azure connection
-        return fetch('/test_azure', {
-            method: 'POST'
-        });
+        body: testData
     })
     .then(response => response.json())
     .then(data => {

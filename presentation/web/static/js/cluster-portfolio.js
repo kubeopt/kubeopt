@@ -37,11 +37,6 @@ class ClusterPortfolio {
             });
         }
 
-        // Search functionality
-        const searchInput = document.getElementById('cluster-search');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => this.handleSearch(e));
-        }
 
         // Filter functionality
         const environmentFilter = document.getElementById('environment-filter');
@@ -235,22 +230,6 @@ class ClusterPortfolio {
         }
     }
 
-    // Search and Filter
-    handleSearch(e) {
-        const searchTerm = e.target.value.toLowerCase();
-        const clusterCards = document.querySelectorAll('.cluster-card');
-        
-        clusterCards.forEach(card => {
-            const clusterName = card.querySelector('.cluster-name').textContent.toLowerCase();
-            const clusterRegion = card.querySelector('.cluster-region').textContent.toLowerCase();
-            
-            if (clusterName.includes(searchTerm) || clusterRegion.includes(searchTerm)) {
-                card.style.display = 'block';
-            } else {
-                card.style.display = 'none';
-            }
-        });
-    }
 
     handleEnvironmentFilter(e) {
         const environment = e.target.value;
