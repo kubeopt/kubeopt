@@ -29,6 +29,16 @@ function initApp() {
             console.log('Charts module available');
         }
         
+        if (window.ImplementationPlan) {
+            window.ImplementationPlan.init();
+            console.log('Implementation plan module initialized');
+        }
+        
+        if (window.Alerts) {
+            window.Alerts.init();
+            console.log('Alerts module initialized');
+        }
+        
         console.log('✅ Application initialized successfully');
         
     } catch (error) {
@@ -95,11 +105,7 @@ window.generateNewPlan = function() {
     }
 };
 
-window.createAlert = function() {
-    if (window.UI) {
-        window.UI.showToast('Alert creation modal would open here', 'info');
-    }
-};
+// createAlert function is now handled by the Alerts module
 
 // Export for global access
 window.AksApp = {

@@ -92,9 +92,24 @@
     color: var(--text-primary);
 }
 
+.section-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
 .filter-controls {
     display: flex;
     gap: 1rem;
+}
+
+.add-cluster-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    white-space: nowrap;
 }
 
 .filter-select {
@@ -318,6 +333,13 @@
     margin-bottom: 1.5rem;
 }
 
+.empty-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
 /* Enterprise Dark Theme Support */
 [data-theme="dark"] .stat-card {
     background: var(--bg-tertiary);
@@ -409,5 +431,295 @@
         flex-direction: column;
         align-items: stretch;
         gap: 1rem;
+    }
+    
+    .section-controls {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .filter-controls {
+        order: 2;
+    }
+    
+    .add-cluster-btn {
+        order: 1;
+        align-self: stretch;
+        justify-content: center;
+    }
+}
+
+/* ==========================================
+   Add Cluster Modal Styles
+   ========================================== */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+    padding: 1rem;
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-container {
+    background: var(--bg-primary);
+    border-radius: var(--radius-lg);
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.modal-overlay.active .modal-container {
+    transform: scale(1);
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-secondary);
+}
+
+.modal-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.modal-title i {
+    color: var(--primary-color);
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    background: var(--bg-secondary);
+}
+
+/* Form Sections */
+.form-section {
+    margin-bottom: 2rem;
+}
+
+.form-section:last-child {
+    margin-bottom: 0;
+}
+
+.section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color-light);
+}
+
+.section-title i {
+    color: var(--primary-color);
+}
+
+/* Form Elements */
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Simple error highlighting - just red border */
+.form-group.error input,
+.form-group.error select,
+.form-group.error textarea {
+    border-color: var(--error-color);
+    animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+    0%, 20%, 50%, 80%, 100% { transform: translateX(0); }
+    10%, 30%, 70%, 90% { transform: translateX(-4px); }
+    40%, 60% { transform: translateX(4px); }
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(127, 176, 105, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.form-help {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    margin-top: 0.25rem;
+}
+
+
+/* Button Loading States */
+.btn-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-loading i {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Dark Theme Modal */
+[data-theme="dark"] .modal-container {
+    background: var(--bg-secondary);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .modal-header,
+[data-theme="dark"] .modal-footer {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .form-group input,
+[data-theme="dark"] .form-group select,
+[data-theme="dark"] .form-group textarea {
+    background: var(--bg-primary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .form-group input:focus,
+[data-theme="dark"] .form-group select:focus,
+[data-theme="dark"] .form-group textarea:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(127, 176, 105, 0.2);
+}
+
+/* Dark theme error highlighting - more visible red */
+[data-theme="dark"] .form-group.error input,
+[data-theme="dark"] .form-group.error select,
+[data-theme="dark"] .form-group.error textarea {
+    border-color: #f87171;
+    box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.3);
+}
+
+
+/* Mobile Modal */
+@media (max-width: 768px) {
+    .modal-overlay {
+        padding: 0.5rem;
+    }
+    
+    .modal-container {
+        max-height: 95vh;
+    }
+    
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: 1rem;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+    
+    .modal-footer {
+        flex-direction: column-reverse;
+    }
+    
+    .modal-footer button {
+        width: 100%;
+        justify-content: center;
     }
 }

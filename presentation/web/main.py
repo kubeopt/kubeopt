@@ -77,7 +77,7 @@ def register_all_routes_with_multi_subscription():
         
         #  Register alerts routes (subscription-aware) 
         try:
-            from alerts import register_alerts_routes
+            from infrastructure.services.alerts_integration import register_alerts_routes
             register_alerts_routes(app)
             logger.info("✅ Alerts routes registered successfully")
         except ImportError as import_error:

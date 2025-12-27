@@ -45,7 +45,6 @@ import os
 from infrastructure.services.subscription_manager import azure_subscription_manager
 
 # NOTE: Enhanced cost attribution and resource validation modules 
-# are not implemented yet. Removed dead imports following .clauderc standards.
 
 class AnalysisType(Enum):
     """Analysis type configurations"""
@@ -2195,7 +2194,7 @@ class MultiSubscriptionAnalysisEngine:
                                          basic_analysis: Optional[dict] = None) -> dict:
         """
         Validate usage metrics and build usage data structure.
-        Following .clauderc: explicit validation, no fallbacks, raise errors for missing data.
+       
         """
         from pydantic import BaseModel, Field, field_validator
         
@@ -2256,7 +2255,7 @@ class MultiSubscriptionAnalysisEngine:
                                         namespaces: list) -> dict:
         """
         Validate cluster information and build cluster info structure.
-        Following .clauderc: explicit validation, no fallbacks, raise errors for missing data.
+        
         """
         from pydantic import BaseModel, Field, field_validator
         
@@ -2329,7 +2328,7 @@ class MultiSubscriptionAnalysisEngine:
     def _validate_team_owner(self, namespace_name: str) -> str:
         """
         Validate team owner for namespace.
-        Following .clauderc: explicit validation, no fallbacks, raise errors for missing data.
+        
         """
         if not namespace_name:
             raise ValueError("Namespace name is required for team owner validation")

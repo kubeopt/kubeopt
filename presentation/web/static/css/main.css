@@ -11,6 +11,8 @@
 @import url('buttons.css');
 @import url('forms.css');
 @import url('animations.css');
+@import url('implementation-plan.css');
+@import url('alerts.css');
 
 /* ==========================================
    Flash Messages
@@ -114,7 +116,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: var(--space-xl);
+  padding: var(--space-md) var(--space-xl) var(--space-xl) var(--space-xl);
   width: 100%;
   box-sizing: border-box;
 }

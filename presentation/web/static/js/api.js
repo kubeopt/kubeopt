@@ -41,7 +41,24 @@ window.API = (function() {
             const response = await fetch(baseURL + endpoint, config);
             
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                // Try to get error details from response body
+                let errorMessage = `${response.status}: ${response.statusText}`;
+                try {
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        const errorData = await response.json();
+                        errorMessage = errorData.message || errorData.error || errorMessage;
+                        console.error('Backend error details:', errorData);
+                    } else {
+                        const textError = await response.text();
+                        if (textError) {
+                            errorMessage = textError;
+                        }
+                    }
+                } catch (parseError) {
+                    console.error('Could not parse error response:', parseError);
+                }
+                throw new Error(`HTTP ${response.status}: ${errorMessage}`);
             }
             
             const contentType = response.headers.get('content-type');
@@ -121,6 +138,16 @@ window.API = (function() {
     }
 
     /**
+     * Toggle alert status (pause/resume)
+     */
+    async function toggleAlert(alertId, action) {
+        return await request(`/api/alerts/${alertId}/pause`, {
+            method: 'POST',
+            body: JSON.stringify({ action })
+        });
+    }
+
+    /**
      * Get notifications
      */
     async function getNotifications() {
@@ -181,6 +208,7 @@ window.API = (function() {
         // Alerts methods
         getAlerts,
         createAlert,
+        toggleAlert,
         
         // Notifications methods
         getNotifications,
