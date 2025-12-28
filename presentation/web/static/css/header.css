@@ -97,6 +97,36 @@
   font-size: 0.875rem;
 }
 
+/* Simple Refresh Button */
+.refresh-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+}
+
+.refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  transform: translateY(-1px);
+}
+
+.refresh-btn:active {
+  transform: translateY(0);
+}
+
+.refresh-btn i {
+  transition: transform 0.3s ease;
+}
+
+.refresh-btn:hover i {
+  transform: rotate(180deg);
+}
+
 /* Header action buttons are now consolidated into user dropdown */
 
 
