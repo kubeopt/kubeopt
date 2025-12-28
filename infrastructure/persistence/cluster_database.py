@@ -2729,6 +2729,36 @@ class EnhancedMultiSubscriptionClusterManager:
             self.logger.error(f"❌ Failed to save implementation plan: {e}")
             raise
 
+    def store_implementation_plan(self, cluster_id: str, implementation_plan, analysis_id: str = None) -> str:
+        """
+        Store implementation plan - wrapper for save_implementation_plan with analysis_engine compatibility
+        Expected by analysis_engine.py for Claude-generated plans
+        """
+        try:
+            # Convert plan object to dict if needed (for Pydantic models)
+            if hasattr(implementation_plan, 'model_dump'):
+                plan_data = implementation_plan.model_dump()
+            elif hasattr(implementation_plan, 'dict'):
+                plan_data = implementation_plan.dict()
+            elif isinstance(implementation_plan, dict):
+                plan_data = implementation_plan
+            else:
+                plan_data = {'raw_plan': str(implementation_plan)}
+            
+            # Add analysis_id if provided
+            if analysis_id:
+                plan_data['analysis_id'] = analysis_id
+            
+            # Use existing save_implementation_plan method
+            plan_id = self.save_implementation_plan(cluster_id, plan_data)
+            
+            self.logger.info(f"✅ Stored implementation plan {plan_id} for cluster {cluster_id}")
+            return plan_id
+            
+        except Exception as e:
+            self.logger.error(f"❌ Failed to store implementation plan for {cluster_id}: {e}")
+            raise
+
     def _extract_enhanced_input_from_analysis(self, analysis_results: dict) -> dict:
         """
         DISABLED: This method caused data loss by truncating workloads to 100.
