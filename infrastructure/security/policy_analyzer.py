@@ -911,7 +911,7 @@ class DynamicPolicyAnalyzerYAML:
         return round(max(0, min(100, overall_compliance)), 1)
     
     def _generate_recommendations_yaml(self, violations: List[PolicyViolation]) -> List[str]:
-        """Generate recommendations using YAML-enhanced ML analysis"""
+        """Generate recommendations using YAML-enhanced enhanced analysis"""
         
         if not violations:
             return ["✅ No policy violations detected. Continue monitoring for drift."]
@@ -975,7 +975,7 @@ class DynamicPolicyAnalyzerYAML:
         return recommendations[:10]  # Limit to top 10
     
     async def _enhance_violations_with_ml_yaml(self, violations: List[PolicyViolation]) -> List[PolicyViolation]:
-        """Enhance violations with ML analysis using YAML configuration"""
+        """Enhance violations with enhanced analysis using YAML configuration"""
         
         if not violations:
             return violations

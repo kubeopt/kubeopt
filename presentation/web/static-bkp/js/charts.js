@@ -4155,7 +4155,7 @@ export function clearLoadingStates() {
     // Clear insight loading states
     const insightElements = [
         { selector: '#cost-insight', defaultText: 'VM Scale Sets consume the majority of your monthly budget. Consider implementing right-sizing recommendations.' },
-        { selector: '#hpa-insight', defaultText: 'ML analysis suggests potential CPU/Memory optimization opportunities.' }
+        { selector: '#hpa-insight', defaultText: 'enhanced analysis suggests potential CPU/Memory optimization opportunities.' }
     ];
     
     insightElements.forEach(({ selector, defaultText }) => {

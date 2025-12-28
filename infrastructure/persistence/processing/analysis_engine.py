@@ -740,7 +740,7 @@ class MultiSubscriptionAnalysisEngine:
             raise ValueError("No real node metrics available from any source")
         
         real_node_metrics = metrics_data['nodes'].copy()
-        logger.info(f"🔧 Session {session_id}: PRESERVED {len(real_node_metrics)} real nodes for ML analysis in subscription context")
+        logger.info(f"🔧 Session {session_id}: PRESERVED {len(real_node_metrics)} real nodes for enhanced analysis in subscription context")
         
         if config.strict_validation:
             self._validate_node_metrics(real_node_metrics)
