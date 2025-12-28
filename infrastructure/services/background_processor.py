@@ -205,7 +205,7 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
             resource_group, cluster_name, subscription_id, days, enable_pod_analysis
         )
         
-        update_progress(85, f'Generating AI insights and implementation plan...')
+        update_progress(85, f'Generating Enhanced Analysis and implementation plan...')
         time.sleep(0.2)  # Reduced from 1 second
         
         # Record analysis duration
