@@ -10,9 +10,9 @@ Settings - AKS Cost Optimizer
     <header class="settings-header">
         <div class="header-content">
             <div class="breadcrumb">
-                <a href="/clusters" class="breadcrumb-link">
+                <a href="#" class="breadcrumb-link" id="back-link">
                     <i class="fas fa-arrow-left"></i>
-                    Back to Clusters
+                    <span id="back-text">Back to Clusters</span>
                 </a>
             </div>
             <h1 class="settings-title">Settings</h1>
@@ -383,4 +383,53 @@ Settings - AKS Cost Optimizer
 {% block extra_js %}
 <!-- Settings-specific JavaScript -->
 <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const backLink = document.getElementById('back-link');
+    const backText = document.getElementById('back-text');
+    
+    if (backLink && backText) {
+        // Get referrer URL to determine where user came from
+        const referrer = document.referrer;
+        let backUrl = '/clusters'; // Default fallback
+        let backLabel = 'Back to Clusters';
+        
+        if (referrer) {
+            try {
+                const url = new URL(referrer);
+                const pathname = url.pathname;
+                
+                // Check if coming from a specific cluster page
+                const clusterMatch = pathname.match(/^\/cluster\/(.+)$/);
+                if (clusterMatch) {
+                    backUrl = referrer;
+                    backLabel = 'Back to Cluster';
+                } else if (pathname === '/' || pathname === '/clusters') {
+                    backUrl = '/clusters';
+                    backLabel = 'Back to Clusters';
+                }
+            } catch (e) {
+                console.log('Could not parse referrer URL, using default');
+            }
+        }
+        
+        // Update the link
+        backLink.href = backUrl;
+        backText.textContent = backLabel;
+        
+        // Add click handler for better UX
+        backLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // If browser supports history and has previous page, use browser back
+            if (referrer && window.history.length > 1) {
+                window.history.back();
+            } else {
+                // Otherwise navigate to the determined URL
+                window.location.href = backUrl;
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

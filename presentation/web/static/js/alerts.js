@@ -411,7 +411,7 @@ window.Alerts = (function() {
                         <div class="${avatarClass}">
                             <i class="${icon}"></i>
                         </div>
-                        <div class="alert-content" onclick="Alerts.showAlertDetails('${alert.id || ''}')">
+                        <div class="alert-content">
                             <div class="alert-title">${escapeHtml(alert.title || alert.name || 'Alert')}</div>
                             <div class="alert-description">${escapeHtml(alert.description || alert.message || 'No description available')}</div>
                             <div class="alert-meta">

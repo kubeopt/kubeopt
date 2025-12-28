@@ -16,6 +16,7 @@ class ClusterPortfolio {
         this.bindEventListeners();
         this.loadPortfolioStats();
         this.startAutoRefresh();
+        
     }
 
     bindEventListeners() {
@@ -252,16 +253,23 @@ class ClusterPortfolio {
             return;
         }
         
+        
         const analyzeBtn = document.querySelector(`[data-cluster-id="${clusterId}"]`);
         const analyzeIcon = analyzeBtn?.querySelector('.analyze-icon');
         const spinner = analyzeBtn?.querySelector('.analyzing-spinner');
         
-        // Show spinner
+        // Show spinner with progress
         if (analyzeIcon && spinner) {
             analyzeIcon.classList.add('hidden');
             spinner.classList.remove('hidden');
             analyzeBtn.disabled = true;
             analyzeBtn.title = 'Analyzing...';
+            
+            // Add simple progress text
+            const btnText = analyzeBtn.querySelector('.btn-text');
+            if (btnText) {
+                btnText.textContent = 'Starting...';
+            }
         }
         
         this.updateClusterStatus(clusterId, 'analyzing');
@@ -362,6 +370,14 @@ class ClusterPortfolio {
                         
                     } else if (data.analysis_status === 'analyzing' || data.analysis_status === 'running') {
                         this.updateClusterStatus(clusterId, 'analyzing');
+                        
+                        // Simple progress enhancement
+                        const analyzeBtn = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+                        const btnText = analyzeBtn?.querySelector('.btn-text');
+                        if (btnText) {
+                            const dots = '.'.repeat((pollCount % 3) + 1);
+                            btnText.textContent = `Analyzing${dots}`;
+                        }
                     }
                     
                     if (pollCount < this.maxPolls) {
@@ -510,13 +526,10 @@ class ClusterPortfolio {
         }
     }
 
-    // Auto-refresh functionality
+    // Auto-refresh functionality - disabled since global refresh handles it
     startAutoRefresh() {
-        this.autoRefreshInterval = setInterval(() => {
-            this.silentRefresh();
-        }, 30000);
-        
-        console.log('🔄 Auto-refresh started (every 30 seconds)');
+        // Global auto-refresh in main.js now handles this
+        console.log('🔄 Using global auto-refresh (cluster-specific refresh disabled)');
     }
 
     stopAutoRefresh() {
@@ -582,6 +595,7 @@ class ClusterPortfolio {
             maximumFractionDigits: 0
         }).format(amount || 0);
     }
+
 }
 
 // Initialize the cluster portfolio when DOM is loaded
