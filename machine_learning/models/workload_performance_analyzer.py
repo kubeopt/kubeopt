@@ -1808,7 +1808,7 @@ class SelfLearningIntelligentHPAEngine:
             recommendation.update({
                 'action': 'OPTIMIZE_BEFORE_SCALING',
                 'title': f'Optimize {workload_type} Workload Before Scaling',
-                'description': f'ML analysis detected inefficient resource usage patterns. '
+                'description': f'enhanced analysis detected inefficient resource usage patterns. '
                              f'Current CPU: {avg_cpu:.1f}%, Memory: {avg_memory:.1f}%. '
                              f'{optimization.get("reasoning", "Application optimization recommended.")}',
                 'priority': 'high',
@@ -1853,7 +1853,7 @@ class SelfLearningIntelligentHPAEngine:
             recommendation.update({
                 'action': 'REDUCE_RESOURCES',
                 'title': 'Resource Right-Sizing Opportunity',
-                'description': f'ML analysis indicates over-provisioning. '
+                'description': f'enhanced analysis indicates over-provisioning. '
                              f'{optimization.get("reasoning", "Consider reducing resource requests.")}',
                 'cost_impact': 'potential_savings',
                 'savings_estimate': optimization.get('cost_analysis', {}).get('potential_monthly_savings', 0)
@@ -1869,7 +1869,7 @@ class SelfLearningIntelligentHPAEngine:
                 'monitoring_requirements': ['Custom metrics', 'Predictive algorithms', 'Traffic pattern analysis']
             })
         
-        # Add comprehensive ML insights
+        # Add Comprehensive Analysis insights
         recommendation['ml_insights'] = {
             'workload_pattern': workload_type,
             'pattern_confidence': workload_class.get('confidence', 0.5),

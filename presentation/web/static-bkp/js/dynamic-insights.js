@@ -154,7 +154,7 @@ export function generateRealDynamicInsights(data) {
     // Storage insight with specific recommendations
     if (metrics.storage_savings > 0) {
         const storageSavings = Math.round(metrics.storage_savings);
-        insights.storage = `💾 <strong>Storage Optimization:</strong> ML analysis identified $${storageSavings.toLocaleString()}/month savings through automated tier management, volume cleanup, and snapshot optimization.`;
+        insights.storage = `💾 <strong>Storage Optimization:</strong> enhanced analysis identified $${storageSavings.toLocaleString()}/month savings through automated tier management, volume cleanup, and snapshot optimization.`;
     }
     
     // Overall optimization summary with ML confidence
@@ -174,7 +174,7 @@ export function generateRealDynamicInsights(data) {
     // PERFORMANCE & EFFICIENCY INSIGHTS
     // ============================================================================
     
-    // Performance insight based on ML analysis
+    // Performance insight based on enhanced analysis
     if (hpaComparison.actual_hpa_efficiency !== undefined) {
         const efficiency = hpaComparison.actual_hpa_efficiency;
         const wasteDetected = 100 - efficiency;
@@ -225,7 +225,7 @@ export function generateRealDynamicInsights(data) {
     // ACTIONABLE RECOMMENDATIONS
     // ============================================================================
     
-    // Immediate actions based on ML analysis
+    // Immediate actions based on enhanced analysis
     if (hpaComparison.ml_workload_type) {
         const workloadType = hpaComparison.ml_workload_type;
         let immediateActions = [];

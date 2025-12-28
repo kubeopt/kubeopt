@@ -1144,7 +1144,7 @@ class AKSRealTimeMetricsFetcher:
     def _get_enhanced_node_metrics(self) -> Dict[str, Any]:
         """Get enhanced node metrics with additional ML features"""
         try:
-            logger.info("📊 Fetching enhanced node metrics for ML analysis...")
+            logger.info("📊 Fetching enhanced node metrics for enhanced analysis...")
             
             # Get base node metrics using existing method
             base_metrics = self.get_node_metrics()
@@ -1684,7 +1684,7 @@ class AKSRealTimeMetricsFetcher:
             return {'total_hpas': 0, 'parsing_method': 'working_parser_failed'}
 
     def _get_detailed_pod_metrics(self) -> Dict:
-        """Get detailed pod-level metrics for ML analysis"""
+        """Get detailed pod-level metrics for enhanced analysis"""
         try:
             # Get pod resource usage
             top_pods_cmd = "kubectl top pods --all-namespaces --no-headers"
@@ -1951,8 +1951,8 @@ class AKSRealTimeMetricsFetcher:
 
 
     def get_enhanced_metrics_for_ml(self) -> Dict[str, Any]:
-        """Collect comprehensive metrics optimized for ML analysis"""
-        logger.info("🤖 Fetching enhanced metrics for ML analysis...")
+        """Collect comprehensive metrics optimized for enhanced analysis"""
+        logger.info("🤖 Fetching enhanced metrics for enhanced analysis...")
         
         try:
             # Get base comprehensive metrics
@@ -2312,7 +2312,7 @@ class AKSRealTimeMetricsFetcher:
             return None
 
     def _calculate_resource_efficiency_indicators(self, metrics: Dict) -> Dict:
-        """Calculate resource efficiency indicators for ML analysis"""
+        """Calculate resource efficiency indicators for enhanced analysis"""
         try:
             efficiency = {
                 'cpu_efficiency': 0.0,

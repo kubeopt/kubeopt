@@ -339,7 +339,7 @@ def generate_insights(analysis_results):
             advanced_text = ", ".join(enhanced_optimizations[:3])  # Show top 3
             # Enhance the existing savings_summary with advanced optimization info
             if 'savings_summary' in insights:
-                insights['savings_summary'] += f" <br><strong>🚀 ENHANCED ALGORITHMS:</strong> Additional opportunities: {advanced_text} ({len(enhanced_optimizations)} categories detected)."
+                insights['savings_summary'] += f"Additional opportunities: {advanced_text} ({len(enhanced_optimizations)} categories detected)."
             else:
                 insights['savings_summary'] = f"🚀 <strong>ADVANCED OPPORTUNITIES:</strong> Additional savings through {advanced_text}. Enhanced algorithms detect {len(enhanced_optimizations)} optimization categories."
         
@@ -414,13 +414,13 @@ def generate_insights(analysis_results):
     return insights
 
 def generate_dynamic_hpa_comparison(analysis_data):
-    """Generate HPA comparison from REAL ML analysis data ONLY - NO FALLBACKS"""
+    """Generate HPA comparison from REAL enhanced analysis data ONLY - NO FALLBACKS"""
     if not analysis_data:
         raise ValueError("No analysis data provided for HPA comparison")
     
-    logger.info("🤖 Generating chart from REAL ML analysis data")
+    logger.info("🤖 Generating chart from REAL enhanced analysis data")
     
-    # Extract ML analysis results - MUST EXIST
+    # Extract enhanced analysis results - MUST EXIST
     hpa_recommendations = analysis_data.get('hpa_recommendations')
     if not hpa_recommendations:
         raise ValueError("No HPA recommendations found in analysis data")
@@ -633,7 +633,7 @@ def _extract_cpu_workload_data(analysis_data):
             
             logger.info(f"✅ CHART_GENERATOR: Found {len(high_cpu_workloads)} high CPU workloads in ML characteristics (backup source)")
         else:
-            # Extract average CPU from ML analysis if available
+            # Extract average CPU from enhanced analysis if available
             avg_cpu = ml_workload_characteristics.get('cpu_utilization', 0)
             if avg_cpu > 0:
                 cpu_workload_data['average_cpu_utilization'] = float(avg_cpu)
@@ -915,7 +915,7 @@ def _generate_ml_driven_scenarios(workload_type: str, primary_action: str, ml_co
     # Get ML-specific insights
     ml_insights = ml_hpa_recommendation.get('ml_insights', {})
     cost_analysis = ml_optimization_analysis.get('cost_analysis', {})
-    expected_improvement = ml_hpa_recommendation.get('expected_improvement', 'Based on ML analysis')
+    expected_improvement = ml_hpa_recommendation.get('expected_improvement', 'Based on enhanced analysis')
     
     # Extract REAL current HPA state from cluster analysis - Build from actual available data
     hpa_implementation = None
@@ -1159,7 +1159,7 @@ def _extract_current_cpu_usage(analysis_data):
             hpa_recommendations = analysis_data.get('hpa_recommendations', {})
             ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
             
-            # Extract average CPU from ML analysis (same as _extract_cpu_workload_data)
+            # Extract average CPU from enhanced analysis (same as _extract_cpu_workload_data)
             avg_cpu = ml_workload_characteristics.get('cpu_utilization', 0)
             if avg_cpu > 0:
                 logger.info(f"✅ Found real CPU usage from ML workload characteristics: {avg_cpu}%")
@@ -1724,7 +1724,7 @@ def _generate_intelligent_hpa_comparison_text(current_hpa_pattern, workload_type
     # Generate recommendation text based on analysis
     if current_is_optimal:
         return (f"✅ OPTIMAL: Your {total_hpas} {current_hpa_pattern.replace('_', '-')} HPAs are ideal for this {workload_type} workload "
-                f"(avg {current_avg} replicas). ML analysis confirms {optimal_approach.replace('_', '-')} is best "
+                f"(avg {current_avg} replicas). enhanced analysis confirms {optimal_approach.replace('_', '-')} is best "
                 f"({confidence:.0%} confidence). {reason}")
     
     else:

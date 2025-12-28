@@ -7,7 +7,7 @@ Project: AKS Cost Optimizer
 """
 
 """
-AKS Algorithmic Cost Analyzer - Updated for Comprehensive Self-Learning ML
+AKS Algorithmic Cost Analyzer - Updated for Comprehensive analysis
 --------------------------------------------------------------------------
 Provides intelligent cost analysis and optimization recommendations
 using comprehensive self-learning machine learning approaches.
@@ -306,13 +306,13 @@ def ensure_numeric(value, default=0.0) -> float:
         return default
 
 # =================================================================
-# Smart HPA (Cpu vs Memory) - Updated for Comprehensive ML
+# Smart HPA (Cpu vs Memory) - Updated for Comprehensive Analysis
 # =================================================================
 
 class MLEnhancedHPARecommendationEngine:
     """
-    UPDATED: ML-Enhanced HPA Recommendation Engine using Comprehensive Self-Learning Model
-     Added deduplication to prevent expensive ML operations from running multiple times
+    HPA Recommendation Engine using Comprehensive analysis
+    Added deduplication to prevent expensive ML operations from running multiple times
     """
     
     def __init__(self):
@@ -337,7 +337,7 @@ class MLEnhancedHPARecommendationEngine:
     
     def generate_hpa_recommendations(self, metrics_data: Dict, actual_costs: Dict) -> Dict:
         """
-        UPDATED: Generate HPA recommendations with comprehensive self-learning ML
+        Generate HPA recommendations with comprehensive analysis
          Added deduplication to prevent multiple expensive ML operations
         """
         try:
@@ -353,8 +353,8 @@ class MLEnhancedHPARecommendationEngine:
             )
             
         except Exception as e:
-            logger.error(f"❌ Comprehensive ML HPA recommendation failed: {e}")
-            raise ValueError(f"Comprehensive ML recommendation engine failed: {e}")
+            logger.error(f"❌ Comprehensive Analysis HPA recommendation failed: {e}")
+            raise ValueError(f"Comprehensive Analysis recommendation engine failed: {e}")
     
     def _create_hpa_cache_key(self, metrics_data: Dict, actual_costs: Dict) -> str:
         """Create a unique cache key for HPA recommendations"""
@@ -387,17 +387,17 @@ class MLEnhancedHPARecommendationEngine:
         learning_status = ml_engine.get_learning_insights()
         logger.info(f"📊 ML Engine Status: Learning={learning_status.get('learning_enabled', False)}, Samples={learning_status.get('samples', {}).get('total_collected', 0)}")
         
-        # Step 2: Prepare data for comprehensive ML analysis
+        # Step 2: Prepare data for Comprehensive Analysis analysis
         enhanced_features = self._prepare_comprehensive_ml_data(metrics_data)
         
-        # Step 3: Run comprehensive ML analysis with self-learning
+        # Step 3: Run Comprehensive Analysis analysis with self-learning
         ml_results = ml_engine.analyze_and_recommend_with_comprehensive_insights(
             metrics_data=enhanced_features, 
             current_hpa_config={},
             cluster_id=f"cost_analyzer_{datetime.now().strftime('%Y%m%d')}"
         )
         
-        # Step 4: Convert comprehensive ML results to consistent outputs
+        # Step 4: Convert Comprehensive Analysis results to consistent outputs
         consistent_recommendation = self._convert_comprehensive_ml_to_output(
             ml_results, metrics_data, actual_costs
         )
@@ -442,12 +442,12 @@ class MLEnhancedHPARecommendationEngine:
             
             logger.info(f"🔍 ACTUAL HPA Coverage: {actual_hpa_coverage['hpa_count']}/{actual_hpa_coverage['total_workloads']} = {base_efficiency:.1f}%")
             
-            # If no HPAs configured, efficiency is 0% regardless of ML analysis
+            # If no HPAs configured, efficiency is 0% regardless of enhanced analysis
             if actual_hpa_coverage['hpa_count'] == 0:
                 logger.info("✅ No HPAs configured - efficiency = 0%")
                 return 0.0
             
-            # If HPAs exist, enhance calculation with ML analysis
+            # If HPAs exist, enhance calculation with enhanced analysis
             workload_characteristics = ml_results.get('workload_characteristics', {})
             optimization_analysis = ml_results.get('optimization_analysis', {})
             workload_classification = ml_results.get('workload_classification', {})
@@ -595,7 +595,7 @@ class MLEnhancedHPARecommendationEngine:
 
     def _prepare_comprehensive_ml_data(self, metrics_data: Dict) -> Dict:
         """
-        Prepare data for comprehensive self-learning model
+        Prepare data for comprehensive analysis
         """
         try:
             # The comprehensive model expects the full metrics_data structure
@@ -616,7 +616,7 @@ class MLEnhancedHPARecommendationEngine:
                     {'cpu_usage_pct': 35.0, 'memory_usage_pct': 60.0, 'status': 'Ready'}
                 ]
             
-            logger.info(f"✅ Prepared data for comprehensive ML analysis: {len(prepared_data['nodes'])} nodes")
+            logger.info(f"✅ Prepared data for Comprehensive Analysis analysis: {len(prepared_data['nodes'])} nodes")
             return prepared_data
             
         except Exception as e:
@@ -643,11 +643,11 @@ class MLEnhancedHPARecommendationEngine:
     
     def _convert_comprehensive_ml_to_output(self, ml_results: Dict, metrics_data: Dict, actual_costs: Dict) -> Dict:
         """
-        Convert comprehensive ML results to consistent chart + recommendation output
+        Convert Comprehensive Analysis results to consistent chart + recommendation output
         Save ALL workloads, not just high CPU ones
         """
         try:
-            # Extract comprehensive ML results
+            # Extract Comprehensive Analysis results
             workload_classification = ml_results.get('workload_classification', {})
             optimization_analysis = ml_results.get('optimization_analysis', {})
             hpa_recommendation = ml_results.get('hpa_recommendation', {})
@@ -657,8 +657,8 @@ class MLEnhancedHPARecommendationEngine:
             confidence = workload_classification.get('confidence', 0.7)
             primary_action = optimization_analysis.get('primary_action', 'MONITOR')
             
-            logger.info(f"🤖 Comprehensive ML Classification: {workload_type} (confidence: {confidence:.2f})")
-            logger.info(f"🎯 Comprehensive ML Recommendation: {primary_action}")
+            logger.info(f"🤖 Comprehensive Analysis Classification: {workload_type} (confidence: {confidence:.2f})")
+            logger.info(f"🎯 Comprehensive Analysis Recommendation: {primary_action}")
             
             # Extract ML utilization data directly
             ml_cpu_utilization = workload_characteristics.get('cpu_utilization', 35.0)
@@ -860,7 +860,7 @@ class MLEnhancedHPARecommendationEngine:
             chart_cpu = ml_cpu_utilization if ml_cpu_utilization > 0 else fallback_cpu
             chart_memory = ml_memory_utilization if ml_memory_utilization > 0 else fallback_memory
             
-            # Generate chart data based on comprehensive ML classification
+            # Generate chart data based on Comprehensive Analysis classification
             chart_data = self._generate_comprehensive_ml_chart_data(
                 workload_type, primary_action, chart_cpu, chart_memory, current_replicas, hpa_recommendation
             )
@@ -896,7 +896,7 @@ class MLEnhancedHPARecommendationEngine:
                 'average_cpu_utilization': avg_cpu_utilization,
                 'high_cpu_count': len(high_cpu_workloads),
                 
-                # ===== COMPREHENSIVE ML METADATA =====
+                # ===== Comprehensive Analysis METADATA =====
                 'comprehensive_ml_classification': workload_classification,
                 'optimization_analysis': optimization_analysis,
                 'hpa_recommendation': hpa_recommendation,
@@ -944,7 +944,7 @@ class MLEnhancedHPARecommendationEngine:
             }
             
         except Exception as e:
-            logger.error(f"❌ Comprehensive ML to output conversion failed: {e}")
+            logger.error(f"❌ Comprehensive Analysis to output conversion failed: {e}")
             raise
     
     def _generate_comprehensive_ml_chart_data(self, workload_type: str, primary_action: str, 
@@ -1048,7 +1048,7 @@ class MLEnhancedHPARecommendationEngine:
         avg_memory_replicas = np.mean(memory_replicas)
         
         if primary_action == 'OPTIMIZE_APPLICATION':
-            recommendation_text = f"Comprehensive ML Analysis: {workload_type} workload should be optimized before scaling"
+            recommendation_text = f"Comprehensive Analysis Analysis: {workload_type} workload should be optimized before scaling"
         elif abs(avg_cpu_replicas - avg_memory_replicas) < 0.1:
             # Very similar scaling - provide workload-specific guidance
             recommendation_text = f"{workload_type} workload: Consider custom metrics for better scaling decisions"
@@ -1089,7 +1089,7 @@ class MLEnhancedHPARecommendationEngine:
                                             actual_costs: Dict, hpa_recommendation: Dict,
                                             optimization_analysis: Dict) -> Dict:
         """
-        Generate recommendation text using comprehensive ML analysis
+        Generate recommendation text using Comprehensive Analysis analysis
         ROOT FIX: Every recommendation MUST include ml_enhanced: True
         """
         node_cost = actual_costs.get('monthly_actual_node', 0)
@@ -1103,7 +1103,7 @@ class MLEnhancedHPARecommendationEngine:
         base_recommendation = {
             'confidence': confidence,
             'ml_enhanced': True,  # ✅ ROOT FIX: This is what generate_insights checks for
-            'ml_reasoning': f'Comprehensive ML detected {workload_type} pattern',
+            'ml_reasoning': f'Comprehensive Analysis detected {workload_type} pattern',
             'implementation_timeline': implementation_timeline,
             'workload_type': workload_type,
             'primary_action': primary_action,
@@ -1115,9 +1115,9 @@ class MLEnhancedHPARecommendationEngine:
         if primary_action == 'OPTIMIZE_APPLICATION':
             recommendation = {
                 **base_recommendation,  # Include base with ml_enhanced: True
-                'title': f'🔧 Optimize {workload_type} Workload (Comprehensive ML)',
+                'title': f'🔧 Optimize {workload_type} Workload',
                 'description': (
-                    f'Comprehensive self-learning ML analysis classified this as a {workload_type} workload with {confidence:.1%} confidence. '
+                    f'Comprehensive analysis classified this as a {workload_type} workload with {confidence:.1%} confidence. '
                     f'Current CPU: {avg_cpu:.1f}%, Memory: {avg_memory:.1f}%. '
                     f'Optimization recommended before scaling. Expected improvement: {expected_improvement}.'
                 ),
@@ -1131,9 +1131,9 @@ class MLEnhancedHPARecommendationEngine:
         elif workload_type == 'MEMORY_INTENSIVE':
             recommendation = {
                 **base_recommendation,  # Include base with ml_enhanced: True
-                'title': '💾 Memory-based HPA Recommended (Comprehensive ML)',
+                'title': '💾 Memory-based HPA Recommended',
                 'description': (
-                    f'Comprehensive self-learning ML classified workload as {workload_type} with {confidence:.1%} confidence. '
+                    f'Comprehensive analysis classified workload as {workload_type} with {confidence:.1%} confidence. '
                     f'Memory utilization ({avg_memory:.1f}%) dominates. Memory-based HPA will provide better scaling. '
                     f'Expected improvement: {expected_improvement}.'
                 ),
@@ -1147,9 +1147,9 @@ class MLEnhancedHPARecommendationEngine:
         elif workload_type == 'CPU_INTENSIVE':
             recommendation = {
                 **base_recommendation,  # Include base with ml_enhanced: True
-                'title': '⚡ CPU-based HPA Recommended (Comprehensive ML)',
+                'title': '⚡ CPU-based HPA Recommended',
                 'description': (
-                    f'Comprehensive self-learning ML classified workload as {workload_type} with {confidence:.1%} confidence. '
+                    f'Comprehensive analysis classified workload as {workload_type} with {confidence:.1%} confidence. '
                     f'CPU utilization ({avg_cpu:.1f}%) dominates. CPU-based HPA will provide responsive scaling. '
                     f'Expected improvement: {expected_improvement}.'
                 ),
@@ -1163,9 +1163,9 @@ class MLEnhancedHPARecommendationEngine:
         elif workload_type == 'BURSTY':
             recommendation = {
                 **base_recommendation,  # Include base with ml_enhanced: True
-                'title': '📈 Predictive Scaling for Bursty Workload (Comprehensive ML)',
+                'title': 'Predictive Scaling for Bursty Workload',
                 'description': (
-                    f'Comprehensive self-learning ML detected {workload_type} traffic pattern with {confidence:.1%} confidence. '
+                    f'Comprehensive analysis detected {workload_type} traffic pattern with {confidence:.1%} confidence. '
                     f'Consider predictive scaling or custom metrics for burst handling. '
                     f'Expected improvement: {expected_improvement}.'
                 ),
@@ -1181,7 +1181,7 @@ class MLEnhancedHPARecommendationEngine:
                 **base_recommendation,  # Include base with ml_enhanced: True
                 'title': '📉 Resource Right-sizing Opportunity',
                 'description': (
-                    f'Comprehensive self-learning ML classified workload as {workload_type} with {confidence:.1%} confidence. '
+                    f'Comprehensive analysis classified workload as {workload_type} with {confidence:.1%} confidence. '
                     f'Significant resource reduction possible. Expected improvement: {expected_improvement}.'
                 ),
                 'action': 'REDUCE_RESOURCES',
@@ -1194,9 +1194,9 @@ class MLEnhancedHPARecommendationEngine:
         else:  # BALANCED
             recommendation = {
                 **base_recommendation,  # Include base with ml_enhanced: True
-                'title': '⚖️ Balanced Scaling Approach (Comprehensive ML)',
+                'title': '⚖️ Balanced Scaling Approach',
                 'description': (
-                    f'Comprehensive self-learning ML classified workload as {workload_type} with {confidence:.1%} confidence. '
+                    f'Comprehensive analysis classified workload as {workload_type} with {confidence:.1%} confidence. '
                     f'Hybrid HPA approach recommended. Expected improvement: {expected_improvement}.'
                 ),
                 'action': 'IMPLEMENT_HYBRID_HPA',
@@ -1214,7 +1214,7 @@ class MLEnhancedHPARecommendationEngine:
         return recommendation
     
     def _validate_comprehensive_ml_consistency(self, recommendation: Dict) -> Dict:
-        """Validate comprehensive ML output for contradictions"""
+        """Validate Comprehensive Analysis output for contradictions"""
         issues = []
         
         chart_data = recommendation.get('hpa_chart_data', {})
@@ -1225,36 +1225,36 @@ class MLEnhancedHPARecommendationEngine:
         recommended_approach = chart_data.get('recommended_approach', '')
         
         if 'Memory-based HPA' in recommendation_text and recommended_approach == 'cpu':
-            issues.append("Comprehensive ML: Chart recommends CPU but text recommends Memory")
+            issues.append("Comprehensive Analysis: Chart recommends CPU but text recommends Memory")
         
         if 'CPU-based HPA' in recommendation_text and recommended_approach == 'memory':
-            issues.append("Comprehensive ML: Chart recommends Memory but text recommends CPU")
+            issues.append("Comprehensive Analysis: Chart recommends Memory but text recommends CPU")
         
         return {'consistent': len(issues) == 0, 'issues': issues}
     
     def _fix_comprehensive_ml_contradictions(self, recommendation: Dict, ml_results: Dict) -> Dict:
-        """Fix any remaining contradictions in comprehensive ML output"""
+        """Fix any remaining contradictions in Comprehensive Analysis output"""
         chart_data = recommendation.get('hpa_chart_data', {})
         opt_rec = recommendation.get('optimization_recommendation', {})
         
-        # Force alignment based on comprehensive ML classification
+        # Force alignment based on Comprehensive Analysis classification
         workload_type = ml_results.get('workload_classification', {}).get('workload_type', 'BALANCED')
         
         if workload_type == 'MEMORY_INTENSIVE':
             chart_data['recommended_approach'] = 'memory'
-            opt_rec['title'] = '💾 Memory-based HPA Recommended (Comprehensive ML - Fixed)'
-            opt_rec['description'] = f'Comprehensive ML classified as {workload_type} - memory-based scaling optimal'
+            opt_rec['title'] = '💾 Memory-based HPA Recommended (Comprehensive Analysis - Fixed)'
+            opt_rec['description'] = f'Comprehensive Analysis classified as {workload_type} - memory-based scaling optimal'
         elif workload_type == 'CPU_INTENSIVE':
             chart_data['recommended_approach'] = 'cpu'
-            opt_rec['title'] = '⚡ CPU-based HPA Recommended (Comprehensive ML - Fixed)'
-            opt_rec['description'] = f'Comprehensive ML classified as {workload_type} - CPU-based scaling optimal'
+            opt_rec['title'] = '⚡ CPU-based HPA Recommended (Comprehensive Analysis - Fixed)'
+            opt_rec['description'] = f'Comprehensive Analysis classified as {workload_type} - CPU-based scaling optimal'
         
         recommendation['consistency_fixed'] = True
         recommendation['comprehensive_ml_consistency_applied'] = True
         return recommendation
 
     def provide_ml_feedback(self, analysis_timestamp: str, correct_workload_type: str, feedback_score: float = 1.0):
-        """Provide feedback to the comprehensive self-learning model"""
+        """Provide feedback to the comprehensive analysis"""
         try:
             ml_engine = self._get_ml_engine()
             ml_engine.provide_feedback(
@@ -1263,9 +1263,9 @@ class MLEnhancedHPARecommendationEngine:
                 feedback_score=feedback_score,
                 notes="Cost analyzer feedback"
             )
-            logger.info(f"✅ Comprehensive ML feedback provided: {correct_workload_type}")
+            logger.info(f"✅ Comprehensive Analysis feedback provided: {correct_workload_type}")
         except Exception as e:
-            logger.error(f"❌ Comprehensive ML feedback failed: {e}")
+            logger.error(f"❌ Comprehensive Analysis feedback failed: {e}")
 
 # ============================================================================
 # UPDATED COST ANALYZER
@@ -1273,7 +1273,7 @@ class MLEnhancedHPARecommendationEngine:
 
 class ConsistentCostAnalyzer:
     """
-    CONSISTENT COST ANALYZER - Main Analysis Engine with Comprehensive ML
+    CONSISTENT COST ANALYZER - Main Analysis Engine with Comprehensive Analysis
      Added deduplication to prevent expensive operations from running multiple times
     """
     
@@ -1327,7 +1327,7 @@ class ConsistentCostAnalyzer:
 
     def _generate_hpa_recommendations(self, cost_data: Dict, metrics_data: Dict) -> Dict:
         """
-        UPDATED: Generate HPA recommendations using comprehensive self-learning ML engine
+        Generate HPA recommendations using comprehensive analysis engine
          Added deduplication to prevent multiple expensive ML operations
         """
         try:
@@ -1344,7 +1344,7 @@ class ConsistentCostAnalyzer:
             
         except Exception as e:
             logger.error(f"❌ Failed to generate comprehensive self-learning HPA recommendations: {e}")
-            raise ValueError(f"Comprehensive self-learning ML HPA recommendation failed: {str(e)}")
+            raise ValueError(f"Comprehensive analysis HPA recommendation failed: {str(e)}")
     
     def _create_analysis_cache_key(self, cost_data: Dict, metrics_data: Dict, operation_type: str) -> str:
         """Create cache key for analysis operations"""
@@ -1366,10 +1366,10 @@ class ConsistentCostAnalyzer:
         """Internal method that generates HPA recommendations"""
         logger.info("🤖 Generating comprehensive self-learning HPA recommendations...")
         
-        # Initialize comprehensive ML-enhanced HPA engine
+        # Initialize Comprehensive Analysis-enhanced HPA engine
         ml_hpa_engine = MLEnhancedHPARecommendationEngine()
         
-        # Generate comprehensive ML-driven recommendations
+        # Generate Comprehensive Analysis-driven recommendations
         hpa_recommendations = ml_hpa_engine.generate_hpa_recommendations(metrics_data, cost_data)
 
         # CRITICAL FIX: Calculate comprehensive HPA efficiency percentage
@@ -1396,14 +1396,14 @@ class ConsistentCostAnalyzer:
         
         # Validate the recommendations are consistent
         if not isinstance(hpa_recommendations, dict):
-            raise ValueError("Comprehensive ML HPA engine returned invalid recommendations structure")
+            raise ValueError("Comprehensive Analysis HPA engine returned invalid recommendations structure")
         
         required_keys = ['hpa_chart_data', 'optimization_recommendation', 'current_implementation']
         for key in required_keys:
             if key not in hpa_recommendations:
-                logger.warning(f"⚠️ Missing key in comprehensive ML HPA recommendations: {key}")
+                logger.warning(f"⚠️ Missing key in Comprehensive Analysis HPA recommendations: {key}")
         
-        # Add comprehensive ML enhancement metadata
+        # Add Comprehensive Analysis enhancement metadata
         hpa_recommendations['ml_enhanced'] = True
         hpa_recommendations['comprehensive_self_learning'] = True
         hpa_recommendations['analysis_method'] = 'comprehensive_self_learning_intelligent_hpa'
@@ -1434,7 +1434,7 @@ class ConsistentCostAnalyzer:
                     logger.info("🔄 Cache invalidated - missing consolidated fields or expired")
                     del self.operation_cache[analysis_cache_key]
         
-        logger.info("🎯 Starting CONSISTENT cost analysis with comprehensive self-learning ML")
+        logger.info("🎯 Starting CONSISTENT cost analysis with comprehensive analysis")
         
         try:
             # Step 1: Validate and normalize data
@@ -1677,7 +1677,7 @@ class ConsistentCostAnalyzer:
             import traceback
             logger.error(f"❌ ENHANCED CONSISTENT analysis failed: {str(e)}")
             logger.error(f"🔍 TRACEBACK: {traceback.format_exc()}")
-            raise ValueError(f"Enhanced consistent analysis with comprehensive ML failed: {str(e)}")
+            raise ValueError(f"Enhanced consistent analysis with Comprehensive Analysis failed: {str(e)}")
 
 
     def _prepare_scoring_metrics(self, cost_data: Dict, metrics_data: Dict, 
@@ -2852,7 +2852,7 @@ class ConsistentCostAnalyzer:
             # === OPTIMIZATION POTENTIAL ===
             'total_savings': optimization['total_monthly_savings'],
             'savings_label': 'Monthly Potential (current usage optimization)',
-            'savings_source': 'Current usage pattern analysis with comprehensive ML',
+            'savings_source': 'Current usage pattern analysis with Comprehensive Analysis',
             'hpa_savings': optimization['hpa_monthly_savings'],
             'right_sizing_savings': optimization['rightsizing_monthly_savings'],
             'storage_savings': optimization['storage_monthly_savings'],
@@ -4884,13 +4884,13 @@ def integrate_consistent_analysis(resource_group: str, cluster_name: str,
                                       cost_data: Dict, metrics_data: Dict, 
                                       pod_data: Dict = None) -> Dict:
     """
-    CONSISTENT ANALYSIS INTEGRATION with Comprehensive Self-Learning ML
+    CONSISTENT ANALYSIS INTEGRATION with Comprehensive analysis
     Main integration function for app.py
      Added deduplication and performance optimizations
     """
     
-    logger.info("🎯 Starting CONSISTENT algorithmic integration with comprehensive self-learning ML")
-    logger.info("✅ Approach: Validated actual costs + realistic optimization estimates + comprehensive ML insights")
+    logger.info("🎯 Starting CONSISTENT algorithmic integration with comprehensive analysis")
+    logger.info("✅ Approach: Validated actual costs + realistic optimization estimates + Comprehensive Analysis insights")
     
     try:
         # PERFORMANCE FIX: Clean up expired cache entries periodically
@@ -4918,12 +4918,12 @@ def integrate_consistent_analysis(resource_group: str, cluster_name: str,
                 'Percentage calculation fixes',
                 'Realistic optimization bounds',
                 'Enhanced error handling',
-                'Comprehensive self-learning ML integration',
+                'Comprehensive analysis integration',
                 'ML operation deduplication',  # NEW
                 'Cache-based performance optimization'  # NEW
             ],
             'algorithms_count': len(results.get('algorithms_used', [])),
-            'confidence_basis': 'Validated current usage pattern analysis with comprehensive ML insights and realistic cost baseline'
+            'confidence_basis': 'Validated current usage pattern analysis with Comprehensive Analysis insights and realistic cost baseline'
         }
         
         # CRITICAL FIX: Include high_cpu_summary in final results for UI
@@ -4941,19 +4941,19 @@ def integrate_consistent_analysis(resource_group: str, cluster_name: str,
                 'severity_category': 'normal'
             }
         
-        logger.info(f"✅ CONSISTENT analysis with comprehensive ML complete:")
+        logger.info(f"✅ CONSISTENT analysis with Comprehensive Analysis complete:")
         logger.info(f"   - Monthly actual cost: ${results.get('total_cost', 0):.2f}")
         logger.info(f"   - Monthly savings potential: ${results.get('total_savings', 0):.2f}")
         logger.info(f"   - Savings percentage: {results.get('savings_percentage', 0):.1f}%")
         logger.info(f"   - HPA efficiency: {results.get('hpa_efficiency', 0):.1f}%")
         logger.info(f"   - Confidence: {results.get('analysis_confidence', 0):.2f}")
         logger.info(f"   - High CPU workloads: {len(results.get('high_cpu_summary', {}).get('high_cpu_workloads', []))}")
-        logger.info(f"   - Method: consistent current usage optimization with comprehensive self-learning ML")
+        logger.info(f"   - Method: consistent current usage optimization with comprehensive analysis")
         
         return results
         
     except Exception as e:
-        logger.error(f"CONSISTENT analysis with comprehensive ML failed: {e}")
+        logger.error(f"CONSISTENT analysis with Comprehensive Analysis failed: {e}")
         analyzer = ConsistentCostAnalyzer()
         return None
 
@@ -4965,9 +4965,9 @@ def integrate_algorithmic_analysis(resource_group: str, cluster_name: str,
                                  cost_data: Dict, metrics_data: Dict, 
                                  pod_data: Dict = None) -> Dict:
     """
-    Legacy function - redirects to consistent analysis with comprehensive ML
+    Legacy function - redirects to consistent analysis with Comprehensive Analysis
     """
-    logger.info("🔄 Legacy function called - redirecting to consistent analysis with comprehensive ML")
+    logger.info("🔄 Legacy function called - redirecting to consistent analysis with Comprehensive Analysis")
     return integrate_consistent_analysis(resource_group, cluster_name, cost_data, metrics_data, pod_data)
 
 
