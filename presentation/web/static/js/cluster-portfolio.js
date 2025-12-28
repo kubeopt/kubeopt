@@ -285,7 +285,7 @@ class ClusterPortfolio {
             const data = await response.json();
             
             if (response.ok && data.status === 'success') {
-                showToast(`Analysis started successfully for ${clusterId}`, 'success');
+                //showToast(`Analysis started successfully for ${clusterId}`, 'success');
                 this.startAnalysisPolling(clusterId);
             } else {
                 this.resetAnalyzeButton(clusterId, 'failed');
