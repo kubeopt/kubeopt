@@ -198,25 +198,43 @@ class AzureSubscriptionManager:
         try:
             # Use centralized Azure SDK manager instead of creating new credentials
             from infrastructure.services.azure_sdk_manager import azure_sdk_manager
-            from azure.mgmt.subscription import SubscriptionClient
             
             if not azure_sdk_manager.is_authenticated():
                 logger.warning("⚠️ SDK: Azure SDK manager not authenticated")
                 return None
+            
+            # Try SDK approach first
+            try:
+                from azure.mgmt.subscription import SubscriptionClient
+                subscription_client = SubscriptionClient(azure_sdk_manager.credential)
                 
-            subscription_client = SubscriptionClient(azure_sdk_manager.credential)
-            
-            # Get the default subscription from the credential context
-            # The SDK will use the default subscription from the authentication context
-            subscriptions = list(subscription_client.subscriptions.list())
-            
-            if subscriptions:
-                default_subscription = subscriptions[0]
-                subscription_id = default_subscription.subscription_id
-                logger.info(f"✅ SDK: Got current subscription {subscription_id[:8]}...")
-                return subscription_id
-            else:
-                logger.warning("⚠️ SDK: No subscriptions found in authentication context")
+                # Get the default subscription from the credential context
+                # The SDK will use the default subscription from the authentication context
+                subscriptions = list(subscription_client.subscriptions.list())
+                
+                if subscriptions:
+                    default_subscription = subscriptions[0]
+                    subscription_id = default_subscription.subscription_id
+                    logger.info(f"✅ SDK: Got current subscription {subscription_id[:8]}...")
+                    return subscription_id
+                else:
+                    logger.warning("⚠️ SDK: No subscriptions found in authentication context")
+                    return None
+                    
+            except (AttributeError, ImportError) as e:
+                # SDK version issue or module missing - try az CLI as alternative
+                logger.debug(f"SDK issue ({type(e).__name__}), trying az CLI")
+                import subprocess
+                result = subprocess.run(
+                    ["az", "account", "show", "--query", "id", "-o", "tsv"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    subscription_id = result.stdout.strip()
+                    logger.info(f"✅ Got subscription from az CLI: {subscription_id[:8]}...")
+                    return subscription_id
                 return None
                 
         except Exception as e:
