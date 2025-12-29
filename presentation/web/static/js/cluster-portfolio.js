@@ -273,7 +273,7 @@ class ClusterPortfolio {
         }
         
         this.updateClusterStatus(clusterId, 'analyzing');
-        showToast(`Starting analysis for cluster: ${clusterId}`, 'info');
+        //showToast(`Starting analysis for cluster: ${clusterId}`, 'info');
         
         try {
             const response = await fetch(`/api/clusters/${encodeURIComponent(clusterId)}/analyze`, {
