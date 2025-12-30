@@ -535,6 +535,15 @@ class AzureSDKManager:
                         logger.debug(f"Metrics error details: {command_result.logs}")
                 elif "kubectl get" in kubectl_command and ("NotFound" in command_result.logs or "not found" in command_result.logs):
                     logger.debug(f"📋 Server-side kubectl get failed (resource not found): {kubectl_command}")
+                elif "error executing jsonpath" in command_result.logs.lower():
+                    # Handle JSONPath errors specifically
+                    if "unrecognized identifier len(" in command_result.logs:
+                        logger.error(f"❌ JSONPath error: len() function is not supported in kubectl JSONPath. Command: {kubectl_command}")
+                        logger.error("Please use alternative JSONPath expressions without len() function")
+                    else:
+                        logger.error(f"❌ JSONPath syntax error in command: {kubectl_command}")
+                    if command_result.logs:
+                        logger.error(f"Error details: {command_result.logs}")
                 else:
                     # Unexpected failures should still be logged as errors
                     logger.error(f"❌ Server-side kubectl command failed (exit {command_result.exit_code}): {kubectl_command}")

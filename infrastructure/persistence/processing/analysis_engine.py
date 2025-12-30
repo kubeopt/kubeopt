@@ -348,6 +348,29 @@ class MultiSubscriptionAnalysisEngine:
             else:
                 logger.warning(f"⚠️ Session {session_id}: No metrics_data available for implementation_generator")
 
+            # CRITICAL: Merge essential kubernetes cache data into final_results for analysis pipeline
+            if shared_cache and hasattr(shared_cache, 'data') and shared_cache.data:
+                # Add critical fields that analysis_engine expects in basic_analysis
+                cache_fields_to_merge = [
+                    'kubectl_data', 'cluster_version_sdk', 'aks_cluster_info',
+                    'version', 'pods', 'namespaces', 'nodes', 'deployments',
+                    'pod_usage', 'node_usage', 'namespaces_with_labels'
+                ]
+                
+                for field in cache_fields_to_merge:
+                    if field in shared_cache.data and field not in final_results:
+                        final_results[field] = shared_cache.data[field]
+                
+                # Also set cluster identification fields if not already present
+                if 'cluster_name' not in final_results:
+                    final_results['cluster_name'] = cluster_name
+                if 'resource_group' not in final_results:
+                    final_results['resource_group'] = resource_group
+                if 'subscription_id' not in final_results:
+                    final_results['subscription_id'] = config.subscription_id
+                
+                logger.info(f"✅ Session {session_id}: Merged {len([f for f in cache_fields_to_merge if f in shared_cache.data])} kubernetes cache fields into final_results")
+
             logger.info(f"DEBUG:HPA efficiency: {final_results.get('hpa_efficiency', 0):.1f}%")
             
             # Step 6: Generate implementation plan with cluster config support
@@ -2036,6 +2059,20 @@ class MultiSubscriptionAnalysisEngine:
                 version = kube_cache.get('cluster_version_sdk')
                 if version and version.strip():
                     logger.info(f"✅ Retrieved Kubernetes version from cache: {version}")
+                    return version.strip()
+                
+                # Try from cluster_info (new batched format)
+                cluster_info = kube_cache.get('cluster_info')
+                if cluster_info and isinstance(cluster_info, dict):
+                    version = cluster_info.get('version')
+                    if version and version != 'unknown':
+                        logger.info(f"✅ Retrieved Kubernetes version from cluster_info: {version}")
+                        return version.strip()
+                
+                # Try from direct version key
+                version = kube_cache.get('version')
+                if version and version.strip():
+                    logger.info(f"✅ Retrieved Kubernetes version from version key: {version}")
                     return version.strip()
                 
                 # Try from aks_cluster_info in cache
