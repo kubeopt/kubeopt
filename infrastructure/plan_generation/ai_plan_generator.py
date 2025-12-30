@@ -204,27 +204,26 @@ class AIImplementationPlanGenerator:
             )
             
             # 4. Save raw markdown for debugging
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            debug_file = f"debug_comprehensive_plan_{cluster_id}_{timestamp}.md"
-            with open(debug_file, 'w') as f:
-                f.write(markdown_plan)
-            logger.info(f"Raw Claude response saved to: {debug_file}")
-            print(f"   📝 Debug output saved to: {debug_file}")
+            #timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            # debug_file = f"debug_comprehensive_plan_{cluster_id}_{timestamp}.md"
+            # with open(debug_file, 'w') as f:
+            #     f.write(markdown_plan)
+            # logger.info(f"Raw Claude response saved to: {debug_file}")
+            # print(f"   📝 Debug output saved to: {debug_file}")
             
             # 5. Return raw markdown plan (no parsing needed)
             print(f"\n✅ Claude plan generation complete!")
             print(f"   📄 Raw markdown plan ready for UI display")
-            print(f"   📝 Plan saved to: {debug_file}")
+            #print(f"   📝 Plan saved to: {debug_file}")
             
-            # Return a simple plan object with just the markdown
+            # Return plan object with the markdown
             return {
                 'status': 'success',
                 'plan_type': 'markdown',
                 'raw_markdown': markdown_plan,
                 'cluster_id': cluster_id,
                 'cluster_name': cluster_name,
-                'generated_at': datetime.now().isoformat(),
-                'debug_file': debug_file
+                'generated_at': datetime.now().isoformat()
             }
             
         except Exception as e:

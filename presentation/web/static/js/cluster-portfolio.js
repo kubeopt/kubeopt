@@ -44,6 +44,12 @@ class ClusterPortfolio {
         if (environmentFilter) {
             environmentFilter.addEventListener('change', (e) => this.handleEnvironmentFilter(e));
         }
+        
+        // Sort functionality
+        const sortBy = document.getElementById('sort-by');
+        if (sortBy) {
+            sortBy.addEventListener('change', (e) => this.handleSort(e));
+        }
     }
 
     // Modal Management
@@ -233,18 +239,71 @@ class ClusterPortfolio {
 
 
     handleEnvironmentFilter(e) {
-        const environment = e.target.value;
+        const environment = e.target.value.toLowerCase();
         const clusterCards = document.querySelectorAll('.cluster-card');
         
         clusterCards.forEach(card => {
-            if (!environment || card.dataset.environment === environment) {
+            const cardEnv = (card.dataset.environment || 'unknown').toLowerCase();
+            
+            // Handle different environment naming conventions
+            const envMatch = {
+                'production': ['production', 'prod', 'prd'],
+                'staging': ['staging', 'stage', 'stg', 'uat'],
+                'development': ['development', 'dev', 'develop']
+            };
+            
+            if (!environment) {
+                // Show all if no filter selected
                 card.style.display = 'block';
+            } else if (envMatch[environment]) {
+                // Check if card environment matches any of the variations
+                const matches = envMatch[environment].some(env => cardEnv.includes(env));
+                card.style.display = matches ? 'block' : 'none';
             } else {
-                card.style.display = 'none';
+                // Direct match for unknown cases
+                card.style.display = cardEnv === environment ? 'block' : 'none';
             }
         });
     }
 
+    handleSort(e) {
+        const sortBy = e.target.value;
+        const container = document.querySelector('.clusters-grid');
+        if (!container) return;
+        
+        const cards = Array.from(container.querySelectorAll('.cluster-card'));
+        
+        cards.sort((a, b) => {
+            switch(sortBy) {
+                case 'name':
+                    const nameA = a.querySelector('.cluster-name')?.textContent || '';
+                    const nameB = b.querySelector('.cluster-name')?.textContent || '';
+                    return nameA.localeCompare(nameB);
+                    
+                case 'cost':
+                    const costA = parseFloat(a.querySelector('.metric-value')?.textContent.replace(/[$,]/g, '') || '0');
+                    const costB = parseFloat(b.querySelector('.metric-value')?.textContent.replace(/[$,]/g, '') || '0');
+                    return costB - costA; // Higher cost first
+                    
+                case 'savings':
+                    const savingsA = parseFloat(a.querySelectorAll('.metric-value')[1]?.textContent.replace(/[$,]/g, '') || '0');
+                    const savingsB = parseFloat(b.querySelectorAll('.metric-value')[1]?.textContent.replace(/[$,]/g, '') || '0');
+                    return savingsB - savingsA; // Higher savings first
+                    
+                case 'last_analyzed':
+                    const dateA = a.querySelector('.cluster-status')?.textContent || '';
+                    const dateB = b.querySelector('.cluster-status')?.textContent || '';
+                    // Parse dates if they're in a specific format, or use as-is for simple comparison
+                    return dateB.localeCompare(dateA); // Most recent first
+                    
+                default:
+                    return 0;
+            }
+        });
+        
+        // Clear container and re-append sorted cards
+        cards.forEach(card => container.appendChild(card));
+    }
 
     // Cluster Analysis - Simple Implementation
     async analyzeCluster(clusterId) {

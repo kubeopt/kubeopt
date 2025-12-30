@@ -1376,10 +1376,39 @@ class AKSRealTimeMetricsFetcher:
                 
                 for hpa in chunk:
                     try:
-                        namespace = hpa['metadata']['namespace']
-                        name = hpa['metadata']['name']
+                        # Validate HPA data structure
+                        if not isinstance(hpa, dict):
+                            raise TypeError(f"HPA data must be a dictionary, got {type(hpa).__name__}")
                         
-                        # Extract current metrics safely
+                        # Handle both full JSON format and simplified format
+                        if 'metadata' in hpa:
+                            # Full JSON format - validate required fields
+                            if not isinstance(hpa['metadata'], dict):
+                                raise ValueError(f"HPA metadata must be a dictionary, got {type(hpa['metadata']).__name__}")
+                            if 'namespace' not in hpa['metadata']:
+                                raise ValueError("HPA metadata missing required field: namespace")
+                            if 'name' not in hpa['metadata']:
+                                raise ValueError("HPA metadata missing required field: name")
+                            
+                            namespace = hpa['metadata']['namespace']
+                            name = hpa['metadata']['name']
+                        else:
+                            # Simplified format from limited_output_kubernetes_collector
+                            if 'namespace' not in hpa:
+                                raise ValueError("HPA data missing required field: namespace")
+                            if 'name' not in hpa:
+                                raise ValueError("HPA data missing required field: name")
+                            
+                            namespace = hpa['namespace']
+                            name = hpa['name']
+                        
+                        # Validate extracted values
+                        if not namespace:
+                            raise ValueError(f"HPA namespace cannot be empty for {name}")
+                        if not name:
+                            raise ValueError(f"HPA name cannot be empty in namespace {namespace}")
+                        
+                        # Extract current metrics (only available in full format)
                         current_metrics = hpa.get('status', {}).get('currentMetrics', [])
                         target_metrics = hpa.get('spec', {}).get('metrics', [])
                         
@@ -1420,9 +1449,40 @@ class AKSRealTimeMetricsFetcher:
                         
                         hpa_details.append(hpa_detail)
                         
-                    except Exception as hpa_error:
-                        logger.warning(f"⚠️ Error processing HPA in chunk: {hpa_error}")
+                    except (TypeError, ValueError) as validation_error:
+                        # Log validation errors with full details
+                        logger.error(f"❌ HPA validation failed: {validation_error}")
+                        logger.debug(f"Invalid HPA data structure: {type(hpa)}")
+                        # Track failed HPAs for reporting
+                        failed_hpa_count = getattr(self, '_failed_hpa_count', 0) + 1
+                        setattr(self, '_failed_hpa_count', failed_hpa_count)
                         continue
+                    except KeyError as key_error:
+                        # Log missing key errors
+                        logger.error(f"❌ HPA missing required key: {key_error}")
+                        logger.debug(f"Incomplete HPA data keys: {list(hpa.keys()) if isinstance(hpa, dict) else 'not a dict'}")
+                        failed_hpa_count = getattr(self, '_failed_hpa_count', 0) + 1
+                        setattr(self, '_failed_hpa_count', failed_hpa_count)
+                        continue
+                    except Exception as unexpected_error:
+                        # Log unexpected errors
+                        logger.error(f"❌ Unexpected error processing HPA: {unexpected_error}")
+                        logger.error(f"Error type: {type(unexpected_error).__name__}")
+                        failed_hpa_count = getattr(self, '_failed_hpa_count', 0) + 1
+                        setattr(self, '_failed_hpa_count', failed_hpa_count)
+                        continue
+            
+            # Check if too many HPAs failed
+            failed_count = getattr(self, '_failed_hpa_count', 0)
+            if failed_count > 0 and len(hpa_items) > 0:
+                failure_rate = failed_count / len(hpa_items)
+                if failure_rate > 0.5:  # More than 50% failed
+                    raise RuntimeError(f"HPA processing failure rate too high: {failed_count}/{len(hpa_items)} ({failure_rate:.1%}) HPAs failed validation")
+                elif failed_count > 0:
+                    logger.warning(f"⚠️ {failed_count} HPAs failed validation out of {len(hpa_items)} total")
+            
+            # Reset counter for next run
+            setattr(self, '_failed_hpa_count', 0)
             
             # Determine pattern
             total_hpas = len(hpa_details)

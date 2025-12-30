@@ -1338,7 +1338,7 @@ class EnterpriseOperationalMetricsEngine:
             
             return (major_gap * 10) + minor_gap
         except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e  # Default moderate penalty
+            raise RuntimeError(f"Operation failed: {e}") from e  # NO DEFAULTS per .clauderc
     
     def _detect_deprecated_apis(self, cluster_data: Dict) -> List[str]:
         """Detect deprecated API versions in cluster workloads"""

@@ -222,6 +222,17 @@ window.ChartManager = (function() {
                         plugins: {
                             legend: {
                                 position: 'right',
+                                onClick: function(e, legendItem, legend) {
+                                    const index = legendItem.index;
+                                    const chart = legend.chart;
+                                    const meta = chart.getDatasetMeta(0);
+                                    
+                                    // Toggle the visibility
+                                    meta.data[index].hidden = !meta.data[index].hidden;
+                                    
+                                    // Update the chart
+                                    chart.update();
+                                },
                                 labels: {
                                     padding: 15,
                                     usePointStyle: true,
@@ -238,12 +249,14 @@ window.ChartManager = (function() {
                                             return data.labels.map((label, i) => {
                                                 const value = dataset.data[i];
                                                 const percentage = ((value / total) * 100).toFixed(1);
-                                                const hidden = meta.data[i].hidden;
+                                                const hidden = meta.data[i] && meta.data[i].hidden;
                                                 return {
                                                     text: `${label}: $${value.toFixed(2)} (${percentage}%)`,
-                                                    fillStyle: hidden ? '#ccc' : dataset.backgroundColor[i],
-                                                    strokeStyle: hidden ? '#999' : undefined,
-                                                    lineWidth: hidden ? 1 : 0,
+                                                    fillStyle: hidden ? '#e0e0e0' : dataset.backgroundColor[i],
+                                                    strokeStyle: hidden ? '#999999' : dataset.backgroundColor[i],
+                                                    lineWidth: hidden ? 2 : 0,
+                                                    fontColor: hidden ? '#999999' : colors.textPrimary,
+                                                    fontStyle: hidden ? 'italic' : 'normal',
                                                     hidden: hidden,
                                                     index: i
                                                 };
@@ -664,6 +677,17 @@ window.ChartManager = (function() {
                             legend: {
                                 display: true,
                                 position: 'right',
+                                onClick: function(e, legendItem, legend) {
+                                    const index = legendItem.index;
+                                    const chart = legend.chart;
+                                    const meta = chart.getDatasetMeta(0);
+                                    
+                                    // Toggle the visibility
+                                    meta.data[index].hidden = !meta.data[index].hidden;
+                                    
+                                    // Update the chart
+                                    chart.update();
+                                },
                                 labels: {
                                     padding: 15,
                                     usePointStyle: true,
@@ -679,12 +703,14 @@ window.ChartManager = (function() {
                                             return data.labels.map((label, i) => {
                                                 const value = dataset.data[i];
                                                 const percentage = ((value / total) * 100).toFixed(1);
-                                                const hidden = meta.data[i].hidden;
+                                                const hidden = meta.data[i] && meta.data[i].hidden;
                                                 return {
                                                     text: `${label}: $${value} (${percentage}%)`,
-                                                    fillStyle: hidden ? '#ccc' : dataset.backgroundColor[i],
-                                                    strokeStyle: hidden ? '#999' : undefined,
-                                                    lineWidth: hidden ? 1 : 0,
+                                                    fillStyle: hidden ? '#e0e0e0' : dataset.backgroundColor[i],
+                                                    strokeStyle: hidden ? '#999999' : dataset.backgroundColor[i],
+                                                    lineWidth: hidden ? 2 : 0,
+                                                    fontColor: hidden ? '#999999' : '#2d3748',
+                                                    fontStyle: hidden ? 'italic' : 'normal',
                                                     hidden: hidden,
                                                     index: i
                                                 };
@@ -954,6 +980,17 @@ window.ChartManager = (function() {
                         plugins: {
                             legend: {
                                 position: 'right',
+                                onClick: function(e, legendItem, legend) {
+                                    const index = legendItem.index;
+                                    const chart = legend.chart;
+                                    const meta = chart.getDatasetMeta(0);
+                                    
+                                    // Toggle the visibility
+                                    meta.data[index].hidden = !meta.data[index].hidden;
+                                    
+                                    // Update the chart
+                                    chart.update();
+                                },
                                 labels: {
                                     padding: 8,
                                     usePointStyle: true,
@@ -965,14 +1002,20 @@ window.ChartManager = (function() {
                                         if (data.labels.length && data.datasets.length) {
                                             const dataset = data.datasets[0];
                                             const total = dataset.data.reduce((a, b) => a + b, 0);
+                                            const meta = chart.getDatasetMeta(0);
                                             return data.labels.map((label, i) => {
                                                 const value = dataset.data[i];
                                                 const percentage = ((value / total) * 100).toFixed(1);
                                                 const shortLabel = label.length > 20 ? label.substring(0, 20) + '...' : label;
+                                                const hidden = meta.data[i] && meta.data[i].hidden;
                                                 return {
                                                     text: `${shortLabel}: $${value.toFixed(2)} (${percentage}%)`,
-                                                    fillStyle: dataset.backgroundColor[i],
-                                                    hidden: false,
+                                                    fillStyle: hidden ? '#e0e0e0' : dataset.backgroundColor[i],
+                                                    strokeStyle: hidden ? '#999999' : dataset.backgroundColor[i],
+                                                    lineWidth: hidden ? 2 : 0,
+                                                    fontColor: hidden ? '#999999' : '#2d3748',
+                                                    fontStyle: hidden ? 'italic' : 'normal',
+                                                    hidden: hidden,
                                                     index: i
                                                 };
                                             });
