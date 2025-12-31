@@ -550,8 +550,6 @@ def _extract_cpu_workload_data(analysis_data):
     if not analysis_data:
         raise ValueError("No analysis data provided for CPU workload extraction")
     
-    #logger.info(f"🔍 CHART_GENERATOR DEBUG: _extract_cpu_workload_data called with data keys: {list(analysis_data.keys()) if isinstance(analysis_data, dict) else type(analysis_data)}")
-    
     cpu_workload_data = {
         'has_high_cpu_workloads': False,
         'max_cpu_utilization': 0.0,
@@ -563,13 +561,26 @@ def _extract_cpu_workload_data(analysis_data):
         'cpu_efficiency': 0.0  # Add CPU efficiency from backend
     }
     
-    # PRIORITY 1: Check high_cpu_summary directly (primary source)
-    high_cpu_summary = analysis_data.get('high_cpu_summary')
+    
+    # Check if high_cpu_summary exists in analysis_data
+    if 'high_cpu_summary' in analysis_data:
+        high_cpu_summary = analysis_data['high_cpu_summary']
+    else:
+        high_cpu_summary = None
+    
+    # Process high_cpu_summary if found
     if high_cpu_summary and isinstance(high_cpu_summary, dict):
         high_cpu_workloads = high_cpu_summary.get('high_cpu_workloads', [])
-        logger.info(f"🎯 CHART_GENERATOR: Found high_cpu_summary with {len(high_cpu_workloads)} workloads")
         
-        if high_cpu_workloads:
+        # Get max_cpu_utilization directly if available
+        if 'max_cpu_utilization' in high_cpu_summary:
+            max_cpu_val = high_cpu_summary['max_cpu_utilization']
+            if max_cpu_val > 0:
+                cpu_workload_data['max_cpu_utilization'] = float(max_cpu_val)
+    else:
+        high_cpu_workloads = []
+    
+    if high_cpu_workloads:
             cpu_workload_data['has_high_cpu_workloads'] = True
             cpu_workload_data['high_cpu_count'] = len(high_cpu_workloads)
             cpu_workload_data['cpu_analysis_available'] = True
@@ -579,10 +590,14 @@ def _extract_cpu_workload_data(analysis_data):
                 if isinstance(workload, dict):
                     if 'name' in workload:
                         cpu_workload_data['workload_names'].append(workload['name'])
-                    # Try multiple field names for CPU utilization
-                    cpu_val = (workload.get('hpa_cpu_utilization') or 
-                             workload.get('cpu_utilization') or 
-                             workload.get('current_cpu_utilization', 0))
+                    # Per .clauderc: Check fields explicitly
+                    cpu_val = 0
+                    if 'hpa_cpu_utilization' in workload:
+                        cpu_val = workload['hpa_cpu_utilization']
+                    elif 'cpu_utilization' in workload:
+                        cpu_val = workload['cpu_utilization']
+                    elif 'current_cpu_utilization' in workload:
+                        cpu_val = workload['current_cpu_utilization']
                     if cpu_val > 0:
                         cpu_val = ensure_float(cpu_val)
                         cpu_values.append(cpu_val)
@@ -594,22 +609,45 @@ def _extract_cpu_workload_data(analysis_data):
                 cpu_workload_data['average_cpu_utilization'] = sum(cpu_values) / len(cpu_values)
             
             # Use max CPU from summary if available
-            max_cpu_from_summary = high_cpu_summary.get('max_cpu_utilization', 0)
-            if max_cpu_from_summary > 0:
-                cpu_workload_data['max_cpu_utilization'] = max(
-                    cpu_workload_data['max_cpu_utilization'], 
-                    ensure_float(max_cpu_from_summary)
-                )
+            # Per .clauderc: Explicit field checking
+            if high_cpu_summary and 'max_cpu_utilization' in high_cpu_summary:
+                max_cpu_from_summary = high_cpu_summary['max_cpu_utilization']
+                if max_cpu_from_summary > 0:
+                    cpu_workload_data['max_cpu_utilization'] = max(
+                        cpu_workload_data['max_cpu_utilization'], 
+                        ensure_float(max_cpu_from_summary)
+                    )
             
-            logger.info(f"✅ CHART_GENERATOR: Extracted high CPU data from high_cpu_summary - max: {cpu_workload_data['max_cpu_utilization']:.1f}%")
+    
+    # Check workload_characteristics as backup source
+    if not cpu_workload_data['has_high_cpu_workloads'] and 'workload_characteristics' in analysis_data:
+        wc = analysis_data['workload_characteristics']
+        if isinstance(wc, dict):
+            if 'max_cpu_utilization' in wc and wc['max_cpu_utilization'] > 0:
+                cpu_workload_data['max_cpu_utilization'] = float(wc['max_cpu_utilization'])
+            if 'average_cpu_utilization' in wc and wc['average_cpu_utilization'] > 0:
+                cpu_workload_data['average_cpu_utilization'] = float(wc['average_cpu_utilization'])
+            if 'high_cpu_workloads' in wc:
+                high_cpu_workloads = wc['high_cpu_workloads']
+                if high_cpu_workloads:
+                    cpu_workload_data['has_high_cpu_workloads'] = True
+                    cpu_workload_data['high_cpu_count'] = len(high_cpu_workloads)
     
     # PRIORITY 2: Extract from HPA recommendations (backup source)
     if not cpu_workload_data['has_high_cpu_workloads']:
-        hpa_recommendations = analysis_data.get('hpa_recommendations', {})
-        ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
-        
-        # Look for high CPU workloads in ML characteristics
-        high_cpu_workloads = ml_workload_characteristics.get('high_cpu_workloads', [])
+        # Per .clauderc: Explicit field checking
+        if 'hpa_recommendations' in analysis_data:
+            hpa_recommendations = analysis_data['hpa_recommendations']
+            if 'workload_characteristics' in hpa_recommendations:
+                ml_workload_characteristics = hpa_recommendations['workload_characteristics']
+                high_cpu_workloads = ml_workload_characteristics['high_cpu_workloads'] if 'high_cpu_workloads' in ml_workload_characteristics else []
+            else:
+                ml_workload_characteristics = {}
+                high_cpu_workloads = []
+        else:
+            hpa_recommendations = {}
+            ml_workload_characteristics = {}
+            high_cpu_workloads = []
     
         if high_cpu_workloads:
             cpu_workload_data['has_high_cpu_workloads'] = True
@@ -631,14 +669,14 @@ def _extract_cpu_workload_data(analysis_data):
             if cpu_values:
                 cpu_workload_data['average_cpu_utilization'] = sum(cpu_values) / len(cpu_values)
             
-            logger.info(f"✅ CHART_GENERATOR: Found {len(high_cpu_workloads)} high CPU workloads in ML characteristics (backup source)")
         else:
             # Extract average CPU from enhanced analysis if available
-            avg_cpu = ml_workload_characteristics.get('cpu_utilization', 0)
-            if avg_cpu > 0:
-                cpu_workload_data['average_cpu_utilization'] = float(avg_cpu)
-                cpu_workload_data['cpu_analysis_available'] = True
-                logger.info(f"✅ CHART_GENERATOR: Found average CPU utilization from ML: {avg_cpu:.1f}%")
+            # Per .clauderc: Explicit field checking
+            if 'cpu_utilization' in ml_workload_characteristics:
+                avg_cpu = ml_workload_characteristics['cpu_utilization']
+                if avg_cpu > 0:
+                    cpu_workload_data['average_cpu_utilization'] = float(avg_cpu)
+                    cpu_workload_data['cpu_analysis_available'] = True
     
     # Determine severity level based on max CPU
     max_cpu = cpu_workload_data['max_cpu_utilization']
@@ -666,12 +704,6 @@ def _extract_cpu_workload_data(analysis_data):
         else:
             cpu_workload_data['cpu_efficiency'] = optimal_cpu / avg_cpu * 100
     cpu_efficiency = cpu_workload_data['cpu_efficiency']
-    logger.info(f"🔍 CHART_GENERATOR FINAL: {cpu_workload_data['high_cpu_count']} high CPU workloads, "
-               f"max: {cpu_workload_data['max_cpu_utilization']:.1f}%, "
-               f"avg: {cpu_workload_data['average_cpu_utilization']:.1f}%, "
-               f"efficiency: {cpu_efficiency:.1f}%, "
-               f"severity: {cpu_workload_data['severity_level']}, "
-               f"workload_names: {cpu_workload_data['workload_names'][:3]}...")
     
     return cpu_workload_data
 

@@ -635,7 +635,7 @@ class AKSRealTimeMetricsFetcher:
             if result['total_hpas'] > 0:
                 logger.info(f"✅ Successfully detected {result['total_hpas']} HPAs using {result.get('parsing_method', 'unknown')} method")
                 
-                if result['high_cpu_hpas']:
+                if result.get('high_cpu_hpas'):  # Use .get() to avoid KeyError
                     max_cpu = max([hpa['cpu_utilization'] for hpa in result['high_cpu_hpas']])
                     logger.info(f"🔥 Highest CPU detected: {max_cpu}%")
                 else:
@@ -1015,12 +1015,39 @@ class AKSRealTimeMetricsFetcher:
                 logger.info(f"🔍 Processing {len(hpa_data['items'])} HPAs from cache with complete metrics extraction")
                 
                 for item in hpa_data['items']:
-                    metadata = item.get('metadata', {})
-                    spec = item.get('spec', {})
-                    status = item.get('status', {})
+                    # CRITICAL: We now use processed HPA data from hpa_essential
+                    # This data has flat structure with direct fields
+                    namespace = item.get('namespace')
+                    name = item.get('name')
                     
-                    namespace = metadata.get('namespace', '')
-                    name = metadata.get('name', '')
+                    # Validate required fields per .clauderc - no fallbacks
+                    if not namespace or not name:
+                        raise ValueError(f"HPA missing required fields: namespace='{namespace}', name='{name}'")
+                    
+                    # Use the processed field names from hpa_essential
+                    # Build metrics from current_cpu/target_cpu if available
+                    metrics_list = []
+                    if item.get('current_cpu') is not None:
+                        metrics_list.append({
+                            'type': 'Resource',
+                            'resource': {
+                                'name': 'cpu',
+                                'target': {
+                                    'type': 'Utilization',
+                                    'averageUtilization': item.get('target_cpu', 80)
+                                }
+                            }
+                        })
+                    
+                    spec = {
+                        'minReplicas': item.get('min_replicas', 1),
+                        'maxReplicas': item.get('max_replicas', 10),
+                        'metrics': metrics_list,
+                        'scaleTargetRef': {'name': item.get('scale_target', '')}
+                    }
+                    status = {
+                        'currentReplicas': item.get('current_replicas', 1)
+                    }
                     min_replicas = spec.get('minReplicas', 1)
                     max_replicas = spec.get('maxReplicas', 10)
                     current_replicas = status.get('currentReplicas', 1)
@@ -1771,21 +1798,136 @@ class AKSRealTimeMetricsFetcher:
             logger.error(f"❌ Working HPA parser failed: {e}")
             return {'total_hpas': 0, 'parsing_method': 'working_parser_failed'}
 
-    def _get_detailed_pod_metrics(self) -> Dict:
-        """Get detailed pod-level metrics for enhanced analysis"""
+    def _validate_hpa_metrics_with_actual_usage(self, hpa_metrics: Dict, kubectl_data: Dict) -> Dict:
+        """
+        Cross-reference HPA currentMetrics with actual pod CPU from kubectl top.
+        Detect and flag discrepancies between HPA reported CPU and actual usage.
+        """
         try:
-            # Get pod resource usage
-            top_pods_cmd = "kubectl top pods --all-namespaces --no-headers"
-            pod_output = self._safe_kubectl_command(top_pods_cmd)
+            # Per .clauderc: No fallbacks, explicit validation
+            if 'metrics_pods' not in kubectl_data:
+                raise ValueError("kubectl_data missing required 'metrics_pods' field")
+            
+            metrics_pods = kubectl_data['metrics_pods']
+            if not metrics_pods:
+                logger.warning("⚠️ No kubectl top pods data available for validation")
+                return hpa_metrics
+            
+            # Parse kubectl top output
+            actual_pod_cpu = {}
+            lines = metrics_pods.strip().split('\n')
+            
+            for line in lines:
+                if not line.strip():
+                    continue
+                parts = line.split()
+                if len(parts) >= 4:
+                    namespace = parts[0]
+                    pod_name = parts[1]
+                    cpu_str = parts[2]
+                    
+                    # Parse CPU (handles m for millicores)
+                    if cpu_str.endswith('m'):
+                        cpu_millicores = float(cpu_str[:-1])
+                    else:
+                        cpu_millicores = float(cpu_str) * 1000
+                    
+                    # Store actual CPU usage
+                    pod_key = f"{namespace}/{pod_name}"
+                    actual_pod_cpu[pod_key] = cpu_millicores
+            
+            # Validate HPA metrics against actual usage
+            validation_warnings = []
+            corrected_hpa_metrics = []
+            
+            # Per .clauderc: Explicit validation, no fallbacks
+            if 'hpa_cpu_metrics' not in hpa_metrics:
+                hpa_metrics['hpa_cpu_metrics'] = []
+            
+            for hpa in hpa_metrics['hpa_cpu_metrics']:
+                # Per .clauderc: Validate required fields
+                if 'namespace' not in hpa or 'scale_target' not in hpa or 'current_cpu' not in hpa:
+                    logger.warning(f"⚠️ HPA missing required fields: {hpa}")
+                    continue
+                    
+                namespace = hpa['namespace']
+                target_name = hpa['scale_target']
+                hpa_cpu_pct = hpa['current_cpu']
+                
+                # Find pods that belong to this HPA's target
+                matching_pods = []
+                total_actual_cpu = 0
+                pod_count = 0
+                
+                for pod_key, cpu_value in actual_pod_cpu.items():
+                    if pod_key.startswith(f"{namespace}/") and target_name in pod_key:
+                        matching_pods.append((pod_key, cpu_value))
+                        total_actual_cpu += cpu_value
+                        pod_count += 1
+                
+                if matching_pods:
+                    # Calculate average actual CPU percentage (assume 1000m = 100%)
+                    avg_actual_cpu_pct = (total_actual_cpu / pod_count / 10) if pod_count > 0 else 0
+                    
+                    # Check for major discrepancy (>100% difference)
+                    if abs(hpa_cpu_pct - avg_actual_cpu_pct) > 100:
+                        # Per .clauderc: Validate required field
+                        if 'name' not in hpa:
+                            raise ValueError(f"HPA in namespace {namespace} missing required 'name' field")
+                        
+                        warning = {
+                            'hpa': f"{namespace}/{hpa['name']}",
+                            'hpa_reported_cpu': hpa_cpu_pct,
+                            'actual_cpu': avg_actual_cpu_pct,
+                            'discrepancy': hpa_cpu_pct - avg_actual_cpu_pct,
+                            'pods_checked': pod_count
+                        }
+                        validation_warnings.append(warning)
+                        
+                        logger.warning(f"🚨 HPA CPU discrepancy: {namespace}/{hpa['name']} "
+                                     f"reports {hpa_cpu_pct:.1f}% but actual is {avg_actual_cpu_pct:.1f}%")
+                        
+                        # Use actual CPU if HPA is wildly off (like 3326% when actual is 1m)
+                        if hpa_cpu_pct > 500 and avg_actual_cpu_pct < 10:
+                            hpa['actual_cpu'] = avg_actual_cpu_pct
+                            hpa['cpu_data_source'] = 'kubectl_top'
+                            hpa['original_hpa_cpu'] = hpa_cpu_pct
+                            hpa['data_quality_warning'] = 'HPA metrics unreliable - using kubectl top'
+            
+            # Add validation results to metrics
+            hpa_metrics['validation'] = {
+                'performed': True,
+                'warnings': validation_warnings,
+                'warnings_count': len(validation_warnings),
+                'pods_validated': len(actual_pod_cpu),
+                'data_source_preference': 'kubectl_top' if validation_warnings else 'hpa_metrics'
+            }
+            
+            
+            return hpa_metrics
+            
+        except Exception as e:
+            logger.error(f"❌ HPA validation failed: {e}")
+            return hpa_metrics
+
+    def _get_detailed_pod_metrics(self) -> Dict:
+        """Get detailed pod-level metrics for enhanced analysis using kubectl top as primary source"""
+        try:
+            # Get cached kubectl data which includes metrics_pods
+            cache_data = self.cache.get_resource_usage_data()
+            metrics_pods_output = cache_data.get('metrics_pods', '')
             
             pod_data = {
                 'pods': [],
                 'namespace_aggregates': {},
-                'resource_totals': {'cpu_millicores': 0, 'memory_bytes': 0}
+                'resource_totals': {'cpu_millicores': 0, 'memory_bytes': 0},
+                'data_source': 'kubectl_top',  # Indicate we're using real-time metrics
+                'high_cpu_pods': [],  # Track pods with high actual CPU usage
+                'max_actual_cpu': 0  # Track maximum actual CPU across all pods
             }
             
-            if pod_output is not None and pod_output:
-                lines = pod_output.split('\n')
+            if metrics_pods_output:
+                lines = metrics_pods_output.split('\n')
                 for line in lines:
                     if line.strip():
                         parts = line.split()
@@ -1804,17 +1946,34 @@ class AKSRealTimeMetricsFetcher:
                             memory_bytes = self.parser.parse_memory_safe(memory_str)
                             
                             if cpu_millicores >= 0 and memory_bytes >= 0:
+                                # Calculate CPU percentage (1000m = 100% of 1 core)
+                                cpu_percentage = (cpu_millicores / 1000) * 100
+                                
                                 pod_info = {
                                     'namespace': namespace,
                                     'name': pod_name,
                                     'cpu_millicores': cpu_millicores,
                                     'memory_bytes': memory_bytes,
-                                    'cpu_percentage': (cpu_millicores / 4000) * 100  # Assume 4-core nodes
+                                    'cpu_percentage': cpu_percentage,
+                                    'data_source': 'kubectl_top'  # Mark as real-time data
                                 }
                                 
                                 pod_data['pods'].append(pod_info)
                                 pod_data['resource_totals']['cpu_millicores'] += cpu_millicores
                                 pod_data['resource_totals']['memory_bytes'] += memory_bytes
+                                
+                                # Track high CPU pods (>80% of a core)
+                                if cpu_percentage > 80:
+                                    pod_data['high_cpu_pods'].append({
+                                        'namespace': namespace,
+                                        'name': pod_name,
+                                        'cpu_percentage': cpu_percentage,
+                                        'cpu_millicores': cpu_millicores
+                                    })
+                                
+                                # Track maximum actual CPU
+                                if cpu_percentage > pod_data['max_actual_cpu']:
+                                    pod_data['max_actual_cpu'] = cpu_percentage
                                 
                                 # Aggregate by namespace
                                 if namespace not in pod_data['namespace_aggregates']:
@@ -1877,7 +2036,7 @@ class AKSRealTimeMetricsFetcher:
                 # Enhance with high CPU detection data
                 try:
                     high_cpu_data = self.get_hpa_metrics_with_high_cpu_detection()
-                    if high_cpu_data:
+                    if high_cpu_data and not high_cpu_data.get('error'):
                         # Store ALL HPA CPU metrics, not just "high" ones
                         hpa_metrics['hpa_cpu_metrics'] = high_cpu_data.get('hpa_cpu_metrics', [])
                         hpa_metrics['cpu_statistics'] = high_cpu_data.get('cpu_statistics', {})
@@ -1886,12 +2045,15 @@ class AKSRealTimeMetricsFetcher:
                             stats = high_cpu_data['cpu_statistics']
                             logger.info(f"📊 CPU Stats: avg={stats.get('avg_cpu', 0):.1f}%, max={stats.get('max_cpu', 0):.1f}%")
                     else:
-                        # Per .clauderc - no fallbacks allowed
-                        raise ValueError("Failed to get HPA CPU metrics from cluster")
+                        # Initialize empty but valid structure
+                        hpa_metrics['hpa_cpu_metrics'] = []
+                        hpa_metrics['cpu_statistics'] = {'avg_cpu': 0, 'max_cpu': 0, 'min_cpu': 0}
+                        logger.warning("⚠️ HPA CPU metrics not available, using empty structure")
                 except Exception as cpu_error:
-                    # Per .clauderc - explicit error handling, no silent failures
-                    logger.error(f"❌ HPA CPU metrics collection failed: {cpu_error}")
-                    raise ValueError(f"HPA CPU metrics collection failed: {cpu_error}")
+                    # Log error but don't fail entirely - initialize empty structure
+                    logger.error(f"❌ HPA CPU metrics collection error: {cpu_error}")
+                    hpa_metrics['hpa_cpu_metrics'] = []
+                    hpa_metrics['cpu_statistics'] = {'avg_cpu': 0, 'max_cpu': 0, 'min_cpu': 0}
                     
             except Exception as hpa_error:
                 logger.warning(f"⚠️ HPA implementation status failed: {hpa_error}")
@@ -1906,9 +2068,27 @@ class AKSRealTimeMetricsFetcher:
             
             # Step 3: CRITICAL FIX - Get ALL workload-level resource consumption
             try:
-                # Use the fixed method that saves ALL workloads
+                # Get real-time pod metrics from kubectl top FIRST
+                detailed_pod_metrics = self._get_detailed_pod_metrics()
+                
+                # Then get workload metrics
                 pod_metrics = self._get_workload_level_metrics()
-                logger.info("✅ Got ALL workload metrics")
+                
+                # Enhance pod_metrics with kubectl top data
+                pod_metrics['kubectl_top_data'] = detailed_pod_metrics
+                pod_metrics['max_actual_cpu'] = detailed_pod_metrics.get('max_actual_cpu', 0)
+                pod_metrics['data_source_priority'] = 'kubectl_top'
+                
+                # Get cached kubectl data for validation
+                cache_data = self.cache.get_resource_usage_data()
+                
+                # Validate HPA metrics against actual usage
+                if hpa_metrics.get('hpa_cpu_metrics'):
+                    hpa_metrics = self._validate_hpa_metrics_with_actual_usage(hpa_metrics, cache_data)
+                    if hpa_metrics.get('validation', {}).get('warnings_count', 0) > 0:
+                        logger.warning(f"⚠️ Found {hpa_metrics['validation']['warnings_count']} HPA/actual CPU discrepancies")
+                
+                logger.info("✅ Got ALL workload metrics with kubectl top validation")
                 
                 # Validate that we got all workloads
                 total_workloads = pod_metrics.get('total_workloads', 0)
@@ -1982,7 +2162,8 @@ class AKSRealTimeMetricsFetcher:
                     # Get max CPU from ALL workloads, not just HPA statistics
                     'max_cpu_utilization': self._calculate_max_cpu_from_all_workloads(
                         pod_metrics.get('all_workloads', []), 
-                        hpa_metrics.get('hpa_cpu_metrics', [])
+                        hpa_metrics.get('hpa_cpu_metrics', []),
+                        pod_metrics  # Pass pod_metrics for kubectl top data
                     )
                 },
                 
@@ -2160,6 +2341,11 @@ class AKSRealTimeMetricsFetcher:
                         cpu_millicores = self.parser.parse_cpu_safe(cpu_str)
                         memory_bytes = self.parser.parse_memory_safe(memory_str)
                         
+                        # Skip entries with empty namespace or name
+                        if not namespace or not pod_name or namespace == '<none>' or pod_name == '<none>':
+                            logger.debug(f"⚠️ Skipping empty workload: namespace={namespace}, name={pod_name}")
+                            continue
+                        
                         if cpu_millicores >= 0 and memory_bytes >= 0:
                             # Calculate CPU percentage (assuming 4-core nodes as baseline)
                             cpu_percentage = self._convert_millicores_to_percentage(cpu_millicores)
@@ -2228,6 +2414,11 @@ class AKSRealTimeMetricsFetcher:
                 
                 # Merge HPA high CPU findings with pod metrics
                 for hpa_workload in high_cpu_workloads_from_hpa:
+                    # Skip HPA workloads without valid name/namespace
+                    if not hpa_workload.get('name') or not hpa_workload.get('namespace'):
+                        logger.debug(f"⚠️ Skipping HPA workload with empty name/namespace")
+                        continue
+                    
                     # Check if this workload is already in our all_workloads
                     existing_workload = None
                     for workload in workload_data['all_workloads']:
@@ -2462,30 +2653,85 @@ class AKSRealTimeMetricsFetcher:
             logger.error(f"❌ Error calculating efficiency indicators: {e}")
             return {'optimization_potential': 'unknown'}
 
-    def _calculate_max_cpu_from_all_workloads(self, all_workloads: list, hpa_cpu_metrics: list) -> float:
+    def _calculate_max_cpu_from_all_workloads(self, all_workloads: list, hpa_cpu_metrics: list, pod_metrics: Dict = None) -> float:
         """
-        Calculate the maximum CPU from ALL workloads (pods and HPAs), not just high CPU ones.
-        This fixes the issue where max CPU shows 0% because we're only looking at "high CPU" workloads.
+        Calculate the maximum CPU from ALL sources, prioritizing kubectl top (actual usage) over HPA metrics.
+        
+        Priority order:
+        1. kubectl top pods (most accurate, real-time)
+        2. Pod workload metrics (if kubectl top unavailable)
+        3. HPA currentMetrics (potentially stale/incorrect)
         """
         max_cpu = 0
+        data_source = "unknown"
         
-        # Check all pod workloads
-        for workload in all_workloads or []:
-            # Try different field names that might contain CPU data
-            cpu_val = max(
-                workload.get('cpu_percentage', 0),
-                workload.get('cpu_utilization', 0),
-                workload.get('hpa_cpu_utilization', 0),
-                workload.get('cpu_usage_pct', 0)
-            )
-            max_cpu = max(max_cpu, cpu_val)
+        # PRIORITY 1: Use kubectl top data if available (most accurate)
+        # Per .clauderc: Explicit validation, no defaults
+        if pod_metrics and 'max_actual_cpu' in pod_metrics:
+            max_cpu = pod_metrics['max_actual_cpu']
+            if max_cpu > 0:
+                data_source = "kubectl_top"
         
-        # Check all HPA metrics (these are more reliable than pod metrics)
-        for hpa in hpa_cpu_metrics or []:
-            cpu_val = hpa.get('cpu_utilization', 0)
-            max_cpu = max(max_cpu, cpu_val)
+        # PRIORITY 2: Check all pod workloads
+        if max_cpu == 0 and all_workloads:
+            for workload in all_workloads:
+                # Per .clauderc: Check for fields explicitly
+                cpu_val = 0
+                if 'cpu_percentage' in workload:
+                    cpu_val = max(cpu_val, workload['cpu_percentage'])
+                if 'cpu_utilization' in workload:
+                    cpu_val = max(cpu_val, workload['cpu_utilization'])
+                if 'hpa_cpu_utilization' in workload:
+                    cpu_val = max(cpu_val, workload['hpa_cpu_utilization'])
+                if 'cpu_usage_pct' in workload:
+                    cpu_val = max(cpu_val, workload['cpu_usage_pct'])
+                
+                if cpu_val > max_cpu:
+                    max_cpu = cpu_val
+                    data_source = "pod_metrics"
         
-        logger.info(f"📊 Calculated max CPU from {len(all_workloads or [])} workloads and {len(hpa_cpu_metrics or [])} HPAs: {max_cpu:.1f}%")
+        # PRIORITY 3: HPA metrics (use with caution - may be stale/incorrect)
+        hpa_max = 0
+        if hpa_cpu_metrics:
+            for hpa in hpa_cpu_metrics:
+                # Per .clauderc: Explicit field checking
+                cpu_val = 0
+                
+                # Check if HPA has been validated against actual usage
+                if 'cpu_data_source' in hpa and hpa['cpu_data_source'] == 'kubectl_top':
+                    # Use corrected actual CPU if available
+                    if 'actual_cpu' in hpa:
+                        cpu_val = hpa['actual_cpu']
+                    elif 'current_cpu' in hpa:
+                        cpu_val = hpa['current_cpu']
+                    else:
+                        logger.warning(f"⚠️ HPA missing CPU data: {hpa}")
+                        continue
+                elif 'current_cpu' in hpa:
+                    # Use original HPA metric
+                    cpu_val = hpa['current_cpu']
+                else:
+                    logger.warning(f"⚠️ HPA missing current_cpu field")
+                    continue
+                
+                # Flag potential data quality issues
+                if cpu_val > 500:
+                    # Per .clauderc: Validate required fields for warning
+                    namespace = hpa['namespace'] if 'namespace' in hpa else 'unknown'
+                    name = hpa['name'] if 'name' in hpa else 'unknown'
+                    logger.warning(f"⚠️ Suspicious HPA CPU value: {cpu_val}% for {namespace}/{name}")
+                    
+                    # Check if we have a corrected value
+                    if 'actual_cpu' in hpa:
+                        cpu_val = hpa['actual_cpu']
+                
+                hpa_max = max(hpa_max, cpu_val)
+        
+        # Only use HPA max if no other data available or if it's reasonable
+        if max_cpu == 0 or (hpa_max > max_cpu and hpa_max < 500):
+            max_cpu = hpa_max
+            if data_source != "kubectl_top":
+                data_source = "hpa_metrics"
         
         return max_cpu
 

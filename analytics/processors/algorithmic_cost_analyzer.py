@@ -669,8 +669,37 @@ class MLEnhancedHPARecommendationEngine:
             # ===== CRITICAL FIX: SAVE ALL WORKLOADS, NOT JUST HIGH CPU =====
             all_workloads = []
             high_cpu_workloads = []
-            max_cpu_utilization = 0
+            
+            # Per .clauderc: Explicit validation, no fallbacks
+            if not metrics_data:
+                raise ValueError("metrics_data is required for workload analysis")
+                
+            # Use max CPU from aks_realtime_metrics (already calculated from HPA data)
+            if 'high_cpu_summary' not in metrics_data:
+                logger.warning("⚠️ high_cpu_summary not found in metrics_data")
+                high_cpu_summary = {}
+                max_cpu_utilization = 0
+            else:
+                high_cpu_summary = metrics_data['high_cpu_summary']
+                max_cpu_utilization = high_cpu_summary['max_cpu_utilization'] if 'max_cpu_utilization' in high_cpu_summary else 0
+            
             avg_cpu_utilization = 0
+            
+            # Check for data quality issues (kubectl top vs HPA discrepancies)
+            validation_data = {}
+            if 'hpa_implementation' in metrics_data:
+                hpa_impl = metrics_data['hpa_implementation']
+                if 'validation' in hpa_impl:
+                    validation_data = hpa_impl['validation']
+                    
+            if 'warnings_count' in validation_data and validation_data['warnings_count'] > 0:
+                logger.warning(f"⚠️ Data quality warning: {validation_data['warnings_count']} HPA/actual CPU discrepancies detected")
+                data_source_pref = validation_data['data_source_preference'] if 'data_source_preference' in validation_data else 'unknown'
+                logger.info(f"📊 Using {data_source_pref} as primary data source")
+            
+            # Flag suspicious values
+            if max_cpu_utilization > 500:
+                logger.warning(f"⚠️ Suspicious max CPU value: {max_cpu_utilization:.1f}% - likely stale HPA metrics")
             
             # Extract ALL workloads from metrics_data
             if metrics_data:
@@ -697,7 +726,8 @@ class MLEnhancedHPARecommendationEngine:
                         
                         high_cpu_workloads.append(workload)
                         all_workloads.append(workload)
-                        max_cpu_utilization = max(max_cpu_utilization, workload['cpu_utilization'])
+                        # Don't recalculate max_cpu - we already have it from aks_realtime_metrics
+                        # max_cpu_utilization = max(max_cpu_utilization, workload['cpu_utilization'])
                         
                         logger.info(f"🔥 PRESERVED HIGH CPU HPA: {workload['namespace']}/{workload['name']} = {workload['cpu_utilization']}%")
                     
@@ -705,15 +735,22 @@ class MLEnhancedHPARecommendationEngine:
                     already_processed = {f"{w['namespace']}/{w['name']}" for w in high_cpu_workloads}
                     
                     for hpa in all_hpa_details:
-                        workload_key = f"{hpa.get('namespace', 'unknown')}/{hpa.get('name', 'unknown')}"
+                        # Required fields must exist per .clauderc
+                        hpa_name = hpa.get('name')
+                        hpa_namespace = hpa.get('namespace')
+                        
+                        if not hpa_name or not hpa_namespace:
+                            raise ValueError(f"HPA data missing required fields: name='{hpa_name}', namespace='{hpa_namespace}'")
+                        
+                        workload_key = f"{hpa_namespace}/{hpa_name}"
                         
                         # Skip if already processed as high CPU
                         if workload_key in already_processed:
                             continue
                             
                         workload = {
-                            'name': hpa.get('name', 'unknown'),
-                            'namespace': hpa.get('namespace', 'unknown'),
+                            'name': hpa_name,
+                            'namespace': hpa_namespace,
                             'cpu_utilization': float(hpa.get('current_cpu', 0)),
                             'target': float(hpa.get('target_cpu', 80)),
                             'severity': 'normal',
@@ -731,7 +768,8 @@ class MLEnhancedHPARecommendationEngine:
                             high_cpu_workloads.append(workload)
                         
                         all_workloads.append(workload)
-                        max_cpu_utilization = max(max_cpu_utilization, workload['cpu_utilization'])
+                        # Don't recalculate max_cpu - we already have it from aks_realtime_metrics
+                        # max_cpu_utilization = max(max_cpu_utilization, workload['cpu_utilization'])
                         
                         #logger.info(f"💾 SAVED WORKLOAD: {workload['namespace']}/{workload['name']} = {workload['cpu_utilization']}% (severity: {workload['severity']})")
                     
@@ -748,7 +786,8 @@ class MLEnhancedHPARecommendationEngine:
                             }
                             all_workloads.append(high_cpu_workload)
                             high_cpu_workloads.append(high_cpu_workload)
-                            max_cpu_utilization = max(max_cpu_utilization, high_cpu_workload['cpu_utilization'])
+                            # Don't recalculate max_cpu - we already have it from aks_realtime_metrics
+                            # max_cpu_utilization = max(max_cpu_utilization, high_cpu_workload['cpu_utilization'])
                             
                             logger.info(f"🔥 ADDITIONAL HIGH CPU WORKLOAD: {high_cpu_workload['namespace']}/{high_cpu_workload['name']} = {high_cpu_workload['cpu_utilization']}%")
                 
@@ -836,7 +875,8 @@ class MLEnhancedHPARecommendationEngine:
                                     high_cpu_workloads.append(workload)
                             
                             all_workloads.append(workload)
-                            max_cpu_utilization = max(max_cpu_utilization, cpu_pct)
+                            # Don't recalculate max_cpu - we already have it from aks_realtime_metrics
+                            # max_cpu_utilization = max(max_cpu_utilization, cpu_pct)
                             
                             #logger.info(f"💾 SAVED RESOURCE WORKLOAD: {workload['namespace']}/{workload['name']} = {cpu_pct}%")
             
@@ -914,7 +954,16 @@ class MLEnhancedHPARecommendationEngine:
                 'data_structure_version': 'all_workloads_preserved',
                 'ml_data_source': 'comprehensive_self_learning_analysis',
                 'chart_data_ready': True,
-                'workloads_saved': True  # 🆕 Flag indicating all workloads are saved
+                'workloads_saved': True,  # 🆕 Flag indicating all workloads are saved
+                
+                # ===== DATA QUALITY INFO =====
+                'data_quality': {
+                    'validation_performed': validation_data['performed'] if 'performed' in validation_data else False,
+                    'hpa_discrepancies': validation_data['warnings_count'] if 'warnings_count' in validation_data else 0,
+                    'data_source': validation_data['data_source_preference'] if 'data_source_preference' in validation_data else 'hpa_metrics',
+                    'suspicious_max_cpu': max_cpu_utilization > 500,
+                    'pods_validated': validation_data['pods_validated'] if 'pods_validated' in validation_data else 0
+                }
             }
             
             # Populate workloads by namespace
@@ -3173,6 +3222,11 @@ class CurrentUsageAnalysisAlgorithm:
             
             high_cpu_summary = metrics_data.get('high_cpu_summary', {})
             logger.info(f"🔍 DEBUG HIGH_CPU_SUMMARY: type={type(high_cpu_summary)}, keys={list(high_cpu_summary.keys()) if isinstance(high_cpu_summary, dict) else 'Not a dict'}")
+            
+            # Max CPU is already extracted in the main analyze method
+            max_cpu_utilization = high_cpu_summary.get('max_cpu_utilization', 0)
+            if max_cpu_utilization > 0:
+                logger.info(f"✅ Found max CPU from high_cpu_summary: {max_cpu_utilization:.1f}%")
             
             high_cpu_workloads = high_cpu_summary.get('high_cpu_workloads', [])
             high_cpu_hpas = high_cpu_summary.get('high_cpu_hpas', [])
