@@ -760,3 +760,123 @@ function showSection(sectionName) {
         targetLink.classList.add('active');
     }
 }
+
+// Notification Settings Functions
+async function saveNotificationSettings() {
+    const formData = new FormData();
+    
+    // Email settings
+    const emailEnabled = document.getElementById('email-enabled')?.checked || false;
+    formData.append('section', 'email');
+    formData.append('email_enabled', emailEnabled);
+    
+    if (emailEnabled) {
+        formData.append('smtp_server', document.getElementById('smtp-server')?.value || '');
+        formData.append('smtp_port', document.getElementById('smtp-port')?.value || '587');
+        formData.append('smtp_username', document.getElementById('smtp-username')?.value || '');
+        formData.append('smtp_password', document.getElementById('smtp-password')?.value || '');
+        formData.append('from_email', document.getElementById('from-email')?.value || '');
+        formData.append('email_recipients', document.getElementById('email-recipients')?.value || '');
+    }
+    
+    try {
+        // Save email settings
+        const emailResponse = await fetch('/save_settings', {
+            method: 'POST',
+            body: formData
+        });
+        
+        // Save Slack settings
+        const slackFormData = new FormData();
+        const slackEnabled = document.getElementById('slack-enabled')?.checked || false;
+        slackFormData.append('section', 'slack');
+        slackFormData.append('slack_enabled', slackEnabled);
+        
+        if (slackEnabled) {
+            slackFormData.append('slack_webhook_url', document.getElementById('slack-webhook-url')?.value || '');
+            slackFormData.append('slack_channel', document.getElementById('slack-channel')?.value || '');
+            slackFormData.append('slack_cost_threshold', document.getElementById('slack-cost-threshold')?.value || '');
+        }
+        
+        const slackResponse = await fetch('/save_settings', {
+            method: 'POST',
+            body: slackFormData
+        });
+        
+        if (emailResponse.ok && slackResponse.ok) {
+            showToast('Notification settings saved successfully!', 'success');
+            loadNotificationSettings();
+        } else {
+            showToast('Failed to save notification settings', 'error');
+        }
+    } catch (error) {
+        console.error('Error saving notification settings:', error);
+        showToast('Error saving notification settings', 'error');
+    }
+}
+
+async function loadNotificationSettings() {
+    try {
+        const response = await fetch('/get_settings');
+        if (!response.ok) return;
+        
+        const settings = await response.json();
+        
+        // Email settings
+        if (settings.email_enabled === 'true') {
+            document.getElementById('email-enabled').checked = true;
+            document.getElementById('email-config').style.display = 'block';
+        }
+        document.getElementById('smtp-server').value = settings.smtp_server || '';
+        document.getElementById('smtp-port').value = settings.smtp_port || '587';
+        document.getElementById('smtp-username').value = settings.smtp_username || '';
+        document.getElementById('from-email').value = settings.from_email || '';
+        document.getElementById('email-recipients').value = settings.email_recipients || '';
+        // Don't load password for security
+        
+        // Slack settings
+        if (settings.slack_enabled === 'true') {
+            document.getElementById('slack-enabled').checked = true;
+            document.getElementById('slack-config').style.display = 'block';
+        }
+        document.getElementById('slack-webhook-url').value = settings.slack_webhook_url || '';
+        document.getElementById('slack-channel').value = settings.slack_channel || '';
+        document.getElementById('slack-cost-threshold').value = settings.slack_cost_threshold || '';
+        
+    } catch (error) {
+        console.error('Error loading notification settings:', error);
+    }
+}
+
+// Toggle notification config visibility
+document.addEventListener('DOMContentLoaded', function() {
+    const emailToggle = document.getElementById('email-enabled');
+    const slackToggle = document.getElementById('slack-enabled');
+    const emailConfig = document.getElementById('email-config');
+    const slackConfig = document.getElementById('slack-config');
+    
+    if (emailToggle && emailConfig) {
+        emailToggle.addEventListener('change', function() {
+            emailConfig.style.display = this.checked ? 'block' : 'none';
+        });
+        emailConfig.style.display = emailToggle.checked ? 'block' : 'none';
+    }
+    
+    if (slackToggle && slackConfig) {
+        slackToggle.addEventListener('change', function() {
+            slackConfig.style.display = this.checked ? 'block' : 'none';
+        });
+        slackConfig.style.display = slackToggle.checked ? 'block' : 'none';
+    }
+    
+    // Load settings on page load
+    loadNotificationSettings();
+});
+
+function showToast(message, type = 'info') {
+    if (window.toastManager) {
+        window.toastManager.show(message, type);
+    } else {
+        console.log(`[${type}] ${message}`);
+    }
+}

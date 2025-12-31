@@ -231,6 +231,19 @@ def register_auth_routes(app):
         
         return redirect(url_for('settings'))
     
+    @app.route('/get_settings', methods=['GET'])
+    @auth_manager.require_auth
+    def get_settings():
+        """Get current settings"""
+        try:
+            settings = settings_manager.get_all_settings()
+            # Don't send sensitive info like passwords
+            safe_settings = {k: v for k, v in settings.items() if 'password' not in k.lower() and 'secret' not in k.lower()}
+            return jsonify(safe_settings)
+        except Exception as e:
+            logger.error(f"Error getting settings: {e}")
+            return jsonify({'error': str(e)}), 500
+    
     @app.route('/test_slack', methods=['POST'])
     @auth_manager.require_auth
     def test_slack():
