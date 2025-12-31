@@ -16,7 +16,7 @@ import traceback
 import asyncio
 from shared.config.config import logger, enhanced_cluster_manager
 from shared.utils.shared import _get_analysis_data
-from machine_learning.core.enterprise_metrics import EnterpriseOperationalMetricsEngine, EnterpriseMetricsIntegration
+# Enterprise metrics feature removed - no longer needed
 from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
 from infrastructure.services.feature_guard import require_feature, get_ui_feature_flags
 from infrastructure.services.license_manager import FeatureFlag
@@ -151,12 +151,7 @@ def register_project_controls_api(app):
             with open(config_path, 'w') as f:
                 json.dump(config, f, indent=2)
             
-            # Clear cache to reload config
-            global _ENVIRONMENT_CONFIG
-            from machine_learning.core.enterprise_metrics import _CONFIG_LOCK
-            with _CONFIG_LOCK:
-                from machine_learning.core import enterprise_metrics
-                enterprise_metrics._ENVIRONMENT_CONFIG = None
+            # Clear cache to reload config - enterprise metrics removed
             
             logger.info(f"✅ Updated environment configuration with {len(environments)} environments")
             
@@ -170,11 +165,7 @@ def register_project_controls_api(app):
             logger.error(f"❌ Failed to update environments: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
 
-    @app.route('/api/enterprise-metrics', methods=['GET'])
-    @require_feature(FeatureFlag.ENTERPRISE_METRICS, api_response=True)
-    def api_enterprise_metrics():
-        """Get enterprise operational metrics - clean implementation"""
-        return get_enterprise_metrics_clean()
+    # Enterprise metrics endpoint removed - feature no longer needed
 
 def _generate_dynamic_action_items(analysis_data, optimization_history, performance_metrics, cpu_avg, memory_avg, cost_savings):
     """Generate dynamic action items using existing implementation"""
@@ -391,167 +382,6 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
                 'message': f'project controls API error: {str(e)}',
                 'error_type': type(e).__name__
             }), 500
-
-
-def get_enterprise_metrics_clean():
-    """Clean enterprise metrics API - no fallback logic, use proper Implementation Generator"""
-    try:
-        logger.info("🏢 Clean enterprise metrics API called")
-        
-        # Get cluster information from request
-        cluster_id = request.args.get('cluster_id')
-        force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
-        
-        if not cluster_id:
-            return jsonify({
-                'status': 'error',
-                'message': 'cluster_id parameter required'
-            }), 400
-        
-        # Get cluster info from cluster manager
-        cluster_info = enhanced_cluster_manager.get_cluster(cluster_id)
-        if not cluster_info:
-            return jsonify({
-                'status': 'error',
-                'message': f'Cluster {cluster_id} not found in system'
-            }), 404
-        
-        resource_group = cluster_info.get('resource_group')
-        cluster_name = cluster_info.get('name')
-        subscription_id = cluster_info.get('subscription_id')
-        
-        logger.info(f"📊 Clean enterprise metrics for: {cluster_name} in {resource_group}")
-        
-        # Get analysis data
-        analysis_data, data_source = _get_analysis_data(cluster_id)
-        
-        # Check for cached enterprise metrics first (unless force refresh)
-        if not force_refresh and analysis_data:
-            implementation_plan = analysis_data.get('implementation_plan', {})
-            if isinstance(implementation_plan, dict) and 'enterprise_metrics' in implementation_plan:
-                logger.info("✅ Using existing enterprise metrics from implementation plan")
-                enterprise_data = implementation_plan['enterprise_metrics']
-                
-                return jsonify({
-                    'status': 'success',
-                    'timestamp': datetime.now().isoformat(),
-                    'data': enterprise_data,
-                    'source': 'implementation_plan_cached'
-                })
-        
-        # Generate fresh enterprise metrics using Implementation Generator
-        if not analysis_data or not isinstance(analysis_data, dict):
-            return jsonify({
-                'status': 'error',
-                'message': f'No analysis data available for cluster {cluster_name}. Please run cluster analysis first.',
-                'cluster_info': {
-                    'cluster_name': cluster_name,
-                    'resource_group': resource_group
-                }
-            }), 400
-        
-        # Use the Enterprise Metrics Engine (proper engine for enterprise metrics)
-        enterprise_engine = EnterpriseOperationalMetricsEngine()
-        
-        # Generate enterprise metrics using real analysis data
-        enterprise_metrics = enterprise_engine.calculate_comprehensive_enterprise_metrics(
-            analysis_data,  # analysis_results
-            cluster_config=analysis_data.get('cluster_config', {}),
-            ml_session=analysis_data.get('ml_session', {})
-        )
-        
-        logger.info(f"✅ Enterprise metrics generated using Implementation Generator for {cluster_name}")
-        
-        # Save to implementation plan
-        try:
-            if 'implementation_plan' in analysis_data:
-                analysis_data['implementation_plan']['enterprise_metrics'] = enterprise_metrics
-                enhanced_cluster_manager.update_cluster_analysis(cluster_id, analysis_data)
-                logger.info(f"✅ Saved enterprise metrics to implementation plan for {cluster_name}")
-        except Exception as save_error:
-            logger.warning(f"⚠️ Failed to save enterprise metrics to implementation plan: {save_error}")
-        
-        return jsonify({
-            'status': 'success',
-            'timestamp': datetime.now().isoformat(),
-            'data': enterprise_metrics,
-            'source': 'implementation_generator_fresh',
-            'cluster_info': {
-                'cluster_name': cluster_name,
-                'resource_group': resource_group
-            }
-        })
-        
-    except Exception as e:
-        logger.error(f"❌ Clean enterprise metrics failed: {e}")
-        import traceback
-        logger.error(f"❌ Traceback: {traceback.format_exc()}")
-        
-        return jsonify({
-            'status': 'error',
-            'message': f'Enterprise metrics calculation failed: {str(e)}'
-        }), 500
-
-async def get_enterprise_metrics():
-    """Get enterprise operational metrics data"""
-    try:
-        logger.info("🏢 Fetching enterprise operational metrics...")
-        
-        # Get cluster information from request or shared data
-        cluster_id = request.args.get('cluster_id')
-        
-        # Try to get cluster info from analysis data if cluster_id provided
-        if cluster_id:
-            analysis_data = _get_analysis_data(cluster_id)
-            if analysis_data and analysis_data.get('status') == 'completed':
-                resource_group = analysis_data.get('resource_group', 'default-rg')
-                cluster_name = analysis_data.get('cluster_name', 'default-cluster')
-                subscription_id = analysis_data.get('subscription_id', 'default-subscription')
-            else:
-                # Fallback to direct parameters
-                resource_group = request.args.get('resource_group', 'default-rg')
-                cluster_name = request.args.get('cluster_name', 'default-cluster')
-                subscription_id = request.args.get('subscription_id', 'default-subscription')
-        else:
-            # Direct parameters
-            resource_group = request.args.get('resource_group', 'default-rg')
-            cluster_name = request.args.get('cluster_name', 'default-cluster') 
-            subscription_id = request.args.get('subscription_id', 'default-subscription')
-        
-        logger.info(f"🎯 Enterprise metrics for: {cluster_name} in {resource_group}")
-        
-        # Initialize enterprise metrics engine with real cluster data
-        logger.info("📊 Calculating real enterprise metrics from cluster data...")
-        metrics_engine = EnterpriseOperationalMetricsEngine(
-            resource_group=resource_group,
-            cluster_name=cluster_name,
-            subscription_id=subscription_id
-        )
-        integration = EnterpriseMetricsIntegration(metrics_engine)
-        
-        # Calculate real enterprise metrics
-        dashboard_data = await integration.get_formatted_dashboard_data()
-        
-        # Sanitize for JSON response
-        sanitized_data = sanitize_for_json(dashboard_data)
-        
-        logger.info(f"✅ Real enterprise metrics calculated - Maturity Level: {dashboard_data['enterprise_maturity']['level']}")
-        
-        return jsonify({
-            'status': 'success',
-            'timestamp': datetime.now().isoformat(),
-            'data': sanitized_data
-        })
-        
-    except Exception as e:
-        logger.error(f"❌ Enterprise metrics calculation failed: {e}")
-        logger.error(traceback.format_exc())
-        
-        return jsonify({
-            'status': 'error',
-            'message': f'Failed to calculate enterprise metrics: {str(e)}',
-            'timestamp': datetime.now().isoformat()
-        }), 500
 
 
 def extract_framework_with_commands(analysis_data, cluster, data_source):

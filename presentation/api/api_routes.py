@@ -1555,34 +1555,7 @@ def register_api_routes(app):
                 'recent_analyses': []
             }), 500
 
-    @app.route('/api/security/status', methods=['GET'])
-    @auth_manager.require_auth  
-    def api_security_status():
-        """API endpoint for security posture status (for auto-refresh)"""
-        try:
-            # Get security-related data
-            clusters = enhanced_cluster_manager.get_clusters_with_subscription_info()
-            
-            security_status = {
-                'total_clusters': len(clusters),
-                'secure_clusters': len([c for c in clusters if c.get('security_score', 0) >= 80]),
-                'at_risk_clusters': len([c for c in clusters if c.get('security_score', 0) < 60]),
-                'security_scans_completed': len([c for c in clusters if c.get('last_security_scan')]),
-                'last_updated': datetime.now().isoformat()
-            }
-            
-            return jsonify({
-                'status': 'success',
-                'security_status': security_status,
-                'timestamp': datetime.now().isoformat()
-            })
-            
-        except Exception as e:
-            logger.error(f"❌ Error getting security status: {e}")
-            return jsonify({
-                'status': 'error', 
-                'message': str(e)
-            }), 500
+    # Security endpoint removed - feature no longer needed
 
     @app.route('/api/debug-analysis')
     def debug_analysis():

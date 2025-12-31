@@ -144,7 +144,6 @@ def main():
     print("=" * 60)
     print("✅ AKS Cost Optimizer is ready!")
     print("🌐 Access the application at: http://localhost:5001")
-    print("📊 Enterprise metrics: http://localhost:5001/api/enterprise-metrics")
     print("=" * 60)
     
     # Production server options
