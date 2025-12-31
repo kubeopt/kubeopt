@@ -591,7 +591,11 @@ class MultiSubscriptionAnalysisEngine:
                     
                     # Add plan reference to results (for backward compatibility)
                     results['implementation_plan_id'] = plan_id
-                    results['implementation_plan'] = implementation_plan.model_dump()
+                    # Handle both dict and model objects
+                    if hasattr(implementation_plan, 'model_dump'):
+                        results['implementation_plan'] = implementation_plan.model_dump()
+                    else:
+                        results['implementation_plan'] = implementation_plan
                     
                     logger.info(f"✅ Session {session_id}: Generated and stored implementation plan {plan_id}")
                 else:
@@ -1256,8 +1260,13 @@ class MultiSubscriptionAnalysisEngine:
                 if not isinstance(workload, dict):
                     continue
                     
-                workload_name = workload.get('name', 'unknown')
-                namespace = workload.get('namespace', 'default')
+                # Skip workloads without required fields per .clauderc
+                workload_name = workload.get('name')
+                namespace = workload.get('namespace')
+                
+                if not workload_name or not namespace:
+                    logger.warning(f"⚠️ Skipping workload without required fields: name={workload_name}, namespace={namespace}")
+                    continue
                 
                 # Get cost estimate using namespace allocation as interim solution
                 # TODO: Replace with proper deployment-level cost aggregation
