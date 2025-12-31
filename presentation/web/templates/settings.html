@@ -141,20 +141,86 @@ Settings - AKS Cost Optimizer
                         <p class="section-description">Configure how and when you receive notifications</p>
                     </div>
                     
+                    <!-- Email Settings Card -->
                     <div class="settings-card">
                         <div class="setting-item">
                             <div class="setting-info">
                                 <h3 class="setting-title">Email Notifications</h3>
-                                <p class="setting-description">Receive notifications via email</p>
+                                <p class="setting-description">Configure email alerts for cost and performance monitoring</p>
                             </div>
                             <div class="setting-control">
                                 <label class="toggle-switch">
-                                    <input type="checkbox" id="email-notifications">
+                                    <input type="checkbox" id="email-enabled" name="email_enabled">
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
                         </div>
                         
+                        <div id="email-config" style="margin-top: 20px;">
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">SMTP Server</h3>
+                                    <p class="setting-description">Your email server address</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" class="setting-input" id="smtp-server" name="smtp_server" placeholder="smtp.gmail.com">
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">SMTP Port</h3>
+                                    <p class="setting-description">Email server port (usually 587 for TLS)</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="number" class="setting-input" id="smtp-port" name="smtp_port" placeholder="587" value="587">
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">SMTP Username</h3>
+                                    <p class="setting-description">Email account username</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" class="setting-input" id="smtp-username" name="smtp_username" placeholder="your.email@gmail.com">
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">SMTP Password</h3>
+                                    <p class="setting-description">Email account password or app password</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="password" class="setting-input" id="smtp-password" name="smtp_password" placeholder="••••••••">
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">From Email</h3>
+                                    <p class="setting-description">Sender email address</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="email" class="setting-input" id="from-email" name="from_email" placeholder="alerts@yourdomain.com">
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Email Recipients</h3>
+                                    <p class="setting-description">Comma-separated list of recipient emails</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" class="setting-input" id="email-recipients" name="email_recipients" placeholder="admin@example.com, team@example.com">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Slack Settings Card -->
+                    <div class="settings-card" style="margin-top: 20px;">
                         <div class="setting-item">
                             <div class="setting-info">
                                 <h3 class="setting-title">Slack Integration</h3>
@@ -162,24 +228,53 @@ Settings - AKS Cost Optimizer
                             </div>
                             <div class="setting-control">
                                 <label class="toggle-switch">
-                                    <input type="checkbox" id="slack-notifications">
+                                    <input type="checkbox" id="slack-enabled" name="slack_enabled">
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
                         </div>
                         
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Cost Alert Threshold</h3>
-                                <p class="setting-description">Alert when monthly cost exceeds this amount</p>
+                        <div id="slack-config" style="margin-top: 20px;">
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Slack Webhook URL</h3>
+                                    <p class="setting-description">Your Slack incoming webhook URL</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" class="setting-input" id="slack-webhook-url" name="slack_webhook_url" placeholder="https://hooks.slack.com/services/...">
+                                </div>
                             </div>
-                            <div class="setting-control">
-                                <div class="input-group">
-                                    <span class="input-prefix">$</span>
-                                    <input type="number" class="setting-input" id="cost-threshold" placeholder="1000">
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Slack Channel</h3>
+                                    <p class="setting-description">Channel to post alerts (with #)</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" class="setting-input" id="slack-channel" name="slack_channel" placeholder="#alerts">
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Slack Cost Threshold</h3>
+                                    <p class="setting-description">Alert when monthly cost exceeds this amount</p>
+                                </div>
+                                <div class="setting-control">
+                                    <div class="input-group">
+                                        <span class="input-prefix">$</span>
+                                        <input type="number" class="setting-input" id="slack-cost-threshold" name="slack_cost_threshold" placeholder="1000">
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                    </div>
+                    
+                    <!-- Save Button -->
+                    <div style="margin-top: 30px;">
+                        <button type="button" class="btn btn-primary" onclick="saveNotificationSettings()">
+                            <i class="fas fa-save"></i> Save Notification Settings
+                        </button>
                     </div>
                 </section>
                 
