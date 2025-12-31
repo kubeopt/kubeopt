@@ -160,18 +160,6 @@ def initialize_database():
         # Run multi-subscription schema enhancement
         enhance_database_schema_for_multi_subscription()
         
-        # Initialize security database tables
-        try:
-            from infrastructure.security.database_schema import initialize_security_database
-            logger.debug("🔒 Initializing security database schema...")
-            security_init_success = initialize_security_database()
-            if security_init_success:
-                logger.debug("✅ Security database initialization completed")
-            else:
-                logger.warning("⚠️ Security database initialization failed - using existing tables")
-        except Exception as security_e:
-            logger.warning(f"⚠️ Security database initialization error: {security_e}")
-        
         # Initialize operational database tables
         try:
             logger.debug("📊 Initializing operational database schema...")

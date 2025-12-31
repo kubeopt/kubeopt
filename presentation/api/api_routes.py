@@ -42,7 +42,6 @@ from infrastructure.services.feature_guard import require_feature, get_ui_featur
 from infrastructure.services.license_manager import FeatureFlag
 
 from presentation.api.project_controls_api import integrate_project_controls_api
-from infrastructure.security.security_api_blueprint import security_api
 
 def generate_markdown_from_plan(plan, cluster_id):
     """Generate markdown content from a structured implementation plan"""
@@ -498,7 +497,6 @@ def register_api_routes(app):
         alerts_manager = initialize_alerts_system()
         register_alerts_routes(app)
         integrate_project_controls_api(app)
-        app.register_blueprint(security_api)
         logger.info("✅ Routes registered successfully")
     except Exception as e:
         logger.error(f"❌ Failed to register alerts routes: {e}")
@@ -2319,28 +2317,6 @@ def run_subscription_aware_background_analysis_with_alerts(cluster_id, resource_
         if analysis_data:
             logger.info(f"✅ Retrieved analysis data for alert checking: {data_source}")
             
-            # NEW: Check if security analysis was performed and store results
-            # In run_subscription_aware_background_analysis_with_alerts function
-            # After line where you store security results
-            if 'security_analysis' in analysis_data and analysis_data['security_analysis']:
-                try:
-                    from infrastructure.security.security_results_manager import security_results_manager
-                    
-                    # Ensure we use the correct cluster_id format
-                    sanitized_security_analysis = sanitize_for_json(analysis_data['security_analysis'])
-                    
-                    # Log the cluster_id being used
-                    logger.info(f"📝 Storing security results for cluster_id: {cluster_id}")
-                    
-                    security_result_id = security_results_manager.store_security_results(
-                        cluster_id=cluster_id,  # Make sure this matches what the API expects
-                        resource_group=resource_group,
-                        cluster_name=cluster_name,
-                        security_analysis=sanitized_security_analysis
-                    )
-                    logger.info(f"✅ Security results stored with ID: {security_result_id}")
-                except Exception as e:
-                    logger.error(f"❌ Failed to store security results: {e}")
             
             # Trigger alert checking
             triggered_alerts = trigger_alert_checking_after_analysis(cluster_id, analysis_data)
