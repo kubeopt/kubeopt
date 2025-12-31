@@ -1855,7 +1855,7 @@ class EnhancedDynamicCostDistributionEngine:
             import json
             import re
             
-            # Handle both dict and JSON string formats
+            # Handle dict, list, and JSON string formats
             if isinstance(deployments_data, str):
                 if not deployments_data.strip():
                     logger.warning("⚠️ Empty deployment data string")
@@ -1863,6 +1863,10 @@ class EnhancedDynamicCostDistributionEngine:
                 deployments_parsed = json.loads(deployments_data)
             elif isinstance(deployments_data, dict):
                 deployments_parsed = deployments_data
+            elif isinstance(deployments_data, list):
+                # Handle case where deployments is already a list of items
+                logger.info(f"🔄 Converting list to dict format ({len(deployments_data)} items)")
+                deployments_parsed = {"items": deployments_data}
             else:
                 logger.warning(f"⚠️ Unexpected deployment data type: {type(deployments_data)}")
                 return deployment_to_pods

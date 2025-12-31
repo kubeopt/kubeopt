@@ -168,9 +168,9 @@ window.startGlobalAutoRefresh = function() {
     
     window.globalAutoRefreshInterval = setInterval(() => {
         window.refreshEverything(true); // silent = true for auto-refresh
-    }, 60000); // Every 1 minute
+    }, 300000); // Every 5 minutes
     
-    console.log('🔄 Global auto-refresh started (every 1 minute)');
+    console.log('🔄 Global auto-refresh started (every 5 minutes)');
 };
 
 window.stopGlobalAutoRefresh = function() {

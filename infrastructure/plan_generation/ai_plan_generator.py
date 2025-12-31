@@ -125,7 +125,8 @@ class AIImplementationPlanGenerator:
             ai_model: Claude model to use (defaults to claude-3-5-sonnet-20241022)
             **kwargs: Additional configuration options
         """
-        self.model = ai_model or os.getenv("AI_MODEL", "claude-3-5-haiku-20241022")
+        # Switched to Sonnet for 8192 token output (2x Haiku's 4096) to avoid truncation
+        self.model = ai_model or os.getenv("AI_MODEL", "claude-3-5-sonnet-20241022")
         self.claude_api_key = os.getenv("ANTHROPIC_API_KEY")
         self.claude_url = "https://api.anthropic.com/v1/messages"
         self.context_builder = ContextBuilder(target_token_limit=12000)
@@ -1411,9 +1412,21 @@ GENERATE ALL 8 PHASES IMMEDIATELY. BE CONCISE BUT COMPLETE. DO NOT STOP OR ASK Q
                 "anthropic-version": "2023-06-01"
             }
             
+            # Max output tokens: Haiku=4096, Sonnet=8192, Opus=4096
+            max_tokens_by_model = {
+                "haiku": 4096,
+                "sonnet": 8192,
+                "opus": 4096
+            }
+            
+            # Determine max tokens based on model
+            model_type = "haiku" if "haiku" in self.model.lower() else \
+                        "sonnet" if "sonnet" in self.model.lower() else \
+                        "opus" if "opus" in self.model.lower() else "haiku"
+            
             payload = {
                 "model": self.model,
-                "max_tokens": 8000,
+                "max_tokens": max_tokens_by_model[model_type],
                 "temperature": 0.3,
                 "messages": [{"role": "user", "content": prompt}]
             }

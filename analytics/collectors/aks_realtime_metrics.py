@@ -1554,26 +1554,27 @@ class AKSRealTimeMetricsFetcher:
             # STRATEGY 1: Try custom columns first (most reliable for large clusters)
             logger.info("🔧 Trying custom columns approach for HPA data...")
             # Your exact working command (simplified)
-            # Get HPA high CPU data from cache (exact same format for CPU detection)
+            # Get HPA CPU data from cache (ALL HPAs with CPU metrics)
             cache_data = self.cache.get_resource_usage_data()
-            hpa_output = cache_data.get('hpa_high_cpu', '')
-            logger.info(f"🔧 Using cached HPA high CPU data for analysis ({len(hpa_output)} chars)")
-            logger.info(f"🔍 MAIN METHOD DEBUG: First 500 chars of HPA data: {hpa_output[:500]}")
+            hpa_output = cache_data.get('hpa_cpu', '')
+            logger.info(f"🔧 Using cached HPA CPU data for analysis ({len(hpa_output)} chars)")
+            logger.info(f"🔍 HPA CPU DATA: First 500 chars: {hpa_output[:500]}")
             
             hpa_analysis = {
                 'current_hpa_pattern': 'no_hpa_detected',
                 'confidence': 'low',
                 'total_hpas': 0,
-                'high_cpu_hpas': [],
+                'hpa_cpu_metrics': [],  # ALL HPA CPU metrics
                 'hpa_details': [],
-                'parsing_method': 'custom_cmd'
+                'parsing_method': 'custom_cmd',
+                'cpu_statistics': {}  # Will hold avg, max, min
             }
             
             if hpa_output and len(hpa_output.strip()) > 0:
-                # Use the same parsing logic as debug method since it works correctly
+                # Parse ALL HPAs with CPU metrics (no filtering)
                 lines = hpa_output.split('\n')
                 hpa_details = []
-                high_cpu_hpas = []
+                cpu_values = []
                 
                 for line in lines[1:] if len(lines) > 1 else []:
                     if not line.strip():
@@ -1586,34 +1587,61 @@ class AKSRealTimeMetricsFetcher:
                         target_cpu = parts[3]
                         
                         try:
-                            cpu_val = float(current_cpu)
-                            if cpu_val > 100:  # Use same threshold as debug method
-                                high_cpu_hpas.append({
-                                    'namespace': namespace,
-                                    'name': name,
-                                    'cpu_utilization': cpu_val,
-                                    'target_cpu': target_cpu,
-                                    'severity': 'critical' if cpu_val > 1000 else 'high'
-                                })
-                                logger.info(f"🔥 MAIN METHOD HIGH CPU HPA DETECTED: {namespace}/{name} = {cpu_val}%")
+                            cpu_val = float(current_cpu) if current_cpu != '<none>' else 0
+                            target_val = float(target_cpu) if target_cpu != '<none>' else 80
                             
-                            hpa_details.append({
+                            hpa_detail = {
                                 'namespace': namespace,
                                 'name': name,
                                 'current_cpu': cpu_val,
-                                'target_cpu': target_cpu
-                            })
-                        except ValueError:
+                                'target_cpu': target_val
+                            }
+                            hpa_details.append(hpa_detail)
+                            
+                            if cpu_val > 0:  # Only include valid CPU values in statistics
+                                cpu_values.append(cpu_val)
+                            
+                            logger.debug(f"📊 HPA: {namespace}/{name} = {cpu_val}% (target: {target_val}%)")
+                            
+                        except (ValueError, TypeError):
+                            logger.debug(f"⚠️ Could not parse CPU for {namespace}/{name}")
                             pass
+                
+                # Calculate statistics from ALL HPAs
+                if cpu_values:
+                    cpu_statistics = {
+                        'avg_cpu': sum(cpu_values) / len(cpu_values),
+                        'max_cpu': max(cpu_values),
+                        'min_cpu': min(cpu_values),
+                        'total_with_metrics': len(cpu_values),
+                        'percentiles': {
+                            'p50': sorted(cpu_values)[len(cpu_values)//2] if cpu_values else 0,
+                            'p95': sorted(cpu_values)[int(len(cpu_values)*0.95)] if len(cpu_values) > 1 else max(cpu_values, default=0),
+                            'p99': sorted(cpu_values)[int(len(cpu_values)*0.99)] if len(cpu_values) > 1 else max(cpu_values, default=0)
+                        }
+                    }
+                else:
+                    cpu_statistics = {
+                        'avg_cpu': 0,
+                        'max_cpu': 0,
+                        'min_cpu': 0,
+                        'total_with_metrics': 0,
+                        'percentiles': {'p50': 0, 'p95': 0, 'p99': 0}
+                    }
                 
                 hpa_analysis.update({
                     'current_hpa_pattern': 'mixed_implementation' if hpa_details else 'no_hpa_detected',
                     'confidence': 'high' if hpa_details else 'low',
                     'total_hpas': len(hpa_details),
-                    'high_cpu_hpas': high_cpu_hpas,
+                    'hpa_cpu_metrics': hpa_details,  # ALL HPAs with their CPU values
                     'hpa_details': hpa_details,
-                    'parsing_method': 'debug_method_logic'
+                    'cpu_statistics': cpu_statistics,
+                    'parsing_method': 'comprehensive_cpu_analysis'
                 })
+                
+                logger.info(f"📊 HPA CPU Analysis: {len(hpa_details)} HPAs, "
+                          f"avg={cpu_statistics['avg_cpu']:.1f}%, "
+                          f"max={cpu_statistics['max_cpu']:.1f}%")
                 #hpa_analysis.update(self._parse_hpa_custom_columns(hpa_output))
                 
                 # If custom columns worked, we're done
@@ -1849,15 +1877,21 @@ class AKSRealTimeMetricsFetcher:
                 # Enhance with high CPU detection data
                 try:
                     high_cpu_data = self.get_hpa_metrics_with_high_cpu_detection()
-                    if high_cpu_data and 'high_cpu_hpas' in high_cpu_data:
-                        hpa_metrics['high_cpu_hpas'] = high_cpu_data['high_cpu_hpas']
-                        logger.info(f"✅ Enhanced with {len(high_cpu_data['high_cpu_hpas'])} high CPU HPAs")
+                    if high_cpu_data:
+                        # Store ALL HPA CPU metrics, not just "high" ones
+                        hpa_metrics['hpa_cpu_metrics'] = high_cpu_data.get('hpa_cpu_metrics', [])
+                        hpa_metrics['cpu_statistics'] = high_cpu_data.get('cpu_statistics', {})
+                        logger.info(f"✅ Got {len(high_cpu_data.get('hpa_cpu_metrics', []))} HPAs with CPU metrics")
+                        if high_cpu_data.get('cpu_statistics'):
+                            stats = high_cpu_data['cpu_statistics']
+                            logger.info(f"📊 CPU Stats: avg={stats.get('avg_cpu', 0):.1f}%, max={stats.get('max_cpu', 0):.1f}%")
                     else:
-                        hpa_metrics['high_cpu_hpas'] = []
-                        logger.info("📊 No high CPU HPAs detected")
-                except Exception as high_cpu_error:
-                    logger.warning(f"⚠️ High CPU detection failed, continuing without: {high_cpu_error}")
-                    hpa_metrics['high_cpu_hpas'] = []
+                        # Per .clauderc - no fallbacks allowed
+                        raise ValueError("Failed to get HPA CPU metrics from cluster")
+                except Exception as cpu_error:
+                    # Per .clauderc - explicit error handling, no silent failures
+                    logger.error(f"❌ HPA CPU metrics collection failed: {cpu_error}")
+                    raise ValueError(f"HPA CPU metrics collection failed: {cpu_error}")
                     
             except Exception as hpa_error:
                 logger.warning(f"⚠️ HPA implementation status failed: {hpa_error}")
@@ -1916,8 +1950,8 @@ class AKSRealTimeMetricsFetcher:
                 'namespace_breakdown': pod_metrics.get('namespace_aggregates', {})
             }
             
-            # Step 5: Debug log high CPU data before creating summary
-            logger.info(f"🔍 DEBUG before high_cpu_summary: HPAs={len(hpa_metrics.get('high_cpu_hpas', []))}, "
+            # Step 5: Debug log HPA CPU data before creating summary
+            logger.info(f"🔍 HPA CPU Analysis: {len(hpa_metrics.get('hpa_cpu_metrics', []))} HPAs with metrics, "
                        f"workloads={len(high_cpu_analysis.get('high_cpu_workloads', []))}, "
                        f"pods={len(high_cpu_analysis.get('high_cpu_pods', []))}")
             
@@ -1934,14 +1968,22 @@ class AKSRealTimeMetricsFetcher:
                 'workload_namespace_breakdown': pod_metrics.get('namespace_aggregates', {}),
                 'workload_distribution': pod_metrics.get('workload_distribution', {}),
                 
-                # =====  HIGH CPU DATA FROM INTEGRATED POD METRICS (includes HPA) =====
+                # ===== SIMPLIFIED HPA CPU ANALYSIS (ALL HPAs, with statistics) =====
+                'hpa_cpu_analysis': {
+                    'hpa_cpu_metrics': hpa_metrics.get('hpa_cpu_metrics', []),  # ALL HPAs with CPU
+                    'cpu_statistics': hpa_metrics.get('cpu_statistics', {}),     # avg, max, min, percentiles
+                    'total_hpas': len(hpa_metrics.get('hpa_cpu_metrics', []))
+                },
+                
+                # Legacy fields for compatibility (will phase out)
+                # FIX: Calculate max CPU from ALL workloads, not just high CPU ones
                 'high_cpu_summary': {
-                    'high_cpu_hpas': hpa_metrics.get('high_cpu_hpas', []),
-                    'high_cpu_workloads': pod_metrics.get('high_cpu_pods', []),  # Use integrated data
-                    'high_cpu_pods': pod_metrics.get('high_cpu_pods', []),      # Use integrated data
-                    'max_cpu_utilization': self._calculate_max_cpu_utilization(hpa_metrics, pod_metrics),
-                    'total_high_cpu_count': pod_metrics.get('high_cpu_count', 0),  # Use recalculated count
-                    'severity_category': 'CRITICAL' if pod_metrics.get('high_cpu_count', 0) > 0 else 'MONITOR'
+                    'high_cpu_workloads': pod_metrics.get('high_cpu_pods', []),
+                    # Get max CPU from ALL workloads, not just HPA statistics
+                    'max_cpu_utilization': self._calculate_max_cpu_from_all_workloads(
+                        pod_metrics.get('all_workloads', []), 
+                        hpa_metrics.get('hpa_cpu_metrics', [])
+                    )
                 },
                 
                 # Status and metadata
@@ -2419,6 +2461,33 @@ class AKSRealTimeMetricsFetcher:
         except Exception as e:
             logger.error(f"❌ Error calculating efficiency indicators: {e}")
             return {'optimization_potential': 'unknown'}
+
+    def _calculate_max_cpu_from_all_workloads(self, all_workloads: list, hpa_cpu_metrics: list) -> float:
+        """
+        Calculate the maximum CPU from ALL workloads (pods and HPAs), not just high CPU ones.
+        This fixes the issue where max CPU shows 0% because we're only looking at "high CPU" workloads.
+        """
+        max_cpu = 0
+        
+        # Check all pod workloads
+        for workload in all_workloads or []:
+            # Try different field names that might contain CPU data
+            cpu_val = max(
+                workload.get('cpu_percentage', 0),
+                workload.get('cpu_utilization', 0),
+                workload.get('hpa_cpu_utilization', 0),
+                workload.get('cpu_usage_pct', 0)
+            )
+            max_cpu = max(max_cpu, cpu_val)
+        
+        # Check all HPA metrics (these are more reliable than pod metrics)
+        for hpa in hpa_cpu_metrics or []:
+            cpu_val = hpa.get('cpu_utilization', 0)
+            max_cpu = max(max_cpu, cpu_val)
+        
+        logger.info(f"📊 Calculated max CPU from {len(all_workloads or [])} workloads and {len(hpa_cpu_metrics or [])} HPAs: {max_cpu:.1f}%")
+        
+        return max_cpu
 
     def _extract_temporal_patterns(self) -> Dict:
         """Extract temporal patterns for ML time-based features"""
