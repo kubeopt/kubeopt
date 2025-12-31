@@ -316,7 +316,8 @@ class KubernetesDataCache:
             # BATCH 11: Security basics (network policies, service accounts, quotas)
             "security_basic": '''kubectl get networkpolicies,serviceaccounts,resourcequotas,limitranges --all-namespaces -o custom-columns='KIND:.kind,NAMESPACE:.metadata.namespace,NAME:.metadata.name' --no-headers 2>/dev/null || echo ""''',
             
-            # BATCH 12: Metrics - get ALL pods, not just top 100
+            # BATCH 12: Metrics - CRITICAL for real-time CPU data (prefer over HPA metrics)
+            # kubectl top provides actual current usage vs HPA's potentially stale metrics
             "metrics_nodes": "kubectl top nodes --no-headers 2>/dev/null || echo ''",
             "metrics_pods": "kubectl top pods --all-namespaces --no-headers 2>/dev/null || echo ''",
             
