@@ -976,22 +976,30 @@ def register_api_routes(app):
             if needs_generation:
                 logger.info(f"🔄 API: Generating CLAUDE implementation plan for {cluster_id} in {format_type} format")
                 try:
-                    from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
+                    # REMOVED: Local plan generation - now using external secure API
+                    # from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
                     from infrastructure.services.cache_manager import save_to_cache
+                    from infrastructure.services.external_api_client import get_external_api_client
                     
-                    # 🎯 NEW: Use Claude API generator for enterprise-grade plans
-                    claude_generator = AIImplementationPlanGenerator()
+                    # 🎯 Use external secure API for enterprise-grade plans (requires license)
+                    api_client = get_external_api_client()
                     enhanced_input = enhanced_cluster_manager.get_enhanced_analysis_input(cluster_id)
                     
                     if enhanced_input:
-                        import asyncio
-                        fresh_plan = asyncio.run(claude_generator.generate_plan(
-                            enhanced_input, 
-                            cluster_id.split('_')[-1],  # Extract cluster name
-                            cluster_id
-                        ))
+                        # Call external API for plan generation
+                        success, result = api_client.generate_plan(
+                            cluster_id=cluster_id,
+                            cluster_name=cluster_id.split('_')[-1],  # Extract cluster name
+                            analysis_data=enhanced_input
+                        )
                         
-                        # Convert Claude plan to expected format
+                        if success:
+                            fresh_plan = result.get('plan')
+                        else:
+                            logger.error(f"❌ External API failed: {result.get('error')}")
+                            fresh_plan = None
+                        
+                        # Convert plan to expected format
                         if fresh_plan and hasattr(fresh_plan, 'model_dump'):
                             fresh_plan = fresh_plan.model_dump()
                         elif fresh_plan and hasattr(fresh_plan, '__dict__'):
@@ -2250,7 +2258,7 @@ def register_api_routes(app):
     
     @app.route('/api/clusters/<path:cluster_id>/plan/generate', methods=['POST'])
     def generate_new_plan(cluster_id):
-        """Generate a new implementation plan for a cluster using Claude API"""
+        """Generate a new implementation plan for a cluster using external API"""
         try:
             # Get the latest analysis data
             analysis_data = enhanced_cluster_manager.get_enhanced_analysis_input(cluster_id)
@@ -2263,18 +2271,20 @@ def register_api_routes(app):
             # Extract cluster name
             cluster_name = analysis_data.get('cluster_info', {}).get('cluster_name', cluster_id.split('_')[-1])
             
-            # Generate Claude plan directly
-            from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
-            import asyncio
+            # Use external API client for plan generation
+            from infrastructure.services.external_api_client import get_external_api_client
             
-            claude_generator = AIImplementationPlanGenerator()
-            plan = asyncio.run(claude_generator.generate_plan(
-                analysis_data, 
-                cluster_name, 
-                cluster_id
-            ))
+            api_client = get_external_api_client()
+            success, result = api_client.generate_plan(
+                cluster_id=cluster_id,
+                cluster_name=cluster_name,
+                analysis_data=analysis_data
+            )
             
-            if plan:
+            if success:
+                # Extract plan from API response
+                plan = result.get('plan')
+                
                 # Store the new plan
                 plan_id = enhanced_cluster_manager.store_implementation_plan(
                     cluster_id, plan, analysis_data.get('cluster_info', {}).get('analysis_timestamp')
@@ -2284,12 +2294,24 @@ def register_api_routes(app):
                     'status': 'success',
                     'message': 'Implementation plan generated successfully',
                     'plan_id': plan_id,
-                    'plan': plan.model_dump()
+                    'plan': plan,
+                    'api_plan_id': result.get('plan_id'),
+                    'credits_used': result.get('credits_used', 1)
                 }), 201
             else:
+                # Check if it's a license issue
+                if result.get('upgrade_required'):
+                    return jsonify({
+                        'status': 'error',
+                        'message': result.get('error', 'License upgrade required'),
+                        'tier': result.get('tier'),
+                        'upgrade_required': True
+                    }), 403
+                
                 return jsonify({
                     'status': 'error',
-                    'message': 'Failed to generate implementation plan'
+                    'message': result.get('error', 'Failed to generate implementation plan'),
+                    'details': result
                 }), 500
                 
         except Exception as e:
