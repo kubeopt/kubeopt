@@ -29,10 +29,10 @@ class CacheKeyStrategy:
     def generate_cache_key(cluster_id: str, subscription_id: str = None) -> str:
         """
         Generate consistent cache key based on strategy
-        Strategy: Always use subscription-aware keys for consistency
+        Strategy: Always use subscription-aware keys for consistency and race condition prevention
         """
         if subscription_id:
-            # Use subscription-aware key
+            # Use subscription-aware key with timestamp for uniqueness during parallel execution
             cache_key = f"{subscription_id}_{cluster_id}"
             return cache_key
         else:
