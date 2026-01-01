@@ -673,6 +673,38 @@ function closeAddClusterModal(event) {
     clusterPortfolio?.closeAddClusterModal(event);
 }
 
+function showLicenseRequired() {
+    // Show a modal about license requirement
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.display = 'block';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-lock"></i> License Required</h2>
+                <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 1rem;">
+                    A <strong>PRO</strong> or <strong>ENTERPRISE</strong> license is required to add clusters.
+                </p>
+                <p style="margin-bottom: 1.5rem;">
+                    Please go to Settings to add your license key.
+                </p>
+                <div style="text-align: center;">
+                    <a href="/settings" class="btn-primary">
+                        <i class="fas fa-cog"></i> Go to Settings
+                    </a>
+                    <button class="btn-secondary" onclick="this.closest('.modal').remove()" style="margin-left: 1rem;">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
 function submitAddCluster(event) {
     clusterPortfolio?.submitAddCluster(event);
 }

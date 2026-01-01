@@ -52,6 +52,11 @@ def create_app():
                 template_folder='presentation/web/templates')
     app.secret_key = os.urandom(24)
     
+    # Initialize license middleware FIRST - must be before all route registration
+    # This ensures every request is validated for license
+    from presentation.api.license_middleware import init_license_middleware
+    init_license_middleware(app)
+    
     # Register authentication routes first
     from presentation.api.auth_routes import register_auth_routes
     register_auth_routes(app)
@@ -63,10 +68,6 @@ def create_app():
     # Register API routes (contains most of the endpoints)
     from presentation.api.api_routes import register_api_routes
     register_api_routes(app)
-    
-    # Register license management routes
-    from presentation.api.license_routes import register_license_routes
-    register_license_routes(app)
     
     # Initialize auto-analysis scheduler
     from infrastructure.services.auto_analysis_scheduler import auto_scheduler

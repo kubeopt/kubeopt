@@ -23,6 +23,32 @@ logger = logging.getLogger(__name__)
 def register_auth_routes(app):
     """Register authentication and settings routes"""
     
+    # Settings API endpoints (must be before login route)
+    @app.route('/api/settings', methods=['GET'])
+    def get_settings_api():
+        """Get current settings as JSON"""
+        try:
+            from infrastructure.services.settings_manager import settings_manager
+            settings = settings_manager.get_all_settings()
+            
+            # Add license info
+            from infrastructure.services.license_validator import get_license_validator
+            validator = get_license_validator()
+            license_info = validator.get_license_info()
+            
+            return jsonify({
+                **settings,
+                'license': license_info
+            })
+        except Exception as e:
+            logger.error(f"Error getting settings: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/get_settings', methods=['GET'])
+    def get_settings_legacy():
+        """Legacy endpoint for getting settings"""
+        return get_settings_api()
+    
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         """Login page and authentication"""
@@ -78,8 +104,31 @@ def register_auth_routes(app):
             feature_flags = get_ui_feature_flags()
             
             # Get license information
-            from infrastructure.services.license_manager import license_manager
-            license_info = license_manager.get_license_info()
+            from infrastructure.services.license_validator import get_license_validator
+            import os
+            validator = get_license_validator()
+            license_info = validator.get_license_info()
+            
+            # Add the masked license key for display
+            current_license = os.getenv('KUBEOPT_LICENSE_KEY', '')
+            if current_license:
+                # Mask the middle part of the license key
+                parts = current_license.split('-')
+                if len(parts) >= 4:
+                    # Show format like: PRO-U62B****-74B8
+                    masked_parts = [parts[0]]  # Keep tier prefix
+                    for i in range(1, len(parts)-1):
+                        masked_parts.append(parts[i][:4] + '****' if len(parts[i]) > 4 else '****')
+                    masked_parts.append(parts[-1])  # Keep last segment
+                    masked = '-'.join(masked_parts)
+                else:
+                    # Fallback masking
+                    masked = f"{current_license[:8]}****{current_license[-4:]}" if len(current_license) > 12 else current_license
+                license_info['license_key'] = masked
+                license_info['has_license'] = True
+            else:
+                license_info['license_key'] = ''
+                license_info['has_license'] = False
             
             return render_template('settings.html', 
                                  config=current_config,
@@ -147,13 +196,46 @@ def register_auth_routes(app):
                 license_key = request.form.get('license_key', '').strip()
                 if license_key:
                     try:
-                        from infrastructure.services.license_manager import license_manager
-                        success, message = license_manager.activate_license(license_key)
-                        if success:
-                            success_message = f'General settings saved successfully! {message}'
+                        # Save license key to environment and validate
+                        import os
+                        os.environ['KUBEOPT_LICENSE_KEY'] = license_key
+                        
+                        # Also save to .env file for persistence
+                        env_file = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
+                        updated_lines = []
+                        license_found = False
+                        
+                        if os.path.exists(env_file):
+                            with open(env_file, 'r') as f:
+                                for line in f:
+                                    if line.startswith('KUBEOPT_LICENSE_KEY=') or line.startswith('# KUBEOPT_LICENSE_KEY='):
+                                        updated_lines.append(f'KUBEOPT_LICENSE_KEY={license_key}\n')
+                                        license_found = True
+                                    else:
+                                        updated_lines.append(line)
+                        
+                        if not license_found:
+                            updated_lines.append(f'\nKUBEOPT_LICENSE_KEY={license_key}\n')
+                        
+                        with open(env_file, 'w') as f:
+                            f.writelines(updated_lines)
+                        
+                        # Validate the license
+                        from infrastructure.services.license_validator import get_license_validator
+                        validator = get_license_validator()
+                        validator.license_key = license_key  # Update the instance
+                        valid, info = validator.validate_license()
+                        
+                        if valid:
+                            tier = info.get('tier', 'UNKNOWN')
+                            success_message = f'License activated successfully! Tier: {tier}'
+                            flash(success_message, 'success')
+                            # Stay on settings page to show the success message
+                            # Don't redirect - let user see the confirmation
                         else:
-                            flash(f'License activation failed: {message}', 'error')
-                            success_message = 'General settings saved successfully, but license activation failed.'
+                            error_msg = info.get('error', 'Invalid license key')
+                            flash(f'License validation failed: {error_msg}', 'error')
+                            success_message = 'General settings saved, but license validation failed.'
                     except Exception as e:
                         logger.error(f"Error activating license: {e}")
                         flash(f'License activation error: {str(e)}', 'error')

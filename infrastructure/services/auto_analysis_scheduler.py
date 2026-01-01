@@ -140,9 +140,24 @@ class AutoAnalysisScheduler:
         logger.info("🔄 Auto analysis scheduler loop ended")
         
     def _is_auto_analysis_enabled(self) -> bool:
-        """Check if auto-analysis is enabled from environment variables (like it used to work)"""
+        """Check if auto-analysis is enabled from environment variables AND license is valid"""
         try:
-            # Check environment variable first (your original working method)
+            # First check if license is valid - NO AUTO ANALYSIS WITHOUT VALID LICENSE
+            from infrastructure.services.license_validator import get_license_validator, LicenseTier
+            validator = get_license_validator()
+            tier = validator.get_tier()
+            
+            if tier == LicenseTier.NONE:
+                logger.warning("🚫 Auto-analysis disabled - No valid license")
+                return False
+            
+            # Check if license is expired
+            license_info = validator.get_license_info()
+            if not license_info.get('valid', False):
+                logger.warning(f"🚫 Auto-analysis disabled - License expired or invalid: {license_info.get('error', 'Unknown error')}")
+                return False
+            
+            # Check environment variable (can be disabled even with valid license)
             env_enabled = os.getenv('AUTO_ANALYSIS_ENABLED', 'true').lower()
             logger.info(f"🔍 DEBUG: AUTO_ANALYSIS_ENABLED = '{env_enabled}'")
             
@@ -156,7 +171,7 @@ class AutoAnalysisScheduler:
                 logger.info("🧪 Auto-analysis disabled for testing purposes")
                 return False
             
-            logger.info("✅ Auto-analysis enabled by environment variables")
+            logger.info(f"✅ Auto-analysis enabled (License: {tier.value})")
             return True
             
         except Exception as e:

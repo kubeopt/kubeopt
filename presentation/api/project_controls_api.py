@@ -16,10 +16,10 @@ import traceback
 import asyncio
 from shared.config.config import logger, enhanced_cluster_manager
 from shared.utils.shared import _get_analysis_data
-# Enterprise metrics feature removed - no longer needed
-from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
-from infrastructure.services.feature_guard import require_feature, get_ui_feature_flags
-from infrastructure.services.license_manager import FeatureFlag
+# Plan generation moved to external API
+# from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
+from infrastructure.services.external_api_client import get_external_api_client
+from infrastructure.services.feature_guard import require_feature, get_ui_feature_flags, FeatureFlag
 
 def sanitize_for_json(obj):
     """

@@ -12,8 +12,7 @@ import traceback
 from datetime import datetime
 from flask import jsonify, request
 from shared.config.config import logger, enhanced_cluster_manager, ALERTS_AVAILABLE
-from infrastructure.services.feature_guard import require_feature
-from infrastructure.services.license_manager import FeatureFlag
+from infrastructure.services.feature_guard import require_feature, FeatureFlag
 
 # Global alerts manager
 alerts_manager = None
