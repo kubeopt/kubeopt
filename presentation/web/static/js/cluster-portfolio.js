@@ -15,8 +15,9 @@ class ClusterPortfolio {
     init() {
         this.bindEventListeners();
         this.loadPortfolioStats();
+        this.checkAllAnalysisStatus(); // Check status on page load
         this.startAutoRefresh();
-        
+        this.setupVisibilityListener(); // Recheck on tab focus
     }
 
     bindEventListeners() {
@@ -585,6 +586,99 @@ class ClusterPortfolio {
         }
     }
 
+    setupVisibilityListener() {
+        // Recheck status when tab becomes visible
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                this.checkAllAnalysisStatus();
+            }
+        });
+    }
+
+    async checkAllAnalysisStatus() {
+        // Find all cluster cards and check their analysis status
+        const clusterCards = document.querySelectorAll('[data-cluster-id]');
+        console.log(`🔍 Checking analysis status for ${clusterCards.length} clusters`);
+        
+        for (const card of clusterCards) {
+            const clusterId = card.getAttribute('data-cluster-id');
+            if (clusterId) {
+                console.log(`🔍 Checking status for cluster: ${clusterId}`);
+                await this.checkSingleClusterStatus(clusterId);
+            }
+        }
+    }
+
+    async checkSingleClusterStatus(clusterId) {
+        try {
+            const response = await fetch(`/api/clusters/${encodeURIComponent(clusterId)}/analysis-status`);
+            
+            if (!response.ok) {
+                console.log(`❌ Failed to get status for ${clusterId}: ${response.status}`);
+                return;
+            }
+            
+            const data = await response.json();
+            console.log(`📊 Status for ${clusterId}:`, data.analysis_status);
+            
+            // Check for both old and new API response formats
+            const status = data.analysis_status || data.status;
+            
+            if (status === 'analyzing' || status === 'running') {
+                console.log(`🔄 Setting analyzing state for ${clusterId}`);
+                // Resume polling for running analysis
+                this.updateClusterStatus(clusterId, 'analyzing');
+                this.setAnalyzingState(clusterId);
+                this.startAnalysisPolling(clusterId);
+            } else if (status === 'completed') {
+                console.log(`✅ Setting completed state for ${clusterId}`);
+                this.updateClusterStatus(clusterId, 'completed');
+                this.resetAnalyzeButton(clusterId, 'completed');
+            } else if (status === 'failed') {
+                console.log(`❌ Setting failed state for ${clusterId}`);
+                this.updateClusterStatus(clusterId, 'failed');
+                this.resetAnalyzeButton(clusterId, 'failed');
+            } else {
+                console.log(`⚪ Setting idle state for ${clusterId} (status: ${status})`);
+                // idle or unknown - ensure button is reset
+                this.resetAnalyzeButton(clusterId, 'idle');
+            }
+        } catch (error) {
+            console.error(`Error checking status for cluster ${clusterId}:`, error);
+        }
+    }
+
+    setAnalyzingState(clusterId) {
+        // Set button to analyzing state without making API call
+        const analyzeBtn = document.querySelector(`[data-cluster-id="${clusterId}"]`);
+        console.log(`🔍 Setting analyzing state for ${clusterId}, button found:`, !!analyzeBtn);
+        
+        if (!analyzeBtn) {
+            console.log(`❌ No button found with data-cluster-id="${clusterId}"`);
+            return;
+        }
+        
+        const analyzeIcon = analyzeBtn.querySelector('.analyze-icon');
+        const spinner = analyzeBtn.querySelector('.analyzing-spinner');
+        
+        console.log(`🔍 Elements found - icon: ${!!analyzeIcon}, spinner: ${!!spinner}`);
+        
+        if (analyzeIcon && spinner) {
+            analyzeIcon.classList.add('hidden');
+            spinner.classList.remove('hidden');
+            analyzeBtn.disabled = true;
+            analyzeBtn.title = 'Analyzing...';
+            
+            const btnText = analyzeBtn.querySelector('.btn-text');
+            if (btnText) {
+                btnText.textContent = 'Analyzing...';
+            }
+            console.log(`✅ Successfully set analyzing state for ${clusterId}`);
+        } else {
+            console.log(`❌ Missing elements for ${clusterId} - icon: ${!!analyzeIcon}, spinner: ${!!spinner}`);
+        }
+    }
+
     // Auto-refresh functionality - disabled since global refresh handles it
     startAutoRefresh() {
         // Global auto-refresh in main.js now handles this
@@ -607,9 +701,33 @@ class ClusterPortfolio {
         }
     }
 
+    // Standalone method to refresh just the cluster cards
+    async refreshAllClusterCards() {
+        try {
+            console.log('🔄 Fetching latest cluster data...');
+            const response = await fetch('/api/clusters/dropdown');
+            
+            if (!response.ok) {
+                console.error(`Clusters API not available: HTTP ${response.status}`);
+                return;
+            }
+            
+            const data = await response.json();
+            
+            if (data.status === 'success' && data.clusters) {
+                this.refreshClusterCards(data.clusters);
+            } else {
+                console.error('Clusters data not available:', data.message || 'Unknown error');
+            }
+        } catch (error) {
+            console.error('Error refreshing cluster cards:', error);
+        }
+    }
+
 
     async loadPortfolioStats() {
         try {
+            console.log('🔄 Refreshing cluster portfolio data...');
             const response = await fetch('/api/portfolio/summary');
             
             if (!response.ok) {
@@ -621,6 +739,14 @@ class ClusterPortfolio {
             
             if (data.status === 'success' && data.portfolio_summary) {
                 this.updatePortfolioStats(data.portfolio_summary);
+                
+                // Also refresh cluster cards with latest data
+                if (data.clusters && data.clusters.length > 0) {
+                    this.refreshClusterCards(data.clusters);
+                    
+                    // Check analysis status for all clusters during refresh
+                    this.checkAllAnalysisStatus();
+                }
             } else {
                 console.error('Portfolio stats not available:', data.message || 'Unknown error');
             }
@@ -646,6 +772,67 @@ class ClusterPortfolio {
         }
     }
 
+    refreshClusterCards(clustersData) {
+        if (!clustersData || !Array.isArray(clustersData)) {
+            console.log('🔄 No cluster data to refresh cards');
+            return;
+        }
+        
+        console.log(`🔄 Refreshing ${clustersData.length} cluster cards`);
+        
+        clustersData.forEach(cluster => {
+            this.updateClusterCard(cluster);
+        });
+    }
+
+    updateClusterCard(cluster) {
+        if (!cluster || !cluster.id) return;
+        
+        const clusterCard = document.querySelector(`[data-cluster-id="${cluster.id}"]`);
+        if (!clusterCard) {
+            console.log(`⚠️ Cluster card not found for: ${cluster.id}`);
+            return;
+        }
+        
+        // Update cost metric
+        const costValue = clusterCard.querySelector('.metric-value[data-metric="cost"]');
+        if (costValue && cluster.last_cost !== undefined) {
+            costValue.textContent = `$${cluster.last_cost.toFixed(2)}`;
+        }
+        
+        // Update savings metric  
+        const savingsValue = clusterCard.querySelector('.metric-value[data-metric="savings"]');
+        if (savingsValue && cluster.last_savings !== undefined) {
+            savingsValue.textContent = `$${cluster.last_savings.toFixed(2)}`;
+        }
+        
+        // Update nodes metric
+        const nodesValue = clusterCard.querySelector('.metric-value[data-metric="nodes"]');
+        if (nodesValue && cluster.node_count !== undefined) {
+            nodesValue.textContent = cluster.node_count.toString();
+        }
+        
+        // Update optimization score metric
+        const optimizationValue = clusterCard.querySelector('.metric-value[data-metric="optimization"]');
+        if (optimizationValue && cluster.optimization_score !== undefined) {
+            optimizationValue.textContent = `${cluster.optimization_score.toFixed(0)}%`;
+        }
+        
+        // Update last analyzed status
+        const statusIndicator = clusterCard.querySelector('.status-indicator');
+        if (statusIndicator) {
+            if (cluster.last_analyzed) {
+                statusIndicator.className = 'status-indicator status-analyzed';
+                statusIndicator.title = 'Recently analyzed';
+            } else {
+                statusIndicator.className = 'status-indicator status-pending';
+                statusIndicator.title = 'Analysis pending';
+            }
+        }
+        
+        console.log(`✅ Updated cluster card: ${cluster.name} - $${cluster.last_cost?.toFixed(2) || 0}`);
+    }
+
     formatCurrency(amount) {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
@@ -662,6 +849,8 @@ let clusterPortfolio;
 
 document.addEventListener('DOMContentLoaded', function() {
     clusterPortfolio = new ClusterPortfolio();
+    // Make available globally for auto-refresh system
+    window.ClusterPortfolio = clusterPortfolio;
 });
 
 // Global functions for template onclick handlers

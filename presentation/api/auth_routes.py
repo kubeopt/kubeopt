@@ -67,6 +67,15 @@ def register_auth_routes(app):
                 settings_to_save = {env_key: str(value)}
                 settings_manager.save_settings(settings_to_save)
                 
+                # Special handling for auto-analysis settings - restart scheduler
+                if env_key == 'AUTO_ANALYSIS_ENABLED':
+                    try:
+                        from infrastructure.services.auto_analysis_scheduler import auto_scheduler
+                        logger.info("🔄 Auto-analysis setting changed via auto-save, restarting scheduler...")
+                        auto_scheduler.restart_scheduler()
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not restart auto-analysis scheduler: {e}")
+                
                 return jsonify({
                     'success': True,
                     'message': f'{key} saved successfully'
@@ -220,6 +229,27 @@ def register_auth_routes(app):
             import os
             validator = get_license_validator()
             license_info = validator.get_license_info()
+            
+            # Add display formatting for template
+            tier = license_info.get('tier', 'none').upper()
+            if tier == 'ENTERPRISE':
+                license_info['tier_display'] = 'Enterprise'
+            elif tier == 'PRO':
+                license_info['tier_display'] = 'Professional'
+            elif tier == 'TRIAL':
+                license_info['tier_display'] = 'Trial'
+            else:
+                license_info['tier_display'] = 'Free'
+            
+            # Add formatted expiration date
+            expires = license_info.get('expires_at')
+            if expires:
+                try:
+                    from datetime import datetime
+                    exp_date = datetime.fromisoformat(expires.replace('Z', '+00:00'))
+                    license_info['expires'] = exp_date.strftime('%b %d, %Y')
+                except:
+                    license_info['expires'] = None
             
             # Add the masked license key for display
             current_license = os.getenv('KUBEOPT_LICENSE_KEY', '')

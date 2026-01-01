@@ -158,13 +158,14 @@ def get_shared_globals():
         return {}, threading.Lock(), {'clusters': {}}, None
 
 def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, Any]], str]:
-    """ENTERPRISE: HPA-aware analysis data loading with subscription awareness and deduplication"""
+    """ENTERPRISE: HPA-aware analysis data loading with subscription awareness and NO deduplication for race condition safety"""
     if not cluster_id:
         logger.warning("⚠️ No cluster_id provided for analysis data")
         return None, "no_cluster_id"
 
-    # Create deduplication key for this request
-    dedup_key = f"analysis_data_{cluster_id}_{int(time.time() // 30)}"  # 30-second dedup window
+    # REMOVED: Deduplication to prevent race conditions between parallel cluster analyses
+    # Each cluster should get its own unique data, not shared cached results
+    logger.info(f"🔍 RACE CONDITION FIX: Fetching unique analysis data for {cluster_id}")
     
     def _fetch_analysis_data_internal():
         """Internal function to fetch analysis data"""
@@ -176,15 +177,18 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
         # Get cluster info for subscription context
         cluster_info = enhanced_cluster_manager.get_cluster(cluster_id)
         subscription_id = cluster_info.get('subscription_id') if cluster_info else None
+        logger.info(f"🔍 RACE CONDITION FIX: Cluster {cluster_id} has subscription {subscription_id}")
 
-        # PRIORITY 0: Check for fresh session data first
+        # PRIORITY 0: Check for fresh session data first with STRICT validation
         fresh_session_data = None
         data_source = "none"
         
         with _analysis_lock:
             logger.info(f"🔍 ENTERPRISE CHART API: Checking {len(_analysis_sessions)} active sessions for cluster {cluster_id}")
             for session_id, session_info in _analysis_sessions.items():
-                if (session_info.get('cluster_id') == cluster_id and 
+                # STRICT cluster ID matching - must be exact match
+                session_cluster_id = session_info.get('cluster_id')
+                if (session_cluster_id == cluster_id and 
                     session_info.get('status') == 'completed' and 
                     'results' in session_info):
                     # Enterprise validation: Ensure data integrity for parallel operations
@@ -195,11 +199,14 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
                             fresh_session_data = results_data
                             data_source = "fresh_session"
                             logger.info(f"🎯 ENTERPRISE CHART API: Found validated fresh session data for {cluster_id}")
+                            logger.info(f"🎯 RACE CONDITION FIX: Session {session_id[:16]} validated for {cluster_id}")
                             break
                         else:
-                            logger.warning(f"⚠️ Session data cluster mismatch: expected {cluster_id}, got {expected_cluster_id}")
+                            logger.warning(f"⚠️ RACE CONDITION PREVENTED: Session data cluster mismatch - expected {cluster_id}, got {expected_cluster_id}")
                     else:
-                        logger.warning(f"⚠️ Session data missing cluster identification fields for {cluster_id}")
+                        logger.warning(f"⚠️ RACE CONDITION PREVENTED: Session data missing cluster identification fields for {cluster_id}")
+                elif session_cluster_id != cluster_id:
+                    logger.debug(f"🔍 RACE CONDITION CHECK: Skipping session for different cluster {session_cluster_id}")
 
         if fresh_session_data:
             if 'hpa_recommendations' in fresh_session_data:
@@ -262,12 +269,12 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
         logger.warning(f"⚠️ No analysis data found for cluster: {cluster_id}")
         return None, "no_data"
     
-    # Use deduplicator to prevent duplicate calls
+    # RACE CONDITION FIX: Call directly without deduplication to ensure each cluster gets unique data
     try:
-        return request_deduplicator.get_or_execute(dedup_key, _fetch_analysis_data_internal)
+        return _fetch_analysis_data_internal()
     except Exception as e:
-        logger.error(f"❌ Deduplicated analysis data fetch failed for {cluster_id}: {e}")
-        return None, "dedup_error"
+        logger.error(f"❌ Analysis data fetch failed for {cluster_id}: {e}")
+        return None, "fetch_error"
 
 def ensure_float(value: Any) -> float:
     """Safely convert value to float"""
