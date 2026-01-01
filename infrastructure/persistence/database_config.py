@@ -20,10 +20,9 @@ class DatabaseConfig:
         'alerts': BASE_DIR / 'alerts.db',
         'clusters': BASE_DIR / 'clusters.db',
         
-        # New unified databases
+        # New unified databases (if needed in future)
         'ml_analytics': BASE_DIR / 'ml_analytics.db',
-        'security_analytics': BASE_DIR / 'security_analytics.db', 
-        'operational_data': BASE_DIR / 'operational_data.db'
+        'security_analytics': BASE_DIR / 'security_analytics.db'
     }
     
     # Machine learning database paths (clean architecture)
