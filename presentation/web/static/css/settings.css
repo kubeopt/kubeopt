@@ -57,8 +57,7 @@
 }
 
 .settings-container {
-    display: grid;
-    grid-template-columns: 250px 1fr;
+    display: flex;
     gap: 2rem;
 }
 
@@ -71,6 +70,8 @@
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
     transition: all 0.3s ease;
+    width: 250px;
+    flex-shrink: 0;
 }
 
 .settings-nav-link {
@@ -98,14 +99,22 @@
 /* Sections */
 .settings-main {
     position: relative;
+    flex: 1;
+    min-width: 0;
 }
 
 .settings-section {
     display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
 }
 
 .settings-section.active {
     display: block;
+    position: relative;
 }
 
 .section-header {

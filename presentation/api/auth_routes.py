@@ -24,6 +24,58 @@ def register_auth_routes(app):
     """Register authentication and settings routes"""
     
     # Settings API endpoints (must be before login route)
+    @app.route('/api/settings/save', methods=['POST'])
+    def save_single_setting():
+        """Save a single setting via auto-save"""
+        try:
+            from infrastructure.services.settings_manager import settings_manager
+            data = request.get_json()
+            
+            if not data or 'key' not in data or 'value' not in data:
+                return jsonify({'error': 'Missing key or value'}), 400
+            
+            key = data['key']
+            value = data['value']
+            
+            # Special handling for license key
+            if key == 'KUBEOPT_LICENSE_KEY' or key == 'license_key':
+                if not value or len(value) < 10:
+                    return jsonify({'error': 'Invalid license key'}), 400
+                    
+                from infrastructure.services.license_validator import get_license_validator
+                validator = get_license_validator()
+                validator.set_license_key(value)
+                
+                # Validate the license
+                valid, info = validator.validate_license()
+                if not valid:
+                    error_msg = info.get('error', 'Invalid license key')
+                    return jsonify({'error': f'License validation failed: {error_msg}'}), 400
+                    
+                settings_to_save = {'KUBEOPT_LICENSE_KEY': value}
+                settings_manager.save_settings(settings_to_save)
+                
+                tier = info.get('tier', 'UNKNOWN')
+                return jsonify({
+                    'success': True, 
+                    'message': f'License activated: {tier}',
+                    'license_info': info
+                })
+            else:
+                # Normal setting - ensure key is uppercase for .env
+                env_key = key.upper() if not key.isupper() else key
+                settings_to_save = {env_key: str(value)}
+                settings_manager.save_settings(settings_to_save)
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'{key} saved successfully'
+                })
+                
+        except Exception as e:
+            logger.error(f"Error saving setting: {e}")
+            return jsonify({'error': str(e)}), 500
+    
     @app.route('/api/settings', methods=['GET', 'POST'])
     def settings_api():
         """Get or update settings as JSON"""

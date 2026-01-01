@@ -624,11 +624,178 @@ class SettingsPage {
     }
 }
 
+// Auto-save functionality for individual settings
+class AutoSaveHandler {
+    constructor() {
+        this.saveTimeout = null;
+        this.init();
+    }
+    
+    init() {
+        // Auto-save for dropdowns and checkboxes
+        this.setupImmediateAutoSave();
+        // Auto-save for text inputs with debouncing
+        this.setupDebouncedAutoSave();
+    }
+    
+    setupImmediateAutoSave() {
+        // Log Level dropdown
+        const logLevel = document.getElementById('log-level');
+        if (logLevel) {
+            logLevel.addEventListener('change', (e) => {
+                this.saveSetting('LOG_LEVEL', e.target.value, e.target);
+            });
+        }
+        
+        // Session Timeout dropdown
+        const sessionTimeout = document.getElementById('session-timeout');
+        if (sessionTimeout) {
+            sessionTimeout.addEventListener('change', (e) => {
+                this.saveSetting('SESSION_TIMEOUT', e.target.value, e.target);
+            });
+        }
+        
+        // Auto-Analysis toggle
+        const autoAnalysis = document.getElementById('auto-analysis-enabled');
+        if (autoAnalysis) {
+            autoAnalysis.addEventListener('change', (e) => {
+                this.saveSetting('AUTO_ANALYSIS_ENABLED', e.target.checked ? 'true' : 'false', e.target);
+            });
+        }
+    }
+    
+    setupDebouncedAutoSave() {
+        // Auto-Analysis Interval
+        const autoInterval = document.querySelector('input[name="auto_analysis_interval"]');
+        if (autoInterval) {
+            autoInterval.addEventListener('blur', (e) => {
+                if (e.target.value.trim()) {
+                    this.saveSetting('AUTO_ANALYSIS_INTERVAL', e.target.value, e.target);
+                }
+            });
+        }
+        
+        // License Key - save on blur
+        const licenseKey = document.getElementById('license-key');
+        if (licenseKey) {
+            licenseKey.addEventListener('blur', (e) => {
+                const value = e.target.value.trim();
+                if (value && value.length > 10) {
+                    this.saveSetting('KUBEOPT_LICENSE_KEY', value, e.target);
+                }
+            });
+        }
+    }
+    
+    async saveSetting(key, value, element) {
+        // Show saving indicator
+        this.showSavingFeedback(element, 'saving');
+        
+        try {
+            const response = await fetch('/api/settings/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ key, value })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                this.showSavingFeedback(element, 'success');
+                
+                // Special handling for license key
+                if (key === 'KUBEOPT_LICENSE_KEY' && data.license_info) {
+                    // Update license display
+                    const licenseDisplay = document.querySelector('.setting-description strong');
+                    if (licenseDisplay) {
+                        licenseDisplay.textContent = data.license_info.tier || 'Free';
+                    }
+                    // Show toast for license changes since it's important
+                    this.showToast(data.message || 'License activated successfully', 'success');
+                    // Reload page after license change to update features
+                    setTimeout(() => window.location.reload(), 1500);
+                }
+            } else {
+                this.showSavingFeedback(element, 'error');
+                // Only show toast for errors, not for normal saves
+                this.showToast(data.error || 'Failed to save setting', 'error');
+            }
+        } catch (error) {
+            console.error('Error saving setting:', error);
+            this.showSavingFeedback(element, 'error');
+            this.showToast('Network error while saving', 'error');
+        }
+    }
+    
+    showSavingFeedback(element, status) {
+        // Remove any existing feedback
+        const existingFeedback = element.parentElement.querySelector('.save-feedback');
+        if (existingFeedback) {
+            existingFeedback.remove();
+        }
+        
+        // Only show subtle feedback for success and errors
+        if (status === 'saving') {
+            return; // Don't show saving state - just save silently
+        }
+        
+        // Create subtle feedback element
+        const feedback = document.createElement('span');
+        feedback.className = 'save-feedback';
+        feedback.style.marginLeft = '8px';
+        feedback.style.fontSize = '12px';
+        feedback.style.opacity = '0';
+        feedback.style.transition = 'opacity 0.3s ease';
+        
+        switch (status) {
+            case 'success':
+                feedback.innerHTML = '<i class="fas fa-check" style="font-size: 10px;"></i>';
+                feedback.style.color = '#10b981';
+                feedback.style.opacity = '0.7';
+                // Fade out gently after 2 seconds
+                setTimeout(() => {
+                    feedback.style.opacity = '0';
+                    setTimeout(() => feedback.remove(), 300);
+                }, 2000);
+                break;
+            case 'error':
+                feedback.innerHTML = '<i class="fas fa-exclamation-triangle" style="font-size: 10px;"></i>';
+                feedback.style.color = '#ef4444';
+                feedback.style.opacity = '0.8';
+                // Keep error visible longer
+                setTimeout(() => {
+                    feedback.style.opacity = '0';
+                    setTimeout(() => feedback.remove(), 300);
+                }, 4000);
+                break;
+        }
+        
+        element.parentElement.appendChild(feedback);
+        
+        // Trigger fade in
+        setTimeout(() => {
+            feedback.style.opacity = feedback.style.opacity;
+        }, 10);
+    }
+    
+    showToast(message, type = 'info') {
+        if (window.settingsPage) {
+            window.settingsPage.showToast(message, type);
+        } else {
+            console.log(`[${type}] ${message}`);
+        }
+    }
+}
+
 // Initialize the settings page when DOM is loaded
 let settingsPage;
+let autoSaveHandler;
 
 document.addEventListener('DOMContentLoaded', function() {
     settingsPage = new SettingsPage();
+    autoSaveHandler = new AutoSaveHandler();
 });
 
 // Working backend integration functions from backup
@@ -807,7 +974,10 @@ function saveSettings() {
 function showSection(sectionName) {
     // Hide all sections
     const sections = document.querySelectorAll('.settings-section');
-    sections.forEach(section => section.classList.remove('active'));
+    sections.forEach(section => {
+        section.classList.remove('active');
+        section.style.display = 'none';  // Force hide
+    });
     
     // Remove active class from all nav links
     const links = document.querySelectorAll('.settings-nav-link');
@@ -817,6 +987,7 @@ function showSection(sectionName) {
     const targetSection = document.getElementById(sectionName + '-section');
     if (targetSection) {
         targetSection.classList.add('active');
+        targetSection.style.display = 'block';  // Force show
     }
     
     // Add active class to clicked link
@@ -920,18 +1091,44 @@ document.addEventListener('DOMContentLoaded', function() {
     const emailConfig = document.getElementById('email-config');
     const slackConfig = document.getElementById('slack-config');
     
+    // Email toggle logic
     if (emailToggle && emailConfig) {
+        const emailActions = document.querySelector('#email-form .settings-actions');
+        
         emailToggle.addEventListener('change', function() {
-            emailConfig.style.display = this.checked ? 'block' : 'none';
+            const isEnabled = this.checked;
+            emailConfig.style.display = isEnabled ? 'block' : 'none';
+            if (emailActions) {
+                emailActions.style.display = isEnabled ? 'block' : 'none';
+            }
         });
-        emailConfig.style.display = emailToggle.checked ? 'block' : 'none';
+        
+        // Set initial state
+        const emailEnabled = emailToggle.checked;
+        emailConfig.style.display = emailEnabled ? 'block' : 'none';
+        if (emailActions) {
+            emailActions.style.display = emailEnabled ? 'block' : 'none';
+        }
     }
     
+    // Slack toggle logic
     if (slackToggle && slackConfig) {
+        const slackActions = document.querySelector('#slack-form .settings-actions');
+        
         slackToggle.addEventListener('change', function() {
-            slackConfig.style.display = this.checked ? 'block' : 'none';
+            const isEnabled = this.checked;
+            slackConfig.style.display = isEnabled ? 'block' : 'none';
+            if (slackActions) {
+                slackActions.style.display = isEnabled ? 'block' : 'none';
+            }
         });
-        slackConfig.style.display = slackToggle.checked ? 'block' : 'none';
+        
+        // Set initial state
+        const slackEnabled = slackToggle.checked;
+        slackConfig.style.display = slackEnabled ? 'block' : 'none';
+        if (slackActions) {
+            slackActions.style.display = slackEnabled ? 'block' : 'none';
+        }
     }
     
     // Load settings on page load
