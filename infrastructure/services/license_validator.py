@@ -116,6 +116,26 @@ class LicenseValidator:
         else:
             logger.info(f"License validator initialized with key: {self.license_key[:10]}...")
     
+    def set_license_key(self, license_key: str) -> None:
+        """
+        Set a new license key and validate it
+        
+        Args:
+            license_key: The new license key to set
+        """
+        self.license_key = license_key
+        self.cache = {}  # Clear cache to force revalidation
+        
+        # Update environment variable
+        os.environ['KUBEOPT_LICENSE_KEY'] = license_key
+        
+        # Validate the new license
+        if license_key:
+            logger.info(f"License key updated: {license_key[:10]}...")
+            self.validate_license()
+        else:
+            logger.warning("License key cleared")
+    
     def validate_license(self) -> Tuple[bool, Dict[str, Any]]:
         """
         Validate the current license key with external API

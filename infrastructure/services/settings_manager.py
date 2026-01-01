@@ -228,6 +228,15 @@ class SettingsManager:
             self.load_settings()
         return self.config_cache.copy()
     
+    def get_all_settings(self) -> Dict[str, str]:
+        """
+        Get all current settings (alias for get_settings)
+        
+        Returns:
+            Dict of current settings
+        """
+        return self.get_settings()
+    
     def get_setting(self, key: str, default: str = '') -> str:
         """
         Get individual setting value
@@ -241,6 +250,28 @@ class SettingsManager:
         """
         config = self.get_settings()
         return config.get(key, default)
+    
+    def update_setting(self, key: str, value: str) -> None:
+        """
+        Update a single setting value in memory (call save_settings to persist)
+        
+        Args:
+            key: Setting key (will be converted to uppercase)
+            value: Setting value
+        """
+        if not self.config_cache:
+            self.load_settings()
+        
+        # Convert key to uppercase for .env format
+        env_key = key.upper() if not key.isupper() else key
+        
+        # Update the cache with lowercase key for consistency
+        self.config_cache[env_key.lower()] = value
+        
+        # Also set in environment for immediate use
+        os.environ[env_key] = str(value)
+        
+        logger.info(f"Updated setting {env_key} in memory")
     
     def test_slack_integration(self) -> Dict[str, Any]:
         """
