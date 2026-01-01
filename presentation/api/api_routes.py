@@ -38,8 +38,7 @@ from infrastructure.persistence.processing.analysis_engine import multi_subscrip
 from infrastructure.services.alerts_integration import initialize_alerts_system, register_alerts_routes, get_alerts_manager
 
 # Feature guards for tier-based access control
-from infrastructure.services.feature_guard import require_feature, get_ui_feature_flags
-from infrastructure.services.license_manager import FeatureFlag
+from infrastructure.services.feature_guard import require_feature, get_ui_feature_flags, FeatureFlag
 
 from presentation.api.project_controls_api import integrate_project_controls_api
 
@@ -1517,14 +1516,17 @@ def register_api_routes(app):
     def get_claude_costs_summary():
         """Get Claude API cost summary"""
         try:
-            from infrastructure.plan_generation.cost_tracker import get_cost_tracker
+            # Cost tracking now handled by external API
+            # from infrastructure.plan_generation.cost_tracker import get_cost_tracker
             
             days = request.args.get('days', 30, type=int)
-            tracker = get_cost_tracker()
-            summary = tracker.get_total_cost(days)
+            # tracker = get_cost_tracker()
+            # summary = tracker.get_total_cost(days)
+            summary = {'error': 'Cost tracking moved to external API'}
             
             # Also get cost breakdown by cluster
-            cluster_costs = tracker.get_cost_by_cluster(days)
+            # cluster_costs = tracker.get_cost_by_cluster(days)
+            cluster_costs = []
             
             return jsonify({
                 "status": "success",
@@ -2154,20 +2156,22 @@ def register_api_routes(app):
             if not plan or plan.get('generated_by') in ['Local AI', 'AI Local Model']:
                 logger.info(f"🔄 No Claude plan found, generating new Claude plan for cluster {cluster_id}")
                 
-                from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
+                # Use external API for plan generation
+                from infrastructure.services.external_api_client import get_external_api_client
                 import asyncio
                 
-                claude_generator = AIImplementationPlanGenerator()
+                api_client = get_external_api_client()
                 enhanced_input = enhanced_cluster_manager.get_enhanced_analysis_input(cluster_id)
                 
                 if enhanced_input:
                     try:
-                        # Generate Claude plan (now returns raw markdown)
-                        claude_plan = asyncio.run(claude_generator.generate_plan(
-                            enhanced_input, 
+                        # Generate plan via external API
+                        success, result = api_client.generate_plan(
+                            cluster_id, 
                             cluster_id.split('_')[-1],  # Extract cluster name
-                            cluster_id
-                        ))
+                            enhanced_input
+                        )
+                        claude_plan = result if success else None
                         
                         # Save Claude plan to database
                         if claude_plan and isinstance(claude_plan, dict):
@@ -2258,8 +2262,33 @@ def register_api_routes(app):
     
     @app.route('/api/clusters/<path:cluster_id>/plan/generate', methods=['POST'])
     def generate_new_plan(cluster_id):
-        """Generate a new implementation plan for a cluster using external API"""
+        """Generate a new implementation plan for a cluster using external API (once per day limit)"""
         try:
+            # Check license tier and plan generation availability
+            from infrastructure.services.license_validator import get_license_validator, LicenseTier, Feature
+            
+            validator = get_license_validator()
+            
+            # Check if user has ENTERPRISE license (required for AI plans)
+            if not validator.has_feature(Feature.AI_PLAN_GENERATION):
+                tier = validator.get_tier()
+                return jsonify({
+                    'status': 'error',
+                    'message': 'AI plan generation requires ENTERPRISE license',
+                    'current_tier': tier.value,
+                    'upgrade_url': 'https://kubeopt.ai/pricing'
+                }), 403
+            
+            # Check daily limit
+            plan_status = validator.get_plan_generation_status()
+            if not plan_status.get('available'):
+                return jsonify({
+                    'status': 'error',
+                    'message': plan_status.get('reason'),
+                    'next_reset': plan_status.get('next_reset'),
+                    'hours_until_reset': plan_status.get('hours_until_reset')
+                }), 429  # Too Many Requests
+            
             # Get the latest analysis data
             analysis_data = enhanced_cluster_manager.get_enhanced_analysis_input(cluster_id)
             if not analysis_data:

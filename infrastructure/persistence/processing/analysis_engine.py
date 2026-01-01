@@ -36,8 +36,8 @@ from infrastructure.persistence.processing.metrics_processor import get_aks_metr
 from infrastructure.services.cache_manager import save_to_cache
 from shared.utils.utils import validate_cost_data
 
-# Import new plan generation modules
-from infrastructure.plan_generation import AIImplementationPlanGenerator
+# Plan generation moved to external API
+# from infrastructure.plan_generation import AIImplementationPlanGenerator
 import asyncio
 import os
 
@@ -625,25 +625,44 @@ class MultiSubscriptionAnalysisEngine:
             raise ValueError(f"Database save operation failed: {update_error}") from update_error
     
     async def _generate_implementation_plan_async(self, enhanced_input: Dict, cluster_name: str, cluster_id: str):
-        """Generate implementation plan using Claude API"""
+        """Generate implementation plan using external API (ENTERPRISE only)"""
         try:
-            # Check if Claude API key is available
-            if not os.getenv("ANTHROPIC_API_KEY"):
-                logger.warning("ANTHROPIC_API_KEY not found - skipping Claude plan generation")
+            # Check license tier first - only ENTERPRISE can generate AI plans
+            from infrastructure.services.license_validator import get_license_validator, LicenseTier
+            validator = get_license_validator()
+            tier = validator.get_tier()
+            
+            if tier != LicenseTier.ENTERPRISE:
+                logger.info(f"⏭️ Skipping AI plan generation for {cluster_name} - requires ENTERPRISE license (current: {tier.value})")
                 return None
             
-            plan_generator = AIImplementationPlanGenerator()
-            plan = await plan_generator.generate_plan(
-                enhanced_input=enhanced_input,
+            # Use external API client for plan generation
+            from infrastructure.services.external_api_client import get_external_api_client
+            
+            api_client = get_external_api_client()
+            if not api_client:
+                logger.warning("External API client not available - skipping plan generation")
+                return None
+            
+            # Generate plan via external API (synchronous call in async context)
+            # The external API expects cluster_name and analysis_data
+            success, plan_data = api_client.generate_plan(
+                cluster_id=cluster_id,
                 cluster_name=cluster_name,
-                cluster_id=cluster_id
+                analysis_data=enhanced_input
             )
             
-            logger.info(f"✅ Generated Claude API plan for {cluster_name} in markdown format")
-            return plan
+            if success and plan_data:
+                logger.info(f"✅ Generated implementation plan via external API for {cluster_name}")
+                # Extract the plan content - the API returns the full structure
+                return plan_data
+            else:
+                error_msg = plan_data.get('error', 'Unknown error') if isinstance(plan_data, dict) else 'Plan generation failed'
+                logger.warning(f"External API plan generation failed for {cluster_name}: {error_msg}")
+                return None
             
         except Exception as e:
-            logger.error(f"❌ Claude plan generation failed: {e}")
+            logger.error(f"❌ External API plan generation failed: {e}")
             return None
     
     def _handle_subscription_error(self, error: Exception, session_id: str, subscription_id: str,
@@ -920,8 +939,8 @@ class MultiSubscriptionAnalysisEngine:
                 "cost_analysis": self._extract_cost_analysis(basic_analysis),
                 "cluster_info": self._get_cluster_info(cluster_id, basic_analysis),
                 "node_pools": self._get_node_pool_details(cluster_id, basic_analysis),
-                "workloads": self._get_workload_details(cluster_id, basic_analysis, basic_analysis.get('pod_cost_analysis')),
-                "storage_volumes": self._get_storage_details(cluster_id, basic_analysis),
+                "workloads": self._get_optimized_workload_details(cluster_id, basic_analysis, basic_analysis.get('pod_cost_analysis')),
+                "storage_volumes": self._get_optimized_storage_details(cluster_id, basic_analysis),
                 "existing_hpas": self._get_hpa_details(cluster_id, basic_analysis),
                 "namespaces": self._get_namespace_summary(cluster_id, basic_analysis),
                 "network_resources": self._get_network_resources(cluster_id, basic_analysis),
@@ -930,9 +949,21 @@ class MultiSubscriptionAnalysisEngine:
                 "metadata": self._get_analysis_metadata(basic_analysis)
             }
             
+            # Log size of enhanced input for monitoring
+            import json
+            enhanced_size = len(json.dumps(enhanced_input, default=str))
+            size_mb = enhanced_size / (1024 * 1024)
+            
             logger.info(f"✅ Enhanced analysis input generated: {len(enhanced_input.get('workloads', []))} workloads, "
                        f"{len(enhanced_input.get('existing_hpas', []))} HPAs, "
-                       f"{len(enhanced_input.get('namespaces', []))} namespaces")
+                       f"{len(enhanced_input.get('namespaces', []))} namespaces, "
+                       f"Size: {size_mb:.2f}MB")
+            
+            # Warn if payload is too large
+            if size_mb > 1.0:
+                logger.warning(f"⚠️ Large enhanced output: {size_mb:.2f}MB - Consider further optimization")
+                # Apply additional compression if needed
+                enhanced_input = self._compress_large_payload(enhanced_input, size_mb)
             
             return enhanced_input
             
@@ -1191,6 +1222,43 @@ class MultiSubscriptionAnalysisEngine:
         except Exception as e:
             logger.error(f"❌ Failed to get node pool details: {e}")
             raise ValueError(f"Failed to extract node pool details: {e}") from e
+    
+    def _get_optimized_workload_details(self, cluster_id: str, basic_analysis: dict, pod_data: dict = None) -> List[dict]:
+        """
+        Get optimized workload details - limit to top resource consumers and inefficient workloads.
+        This reduces payload size while maintaining critical information for plan generation.
+        """
+        # Get full workload details first
+        all_workloads = self._get_workload_details(cluster_id, basic_analysis, pod_data)
+        
+        # If less than 50 workloads, return all
+        if len(all_workloads) <= 50:
+            return all_workloads
+        
+        # Sort by resource consumption and inefficiency
+        sorted_workloads = sorted(all_workloads, 
+                                 key=lambda w: (w.get('monthly_cost', 0) + 
+                                              w.get('optimization_potential', 0) * 100),
+                                 reverse=True)
+        
+        # Take top 30 most expensive/inefficient workloads
+        top_workloads = sorted_workloads[:30]
+        
+        # Add summary statistics for excluded workloads
+        excluded_count = len(all_workloads) - 30
+        if excluded_count > 0:
+            excluded_cost = sum(w.get('monthly_cost', 0) for w in sorted_workloads[30:])
+            top_workloads.append({
+                'name': '_summary_excluded_workloads',
+                'namespace': '_summary',
+                'type': 'summary',
+                'count': excluded_count,
+                'total_monthly_cost': excluded_cost,
+                'description': f'{excluded_count} smaller workloads excluded to reduce payload size'
+            })
+        
+        logger.info(f"📦 Optimized workloads from {len(all_workloads)} to {len(top_workloads)} entries")
+        return top_workloads
     
     def _get_workload_details(self, cluster_id: str, basic_analysis: dict, pod_data: dict = None) -> List[dict]:
         """Extract detailed workload information from analysis data and raw kubectl output"""
@@ -1542,6 +1610,42 @@ class MultiSubscriptionAnalysisEngine:
         else:
             return "azure_best_practices"
 
+    def _get_optimized_storage_details(self, cluster_id: str, basic_analysis: dict) -> List[dict]:
+        """
+        Get optimized storage details - focus on large volumes and those with optimization potential.
+        """
+        # Get full storage details
+        all_storage = self._get_storage_details(cluster_id, basic_analysis)
+        
+        # If less than 20 volumes, return all
+        if len(all_storage) <= 20:
+            return all_storage
+        
+        # Sort by size and cost
+        sorted_storage = sorted(all_storage,
+                              key=lambda s: s.get('size_gb', 0) * s.get('monthly_cost', 1),
+                              reverse=True)
+        
+        # Take top 15 largest/most expensive volumes
+        top_storage = sorted_storage[:15]
+        
+        # Add summary for excluded volumes
+        excluded_count = len(all_storage) - 15
+        if excluded_count > 0:
+            excluded_size = sum(s.get('size_gb', 0) for s in sorted_storage[15:])
+            excluded_cost = sum(s.get('monthly_cost', 0) for s in sorted_storage[15:])
+            top_storage.append({
+                'name': '_summary_excluded_volumes',
+                'type': 'summary',
+                'count': excluded_count,
+                'total_size_gb': excluded_size,
+                'total_monthly_cost': excluded_cost,
+                'description': f'{excluded_count} smaller volumes excluded to reduce payload size'
+            })
+        
+        logger.info(f"📦 Optimized storage from {len(all_storage)} to {len(top_storage)} entries")
+        return top_storage
+    
     def _get_storage_details(self, cluster_id: str, basic_analysis: dict) -> List[dict]:
         """Extract storage volume details"""
         try:
@@ -2661,6 +2765,89 @@ class MultiSubscriptionAnalysisEngine:
         except Exception as e:
             logger.warning(f"Error fetching team owner for namespace {namespace_name}: {e}")
             return "application-team"
+    
+    def _compress_large_payload(self, enhanced_input: dict, size_mb: float) -> dict:
+        """
+        Compress large payload by removing redundant data and keeping only essential information.
+        This is called when the payload exceeds 1MB.
+        """
+        logger.info(f"📦 Compressing large payload ({size_mb:.2f}MB) for plan generation")
+        
+        compressed = enhanced_input.copy()
+        
+        # 1. Limit workloads to top 20 if too many
+        if 'workloads' in compressed and len(compressed['workloads']) > 20:
+            workloads = compressed['workloads']
+            # Sort by cost and optimization potential
+            sorted_workloads = sorted(workloads, 
+                                     key=lambda w: w.get('monthly_cost', 0) + 
+                                                  w.get('optimization_potential', 0) * 100,
+                                     reverse=True)
+            compressed['workloads'] = sorted_workloads[:20]
+            compressed['workloads'].append({
+                'name': '_compressed_summary',
+                'type': 'summary', 
+                'excluded_count': len(workloads) - 20,
+                'note': f'{len(workloads) - 20} additional workloads excluded for compression'
+            })
+        
+        # 2. Remove verbose fields from workloads
+        if 'workloads' in compressed:
+            for workload in compressed['workloads']:
+                # Remove detailed metrics, keep only essential fields
+                fields_to_remove = ['detailed_metrics', 'raw_metrics', 'historical_data',
+                                  'annotations', 'labels', 'events', 'conditions']
+                for field in fields_to_remove:
+                    workload.pop(field, None)
+        
+        # 3. Simplify node pool details
+        if 'node_pools' in compressed and len(compressed['node_pools']) > 0:
+            for pool in compressed['node_pools']:
+                # Keep only essential node pool info
+                essential_fields = ['name', 'vm_size', 'node_count', 'monthly_cost',
+                                  'cpu_utilization', 'memory_utilization', 
+                                  'optimization_recommendation']
+                pool_copy = {k: v for k, v in pool.items() if k in essential_fields}
+                pool.clear()
+                pool.update(pool_copy)
+        
+        # 4. Limit storage volumes to top 10
+        if 'storage_volumes' in compressed and len(compressed['storage_volumes']) > 10:
+            volumes = compressed['storage_volumes']
+            sorted_volumes = sorted(volumes, 
+                                  key=lambda v: v.get('size_gb', 0) * v.get('monthly_cost', 1),
+                                  reverse=True)
+            compressed['storage_volumes'] = sorted_volumes[:10]
+        
+        # 5. Simplify network resources
+        if 'network_resources' in compressed:
+            net = compressed['network_resources']
+            # Keep only summary statistics
+            compressed['network_resources'] = {
+                'total_services': len(net.get('services', [])),
+                'total_ingresses': len(net.get('ingresses', [])),
+                'load_balancers_count': len([s for s in net.get('services', []) 
+                                            if s.get('type') == 'LoadBalancer']),
+                'monthly_cost': net.get('monthly_cost', 0)
+            }
+        
+        # 6. Limit namespaces to top 15 by cost
+        if 'namespaces' in compressed and len(compressed['namespaces']) > 15:
+            namespaces = compressed['namespaces']
+            sorted_ns = sorted(namespaces,
+                             key=lambda n: n.get('monthly_cost', 0),
+                             reverse=True)
+            compressed['namespaces'] = sorted_ns[:15]
+        
+        # Check new size
+        import json
+        new_size = len(json.dumps(compressed, default=str))
+        new_size_mb = new_size / (1024 * 1024)
+        
+        logger.info(f"✅ Payload compressed from {size_mb:.2f}MB to {new_size_mb:.2f}MB "
+                   f"(reduction: {((size_mb - new_size_mb) / size_mb * 100):.1f}%)")
+        
+        return compressed
 
 
 # Create global multi-subscription analysis engine

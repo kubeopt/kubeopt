@@ -74,10 +74,17 @@ Cluster Portfolio - AKS Cost Optimizer
                         </select>
                     </div>
                     
+                    {% if feature_flags.can_add_clusters %}
                     <button class="btn-primary add-cluster-btn" onclick="openAddClusterModal()">
                         <i class="fas fa-plus"></i>
                         Add Cluster
                     </button>
+                    {% else %}
+                    <button class="btn-secondary add-cluster-btn" onclick="showLicenseRequired()" disabled>
+                        <i class="fas fa-lock"></i>
+                        Add Cluster (License Required)
+                    </button>
+                    {% endif %}
                 </div>
             </div>
             
@@ -172,10 +179,21 @@ Cluster Portfolio - AKS Cost Optimizer
                     <h3 class="empty-title">No clusters found</h3>
                     <p class="empty-description">Add your first AKS cluster to start optimizing costs and analyzing performance.</p>
                     <div class="empty-actions">
+                        {% if feature_flags.can_add_clusters %}
                         <button class="btn-primary" onclick="openAddClusterModal()">
                             <i class="fas fa-plus"></i>
                             Add First Cluster
                         </button>
+                        {% else %}
+                        <button class="btn-secondary" onclick="showLicenseRequired()" disabled>
+                            <i class="fas fa-lock"></i>
+                            Add Cluster (License Required)
+                        </button>
+                        <p style="margin-top: 1rem; color: var(--warning);">
+                            Please add a PRO or ENTERPRISE license in 
+                            <a href="/settings" style="color: var(--primary);">Settings</a> to add clusters
+                        </p>
+                        {% endif %}
                         <a href="/settings" class="btn-secondary">
                             <i class="fas fa-cog"></i>
                             Configure Settings

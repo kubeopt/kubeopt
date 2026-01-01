@@ -68,7 +68,7 @@ class ExternalAPIClient:
         
         try:
             response = requests.post(
-                f"{self.license_api_url}/license/v1/validate",
+                f"{self.license_api_url}/api/v1/validate",
                 json={'license_key': self.license_key},
                 timeout=self.timeout
             )
@@ -140,6 +140,17 @@ class ExternalAPIClient:
             if response.status_code == 201:
                 plan_data = response.json()
                 logger.info(f"Plan generated successfully: {plan_data.get('plan_id')}")
+                
+                # Extract markdown from nested structure: plan.raw_markdown
+                if isinstance(plan_data, dict) and 'plan' in plan_data:
+                    nested_plan = plan_data.get('plan', {})
+                    if isinstance(nested_plan, dict) and 'raw_markdown' in nested_plan:
+                        # Copy the markdown to top level for easier access
+                        plan_data['raw_markdown'] = nested_plan['raw_markdown']
+                        logger.debug(f"Extracted markdown content from nested plan")
+                    else:
+                        logger.warning(f"Plan structure unexpected: no raw_markdown in nested plan")
+                
                 return True, plan_data
             else:
                 error_data = response.json() if response.text else {}
@@ -165,7 +176,7 @@ class ExternalAPIClient:
         
         try:
             response = requests.get(
-                f"{self.license_api_url}/license/v1/status/{self.license_key}",
+                f"{self.license_api_url}/api/v1/status/{self.license_key}",
                 timeout=self.timeout
             )
             

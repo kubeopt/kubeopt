@@ -25,6 +25,7 @@
                         <span class="nav-text">Overview</span>
                     </a>
                 </div>
+                {% if feature_flags.show_ai_plans %}
                 <div class="nav-item">
                     <a href="#" class="nav-link" data-view="implementation" data-tooltip="Implementation">
                         <span class="nav-icon">
@@ -33,6 +34,7 @@
                         <span class="nav-text">Implementation</span>
                     </a>
                 </div>
+                {% endif %}
                 <div class="nav-item">
                     <a href="#" class="nav-link" data-view="alerts" data-tooltip="Alerts">
                         <span class="nav-icon">
@@ -82,7 +84,12 @@
             window.AppState = {
                 currentClusterId: "{{ cluster.id }}",
                 currentClusterName: "{{ cluster.name }}",
-                currentResourceGroup: "{{ cluster.resource_group }}"
+                currentResourceGroup: "{{ cluster.resource_group }}",
+                featureFlags: {
+                    showAiPlans: {{ feature_flags.show_ai_plans|tojson }},
+                    tier: "{{ feature_flags.tier }}",
+                    hasLicense: {{ feature_flags.has_license|tojson }}
+                }
             };
             
             {% if cluster %}

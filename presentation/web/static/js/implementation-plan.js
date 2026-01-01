@@ -155,9 +155,15 @@ window.ImplementationPlan = (function() {
                                 <i class="fas fa-chart-line"></i> Run Analysis
                             </button>
                         ` : ''}
-                        <button onclick="ImplementationPlan.generatePlan()" class="btn-secondary">
-                            <i class="fas fa-plus"></i> Generate Plan
-                        </button>
+                        ${(window.AppState && window.AppState.featureFlags && window.AppState.featureFlags.showAiPlans === true) ? `
+                            <button onclick="ImplementationPlan.generatePlan()" class="btn-secondary">
+                                <i class="fas fa-plus"></i> Generate Plan
+                            </button>
+                        ` : `
+                            <button class="btn-secondary" disabled title="ENTERPRISE license required for AI plan generation">
+                                <i class="fas fa-lock"></i> Generate Plan (ENTERPRISE Only)
+                            </button>
+                        `}
                         <button onclick="ImplementationPlan.loadPlan()" class="btn-secondary">
                             <i class="fas fa-refresh"></i> Retry
                         </button>
@@ -198,6 +204,39 @@ window.ImplementationPlan = (function() {
         // Convert markdown to HTML
         const htmlContent = convertMarkdownToHtml(markdownContent);
         
+        // Check if user can generate plans (ENTERPRISE only)
+        // Check both possible locations where feature flags might be
+        let canGeneratePlans = false;
+        
+        // Try to get from AppState first
+        if (window.AppState && window.AppState.featureFlags) {
+            canGeneratePlans = window.AppState.featureFlags.showAiPlans === true;
+        }
+        
+        // If not found, check if it's set on window directly (fallback)
+        if (!canGeneratePlans && window.featureFlags) {
+            canGeneratePlans = window.featureFlags.show_ai_plans === true;
+        }
+        
+        // For ENTERPRISE, always enable if the Implementation tab is visible
+        // (tab is only shown for ENTERPRISE users)
+        const implementationTabVisible = document.querySelector('[data-view="implementation"]');
+        if (implementationTabVisible && !canGeneratePlans) {
+            // If the implementation tab exists, user must be ENTERPRISE
+            canGeneratePlans = true;
+        }
+        
+        // Create the appropriate button HTML
+        const generateButton = canGeneratePlans ? 
+            `<button onclick="ImplementationPlan.generatePlan()" 
+                     class="implementation-generate-btn">
+                <i class="fas fa-refresh"></i> Generate New
+            </button>` :
+            `<button class="implementation-generate-btn" disabled 
+                     title="ENTERPRISE license required for AI plan generation">
+                <i class="fas fa-lock"></i> Generate New (ENTERPRISE Only)
+            </button>`;
+        
         container.innerHTML = `
             <div class="implementation-plan-card">
                 <div class="implementation-plan-header">
@@ -211,10 +250,7 @@ window.ImplementationPlan = (function() {
                                 title="Download Markdown">
                             <i class="fas fa-download"></i>
                         </button>
-                        <button onclick="ImplementationPlan.generatePlan()" 
-                                class="implementation-generate-btn">
-                            <i class="fas fa-refresh"></i> Generate New
-                        </button>
+                        ${generateButton}
                         <span class="implementation-timestamp">
                             ${planData.generated_at ? 'Generated: ' + formatDate(planData.generated_at) : ''}
                         </span>

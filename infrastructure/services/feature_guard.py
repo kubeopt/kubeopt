@@ -1,201 +1,173 @@
 #!/usr/bin/env python3
 """
-Feature Guard for AKS Cost Optimizer
-===================================
-
-Decorators and middleware for feature locking.
+Feature Guard - License-Based Feature Access Control
+====================================================
+Ensures features are accessible based on license tier.
 """
 
-import functools
-from flask import jsonify, redirect, url_for, request, render_template_string
-from infrastructure.services.license_manager import license_manager, FeatureFlag
+import logging
+from functools import wraps
+from flask import g, jsonify
+from typing import Dict, Any
 
-def require_feature(feature: FeatureFlag, api_response: bool = False):
+from infrastructure.services.license_validator import (
+    get_license_validator,
+    LicenseTier,
+    Feature
+)
+
+logger = logging.getLogger(__name__)
+
+def require_feature(feature, api_response=False):
     """
-    Decorator to require a specific feature to be enabled
+    Decorator to require a specific feature for a route
     
     Args:
-        feature: The required feature flag
-        api_response: If True, return JSON response for API endpoints
+        feature: Feature enum or FeatureFlag string
+        api_response: If True, return JSON errors (for API endpoints)
+    
+    Usage:
+        @require_feature(Feature.AI_PLAN_GENERATION)
+        def generate_plan():
+            ...
     """
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            if license_manager.is_feature_enabled(feature):
-                return func(*args, **kwargs)
-            
-            # Feature is locked
-            if api_response:
-                # API response
-                return jsonify({
-                    'status': 'error',
-                    'error': 'feature_locked',
-                    'message': f'This feature requires {get_required_tier(feature)} tier',
-                    'feature': feature.value,
-                    'current_tier': license_manager.get_current_tier().value,
-                    'upgrade_info': license_manager.get_upgrade_info()
-                }), 403
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            # Convert string feature flags to Feature enum if needed
+            if isinstance(feature, str):
+                # Map legacy feature flags to new Feature enum
+                feature_map = {
+                    'ai_plans': Feature.AI_PLAN_GENERATION,
+                    'implementation_plan': Feature.AI_PLAN_GENERATION,
+                    'basic_dashboard': Feature.DASHBOARD,
+                    'cluster_analysis': Feature.CLUSTER_ANALYSIS,
+                    'export_reports': Feature.EXPORT_REPORTS,
+                    'email_alerts': Feature.EMAIL_ALERTS,
+                    'slack_alerts': Feature.SLACK_ALERTS,
+                    'cost_tracking': Feature.ADVANCED_ANALYTICS,
+                    'multi_cluster': Feature.UNLIMITED_CLUSTERS,
+                    'auto_analysis': Feature.CLUSTER_ANALYSIS,
+                    'advanced_analytics': Feature.ADVANCED_ANALYTICS
+                }
+                feature_enum = feature_map.get(feature, Feature.DASHBOARD)
             else:
-                # Web response - redirect to upgrade page or show locked page
-                return render_feature_locked_page(feature)
-                
-        return wrapper
+                feature_enum = feature
+            
+            # Get license info from g (set by middleware)
+            if not hasattr(g, 'license_tier'):
+                error_response = {
+                    'error': 'License validation not performed',
+                    'message': 'Internal error - license middleware not initialized'
+                }
+                if api_response:
+                    return jsonify(error_response), 500
+                return jsonify(error_response), 500
+            
+            validator = get_license_validator()
+            
+            if not validator.has_feature(feature_enum):
+                tier = g.license_tier
+                error_response = {
+                    'error': 'Feature not available',
+                    'feature': feature_enum.value if hasattr(feature_enum, 'value') else str(feature),
+                    'current_tier': tier.value,
+                    'message': f'Feature requires a higher license tier'
+                }
+                if api_response:
+                    return jsonify(error_response), 403
+                return jsonify(error_response), 403
+            
+            return f(*args, **kwargs)
+        return wrapped
     return decorator
 
-def get_required_tier(feature: FeatureFlag) -> str:
-    """Get the minimum tier required for a feature"""
-    tier_features = license_manager.tier_features
-    
-    for tier, features in tier_features.items():
-        if feature in features:
-            return tier.value.title()
-    
-    return "Pro"
-
-def render_feature_locked_page(feature: FeatureFlag):
-    """Render a feature locked page"""
-    required_tier = get_required_tier(feature)
-    current_tier = license_manager.get_current_tier().value.title()
-    upgrade_info = license_manager.get_upgrade_info()
-    
-    locked_page_html = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Feature Locked - kubeopt</title>
-        <link rel="stylesheet" href="/static/css/tailwind.css">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    </head>
-    <body class="bg-gray-50 min-h-screen flex items-center justify-center">
-        <div class="max-w-md w-full mx-4">
-            <div class="bg-white rounded-lg shadow-lg p-8 text-center">
-                <!-- Lock Icon -->
-                <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <i class="fas fa-lock text-yellow-600 text-2xl"></i>
-                </div>
-                
-                <!-- Title -->
-                <h1 class="text-2xl font-bold text-gray-800 mb-2">Feature Locked</h1>
-                <p class="text-gray-600 mb-6">This feature requires {{ required_tier }} tier</p>
-                
-                <!-- Current vs Required -->
-                <div class="bg-gray-50 rounded-lg p-4 mb-6">
-                    <div class="flex justify-between items-center text-sm">
-                        <div>
-                            <span class="text-gray-500">Current:</span>
-                            <span class="font-semibold text-gray-700">{{ current_tier }}</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-500">Required:</span>
-                            <span class="font-semibold text-blue-600">{{ required_tier }}</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Feature Info -->
-                <div class="text-left mb-6">
-                    <h3 class="font-semibold text-gray-800 mb-2">{{ feature_display }} includes:</h3>
-                    <ul class="text-sm text-gray-600 space-y-1">
-                        {% for feature_desc in feature_descriptions %}
-                        <li class="flex items-center">
-                            <i class="fas fa-check text-green-500 mr-2"></i>
-                            {{ feature_desc }}
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                
-                <!-- Action Buttons -->
-                <div class="space-y-3">
-                    <a href="/license/upgrade" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center">
-                        <i class="fas fa-arrow-up mr-2"></i>
-                        Upgrade to {{ required_tier }}
-                    </a>
-                    <a href="/license/trial" class="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center">
-                        <i class="fas fa-gift mr-2"></i>
-                        Start Free Trial
-                    </a>
-                    <a href="/" class="w-full bg-gray-500 text-white py-3 px-4 rounded-lg hover:bg-gray-600 transition-colors flex items-center justify-center">
-                        <i class="fas fa-arrow-left mr-2"></i>
-                        Back to Dashboard
-                    </a>
-                </div>
-                
-                <!-- Contact -->
-                <p class="text-xs text-gray-500 mt-6">
-                    Questions? <a href="mailto:support@kubeopt.com" class="text-blue-600 hover:underline">Contact Support</a>
-                </p>
-            </div>
-        </div>
-    </body>
-    </html>
+def get_ui_feature_flags() -> Dict[str, Any]:
     """
+    Get feature flags for UI based on current license
     
-    # Feature descriptions
-    feature_descriptions = {
-        FeatureFlag.IMPLEMENTATION_PLAN: [
-            "Step-by-step optimization plans",
-            "Automated implementation scripts", 
-            "Best practices recommendations"
-        ],
-        FeatureFlag.AUTO_ANALYSIS: [
-            "Scheduled automatic analysis",
-            "Background processing",
-            "Continuous monitoring"
-        ],
-        FeatureFlag.ENTERPRISE_METRICS: [
-            "Advanced operational metrics",
-            "Compliance readiness scores",
-            "Team velocity tracking"
-        ],
-        FeatureFlag.SECURITY_POSTURE: [
-            "Security vulnerability scanning",
-            "Compliance framework analysis",
-            "Policy recommendations"
-        ],
-        FeatureFlag.EMAIL_ALERTS: [
-            "Email notifications",
-            "Custom alert thresholds",
-            "Scheduled reports"
-        ]
-    }
+    Returns:
+        Dictionary of feature flags for the UI
+    """
+    validator = get_license_validator()
+    tier = validator.get_tier()
     
-    feature_display = feature.value.replace('_', ' ').title()
+    # Base features (NO FREE TIER - everything requires license)
+    if tier == LicenseTier.NONE:
+        return {
+            'tier': 'NONE',
+            'has_license': False,
+            'can_add_clusters': False,  # Cannot add clusters without license
+            'show_dashboard': False,
+            'show_analysis': False,
+            'show_alerts': False,
+            'show_recommendations': False,
+            'show_ai_plans': False,
+            'show_export': False,
+            'show_settings': True,  # Settings always accessible to add license
+            'cluster_limit': 0,
+            'message': 'PRO or ENTERPRISE license required'
+        }
     
-    return render_template_string(
-        locked_page_html,
-        feature=feature.value,
-        feature_display=feature_display,
-        feature_descriptions=feature_descriptions.get(feature, ["Advanced functionality"]),
-        required_tier=required_tier,
-        current_tier=current_tier,
-        upgrade_info=upgrade_info
-    )
-
-def check_feature_access(feature: FeatureFlag) -> dict:
-    """Check if user has access to a feature and return status"""
-    enabled = license_manager.is_feature_enabled(feature)
+    # PRO tier features
+    if tier == LicenseTier.PRO:
+        return {
+            'tier': 'PRO',
+            'has_license': True,
+            'can_add_clusters': True,  # Can add clusters with PRO license
+            'show_dashboard': True,
+            'show_analysis': True,
+            'show_alerts': True,
+            'show_recommendations': True,
+            'show_ai_plans': False,  # Not for PRO
+            'show_export': True,
+            'show_settings': True,
+            'cluster_limit': 5,
+            'analyses_per_day': 50,
+            'message': 'PRO features enabled'
+        }
     
+    # ENTERPRISE tier features
+    if tier == LicenseTier.ENTERPRISE:
+        plan_status = validator.get_plan_generation_status()
+        return {
+            'tier': 'ENTERPRISE',
+            'has_license': True,
+            'can_add_clusters': True,  # Can add clusters with ENTERPRISE license
+            'show_dashboard': True,
+            'show_analysis': True,
+            'show_alerts': True,
+            'show_recommendations': True,
+            'show_ai_plans': True,
+            'show_export': True,
+            'show_settings': True,
+            'show_advanced_analytics': True,
+            'show_custom_integrations': True,
+            'cluster_limit': -1,  # Unlimited
+            'analyses_per_day': -1,  # Unlimited
+            'ai_plans_available': plan_status.get('available', False),
+            'ai_plans_remaining': plan_status.get('remaining', 0),
+            'message': 'ENTERPRISE features enabled - unlimited access'
+        }
+    
+    # Default (shouldn't happen)
     return {
-        'enabled': enabled,
-        'feature': feature.value,
-        'current_tier': license_manager.get_current_tier().value,
-        'required_tier': get_required_tier(feature) if not enabled else None,
-        'upgrade_info': license_manager.get_upgrade_info() if not enabled else None
+        'tier': 'UNKNOWN',
+        'has_license': False,
+        'message': 'License status unknown'
     }
 
-def get_ui_feature_flags() -> dict:
-    """Get feature flags for UI rendering"""
-    return {
-        'dashboard': license_manager.is_feature_enabled(FeatureFlag.DASHBOARD),
-        'implementation_plan': license_manager.is_feature_enabled(FeatureFlag.IMPLEMENTATION_PLAN),
-        'auto_analysis': license_manager.is_feature_enabled(FeatureFlag.AUTO_ANALYSIS),
-        'enterprise_metrics': license_manager.is_feature_enabled(FeatureFlag.ENTERPRISE_METRICS),
-        'security_posture': license_manager.is_feature_enabled(FeatureFlag.SECURITY_POSTURE),
-        'email_alerts': license_manager.is_feature_enabled(FeatureFlag.EMAIL_ALERTS),
-        'slack_alerts': license_manager.is_feature_enabled(FeatureFlag.SLACK_ALERTS),
-        'current_tier': license_manager.get_current_tier().value,
-        'license_info': license_manager.get_license_info()
-    }
+# For backward compatibility with old code
+class FeatureFlag:
+    """Legacy feature flags - deprecated, use Feature enum instead"""
+    BASIC_DASHBOARD = "basic_dashboard"
+    CLUSTER_ANALYSIS = "cluster_analysis"
+    AI_PLANS = "ai_plans"
+    EXPORT_REPORTS = "export_reports"
+    EMAIL_ALERTS = "email_alerts"
+    SLACK_ALERTS = "slack_alerts"
+    IMPLEMENTATION_PLAN = "implementation_plan"
+    AUTO_ANALYSIS = "auto_analysis"
+    MULTI_CLUSTER = "multi_cluster"
+    COST_TRACKING = "cost_tracking"
+    ADVANCED_ANALYTICS = "advanced_analytics"

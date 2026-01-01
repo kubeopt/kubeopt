@@ -2688,6 +2688,14 @@ class EnhancedMultiSubscriptionClusterManager:
             import json
             from datetime import datetime
             
+            # Log plan save
+            self.logger.debug(f"📝 Saving plan for cluster {cluster_id}")
+            if isinstance(plan_data, dict):
+                # Quick validation that we have content
+                has_content = 'markdown_content' in plan_data or 'raw_markdown' in plan_data
+                if not has_content:
+                    self.logger.warning(f"⚠️ Plan data missing markdown_content or raw_markdown fields!")
+            
             # Generate plan ID
             plan_id = f"plan_{cluster_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
             
