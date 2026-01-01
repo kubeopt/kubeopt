@@ -64,11 +64,13 @@ Settings - AKS Cost Optimizer
                 
                 <!-- General Settings -->
                 <section id="general-section" class="settings-section active">
-                    <form id="general-form" method="POST" action="{{ url_for('save_settings') }}">
-                        <input type="hidden" name="section" value="general">
-                        
-                        <div class="settings-card">
-                            <div class="setting-item">
+                    <div class="section-header">
+                        <h2 class="section-title">General Settings</h2>
+                        <p class="section-description">Core application settings - save automatically when changed</p>
+                    </div>
+                    
+                    <div class="settings-card">
+                        <div class="setting-item">
                                 <div class="setting-info">
                                     <h3 class="setting-title">Auto-Analysis</h3>
                                     <p class="setting-description">Automatically analyze clusters on schedule</p>
@@ -100,7 +102,7 @@ Settings - AKS Cost Optimizer
                                     <p class="setting-description">Application logging detail level</p>
                                 </div>
                                 <div class="setting-control">
-                                    <select name="log_level" class="setting-select">
+                                    <select name="log_level" id="log-level" class="setting-select">
                                         <option value="DEBUG" {% if config.get('LOG_LEVEL') == 'DEBUG' %}selected{% endif %}>DEBUG</option>
                                         <option value="INFO" {% if config.get('LOG_LEVEL') == 'INFO' or not config.get('LOG_LEVEL') %}selected{% endif %}>INFO</option>
                                         <option value="WARNING" {% if config.get('LOG_LEVEL') == 'WARNING' %}selected{% endif %}>WARNING</option>
@@ -119,20 +121,13 @@ Settings - AKS Cost Optimizer
                                     </p>
                                 </div>
                                 <div class="setting-control">
-                                    <input type="text" name="license_key" value="{{ license_info.get('license_key', '') }}" 
+                                    <input type="text" name="license_key" id="license-key" value="{{ license_info.get('license_key', '') }}" 
                                            class="setting-input" placeholder="Enter your license key (e.g., P6M-ABC123-250930-IMPL-AUTO)">
                                 </div>
                             </div>
                             
                         </div>
-                        
-                        <div class="settings-actions">
-                            <button type="submit" class="btn-primary">
-                                <i class="fas fa-save"></i>
-                                Save General Settings
-                            </button>
-                        </div>
-                    </form>
+                    </div>
                 </section>
                 
                 <!-- Notifications Settings -->
@@ -143,21 +138,24 @@ Settings - AKS Cost Optimizer
                     </div>
                     
                     <!-- Email Settings Card -->
-                    <div class="settings-card">
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Email Notifications</h3>
-                                <p class="setting-description">Configure email alerts for cost and performance monitoring</p>
-                            </div>
-                            <div class="setting-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="email-enabled" name="email_enabled">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                        </div>
+                    <form id="email-form" method="POST" action="{{ url_for('save_settings') }}">
+                        <input type="hidden" name="section" value="email">
                         
-                        <div id="email-config" style="margin-top: 20px;">
+                        <div class="settings-card">
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Email Notifications</h3>
+                                    <p class="setting-description">Configure email alerts for cost and performance monitoring</p>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="email-enabled" name="email_enabled">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div id="email-config" style="margin-top: 20px;">
                             <div class="setting-item">
                                 <div class="setting-info">
                                     <h3 class="setting-title">SMTP Server</h3>
@@ -217,11 +215,25 @@ Settings - AKS Cost Optimizer
                                     <input type="text" class="setting-input" id="email-recipients" name="email_recipients" placeholder="admin@example.com, team@example.com">
                                 </div>
                             </div>
+                            
+                            <div class="settings-actions">
+                                <button type="button" onclick="testEmail()" class="btn-secondary">
+                                    <i class="fas fa-envelope"></i>
+                                    Test Email
+                                </button>
+                                <button type="submit" class="btn-primary">
+                                    <i class="fas fa-save"></i>
+                                    Save Email Settings
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    </form>
                     
                     <!-- Slack Settings Card -->
-                    <div class="settings-card" style="margin-top: 20px;">
+                    <form id="slack-form" method="POST" action="{{ url_for('save_settings') }}" style="margin-top: 20px;">
+                        <input type="hidden" name="section" value="slack">
+                        
+                        <div class="settings-card">
                         <div class="setting-item">
                             <div class="setting-info">
                                 <h3 class="setting-title">Slack Integration</h3>
@@ -269,14 +281,19 @@ Settings - AKS Cost Optimizer
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="settings-actions">
+                            <button type="button" onclick="testSlack()" class="btn-secondary">
+                                <i class="fab fa-slack"></i>
+                                Test Slack
+                            </button>
+                            <button type="submit" class="btn-primary">
+                                <i class="fas fa-save"></i>
+                                Save Slack Settings
+                            </button>
+                        </div>
                     </div>
-                    
-                    <!-- Save Button -->
-                    <div style="margin-top: 30px;">
-                        <button type="button" class="btn btn-primary" onclick="saveNotificationSettings()">
-                            <i class="fas fa-save"></i> Save Notification Settings
-                        </button>
-                    </div>
+                </form>
                 </section>
                 
                 <!-- Azure Integration -->
@@ -390,7 +407,6 @@ Settings - AKS Cost Optimizer
                     
                     <!-- API Configuration -->
                     <div class="settings-card">
-                        <h3 class="card-title">API Configuration</h3>
                         
                         <div class="setting-item">
                             <div class="setting-info">
