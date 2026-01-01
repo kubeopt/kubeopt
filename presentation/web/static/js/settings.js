@@ -117,21 +117,58 @@ class SettingsPage {
     }
     
     mapToBackendFields(settings) {
-        // Map UI settings to backend expected field names
+        // Map UI settings to backend expected field names (matching .env keys)
         const backendMapping = {
+            // General Settings
             theme: 'theme',
-            autoRefresh: 'auto_analysis_enabled',
-            refreshInterval: 'analysis_refresh_interval',
-            emailNotifications: 'email_enabled',
-            slackNotifications: 'slack_enabled',
-            costThreshold: 'cost_alert_threshold',
-            defaultSubscription: 'azure_subscription_id',
-            costApi: 'cost_api_enabled',
-            sessionTimeout: 'session_timeout',
-            auditLogging: 'audit_logging',
-            debugMode: 'debug_mode',
-            rateLimit: 'rate_limit',
-            cacheDuration: 'cache_duration'
+            appUrl: 'APP_URL',
+            productionMode: 'PRODUCTION_MODE',
+            
+            // Azure Settings
+            azureTenantId: 'AZURE_TENANT_ID',
+            azureSubscriptionId: 'AZURE_SUBSCRIPTION_ID',
+            azureClientId: 'AZURE_CLIENT_ID',
+            azureClientSecret: 'AZURE_CLIENT_SECRET',
+            
+            // Notifications
+            emailEnabled: 'EMAIL_ENABLED',
+            slackEnabled: 'SLACK_ENABLED',
+            slackWebhookUrl: 'SLACK_WEBHOOK_URL',
+            slackChannel: 'SLACK_CHANNEL',
+            slackCostThreshold: 'SLACK_COST_THRESHOLD',
+            smtpServer: 'SMTP_SERVER',
+            smtpPort: 'SMTP_PORT',
+            smtpUsername: 'SMTP_USERNAME',
+            smtpPassword: 'SMTP_PASSWORD',
+            fromEmail: 'FROM_EMAIL',
+            emailRecipients: 'EMAIL_RECIPIENTS',
+            
+            // Advanced - Auto Analysis
+            autoAnalysisEnabled: 'AUTO_ANALYSIS_ENABLED',
+            autoAnalysisInterval: 'AUTO_ANALYSIS_INTERVAL',
+            
+            // Advanced - AI Configuration
+            aiModel: 'AI_MODEL',
+            anthropicApiKey: 'ANTHROPIC_API_KEY',
+            aiEnableCostTracking: 'AI_ENABLE_COST_TRACKING',
+            aiMaxContextTokens: 'AI_MAX_CONTEXT_TOKENS',
+            aiMaxOutputTokens: 'AI_MAX_OUTPUT_TOKENS',
+            aiMaxRetries: 'AI_MAX_RETRIES',
+            aiUseSplitMode: 'AI_USE_SPLIT_MODE',
+            
+            // Advanced - API Configuration
+            licenseApiUrl: 'LICENSE_API_URL',
+            planApiUrl: 'PLAN_API_URL',
+            
+            // Advanced - Developer Options
+            localDev: 'LOCAL_DEV',
+            logLevel: 'LOG_LEVEL',
+            
+            // Security
+            sessionTimeout: 'SESSION_TIMEOUT',
+            
+            // License
+            kubeoptLicenseKey: 'KUBEOPT_LICENSE_KEY'
         };
         
         const backendSettings = {};
@@ -213,33 +250,56 @@ class SettingsPage {
 
     gatherSettingsData() {
         return {
+            // General Settings
             theme: document.getElementById('theme-setting')?.value || 'light',
-            autoRefresh: document.getElementById('auto-refresh')?.checked || false,
-            refreshInterval: document.getElementById('refresh-interval')?.value || '5',
-            emailNotifications: document.getElementById('email-notifications')?.checked || false,
-            slackNotifications: document.getElementById('slack-notifications')?.checked || false,
-            costThreshold: document.getElementById('cost-threshold')?.value || '',
-            defaultSubscription: document.getElementById('default-subscription')?.value || '',
-            costApi: document.getElementById('cost-api')?.checked || false,
-            sessionTimeout: document.getElementById('session-timeout')?.value || '60',
-            auditLogging: document.getElementById('audit-logging')?.checked || false,
-            debugMode: document.getElementById('debug-mode')?.checked || false,
-            rateLimit: document.getElementById('rate-limit')?.value || '60',
-            cacheDuration: document.getElementById('cache-duration')?.value || '1800',
+            appUrl: document.getElementById('app-url')?.value || '',
+            productionMode: document.getElementById('production-mode')?.checked || false,
             
-            // Additional fields for backend integration
+            // Azure Settings
             azureTenantId: document.getElementById('azure-tenant-id')?.value || '',
             azureSubscriptionId: document.getElementById('azure-subscription-id')?.value || '',
             azureClientId: document.getElementById('azure-client-id')?.value || '',
             azureClientSecret: document.getElementById('azure-client-secret')?.value || '',
+            
+            // Notifications
+            emailEnabled: document.getElementById('email-enabled')?.checked || false,
+            slackEnabled: document.getElementById('slack-enabled')?.checked || false,
             slackWebhookUrl: document.getElementById('slack-webhook-url')?.value || '',
             slackChannel: document.getElementById('slack-channel')?.value || '',
+            slackCostThreshold: document.getElementById('slack-cost-threshold')?.value || '',
             smtpServer: document.getElementById('smtp-server')?.value || '',
             smtpPort: document.getElementById('smtp-port')?.value || '',
             smtpUsername: document.getElementById('smtp-username')?.value || '',
             smtpPassword: document.getElementById('smtp-password')?.value || '',
             fromEmail: document.getElementById('from-email')?.value || '',
-            emailRecipients: document.getElementById('email-recipients')?.value || ''
+            emailRecipients: document.getElementById('email-recipients')?.value || '',
+            
+            // Advanced - Auto Analysis
+            autoAnalysisEnabled: document.getElementById('auto-analysis-enabled')?.checked || false,
+            autoAnalysisInterval: document.getElementById('auto-analysis-interval')?.value || '240',
+            
+            // Advanced - AI Configuration
+            aiModel: document.getElementById('ai-model')?.value || '',
+            anthropicApiKey: document.getElementById('anthropic-api-key')?.value || '',
+            aiEnableCostTracking: document.getElementById('ai-cost-tracking')?.checked || false,
+            aiMaxContextTokens: document.getElementById('ai-max-context')?.value || '',
+            aiMaxOutputTokens: document.getElementById('ai-max-output')?.value || '',
+            aiMaxRetries: document.getElementById('ai-max-retries')?.value || '',
+            aiUseSplitMode: document.getElementById('ai-split-mode')?.checked || false,
+            
+            // Advanced - API Configuration
+            licenseApiUrl: document.getElementById('license-api-url')?.value || '',
+            planApiUrl: document.getElementById('plan-api-url')?.value || '',
+            
+            // Advanced - Developer Options
+            localDev: document.getElementById('local-dev')?.checked || false,
+            logLevel: document.getElementById('log-level')?.value || 'INFO',
+            
+            // Security
+            sessionTimeout: document.getElementById('session-timeout')?.value || '60',
+            
+            // License
+            kubeoptLicenseKey: document.getElementById('license-key')?.value || ''
         };
     }
 
@@ -248,15 +308,13 @@ class SettingsPage {
             // Map UI field names to backend field names
             const backendSettings = this.mapToBackendFields(settings);
             
-            // Create FormData for the API call
-            const formData = new FormData();
-            Object.entries(backendSettings).forEach(([key, value]) => {
-                formData.append(key, value);
-            });
-            
-            const response = await fetch('/save_settings', {
+            // Use the new API endpoint that accepts JSON
+            const response = await fetch('/api/settings', {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(backendSettings)
             });
             
             if (!response.ok) {
@@ -265,8 +323,15 @@ class SettingsPage {
             
             const data = await response.json();
             
-            if (data.success) {
-                console.log('Settings saved successfully:', settings);
+            if (data.success || data.status === 'success') {
+                console.log('Settings saved successfully');
+                
+                // If license key was updated, reload to apply changes
+                if (backendSettings.KUBEOPT_LICENSE_KEY) {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                }
             } else {
                 throw new Error(data.message || 'Failed to save settings');
             }

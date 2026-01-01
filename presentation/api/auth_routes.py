@@ -24,30 +24,90 @@ def register_auth_routes(app):
     """Register authentication and settings routes"""
     
     # Settings API endpoints (must be before login route)
-    @app.route('/api/settings', methods=['GET'])
-    def get_settings_api():
-        """Get current settings as JSON"""
+    @app.route('/api/settings', methods=['GET', 'POST'])
+    def settings_api():
+        """Get or update settings as JSON"""
+        if request.method == 'GET':
+            try:
+                from infrastructure.services.settings_manager import settings_manager
+                settings = settings_manager.get_all_settings()
+                
+                # Add license info
+                from infrastructure.services.license_validator import get_license_validator
+                validator = get_license_validator()
+                license_info = validator.get_license_info()
+                
+                # Mask sensitive values
+                if 'kubeopt_license_key' in settings:
+                    key = settings.get('kubeopt_license_key', '')
+                    if key and len(key) > 10:
+                        settings['license_key'] = f"{key[:10]}...****"
+                    else:
+                        settings['license_key'] = key
+                
+                return jsonify({
+                    **settings,
+                    'license': license_info
+                })
+            except Exception as e:
+                logger.error(f"Error getting settings: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        else:  # POST
+            try:
+                from infrastructure.services.settings_manager import settings_manager
+                data = request.get_json()
+                
+                # Prepare settings dictionary for saving
+                settings_to_save = {}
+                
+                # Process each setting
+                for key, value in data.items():
+                    # Special handling for license key
+                    if key == 'KUBEOPT_LICENSE_KEY' or key == 'license_key':
+                        # Activate license
+                        from infrastructure.services.license_validator import get_license_validator
+                        validator = get_license_validator()
+                        validator.set_license_key(value)
+                        settings_to_save['KUBEOPT_LICENSE_KEY'] = value
+                    else:
+                        # Ensure key is uppercase for .env
+                        env_key = key.upper() if not key.isupper() else key
+                        settings_to_save[env_key] = str(value)
+                
+                # Save all settings to .env file
+                settings_manager.save_settings(settings_to_save)
+                
+                return jsonify({'status': 'success', 'message': 'Settings updated'})
+            except Exception as e:
+                logger.error(f"Error updating settings: {e}")
+                return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/license/status', methods=['GET'])
+    def license_status():
+        """Get current license status"""
         try:
-            from infrastructure.services.settings_manager import settings_manager
-            settings = settings_manager.get_all_settings()
-            
-            # Add license info
             from infrastructure.services.license_validator import get_license_validator
+            from infrastructure.services.feature_guard import get_ui_feature_flags
+            
             validator = get_license_validator()
             license_info = validator.get_license_info()
+            feature_flags = get_ui_feature_flags()
             
             return jsonify({
-                **settings,
-                'license': license_info
+                'tier': license_info.get('tier', 'NONE'),
+                'has_license': license_info.get('tier') != 'NONE',
+                'features': feature_flags,
+                'license_info': license_info
             })
         except Exception as e:
-            logger.error(f"Error getting settings: {e}")
+            logger.error(f"Error getting license status: {e}")
             return jsonify({'error': str(e)}), 500
     
     @app.route('/get_settings', methods=['GET'])
     def get_settings_legacy():
         """Legacy endpoint for getting settings"""
-        return get_settings_api()
+        return settings_api()
     
     @app.route('/login', methods=['GET', 'POST'])
     def login():
@@ -155,46 +215,61 @@ def register_auth_routes(app):
             success_message = 'Settings saved successfully!'
             
             if section == 'azure':
-                # Azure settings
+                # Azure settings - only update non-empty fields
                 azure_fields = ['azure_tenant_id', 'azure_subscription_id', 'azure_client_id', 'azure_client_secret']
                 for field in azure_fields:
                     value = request.form.get(field, '').strip()
-                    if value:
+                    if value:  # Only update if value is provided
                         settings_data[field] = value
                 success_message = 'Azure settings saved successfully!'
             
             elif section == 'slack':
-                # Slack settings
-                settings_data['slack_enabled'] = 'true' if request.form.get('slack_enabled') else 'false'
+                # Slack settings - handle checkbox separately
+                if 'slack_enabled' in request.form.keys():
+                    settings_data['slack_enabled'] = 'true' if request.form.get('slack_enabled') else 'false'
+                
+                # Only update non-empty fields
                 slack_fields = ['slack_webhook_url', 'slack_channel', 'slack_cost_threshold']
                 for field in slack_fields:
                     value = request.form.get(field, '').strip()
-                    if value:
+                    if value:  # Only update if value is provided
                         settings_data[field] = value
                 success_message = 'Slack settings saved successfully!'
             
             elif section == 'email':
-                # Email settings
-                settings_data['email_enabled'] = 'true' if request.form.get('email_enabled') else 'false'
+                # Email settings - handle checkbox separately
+                if 'email_enabled' in request.form.keys():
+                    settings_data['email_enabled'] = 'true' if request.form.get('email_enabled') else 'false'
+                
+                # Only update non-empty fields
                 email_fields = ['smtp_server', 'smtp_port', 'smtp_username', 'smtp_password', 'from_email', 'email_recipients']
                 for field in email_fields:
                     value = request.form.get(field, '').strip()
-                    if value:
+                    if value:  # Only update if value is provided
                         settings_data[field] = value
                 success_message = 'Email settings saved successfully!'
             
             elif section == 'general':
-                # General settings
-                general_fields = ['analysis_refresh_interval', 'cost_alert_threshold', 'log_level']
+                # General settings - only update fields that have values
+                general_fields = ['log_level', 'session_timeout']
                 for field in general_fields:
                     value = request.form.get(field, '').strip()
-                    if value:
+                    if value:  # Only add if not empty
                         settings_data[field] = value
-                settings_data['production_mode'] = 'true' if request.form.get('production_mode') else 'false'
                 
-                # Handle license key activation
+                # Handle checkboxes - these always have a value (checked or not)
+                if 'auto_analysis_enabled' in request.form.keys():
+                    settings_data['auto_analysis_enabled'] = 'true' if request.form.get('auto_analysis_enabled') else 'false'
+                
+                # Handle auto analysis interval - only if provided
+                auto_interval = request.form.get('auto_analysis_interval', '').strip()
+                if auto_interval:
+                    settings_data['auto_analysis_interval'] = auto_interval
+                
+                # Handle license key activation - ONLY if a non-empty key is provided
                 license_key = request.form.get('license_key', '').strip()
-                if license_key:
+                # Important: Skip license validation if field is empty or not changed
+                if license_key and len(license_key) > 10:  # Minimum valid license key length
                     try:
                         # Save license key to environment and validate
                         import os
@@ -229,17 +304,13 @@ def register_auth_routes(app):
                         if valid:
                             tier = info.get('tier', 'UNKNOWN')
                             success_message = f'License activated successfully! Tier: {tier}'
-                            flash(success_message, 'success')
-                            # Stay on settings page to show the success message
-                            # Don't redirect - let user see the confirmation
+                            # Don't flash here - let it be done once at the end
                         else:
                             error_msg = info.get('error', 'Invalid license key')
-                            flash(f'License validation failed: {error_msg}', 'error')
-                            success_message = 'General settings saved, but license validation failed.'
+                            success_message = f'General settings saved, but license validation failed: {error_msg}'
                     except Exception as e:
                         logger.error(f"Error activating license: {e}")
-                        flash(f'License activation error: {str(e)}', 'error')
-                        success_message = 'General settings saved successfully, but license activation failed.'
+                        success_message = f'General settings saved, but license activation failed: {str(e)}'
                 else:
                     success_message = 'General settings saved successfully!'
             

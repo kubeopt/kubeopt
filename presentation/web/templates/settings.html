@@ -70,26 +70,27 @@ Settings - AKS Cost Optimizer
                         <div class="settings-card">
                             <div class="setting-item">
                                 <div class="setting-info">
-                                    <h3 class="setting-title">Analysis Refresh Interval</h3>
-                                    <p class="setting-description">How often to refresh cost analysis data (hours)</p>
+                                    <h3 class="setting-title">Auto-Analysis</h3>
+                                    <p class="setting-description">Automatically analyze clusters on schedule</p>
                                 </div>
                                 <div class="setting-control">
-                                    <input type="number" name="analysis_refresh_interval" value="{{ config.get('ANALYSIS_REFRESH_INTERVAL', '24') }}" 
-                                           class="setting-input" placeholder="24" min="1" max="168">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="auto_analysis_enabled" id="auto-analysis-enabled" 
+                                               {% if config.get('AUTO_ANALYSIS_ENABLED', 'false').lower() == 'true' %}checked{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
                                 </div>
                             </div>
                             
                             <div class="setting-item">
                                 <div class="setting-info">
-                                    <h3 class="setting-title">Cost Alert Threshold</h3>
-                                    <p class="setting-description">Send alerts when monthly cluster costs exceed this amount (USD)</p>
+                                    <h3 class="setting-title">Auto-Analysis Interval</h3>
+                                    <p class="setting-description">How often to run auto-analysis (e.g., 240m, 4h)</p>
                                 </div>
                                 <div class="setting-control">
-                                    <div class="input-group">
-                                        <span class="input-prefix">$</span>
-                                        <input type="number" name="cost_alert_threshold" value="{{ config.get('COST_ALERT_THRESHOLD', '500') }}" 
-                                               class="setting-input" placeholder="500" min="0" step="0.01">
-                                    </div>
+                                    <input type="text" name="auto_analysis_interval" class="setting-input" 
+                                           value="{{ config.get('AUTO_ANALYSIS_INTERVAL', '240m') }}" 
+                                           placeholder="240m">
                                 </div>
                             </div>
                             
@@ -369,35 +370,12 @@ Settings - AKS Cost Optimizer
                                 <p class="setting-description">Automatically logout after inactivity</p>
                             </div>
                             <div class="setting-control">
-                                <select class="setting-select" id="session-timeout">
-                                    <option value="30">30 minutes</option>
-                                    <option value="60" selected>1 hour</option>
-                                    <option value="120">2 hours</option>
-                                    <option value="480">8 hours</option>
+                                <select class="setting-select" id="session-timeout" name="session_timeout">
+                                    <option value="30" {% if config.get('SESSION_TIMEOUT', '60') == '30' %}selected{% endif %}>30 minutes</option>
+                                    <option value="60" {% if config.get('SESSION_TIMEOUT', '60') == '60' %}selected{% endif %}>1 hour</option>
+                                    <option value="120" {% if config.get('SESSION_TIMEOUT', '60') == '120' %}selected{% endif %}>2 hours</option>
+                                    <option value="480" {% if config.get('SESSION_TIMEOUT', '60') == '480' %}selected{% endif %}>8 hours</option>
                                 </select>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Data Encryption</h3>
-                                <p class="setting-description">Encrypt sensitive data at rest</p>
-                            </div>
-                            <div class="setting-control">
-                                <span class="status-badge status-enabled">Enabled</span>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Audit Logging</h3>
-                                <p class="setting-description">Log all user actions for compliance</p>
-                            </div>
-                            <div class="setting-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="audit-logging" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
                             </div>
                         </div>
                     </div>
@@ -407,50 +385,55 @@ Settings - AKS Cost Optimizer
                 <section id="advanced-section" class="settings-section">
                     <div class="section-header">
                         <h2 class="section-title">Advanced Settings</h2>
-                        <p class="section-description">Advanced configuration options for power users</p>
+                        <p class="section-description">API configuration and advanced options</p>
                     </div>
                     
+                    <!-- API Configuration -->
                     <div class="settings-card">
+                        <h3 class="card-title">API Configuration</h3>
+                        
                         <div class="setting-item">
                             <div class="setting-info">
-                                <h3 class="setting-title">Debug Mode</h3>
-                                <p class="setting-description">Enable detailed logging for troubleshooting</p>
+                                <h3 class="setting-title">Application URL</h3>
+                                <p class="setting-description">Base URL for the application</p>
                             </div>
                             <div class="setting-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="debug-mode">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <input type="text" name="app_url" id="app-url" class="setting-input" 
+                                       value="{{ config.get('APP_URL', 'http://localhost:5001') }}" 
+                                       placeholder="http://localhost:5001">
                             </div>
                         </div>
                         
                         <div class="setting-item">
                             <div class="setting-info">
-                                <h3 class="setting-title">API Rate Limit</h3>
-                                <p class="setting-description">Requests per minute limit</p>
+                                <h3 class="setting-title">License API URL</h3>
+                                <p class="setting-description">License validation server endpoint</p>
                             </div>
                             <div class="setting-control">
-                                <input type="number" class="setting-input" id="rate-limit" value="60" min="1" max="1000">
+                                <input type="text" name="license_api_url" id="license-api-url" class="setting-input" 
+                                       value="{{ config.get('LICENSE_API_URL', 'http://localhost:5002') }}" 
+                                       placeholder="http://localhost:5002">
                             </div>
                         </div>
                         
                         <div class="setting-item">
                             <div class="setting-info">
-                                <h3 class="setting-title">Cache Duration</h3>
-                                <p class="setting-description">How long to cache analysis results</p>
+                                <h3 class="setting-title">Plan API URL</h3>
+                                <p class="setting-description">Plan generation server endpoint</p>
                             </div>
                             <div class="setting-control">
-                                <select class="setting-select" id="cache-duration">
-                                    <option value="300">5 minutes</option>
-                                    <option value="900">15 minutes</option>
-                                    <option value="1800" selected>30 minutes</option>
-                                    <option value="3600">1 hour</option>
-                                </select>
+                                <input type="text" name="plan_api_url" id="plan-api-url" class="setting-input" 
+                                       value="{{ config.get('PLAN_API_URL', 'http://localhost:5003') }}" 
+                                       placeholder="http://localhost:5003">
                             </div>
                         </div>
                     </div>
                     
                     <div class="settings-actions">
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-save"></i>
+                            Save API Settings
+                        </button>
                         <button class="btn-danger" onclick="clearCache()">
                             <i class="fas fa-trash"></i>
                             Clear Cache
