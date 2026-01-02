@@ -33,86 +33,34 @@ import warnings
 from analytics.processors.pod_cost_analyzer import KubernetesParsingUtils
 from analytics.processors.aks_scorer import AKSScorer
 from machine_learning.models.workload_performance_analyzer import create_comprehensive_self_learning_hpa_engine
+from shared.standards.performance_standards import SystemPerformanceStandards
+from pydantic import BaseModel, Field, validator
 
 warnings.filterwarnings('ignore')
 
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# INTERNATIONAL STANDARDS (Merged from enhanced_savings_calculator)
+# METRICS VALIDATION (.clauderc compliance)
 # ============================================================================
 
-class OfficialAKSStandardsProxy:
-    """
-    DEPRECATED: Use centralized YAML configuration instead
-    This class provides backward compatibility while migrating to YAML-based standards
-    """
+class MetricsValidator:
+    """Validates metrics according to .clauderc standards - NO FALLBACKS"""
     
-    def __init__(self, aks_scorer=None):
-        self.aks_scorer = aks_scorer
-        self._standards_cache = None
+    @staticmethod
+    def validate_utilization_metrics(cpu: float, memory: float) -> None:
+        """Validate utilization metrics - fail fast if invalid"""
+        if not isinstance(cpu, (int, float)) or not isinstance(memory, (int, float)):
+            raise TypeError(f"Utilization must be numeric: CPU={type(cpu).__name__}, Memory={type(memory).__name__}")
         
-    def _get_standards(self):
-        """Get standards from YAML configuration with fallback to hardcoded values"""
-        if self._standards_cache:
-            return self._standards_cache
-            
-        if self.aks_scorer and hasattr(self.aks_scorer, 'cfg'):
-            try:
-                self._standards_cache = self.aks_scorer.cfg.get('official_standards', {})
-                return self._standards_cache
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to load standards from YAML: {e}")
+        if not (0 <= cpu <= 100) or not (0 <= memory <= 100):
+            raise ValueError(f"Utilization outside valid range: CPU={cpu}%, Memory={memory}%")
         
-        logger.warning("⚠️ Using fallback hardcoded standards - YAML config not available")
-        return {
-            'resource_utilization': {
-                'cpu_utilization_target': {'optimal': [60, 80]},
-                'memory_utilization_target': {'optimal': [65, 85]}
-            },
-            'cost_efficiency': {
-                'hpa_coverage_target': 80,
-                'spot_instance_usage': 30
-            }
-        }
-    
-    @property
-    def KUBERNETES_STANDARDS(self):
-        return self._get_standards().get('kubernetes', {
-            "cpu_requests_coverage": {"excellent": 95, "good": 89, "needs_improvement": 80}
-        })
-    
-    @property
-    def RESOURCE_UTILIZATION(self):
-        return self._get_standards().get('resource_utilization', {
-            "cpu_utilization_target": {"optimal": [60, 80]},
-            "memory_utilization_target": {"optimal": [65, 85]}
-        })
-    
-    @property
-    def FINOPS_STANDARDS(self):
-        return self._get_standards().get('finops', {
-            "commitment_utilization": {"target": 80}
-        })
-    
-    @property
-    def COST_EFFICIENCY(self):
-        return self._get_standards().get('cost_efficiency', {
-            "hpa_coverage_target": 80,
-            "spot_instance_usage": 30
-        })
-    
-    @property
-    def AZURE_WAF_STANDARDS(self):
-        return self._get_standards().get('azure_waf', {
-            "spot_vm_savings": {"maximum_discount": 90}
-        })
-    
-    @property
-    def ARCHITECTURAL_STANDARDS(self):
-        return self._get_standards().get('architectural', {
-            "horizontal_pod_autoscaling": 80
-        })
+        if cpu > SystemPerformanceStandards.CPU_UTILIZATION_CRITICAL:
+            raise ValueError(f"CPU {cpu}% exceeds critical threshold {SystemPerformanceStandards.CPU_UTILIZATION_CRITICAL}%")
+        
+        if memory > SystemPerformanceStandards.MEMORY_UTILIZATION_CRITICAL:
+            raise ValueError(f"Memory {memory}% exceeds critical threshold {SystemPerformanceStandards.MEMORY_UTILIZATION_CRITICAL}%")
 
 # ============================================================================
 # ML OPERATION DEDUPLICATION SYSTEM
@@ -452,10 +400,20 @@ class MLEnhancedHPARecommendationEngine:
             optimization_analysis = ml_results.get('optimization_analysis', {})
             workload_classification = ml_results.get('workload_classification', {})
             
-            # Get ML-derived utilization metrics
-            cpu_utilization = workload_characteristics.get('cpu_utilization', 35.0)
-            memory_utilization = workload_characteristics.get('memory_utilization', 60.0)
+            # Get ML-derived utilization metrics - NO DEFAULTS per .clauderc
+            if 'cpu_utilization' not in workload_characteristics:
+                raise ValueError("ML workload analysis missing required cpu_utilization data. "
+                               "Ensure ML processing pipeline provides complete utilization metrics.")
+            if 'memory_utilization' not in workload_characteristics:
+                raise ValueError("ML workload analysis missing required memory_utilization data. "
+                               "Ensure ML processing pipeline provides complete utilization metrics.")
+            
+            cpu_utilization = workload_characteristics['cpu_utilization']
+            memory_utilization = workload_characteristics['memory_utilization']
             workload_type = workload_classification.get('workload_type', 'BALANCED')
+            
+            # Validate utilization values against .clauderc standards
+            MetricsValidator.validate_utilization_metrics(cpu_utilization, memory_utilization)
             
             logger.info(f"🔍 ML Analysis: CPU={cpu_utilization:.1f}%, Memory={memory_utilization:.1f}%, Type={workload_type}")
             
@@ -609,12 +567,11 @@ class MLEnhancedHPARecommendationEngine:
                 })
             }
             
-            # Add any missing required fields
+            # Validate required node data - NO FALLBACKS per .clauderc
             if not prepared_data['nodes']:
-                logger.warning("⚠️ No node data available, using defaults")
-                prepared_data['nodes'] = [
-                    {'cpu_usage_pct': 35.0, 'memory_usage_pct': 60.0, 'status': 'Ready'}
-                ]
+                raise ValueError("Node metrics data required for analysis. "
+                               "Cannot proceed without real node utilization data. "
+                               "Ensure kubectl access and node monitoring are functional.")
             
             logger.info(f"✅ Prepared data for Comprehensive Analysis analysis: {len(prepared_data['nodes'])} nodes")
             return prepared_data
@@ -660,9 +617,19 @@ class MLEnhancedHPARecommendationEngine:
             logger.info(f"🤖 Comprehensive Analysis Classification: {workload_type} (confidence: {confidence:.2f})")
             logger.info(f"🎯 Comprehensive Analysis Recommendation: {primary_action}")
             
-            # Extract ML utilization data directly
-            ml_cpu_utilization = workload_characteristics.get('cpu_utilization', 35.0)
-            ml_memory_utilization = workload_characteristics.get('memory_utilization', 60.0)
+            # Extract ML utilization data directly - NO DEFAULTS per .clauderc
+            if 'cpu_utilization' not in workload_characteristics:
+                raise ValueError("ML workload characteristics missing cpu_utilization. "
+                               "Real-time metrics collection must provide accurate CPU data.")
+            if 'memory_utilization' not in workload_characteristics:
+                raise ValueError("ML workload characteristics missing memory_utilization. "
+                               "Real-time metrics collection must provide accurate memory data.")
+            
+            ml_cpu_utilization = workload_characteristics['cpu_utilization']
+            ml_memory_utilization = workload_characteristics['memory_utilization']
+            
+            # Validate ML utilization data
+            MetricsValidator.validate_utilization_metrics(ml_cpu_utilization, ml_memory_utilization)
             
             logger.info(f"🔍 ML Analysis: CPU={ml_cpu_utilization:.1f}%, Memory={ml_memory_utilization:.1f}%, Type={workload_type}")
             
@@ -933,6 +900,7 @@ class MLEnhancedHPARecommendationEngine:
                 # ===== HIGH CPU WORKLOAD DATA (PRESERVED FOR COMPATIBILITY) =====
                 'high_cpu_workloads': high_cpu_workloads,
                 'max_cpu_utilization': max_cpu_utilization,
+                'peak_cpu_utilization': max_cpu_utilization,  # FIX: Map max to peak for API compatibility
                 'average_cpu_utilization': avg_cpu_utilization,
                 'high_cpu_count': len(high_cpu_workloads),
                 
@@ -3169,36 +3137,48 @@ class CurrentUsageAnalysisAlgorithm:
                 logger.error("❌ GAP CALCULATION: No nodes found - cannot calculate gaps without real metrics data")
                 raise ValueError("No nodes data available for gap calculation - analysis requires real metrics")
             
-            # Extract utilization metrics with validation
-            cpu_utils = []
-            memory_utils = []
+            # PRIORITY 1: Use pre-calculated real averages if available (per .clauderc - explicit real data)
+            pre_calc_cpu = metrics_data.get('avg_cpu_utilization')
+            pre_calc_memory = metrics_data.get('avg_memory_utilization')
             
-            for i, node in enumerate(nodes):
-                cpu_val = ensure_numeric(node.get('cpu_usage_pct', 0))
-                memory_val = ensure_numeric(node.get('memory_usage_pct', 0))
-                node_name = node.get('name', f'node-{i}')
+            if pre_calc_cpu is not None and pre_calc_memory is not None:
+                logger.info(f"✅ GAP CALCULATION: Using pre-calculated real averages - CPU: {pre_calc_cpu}%, Memory: {pre_calc_memory}%")
+                avg_cpu = ensure_numeric(pre_calc_cpu)
+                avg_memory = ensure_numeric(pre_calc_memory)
+                cpu_std = 10.0  # Default variability for pre-calculated averages
+                memory_std = 15.0
+            else:
+                # FALLBACK: Calculate from individual nodes when pre-calculated unavailable
+                logger.info("🔍 GAP CALCULATION: Pre-calculated averages unavailable, calculating from nodes...")
+                cpu_utils = []
+                memory_utils = []
                 
-                logger.info(f"🔍 GAP CALCULATION: Node {node_name} - CPU: {cpu_val}%, Memory: {memory_val}%")
+                for i, node in enumerate(nodes):
+                    cpu_val = ensure_numeric(node.get('cpu_usage_pct', 0))
+                    memory_val = ensure_numeric(node.get('memory_usage_pct', 0))
+                    node_name = node.get('name', f'node-{i}')
+                    
+                    logger.info(f"🔍 GAP CALCULATION: Node {node_name} - CPU: {cpu_val}%, Memory: {memory_val}%")
+                    
+                    # Validate reasonable ranges
+                    if 0 <= cpu_val <= 100:
+                        cpu_utils.append(cpu_val)
+                    if 0 <= memory_val <= 100:
+                        memory_utils.append(memory_val)
                 
-                # Validate reasonable ranges
-                if 0 <= cpu_val <= 100:
-                    cpu_utils.append(cpu_val)
-                if 0 <= memory_val <= 100:
-                    memory_utils.append(memory_val)
-            
-            # Calculate statistical metrics
-            if not cpu_utils:
-                logger.error("❌ GAP CALCULATION CRITICAL: No valid CPU utilization data found!")
-                raise ValueError("No valid CPU utilization data found for gap calculation")
-            
-            if not memory_utils:
-                logger.error("❌ GAP CALCULATION CRITICAL: No valid memory utilization data found!")
-                raise ValueError("No valid memory utilization data found for gap calculation")
-            
-            avg_cpu = safe_mean(cpu_utils)
-            avg_memory = safe_mean(memory_utils)
-            cpu_std = safe_stdev(cpu_utils) if len(cpu_utils) > 1 else 10.0
-            memory_std = safe_stdev(memory_utils) if len(memory_utils) > 1 else 15.0
+                # Calculate statistical metrics
+                if not cpu_utils:
+                    logger.error("❌ GAP CALCULATION CRITICAL: No valid CPU utilization data found!")
+                    raise ValueError("No valid CPU utilization data found for gap calculation")
+                
+                if not memory_utils:
+                    logger.error("❌ GAP CALCULATION CRITICAL: No valid memory utilization data found!")
+                    raise ValueError("No valid memory utilization data found for gap calculation")
+                
+                avg_cpu = safe_mean(cpu_utils)
+                avg_memory = safe_mean(memory_utils)
+                cpu_std = safe_stdev(cpu_utils) if len(cpu_utils) > 1 else 10.0
+                memory_std = safe_stdev(memory_utils) if len(memory_utils) > 1 else 15.0
             
             logger.info(f"🔍 GAP CALCULATION: Calculated metrics - Avg CPU: {avg_cpu:.1f}%, Avg Memory: {avg_memory:.1f}%")
             logger.info(f"🔍 GAP CALCULATION: Variability - CPU std: {cpu_std:.1f}, Memory std: {memory_std:.1f}")
@@ -3263,7 +3243,8 @@ class CurrentUsageAnalysisAlgorithm:
                 # PERFORMANCE-COST INTEGRATION: Add high CPU workload data
                 'high_cpu_workloads': all_high_cpu,
                 'high_cpu_count': len(all_high_cpu),
-                'max_workload_cpu_utilization': self._extract_max_cpu_from_workloads(all_high_cpu) if all_high_cpu else 0
+                'max_workload_cpu_utilization': self._extract_max_cpu_from_workloads(all_high_cpu) if all_high_cpu else 0,
+                'peak_cpu_utilization': self._extract_max_cpu_from_workloads(all_high_cpu) if all_high_cpu else 0  # FIX: Map max to peak for API compatibility
             }
             
             logger.info(f"✅ GAP CALCULATION: Current usage analysis completed successfully")

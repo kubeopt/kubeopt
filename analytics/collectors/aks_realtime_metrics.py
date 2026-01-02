@@ -348,13 +348,29 @@ class AKSRealTimeMetricsFetcher:
                 memory_allocatable = self.parser.parse_memory_safe(allocatable.get('memory', '0Ki'))
                 
                 # Get actual usage
-                usage = node_usage.get(node_name, {})
-                cpu_usage_cores = usage.get('cpu_usage_cores', cpu_allocatable * 0.35)
-                memory_usage_bytes = usage.get('memory_usage_bytes', memory_allocatable * 0.60)
+                # NO FALLBACKS ALLOWED per .clauderc - Validate real metrics data
+                if node_name not in node_usage:
+                    raise ValueError(f"Node usage metrics missing for {node_name}. "
+                                   f"Real-time metrics collection must succeed before analysis. "
+                                   f"Check cluster connectivity and monitoring setup.")
                 
-                # Calculate usage percentages
-                cpu_usage_pct = (cpu_usage_cores / cpu_allocatable * 100) if cpu_allocatable > 0 else 35.0
-                memory_usage_pct = (memory_usage_bytes / memory_allocatable * 100) if memory_allocatable > 0 else 60.0
+                usage = node_usage[node_name]
+                if 'cpu_usage_cores' not in usage or 'memory_usage_bytes' not in usage:
+                    raise ValueError(f"Incomplete usage data for node {node_name}. "
+                                   f"Required metrics (cpu_usage_cores, memory_usage_bytes) not available.")
+                
+                cpu_usage_cores = usage['cpu_usage_cores']
+                memory_usage_bytes = usage['memory_usage_bytes']
+                
+                # Validate allocatable values before calculation
+                if cpu_allocatable <= 0:
+                    raise ValueError(f"Invalid CPU allocatable {cpu_allocatable} for node {node_name}")
+                if memory_allocatable <= 0:
+                    raise ValueError(f"Invalid memory allocatable {memory_allocatable} for node {node_name}")
+                
+                # Calculate usage percentages from validated real data
+                cpu_usage_pct = (cpu_usage_cores / cpu_allocatable * 100)
+                memory_usage_pct = (memory_usage_bytes / memory_allocatable * 100)
                 
                 # NEW: Calculate request percentages from actual pod data
                 node_pod_data = pod_resources.get(node_name, {})
@@ -415,6 +431,9 @@ class AKSRealTimeMetricsFetcher:
                 'nodes_with_real_requests': sum(1 for n in node_metrics if n['has_real_requests']),
                 'average_cpu_usage': round(sum(n['cpu_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
                 'average_memory_usage': round(sum(n['memory_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
+                # FIX: Map real metrics to expected field names for analysis flow
+                'avg_cpu_utilization': round(sum(n['cpu_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
+                'avg_memory_utilization': round(sum(n['memory_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
                 'average_cpu_requests': round(sum(n['cpu_request_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
                 'average_memory_requests': round(sum(n['memory_request_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
                 'timestamp': datetime.now().isoformat(),
@@ -918,20 +937,26 @@ class AKSRealTimeMetricsFetcher:
                 cpu_allocatable = self.parser.parse_cpu_safe(allocatable.get('cpu', '0'))
                 memory_allocatable = self.parser.parse_memory_safe(allocatable.get('memory', '0Ki'))
                 
-                # Get usage data or use estimates
-                if node_name in node_usage:
-                    usage = node_usage[node_name]
-                    cpu_usage_pct = (usage['cpu_usage_cores'] / cpu_allocatable * 100) if cpu_allocatable > 0 else 0
-                    memory_usage_pct = (usage['memory_usage_bytes'] / memory_allocatable * 100) if memory_allocatable > 0 else 0
-                else:
-                    # Realistic estimates when metrics unavailable
-                    logger.warning(f"⚠️ No usage data for {node_name}, using estimates")
-                    cpu_usage_pct = 35.0
-                    memory_usage_pct = 60.0
-                    usage = {
-                        'cpu_usage_cores': cpu_allocatable * 0.35,
-                        'memory_usage_bytes': int(memory_allocatable * 0.60)
-                    }
+                # Get usage data - NO FALLBACKS ALLOWED per .clauderc
+                if node_name not in node_usage:
+                    raise ValueError(f"Real-time metrics collection failed for node {node_name}. "
+                                   f"Cannot proceed with analysis without accurate utilization data. "
+                                   f"Check kubectl access and node monitoring setup.")
+                
+                usage = node_usage[node_name]
+                if not usage or 'cpu_usage_cores' not in usage or 'memory_usage_bytes' not in usage:
+                    raise ValueError(f"Incomplete metrics data for node {node_name}. "
+                                   f"Missing required fields: cpu_usage_cores, memory_usage_bytes. "
+                                   f"Ensure node metrics collection is functioning properly.")
+                
+                # Calculate usage percentages from real data only
+                if cpu_allocatable <= 0:
+                    raise ValueError(f"Invalid CPU allocatable value {cpu_allocatable} for node {node_name}")
+                if memory_allocatable <= 0:
+                    raise ValueError(f"Invalid memory allocatable value {memory_allocatable} for node {node_name}")
+                
+                cpu_usage_pct = (usage['cpu_usage_cores'] / cpu_allocatable * 100)
+                memory_usage_pct = (usage['memory_usage_bytes'] / memory_allocatable * 100)
                 
                 # Get node status
                 conditions = node['status'].get('conditions', [])
@@ -961,6 +986,9 @@ class AKSRealTimeMetricsFetcher:
                 'ready_nodes': sum(1 for n in node_metrics if n['ready']),
                 'average_cpu_usage': round(sum(n['cpu_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
                 'average_memory_usage': round(sum(n['memory_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
+                # FIX: Map real metrics to expected field names for analysis flow
+                'avg_cpu_utilization': round(sum(n['cpu_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
+                'avg_memory_utilization': round(sum(n['memory_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
                 'timestamp': datetime.now().isoformat(),
                 'data_source': 'kubectl_enhanced'
             }
