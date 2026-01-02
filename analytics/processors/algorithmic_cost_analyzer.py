@@ -1305,7 +1305,7 @@ class ConsistentCostAnalyzer:
             raise RuntimeError(f"Required scoring components failed to initialize: {e}")
         
         # Standards provider using AKS scorer for YAML access
-        self.standards = OfficialAKSStandardsProxy(self.aks_scorer)
+        self.standards = self.aks_scorer  # Use scorer directly for standards access
         
         self.algorithms = {
             'current_usage_analyzer': CurrentUsageAnalysisAlgorithm(self.aks_scorer),

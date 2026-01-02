@@ -456,10 +456,14 @@ def generate_dynamic_hpa_comparison(analysis_data):
     if total_cost <= 0:
         raise ValueError("Invalid total cost data")
     
-    # Extract HPA efficiency from REAL sources
+    # Extract HPA efficiency from REAL sources - per .clauderc, validate data exists
     hpa_efficiency = _extract_hpa_efficiency(analysis_data, hpa_recommendations)
-    if hpa_efficiency <= 0:
-        raise ValueError("Invalid HPA efficiency data")
+    if hpa_efficiency is None:
+        raise ValueError("No HPA efficiency data found in analysis results - HPA calculation failed")
+    
+    # Per .clauderc: 0% efficiency is valid real data (HPAs not performing well)
+    if not isinstance(hpa_efficiency, (int, float)):
+        raise TypeError(f"HPA efficiency must be numeric, got {type(hpa_efficiency)}: {hpa_efficiency}")
     
     # Extract CPU workload data from REAL sources
     cpu_workload_data = _extract_cpu_workload_data(analysis_data)
@@ -708,8 +712,8 @@ def _extract_cpu_workload_data(analysis_data):
     return cpu_workload_data
 
 def _extract_hpa_efficiency(analysis_data, hpa_recommendations):
-    """Extract HPA efficiency from REAL sources ONLY"""
-    hpa_efficiency = 0.0
+    """Extract HPA efficiency from REAL sources ONLY - per .clauderc standards"""
+    hpa_efficiency = None
     
     efficiency_sources = [
         analysis_data.get('hpa_efficiency'),
@@ -720,12 +724,12 @@ def _extract_hpa_efficiency(analysis_data, hpa_recommendations):
     ]
     
     for eff_val in efficiency_sources:
-        if eff_val is not None and eff_val > 0:
+        if eff_val is not None:  # Accept any numeric value including 0 (per .clauderc - real data)
             hpa_efficiency = ensure_float(eff_val)
             logger.info(f"✅ Found HPA efficiency: {hpa_efficiency:.1f}%")
             break
     
-    if hpa_efficiency == 0.0:
+    if hpa_efficiency is None:
         # STANDARDS-BASED: Use international standards framework
         standards_savings = extract_standards_based_savings(analysis_data)
         actual_core_savings = standards_savings['core_optimization_savings']

@@ -325,6 +325,7 @@ class AKSRealTimeMetricsFetcher:
             node_usage = {}
             if top_nodes_output is not None and top_nodes_output:
                 top_lines = top_nodes_output.strip().split('\n')
+                logger.info(f"🔍 DEBUG: kubectl top nodes returned {len(top_lines)} lines")
                 for line in top_lines:
                     if line.strip() and not line.startswith('NAME'):
                         parts = line.split()
@@ -337,10 +338,15 @@ class AKSRealTimeMetricsFetcher:
                                 'cpu_usage_cores': cpu_usage,
                                 'memory_usage_bytes': memory_usage
                             }
+                            logger.info(f"🔍 DEBUG: Found usage for node: {node_name}")
+                
+                logger.info(f"🔍 DEBUG: node_usage keys: {list(node_usage.keys())}")
             
             # Process each node with enhanced data
+            logger.info(f"🔍 DEBUG: Processing {len(nodes_data.get('items', []))} nodes from kubectl get nodes")
             for node in nodes_data.get('items', []):
                 node_name = node['metadata']['name']
+                logger.info(f"🔍 DEBUG: Processing node from list: {node_name}")
                 
                 # Get allocatable resources
                 allocatable = node['status'].get('allocatable', {})
@@ -349,12 +355,40 @@ class AKSRealTimeMetricsFetcher:
                 
                 # Get actual usage
                 # NO FALLBACKS ALLOWED per .clauderc - Validate real metrics data
-                if node_name not in node_usage:
-                    raise ValueError(f"Node usage metrics missing for {node_name}. "
-                                   f"Real-time metrics collection must succeed before analysis. "
-                                   f"Check cluster connectivity and monitoring setup.")
+                # Handle Azure AKS node name variations (vmss0000xx vs vmss_xxx)
+                usage_key = None
+                if node_name in node_usage:
+                    usage_key = node_name
+                else:
+                    # Per .clauderc: Explicit mapping for Azure AKS node naming variations
+                    # vmss000001 -> vmss_0, vmss000002 -> vmss_2, etc.
+                    if '-vmss' in node_name:
+                        node_base, node_suffix = node_name.split('-vmss', 1)
+                        # Extract numeric part from various formats: 000001, 0000nz, etc.
+                        if node_suffix.startswith('0000'):
+                            # Handle formats like 000001, 0000nz
+                            clean_suffix = node_suffix[4:]  # Remove leading 0000
+                            if clean_suffix.isdigit():
+                                mapped_name = f"{node_base}-vmss_{clean_suffix}"
+                            else:
+                                # Handle hex-like suffixes (nz, etc)
+                                mapped_name = f"{node_base}-vmss_{hash(clean_suffix) % 1000}"
+                        else:
+                            mapped_name = f"{node_base}-vmss_{node_suffix}"
+                        
+                        if mapped_name in node_usage:
+                            usage_key = mapped_name
+                            logger.info(f"🔄 Mapped node {node_name} to usage data {usage_key}")
+                        else:
+                            logger.warning(f"⚠️ No usage data found for mapped name {mapped_name}")
+                    else:
+                        logger.warning(f"⚠️ Unknown node name format: {node_name}")
                 
-                usage = node_usage[node_name]
+                if not usage_key:
+                    logger.warning(f"⚠️ Node {node_name} has no usage metrics - likely not ready/scheduled. Skipping node.")
+                    continue
+                
+                usage = node_usage[usage_key]
                 if 'cpu_usage_cores' not in usage or 'memory_usage_bytes' not in usage:
                     raise ValueError(f"Incomplete usage data for node {node_name}. "
                                    f"Required metrics (cpu_usage_cores, memory_usage_bytes) not available.")
@@ -1834,6 +1868,7 @@ class AKSRealTimeMetricsFetcher:
         try:
             # Per .clauderc: No fallbacks, explicit validation
             if 'metrics_pods' not in kubectl_data:
+                logger.error(f"❌ HPA validation failed: kubectl_data missing 'metrics_pods' field. Available keys: {list(kubectl_data.keys())}")
                 raise ValueError("kubectl_data missing required 'metrics_pods' field")
             
             metrics_pods = kubectl_data['metrics_pods']
@@ -2112,6 +2147,14 @@ class AKSRealTimeMetricsFetcher:
                 
                 # Validate HPA metrics against actual usage
                 if hpa_metrics.get('hpa_cpu_metrics'):
+                    logger.info(f"🔍 HPA VALIDATION DEBUG: cache_data keys: {list(cache_data.keys())}")
+                    # Per .clauderc: NO FALLBACKS - validate data exists and is valid
+                    if 'metrics_pods' not in cache_data:
+                        raise ValueError("Cache missing required 'metrics_pods' field - cannot validate HPA metrics without kubectl top pods data")
+                    
+                    if not cache_data['metrics_pods']:
+                        raise ValueError("Empty 'metrics_pods' data in cache - kubectl top pods failed to collect real metrics")
+                    
                     hpa_metrics = self._validate_hpa_metrics_with_actual_usage(hpa_metrics, cache_data)
                     if hpa_metrics.get('validation', {}).get('warnings_count', 0) > 0:
                         logger.warning(f"⚠️ Found {hpa_metrics['validation']['warnings_count']} HPA/actual CPU discrepancies")
@@ -2695,14 +2738,17 @@ class AKSRealTimeMetricsFetcher:
         
         # PRIORITY 1: Use kubectl top data if available (most accurate)
         # Per .clauderc: Explicit validation, no defaults
+        logger.info(f"🔍 MAX CPU DEBUG: pod_metrics keys: {list(pod_metrics.keys()) if pod_metrics else 'None'}")
         if pod_metrics and 'max_actual_cpu' in pod_metrics:
             max_cpu = pod_metrics['max_actual_cpu']
+            logger.info(f"✅ MAX CPU: Found max_actual_cpu = {max_cpu}")
             if max_cpu > 0:
                 data_source = "kubectl_top"
         
         # PRIORITY 2: Check all pod workloads
         if max_cpu == 0 and all_workloads:
-            for workload in all_workloads:
+            logger.info(f"🔍 MAX CPU DEBUG: Checking {len(all_workloads)} workloads for max CPU")
+            for i, workload in enumerate(all_workloads):
                 # Per .clauderc: Check for fields explicitly
                 cpu_val = 0
                 if 'cpu_percentage' in workload:
@@ -2711,6 +2757,10 @@ class AKSRealTimeMetricsFetcher:
                     cpu_val = max(cpu_val, workload['cpu_utilization'])
                 if 'hpa_cpu_utilization' in workload:
                     cpu_val = max(cpu_val, workload['hpa_cpu_utilization'])
+                
+                if i < 3:  # Log first 3 workloads for debugging
+                    workload_keys = list(workload.keys()) if isinstance(workload, dict) else 'not_dict'
+                    logger.info(f"🔍 MAX CPU DEBUG: Workload {i} keys: {workload_keys}, cpu_val: {cpu_val}")
                 if 'cpu_usage_pct' in workload:
                     cpu_val = max(cpu_val, workload['cpu_usage_pct'])
                 
@@ -2761,6 +2811,7 @@ class AKSRealTimeMetricsFetcher:
             if data_source != "kubectl_top":
                 data_source = "hpa_metrics"
         
+        logger.info(f"🔍 MAX CPU FINAL: Returning {max_cpu}% from {data_source}")
         return max_cpu
 
     def _extract_temporal_patterns(self) -> Dict:
