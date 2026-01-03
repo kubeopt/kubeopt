@@ -1128,12 +1128,13 @@ class EnhancedDynamicCostDistributionEngine:
                 logger.debug(f"✅ Found CPU allocation for {node_name}: {cpu_value}")
                 return cpu_value
             
-            logger.warning(f"⚠️ Could not detect CPU for {node_name}, using default 4")
-            return '4'
+            logger.error(f"❌ Could not detect CPU for {node_name}")
+            # Per .clauderc: No defaults - fail explicitly
+            raise ValueError(f"Unable to determine CPU capacity for node {node_name}")
             
         except Exception as e:
             logger.error(f"❌ Failed to get dynamic CPU for {node_name}: {e}")
-            return '4'
+            raise ValueError(f"Failed to get CPU capacity for node {node_name}: {e}")
     
     def _get_dynamic_node_memory(self, node_name: str) -> str:
         """Get actual node memory capacity dynamically"""
@@ -1156,12 +1157,13 @@ class EnhancedDynamicCostDistributionEngine:
                     logger.debug(f"✅ Found memory allocation for {node_name}: {memory_value}")
                     return memory_value
             
-            logger.warning(f"⚠️ Could not detect memory for {node_name}, using default 16Gi")
-            return '16Gi'
+            logger.error(f"❌ Could not detect memory for {node_name}")
+            # Per .clauderc: No defaults - fail explicitly
+            raise ValueError(f"Unable to determine memory capacity for node {node_name}")
             
         except Exception as e:
             logger.error(f"❌ Failed to get dynamic memory for {node_name}: {e}")
-            return '16Gi'
+            raise ValueError(f"Failed to get memory capacity for node {node_name}: {e}")
 
     def _get_dynamic_storage_class(self) -> str:
         """Get the default/preferred storage class dynamically from the cluster - cached"""

@@ -1631,6 +1631,8 @@ class KubernetesDataCache:
         return {
             'node_usage': self.get('node_usage') or "",  # Text - kubectl top nodes
             'pod_usage': self.get('pod_usage') or "",  # Text - kubectl top pods 
+            'metrics_pods': self.get('metrics_pods') or "",  # Text - kubectl top pods --all-namespaces
+            'metrics_nodes': self.get('metrics_nodes') or "",  # Text - kubectl top nodes
             'nodes': self.get('nodes') or {"items": []},  # JSON - nodes data
             'nodes_text': self.get('nodes_text') or "",  # Text fallback
             'pod_resources': self.get('pod_resources') or "",  # Text - custom columns

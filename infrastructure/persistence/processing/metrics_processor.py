@@ -163,8 +163,38 @@ def process_monitor_metrics(metrics, resource_group, cluster_name):
                 
                 if cpu_values is not None and cpu_values:
                     avg_cpu_millicores = safe_mean(cpu_values)
-                    # Convert millicores to percentage (typical AKS node has 4 vCPUs = 4000 millicores)
-                    node_capacity_millicores = 4000  # Can be adjusted based on node size
+                    # Get actual node CPU capacity from cache
+                    try:
+                        from shared.kubernetes_data_cache import kubernetes_data_cache
+                        cache_data = kubernetes_data_cache.get_resource_usage_data()
+                        nodes_data = cache_data.get('nodes', {})
+                        
+                        node_capacity_millicores = 0
+                        if 'items' in nodes_data and nodes_data['items']:
+                            total_cpu = 0
+                            count = 0
+                            for node in nodes_data['items']:
+                                capacity = node.get('status', {}).get('capacity', {})
+                                cpu_str = capacity.get('cpu', '')
+                                if cpu_str:
+                                    # Parse CPU (can be integer cores or with 'm' suffix)
+                                    if cpu_str.endswith('m'):
+                                        cpu_millicores = int(cpu_str[:-1])
+                                    else:
+                                        cpu_millicores = int(cpu_str) * 1000
+                                    if cpu_millicores > 0:
+                                        total_cpu += cpu_millicores
+                                        count += 1
+                            if count > 0:
+                                node_capacity_millicores = total_cpu / count
+                        
+                        if node_capacity_millicores <= 0:
+                            raise ValueError("No valid node CPU capacity found")
+                            
+                    except Exception as e:
+                        logger.error(f"Failed to get node CPU capacity: {e}")
+                        raise ValueError(f"Cannot determine node CPU capacity: {e}")
+                    
                     avg_cpu_percentage = min(100, (avg_cpu_millicores / node_capacity_millicores) * 100)
                     
                     real_cpu_data.append({
@@ -207,8 +237,34 @@ def process_monitor_metrics(metrics, resource_group, cluster_name):
                 
                 if memory_values is not None and memory_values:
                     avg_memory_bytes = safe_mean(memory_values)
-                    # Convert bytes to percentage (typical AKS node has 16GB = 16*1024^3 bytes)
-                    node_capacity_bytes = 16 * 1024 * 1024 * 1024  # 16GB
+                    # Get actual node capacity from cache
+                    try:
+                        from shared.kubernetes_data_cache import kubernetes_data_cache
+                        cache_data = kubernetes_data_cache.get_resource_usage_data()
+                        nodes_data = cache_data.get('nodes', {})
+                        
+                        node_capacity_bytes = 0
+                        if 'items' in nodes_data and nodes_data['items']:
+                            total_memory = 0
+                            count = 0
+                            for node in nodes_data['items']:
+                                capacity = node.get('status', {}).get('capacity', {})
+                                mem_str = capacity.get('memory', '')
+                                if mem_str and mem_str.endswith('Ki'):
+                                    memory_bytes = int(mem_str[:-2]) * 1024
+                                    if memory_bytes > 0:
+                                        total_memory += memory_bytes
+                                        count += 1
+                            if count > 0:
+                                node_capacity_bytes = total_memory / count
+                        
+                        if node_capacity_bytes <= 0:
+                            raise ValueError("No valid node memory capacity found")
+                            
+                    except Exception as e:
+                        logger.error(f"Failed to get node memory capacity: {e}")
+                        raise ValueError(f"Cannot determine node memory capacity: {e}")
+                    
                     avg_memory_percentage = min(100, (avg_memory_bytes / node_capacity_bytes) * 100)
                     
                     real_memory_data.append({

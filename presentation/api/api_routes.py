@@ -1657,7 +1657,7 @@ def register_api_routes(app):
                 'high_cpu_workloads': analysis_data.get('high_cpu_workloads', 0),
                 'total_pods': analysis_data.get('total_pods', 0),
                 'monthly_cost': analysis_data.get('total_cost', 0),
-                'optimization_potential_pct': analysis_data.get('cpu_optimization_potential_pct', 0),
+                'optimization_potential_pct': analysis_data.get('cpu_gap', 0),
                 'critical_alerts': analysis_data.get('critical_alerts', 0),
                 'nodes_count': len(analysis_data.get('nodes', []))
             }
@@ -1757,7 +1757,7 @@ def register_api_routes(app):
                 'high_cpu_workloads': analysis_data.get('high_cpu_workloads', 0),
                 'total_pods': analysis_data.get('total_pods', 0),
                 'monthly_cost': analysis_data.get('total_cost', 0),
-                'optimization_potential_pct': analysis_data.get('cpu_optimization_potential_pct', 0),
+                'optimization_potential_pct': analysis_data.get('cpu_gap', 0),
                 'critical_alerts': analysis_data.get('critical_alerts', 0),
                 'nodes_count': len(analysis_data.get('nodes', []))
             }
@@ -1830,7 +1830,7 @@ def register_api_routes(app):
                 total_pods=analysis_data.get('total_pods', 0),
                 nodes_count=len(analysis_data.get('nodes', [])),
                 monthly_cost=analysis_data.get('total_cost', 0),
-                optimization_potential_pct=analysis_data.get('cpu_optimization_potential_pct', 0),
+                optimization_potential_pct=analysis_data.get('cpu_gap', 0),
                 critical_alerts=analysis_data.get('critical_alerts', 0),
                 report_timestamp=datetime.now()
             )

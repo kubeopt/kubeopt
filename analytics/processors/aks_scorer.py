@@ -97,6 +97,29 @@ class AKSScorer:
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
         logger.info("✅ AKS Scorer initialized with configuration")
+    
+    def get_target(self, target_name: str) -> Any:
+        """Get target values from configuration
+        
+        Args:
+            target_name: Name of the target (e.g., 'cpu_warm_band', 'cpu_cold_band')
+            
+        Returns:
+            Target value from config, or raises ValueError if not found
+        """
+        # Check in targets section first
+        targets = self.cfg.get('targets', {})
+        if target_name in targets:
+            return targets[target_name]
+        
+        # Check in official_standards for broader standards
+        standards = self.cfg.get('official_standards', {})
+        for category in standards.values():
+            if target_name in category:
+                return category[target_name]
+        
+        # If not found, raise error per .clauderc
+        raise ValueError(f"Target '{target_name}' not found in configuration")
 
     @staticmethod
     def from_yaml(path: str) -> "AKSScorer":
@@ -1380,9 +1403,9 @@ class AKSScorer:
             logger.info(f"🌍 Using regional pay-as-you-go pricing for {region}: ${regional_price}/GB")
             return regional_price
         
-        default_price = 2.76  # Azure East US baseline
-        logger.warning(f"⚠️ Using default Log Analytics pricing: ${default_price}/GB")
-        return default_price
+        # Per .clauderc: No defaults - require actual pricing data
+        logger.error("❌ Unable to determine Log Analytics pricing for region")
+        raise ValueError(f"Log Analytics pricing data not available for region: {region}")
 
     def _get_compute_details(self, metrics: Dict[str, Any], cfg: Dict[str, Any]) -> Dict[str, Any]:
         """Get detailed compute efficiency breakdown"""

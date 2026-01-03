@@ -160,11 +160,9 @@ class AzureMetricCollector:
                             if node_metrics["memory_available_bytes"]:
                                 node_metrics["memory_percent"] = ((estimated_total - node_metrics["memory_available_bytes"]) / estimated_total) * 100
                         except ValueError:
-                            # If VM size unknown, use default estimate
-                            if node_metrics["memory_available_bytes"]:
-                                estimated_total = 16 * 1024 * 1024 * 1024  # 16GB default
-                                node_metrics["memory_total_bytes"] = estimated_total
-                                node_metrics["memory_percent"] = ((estimated_total - node_metrics["memory_available_bytes"]) / estimated_total) * 100
+                            # Per .clauderc: No fallback values - require real data
+                            logger.error(f"Cannot determine memory capacity for VM size {vm_size}")
+                            raise ValueError(f"Unknown VM size {vm_size} - cannot determine memory capacity")
                     
                     nodes_data.append(node_metrics)
                     

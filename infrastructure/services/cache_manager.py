@@ -308,9 +308,9 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
     logger.info(f"💾 CACHE SAVE: Validating data for {cache_key}")
     
     # 🔍 CACHE SAVE: Log gap data before caching
-    # FIX: Check for gaps under multiple possible names
-    cpu_gap = complete_analysis_data.get('cpu_gap') or complete_analysis_data.get('cpu_optimization_potential_pct')
-    memory_gap = complete_analysis_data.get('memory_gap') or complete_analysis_data.get('memory_optimization_potential_pct')
+    # Use standardized field names
+    cpu_gap = complete_analysis_data.get('cpu_gap')
+    memory_gap = complete_analysis_data.get('memory_gap')
     
     # Calculate if missing
     if not cpu_gap and 'avg_cpu_utilization' in complete_analysis_data:
@@ -512,8 +512,8 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         
         # Preserve gap data for rightsizing insights
         # CRITICAL: Ensure gaps are always present
-        'cpu_gap': complete_analysis_data.get('cpu_gap') or complete_analysis_data.get('cpu_optimization_potential_pct', 0),
-        'memory_gap': complete_analysis_data.get('memory_gap') or complete_analysis_data.get('memory_optimization_potential_pct', 0),
+        'cpu_gap': complete_analysis_data.get('cpu_gap', 0),
+        'memory_gap': complete_analysis_data.get('memory_gap', 0),
         
         # Preserve current utilization data for enterprise metrics API
         'current_cpu_utilization': complete_analysis_data.get('current_cpu_utilization'),

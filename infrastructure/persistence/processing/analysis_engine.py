@@ -1319,9 +1319,20 @@ class MultiSubscriptionAnalysisEngine:
                 namespace_costs = pod_data.get('namespace_costs', {})
                 logger.info(f"🔍 {cluster_id}: Found namespace costs for {len(namespace_costs)} namespaces")
                 
-                # For now, use namespace cost allocation as workload cost estimate
-                # TODO: Implement proper pod-to-deployment aggregation
+                # Aggregate pod costs to deployment level
                 pod_costs = pod_data.get('workload_costs', {})
+                deployment_costs = {}
+                for pod_name, pod_cost in pod_costs.items():
+                    # Extract deployment name from pod name (pods typically have format: deployment-name-xxxxx-xxxxx)
+                    parts = pod_name.rsplit('-', 2)  # Split from right to handle deployment names with dashes
+                    if len(parts) >= 3:
+                        deployment_name = '-'.join(parts[:-2])
+                    else:
+                        deployment_name = pod_name  # Use full pod name if pattern doesn't match
+                    
+                    if deployment_name not in deployment_costs:
+                        deployment_costs[deployment_name] = 0
+                    deployment_costs[deployment_name] += pod_cost
                 logger.info(f"🔍 {cluster_id}: Found pod costs for {len(pod_costs)} pods (not yet aggregated)")
             
             for workload in all_workloads:
@@ -1336,10 +1347,14 @@ class MultiSubscriptionAnalysisEngine:
                     logger.warning(f"⚠️ Skipping workload without required fields: name={workload_name}, namespace={namespace}")
                     continue
                 
-                # Get cost estimate using namespace allocation as interim solution
-                # TODO: Replace with proper deployment-level cost aggregation
+                # Get cost from deployment-level aggregation
                 workload_key = f"{namespace}/{workload_name}"
                 monthly_cost = 0
+                
+                # Check deployment costs first
+                if workload_name in deployment_costs:
+                    monthly_cost = deployment_costs[workload_name]
+                    logger.debug(f"Found deployment cost for {workload_name}: ${monthly_cost:.2f}")
                 
                 # Try workload-specific cost first (if available)
                 workload_cost_data = workload_costs.get(workload_key, {})
