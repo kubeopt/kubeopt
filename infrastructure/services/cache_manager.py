@@ -308,14 +308,26 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
     logger.info(f"💾 CACHE SAVE: Validating data for {cache_key}")
     
     # 🔍 CACHE SAVE: Log gap data before caching
-    cpu_gap = complete_analysis_data.get('cpu_gap', 'NOT_FOUND')
-    memory_gap = complete_analysis_data.get('memory_gap', 'NOT_FOUND')
+    # FIX: Check for gaps under multiple possible names
+    cpu_gap = complete_analysis_data.get('cpu_gap') or complete_analysis_data.get('cpu_optimization_potential_pct')
+    memory_gap = complete_analysis_data.get('memory_gap') or complete_analysis_data.get('memory_optimization_potential_pct')
+    
+    # Calculate if missing
+    if not cpu_gap and 'avg_cpu_utilization' in complete_analysis_data:
+        cpu_gap = max(0, 70 - complete_analysis_data['avg_cpu_utilization'])
+    if not memory_gap and 'avg_memory_utilization' in complete_analysis_data:
+        memory_gap = max(0, 75 - complete_analysis_data['avg_memory_utilization'])
     logger.info(f"🔍 CACHE SAVE: About to cache CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
-    # Debug: Check if breakdown data exists before caching
-    build_breakdown = complete_analysis_data.get('build_quality_breakdown', 'MISSING')
-    cost_breakdown = complete_analysis_data.get('cost_excellence_breakdown', 'MISSING')
-    logger.info(f"🔍 CACHE SAVE: build_quality_breakdown = {build_breakdown}")
-    logger.info(f"🔍 CACHE SAVE: cost_excellence_breakdown = {cost_breakdown}")
+    # Validate breakdown data exists (per .clauderc: log but don't fail - data will be generated)
+    if 'build_quality_breakdown' not in complete_analysis_data:
+        logger.warning("⚠️ CACHE SAVE: build_quality_breakdown missing from analysis data - scorer pipeline will generate")
+    if 'cost_excellence_breakdown' not in complete_analysis_data:
+        logger.warning("⚠️ CACHE SAVE: cost_excellence_breakdown missing from analysis data - scorer pipeline will generate")
+    
+    build_breakdown = complete_analysis_data.get('build_quality_breakdown', {})
+    cost_breakdown = complete_analysis_data.get('cost_excellence_breakdown', {})
+    logger.info(f"🔍 CACHE SAVE: build_quality_breakdown = {type(build_breakdown).__name__} with {len(build_breakdown) if isinstance(build_breakdown, dict) else 'invalid'} items")
+    logger.info(f"🔍 CACHE SAVE: cost_excellence_breakdown = {type(cost_breakdown).__name__} with {len(cost_breakdown) if isinstance(cost_breakdown, dict) else 'invalid'} items")
     #logger.info(f"🔍 CACHE SAVE: Analysis data keys: {list(complete_analysis_data.keys())}")
     
     try:
@@ -499,8 +511,9 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'hpa_reduction': complete_analysis_data.get('hpa_reduction'),
         
         # Preserve gap data for rightsizing insights
-        'cpu_gap': complete_analysis_data.get('cpu_gap'),
-        'memory_gap': complete_analysis_data.get('memory_gap'),
+        # CRITICAL: Ensure gaps are always present
+        'cpu_gap': complete_analysis_data.get('cpu_gap') or complete_analysis_data.get('cpu_optimization_potential_pct', 0),
+        'memory_gap': complete_analysis_data.get('memory_gap') or complete_analysis_data.get('memory_optimization_potential_pct', 0),
         
         # Preserve current utilization data for enterprise metrics API
         'current_cpu_utilization': complete_analysis_data.get('current_cpu_utilization'),

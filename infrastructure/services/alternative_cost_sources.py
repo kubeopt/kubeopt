@@ -100,7 +100,9 @@ class AlternativeCostSources:
                 cost_breakdown['network'] = network_cost
             
             # Add baseline AKS management cost ($0.10 per hour per cluster)
-            aks_management = 0.10 * 24 * 30  # Monthly
+            # Use standard monthly hours
+            from shared.standards.cost_optimization_standards import CostCalculationStandards
+            aks_management = 0.10 * CostCalculationStandards.MONTHLY_HOURS  # Monthly
             total_cost += aks_management
             cost_breakdown['aks_management'] = aks_management
             
@@ -128,8 +130,9 @@ class AlternativeCostSources:
             # Get hourly rate
             hourly_rate = self.vm_pricing.get(vm_size, 0.096)  # Default to D2s_v3
             
-            # Calculate monthly cost (24 hours * 30 days)
-            monthly_cost_per_node = hourly_rate * 24 * 30
+            # Calculate monthly cost using standard hours
+            from shared.standards.cost_optimization_standards import CostCalculationStandards
+            monthly_cost_per_node = hourly_rate * CostCalculationStandards.MONTHLY_HOURS
             node_group_cost = monthly_cost_per_node * node_count
             
             total_compute_cost += node_group_cost
@@ -284,7 +287,8 @@ class AlternativeCostSources:
             node_count = cluster_data.get('node_count', 3)
             
             # Assume average D4s_v3 instances
-            compute_cost = node_count * self.vm_pricing['Standard_D4s_v3'] * 24 * 30
+            from shared.standards.cost_optimization_standards import CostCalculationStandards
+            compute_cost = node_count * self.vm_pricing['Standard_D4s_v3'] * CostCalculationStandards.MONTHLY_HOURS
             
             # Assume 200GB storage per node
             storage_cost = node_count * 200 * self.storage_pricing['StandardSSD_LRS']

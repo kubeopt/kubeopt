@@ -698,10 +698,15 @@ def _extract_cpu_workload_data(analysis_data):
     # Calculate CPU efficiency directly from available CPU data
     if cpu_workload_data['average_cpu_utilization'] > 0:
         avg_cpu = cpu_workload_data['average_cpu_utilization']
-        optimal_cpu = 70
+        
+        # Per .clauderc: Use scoring standards instead of hardcoded values
+        from shared.standards.performance_standards import SystemPerformanceStandards
+        optimal_cpu = SystemPerformanceStandards.CPU_UTILIZATION_OPTIMAL  # 70% from standards
+        low_cpu_threshold = optimal_cpu * 0.3  # 21% - Low CPU threshold (30% of optimal)
+        
         if avg_cpu <= optimal_cpu:
             base_efficiency = avg_cpu / optimal_cpu
-            if avg_cpu <= 35:
+            if avg_cpu <= low_cpu_threshold:
                 cpu_workload_data['cpu_efficiency'] = min(100.0, base_efficiency * 1.5 * 100)
             else:
                 cpu_workload_data['cpu_efficiency'] = base_efficiency * 100
