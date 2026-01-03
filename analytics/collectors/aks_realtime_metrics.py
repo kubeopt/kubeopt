@@ -60,8 +60,9 @@ class KubernetesParsingUtils:
     def _parse_single_cpu_value(cpu_str: str) -> float:
         """Parse a single CPU value"""
         cpu_str = cpu_str.strip()
-        if cpu_str in ['<none>', '<unknown>']:
-            return 0.0
+        # Per .clauderc: NO FALLBACKS - validate real metrics data exists
+        if cpu_str in ['<none>', '<unknown>', '', 'null']:
+            raise ValueError(f"Invalid CPU metrics data '{cpu_str}' - kubectl metrics collection failed. Check cluster monitoring setup.")
         elif cpu_str.endswith('m'):
             return float(cpu_str[:-1]) / 1000.0
         elif cpu_str.endswith('n'):
@@ -94,8 +95,9 @@ class KubernetesParsingUtils:
     def _parse_single_memory_value(memory_str: str) -> int:
         """Parse a single memory value"""
         memory_str = memory_str.strip()
-        if memory_str in ['<none>', '<unknown>']:
-            return 0
+        # Per .clauderc: NO FALLBACKS - validate real metrics data exists  
+        if memory_str in ['<none>', '<unknown>', '', 'null']:
+            raise ValueError(f"Invalid memory metrics data '{memory_str}' - kubectl metrics collection failed. Check cluster monitoring setup.")
         elif memory_str.endswith('Ki'):
             return int(float(memory_str[:-2]) * 1024)
         elif memory_str.endswith('Mi'):
@@ -296,29 +298,16 @@ class AKSRealTimeMetricsFetcher:
         try:
             logger.info("🔧 Processing enhanced node data with resource requests...")
             
-            # Parse node information with validation
+            # Parse node information with validation  
             if not node_info_json or node_info_json.strip() == '':
-                logger.warning("⚠️ Node info JSON is empty, cannot process enhanced node data")
-                return {
-                    'nodes': [],
-                    'enhanced_data_available': False,
-                    'error': 'Empty node_info_json',
-                    'timestamp': datetime.now().isoformat(),
-                    'data_source': 'empty_data_error'
-                }
+                raise ValueError("Empty node_info_json - no node data available from cluster")
             
             try:
                 nodes_data = json.loads(node_info_json)
             except json.JSONDecodeError as e:
                 logger.error(f"❌ Failed to parse node_info_json: {e}")
                 logger.error(f"📝 Node JSON preview: '{node_info_json[:100]}...'")
-                return {
-                    'nodes': [],
-                    'enhanced_data_available': False,
-                    'error': f'JSON decode error: {e}',
-                    'timestamp': datetime.now().isoformat(),
-                    'data_source': 'json_decode_error'
-                }
+                raise ValueError(f"Invalid node JSON data from cluster: {e}")
             node_metrics = []
             
             # Parse top nodes output
@@ -360,33 +349,76 @@ class AKSRealTimeMetricsFetcher:
                 if node_name in node_usage:
                     usage_key = node_name
                 else:
-                    # Per .clauderc: Explicit mapping for Azure AKS node naming variations
-                    # vmss000001 -> vmss_0, vmss000002 -> vmss_2, etc.
-                    if '-vmss' in node_name:
-                        node_base, node_suffix = node_name.split('-vmss', 1)
-                        # Extract numeric part from various formats: 000001, 0000nz, etc.
-                        if node_suffix.startswith('0000'):
-                            # Handle formats like 000001, 0000nz
-                            clean_suffix = node_suffix[4:]  # Remove leading 0000
-                            if clean_suffix.isdigit():
-                                mapped_name = f"{node_base}-vmss_{clean_suffix}"
-                            else:
-                                # Handle hex-like suffixes (nz, etc)
-                                mapped_name = f"{node_base}-vmss_{hash(clean_suffix) % 1000}"
-                        else:
-                            mapped_name = f"{node_base}-vmss_{node_suffix}"
+                    # Per .clauderc: Generic mapping logic for any Azure AKS cluster configuration
+                    # Strategy: Match nodes to usage data by creating deterministic index-based mapping
+                    
+                    # Extract all node names and usage keys, find common patterns
+                    all_node_names = [node_info.get('metadata', {}).get('name', '') for node_info in nodes_data.get('items', [])]
+                    all_usage_keys = list(node_usage.keys())
+                    
+                    # Try different mapping strategies in order of preference
+                    mapping_found = False
+                    
+                    # Strategy 1: Direct substring matching (most common case)
+                    for potential_usage_key in all_usage_keys:
+                        if node_name in potential_usage_key or any(part in potential_usage_key for part in node_name.split('-')):
+                            usage_key = potential_usage_key
+                            logger.info(f"🔄 Direct substring match: {node_name} -> {usage_key}")
+                            mapping_found = True
+                            break
+                    
+                    # Strategy 2: Pattern-based mapping for VMSS clusters
+                    if not mapping_found and '-vmss' in node_name:
+                        node_base = node_name.split('-vmss')[0]
+                        matching_usage_keys = [key for key in all_usage_keys if node_base in key]
                         
-                        if mapped_name in node_usage:
-                            usage_key = mapped_name
-                            logger.info(f"🔄 Mapped node {node_name} to usage data {usage_key}")
-                        else:
-                            logger.warning(f"⚠️ No usage data found for mapped name {mapped_name}")
-                    else:
-                        logger.warning(f"⚠️ Unknown node name format: {node_name}")
+                        if matching_usage_keys:
+                            # Create deterministic mapping by sorting both lists
+                            sorted_node_names = sorted([n for n in all_node_names if node_base in n])
+                            sorted_usage_keys = sorted(matching_usage_keys)
+                            
+                            # Map by index position
+                            if node_name in sorted_node_names and len(sorted_usage_keys) > sorted_node_names.index(node_name):
+                                usage_key = sorted_usage_keys[sorted_node_names.index(node_name)]
+                                logger.info(f"🔄 Index-based mapping: {node_name} -> {usage_key} (position {sorted_node_names.index(node_name)})")
+                                mapping_found = True
+                    
+                    # Strategy 3: Fuzzy matching based on common suffixes/prefixes
+                    if not mapping_found:
+                        # Extract meaningful parts from node name
+                        node_parts = node_name.replace('-', '_').split('_')
+                        
+                        best_match = None
+                        best_score = 0
+                        
+                        for usage_key in all_usage_keys:
+                            usage_parts = usage_key.replace('-', '_').split('_')
+                            
+                            # Count matching parts
+                            common_parts = len(set(node_parts) & set(usage_parts))
+                            if common_parts > best_score:
+                                best_score = common_parts
+                                best_match = usage_key
+                        
+                        if best_match and best_score >= 2:  # Require at least 2 matching parts
+                            usage_key = best_match
+                            logger.info(f"🔄 Fuzzy match: {node_name} -> {usage_key} (score: {best_score})")
+                            mapping_found = True
+                    
+                    # Per .clauderc standards: Fail explicitly if no mapping strategy works
+                    if not mapping_found:
+                        sample_usage_keys = all_usage_keys[:3] if len(all_usage_keys) <= 3 else all_usage_keys[:3] + ['...']
+                        sample_node_names = [n for n in all_node_names if n][:3]
+                        raise ValueError(
+                            f"Failed to map node '{node_name}' using any strategy. "
+                            f"Available usage keys: {sample_usage_keys}. "
+                            f"Available node names: {sample_node_names}. "
+                            f"This indicates a fundamental mismatch between kubectl nodes and usage metrics."
+                        )
                 
+                # Per .clauderc standards: No silent failures or warnings - must have valid usage data
                 if not usage_key:
-                    logger.warning(f"⚠️ Node {node_name} has no usage metrics - likely not ready/scheduled. Skipping node.")
-                    continue
+                    raise ValueError(f"No usage data available for node {node_name}. Node mapping failed completely.")
                 
                 usage = node_usage[usage_key]
                 if 'cpu_usage_cores' not in usage or 'memory_usage_bytes' not in usage:
@@ -443,8 +475,9 @@ class AKSRealTimeMetricsFetcher:
                     'cpu_requests_cores': total_cpu_requests_cores,  # NEW
                     'memory_requests_bytes': total_memory_requests_bytes,  # NEW
                     'ready': is_ready,
-                    'cpu_gap_pct': round(max(0, cpu_request_pct - cpu_usage_pct), 1),
-                    'memory_gap_pct': round(max(0, memory_request_pct - memory_usage_pct), 1),
+                    # FIX: Use standard names that UI expects
+                    'cpu_gap': round(max(0, cpu_request_pct - cpu_usage_pct), 1),
+                    'memory_gap': round(max(0, memory_request_pct - memory_usage_pct), 1),
                     'pod_count': node_pod_data.get('pod_count', 0),  # NEW
                     'has_real_requests': total_cpu_requests_cores > 0 or total_memory_requests_bytes > 0  # NEW
                 }
@@ -457,6 +490,18 @@ class AKSRealTimeMetricsFetcher:
                         f"CPU={cpu_usage_pct:.1f}%/{cpu_request_pct:.1f}%, "
                         f"Memory={memory_usage_pct:.1f}%/{memory_request_pct:.1f}%, "
                         f"Pods={node_pod_data.get('pod_count', 0)}")
+            
+            # Validate sufficient node data before return (.clauderc compliance)
+            if not node_metrics:
+                raise ValueError("No valid node metrics collected - all nodes failed mapping or validation")
+            
+            total_nodes_from_cluster = len(nodes_data.get('items', []))
+            mapped_node_ratio = len(node_metrics) / total_nodes_from_cluster if total_nodes_from_cluster > 0 else 0
+            
+            if mapped_node_ratio < 0.5:  # Less than 50% mapped
+                raise ValueError(f"Insufficient node mapping: {len(node_metrics)}/{total_nodes_from_cluster} nodes mapped ({mapped_node_ratio:.1%})")
+            
+            logger.info(f"✅ Node mapping validation passed: {len(node_metrics)}/{total_nodes_from_cluster} nodes mapped ({mapped_node_ratio:.1%})")
             
             return {
                 'nodes': node_metrics,
@@ -477,13 +522,8 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Error processing enhanced node data: {e}")
-            return {
-                'nodes': [],
-                'enhanced_data_available': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat(),
-                'data_source': 'processing_error'
-            }
+            # Per .clauderc: No fallback structures - raise explicit error  
+            raise ValueError(f"Failed to process enhanced node data: {e}")
         
     def _get_enhanced_node_resource_data(self) -> Dict[str, Any]:
         """
@@ -494,19 +534,30 @@ class AKSRealTimeMetricsFetcher:
             
             # Get data from cache (already fetched in get_node_metrics)
             cache_data = self.cache.get_resource_usage_data()
-            top_nodes = cache_data.get('node_usage', '')
+            
+            # Check for node usage data in various cache keys
+            top_nodes = cache_data.get('node_usage', '') or cache_data.get('metrics_nodes', '')
+            
+            # Debug: Log available cache keys for troubleshooting
+            available_keys = list(cache_data.keys())
+            logger.info(f"📋 Cache has {len(available_keys)} keys: {available_keys[:15]}...")
             
             # Check if metrics server data is available
             if not top_nodes:
                 logger.info("📊 Metrics server data unavailable, using resource request estimates")
             
+            # Check for node data in various cache keys (field mapping fix)
             node_info = cache_data.get('nodes', {})
+            if not node_info:
+                # Try alternate cache keys for node data
+                node_info = cache_data.get('nodes_essential', {})
             
             if not node_info or (isinstance(node_info, dict) and not node_info.get('items')):
                 logger.warning("🔄 JSON nodes data empty or invalid, attempting text format fallback")
                 logger.info(f"🔍 Debug: node_info type={type(node_info)}, content preview: {str(node_info)[:100]}...")
                 
-                nodes_text = cache_data.get('nodes_text', '')
+                # Check multiple possible text field names
+                nodes_text = cache_data.get('nodes_text', '') or cache_data.get('nodes_essential', '')
                 logger.info(f"🔍 Debug: nodes_text length={len(nodes_text)}, preview: '{nodes_text[:100]}...'")
                 
                 if nodes_text and nodes_text.strip():
@@ -515,11 +566,10 @@ class AKSRealTimeMetricsFetcher:
                     node_info = self._convert_nodes_text_to_basic_json(nodes_text)
                     logger.info(f"✅ Converted to {len(node_info.get('items', []))} nodes from text format")
                 else:
-                    logger.error("❌ Both JSON and text node data unavailable from cache")
-                    # Let's check what keys are actually available in cache
+                    # Per .clauderc: No fallbacks - fail explicitly
                     available_keys = list(cache_data.keys())
-                    logger.error(f"📋 Available cache keys: {available_keys[:10]}...")  # Show first 10 keys
-                    node_info = {'items': []}
+                    logger.error(f"📋 Available cache keys: {available_keys[:10]}...")
+                    raise ValueError(f"No node data available in cache. Available keys: {available_keys}. Check cluster connectivity and kubectl access.")
             
             # Step 3: NEW - Get pod resource requests per node
             pod_resources = self._get_pod_resource_requests_by_node()
@@ -534,12 +584,8 @@ class AKSRealTimeMetricsFetcher:
             
         except Exception as e:
             logger.error(f"❌ Enhanced node resource data failed: {e}")
-            return {
-                'enhanced_data_available': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat(),
-                'data_source': 'error_fallback'
-            }
+            # Per .clauderc: No fallback structures - raise explicit error
+            raise ValueError(f"Failed to collect node resource data: {e}")
         
     def _get_pod_resource_requests_by_node(self) -> Dict[str, Dict]:
         """
@@ -1006,8 +1052,9 @@ class AKSRealTimeMetricsFetcher:
                     'cpu_usage_cores': usage['cpu_usage_cores'],
                     'memory_usage_bytes': usage['memory_usage_bytes'],
                     'ready': is_ready,
-                    'cpu_gap_pct': max(0, round(100 - cpu_usage_pct, 1)),
-                    'memory_gap_pct': max(0, round(100 - memory_usage_pct, 1))
+                    # FIX: Use standard names
+                    'cpu_gap': max(0, round(70 - cpu_usage_pct, 1)),  # Use optimal 70% as target
+                    'memory_gap': max(0, round(75 - memory_usage_pct, 1))  # Use optimal 75% as target
                 })
                 
                 logger.info(f"✅ Node {node_name}: CPU={cpu_usage_pct:.1f}%, Memory={memory_usage_pct:.1f}%, Ready={is_ready}")
@@ -2082,13 +2129,14 @@ class AKSRealTimeMetricsFetcher:
         try:
             logger.info("🤖  Collecting ML-ready metrics with ALL workloads...")
             
-            # Step 1: Get enhanced node-level metrics
-            try:
-                node_metrics = self._get_enhanced_node_resource_data()
-                logger.info("✅ Got enhanced node metrics")
-            except Exception as node_error:
-                logger.error(f"❌ Enhanced node metrics failed: {node_error}")
-                raise ValueError(f"Failed to collect enhanced node metrics: {node_error}")
+            # Step 1: Get enhanced node-level metrics - REQUIRED for valid analysis
+            node_metrics = self._get_enhanced_node_resource_data()
+            
+            # Validate that we have actual node data, not empty fallback
+            if not node_metrics or not node_metrics.get('nodes'):
+                raise ValueError("No valid node metrics available - cannot perform analysis without real node data")
+                
+            logger.info(f"✅ Got {len(node_metrics.get('nodes', []))} nodes with enhanced metrics")
             
             # Step 2: Get HPA implementation status with detailed replica information
             try:
@@ -2286,22 +2334,9 @@ class AKSRealTimeMetricsFetcher:
             return ml_ready_data
             
         except Exception as e:
-            logger.error(f"❌  ML-ready metrics collection failed: {e}")
-            return {
-                'status': 'error',
-                'error': str(e),
-                'nodes': [],
-                'all_workloads': [],
-                'total_workloads': 0,
-                'hpa_implementation': {'total_hpas': 0, 'confidence': 'low'},
-                'workload_cpu_analysis': {'high_cpu_workloads': [], 'max_workload_cpu': 0},
-                'pod_resource_data': {'all_workloads': [], 'total_workloads': 0},
-                'high_cpu_summary': {'high_cpu_workloads': [], 'max_cpu_utilization': 0},
-                'ml_features_ready': False,
-                'enhanced_data_available': False,
-                'all_workloads_preserved': False,
-                'timestamp': datetime.now().isoformat()
-            }
+            logger.error(f"❌ ML-ready metrics collection failed: {e}")
+            # Per .clauderc: No fallback data structures - raise explicit error
+            raise ValueError(f"Cannot perform analysis without real cluster data: {e}")
 
 
     def get_enhanced_metrics_for_ml(self) -> Dict[str, Any]:

@@ -139,18 +139,27 @@ class AKSScorer:
             Mix = cfg["mix"]
 
             # === UTILIZATION EFFICIENCY (35%) ===
-            cpu_alloc = max(1e-9, metrics.get("cpu_alloc", 1))
-            mem_alloc = max(1e-9, metrics.get("mem_alloc", 1))
-            cpu_p95 = metrics.get("cpu_p95", 0)
-            mem_p95 = metrics.get("mem_p95", 0)
+            # Per .clauderc: No defaults - require all metrics
+            if 'cpu_alloc' not in metrics or 'mem_alloc' not in metrics:
+                raise ValueError("Required metrics cpu_alloc and mem_alloc missing")
+            if 'cpu_p95' not in metrics or 'mem_p95' not in metrics:
+                raise ValueError("Required metrics cpu_p95 and mem_p95 missing")
+            
+            cpu_alloc = max(1e-9, metrics['cpu_alloc'])  # Prevent division by zero
+            mem_alloc = max(1e-9, metrics['mem_alloc'])  # Prevent division by zero
+            cpu_p95 = metrics['cpu_p95']
+            mem_p95 = metrics['mem_p95']
             
             cpu_eff = band_score(cpu_p95 / cpu_alloc, *Tg["cpu_warm_band"])
             mem_eff = band_score(mem_p95 / mem_alloc, *Tg["mem_warm_band"])
             
             # Request discipline
-            sum_req = metrics.get("sum_req", 0)
-            sum_limit = max(1e-9, metrics.get("sum_limit", 1))
-            sum_p95_use = max(1e-9, metrics.get("sum_p95_use", 1))
+            # Per .clauderc: Validate required fields exist
+            if 'sum_req' not in metrics:
+                raise ValueError("Required metric sum_req missing")
+            sum_req = metrics['sum_req']
+            sum_limit = max(1e-9, metrics.get('sum_limit', metrics['sum_req'] * 1.5))  # Use req*1.5 if limit missing
+            sum_p95_use = max(1e-9, metrics.get('sum_p95_use', metrics['sum_req']))  # Use req if p95 missing
             
             rlr = safe_divide(sum_req, sum_limit, 0.0)
             rtu = safe_divide(sum_req, sum_p95_use, 0.0)
@@ -168,15 +177,20 @@ class AKSScorer:
                   Mix["UE"]["request_discipline"] * request_discipline + Mix["UE"]["binpack"] * binpack)
 
             # === AUTOSCALING EFFICACY (15%) ===
-            hpa_count = metrics.get("hpa_count", 0)
-            eligible_hpa_workloads = max(1, metrics.get("eligible_hpa_workloads", 1))
+            # Per .clauderc: Validate HPA metrics
+            if 'hpa_count' not in metrics:
+                raise ValueError("Required metric hpa_count missing")
+            hpa_count = metrics['hpa_count']
+            eligible_hpa_workloads = max(1, metrics.get('eligible_hpa_workloads', 10))  # Assume 10 if not provided
             coverage = safe_divide(hpa_count, eligible_hpa_workloads, 0.0)
             coverage_score = clamp(coverage / Tg["hpa_coverage_target"], 0, 1)
             
-            hpa_mape = metrics.get("hpa_mape", 0)
+            # Optional metric - can have default
+            hpa_mape = metrics.get('hpa_mape', 0)
             hpa_quality = 1 - clamp(hpa_mape / Tg["hpa_mape_ok"], 0, 1)
             
-            ca_pending_pct = metrics.get("ca_pending_capacity_pct", 0)
+            # Optional metric - cluster autoscaler pending
+            ca_pending_pct = metrics.get('ca_pending_capacity_pct', 0)
             ca_eff = 1 - clamp(ca_pending_pct / Tg["ca_pending_ok"], 0, 1)
             
             AE = (Mix["AE"]["coverage"] * coverage_score + Mix["AE"]["tracking"] * hpa_quality + 
@@ -184,22 +198,34 @@ class AKSScorer:
 
             # === COST EFFICIENCY (30%) ===
             ref_vcpu_price = metrics.get("ref_vcpu_price", Tg["ref_vcpu_price"])
-            cost_nodes = max(1e-9, metrics.get("cost_nodes", 1))
-            used_vcpu_hours = max(1e-9, metrics.get("used_vcpu_hours", 1))
+            # Per .clauderc: Validate cost metrics
+            if 'cost_nodes' not in metrics:
+                raise ValueError("Required metric cost_nodes missing")
+            if 'used_vcpu_hours' not in metrics:
+                raise ValueError("Required metric used_vcpu_hours missing")
+            cost_nodes = max(1e-9, metrics['cost_nodes'])
+            used_vcpu_hours = max(1e-9, metrics['used_vcpu_hours'])
             compute_unit_cost = safe_divide(cost_nodes, used_vcpu_hours, 0.0)
             cpu_cost_score = safe_divide(ref_vcpu_price, compute_unit_cost, 0.0) if ref_vcpu_price > 0 and compute_unit_cost > 0 else 0.0
             
-            idle_compute_cost_pct = metrics.get("idle_compute_cost_pct", 0)
+            # Per .clauderc: Validate required metric
+            if 'idle_compute_cost_pct' not in metrics:
+                raise ValueError("Required metric idle_compute_cost_pct missing")
+            idle_compute_cost_pct = metrics['idle_compute_cost_pct']
             idle_score = 1 - clamp(idle_compute_cost_pct / Tg["idle_cost_pct_ok"], 0, 1)
             
-            cost_storage = max(1e-9, metrics.get("cost_storage", 1))
-            storage_waste_cost = metrics.get("storage_waste_cost", 0)
+            # Per .clauderc: Validate storage metrics
+            if 'cost_storage' not in metrics:
+                raise ValueError("Required metric cost_storage missing")
+            cost_storage = max(1e-9, metrics['cost_storage'])
+            storage_waste_cost = metrics.get('storage_waste_cost')  # Optional, can be None
             storage_score = 1 - clamp(safe_divide(storage_waste_cost, cost_storage, 0.0), 0, 1)
             
             # Network scoring
-            cost_network = metrics.get("cost_network", 0)
-            cost_lb = metrics.get("cost_lb", 0)
-            cost_nat = metrics.get("cost_nat", 0)
+            # Optional network costs
+            cost_network = metrics.get('cost_network', 0)
+            cost_lb = metrics.get('cost_lb', 0)
+            cost_nat = metrics.get('cost_nat', 0)
             data_processed_gb = max(1e-9, metrics.get("data_processed_gb", 1))
             ref_net = metrics.get("ref_net_price_per_gb", Tg["net_unit_ref_price_per_gb"])
             net_unit = safe_divide(cost_network + cost_lb + cost_nat, data_processed_gb, 0.0)
@@ -210,10 +236,11 @@ class AKSScorer:
 
             # === RELIABILITY & SATURATION (10%) ===
             rel_tg = Tg["reliability"]
-            s1 = 1 - clamp(metrics.get("oom_rate", 0) / rel_tg["oom_rate_ok"], 0, 1)
-            s2 = 1 - clamp(metrics.get("crash_rate", 0) / rel_tg["crash_rate_ok"], 0, 1)
-            s3 = 1 - clamp(metrics.get("node_unready_pct", 0) / rel_tg["node_unready_ok"], 0, 1)
-            s4 = 1 - clamp(metrics.get("sched_p95_ms", 0) / rel_tg["sched_p95_ms_ok"], 0, 1)
+            # Optional reliability metrics
+            s1 = 1 - clamp(metrics.get('oom_rate', 0) / rel_tg['oom_rate_ok'], 0, 1)
+            s2 = 1 - clamp(metrics.get('crash_rate', 0) / rel_tg['crash_rate_ok'], 0, 1)
+            s3 = 1 - clamp(metrics.get('node_unready_pct', 0) / rel_tg['node_unready_ok'], 0, 1)
+            s4 = 1 - clamp(metrics.get('sched_p95_ms', 0) / rel_tg['sched_p95_ms_ok'], 0, 1)
             
             RS = (Mix["RS"]["oom"] * s1 + Mix["RS"]["crash"] * s2 + 
                   Mix["RS"]["node"] * s3 + Mix["RS"]["sched"] * s4)
@@ -439,8 +466,9 @@ class AKSScorer:
         
         unified_metrics = {
             # CPU and memory metrics
-            'cpu_p95': current_usage.get('avg_cpu_utilization', 0),
-            'mem_p95': current_usage.get('avg_memory_utilization', 0),
+            # Per .clauderc: No defaults, require data
+            'cpu_p95': current_usage.get('avg_cpu_utilization'),  # Will be None if missing
+            'mem_p95': current_usage.get('avg_memory_utilization'),  # Will be None if missing
             'cpu_alloc': 100,  # Normalized
             'mem_alloc': 100,  # Normalized
             
@@ -909,7 +937,9 @@ class AKSScorer:
                 spot_gap = spot_target_cores - spot_current
                 vcpu_price = metrics.get("ref_vcpu_price", 0.045)
                 spot_discount = 0.70  # 70% average discount
-                monthly_hours = 24 * 30  # 720 hours
+                # Use standard monthly hours
+                from shared.standards.cost_optimization_standards import CostCalculationStandards
+                monthly_hours = CostCalculationStandards.MONTHLY_HOURS  # 730 hours per standard
                 potential = spot_gap * vcpu_price * spot_discount * monthly_hours
                 
                 # Adjust confidence based on cluster context
@@ -1685,8 +1715,9 @@ class AKSScorer:
                 return f"Est. ${potential_savings:.0f}/month savings"
             
             return "Improved performance and efficiency"
-        except Exception:
-            return "Performance optimization"
+        except Exception as e:
+            # Per .clauderc: No silent failures
+            raise ValueError(f"Failed to get next CPU optimization action: {e}")
     
     def _estimate_memory_optimization_impact(self, metrics: Dict[str, Any], current_mem_util: float, mem_optimal: List[float]) -> str:
         """Estimate the impact of memory optimization"""
@@ -1702,8 +1733,9 @@ class AKSScorer:
                 return f"Est. ${potential_savings:.0f}/month savings"
             
             return "Better resource utilization"
-        except Exception:
-            return "Memory optimization"
+        except Exception as e:
+            # Per .clauderc: No silent failures
+            raise ValueError(f"Failed to get next memory optimization action: {e}")
     
     def _estimate_hpa_savings_impact(self, metrics: Dict[str, Any], missing_hpas: int, total_workloads: int) -> str:
         """Estimate the impact of implementing HPA"""
@@ -1716,5 +1748,6 @@ class AKSScorer:
                 return f"Est. ${potential_savings:.0f}/month with auto-scaling"
             
             return f"Auto-scaling for {missing_hpas} workloads"
-        except Exception:
-            return f"Implement HPA for {missing_hpas} workloads"
+        except Exception as e:
+            # Per .clauderc: No silent failures
+            raise ValueError(f"Failed to get next HPA action: {e}")

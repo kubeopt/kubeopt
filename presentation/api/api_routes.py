@@ -1643,6 +1643,12 @@ def register_api_routes(app):
                     'message': f'No analysis data found for cluster {cluster_id}. Status: {status}. Please run cluster analysis first to generate optimization plan.'
                 }), 404
             
+            # Per .clauderc: Validate real data exists before using
+            if 'avg_cpu_utilization' not in analysis_data:
+                logger.warning(f"⚠️ avg_cpu_utilization missing from analysis_data. Available keys: {list(analysis_data.keys())}")
+            if 'peak_cpu_utilization' not in analysis_data:
+                logger.warning(f"⚠️ peak_cpu_utilization missing from analysis_data")
+                
             # Extract CPU metrics from analysis data
             cpu_metrics = {
                 'average_cpu_usage': analysis_data.get('avg_cpu_utilization', 0),

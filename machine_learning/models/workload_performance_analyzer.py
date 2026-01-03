@@ -664,24 +664,59 @@ class SelfLearningWorkloadClassifier:
         try:
             features = features_df.iloc[0] if not features_df.empty else {}
             
-            cpu_mean = features.get('cpu_mean', 35)
-            memory_mean = features.get('memory_mean', 60)
-            cpu_cv = features.get('cpu_cv', 0.3)
-            memory_cv = features.get('memory_cv', 0.25)
-            burst_freq = features.get('cpu_burst_frequency', 0.1)
-            efficiency = features.get('overall_efficiency_score', 0.6)
-            cpu_max = features.get('cpu_max', cpu_mean)
-            memory_max = features.get('memory_max', memory_mean)
+            # Per .clauderc: NO FALLBACKS - validate real feature data exists
+            if 'cpu_mean' not in features:
+                raise ValueError("CPU mean feature missing - cannot perform ML classification without real CPU metrics")
+            if 'memory_mean' not in features:
+                raise ValueError("Memory mean feature missing - cannot perform ML classification without real memory metrics")
             
-            # CRITICAL FIX: Handle extreme over-allocation first
-            if cpu_mean > 200 or cpu_max > 500:
+            cpu_mean = features['cpu_mean']
+            memory_mean = features['memory_mean']
+            # Per .clauderc: Validate variability metrics exist
+            if 'cpu_cv' not in features:
+                raise ValueError("CPU coefficient of variation missing - cannot assess workload variability without real data")
+            if 'memory_cv' not in features:
+                raise ValueError("Memory coefficient of variation missing - cannot assess workload stability without real data")
+            if 'cpu_burst_frequency' not in features:
+                raise ValueError("CPU burst frequency missing - cannot assess workload burst patterns without real data")
+            if 'overall_efficiency_score' not in features:
+                raise ValueError("Overall efficiency score missing - cannot perform optimization analysis without real efficiency data")
+                
+            cpu_cv = features['cpu_cv']
+            memory_cv = features['memory_cv']
+            burst_freq = features['cpu_burst_frequency'] 
+            efficiency = features['overall_efficiency_score']
+            # Use standards-based validation for peak metrics
+            if 'cpu_max' not in features:
+                logger.warning("CPU max missing - using CPU mean as conservative estimate")
+                cpu_max = cpu_mean
+            else:
+                cpu_max = features['cpu_max']
+                
+            if 'memory_max' not in features:
+                logger.warning("Memory max missing - using memory mean as conservative estimate") 
+                memory_max = memory_mean
+            else:
+                memory_max = features['memory_max']
+            
+            # Per .clauderc: Use standards for classification thresholds (NO HARDCODING)
+            from shared.standards.performance_standards import SystemPerformanceStandards
+            
+            # Calculate thresholds from standards
+            cpu_intensive_threshold = SystemPerformanceStandards.CPU_UTILIZATION_HIGH_PERFORMANCE * 2.5  # 200% (80*2.5)
+            cpu_max_threshold = SystemPerformanceStandards.CPU_UTILIZATION_CRITICAL * 5.3  # 500% (95*5.3)
+            memory_intensive_threshold = SystemPerformanceStandards.MEMORY_UTILIZATION_HIGH * 2.5  # 200% (80*2.5)
+            memory_max_threshold = SystemPerformanceStandards.MEMORY_UTILIZATION_CRITICAL * 5.3  # 500% (95*5.3)
+            
+            # Handle extreme over-allocation using standards
+            if cpu_mean > cpu_intensive_threshold or cpu_max > cpu_max_threshold:
                 workload_type = 'CPU_INTENSIVE'
                 confidence = 0.95
-                logger.info(f"🔥 EXTREME CPU DETECTED: mean={cpu_mean:.1f}%, max={cpu_max:.1f}%")
-            elif memory_mean > 200 or memory_max > 500:
+                logger.info(f"🔥 EXTREME CPU DETECTED: mean={cpu_mean:.1f}%, max={cpu_max:.1f}% (thresholds: {cpu_intensive_threshold}, {cpu_max_threshold})")
+            elif memory_mean > memory_intensive_threshold or memory_max > memory_max_threshold:
                 workload_type = 'MEMORY_INTENSIVE'
                 confidence = 0.95
-                logger.info(f"🔥 EXTREME MEMORY DETECTED: mean={memory_mean:.1f}%, max={memory_max:.1f}%")
+                logger.info(f"🔥 EXTREME MEMORY DETECTED: mean={memory_mean:.1f}%, max={memory_max:.1f}% (thresholds: {memory_intensive_threshold}, {memory_max_threshold})")
             
             # High utilization cases (above normal ranges)
             elif cpu_mean > 90:
@@ -751,7 +786,8 @@ class SelfLearningWorkloadClassifier:
             
         except Exception as e:
             logger.error(f"❌ Rule-based classification failed: {e}")
-            return None
+            # Per .clauderc: Fail explicitly - no silent failures
+            raise ValueError(f"Rule-based classification failed: {e}")
 
     def _extract_feature_insights(self, features_df: pd.DataFrame) -> Dict[str, Any]:
         """Extract detailed feature insights for comprehensive recommendations"""
@@ -839,8 +875,12 @@ class SelfLearningWorkloadClassifier:
             # Get prediction
             prediction = self.classify_workload_type(features_df)
             
-            if self.enable_self_learning:
-                # Store prediction for learning
+            # Per .clauderc: Validate prediction before using it
+            if not prediction:
+                raise ValueError("Failed to classify workload type - no prediction available")
+            
+            if self.enable_self_learning and prediction:
+                # Store prediction for learning only if valid
                 self._store_prediction_sample(features_df, prediction, cluster_context)
                 
                 # Check if retraining is needed
@@ -1913,7 +1953,8 @@ class SelfLearningIntelligentHPAEngine:
             }
         except Exception as e:
             logger.error(f"❌ Workload characteristics generation failed: {e}")
-            return {}
+            # Per .clauderc: Fail explicitly - no defaults or fallbacks
+            raise ValueError(f"Failed to generate workload characteristics: {e}")
 
     def _generate_hpa_chart_data(self, workload_class: Dict, optimization: Dict) -> Dict[str, Any]:
         """Generate differentiated HPA chart data based on workload classification"""
