@@ -105,14 +105,14 @@ class KubernetesParsingUtils:
         elif memory_str.endswith('Gi'):
             return int(float(memory_str[:-2]) * 1024 * 1024 * 1024)
         elif memory_str.endswith('M'):
-            # Handle 'M' suffix (megabytes)
-            return int(float(memory_str[:-1]) * 1024 * 1024)
+            # Handle 'M' suffix (decimal megabytes per Kubernetes spec)
+            return int(float(memory_str[:-1]) * 1000 * 1000)
         elif memory_str.endswith('K'):
-            # Handle 'K' suffix (kilobytes)
-            return int(float(memory_str[:-1]) * 1024)
+            # Handle 'K' suffix (decimal kilobytes per Kubernetes spec)
+            return int(float(memory_str[:-1]) * 1000)
         elif memory_str.endswith('G'):
-            # Handle 'G' suffix (gigabytes)
-            return int(float(memory_str[:-1]) * 1024 * 1024 * 1024)
+            # Handle 'G' suffix (decimal gigabytes per Kubernetes spec)
+            return int(float(memory_str[:-1]) * 1000 * 1000 * 1000)
         elif memory_str.endswith('k'):
             # Handle lowercase 'k' suffix (kilobytes) - common in kubectl output
             return int(float(memory_str[:-1]) * 1024)
@@ -149,35 +149,130 @@ class AKSRealTimeMetricsFetcher:
 
     def _categorize_cpu_usage_severity(self, cpu_millicores: float, cpu_percentage: float) -> str:
         """
-        Categorize CPU usage severity for ALL workloads
+        Categorize CPU usage severity for ALL workloads based on percentage
         """
-        if cpu_millicores >= 4000 or cpu_percentage >= 100:  # >= 4 CPU cores or 100%
+        # Use percentage-based thresholds for universal applicability
+        if cpu_percentage >= 100:
             return 'critical'
-        elif cpu_millicores >= 2000 or cpu_percentage >= 75:  # >= 2 CPU cores or 75%
+        elif cpu_percentage >= 75:
             return 'high'
-        elif cpu_millicores >= 1000 or cpu_percentage >= 50:  # >= 1 CPU core or 50%
+        elif cpu_percentage >= 50:
             return 'moderate'
         else:
             return 'normal'
 
-    def _categorize_cpu_usage(self, cpu_millicores: float) -> str:
-        """Categorize CPU usage levels"""
-        if cpu_millicores >= 2000:  # >= 2 CPU cores
-            return 'very_high'
-        elif cpu_millicores >= 1000:  # >= 1 CPU core
-            return 'high'
-        elif cpu_millicores >= 500:  # >= 0.5 CPU cores
-            return 'moderate'
-        else:
-            return 'normal'
+    def _categorize_cpu_usage(self, cpu_millicores: float, node_name: str = None) -> str:
+        """Categorize CPU usage levels based on actual capacity"""
+        try:
+            percentage = self._convert_millicores_to_percentage(cpu_millicores, node_name)
+            if percentage >= 50:  # >= 50% of node capacity
+                return 'very_high'
+            elif percentage >= 25:  # >= 25% of node capacity
+                return 'high'
+            elif percentage >= 12.5:  # >= 12.5% of node capacity
+                return 'moderate'
+            else:
+                return 'normal'
+        except ValueError:
+            # Fallback to absolute values if capacity unknown
+            if cpu_millicores >= 2000:
+                return 'very_high'
+            elif cpu_millicores >= 1000:
+                return 'high'
+            elif cpu_millicores >= 500:
+                return 'moderate'
+            else:
+                return 'normal'
 
-    def _convert_millicores_to_percentage(self, cpu_millicores: float) -> float:
-        """Convert millicores to percentage (assuming 4-core nodes)"""
-        return min(100.0, (cpu_millicores / 4000) * 100)  # 4000m = 4 cores = 100%
+    def _convert_millicores_to_percentage(self, cpu_millicores: float, node_name: str = None) -> float:
+        """Convert millicores to percentage based on actual node capacity"""
+        # Get actual node capacity from cache if possible
+        node_capacity_millicores = self._get_node_cpu_capacity(node_name)
+        if node_capacity_millicores <= 0:
+            raise ValueError(f"Invalid node CPU capacity for {node_name or 'unknown node'}")
+        return min(100.0, (cpu_millicores / node_capacity_millicores) * 100)
 
-    def _convert_bytes_to_percentage(self, memory_bytes: float) -> float:
-        """Convert bytes to percentage (assuming 16GB nodes)"""
-        return min(100.0, (memory_bytes / (16 * 1024 * 1024 * 1024)) * 100)  # 16GB = 100%
+    def _convert_bytes_to_percentage(self, memory_bytes: float, node_name: str = None) -> float:
+        """Convert bytes to percentage based on actual node capacity"""
+        # Get actual node capacity from cache if possible
+        node_capacity_bytes = self._get_node_memory_capacity(node_name)
+        if node_capacity_bytes <= 0:
+            raise ValueError(f"Invalid node memory capacity for {node_name or 'unknown node'}")
+        return min(100.0, (memory_bytes / node_capacity_bytes) * 100)
+    
+    def _get_node_cpu_capacity(self, node_name: str = None) -> float:
+        """Get actual CPU capacity for a node in millicores"""
+        try:
+            cache_data = self.cache.get_resource_usage_data()
+            nodes_data = cache_data.get('nodes', {})
+            
+            if node_name and 'items' in nodes_data:
+                for node in nodes_data['items']:
+                    if node.get('metadata', {}).get('name') == node_name:
+                        capacity = node.get('status', {}).get('capacity', {})
+                        cpu_str = capacity.get('cpu', '')
+                        if cpu_str:
+                            return self.parser.parse_cpu_safe(cpu_str)
+            
+            # If specific node not found, get cluster average
+            if 'items' in nodes_data and nodes_data['items']:
+                total_cpu = 0
+                count = 0
+                for node in nodes_data['items']:
+                    capacity = node.get('status', {}).get('capacity', {})
+                    cpu_str = capacity.get('cpu', '')
+                    if cpu_str:
+                        cpu_millicores = self.parser.parse_cpu_safe(cpu_str)
+                        if cpu_millicores > 0:
+                            total_cpu += cpu_millicores
+                            count += 1
+                
+                if count > 0:
+                    return total_cpu / count
+            
+            # No node data available
+            raise ValueError("No node capacity data available")
+            
+        except Exception as e:
+            logger.error(f"Failed to get node CPU capacity: {e}")
+            raise ValueError(f"Cannot determine node CPU capacity: {e}")
+    
+    def _get_node_memory_capacity(self, node_name: str = None) -> float:
+        """Get actual memory capacity for a node in bytes"""
+        try:
+            cache_data = self.cache.get_resource_usage_data()
+            nodes_data = cache_data.get('nodes', {})
+            
+            if node_name and 'items' in nodes_data:
+                for node in nodes_data['items']:
+                    if node.get('metadata', {}).get('name') == node_name:
+                        capacity = node.get('status', {}).get('capacity', {})
+                        memory_str = capacity.get('memory', '')
+                        if memory_str:
+                            return self.parser.parse_memory_safe(memory_str)
+            
+            # If specific node not found, get cluster average
+            if 'items' in nodes_data and nodes_data['items']:
+                total_memory = 0
+                count = 0
+                for node in nodes_data['items']:
+                    capacity = node.get('status', {}).get('capacity', {})
+                    memory_str = capacity.get('memory', '')
+                    if memory_str:
+                        memory_bytes = self.parser.parse_memory_safe(memory_str)
+                        if memory_bytes > 0:
+                            total_memory += memory_bytes
+                            count += 1
+                
+                if count > 0:
+                    return total_memory / count
+            
+            # No node data available
+            raise ValueError("No node capacity data available")
+            
+        except Exception as e:
+            logger.error(f"Failed to get node memory capacity: {e}")
+            raise ValueError(f"Cannot determine node memory capacity: {e}")
 
     def _calculate_resource_concentration(self, workload_data: List[Dict]) -> Dict:
         """Calculate resource concentration metrics: Require real data"""
@@ -553,23 +648,9 @@ class AKSRealTimeMetricsFetcher:
                 node_info = cache_data.get('nodes_essential', {})
             
             if not node_info or (isinstance(node_info, dict) and not node_info.get('items')):
-                logger.warning("🔄 JSON nodes data empty or invalid, attempting text format fallback")
-                logger.info(f"🔍 Debug: node_info type={type(node_info)}, content preview: {str(node_info)[:100]}...")
-                
-                # Check multiple possible text field names
-                nodes_text = cache_data.get('nodes_text', '') or cache_data.get('nodes_essential', '')
-                logger.info(f"🔍 Debug: nodes_text length={len(nodes_text)}, preview: '{nodes_text[:100]}...'")
-                
-                if nodes_text and nodes_text.strip():
-                    # Convert text to basic structure for processing
-                    logger.info("🔄 Converting nodes text to JSON structure...")
-                    node_info = self._convert_nodes_text_to_basic_json(nodes_text)
-                    logger.info(f"✅ Converted to {len(node_info.get('items', []))} nodes from text format")
-                else:
-                    # Per .clauderc: No fallbacks - fail explicitly
-                    available_keys = list(cache_data.keys())
-                    logger.error(f"📋 Available cache keys: {available_keys[:10]}...")
-                    raise ValueError(f"No node data available in cache. Available keys: {available_keys}. Check cluster connectivity and kubectl access.")
+                logger.error("❌ JSON nodes data empty or invalid")
+                # Per .clauderc: No fallbacks - require valid data
+                raise ValueError("Node information is required but not available in cache")
             
             # Step 3: NEW - Get pod resource requests per node
             pod_resources = self._get_pod_resource_requests_by_node()
@@ -1311,9 +1392,9 @@ class AKSRealTimeMetricsFetcher:
                 enhanced_node['utilization_category'] = self._categorize_utilization(cpu_usage, memory_usage)
                 
                 # Add gaps if not already present
-                if 'cpu_gap_pct' not in enhanced_node:
-                    enhanced_node['cpu_gap_pct'] = max(0, 100 - cpu_usage)
-                    enhanced_node['memory_gap_pct'] = max(0, 100 - memory_usage)
+                if 'cpu_gap' not in enhanced_node:
+                    enhanced_node['cpu_gap'] = max(0, 100 - cpu_usage)
+                    enhanced_node['memory_gap'] = max(0, 100 - memory_usage)
                 
                 enhanced_nodes.append(enhanced_node)
             
@@ -2196,16 +2277,15 @@ class AKSRealTimeMetricsFetcher:
                 # Validate HPA metrics against actual usage
                 if hpa_metrics.get('hpa_cpu_metrics'):
                     logger.info(f"🔍 HPA VALIDATION DEBUG: cache_data keys: {list(cache_data.keys())}")
-                    # Per .clauderc: NO FALLBACKS - validate data exists and is valid
+                    # Check if metrics_pods is available for validation
                     if 'metrics_pods' not in cache_data:
-                        raise ValueError("Cache missing required 'metrics_pods' field - cannot validate HPA metrics without kubectl top pods data")
-                    
-                    if not cache_data['metrics_pods']:
-                        raise ValueError("Empty 'metrics_pods' data in cache - kubectl top pods failed to collect real metrics")
-                    
-                    hpa_metrics = self._validate_hpa_metrics_with_actual_usage(hpa_metrics, cache_data)
-                    if hpa_metrics.get('validation', {}).get('warnings_count', 0) > 0:
-                        logger.warning(f"⚠️ Found {hpa_metrics['validation']['warnings_count']} HPA/actual CPU discrepancies")
+                        logger.warning("⚠️ Cache missing 'metrics_pods' field - HPA validation skipped")
+                    elif not cache_data['metrics_pods']:
+                        logger.warning("⚠️ Empty 'metrics_pods' data - kubectl top pods may have failed")
+                    else:
+                        hpa_metrics = self._validate_hpa_metrics_with_actual_usage(hpa_metrics, cache_data)
+                        if hpa_metrics.get('validation', {}).get('warnings_count', 0) > 0:
+                            logger.warning(f"⚠️ Found {hpa_metrics['validation']['warnings_count']} HPA/actual CPU discrepancies")
                 
                 logger.info("✅ Got ALL workload metrics with kubectl top validation")
                 
@@ -2221,22 +2301,13 @@ class AKSRealTimeMetricsFetcher:
                         raise ValueError("No workload data collected - all_workloads field is missing or empty")
                     
                 else:
-                    logger.warning("⚠️ No workload data found in metrics")
+                    logger.error("❌ No workload data found in metrics")
+                    raise ValueError("No workload data available - kubectl metrics collection failed")
                 
             except Exception as pod_error:
-                logger.warning(f"⚠️ Workload metrics failed: {pod_error}")
-                pod_metrics = {
-                    'pods': [], 
-                    'all_workloads': [],  # Ensure this field exists
-                    'namespace_aggregates': {}, 
-                    'total_workloads': 0,
-                    'high_cpu_count': 0,
-                    'data_completeness': {
-                        'all_workloads_saved': False,
-                        'error_occurred': True,
-                        'error_message': str(pod_error)
-                    }
-                }
+                logger.error(f"❌ Workload metrics failed: {pod_error}")
+                # Per .clauderc: Fail fast, no fallbacks
+                raise ValueError(f"Failed to collect workload metrics: {pod_error}")
             
             # Step 4: High CPU analysis is now integrated directly in workload metrics
             high_cpu_analysis = {
@@ -2656,13 +2727,14 @@ class AKSRealTimeMetricsFetcher:
 
     def _categorize_cpu_usage_severity(self, cpu_millicores: float, cpu_percentage: float) -> str:
         """
-        Categorize CPU usage severity for ALL workloads
+        Categorize CPU usage severity for ALL workloads based on percentage
         """
-        if cpu_millicores >= 4000 or cpu_percentage >= 100:  # >= 4 CPU cores or 100%
+        # Use percentage-based thresholds for universal applicability
+        if cpu_percentage >= 100:
             return 'critical'
-        elif cpu_millicores >= 2000 or cpu_percentage >= 75:  # >= 2 CPU cores or 75%
+        elif cpu_percentage >= 75:
             return 'high'
-        elif cpu_millicores >= 1000 or cpu_percentage >= 50:  # >= 1 CPU core or 50%
+        elif cpu_percentage >= 50:
             return 'moderate'
         else:
             return 'normal'
@@ -2882,13 +2954,21 @@ class AKSRealTimeMetricsFetcher:
             penalty = (actual_util - target_util) / target_util
             return max(0.1, 1.0 - (penalty * 0.6))
 
-    def _convert_millicores_to_percentage(self, millicores: float) -> float:
-        """Convert millicores to percentage (assuming 4-core nodes)"""
-        return min(100.0, (millicores / 4000) * 100)  # 4000m = 4 cores = 100%
+    def _convert_millicores_to_percentage(self, millicores: float, node_name: str = None) -> float:
+        """Convert millicores to percentage based on actual node capacity"""
+        # Get actual node capacity from cache if possible
+        node_capacity_millicores = self._get_node_cpu_capacity(node_name)
+        if node_capacity_millicores <= 0:
+            raise ValueError(f"Invalid node CPU capacity for {node_name or 'unknown node'}")
+        return min(100.0, (millicores / node_capacity_millicores) * 100)
 
-    def _convert_bytes_to_percentage(self, bytes_val: float) -> float:
-        """Convert bytes to percentage (assuming 16GB nodes)"""
-        return min(100.0, (bytes_val / (16 * 1024 * 1024 * 1024)) * 100)  # 16GB = 100%
+    def _convert_bytes_to_percentage(self, bytes_val: float, node_name: str = None) -> float:
+        """Convert bytes to percentage based on actual node capacity"""
+        # Get actual node capacity from cache if possible
+        node_capacity_bytes = self._get_node_memory_capacity(node_name)
+        if node_capacity_bytes <= 0:
+            raise ValueError(f"Invalid node memory capacity for {node_name or 'unknown node'}")
+        return min(100.0, (bytes_val / node_capacity_bytes) * 100)
 
     def _analyze_workload_distribution(self, workload_data: List[Dict]) -> Dict:
         """Analyze how workloads are distributed across namespaces"""

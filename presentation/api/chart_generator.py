@@ -1268,8 +1268,9 @@ def _extract_current_memory_usage(analysis_data):
             estimated_memory = min(80.0, cpu_util * 2.5)  # Cap at 80%
             logger.info(f"✅ Estimated Memory usage from CPU utilization: {estimated_memory}% (CPU: {cpu_util}%)")
             return estimated_memory
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to extract HPA target CPU: {e}")
+            raise ValueError(f"Cannot extract HPA target CPU: {e}")
         
         # FAIL - no static fallbacks
         raise ValueError("❌ Real Memory utilization not found in analysis data or cache - HPA analysis requires real cluster metrics")
@@ -1280,9 +1281,24 @@ def _extract_current_memory_usage(analysis_data):
         raise ValueError(f"❌ Error accessing Memory utilization: {e}")
 
 def _extract_hpa_target_cpu(analysis_data):
-    """Extract HPA CPU target from cluster data - standard enterprise target"""
-    # Standard enterprise HPA CPU target - no extraction needed, this is the industry standard
-    return 80.0
+    """Extract HPA CPU target from cluster data or use standard"""
+    # First try to get actual HPA target from data
+    if analysis_data and isinstance(analysis_data, dict):
+        # Check for actual HPA configuration
+        hpa_target = analysis_data.get('hpa_target_cpu')
+        if hpa_target and 0 < hpa_target <= 100:
+            return float(hpa_target)
+        
+        # Check in HPA recommendations
+        hpa_recs = analysis_data.get('hpa_recommendations', {})
+        if hpa_recs and 'target_cpu' in hpa_recs:
+            target = hpa_recs['target_cpu']
+            if 0 < target <= 100:
+                return float(target)
+    
+    # Use Azure best practice default if not found
+    from shared.standards.performance_standards import SystemPerformanceStandards
+    return SystemPerformanceStandards.CPU_UTILIZATION_OPTIMAL  # 70% is Azure recommended
 
 def _calculate_believable_scaling_scenarios(cpu_hpas, memory_hpas, mixed_hpas, total_hpas, avg_current, analysis_data):
     """

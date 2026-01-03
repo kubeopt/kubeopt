@@ -268,7 +268,12 @@ class MLEnhancedHPARecommendationEngine:
         self.parser = KubernetesParsingUtils() if 'KubernetesParsingUtils' in globals() else None
         # Initialize AKS Scorer for standards-based targets
         from analytics.processors.aks_scorer import AKSScorer
-        self.aks_scorer = AKSScorer()
+        import os
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "config", "aks_scoring.yaml"
+        )
+        self.aks_scorer = AKSScorer.from_yaml(config_path)
     
     def _get_ml_engine(self):
         """Get or create ML engine with caching"""
@@ -514,8 +519,9 @@ class MLEnhancedHPARecommendationEngine:
                 logger.info(f"🔍 Found workload count: {coverage['total_workloads']}")
             
             if coverage['total_workloads'] == 0:
-                coverage['total_workloads'] = max(5, len(nodes) * 2) if nodes else 10
-                logger.warning(f"⚠️ Using fallback workload count: {coverage['total_workloads']}")
+                # Per .clauderc: No fallbacks - require actual data
+                logger.error("❌ No workload data available for HPA coverage analysis")
+                raise ValueError("Cannot calculate HPA coverage without workload data")
             
             logger.info(f"📊 HPA Coverage Analysis: {coverage['hpa_count']} HPAs for {coverage['total_workloads']} workloads")
             
@@ -2706,18 +2712,23 @@ class ConsistentCostAnalyzer:
         return 0.0
     
     def _validate_data(self, cost_data: Dict, metrics_data: Dict) -> bool:
-        """Enhanced data validation"""
+        """Enhanced data validation - per .clauderc no defaults"""
         if not cost_data:
             logger.error("❌ No cost data provided")
-            return False
+            raise ValueError("Cost data is required for analysis")
             
-        total_cost = ensure_numeric(cost_data.get('total_cost', 0))
+        if 'total_cost' not in cost_data:
+            logger.error("❌ Missing required field: total_cost")
+            raise ValueError("Cost data must include total_cost field")
+            
+        total_cost = ensure_numeric(cost_data['total_cost'])
         if total_cost <= 0:
-            logger.error("❌ Invalid total cost")
-            return False
+            logger.error(f"❌ Invalid total cost: {total_cost}")
+            raise ValueError(f"Invalid total cost: {total_cost}")
         
         if not metrics_data:
-            logger.warning("⚠️ No metrics data - using cost-only analysis")
+            logger.error("❌ No metrics data provided")
+            raise ValueError("Metrics data is required for analysis")
         
         logger.info("✅ Data validation passed")
         return True
@@ -2856,8 +2867,9 @@ class ConsistentCostAnalyzer:
         # Add gap calculations logging
         logger.info(f"🔍 FINAL GAP MAPPING: current_usage keys: {list(current_usage.keys())}")
         # FIX: Look for data under BOTH possible names to ensure compatibility
-        cpu_gap_value = current_usage.get('cpu_gap') or current_usage.get('cpu_optimization_potential_pct', 0)
-        memory_gap_value = current_usage.get('memory_gap') or current_usage.get('memory_optimization_potential_pct', 0)
+        # Use standardized field names - cpu_gap and memory_gap
+        cpu_gap_value = current_usage.get('cpu_gap', 0)
+        memory_gap_value = current_usage.get('memory_gap', 0)
         
         # If still missing, calculate from utilization
         if not cpu_gap_value and 'avg_cpu_utilization' in current_usage:
@@ -3300,8 +3312,8 @@ class CurrentUsageAnalysisAlgorithm:
             
             logger.info(f"✅ GAP CALCULATION: Current usage analysis completed successfully")
             logger.info(f"✅ GAP CALCULATION: Final result keys: {list(result.keys())}")
-            logger.info(f"✅ GAP CALCULATION: CPU optimization potential: {result['cpu_optimization_potential_pct']}%")
-            logger.info(f"✅ GAP CALCULATION: Memory optimization potential: {result['memory_optimization_potential_pct']}%")
+            logger.info(f"✅ GAP CALCULATION: CPU optimization potential: {result['cpu_gap']}%")
+            logger.info(f"✅ GAP CALCULATION: Memory optimization potential: {result['memory_gap']}%")
             
             return result
             
@@ -3940,7 +3952,7 @@ class OptimizationCalculatorAlgorithm:
             logger.info(f"💰 Minor contention savings: ${minor_contention_savings:.2f}")
         
         # CPU optimization potential bonus (based on actual metrics)
-        cpu_optimization_potential = usage.get('cpu_optimization_potential_pct', 0)
+        cpu_optimization_potential = usage.get('cpu_gap', 0)
         if cpu_optimization_potential > 30:  # >30% optimization potential
             optimization_bonus = node_cost * (cpu_optimization_potential / 100) * 0.5  # 50% of the optimization potential
             waste_categories['cpu_optimization'] = optimization_bonus
@@ -4698,12 +4710,12 @@ class EfficiencyEvaluatorAlgorithm:
             # Target efficiency after optimization (more realistic)
             target_cpu_efficiency = self._calculate_target_efficiency(
                 current_cpu_efficiency, 
-                current_usage.get('cpu_optimization_potential_pct', 0) / 100,
+                current_usage.get('cpu_gap', 0) / 100,
                 max_improvement=0.3  # Cap improvement at 30%
             )
             target_memory_efficiency = self._calculate_target_efficiency(
                 current_memory_efficiency, 
-                current_usage.get('memory_optimization_potential_pct', 0) / 100,
+                current_usage.get('memory_gap', 0) / 100,
                 max_improvement=0.25  # Cap improvement at 25%
             )
             target_system_efficiency = min(0.9, (target_cpu_efficiency + target_memory_efficiency) / 2)
@@ -4829,7 +4841,7 @@ class ConfidenceScorerAlgorithm:
             
         except Exception as e:
             logger.error(f"❌ Confidence scoring failed: {e}")
-            return None
+            raise ValueError(f"Confidence scoring failed: {e}")
     
     def _calculate_data_quality_score(self, costs: Dict, usage: Dict) -> float:
         """Calculate data quality score"""
@@ -4925,8 +4937,8 @@ class ConfidenceScorerAlgorithm:
             feasibility_factors.append(0.4)
         
         # Right-sizing feasibility
-        cpu_potential = usage.get('cpu_optimization_potential_pct', 0)
-        memory_potential = usage.get('memory_optimization_potential_pct', 0)
+        cpu_potential = usage.get('cpu_gap', 0)
+        memory_potential = usage.get('memory_gap', 0)
         if cpu_potential > 15 or memory_potential > 10:
             feasibility_factors.append(1.0)
         elif cpu_potential > 8 or memory_potential > 5:
@@ -5043,7 +5055,7 @@ def integrate_consistent_analysis(resource_group: str, cluster_name: str,
     except Exception as e:
         logger.error(f"CONSISTENT analysis with Comprehensive Analysis failed: {e}")
         analyzer = ConsistentCostAnalyzer()
-        return None
+        raise ValueError(f"CONSISTENT analysis with Comprehensive Analysis failed: {e}")
 
 # ============================================================================
 # BACKWARD COMPATIBILITY
