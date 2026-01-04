@@ -32,6 +32,12 @@ import math
 from collections import defaultdict
 warnings.filterwarnings('ignore')
 
+# Import unified node processor
+try:
+    from shared.node_data_processor import NodeDataProcessor
+except ImportError:
+    NodeDataProcessor = None
+    
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -150,16 +156,31 @@ class SelfLearningWorkloadClassifier:
             logger.info(f"🔍 EXTRACT_FEATURES received keys: {list(metrics_data.keys())}")
             
             # Get nodes data - Per .clauderc: No fallbacks
-            if 'nodes' not in metrics_data:
-                raise ValueError("metrics_data missing required 'nodes' field")
-            nodes = metrics_data['nodes']
+            raw_nodes = metrics_data.get('nodes_processed', metrics_data.get('nodes', None))
+            if raw_nodes is None:
+                raise ValueError("metrics_data missing required 'nodes' or 'nodes_processed' field")
+            
+            # Use NodeDataProcessor for consistent parsing if available
+            if NodeDataProcessor:
+                nodes = NodeDataProcessor.parse_node_data(raw_nodes)
+                is_valid, errors = NodeDataProcessor.validate_node_data(nodes)
+                if not is_valid:
+                    raise ValueError(f"Invalid node data for ML: {errors[0]}")
+                cluster_totals = NodeDataProcessor.calculate_cluster_totals(nodes)
+                logger.info(f"✅ ML using unified node processor: {len(nodes)} nodes, "
+                           f"{cluster_totals['avg_cpu_utilization']:.1f}% CPU, "
+                           f"{cluster_totals['avg_memory_utilization']:.1f}% memory")
+            else:
+                # Fallback if NodeDataProcessor not available
+                nodes = raw_nodes if isinstance(raw_nodes, list) else []
+            
             if not nodes:
                 raise ValueError("No nodes data available for ML feature extraction")
             
             logger.info(f"🔍 EXTRACT_FEATURES nodes count: {len(nodes)}")
-            logger.info(f"🔍 EXTRACT_FEATURES first node: {nodes[0] if nodes else 'No nodes'}")
+            logger.info(f"🔍 EXTRACT_FEATURES first node keys: {list(nodes[0].keys()) if nodes else 'No nodes'}")
             
-            # Extract CPU and memory utilization
+            # Extract CPU and memory utilization using unified structure
             cpu_utils = []
             memory_utils = []
             
@@ -167,36 +188,23 @@ class SelfLearningWorkloadClassifier:
                 if not isinstance(node, dict):
                     continue
                 
-                # Extract CPU with multiple field attempts
-                cpu_val = None
-                for field in ['cpu_usage_pct', 'cpu_actual', 'cpu_utilization']:
-                    if field in node and node[field] is not None:
-                        try:
-                            cpu_val = float(node[field])
-                            if 0 <= cpu_val <= 200:
-                                break
-                        except (ValueError, TypeError):
-                            continue
+                # Use unified field names
+                cpu_val = node.get('cpu_usage_pct')
+                memory_val = node.get('memory_usage_pct')
                 
-                # Extract Memory
-                memory_val = None
-                for field in ['memory_usage_pct', 'memory_actual', 'memory_utilization']:
-                    if field in node and node[field] is not None:
-                        try:
-                            memory_val = float(node[field])
-                            if 0 <= memory_val <= 200:
-                                break
-                        except (ValueError, TypeError):
-                            continue
+                # Validate values
+                if cpu_val is None or not isinstance(cpu_val, (int, float)):
+                    raise ValueError(f"Node {i} ({node.get('name', 'unnamed')}) missing valid cpu_usage_pct")
+                if memory_val is None or not isinstance(memory_val, (int, float)):
+                    raise ValueError(f"Node {i} ({node.get('name', 'unnamed')}) missing valid memory_usage_pct")
                 
-                # Per .clauderc: No fallbacks - fail if we can't get real data
-                if cpu_val is None:
-                    raise ValueError(f"Failed to extract CPU utilization for node {i}. Available fields: {list(node.keys())}")
-                if memory_val is None:
-                    raise ValueError(f"Failed to extract memory utilization for node {i}. Available fields: {list(node.keys())}")
+                if not (0 <= cpu_val <= 200):
+                    raise ValueError(f"Node {i} CPU usage {cpu_val}% outside valid range")
+                if not (0 <= memory_val <= 200):
+                    raise ValueError(f"Node {i} memory usage {memory_val}% outside valid range")
                 
-                cpu_utils.append(cpu_val)
-                memory_utils.append(memory_val)
+                cpu_utils.append(float(cpu_val))
+                memory_utils.append(float(memory_val))
             
             if not cpu_utils:
                 raise ValueError("No CPU utilization data could be extracted from nodes")

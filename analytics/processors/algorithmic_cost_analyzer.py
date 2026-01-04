@@ -34,6 +34,7 @@ from analytics.processors.pod_cost_analyzer import KubernetesParsingUtils
 from analytics.processors.aks_scorer import AKSScorer
 from machine_learning.models.workload_performance_analyzer import create_comprehensive_self_learning_hpa_engine
 from shared.standards.performance_standards import SystemPerformanceStandards
+from shared.node_data_processor import NodeDataProcessor
 warnings.filterwarnings('ignore')
 
 logger = logging.getLogger(__name__)
@@ -1763,39 +1764,27 @@ class ConsistentCostAnalyzer:
             logger.info(f"🔍 SCORING DEBUG - Metrics data keys: {list(metrics_data.keys())}")
             logger.info(f"🔍 SCORING DEBUG - Current usage: {current_usage}")
             logger.info(f"🔍 SCORING DEBUG - Analysis results keys: {list(analysis_results.keys())}")
-            # Extract basic resource metrics - prefer processed nodes for accurate parsing
-            nodes = metrics_data.get('nodes_processed', metrics_data.get('nodes', []))
+            
+            # Use unified node data processor for consistent parsing
+            raw_nodes = metrics_data.get('nodes_processed', metrics_data.get('nodes', []))
+            
+            # Process nodes through unified processor
+            nodes = NodeDataProcessor.parse_node_data(raw_nodes)
             node_count = len(nodes)
             
-            # Calculate CPU/Memory metrics with proper format detection
-            total_cpu_alloc = 0
-            total_mem_alloc = 0
+            # Validate node data
+            is_valid, validation_errors = NodeDataProcessor.validate_node_data(nodes)
+            if not is_valid:
+                logger.error(f"❌ Node data validation failed: {validation_errors[:3]}")
+                # Raise error per .clauderc - no fallbacks
+                raise ValueError(f"Invalid node data for scoring: {validation_errors[0]}")
             
-            for node in nodes:
-                # Handle both processed format (allocatable_cpu as float) and raw format (needs parsing)
-                if 'allocatable_cpu' in node and isinstance(node['allocatable_cpu'], (int, float)):
-                    # Processed format from kubernetes_data_cache
-                    total_cpu_alloc += node['allocatable_cpu']
-                    total_mem_alloc += node.get('allocatable_memory', 0)
-                elif 'status' in node and 'allocatable' in node['status']:
-                    # Raw Kubernetes format - parse manually
-                    allocatable = node['status']['allocatable']
-                    cpu_str = allocatable.get('cpu', '0')
-                    memory_str = allocatable.get('memory', '0Ki')
-                    
-                    # Parse CPU millicores
-                    if cpu_str.endswith('m'):
-                        total_cpu_alloc += float(cpu_str[:-1]) / 1000
-                    else:
-                        total_cpu_alloc += float(cpu_str) if cpu_str else 0
-                    
-                    # Parse memory
-                    if memory_str.endswith('Ki'):
-                        total_mem_alloc += float(memory_str[:-2]) * 1024
-                    elif memory_str.endswith('Mi'):
-                        total_mem_alloc += float(memory_str[:-2]) * 1024 * 1024
-                    elif memory_str.endswith('Gi'):
-                        total_mem_alloc += float(memory_str[:-2]) * 1024 * 1024 * 1024
+            # Calculate cluster totals using unified processor
+            cluster_totals = NodeDataProcessor.calculate_cluster_totals(nodes)
+            total_cpu_alloc = cluster_totals['total_cpu_cores']
+            total_mem_alloc = cluster_totals['total_memory_bytes']
+            
+            logger.info(f"✅ Processed {node_count} nodes: {total_cpu_alloc:.2f} CPU cores, {total_mem_alloc / (1024**3):.2f} GB memory")
             
             avg_cpu = current_usage.get('avg_cpu_utilization', 0)
             avg_memory = current_usage.get('avg_memory_utilization', 0)
@@ -1873,6 +1862,12 @@ class ConsistentCostAnalyzer:
             # Hygiene checks (basic assessment)
             hygiene_checks = self._assess_hygiene_checks(metrics_data, workloads)
             platform_hygiene_checks = self._assess_platform_hygiene(metrics_data, nodes)
+            
+            # Debug before creating scoring metrics
+            logger.info(f"🔍 SCORING FINAL - total_cpu_alloc: {total_cpu_alloc}, total_mem_alloc: {total_mem_alloc}")
+            logger.info(f"🔍 SCORING FINAL - eligible_hpa_workloads: {eligible_hpa_workloads}")
+            logger.info(f"🔍 SCORING FINAL - node_count: {node_count}")
+            logger.info(f"🔍 SCORING FINAL - hpa_count: {hpa_count}")
             
             scoring_metrics = {
                 # Basic resource metrics
@@ -1980,12 +1975,25 @@ class ConsistentCostAnalyzer:
                 'reserved_core_hours': used_vcpu_hours * 0.5,  # Current RI coverage (estimate 50%)
             }
             
-            # Log key scoring metrics
+            # Log key scoring metrics with safe division
             logger.info(f"✅ Prepared scoring metrics: {len(scoring_metrics)} parameters")
             logger.info(f"🔍 KEY SCORING METRICS:")
-            logger.info(f"   CPU Alloc: {scoring_metrics['cpu_alloc']}, P95: {scoring_metrics['cpu_p95']} ({scoring_metrics['cpu_p95']/scoring_metrics['cpu_alloc']*100:.1f}%)")
-            logger.info(f"   Mem Alloc: {scoring_metrics['mem_alloc']}, P95: {scoring_metrics['mem_p95']} ({scoring_metrics['mem_p95']/scoring_metrics['mem_alloc']*100:.1f}%)")
-            logger.info(f"   HPAs: {scoring_metrics['hpa_count']}/{scoring_metrics['eligible_hpa_workloads']} ({scoring_metrics['hpa_count']/scoring_metrics['eligible_hpa_workloads']*100:.1f}%)")
+            
+            # Safe CPU percentage calculation
+            cpu_pct = (scoring_metrics['cpu_p95']/scoring_metrics['cpu_alloc']*100 
+                      if scoring_metrics['cpu_alloc'] > 0 else 0.0)
+            logger.info(f"   CPU Alloc: {scoring_metrics['cpu_alloc']}, P95: {scoring_metrics['cpu_p95']} ({cpu_pct:.1f}%)")
+            
+            # Safe Memory percentage calculation
+            mem_pct = (scoring_metrics['mem_p95']/scoring_metrics['mem_alloc']*100 
+                      if scoring_metrics['mem_alloc'] > 0 else 0.0)
+            logger.info(f"   Mem Alloc: {scoring_metrics['mem_alloc']}, P95: {scoring_metrics['mem_p95']} ({mem_pct:.1f}%)")
+            
+            # Safe HPA coverage calculation
+            hpa_pct = (scoring_metrics['hpa_count']/scoring_metrics['eligible_hpa_workloads']*100 
+                      if scoring_metrics['eligible_hpa_workloads'] > 0 else 0.0)
+            logger.info(f"   HPAs: {scoring_metrics['hpa_count']}/{scoring_metrics['eligible_hpa_workloads']} ({hpa_pct:.1f}%)")
+            
             logger.info(f"   Idle Compute: {scoring_metrics['idle_compute_cost_pct']*100:.1f}%")
             logger.info(f"   Node Cost: ${scoring_metrics['cost_nodes']}, Storage: ${scoring_metrics['cost_storage']}")
             logger.info(f"🎯 SPOT/RI METRICS:")
