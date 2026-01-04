@@ -1323,6 +1323,18 @@ class MultiSubscriptionAnalysisEngine:
                 pod_costs = pod_data.get('workload_costs', {})
                 deployment_costs = {}
                 for pod_name, pod_cost in pod_costs.items():
+                    # Ensure pod_cost is numeric, not a dict
+                    if isinstance(pod_cost, dict):
+                        # If it's a dict, try to extract the cost value
+                        pod_cost = pod_cost.get('cost', 0) if 'cost' in pod_cost else pod_cost.get('total_cost', 0)
+                    
+                    # Validate pod_cost is numeric
+                    try:
+                        pod_cost = float(pod_cost) if pod_cost else 0
+                    except (ValueError, TypeError):
+                        logger.warning(f"⚠️ Invalid pod cost for {pod_name}: {pod_cost}")
+                        pod_cost = 0
+                    
                     # Extract deployment name from pod name (pods typically have format: deployment-name-xxxxx-xxxxx)
                     parts = pod_name.rsplit('-', 2)  # Split from right to handle deployment names with dashes
                     if len(parts) >= 3:

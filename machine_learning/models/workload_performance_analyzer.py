@@ -146,11 +146,18 @@ class SelfLearningWorkloadClassifier:
         try:
             logger.info("🔬 Extracting features for comprehensive insights...")
             
-            # Get nodes data
-            nodes = metrics_data.get('nodes', [])
+            # DEBUG: Log what we're extracting features from
+            logger.info(f"🔍 EXTRACT_FEATURES received keys: {list(metrics_data.keys())}")
+            
+            # Get nodes data - Per .clauderc: No fallbacks
+            if 'nodes' not in metrics_data:
+                raise ValueError("metrics_data missing required 'nodes' field")
+            nodes = metrics_data['nodes']
             if not nodes:
-                logger.warning("⚠️ No nodes data - using defaults")
-                return self._get_default_feature_dataframe()
+                raise ValueError("No nodes data available for ML feature extraction")
+            
+            logger.info(f"🔍 EXTRACT_FEATURES nodes count: {len(nodes)}")
+            logger.info(f"🔍 EXTRACT_FEATURES first node: {nodes[0] if nodes else 'No nodes'}")
             
             # Extract CPU and memory utilization
             cpu_utils = []
@@ -182,17 +189,17 @@ class SelfLearningWorkloadClassifier:
                         except (ValueError, TypeError):
                             continue
                 
-                # Use intelligent defaults if needed
+                # Per .clauderc: No fallbacks - fail if we can't get real data
                 if cpu_val is None:
-                    cpu_val = 35.0 + (i * 5)
+                    raise ValueError(f"Failed to extract CPU utilization for node {i}. Available fields: {list(node.keys())}")
                 if memory_val is None:
-                    memory_val = 60.0 + (i * 3)
+                    raise ValueError(f"Failed to extract memory utilization for node {i}. Available fields: {list(node.keys())}")
                 
                 cpu_utils.append(cpu_val)
                 memory_utils.append(memory_val)
             
             if not cpu_utils:
-                return self._get_default_feature_dataframe()
+                raise ValueError("No CPU utilization data could be extracted from nodes")
             
             # Extract comprehensive features for rich insights
             features = {}
@@ -218,10 +225,10 @@ class SelfLearningWorkloadClassifier:
             # Cluster health features (for infrastructure insights)
             features.update(self._calculate_cluster_health_features(nodes, cpu_utils, memory_utils))
             
-            # Ensure all required features exist
-            for feat in self.expected_features:
-                if feat not in features:
-                    features[feat] = self._get_safe_default(feat)
+            # Per .clauderc: Validate all required features exist - no defaults
+            missing_features = [feat for feat in self.expected_features if feat not in features]
+            if missing_features:
+                raise ValueError(f"Missing required ML features: {missing_features}")
             
             # Build DataFrame with exact order
             feature_values = [float(features[feat]) for feat in self.expected_features]
@@ -231,12 +238,18 @@ class SelfLearningWorkloadClassifier:
             df = df.fillna(0.0)
             df = df.replace([np.inf, -np.inf], 0.0)
             
+            # DEBUG: Log the features we extracted
             logger.info(f"✅ Extracted {len(df.columns)} features for comprehensive insights")
+            logger.info(f"🔍 FEATURES DataFrame columns: {list(df.columns[:10])}...")  # First 10 columns
+            logger.info(f"🔍 FEATURES cpu_mean value: {df['cpu_mean'].iloc[0] if 'cpu_mean' in df.columns else 'NOT FOUND'}")
+            logger.info(f"🔍 FEATURES memory_mean value: {df['memory_mean'].iloc[0] if 'memory_mean' in df.columns else 'NOT FOUND'}")
+            
             return df
             
         except Exception as e:
             logger.error(f"❌ Feature extraction failed: {e}")
-            return self._get_default_feature_dataframe()
+            # Per .clauderc: Fail explicitly - no fallback defaults
+            raise ValueError(f"Failed to extract ML features: {e}")
 
     def _calculate_statistical_features(self, cpu_utils: List[float], memory_utils: List[float]) -> Dict[str, float]:
         """ Calculate comprehensive statistical features with extreme value handling"""
@@ -603,7 +616,7 @@ class SelfLearningWorkloadClassifier:
         """Enhanced classification with rich insights for recommendations"""
         try:
             if features_df is None or features_df.empty:
-                return self._ml_enhanced_rule_classification(self._get_default_feature_dataframe())
+                raise ValueError("Cannot classify workload without feature data")
             
             if not self.is_trained:
                 return self._ml_enhanced_rule_classification(features_df)
@@ -792,38 +805,60 @@ class SelfLearningWorkloadClassifier:
     def _extract_feature_insights(self, features_df: pd.DataFrame) -> Dict[str, Any]:
         """Extract detailed feature insights for comprehensive recommendations"""
         try:
+            if features_df.empty:
+                raise ValueError("Cannot extract insights from empty DataFrame")
+                
             features = features_df.iloc[0]
+            
+            # Per .clauderc: Validate required fields exist - NO FALLBACKS
+            required_fields = ['cpu_mean', 'memory_mean', 'cpu_max', 'memory_max',
+                             'cpu_stability_score', 'memory_stability_score', 
+                             'cpu_burst_frequency', 'cpu_cv', 'memory_cv',
+                             'overall_efficiency_score', 'avg_cpu_gap', 'avg_memory_gap']
+            
+            for field in required_fields:
+                if field not in features:
+                    raise ValueError(f"Required feature '{field}' missing from ML features")
+            
+            # Extract validated features
+            cpu_mean = float(features['cpu_mean'])
+            memory_mean = float(features['memory_mean'])
+            cpu_max = float(features['cpu_max'])
+            memory_max = float(features['memory_max'])
             
             return {
                 'resource_utilization': {
-                    'cpu_mean': float(features.get('cpu_mean', 0)),
-                    'memory_mean': float(features.get('memory_mean', 0)),
-                    'cpu_peak': float(features.get('cpu_max', 0)),
-                    'memory_peak': float(features.get('memory_max', 0)),
-                    'resource_balance': abs(float(features.get('cpu_mean', 0)) - float(features.get('memory_mean', 0)))
+                    'cpu_mean': cpu_mean,
+                    'memory_mean': memory_mean,
+                    'cpu_peak': cpu_max,
+                    'memory_peak': memory_max,
+                    'resource_balance': abs(cpu_mean - memory_mean)
                 },
                 'performance_patterns': {
-                    'cpu_stability': float(features.get('cpu_stability_score', 0)),
-                    'memory_stability': float(features.get('memory_stability_score', 0)),
-                    'burst_frequency': float(features.get('cpu_burst_frequency', 0)),
-                    'variability': float(features.get('cpu_cv', 0)) + float(features.get('memory_cv', 0))
+                    'cpu_stability': float(features['cpu_stability_score']),
+                    'memory_stability': float(features['memory_stability_score']),
+                    'burst_frequency': float(features['cpu_burst_frequency']),
+                    'variability': float(features['cpu_cv']) + float(features['memory_cv'])
                 },
                 'efficiency_metrics': {
-                    'overall_efficiency': float(features.get('overall_efficiency_score', 0)),
-                    'cpu_gap': float(features.get('avg_cpu_gap', 0)),
-                    'memory_gap': float(features.get('avg_memory_gap', 0)),
-                    'waste_indicator': float(features.get('avg_cpu_gap', 0)) + float(features.get('avg_memory_gap', 0))
+                    'overall_efficiency': float(features['overall_efficiency_score']),
+                    'cpu_gap': float(features['avg_cpu_gap']),
+                    'memory_gap': float(features['avg_memory_gap']),
+                    'waste_indicator': float(features['avg_cpu_gap']) + float(features['avg_memory_gap'])
                 },
                 'cluster_health': {
-                    'node_readiness': float(features.get('node_readiness_ratio', 1.0)),
-                    'distribution_fairness': (float(features.get('cpu_distribution_fairness', 0.8)) + 
-                                            float(features.get('memory_distribution_fairness', 0.8))) / 2,
-                    'cluster_size': int(features.get('cluster_size', 3))
+                    'node_readiness': float(features['node_readiness_ratio']) if 'node_readiness_ratio' in features else 1.0,
+                    'distribution_fairness': (float(features['cpu_distribution_fairness']) if 'cpu_distribution_fairness' in features else 0.8 + 
+                                            float(features['memory_distribution_fairness']) if 'memory_distribution_fairness' in features else 0.8) / 2,
+                    'cluster_size': int(features['cluster_size']) if 'cluster_size' in features else 3
                 }
             }
         except Exception as e:
             logger.error(f"❌ Feature insights extraction failed: {e}")
-            return {}
+            logger.error(f"❌ Available features: {list(features.keys()) if hasattr(features, 'keys') else 'Not a dict'}")
+            logger.error(f"❌ Features DataFrame columns: {list(features_df.columns) if not features_df.empty else 'Empty DataFrame'}")
+            # Per .clauderc: Fail explicitly - no silent failures  
+            raise ValueError(f"Failed to extract feature insights: {e}")
 
     def _get_alternative_patterns(self, probabilities, classes) -> List[Dict[str, Any]]:
         """Get alternative workload patterns with their probabilities"""
@@ -1749,6 +1784,12 @@ class SelfLearningIntelligentHPAEngine:
         try:
             logger.info("🧠 Starting comprehensive self-learning HPA analysis with rich insights...")
             
+            # DEBUG: Log what we received
+            logger.info(f"🔍 ML RECEIVED metrics_data keys: {list(metrics_data.keys())}")
+            logger.info(f"🔍 ML RECEIVED nodes count: {len(metrics_data.get('nodes', []))}")
+            if metrics_data.get('nodes'):
+                logger.info(f"🔍 ML RECEIVED first node keys: {list(metrics_data['nodes'][0].keys()) if metrics_data['nodes'] else 'No nodes'}")
+            
             # Step 1: Extract features for classification
             features = self.workload_classifier.extract_advanced_features(metrics_data)
             
@@ -1779,9 +1820,13 @@ class SelfLearningIntelligentHPAEngine:
             learning_status = self.workload_classifier.get_learning_status()
             
             # Step 6: Generate workload characteristics (like your original model)
+            logger.info(f"🔍 BEFORE _generate_workload_characteristics - workload_classification keys: {list(workload_classification.keys())}")
+            if 'feature_insights' in workload_classification:
+                logger.info(f"🔍 feature_insights keys: {list(workload_classification['feature_insights'].keys())}")
             workload_characteristics = self._generate_workload_characteristics(
                 workload_classification, features, metrics_data
             )
+            logger.info(f"🔍 AFTER _generate_workload_characteristics - workload_characteristics keys: {list(workload_characteristics.keys())}")
             
             return {
                 'workload_classification': workload_classification,
@@ -1931,18 +1976,47 @@ class SelfLearningIntelligentHPAEngine:
                                          metrics_data: Dict) -> Dict[str, Any]:
         """Generate detailed workload characteristics like your original model"""
         try:
-            feature_insights = workload_class.get('feature_insights', {})
+            # Per .clauderc: No fallbacks - validate required data exists
+            if 'feature_insights' not in workload_class:
+                raise ValueError("workload_class missing required feature_insights")
+            
+            feature_insights = workload_class['feature_insights']
+            
+            # Validate required nested fields exist
+            if 'resource_utilization' not in feature_insights:
+                raise ValueError("feature_insights missing required resource_utilization")
+            
+            resource_util = feature_insights['resource_utilization']
+            
+            # Validate required utilization metrics exist
+            if 'cpu_mean' not in resource_util:
+                raise ValueError("resource_utilization missing required cpu_mean")
+            if 'memory_mean' not in resource_util:
+                raise ValueError("resource_utilization missing required memory_mean")
+            
+            # Get required fields with explicit validation
+            cpu_mean = resource_util['cpu_mean']
+            memory_mean = resource_util['memory_mean']
+            
+            # Validate other required sections
+            if 'performance_patterns' not in feature_insights:
+                raise ValueError("feature_insights missing required performance_patterns")
+            if 'efficiency_metrics' not in feature_insights:
+                raise ValueError("feature_insights missing required efficiency_metrics")
+                
+            perf_patterns = feature_insights['performance_patterns']
+            efficiency_metrics = feature_insights['efficiency_metrics']
             
             return {
                 'workload_type': workload_class.get('workload_type', 'BALANCED'),
                 'confidence': workload_class.get('confidence', 0.5),
-                'cpu_utilization': feature_insights.get('resource_utilization', {}).get('cpu_mean', 35),
-                'memory_utilization': feature_insights.get('resource_utilization', {}).get('memory_mean', 60),
-                'resource_balance': feature_insights.get('resource_utilization', {}).get('resource_balance', 25),
-                'performance_stability': feature_insights.get('performance_patterns', {}).get('cpu_stability', 0.8),
-                'burst_patterns': feature_insights.get('performance_patterns', {}).get('burst_frequency', 0.1),
-                'efficiency_score': feature_insights.get('efficiency_metrics', {}).get('overall_efficiency', 0.6),
-                'optimization_potential': 'high' if feature_insights.get('efficiency_metrics', {}).get('waste_indicator', 0) > 50 else 'medium',
+                'cpu_utilization': cpu_mean,  # Use validated required field
+                'memory_utilization': memory_mean,  # Use validated required field
+                'resource_balance': resource_util.get('resource_balance', 25),
+                'performance_stability': perf_patterns.get('cpu_stability', 0.8),
+                'burst_patterns': perf_patterns.get('burst_frequency', 0.1),
+                'efficiency_score': efficiency_metrics.get('overall_efficiency', 0.6),
+                'optimization_potential': 'high' if efficiency_metrics.get('waste_indicator', 0) > 50 else 'medium',
                 'cluster_health': feature_insights.get('cluster_health', {}),
                 'ml_classification': {
                     'method': workload_class.get('method', 'rule-based'),

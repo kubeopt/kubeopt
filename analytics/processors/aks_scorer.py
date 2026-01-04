@@ -23,7 +23,9 @@ def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 def safe_divide(numerator: float, denominator: float, default: float = 0.0) -> float:
-    """Safe division with default for zero denominator"""
+    """Safe division with default for zero denominator or None values"""
+    if numerator is None or denominator is None:
+        return default
     if denominator == 0 or math.isnan(denominator):
         return default
     return numerator / denominator
@@ -107,16 +109,35 @@ class AKSScorer:
         Returns:
             Target value from config, or raises ValueError if not found
         """
-        # Check in targets section first
-        targets = self.cfg.get('targets', {})
-        if target_name in targets:
-            return targets[target_name]
+        # Check in build_quality.targets first (where cpu_warm_band is located)
+        build_quality = self.cfg.get('build_quality', {})
+        build_targets = build_quality.get('targets', {})
+        if target_name in build_targets:
+            return build_targets[target_name]
+        
+        # Check in cost_excellence.compute.bands (alternative location)
+        cost_excellence = self.cfg.get('cost_excellence', {})
+        compute = cost_excellence.get('compute', {})
+        bands = compute.get('bands', {})
+        
+        # Map alternative names
+        if target_name == 'cpu_warm_band' and 'cpu_warm' in bands:
+            return bands['cpu_warm']
+        if target_name == 'mem_warm_band' and 'mem_warm' in bands:
+            return bands['mem_warm']
+        if target_name in bands:
+            return bands[target_name]
         
         # Check in official_standards for broader standards
         standards = self.cfg.get('official_standards', {})
-        for category in standards.values():
-            if target_name in category:
-                return category[target_name]
+        if isinstance(standards, dict):
+            for category in standards.values():
+                if isinstance(category, dict) and target_name in category:
+                    return category[target_name]
+        
+        # Check top-level targets if exists
+        if 'targets' in self.cfg and target_name in self.cfg['targets']:
+            return self.cfg['targets'][target_name]
         
         # If not found, raise error per .clauderc
         raise ValueError(f"Target '{target_name}' not found in configuration")
