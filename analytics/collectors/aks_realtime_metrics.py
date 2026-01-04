@@ -31,6 +31,7 @@ import numpy as np
 
 from analytics.processors.algorithmic_cost_analyzer import MLEnhancedHPARecommendationEngine
 from shared.kubernetes_data_cache import get_or_create_cache, fetch_cluster_data
+from shared.node_data_processor import NodeDataProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -598,21 +599,50 @@ class AKSRealTimeMetricsFetcher:
             
             logger.info(f"✅ Node mapping validation passed: {len(node_metrics)}/{total_nodes_from_cluster} nodes mapped ({mapped_node_ratio:.1%})")
             
+            # Use NodeDataProcessor for consistent node structure
+            processed_nodes = []
+            for node in node_metrics:
+                # Convert to unified format
+                processed_node = {
+                    'name': node['name'],
+                    'allocatable_cpu': node['cpu_allocatable_cores'],
+                    'allocatable_memory': node['memory_allocatable_bytes'],
+                    'cpu_usage_pct': node['cpu_usage_pct'],
+                    'memory_usage_pct': node['memory_usage_pct'],
+                    'nodepool': 'default',  # Will be extracted by NodeDataProcessor if available
+                    'status': 'Ready' if node['ready'] else 'NotReady',
+                    # Keep additional fields
+                    'cpu_request_pct': node['cpu_request_pct'],
+                    'memory_request_pct': node['memory_request_pct'],
+                    'cpu_gap': node['cpu_gap'],
+                    'memory_gap': node['memory_gap'],
+                    'pod_count': node['pod_count'],
+                    'has_real_requests': node['has_real_requests']
+                }
+                processed_nodes.append(processed_node)
+            
+            # Calculate cluster totals using unified processor
+            cluster_totals = NodeDataProcessor.calculate_cluster_totals(processed_nodes)
+            
             return {
-                'nodes': node_metrics,
-                'total_nodes': len(node_metrics),
-                'ready_nodes': sum(1 for n in node_metrics if n['ready']),
-                'nodes_with_real_requests': sum(1 for n in node_metrics if n['has_real_requests']),
-                'average_cpu_usage': round(sum(n['cpu_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
-                'average_memory_usage': round(sum(n['memory_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
-                # FIX: Map real metrics to expected field names for analysis flow
-                'avg_cpu_utilization': round(sum(n['cpu_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
-                'avg_memory_utilization': round(sum(n['memory_usage_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
-                'average_cpu_requests': round(sum(n['cpu_request_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
-                'average_memory_requests': round(sum(n['memory_request_pct'] for n in node_metrics) / len(node_metrics), 1) if node_metrics else 0,
+                'nodes': processed_nodes,
+                'nodes_processed': processed_nodes,  # Add both keys for compatibility
+                'total_nodes': len(processed_nodes),
+                'ready_nodes': sum(1 for n in processed_nodes if n['status'] == 'Ready'),
+                'nodes_with_real_requests': sum(1 for n in processed_nodes if n.get('has_real_requests', False)),
+                'average_cpu_usage': cluster_totals['avg_cpu_utilization'],
+                'average_memory_usage': cluster_totals['avg_memory_utilization'],
+                # Keep expected field names for analysis flow
+                'avg_cpu_utilization': cluster_totals['avg_cpu_utilization'],
+                'avg_memory_utilization': cluster_totals['avg_memory_utilization'],
+                'average_cpu_requests': round(sum(n.get('cpu_request_pct', 0) for n in processed_nodes) / len(processed_nodes), 1) if processed_nodes else 0,
+                'average_memory_requests': round(sum(n.get('memory_request_pct', 0) for n in processed_nodes) / len(processed_nodes), 1) if processed_nodes else 0,
                 'timestamp': datetime.now().isoformat(),
                 'data_source': 'kubectl_enhanced_with_requests',
-                'enhanced_data_available': True
+                'enhanced_data_available': True,
+                # Add cluster totals
+                'total_cpu_cores': cluster_totals['total_cpu_cores'],
+                'total_memory_bytes': cluster_totals['total_memory_bytes']
             }
             
         except Exception as e:
