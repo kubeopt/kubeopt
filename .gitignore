@@ -5,7 +5,6 @@ static/.DS_Store
 aks_cost_query_1748726312.json
 static/.DS_Store
 .DS_Store
-*.png
 app-bkp/*
 
 # Environment files with secrets
