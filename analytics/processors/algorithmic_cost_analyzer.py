@@ -344,6 +344,14 @@ class MLEnhancedHPARecommendationEngine:
         # Step 2: Prepare data for Comprehensive Analysis analysis
         enhanced_features = self._prepare_comprehensive_ml_data(metrics_data)
         
+        # DEBUG: Log what we're sending to ML
+        logger.info(f"🔍 ENHANCED_FEATURES keys: {list(enhanced_features.keys())}")
+        logger.info(f"🔍 NODES count: {len(enhanced_features.get('nodes', []))}")
+        if enhanced_features.get('nodes'):
+            logger.info(f"🔍 First node keys: {list(enhanced_features['nodes'][0].keys()) if enhanced_features['nodes'] else 'No nodes'}")
+            if enhanced_features['nodes'] and 'cpu_usage_pct' in enhanced_features['nodes'][0]:
+                logger.info(f"🔍 First node cpu_usage_pct: {enhanced_features['nodes'][0]['cpu_usage_pct']}")
+        
         # Step 3: Run Comprehensive Analysis analysis with self-learning
         ml_results = ml_engine.analyze_and_recommend_with_comprehensive_insights(
             metrics_data=enhanced_features, 
@@ -406,16 +414,28 @@ class MLEnhancedHPARecommendationEngine:
             optimization_analysis = ml_results.get('optimization_analysis', {})
             workload_classification = ml_results.get('workload_classification', {})
             
-            # Get ML-derived utilization metrics - NO DEFAULTS per .clauderc
-            if 'cpu_utilization' not in workload_characteristics:
+            # DEBUG: Log what we received from ML
+            logger.info(f"🔍 ML_RESULTS keys: {list(ml_results.keys())}")
+            logger.info(f"🔍 WORKLOAD_CHARACTERISTICS keys: {list(workload_characteristics.keys())}")
+            logger.info(f"🔍 WORKLOAD_CHARACTERISTICS content: {workload_characteristics}")
+            
+            # Handle both ML result formats:
+            # Format 1: Nested under workload_characteristics
+            # Format 2: Direct at top level
+            if workload_characteristics and 'cpu_utilization' in workload_characteristics:
+                cpu_utilization = workload_characteristics['cpu_utilization']
+                memory_utilization = workload_characteristics.get('memory_utilization')
+            elif 'cpu_utilization' in ml_results:
+                # Direct format - cpu_utilization at top level
+                cpu_utilization = ml_results['cpu_utilization']
+                memory_utilization = ml_results.get('memory_utilization')
+            else:
                 raise ValueError("ML workload analysis missing required cpu_utilization data. "
                                "Ensure ML processing pipeline provides complete utilization metrics.")
-            if 'memory_utilization' not in workload_characteristics:
+            
+            if memory_utilization is None:
                 raise ValueError("ML workload analysis missing required memory_utilization data. "
                                "Ensure ML processing pipeline provides complete utilization metrics.")
-            
-            cpu_utilization = workload_characteristics['cpu_utilization']
-            memory_utilization = workload_characteristics['memory_utilization']
             workload_type = workload_classification.get('workload_type', 'BALANCED')
             
             # Validate utilization values against .clauderc standards
@@ -443,8 +463,8 @@ class MLEnhancedHPARecommendationEngine:
             enhanced_efficiency = base_efficiency * efficiency_multiplier
             
             # Per .clauderc: Use cost optimization standards instead of hardcoded 60%
-            from shared.standards.cost_optimization_standards import HPACostStandards
-            max_efficiency = HPACostStandards.HPA_COST_EFFICIENCY_TARGET  # 80% from standards
+            from shared.standards.cost_optimization_standards import HorizontalPodAutoscalerCostStandards
+            max_efficiency = HorizontalPodAutoscalerCostStandards.HPA_COST_EFFICIENCY_TARGET  # 80% from standards
             final_efficiency = min(float(max_efficiency), max(0.0, enhanced_efficiency))
             
             logger.info(f"✅ HPA Efficiency Calculation:")
@@ -565,10 +585,28 @@ class MLEnhancedHPARecommendationEngine:
         Prepare data for comprehensive analysis
         """
         try:
-            # The comprehensive model expects the full metrics_data structure
-            # Ensure it has the required format
+            # Per .clauderc: Validate required data exists - NO FALLBACKS
+            if 'nodes' not in metrics_data:
+                raise ValueError("metrics_data missing required 'nodes' field")
+            
+            nodes = metrics_data['nodes']
+            if not nodes:
+                raise ValueError("Node metrics data required for analysis. "
+                               "Cannot proceed without real node utilization data. "
+                               "Ensure kubectl access and node monitoring are functional.")
+            
+            # Validate node data has required fields
+            for i, node in enumerate(nodes):
+                if not isinstance(node, dict):
+                    raise ValueError(f"Node {i} is not a dictionary: {type(node)}")
+                if 'cpu_usage_pct' not in node:
+                    raise ValueError(f"Node {i} missing required field 'cpu_usage_pct'. Available fields: {list(node.keys())}")
+                if 'memory_usage_pct' not in node:
+                    raise ValueError(f"Node {i} missing required field 'memory_usage_pct'. Available fields: {list(node.keys())}")
+            
+            # Build prepared data with validated nodes
             prepared_data = {
-                'nodes': metrics_data.get('nodes', []),
+                'nodes': nodes,
                 'hpa_implementation': metrics_data.get('hpa_implementation', {
                     'current_hpa_pattern': 'no_hpa_detected',
                     'confidence': 'low',
@@ -576,18 +614,13 @@ class MLEnhancedHPARecommendationEngine:
                 })
             }
             
-            # Validate required node data - NO FALLBACKS per .clauderc
-            if not prepared_data['nodes']:
-                raise ValueError("Node metrics data required for analysis. "
-                               "Cannot proceed without real node utilization data. "
-                               "Ensure kubectl access and node monitoring are functional.")
-            
-            logger.info(f"✅ Prepared data for Comprehensive Analysis analysis: {len(prepared_data['nodes'])} nodes")
+            logger.info(f"✅ Prepared data for Comprehensive Analysis: {len(prepared_data['nodes'])} nodes validated")
             return prepared_data
             
         except Exception as e:
             logger.error(f"❌ Data preparation failed: {e}")
-            return {'nodes': [], 'hpa_implementation': {}}
+            # Per .clauderc: Fail explicitly - no empty fallbacks
+            raise ValueError(f"Failed to prepare ML data: {e}")
     
     def _extract_max_cpu_from_workloads(self, workloads: list) -> float:
         """Extract maximum CPU utilization from workloads handling different field names"""
@@ -626,16 +659,23 @@ class MLEnhancedHPARecommendationEngine:
             logger.info(f"🤖 Comprehensive Analysis Classification: {workload_type} (confidence: {confidence:.2f})")
             logger.info(f"🎯 Comprehensive Analysis Recommendation: {primary_action}")
             
-            # Extract ML utilization data directly - NO DEFAULTS per .clauderc
-            if 'cpu_utilization' not in workload_characteristics:
+            # Handle both ML result formats:
+            # Format 1: Nested under workload_characteristics
+            # Format 2: Direct at top level
+            if workload_characteristics and 'cpu_utilization' in workload_characteristics:
+                ml_cpu_utilization = workload_characteristics['cpu_utilization']
+                ml_memory_utilization = workload_characteristics.get('memory_utilization')
+            elif 'cpu_utilization' in ml_results:
+                # Direct format - cpu_utilization at top level
+                ml_cpu_utilization = ml_results['cpu_utilization']
+                ml_memory_utilization = ml_results.get('memory_utilization')
+            else:
                 raise ValueError("ML workload characteristics missing cpu_utilization. "
                                "Real-time metrics collection must provide accurate CPU data.")
-            if 'memory_utilization' not in workload_characteristics:
+            
+            if ml_memory_utilization is None:
                 raise ValueError("ML workload characteristics missing memory_utilization. "
                                "Real-time metrics collection must provide accurate memory data.")
-            
-            ml_cpu_utilization = workload_characteristics['cpu_utilization']
-            ml_memory_utilization = workload_characteristics['memory_utilization']
             
             # Validate ML utilization data
             MetricsValidator.validate_utilization_metrics(ml_cpu_utilization, ml_memory_utilization)
@@ -1510,7 +1550,7 @@ class ConsistentCostAnalyzer:
 
             # Step 9: Combine results with validation
             results = self._combine_and_validate_results(
-                actual_costs, current_usage, optimization, efficiency, confidence
+                actual_costs, current_usage, optimization, efficiency, confidence, metrics_data
             )
             
             # Step 10: CRITICAL - Add comprehensive HPA recommendations to results
@@ -2841,7 +2881,8 @@ class ConsistentCostAnalyzer:
         return optimization
     
     def _combine_and_validate_results(self, actual_costs: Dict, current_usage: Dict, 
-                                    optimization: Dict, efficiency: Dict, confidence: Dict) -> Dict:
+                                    optimization: Dict, efficiency: Dict, confidence: Dict, 
+                                    metrics_data: Dict = None) -> Dict:
         """Combine all analysis results with validation"""
         
         # Extract cost components
@@ -2887,25 +2928,37 @@ class ConsistentCostAnalyzer:
         
         # Generate AKS scoring breakdown data (fixes cache manager errors)
         try:
+            # Per .clauderc: Require metrics_data for scoring
+            if metrics_data is None:
+                raise ValueError("Metrics data is required for AKS scoring")
+                
             scoring_metrics = self._prepare_scoring_metrics(actual_costs, metrics_data, current_usage, {})
             
             # Generate build quality and cost excellence breakdowns
             build_quality_result = self.aks_scorer.score_build_quality(scoring_metrics)
             cost_excellence_result = self.aks_scorer.score_cost_excellence(scoring_metrics)
             
+            # Calculate level based on score ranges
+            def get_level(score):
+                if score >= 80: return 'Excellent'
+                elif score >= 60: return 'Good'
+                elif score >= 40: return 'Fair'
+                elif score >= 20: return 'Poor'
+                else: return 'Critical'
+            
             build_quality_breakdown = {
-                'score': build_quality_result.score,
-                'level': build_quality_result.level,
+                'score': build_quality_result.total,  # ScoreResult has 'total' not 'score'
+                'level': get_level(build_quality_result.total),
                 'components': build_quality_result.breakdown
             }
             
             cost_excellence_breakdown = {
-                'score': cost_excellence_result.score,
-                'level': cost_excellence_result.level,
+                'score': cost_excellence_result.total,  # ScoreResult has 'total' not 'score'
+                'level': get_level(cost_excellence_result.total),
                 'components': cost_excellence_result.breakdown
             }
             
-            logger.info(f"✅ Generated scoring breakdowns: Build Quality={build_quality_result.score:.1f}, Cost Excellence={cost_excellence_result.score:.1f}")
+            logger.info(f"✅ Generated scoring breakdowns: Build Quality={build_quality_result.total:.1f}, Cost Excellence={cost_excellence_result.total:.1f}")
             
         except Exception as e:
             logger.error(f"❌ Scoring breakdown generation failed: {e}")

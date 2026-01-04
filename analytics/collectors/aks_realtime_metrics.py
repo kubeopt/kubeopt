@@ -641,11 +641,8 @@ class AKSRealTimeMetricsFetcher:
             if not top_nodes:
                 logger.info("📊 Metrics server data unavailable, using resource request estimates")
             
-            # Check for node data in various cache keys (field mapping fix)
-            node_info = cache_data.get('nodes', {})
-            if not node_info:
-                # Try alternate cache keys for node data
-                node_info = cache_data.get('nodes_essential', {})
+            # Check for node data in cache - no fallback per .clauderc
+            node_info = cache_data.get('nodes')
             
             if not node_info or (isinstance(node_info, dict) and not node_info.get('items')):
                 logger.error("❌ JSON nodes data empty or invalid")
@@ -1802,6 +1799,8 @@ class AKSRealTimeMetricsFetcher:
                         name = parts[1]
                         current_cpu = parts[2]
                         target_cpu = parts[3]
+                        # If we have more fields (from hpa_essential), extract scale_target
+                        scale_target = parts[4] if len(parts) > 4 else name  # Default to HPA name if not available
                         
                         try:
                             cpu_val = float(current_cpu) if current_cpu != '<none>' else 0
@@ -1811,7 +1810,8 @@ class AKSRealTimeMetricsFetcher:
                                 'namespace': namespace,
                                 'name': name,
                                 'current_cpu': cpu_val,
-                                'target_cpu': target_val
+                                'target_cpu': target_val,
+                                'scale_target': scale_target  # Add scale_target field
                             }
                             hpa_details.append(hpa_detail)
                             
@@ -2036,10 +2036,13 @@ class AKSRealTimeMetricsFetcher:
                 hpa_metrics['hpa_cpu_metrics'] = []
             
             for hpa in hpa_metrics['hpa_cpu_metrics']:
-                # Per .clauderc: Validate required fields
-                if 'namespace' not in hpa or 'scale_target' not in hpa or 'current_cpu' not in hpa:
-                    logger.warning(f"⚠️ HPA missing required fields: {hpa}")
-                    continue
+                # Per .clauderc: Validate required fields - fail fast with no fallbacks
+                if 'namespace' not in hpa:
+                    raise ValueError(f"HPA missing required field 'namespace': {hpa}")
+                if 'scale_target' not in hpa:
+                    raise ValueError(f"HPA missing required field 'scale_target': {hpa}")
+                if 'current_cpu' not in hpa:
+                    raise ValueError(f"HPA missing required field 'current_cpu': {hpa}")
                     
                 namespace = hpa['namespace']
                 target_name = hpa['scale_target']

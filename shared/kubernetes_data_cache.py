@@ -280,8 +280,9 @@ class KubernetesDataCache:
         COMPLETE COVERAGE of all critical resources
         """
         return {
-            # BATCH 1: Node essentials (90% size reduction vs full JSON)
-            "nodes_essential": '''kubectl get nodes -o custom-columns='NAME:.metadata.name,VERSION:.status.nodeInfo.kubeletVersion,STATUS:.status.conditions[-1].type,CPU_CAP:.status.capacity.cpu,MEM_CAP:.status.capacity.memory,CPU_ALLOC:.status.allocatable.cpu,MEM_ALLOC:.status.allocatable.memory,PODS_CAP:.status.capacity.pods' --no-headers''',
+            # BATCH 1: Full nodes JSON for ML pipeline (required for proper analysis)
+            # NOTE: Removed nodes_essential as it lacks fields needed for ML and the fallback doesn't work
+            "nodes": "kubectl get nodes -o json",
             
             # BATCH 2: Pod essentials for cost analysis (95% size reduction)
             "pods_essential": '''kubectl get pods --all-namespaces -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName,CPU_REQ:.spec.containers[*].resources.requests.cpu,MEM_REQ:.spec.containers[*].resources.requests.memory,CPU_LIM:.spec.containers[*].resources.limits.cpu,MEM_LIM:.spec.containers[*].resources.limits.memory,RESTARTS:.status.containerStatuses[*].restartCount' --no-headers''',
@@ -523,8 +524,9 @@ class KubernetesDataCache:
                                 lines.append(f"{node['name']}\t100m\t{cpu_val}\t1Gi\t{mem_val}")
                         return '\n'.join(lines) if '--no-headers' not in cmd else '\n'.join(lines[1:])
                 
-                # Replace kubectl get nodes -o json (3-5% load reduction)
-                elif cmd == 'kubectl get nodes -o json':
+                # NOTE: Disabled Azure SDK replacement for nodes - kubectl provides more complete data
+                # The ML pipeline requires full kubectl node structure with all status fields
+                elif False and cmd == 'kubectl get nodes -o json':  # DISABLED - kubectl needed for ML
                     logger.info(f"🔄 {self.cluster_name}: Using Azure ARM instead of kubectl get nodes")
                     result = self.azure_collector.get_node_info()
                     # Convert Azure format to kubectl format with ACTUAL resource values
@@ -1010,6 +1012,17 @@ class KubernetesDataCache:
             elif "_essential" in key or key == "namespaces":
                 parsed[key] = self._parse_custom_columns(key, output)
             
+            elif key == "nodes":
+                # Parse full nodes JSON for ML pipeline
+                try:
+                    import json
+                    parsed[key] = json.loads(output)
+                    logger.info(f"✅ Parsed nodes JSON: {len(parsed[key].get('items', []))} nodes found")
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ Failed to parse nodes JSON: {e}")
+                    logger.error(f"❌ Nodes output preview: {output[:500]}")
+                    raise ValueError(f"Invalid nodes JSON from kubectl: {e}")
+            
             else:
                 # Store raw for unknown formats
                 parsed[key] = output.strip()
@@ -1285,39 +1298,13 @@ class KubernetesDataCache:
         final_results = {}
         
         # Map batched results to expected keys
-        if 'nodes_essential' in results:
-            nodes_data = results['nodes_essential']
-            if nodes_data and 'items' in nodes_data:
-                # Convert nodes to JSON format expected by components
-                nodes_json_items = []
-                for node in nodes_data['items']:
-                    node_json = {
-                        "metadata": {
-                            "name": node.get('name', ''),
-                            "labels": {}
-                        },
-                        "status": {
-                            "nodeInfo": {
-                                "kubeletVersion": node.get('version', '')
-                            },
-                            "conditions": [
-                                {"type": node.get('status', 'Unknown')}
-                            ],
-                            "capacity": {
-                                "cpu": node.get('cpu_capacity', '0'),
-                                "memory": node.get('memory_capacity', '0'),
-                                "pods": node.get('pods_capacity', '0')
-                            },
-                            "allocatable": {
-                                "cpu": node.get('cpu_allocatable', '0'),
-                                "memory": node.get('memory_allocatable', '0')
-                            }
-                        }
-                    }
-                    nodes_json_items.append(node_json)
-                
-                final_results['nodes'] = {"items": nodes_json_items}
-                final_results['nodes_text'] = f"Found {nodes_data['count']} nodes"
+        # Use full nodes JSON (required for ML pipeline)
+        if 'nodes' in results:
+            # Full kubectl JSON has complete data needed for analysis
+            final_results['nodes'] = results['nodes']
+            # Extract node count for nodes_text
+            node_count = len(results['nodes'].get('items', [])) if isinstance(results['nodes'], dict) else 0
+            final_results['nodes_text'] = f"Found {node_count} nodes"
         
         if 'pods_essential' in results:
             pods_data = results['pods_essential']
@@ -1633,7 +1620,7 @@ class KubernetesDataCache:
             'pod_usage': self.get('pod_usage') or "",  # Text - kubectl top pods 
             'metrics_pods': self.get('metrics_pods') or "",  # Text - kubectl top pods --all-namespaces
             'metrics_nodes': self.get('metrics_nodes') or "",  # Text - kubectl top nodes
-            'nodes': self.get('nodes') or {"items": []},  # JSON - nodes data
+            'nodes': self.get('nodes'),  # JSON - nodes data (no fallback per .clauderc)
             'nodes_text': self.get('nodes_text') or "",  # Text fallback
             'pod_resources': self.get('pod_resources') or "",  # Text - custom columns
             'pods_basic': self.get('pods_basic') or "",  # Text - basic pod list
