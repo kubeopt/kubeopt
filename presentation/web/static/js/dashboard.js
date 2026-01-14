@@ -272,22 +272,16 @@ window.Dashboard = (function() {
             if (data.cpuWorkloadMetrics) {
                 const cpuMetrics = data.cpuWorkloadMetrics;
                 
-                if (cpuMetrics.average_cpu_utilization !== undefined) {
-                    avgCPU = `${Math.round(cpuMetrics.average_cpu_utilization)}%`;
+                if (cpuMetrics.avg_cpu_utilization !== undefined) {
+                    avgCPU = `${Math.round(cpuMetrics.avg_cpu_utilization)}%`;
                 }
                 
                 if (cpuMetrics.max_cpu_utilization !== undefined) {
                     maxCPU = `${Math.round(cpuMetrics.max_cpu_utilization)}%`;
                 }
                 
-                if (cpuMetrics.cpu_optimization_score !== undefined) {
-                    cpuOptimization = `${Math.round(cpuMetrics.cpu_optimization_score)}%`;
-                } else if (cpuMetrics.optimization_score !== undefined) {
+                if (cpuMetrics.optimization_score !== undefined) {
                     cpuOptimization = `${Math.round(cpuMetrics.optimization_score)}%`;
-                } else if (cpuMetrics.cpu_efficiency !== undefined) {
-                    cpuOptimization = `${Math.round(cpuMetrics.cpu_efficiency)}%`;
-                } else if (cpuMetrics.efficiency_score !== undefined) {
-                    cpuOptimization = `${Math.round(cpuMetrics.efficiency_score)}%`;
                 }
             }
         } catch (error) {

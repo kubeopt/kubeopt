@@ -110,26 +110,40 @@ class NodeDataProcessor:
             labels = node['metadata']['labels']
             nodepool = labels.get('agentpool', labels.get('kubernetes.azure.com/agentpool', 'default'))
         
-        # Extract allocatable resources
-        allocatable_cpu = 0.0
-        allocatable_memory = 0.0
+        # Extract allocatable resources - NO DEFAULTS per .clauderc
+        if 'status' not in node or 'allocatable' not in node['status']:
+            raise ValueError(f"Node {name} missing status.allocatable - required for any AKS cluster")
         
-        if 'status' in node and 'allocatable' in node['status']:
-            allocatable = node['status']['allocatable']
+        allocatable = node['status']['allocatable']
+        
+        # Parse CPU - REQUIRED
+        cpu_str = allocatable.get('cpu')
+        if not cpu_str:
+            raise ValueError(f"Node {name} missing allocatable.cpu")
+        
+        try:
+            if cpu_str.endswith('m'):
+                # Millicores to cores
+                allocatable_cpu = float(cpu_str[:-1]) / 1000
+            else:
+                allocatable_cpu = float(cpu_str)
+                
+            if allocatable_cpu <= 0:
+                raise ValueError(f"Node {name} has invalid allocatable CPU: {allocatable_cpu}")
+        except (ValueError, AttributeError) as e:
+            raise ValueError(f"Node {name} failed to parse CPU '{cpu_str}': {e}") from e
+        
+        # Parse Memory - REQUIRED
+        memory_str = allocatable.get('memory')
+        if not memory_str:
+            raise ValueError(f"Node {name} missing allocatable.memory")
             
-            # Parse CPU
-            cpu_str = allocatable.get('cpu', '0')
-            if cpu_str:
-                if cpu_str.endswith('m'):
-                    # Millicores to cores
-                    allocatable_cpu = float(cpu_str[:-1]) / 1000
-                else:
-                    allocatable_cpu = float(cpu_str)
-            
-            # Parse Memory
-            memory_str = allocatable.get('memory', '0')
-            if memory_str:
-                allocatable_memory = NodeDataProcessor._parse_memory_string(memory_str)
+        try:
+            allocatable_memory = NodeDataProcessor._parse_memory_string(memory_str)
+            if allocatable_memory <= 0:
+                raise ValueError(f"Node {name} has invalid allocatable memory: {allocatable_memory}")
+        except (ValueError, AttributeError) as e:
+            raise ValueError(f"Node {name} failed to parse memory '{memory_str}': {e}") from e
         
         # Extract usage percentages (if available from metrics)
         cpu_usage_pct = 0.0

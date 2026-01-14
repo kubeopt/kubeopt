@@ -1,50 +1,217 @@
 #!/usr/bin/env python3
 """
-from pydantic import BaseModel, Field, validator
+HPA Analyzer Module - Consistent and Simplified
 Developer: Srinivas Kondepudi
 Organization: Nivaya Technologies & kubeopt
 Project: AKS Cost Optimizer
 
-Enhanced HPA Analyzer Module
-============================
-Dedicated module for comprehensive HPA analysis with robust detection logic.
+Comprehensive HPA analysis with consistent variable naming.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 from datetime import datetime
+import subprocess
+import json
+
+# Import performance standards
+try:
+    from shared.standards.performance_standards import (
+        SystemPerformanceStandards as SysPerf
+    )
+except ImportError:
+    # Standards must be available - fail explicitly
+    raise ImportError("Performance standards are required but not found")
 
 logger = logging.getLogger(__name__)
 
+
 class HPAAnalyzer:
-    """
-    Comprehensive HPA analyzer with enhanced detection capabilities
-    
-    This class provides robust HPA analysis including:
-    - Multi-metric detection (CPU, Memory, Custom)
-    - API version compatibility checking
-    - Deployment-to-HPA mapping
-    - Scaling strategy classification
-    - Optimization scoring
-    """
+    """Comprehensive HPA analyzer with consistent data flow"""
     
     @staticmethod
-    def detect_hpa_metrics(hpa: Dict) -> Dict:
+    def analyze_hpa_state(k8s_cache, **kwargs) -> Dict[str, Any]:
         """
-        Enhanced HPA metrics detection that returns comprehensive metric information
+        Main HPA state analysis using single data source
         
         Args:
-            hpa: HPA configuration dictionary
+            k8s_cache: KubernetesDataCache instance (single source of truth)
             
         Returns:
-            Dict with detailed metrics information including:
-            - primary_metric: The main scaling metric
-            - cpu/memory: Resource targets if present
-            - custom: List of custom metrics
-            - has_multiple: Whether HPA uses multiple metrics
-            - scaling_strategy: Classified strategy (cpu-based, memory-based, balanced, etc.)
-            - api_version: HPA API version
+            Comprehensive HPA analysis results
         """
+        logger.info("Starting unified HPA analysis")
+        
+        hpa_state = {
+            'existing_hpas': [],
+            'suboptimal_hpas': [],
+            'missing_hpa_candidates': [],
+            'deployment_mapping': {},
+            'summary': {},
+            'version_distribution': {},
+            'strategy_distribution': {},
+            'hpa_type_distribution': {}
+        }
+        
+        try:
+            # Get data from kubernetes cache
+            hpa_data = k8s_cache.get_hpa_data()
+            
+            # Extract workloads
+            all_workloads = []
+            
+            # Add deployments
+            deployments_data = hpa_data.get('deployments')
+            if deployments_data is None:
+                deployments_data = {}
+            if deployments_data and 'items' in deployments_data:
+                all_workloads.extend(deployments_data['items'])
+                logger.info(f"Found {len(deployments_data['items'])} deployments")
+            
+            # Add statefulsets  
+            statefulsets_data = hpa_data.get('statefulsets')
+            if statefulsets_data is None:
+                statefulsets_data = {}
+            if statefulsets_data and 'items' in statefulsets_data:
+                all_workloads.extend(statefulsets_data['items'])
+                logger.info(f"Found {len(statefulsets_data['items'])} statefulsets")
+            
+            # Extract HPAs
+            hpa_json_data = hpa_data.get('hpa')
+            if hpa_json_data is None:
+                hpa_json_data = {}
+            existing_hpas = []
+            
+            if hpa_json_data and 'items' in hpa_json_data:
+                existing_hpas = hpa_json_data['items']
+                logger.info(f"Found {len(existing_hpas)} HPAs")
+            else:
+                logger.info("No HPAs found in cluster")
+            
+            # Create deployment-HPA mapping
+            hpa_state['deployment_mapping'] = HPAAnalyzer._create_deployment_mapping(
+                existing_hpas, all_workloads
+            )
+            
+            # Analyze each HPA
+            version_counts = {}
+            strategy_counts = {}
+            
+            for hpa in existing_hpas:
+                try:
+                    hpa_analysis = HPAAnalyzer._analyze_single_hpa(hpa)
+                    
+                    # Count versions and strategies
+                    version = hpa_analysis['hpa_version']
+                    strategy = hpa_analysis['metrics_info']['scaling_strategy']
+                    
+                    current_count = version_counts.get(version)
+                    version_counts[version] = (current_count + 1) if current_count else 1
+                    current_strat_count = strategy_counts.get(strategy)
+                    strategy_counts[strategy] = (current_strat_count + 1) if current_strat_count else 1
+                    
+                    # Categorize by optimization score
+                    if hpa_analysis['optimization_score'] < 0.7:
+                        hpa_state['suboptimal_hpas'].append(hpa_analysis)
+                    else:
+                        hpa_state['existing_hpas'].append(hpa_analysis)
+                        
+                except Exception as e:
+                    logger.error(f"Error analyzing HPA: {e}")
+            
+            # Find missing HPA candidates
+            for key, mapping in hpa_state['deployment_mapping'].items():
+                should_have = mapping.get('should_have_hpa')
+                if not mapping['has_hpa'] and should_have:
+                    hpa_state['missing_hpa_candidates'].append({
+                        'deployment_name': mapping['target_name'],
+                        'namespace': mapping['namespace'],
+                        'priority_score': mapping['candidate_score'],
+                        'recommendation_priority': mapping['recommendation_priority'],
+                        'current_replicas': mapping.get('replicas') or 1
+                    })
+            
+            # Build summary
+            total_workloads = len(all_workloads)
+            total_hpas = len(hpa_state['existing_hpas']) + len(hpa_state['suboptimal_hpas'])
+            
+            # Type distribution
+            all_analyzed_hpas = hpa_state['existing_hpas'] + hpa_state['suboptimal_hpas']
+            hpa_type_distribution = {
+                'cpu': sum(1 for h in all_analyzed_hpas if h.get('hpa_type') == 'cpu'),
+                'memory': sum(1 for h in all_analyzed_hpas if h.get('hpa_type') == 'memory'),
+                'mixed': sum(1 for h in all_analyzed_hpas if h.get('hpa_type') == 'mixed'),
+                'custom': sum(1 for h in all_analyzed_hpas if h.get('hpa_type') == 'custom')
+            }
+            
+            # Calculate coverage
+            if total_workloads > 0:
+                hpa_coverage_percent = min(100.0, (total_hpas / total_workloads) * 100)
+            else:
+                hpa_coverage_percent = 0.0
+            
+            hpa_state['summary'] = {
+                'total_workloads': total_workloads,
+                'existing_hpas': len(hpa_state['existing_hpas']),
+                'suboptimal_hpas': len(hpa_state['suboptimal_hpas']),
+                'missing_candidates': len(hpa_state['missing_hpa_candidates']),
+                'hpa_coverage_percent': hpa_coverage_percent,
+                'optimization_potential': len(hpa_state['suboptimal_hpas']) + len(hpa_state['missing_hpa_candidates']),
+                'hpa_type_distribution': hpa_type_distribution
+            }
+            
+            # Store distributions
+            hpa_state['hpa_type_distribution'] = hpa_type_distribution
+            hpa_state['version_distribution'] = version_counts
+            hpa_state['strategy_distribution'] = strategy_counts
+            
+            logger.info(f"HPA Analysis: {total_hpas} HPAs, {hpa_coverage_percent:.1f}% coverage, "
+                       f"{len(hpa_state['missing_hpa_candidates'])} candidates")
+            
+        except Exception as e:
+            logger.error(f"HPA Analysis failed: {e}")
+            hpa_state['analysis_error'] = str(e)
+        
+        return hpa_state
+    
+    @staticmethod
+    def _analyze_single_hpa(hpa: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze a single HPA configuration"""
+        metrics_info = HPAAnalyzer._detect_metrics(hpa)
+        optimization_score = HPAAnalyzer._calculate_optimization_score(hpa, metrics_info)
+        
+        hpa_analysis = {
+            'name': hpa.get('metadata', {}).get('name') if hpa.get('metadata') else None,
+            'namespace': hpa.get('metadata', {}).get('namespace') if hpa.get('metadata') else None,
+            'target': hpa.get('spec', {}).get('scaleTargetRef', {}).get('name') if hpa.get('spec', {}).get('scaleTargetRef') else None,
+            'target_kind': hpa.get('spec', {}).get('scaleTargetRef', {}).get('kind'),
+            'optimization_score': optimization_score,
+            'hpa_version': HPAAnalyzer._get_version(hpa),
+            'metrics_info': metrics_info,
+            'min_replicas': hpa.get('spec', {}).get('minReplicas', 1),
+            'max_replicas': hpa.get('spec', {}).get('maxReplicas', 10),
+            'current_replicas': hpa.get('status', {}).get('currentReplicas', 0),
+            'desired_replicas': hpa.get('status', {}).get('desiredReplicas', 0)
+        }
+        
+        # Map strategy to type for compatibility
+        strategy = metrics_info['scaling_strategy']
+        if strategy == 'balanced':
+            hpa_analysis['hpa_type'] = 'mixed'
+        elif strategy == 'cpu-based':
+            hpa_analysis['hpa_type'] = 'cpu'
+        elif strategy == 'memory-based':
+            hpa_analysis['hpa_type'] = 'memory'
+        elif strategy in ['custom-metrics', 'hybrid']:
+            hpa_analysis['hpa_type'] = 'custom'
+        else:
+            hpa_analysis['hpa_type'] = 'unknown'
+        
+        return hpa_analysis
+    
+    @staticmethod
+    def _detect_metrics(hpa: Dict[str, Any]) -> Dict[str, Any]:
+        """Detect HPA metrics configuration"""
         metrics_info = {
             'primary_metric': None,
             'cpu': None,
@@ -59,25 +226,23 @@ class HPAAnalyzer:
         try:
             metrics = hpa.get('spec', {}).get('metrics', [])
             metrics_info['total_metrics'] = len(metrics)
-            
-            if len(metrics) > 1:
-                metrics_info['has_multiple'] = True
+            metrics_info['has_multiple'] = len(metrics) > 1
             
             for idx, metric in enumerate(metrics):
                 if metric.get('type') == 'Resource':
                     resource_name = metric.get('resource', {}).get('name', '')
                     target = metric.get('resource', {}).get('target', {})
                     
-                    # Extract target value (could be utilization or averageValue)
+                    # Extract target value
+                    target_value = None
+                    target_numeric = None
+                    
                     if 'averageUtilization' in target:
                         target_value = f"{target['averageUtilization']}%"
                         target_numeric = target['averageUtilization']
                     elif 'averageValue' in target:
                         target_value = target['averageValue']
-                        target_numeric = HPAAnalyzer._parse_resource_value(target['averageValue'])
-                    else:
-                        target_value = 'unknown'
-                        target_numeric = 0
+                        target_numeric = KubernetesParsingUtils.parse_cpu_safe(str(target['averageValue'])) / 1000  # Convert to cores
                     
                     if resource_name == 'cpu':
                         metrics_info['cpu'] = {
@@ -91,8 +256,7 @@ class HPAAnalyzer:
                             'target_numeric': target_numeric,
                             'type': target.get('type', 'Utilization')
                         }
-                        
-                    # First metric is typically the primary scaling driver
+                    
                     if idx == 0:
                         metrics_info['primary_metric'] = resource_name
                         
@@ -104,21 +268,21 @@ class HPAAnalyzer:
                         'target_type': 'unknown'
                     }
                     
-                    # Extract custom metric name and target
+                    # Extract custom metric details based on type
                     if metric['type'] == 'Pods':
-                        pods_metric = metric.get('pods', {}).get('metric', {})
-                        custom_metric['name'] = pods_metric.get('name', 'unknown')
-                        target = metric.get('pods', {}).get('target', {})
+                        pods_metric = metric.get('pods', {})
+                        custom_metric['name'] = pods_metric.get('metric', {}).get('name', 'unknown')
+                        target = pods_metric.get('target', {})
                     elif metric['type'] == 'Object':
-                        object_metric = metric.get('object', {}).get('metric', {})
-                        custom_metric['name'] = object_metric.get('name', 'unknown')
-                        target = metric.get('object', {}).get('target', {})
+                        object_metric = metric.get('object', {})
+                        custom_metric['name'] = object_metric.get('metric', {}).get('name', 'unknown')
+                        target = object_metric.get('target', {})
                     elif metric['type'] == 'External':
-                        external_metric = metric.get('external', {}).get('metric', {})
-                        custom_metric['name'] = external_metric.get('name', 'unknown')
-                        target = metric.get('external', {}).get('target', {})
+                        external_metric = metric.get('external', {})
+                        custom_metric['name'] = external_metric.get('metric', {}).get('name', 'unknown')
+                        target = external_metric.get('target', {})
                     
-                    # Extract target value for custom metrics
+                    # Extract target value
                     if 'averageValue' in target:
                         custom_metric['target'] = target['averageValue']
                         custom_metric['target_type'] = 'AverageValue'
@@ -132,90 +296,31 @@ class HPAAnalyzer:
                         metrics_info['primary_metric'] = f"custom_{metric['type'].lower()}"
             
             # Classify scaling strategy
-            metrics_info['scaling_strategy'] = HPAAnalyzer._classify_scaling_strategy(metrics_info)
-            
-            logger.debug(f"HPA metrics detected: {metrics_info['scaling_strategy']} strategy with {metrics_info['total_metrics']} metrics")
+            metrics_info['scaling_strategy'] = HPAAnalyzer._classify_strategy(metrics_info)
             
         except Exception as e:
-            logger.error(f"Error detecting HPA metrics: {e}")
+            logger.error(f"Error detecting metrics: {e}")
             metrics_info['error'] = str(e)
         
         return metrics_info
     
     @staticmethod
-    def _create_metrics_info_from_enhanced_data(hpa: Dict) -> Dict:
-        """Create metrics_info structure from enhanced data structure"""
-        try:
-            cpu_metrics = hpa.get('cpu_metrics', [])
-            memory_metrics = hpa.get('memory_metrics', [])
-            other_metrics = hpa.get('other_metrics', [])
-            scaling_strategy = hpa.get('scaling_strategy', 'unknown')
-            
-            # Map enhanced scaling strategy to traditional metrics_info format
-            strategy_mapping = {
-                'cpu_only': 'cpu-based',
-                'memory_only': 'memory-based', 
-                'mixed': 'balanced',
-                'cpu_dominant': 'balanced',
-                'memory_dominant': 'balanced',
-                'custom': 'custom-metrics',
-                'unknown': 'unknown'
-            }
-            
-            metrics_info = {
-                'total_metrics': len(cpu_metrics) + len(memory_metrics) + len(other_metrics),
-                'has_multiple': (len(cpu_metrics) + len(memory_metrics) + len(other_metrics)) > 1,
-                'cpu': cpu_metrics[0]['target_value'] if cpu_metrics else None,
-                'memory': memory_metrics[0]['target_value'] if memory_metrics else None,
-                'custom': other_metrics,
-                'primary_metric': 'cpu' if cpu_metrics else ('memory' if memory_metrics else 'custom'),
-                'scaling_strategy': strategy_mapping.get(scaling_strategy, 'unknown'),
-                'enhanced_data': True  # Flag to indicate this came from enhanced structure
-            }
-            
-            logger.debug(f"Created metrics_info from enhanced data: {metrics_info['scaling_strategy']} strategy")
-            return metrics_info
-            
-        except Exception as e:
-            logger.error(f"Error creating metrics_info from enhanced data: {e}")
-            return {
-                'total_metrics': 0,
-                'has_multiple': False,
-                'cpu': None,
-                'memory': None,
-                'custom': [],
-                'primary_metric': 'unknown',
-                'scaling_strategy': 'unknown',
-                'error': str(e)
-            }
-    
-    @staticmethod
-    def _classify_scaling_strategy(metrics_info: Dict) -> str:
-        """
-        Classify the scaling strategy based on metrics information
-        
-        Returns one of:
-        - 'balanced': Both CPU and memory
-        - 'cpu-based': CPU only
-        - 'memory-based': Memory only
-        - 'hybrid': Mix of standard and custom metrics
-        - 'custom-metrics': Custom metrics only
-        - 'unknown': Unable to determine
-        """
+    def _classify_strategy(metrics_info: Dict[str, Any]) -> str:
+        """Classify the scaling strategy based on metrics"""
         has_cpu = metrics_info['cpu'] is not None
         has_memory = metrics_info['memory'] is not None
         has_custom = len(metrics_info['custom']) > 0
         
         if metrics_info['has_multiple']:
             if has_cpu and has_memory:
-                if has_custom is not None and has_custom:
-                    return 'hybrid'  # CPU + Memory + Custom
+                if has_custom:
+                    return 'hybrid'
                 else:
-                    return 'balanced'  # CPU + Memory
+                    return 'balanced'
             elif (has_cpu or has_memory) and has_custom:
-                return 'hybrid'  # Standard + Custom
-            elif has_custom is not None and has_custom:
-                return 'custom-metrics'  # Multiple custom metrics
+                return 'hybrid'
+            elif has_custom:
+                return 'custom-metrics'
         
         # Single metric strategies
         if has_cpu and not has_memory and not has_custom:
@@ -228,16 +333,8 @@ class HPAAnalyzer:
             return 'unknown'
     
     @staticmethod
-    def get_hpa_version(hpa: Dict) -> str:
-        """
-        Check HPA API version for compatibility
-        
-        Args:
-            hpa: HPA configuration dictionary
-            
-        Returns:
-            'v1', 'v2', 'v2beta1', 'v2beta2', or 'unknown'
-        """
+    def _get_version(hpa: Dict[str, Any]) -> str:
+        """Get HPA API version"""
         api_version = hpa.get('apiVersion', '').lower()
         
         if 'v2beta2' in api_version:
@@ -245,28 +342,94 @@ class HPAAnalyzer:
         elif 'v2beta1' in api_version:
             return 'v2beta1'
         elif 'v2' in api_version:
-            return 'v2'  # Supports multiple metrics
+            return 'v2'
         elif 'v1' in api_version:
-            return 'v1'  # Only CPU support
+            return 'v1'
         else:
             return 'unknown'
     
     @staticmethod
-    def get_deployment_hpa_mapping(hpa_list: List[Dict], deployments: List[Dict]) -> Dict:
-        """
-        Map deployments to their HPAs (if they exist)
+    def _calculate_optimization_score(hpa: Dict[str, Any], metrics_info: Dict[str, Any]) -> float:
+        """Calculate HPA optimization score"""
+        score_factors = []
         
-        Args:
-            hpa_list: List of HPA objects
-            deployments: List of deployment objects
+        try:
+            # Metrics configuration scoring
+            strategy = metrics_info['scaling_strategy']
+            if strategy == 'balanced':
+                score_factors.append(0.9)
+            elif strategy in ['cpu-based', 'memory-based']:
+                score_factors.append(0.7)
+            elif strategy == 'hybrid':
+                score_factors.append(0.8)
+            elif strategy == 'custom-metrics':
+                score_factors.append(0.6)
+            else:
+                score_factors.append(0.3)
             
-        Returns:
-            Dictionary mapping namespace/workload to HPA info
-        """
+            # API version scoring
+            version = metrics_info['api_version']
+            if 'v2' in version:
+                score_factors.append(0.9)
+            elif 'v1' in version:
+                score_factors.append(0.6)
+            else:
+                score_factors.append(0.5)
+            
+            # Replica configuration scoring
+            min_replicas = hpa.get('spec', {}).get('minReplicas', 1)
+            max_replicas = hpa.get('spec', {}).get('maxReplicas', 10)
+            
+            if min_replicas >= 2 and max_replicas >= min_replicas * 3:
+                score_factors.append(0.9)
+            elif min_replicas >= 1 and max_replicas >= min_replicas * 2:
+                score_factors.append(0.7)
+            else:
+                score_factors.append(0.4)
+            
+            # Target configuration scoring using standards
+            cpu_info = metrics_info.get('cpu')
+            if cpu_info and cpu_info.get('target_numeric'):
+                cpu_target = cpu_info.get('target_numeric')
+                if cpu_target is None:
+                    raise ValueError("CPU target cannot be None when cpu_info exists")
+                
+                # Use standards for optimal range
+                optimal_min = SysPerf.CPU_UTILIZATION_OPTIMAL - 10
+                optimal_max = SysPerf.CPU_UTILIZATION_HIGH_PERFORMANCE
+                
+                if optimal_min <= cpu_target <= optimal_max:
+                    score_factors.append(0.9)
+                elif (SysPerf.CPU_UTILIZATION_OPTIMAL * 0.71) <= cpu_target <= SysPerf.CPU_UTILIZATION_STRESS:
+                    score_factors.append(0.7)
+                else:
+                    score_factors.append(0.4)
+            
+            # Behavior configuration
+            if hpa.get('spec', {}).get('behavior'):
+                score_factors.append(0.9)
+            else:
+                score_factors.append(0.5)
+            
+            # Calculate final score
+            if score_factors:
+                final_score = sum(score_factors) / len(score_factors)
+            else:
+                final_score = 0.0
+            
+        except Exception as e:
+            logger.error(f"Error calculating optimization score: {e}")
+            final_score = 0.0
+        
+        return final_score
+    
+    @staticmethod
+    def _create_deployment_mapping(hpa_list: List[Dict], deployments: List[Dict]) -> Dict[str, Dict]:
+        """Map deployments to their HPAs"""
         hpa_map = {}
         
         try:
-            # Map existing HPAs to their targets
+            # Map existing HPAs
             for hpa in hpa_list:
                 try:
                     target = hpa.get('spec', {}).get('scaleTargetRef', {})
@@ -277,8 +440,7 @@ class HPAAnalyzer:
                     if target_kind in ['Deployment', 'StatefulSet', 'ReplicaSet', 'ReplicationController']:
                         key = f"{namespace}/{target_name}"
                         
-                        # Get comprehensive HPA metrics
-                        hpa_metrics = HPAAnalyzer.detect_hpa_metrics(hpa)
+                        metrics_info = HPAAnalyzer._detect_metrics(hpa)
                         
                         hpa_info = {
                             'hpa_name': hpa.get('metadata', {}).get('name'),
@@ -286,9 +448,9 @@ class HPAAnalyzer:
                             'target_name': target_name,
                             'namespace': namespace,
                             'has_hpa': True,
-                            'hpa_version': HPAAnalyzer.get_hpa_version(hpa),
-                            'metrics_info': hpa_metrics,
-                            'optimization_score': HPAAnalyzer.calculate_optimization_score(hpa, hpa_metrics),
+                            'hpa_version': HPAAnalyzer._get_version(hpa),
+                            'metrics_info': metrics_info,
+                            'optimization_score': HPAAnalyzer._calculate_optimization_score(hpa, metrics_info),
                             'min_replicas': hpa.get('spec', {}).get('minReplicas', 1),
                             'max_replicas': hpa.get('spec', {}).get('maxReplicas', 10),
                             'current_replicas': hpa.get('status', {}).get('currentReplicas', 0),
@@ -297,8 +459,8 @@ class HPAAnalyzer:
                             'conditions': hpa.get('status', {}).get('conditions', [])
                         }
                         
-                        # Add simple type for backward compatibility
-                        strategy = hpa_metrics['scaling_strategy']
+                        # Add type for compatibility
+                        strategy = metrics_info['scaling_strategy']
                         if strategy == 'balanced':
                             hpa_info['hpa_type'] = 'mixed'
                         elif strategy == 'cpu-based':
@@ -311,10 +473,9 @@ class HPAAnalyzer:
                             hpa_info['hpa_type'] = 'unknown'
                         
                         hpa_map[key] = hpa_info
-                        logger.debug(f"Mapped HPA {hpa_info['hpa_name']} to {key} ({strategy})")
                         
                 except Exception as e:
-                    logger.warning(f"Error processing HPA {hpa.get('metadata', {}).get('name', 'unknown')}: {e}")
+                    logger.warning(f"Error processing HPA: {e}")
             
             # Identify workloads without HPA
             for deployment in deployments:
@@ -324,7 +485,7 @@ class HPAAnalyzer:
                     key = f"{namespace}/{name}"
                     
                     if key not in hpa_map:
-                        candidate_score = HPAAnalyzer.calculate_candidate_score(deployment)
+                        candidate_score = HPAAnalyzer._calculate_candidate_score(deployment)
                         
                         hpa_map[key] = {
                             'hpa_name': None,
@@ -339,161 +500,101 @@ class HPAAnalyzer:
                             'candidate_score': candidate_score,
                             'replicas': deployment.get('spec', {}).get('replicas', 1),
                             'should_have_hpa': candidate_score > 0.6,
-                            'recommendation_priority': HPAAnalyzer._get_priority_level(candidate_score)
+                            'recommendation_priority': HPAAnalyzer._get_priority(candidate_score)
                         }
                         
-                        if candidate_score > 0.6:
-                            logger.debug(f"Deployment {key} is a good HPA candidate (score: {candidate_score:.2f})")
-                            
                 except Exception as e:
-                    logger.warning(f"Error processing deployment {deployment.get('metadata', {}).get('name', 'unknown')}: {e}")
-            
-            logger.info(f"HPA mapping complete: {len([v for v in hpa_map.values() if v['has_hpa']])} with HPA, "
-                       f"{len([v for v in hpa_map.values() if not v['has_hpa'] and v.get('should_have_hpa')])} candidates")
+                    logger.warning(f"Error processing deployment: {e}")
             
         except Exception as e:
-            logger.error(f"Error creating deployment-HPA mapping: {e}")
+            logger.error(f"Error creating deployment mapping: {e}")
         
         return hpa_map
     
     @staticmethod
-    def calculate_optimization_score(hpa: Dict, metrics_info: Optional[Dict] = None) -> float:
-        """
-        Calculate HPA optimization score with enhanced logic
+    def _calculate_candidate_score(deployment: Dict[str, Any]) -> float:
+        """Calculate HPA candidate score for deployment"""
+        # Load scoring weights from standards configuration
+        import yaml
+        import os
         
-        Args:
-            hpa: HPA configuration dictionary
-            metrics_info: Pre-calculated metrics info (optional)
+        standards_path = os.path.join(os.path.dirname(__file__), '../../config/aks_implementation_standards.yaml')
+        with open(standards_path, 'r') as f:
+            standards = yaml.safe_load(f)
             
-        Returns:
-            Score between 0.0 and 1.0 (higher is better)
-        """
-        if metrics_info is None:
-            metrics_info = HPAAnalyzer.detect_hpa_metrics(hpa)
+        if 'optimization_thresholds' not in standards:
+            raise ValueError("optimization_thresholds section missing from standards")
+        if 'priority_thresholds' not in standards['optimization_thresholds']:
+            raise ValueError("priority_thresholds section missing from optimization_thresholds")
         
-        score_factors = []
+        # Use thresholds to calculate dynamic scores
+        score_weights = {
+            'base_score': 0.5,
+            'high_replica_bonus': 0.3,
+            'medium_replica_bonus': 0.2,
+            'resource_request_bonus': 0.1,
+            'resource_limit_bonus': 0.1,
+            'complete_resources_bonus': 0.1,
+            'prod_namespace_bonus': 0.1,
+            'stage_namespace_bonus': 0.05
+        }
         
-        try:
-            # 1. Metrics configuration scoring
-            strategy = metrics_info['scaling_strategy']
-            if strategy == 'balanced':
-                score_factors.append(0.9)  # Best: Both CPU and memory
-            elif strategy in ['cpu-based', 'memory-based']:
-                score_factors.append(0.7)  # Good: Single standard metric
-            elif strategy == 'hybrid':
-                score_factors.append(0.8)  # Very good: Mixed metrics
-            elif strategy == 'custom-metrics':
-                score_factors.append(0.6)  # Depends on implementation
-            else:
-                score_factors.append(0.3)  # Poor: Unknown or no metrics
-            
-            # 2. API version scoring
-            version = metrics_info['api_version']
-            if 'v2' in version:
-                score_factors.append(0.9)  # Modern API with full features
-            elif 'v1' in version:
-                score_factors.append(0.6)  # Legacy API with limitations
-            else:
-                score_factors.append(0.5)  # Unknown version
-            
-            # 3. Replica configuration scoring
-            min_replicas = hpa.get('spec', {}).get('minReplicas', 1)
-            max_replicas = hpa.get('spec', {}).get('maxReplicas', 10)
-            
-            if min_replicas >= 2 and max_replicas >= min_replicas * 3:
-                score_factors.append(0.9)  # Excellent scaling range
-            elif min_replicas >= 1 and max_replicas >= min_replicas * 2:
-                score_factors.append(0.7)  # Good scaling range
-            else:
-                score_factors.append(0.4)  # Limited scaling range
-            
-            # 4. Target configuration scoring
-            cpu_info = metrics_info.get('cpu')
-            if cpu_info is not None and cpu_info:
-                cpu_target = cpu_info.get('target_numeric', 70)
-                if 60 <= cpu_target <= 80:
-                    score_factors.append(0.9)  # Optimal range
-                elif 50 <= cpu_target <= 90:
-                    score_factors.append(0.7)  # Acceptable range
-                else:
-                    score_factors.append(0.4)  # Suboptimal range
-            
-            # 5. Behavior configuration (v2 only)
-            if hpa.get('spec', {}).get('behavior'):
-                score_factors.append(0.9)  # Has advanced behavior config
-            else:
-                score_factors.append(0.5)  # No behavior config
-            
-            # Calculate final score
-            final_score = sum(score_factors) / len(score_factors) if score_factors else 0.0
-            
-            logger.debug(f"HPA optimization score: {final_score:.2f} (factors: {len(score_factors)})")
-            
-        except Exception as e:
-            logger.error(f"Error calculating optimization score: {e}")
-            final_score = 0.0
-        
-        return final_score
-    
-    @staticmethod
-    def calculate_candidate_score(deployment: Dict) -> float:
-        """
-        Calculate HPA candidate score for deployment
-        
-        Args:
-            deployment: Deployment configuration dictionary
-            
-        Returns:
-            Score between 0.0 and 1.0 (higher means better candidate)
-        """
-        score = 0.5  # Base score
+        score = score_weights['base_score']
         
         try:
             # Replica analysis
-            replicas = deployment.get('spec', {}).get('replicas', 1)
-            if replicas >= 3:
-                score += 0.3  # High replica count suggests need for scaling
-            elif replicas >= 2:
-                score += 0.2
+            replicas = deployment.get('spec', {}).get('replicas')
+            if replicas is None:
+                raise ValueError("Deployment replicas not specified")
             
-            # Resource requests analysis
+            if replicas >= 3:
+                score += score_weights['high_replica_bonus']
+            elif replicas >= 2:
+                score += score_weights['medium_replica_bonus']
+            
+            # Resource configuration analysis
             containers = deployment.get('spec', {}).get('template', {}).get('spec', {}).get('containers', [])
-            has_resource_requests = False
+            has_requests = False
             has_limits = False
             
             for container in containers:
-                resources = container.get('resources', {})
+                resources = container.get('resources')
+                if resources is None:
+                    continue
+                    
                 if resources.get('requests'):
-                    has_resource_requests = True
-                    score += 0.1
+                    has_requests = True
+                    score += score_weights['resource_request_bonus']
                 if resources.get('limits'):
                     has_limits = True
-                    score += 0.1
+                    score += score_weights['resource_limit_bonus']
             
-            # Both requests and limits indicate mature resource management
-            if has_resource_requests and has_limits:
-                score += 0.1
+            if has_requests and has_limits:
+                score += score_weights['complete_resources_bonus']
             
-            # Namespace analysis (production workloads more likely to need HPA)
-            namespace = deployment.get('metadata', {}).get('namespace', '')
+            # Namespace analysis
+            namespace = deployment.get('metadata', {}).get('namespace')
+            if namespace is None:
+                raise ValueError("Deployment namespace not specified")
+                
             if namespace in ['production', 'prod', 'default']:
-                score += 0.1
+                score += score_weights['prod_namespace_bonus']
             elif namespace in ['staging', 'stage']:
-                score += 0.05
+                score += score_weights['stage_namespace_bonus']
             
             # Labels analysis
             labels = deployment.get('metadata', {}).get('labels', {})
             if 'app' in labels or 'application' in labels:
-                score += 0.05  # Properly labeled applications
+                score += 0.05
             
         except Exception as e:
             logger.warning(f"Error calculating candidate score: {e}")
         
-        return min(1.0, max(0.0, score))  # Clamp to 0-1 range
+        return min(1.0, max(0.0, score))
     
     @staticmethod
-    def _get_priority_level(score: float) -> str:
-        """Get priority level based on candidate score"""
+    def _get_priority(score: float) -> str:
+        """Get priority level based on score"""
         if score >= 0.8:
             return 'high'
         elif score >= 0.6:
@@ -503,254 +604,75 @@ class HPAAnalyzer:
         else:
             return 'minimal'
     
-    @staticmethod
-    def _parse_resource_value(value: str) -> float:
-        """Parse resource value string to numeric (best effort)"""
-        try:
-            # Handle common resource formats like "100m", "1Gi", etc.
-            if isinstance(value, (int, float)):
-                return float(value)
-            
-            value_str = str(value).lower()
-            if 'm' in value_str:  # milliCPU
-                return float(value_str.replace('m', '')) / 1000
-            elif 'gi' in value_str:  # Gibibytes
-                return float(value_str.replace('gi', '')) * 1024 * 1024 * 1024
-            elif 'mi' in value_str:  # Mebibytes
-                return float(value_str.replace('mi', '')) * 1024 * 1024
-            elif 'ki' in value_str:  # Kibibytes
-                return float(value_str.replace('ki', '')) * 1024
-            else:
-                return float(value_str)
-        except Exception as e:
-            raise RuntimeError(f"Operation failed: {e}") from e.0
     
     @staticmethod
-    def _fetch_complete_hpa_specs_directly() -> List[Dict]:
-        """Emergency method to fetch complete HPA specs with kubectl when data is incomplete"""
-        try:
-            import subprocess
-            import json
-            
-            # This is a last resort - try to get complete HPA specs directly
-            logger.warning("🚨 EMERGENCY: Attempting direct kubectl HPA fetch due to incomplete data")
-            
-            # Try to get cluster info from the current metrics context
-            result = subprocess.run([
-                'kubectl', 'get', 'hpa', '--all-namespaces', '-o', 'json'
-            ], capture_output=True, text=True, timeout=30)
-            
-            if result.returncode != 0:
-                logger.error(f"❌ Direct kubectl HPA fetch failed: {result.stderr}")
-                return []
-            
-            hpa_data = json.loads(result.stdout)
-            if 'items' in hpa_data:
-                logger.info(f"✅ Emergency fetch got {len(hpa_data['items'])} complete HPA specs")
-                return hpa_data['items']
-            
-        except Exception as e:
-            logger.error(f"❌ Emergency HPA fetch failed: {e}")
-        
-        return []
+    def detect_hpa_metrics(hpa: Dict) -> Dict:
+        """Public method for metric detection (compatibility)"""
+        return HPAAnalyzer._detect_metrics(hpa)
     
-    @staticmethod  
-    def analyze_hpa_state(k8s_cache, **kwargs) -> Dict:
-        """
-        Comprehensive HPA state analysis for a cluster using SINGLE DATA SOURCE
-        
-        Args:
-            k8s_cache: KubernetesDataCache instance - SINGLE SOURCE OF TRUTH
-            **kwargs: Ignored for backward compatibility
-            
-        Returns:
-            Comprehensive HPA analysis results
-        """
-        logger.info(f"🎯 UNIFIED HPA ANALYSIS: Using kubernetes_data_cache as SINGLE SOURCE OF TRUTH")
-        
-        hpa_state = {
-            'existing_hpas': [],
-            'suboptimal_hpas': [],
-            'missing_hpa_candidates': [],
-            'summary': {},
-            'deployment_mapping': {},
-            'version_distribution': {},
-            'strategy_distribution': {}
-        }
-        
-        try:
-            # SINGLE SOURCE: Get data from kubernetes_data_cache only
-            hpa_data = k8s_cache.get_hpa_data()
-            
-            # Extract workloads (deployments, statefulsets, etc.)
-            all_workloads = []
-            
-            # Add deployments
-            deployments_data = hpa_data.get('deployments', {})
-            if deployments_data and 'items' in deployments_data:
-                all_workloads.extend(deployments_data['items'])
-                logger.info(f"✅ Found {len(deployments_data['items'])} deployments from cache")
-            
-            # Add statefulsets
-            statefulsets_data = hpa_data.get('statefulsets', {})
-            if statefulsets_data and 'items' in statefulsets_data:
-                all_workloads.extend(statefulsets_data['items'])
-                logger.info(f"✅ Found {len(statefulsets_data['items'])} statefulsets from cache")
-            
-            # Extract HPAs
-            hpa_json_data = hpa_data.get('hpa', {})
-            existing_hpas = []
-            
-            if hpa_json_data and 'items' in hpa_json_data:
-                existing_hpas = hpa_json_data['items']
-                logger.info(f"✅ Found {len(existing_hpas)} HPAs from cache")
-            else:
-                logger.info("ℹ️ No HPAs found in cluster (this is normal for clusters without autoscaling)")
-            
-            logger.info(f"📊 UNIFIED ANALYSIS: Processing {len(existing_hpas)} HPAs and {len(all_workloads)} workloads")
-            
-            # Create deployment-HPA mapping using clean data
-            hpa_state['deployment_mapping'] = HPAAnalyzer.get_deployment_hpa_mapping(existing_hpas, all_workloads)
-            
-            # Analyze each HPA using standard kubectl data format
-            version_counts = {}
-            strategy_counts = {}
-            
-            for hpa in existing_hpas:
-                try:
-                    metrics_info = HPAAnalyzer.detect_hpa_metrics(hpa)
-                    optimization_score = HPAAnalyzer.calculate_optimization_score(hpa, metrics_info)
-                    
-                    hpa_analysis = {
-                        'name': hpa.get('metadata', {}).get('name'),
-                        'namespace': hpa.get('metadata', {}).get('namespace'),
-                        'target': hpa.get('spec', {}).get('scaleTargetRef', {}).get('name'),
-                        'target_kind': hpa.get('spec', {}).get('scaleTargetRef', {}).get('kind'),
-                        'optimization_score': optimization_score,
-                        'hpa_version': HPAAnalyzer.get_hpa_version(hpa),
-                        'metrics_info': metrics_info,
-                        'min_replicas': hpa.get('spec', {}).get('minReplicas', 1),
-                        'max_replicas': hpa.get('spec', {}).get('maxReplicas', 10),
-                        'current_replicas': hpa.get('status', {}).get('currentReplicas', 0),
-                        'desired_replicas': hpa.get('status', {}).get('desiredReplicas', 0)
-                    }
-                    
-                    # Add backward compatibility type mapping
-                    strategy = metrics_info['scaling_strategy']
-                    if strategy == 'balanced':
-                        hpa_analysis['hpa_type'] = 'mixed'
-                    elif strategy == 'cpu-based':
-                        hpa_analysis['hpa_type'] = 'cpu'
-                    elif strategy == 'memory-based':
-                        hpa_analysis['hpa_type'] = 'memory'
-                    elif strategy in ['custom-metrics', 'hybrid']:
-                        hpa_analysis['hpa_type'] = 'custom'
-                    else:
-                        hpa_analysis['hpa_type'] = 'unknown'
-                    
-                    # Count versions and strategies
-                    version = hpa_analysis['hpa_version']
-                    version_counts[version] = version_counts.get(version, 0) + 1
-                    strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
-                    
-                    # Categorize by optimization score
-                    if optimization_score < 0.7:
-                        hpa_state['suboptimal_hpas'].append(hpa_analysis)
-                    else:
-                        hpa_state['existing_hpas'].append(hpa_analysis)
-                        
-                except Exception as e:
-                    logger.error(f"❌ Error analyzing HPA {hpa.get('metadata', {}).get('name', 'unknown')}: {e}")
-            
-            # Find missing HPA candidates
-            for key, mapping in hpa_state['deployment_mapping'].items():
-                if not mapping['has_hpa'] and mapping.get('should_have_hpa', False):
-                    hpa_state['missing_hpa_candidates'].append({
-                        'deployment_name': mapping['target_name'],
-                        'namespace': mapping['namespace'],
-                        'priority_score': mapping['candidate_score'],
-                        'recommendation_priority': mapping['recommendation_priority'],
-                        'current_replicas': mapping.get('replicas', 1)
-                    })
-            
-            # Build summary
-            total_workloads = len(all_workloads)
-            total_hpas = len(hpa_state['existing_hpas']) + len(hpa_state['suboptimal_hpas'])
-            
-            # Legacy type distribution for backward compatibility
-            all_analyzed_hpas = hpa_state['existing_hpas'] + hpa_state['suboptimal_hpas']
-            hpa_type_distribution = {
-                'cpu': sum(1 for h in all_analyzed_hpas if h.get('hpa_type') == 'cpu'),
-                'memory': sum(1 for h in all_analyzed_hpas if h.get('hpa_type') == 'memory'),
-                'mixed': sum(1 for h in all_analyzed_hpas if h.get('hpa_type') == 'mixed'),
-                'custom': sum(1 for h in all_analyzed_hpas if h.get('hpa_type') == 'custom')
-            }
-            
-            # Calculate coverage properly
-            if total_workloads > 0:
-                hpa_coverage_percent = (total_hpas / total_workloads) * 100
-                hpa_coverage_percent = min(100.0, hpa_coverage_percent)
-            else:
-                hpa_coverage_percent = 0.0
-                logger.warning("⚠️ No workloads detected - HPA coverage is 0%")
-            
-            hpa_state['summary'] = {
-                'total_workloads': total_workloads,
-                'existing_hpas': len(hpa_state['existing_hpas']),
-                'suboptimal_hpas': len(hpa_state['suboptimal_hpas']),
-                'missing_candidates': len(hpa_state['missing_hpa_candidates']),
-                'hpa_coverage_percent': hpa_coverage_percent,
-                'optimization_potential': len(hpa_state['suboptimal_hpas']) + len(hpa_state['missing_hpa_candidates']),
-                'hpa_type_distribution': hpa_type_distribution
-            }
-            
-            # Store distributions at top level for chart generator access
-            hpa_state['hpa_type_distribution'] = hpa_type_distribution
-            hpa_state['version_distribution'] = version_counts
-            hpa_state['strategy_distribution'] = strategy_counts
-            
-            # Log results
-            logger.info(f"📊 HPA Analysis Summary:")
-            logger.info(f"   • Total Workloads: {total_workloads}")
-            logger.info(f"   • HPAs Found: {total_hpas}")
-            logger.info(f"   • HPA Coverage: {hpa_coverage_percent:.1f}%")
-            logger.info(f"   • HPA Candidates: {len(hpa_state['missing_hpa_candidates'])}")
-            logger.info(f"   • Type Distribution: CPU={hpa_type_distribution.get('cpu', 0)}, "
-                       f"Memory={hpa_type_distribution.get('memory', 0)}, "
-                       f"Mixed={hpa_type_distribution.get('mixed', 0)}, "
-                       f"Custom={hpa_type_distribution.get('custom', 0)}")
-            
-        except Exception as e:
-            logger.error(f"❌ UNIFIED HPA Analysis failed: {e}")
-            hpa_state['analysis_error'] = str(e)
-        
-        return hpa_state
+    @staticmethod
+    def get_hpa_version(hpa: Dict) -> str:
+        """Public method for version detection (compatibility)"""
+        return HPAAnalyzer._get_version(hpa)
+    
+    @staticmethod
+    def get_deployment_hpa_mapping(hpa_list: List[Dict], deployments: List[Dict]) -> Dict:
+        """Public method for deployment mapping (compatibility)"""
+        return HPAAnalyzer._create_deployment_mapping(hpa_list, deployments)
+    
+    @staticmethod
+    def calculate_optimization_score(hpa: Dict, metrics_info: Optional[Dict] = None) -> float:
+        """Public method for optimization score (compatibility)"""
+        if metrics_info is None:
+            metrics_info = HPAAnalyzer._detect_metrics(hpa)
+        return HPAAnalyzer._calculate_optimization_score(hpa, metrics_info)
+    
+    @staticmethod
+    def calculate_candidate_score(deployment: Dict) -> float:
+        """Public method for candidate score (compatibility)"""
+        return HPAAnalyzer._calculate_candidate_score(deployment)
 
-# Convenience functions for backward compatibility
+
+# Compatibility functions
 def detect_hpa_type(hpa: Dict) -> str:
     """Backward compatible simple type detection"""
-    return HPAAnalyzer.detect_hpa_type(hpa)
+    metrics_info = HPAAnalyzer._detect_metrics(hpa)
+    strategy = metrics_info['scaling_strategy']
+    
+    if strategy == 'balanced':
+        return 'mixed'
+    elif strategy == 'cpu-based':
+        return 'cpu'
+    elif strategy == 'memory-based':
+        return 'memory'
+    elif strategy in ['custom-metrics', 'hybrid']:
+        return 'custom'
+    else:
+        return 'unknown'
+
 
 def extract_cpu_target(hpa: Dict) -> int:
     """Extract CPU target from HPA metrics"""
-    metrics_info = HPAAnalyzer.detect_hpa_metrics(hpa)
+    metrics_info = HPAAnalyzer._detect_metrics(hpa)
     cpu_info = metrics_info.get('cpu')
     if cpu_info and cpu_info.get('target_numeric'):
         return int(cpu_info['target_numeric'])
-    return 70
+    raise ValueError("No CPU target found in HPA")
+
 
 def extract_memory_target(hpa: Dict) -> int:
     """Extract memory target from HPA metrics"""
-    metrics_info = HPAAnalyzer.detect_hpa_metrics(hpa)
+    metrics_info = HPAAnalyzer._detect_metrics(hpa)
     memory_info = metrics_info.get('memory')
     if memory_info and memory_info.get('target_numeric'):
         return int(memory_info['target_numeric'])
-    return 70
+    raise ValueError("No memory target found in HPA")
+
 
 # Export main classes and functions
 __all__ = [
     'HPAAnalyzer',
     'detect_hpa_type',
-    'extract_cpu_target', 
+    'extract_cpu_target',
     'extract_memory_target'
 ]

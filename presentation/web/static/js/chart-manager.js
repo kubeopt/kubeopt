@@ -1286,8 +1286,14 @@ window.ChartManager = (function() {
             console.log('Updating utilization chart with data:', utilizationData);
             updateChart('utilization-chart', utilizationData);
         } else if (chartData.cpuWorkloadMetrics) {
-            // Fallback to workload metrics if available
-            updateChart('utilization-chart', chartData.cpuWorkloadMetrics);
+            // Use workload metrics with new structure
+            const utilizationData = {
+                labels: ['CPU Utilization', 'Memory Utilization'],
+                cpu: [chartData.cpuWorkloadMetrics.max_cpu_utilization || 0],
+                memory: [chartData.cpuWorkloadMetrics.max_memory_utilization || chartData.cpuWorkloadMetrics.memory_utilization || 0]
+            };
+            console.log('Updating utilization chart with CPU workload metrics:', utilizationData);
+            updateChart('utilization-chart', utilizationData);
         }
         
         // 7. Namespace Cost Chart (Bar)

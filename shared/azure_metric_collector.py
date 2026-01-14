@@ -114,6 +114,14 @@ class AzureMetricCollector:
                     vm_id = vm.id
                     vm_name = vm.name
                     
+                    # Get computerName which matches Kubernetes node name
+                    # For VMSS VMs, this is in os_profile.computer_name
+                    computer_name = vm_name  # Default to VM name
+                    if hasattr(vm, 'os_profile') and vm.os_profile:
+                        if hasattr(vm.os_profile, 'computer_name') and vm.os_profile.computer_name:
+                            computer_name = vm.os_profile.computer_name.lower()  # K8s uses lowercase
+                            logger.debug(f"Using computerName: {computer_name} for VM: {vm_name}")
+                    
                     # Get VM size - attribute name differs between VMSS and regular VMs
                     if hasattr(vm, 'hardware_profile') and vm.hardware_profile:
                         vm_size = vm.hardware_profile.vm_size
@@ -132,7 +140,7 @@ class AzureMetricCollector:
                     )
                     
                     node_metrics = {
-                        "name": vm_name,
+                        "name": computer_name,  # Use computerName which matches K8s node name
                         "instance_type": vm_size,
                         "cpu_percent": None,
                         "memory_available_bytes": None,

@@ -169,13 +169,17 @@ class AzureSDKManager:
                 else:
                     logger.debug("Skipping interactive browser credential due to placeholder/missing tenant ID")
             
-            # 2. Managed identity (for Azure-hosted applications)
-            try:
-                mi_credential = ManagedIdentityCredential()
-                credential_chain.append(mi_credential)
-                logger.info("✅ Added managed identity credential to chain")
-            except Exception as e:
-                logger.debug(f"Managed identity credential not available: {e}")
+            # 2. Managed identity (for Azure-hosted applications) - only in Azure environment
+            import os
+            if os.environ.get('AZURE_CLIENT_ID') or os.environ.get('MSI_ENDPOINT'):
+                try:
+                    mi_credential = ManagedIdentityCredential()
+                    credential_chain.append(mi_credential)
+                    logger.info("✅ Added managed identity credential to chain")
+                except Exception as e:
+                    logger.debug(f"Managed identity credential not available: {e}")
+            else:
+                logger.debug("Skipping managed identity credential - not running in Azure environment")
             
             # 3. Azure CLI credential (for development) - PRIORITY
             try:

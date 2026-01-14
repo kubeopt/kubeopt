@@ -449,7 +449,7 @@ class EnhancedAlertsManager:
                 
                 # Check high CPU usage using standards
                 if conditions.get('high_cpu_usage', False):
-                    avg_cpu = cpu_metrics.get('average_cpu_utilization', 0)
+                    avg_cpu = cpu_metrics.get('avg_cpu_utilization', 0)
                     cpu_monitoring = self.standards.get('monitoring_alerting', {}).get('cpu_monitoring', {})
                     warning_threshold = thresholds.get('cpu_warning', cpu_monitoring.get('warning_threshold', 75))
                     critical_threshold = thresholds.get('cpu_critical', cpu_monitoring.get('critical_threshold', 90))
@@ -898,7 +898,7 @@ AKS Cost Intelligence Team
                 'metadata': {
                     'alert_type': 'cpu_monitoring',
                     'trigger_type': triggered_alert['trigger_type'],
-                    'current_cpu': metrics.get('average_cpu_utilization', 0),
+                    'current_cpu': metrics.get('avg_cpu_utilization', 0),
                     'max_cpu': metrics.get('max_cpu_utilization', 0), 
                     'cpu_efficiency': metrics.get('cpu_efficiency', 0),
                     'thresholds': triggered_alert['thresholds']
@@ -933,7 +933,7 @@ Cluster: {cluster_id}
 Alert: {triggered_alert['trigger_reason']}
 
 Current Metrics:
-• Average CPU: {metrics.get('average_cpu_utilization', 0):.1f}%
+• Average CPU: {metrics.get('avg_cpu_utilization', 0):.1f}%
 • Peak CPU: {metrics.get('max_cpu_utilization', 0):.1f}%
 • CPU Efficiency: {metrics.get('cpu_efficiency', 0):.1f}%
 • High CPU Workloads: {metrics.get('high_cpu_count', 0)}

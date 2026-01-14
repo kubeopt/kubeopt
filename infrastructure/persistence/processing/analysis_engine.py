@@ -769,18 +769,9 @@ class MultiSubscriptionAnalysisEngine:
             
             logger.warning(f"⚠️ Enhanced ML metrics failed: {ml_metrics_error}")
             
-            try:
-                metrics_data = enhanced_fetcher._get_enhanced_node_resource_data()
-                metrics_data.update({
-                    'hpa_implementation': enhanced_fetcher.get_hpa_implementation_status(),
-                    'ml_features_ready': True,
-                    'enhanced_fallback': True,
-                    'subscription_context': True
-                })
-                logger.info(f"✅ Session {session_id}: Using enhanced fallback metrics in subscription context")
-            except Exception as fallback_error:
-                logger.error(f"❌ All metrics collection failed: {fallback_error}")
-                raise ValueError(f"No metrics data available: {fallback_error}")
+            # NO FALLBACK per .clauderc - fail fast
+            logger.error(f"❌ ML metrics collection failed: {ml_metrics_error}")
+            raise ValueError(f"ML-ready metrics collection failed - cannot proceed without complete data: {ml_metrics_error}")
         
         if not metrics_data or not metrics_data.get('nodes'):
             raise ValueError("No real node metrics available from any source")
@@ -881,11 +872,13 @@ class MultiSubscriptionAnalysisEngine:
         logger.info(f"🤖 Session {session_id}: Executing ML-ENHANCED algorithmic analysis...")
         
         try:
-            from analytics.processors.algorithmic_cost_analyzer import integrate_consistent_analysis
+            from analytics.processors.algorithmic_cost_analyzer import ConsistentCostAnalyzer
             
-            consistent_results = integrate_consistent_analysis(
-                resource_group=resource_group,
-                cluster_name=cluster_name,
+            # Initialize the analyzer
+            analyzer = ConsistentCostAnalyzer()
+            
+            # Perform the analysis
+            consistent_results = analyzer.analyze(
                 cost_data=cost_data,
                 metrics_data=metrics_data,
                 pod_data=pod_data

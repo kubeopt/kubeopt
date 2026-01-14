@@ -369,11 +369,11 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
                 'cache_type': 'reference'
             }
         
-        # Verify high_cpu_summary was preserved
-        if 'high_cpu_summary' in cache_data:
-            logger.info(f"✅ CACHE SAVE SUCCESS: high_cpu_summary preserved with {len(cache_data['high_cpu_summary'].get('high_cpu_workloads', []))} workloads")
+        # Verify top_cpu_summary was preserved
+        if 'top_cpu_summary' in cache_data:
+            logger.info(f"✅ CACHE SAVE SUCCESS: top_cpu_summary preserved with {len(cache_data['top_cpu_summary'].get('high_cpu_workloads', []))} workloads")
         else:
-            logger.warning(f"⚠️ CACHE SAVE WARNING: high_cpu_summary missing from cached data")
+            logger.warning(f"⚠️ CACHE SAVE WARNING: top_cpu_summary missing from cached data")
         
         # Debug: Check if breakdown data is preserved in cache
         cached_build_breakdown = cache_data.get('build_quality_breakdown', 'MISSING')
@@ -418,14 +418,14 @@ def load_from_cache_with_validation(cluster_id: str, subscription_id: str = None
             if _check_cache_timestamp(cluster_cache, cluster_id):
                 cached_data = cluster_cache.get('data', {})
                 
-                # Minimal validation - check essential fields including high_cpu_summary
+                # Minimal validation - check essential fields including top_cpu_summary
                 if cached_data.get('total_cost', 0) > 0 and cached_data.get('hpa_recommendations'):
-                    # Check if high_cpu_summary exists
-                    has_high_cpu_summary = 'high_cpu_summary' in cached_data
-                    if has_high_cpu_summary is not None and has_high_cpu_summary:
-                        logger.info(f"✅ CACHE LOAD: Found high_cpu_summary with {len(cached_data['high_cpu_summary'].get('high_cpu_workloads', []))} workloads")
+                    # Check if top_cpu_summary exists
+                    has_top_cpu_summary = 'top_cpu_summary' in cached_data
+                    if has_top_cpu_summary is not None and has_top_cpu_summary:
+                        logger.info(f"✅ CACHE LOAD: Found top_cpu_summary with {len(cached_data['top_cpu_summary'].get('all_workloads', []))} workloads")
                     else:
-                        logger.warning(f"⚠️ CACHE LOAD: Missing high_cpu_summary in cached data for {cluster_id}")
+                        logger.warning(f"⚠️ CACHE LOAD: Missing top_cpu_summary in cached data for {cluster_id}")
                     
                     # 🔍 CACHE LOAD: Log gap data being returned
                     cpu_gap = cached_data.get('cpu_gap', 'NOT_FOUND')
@@ -545,8 +545,8 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'cluster_name': str(complete_analysis_data.get('cluster_name', '')),
         'analysis_timestamp': complete_analysis_data.get('analysis_timestamp', datetime.now().isoformat()),
         
-        # CRITICAL: Preserve high_cpu_summary for UI compatibility
-        'high_cpu_summary': complete_analysis_data.get('high_cpu_summary', {}),
+        # CRITICAL: Preserve top_cpu_summary for UI compatibility - NO DEFAULTS per .clauderc
+        'top_cpu_summary': complete_analysis_data['top_cpu_summary'],  # Will fail if missing - that's correct
         
         # Optional components (preserve everything)
         'implementation_plan': complete_analysis_data.get('implementation_plan'),
@@ -562,18 +562,19 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
     hpa_eff_pct = cache_data.get('hpa_efficiency_percentage')
     hpa_red = cache_data.get('hpa_reduction')
     
-    # Log high_cpu_summary data preservation
-    high_cpu_summary = cache_data.get('high_cpu_summary', {})
-    high_cpu_workloads = high_cpu_summary.get('high_cpu_workloads', [])
-    high_cpu_hpas = high_cpu_summary.get('high_cpu_hpas', [])
+    # Log top_cpu_summary data preservation - NO DEFAULTS
+    top_cpu_summary = cache_data['top_cpu_summary']
+    all_workloads = top_cpu_summary.get('all_workloads', [])
+    all_hpas = top_cpu_summary.get('all_hpas', [])
     
     logger.info(f"💾 CACHE PREP: HPA efficiency data for {cluster_id}:")
     logger.info(f"   - hpa_efficiency: {hpa_eff}")
     logger.info(f"   - hpa_efficiency_percentage: {hpa_eff_pct}")
     logger.info(f"   - hpa_reduction: {hpa_red}")
-    logger.info(f"💾 CACHE PREP: High CPU summary data for {cluster_id}:")
-    logger.info(f"   - high_cpu_workloads: {len(high_cpu_workloads)}")
-    logger.info(f"   - high_cpu_hpas: {len(high_cpu_hpas)}")
+    logger.info(f"💾 CACHE PREP: Top CPU summary data for {cluster_id}:")
+    logger.info(f"   - all_workloads: {len(all_workloads)}")
+    logger.info(f"   - all_hpas: {len(all_hpas)}")
+    logger.info(f"   - max_cpu_utilization: {top_cpu_summary.get('max_cpu_utilization', 'N/A')}%")
     
     # Remove None values but keep 0 values
     cache_data = {k: v for k, v in cache_data.items() if v is not None}

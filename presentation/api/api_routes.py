@@ -891,7 +891,7 @@ def register_api_routes(app):
             
             logger.info(f"✅ REAL DATA: Chart data generated successfully for cluster: {cluster_id}")
             logger.info(f"📊 CPU Analysis: {cpu_workload_data.get('has_high_cpu_workloads', False)} high CPU workloads, "
-                       f"avg: {cpu_workload_data.get('average_cpu_utilization', 0):.1f}%, "
+                       f"avg: {cpu_workload_data.get('avg_cpu_utilization', 0):.1f}%, "
                        f"max: {cpu_workload_data.get('max_cpu_utilization', 0):.1f}%")
             
             return jsonify(chart_data)
@@ -2481,7 +2481,7 @@ def extract_real_cpu_metrics(analysis_data):
                 'has_high_cpu_workloads': False,
                 'high_cpu_count': 0,
                 'max_cpu_utilization': 0.0,
-                'average_cpu_utilization': 0.0,
+                'avg_cpu_utilization': 0.0,
                 'severity_level': 'none',
                 'high_cpu_workloads': [],
                 'cpu_analysis_available': False
