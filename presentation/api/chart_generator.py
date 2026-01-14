@@ -14,9 +14,29 @@ from typing import Dict, Any, Optional, Tuple, List
 import numpy as np
 from shared.config.config import logger, enhanced_cluster_manager, _analysis_lock, _analysis_sessions
 from shared.utils.utils import ensure_float
+from shared.interfaces.data_contract import AnalysisDataContract
 
 
 def extract_standards_based_savings(analysis_results: Dict) -> Dict:
+    """
+    ENFORCED: Only data contract approved fields allowed in chart generation
+    """
+    # ENFORCE DATA CONTRACT at UI entry point
+    from shared.interfaces.data_contract import AnalysisDataContract
+    try:
+        # Validate incoming data follows contract
+        approved_fields = AnalysisDataContract.get_approved_fields()
+        AnalysisDataContract.validate_field_usage(analysis_results, approved_fields, "ChartGenerator.extract_standards_based_savings()")
+        logger.info("✅ Chart data contract validation passed")
+    except ValueError as contract_error:
+        logger.error(f"❌ CHART DATA CONTRACT VIOLATION: {contract_error}")
+        # Following .clauderc - fail fast
+        raise contract_error
+    
+    # Call the actual implementation
+    return _extract_standards_based_savings_internal(analysis_results)
+    
+def _extract_standards_based_savings_internal(analysis_results: Dict) -> Dict:
     """
     Extract comprehensive savings using international standards (CNCF, FinOps, Azure WAF, Google SRE)
     Returns the 5-category optimization framework
@@ -105,10 +125,13 @@ def generate_insights(analysis_results):
             'status': 'no_data'
         }
     
+    # NORMALIZE DATA using standard contract - NO MORE PATCHES
+    analysis_results = AnalysisDataContract.normalize_analysis_data(analysis_results)
+    
     insights = {}
     
     try:
-        # Cost breakdown insight - REAL DATA ONLY
+        # Cost breakdown insight - REAL DATA ONLY with standard fields
         node_cost = analysis_results.get('node_cost', 0)
         total_cost = analysis_results.get('total_cost', 0)
         
@@ -134,6 +157,8 @@ def generate_insights(analysis_results):
     # ML-INTEGRATED HPA insight with robust error handling
     try:
         logger.info("🔍 HPA INSIGHT DEBUG: Starting HPA insight generation")
+        # Initialize hpa_savings early to avoid scope issues
+        hpa_savings = analysis_results.get('hpa_savings')
         hpa_recommendations = analysis_results.get('hpa_recommendations')
         logger.info(f"🔍 HPA INSIGHT DEBUG: hpa_recommendations = {bool(hpa_recommendations)}")
         
@@ -185,7 +210,7 @@ def generate_insights(analysis_results):
             else:
                 # Partial ML data or non-ML enhanced - use available data
                 logger.warning("⚠️ ML classification incomplete, using available HPA data")
-                if hpa_savings > 0:
+                if hpa_savings is not None and hpa_savings > 0:
                     insights['hpa_comparison'] = f"📊 <strong>HPA Analysis Complete:</strong> Identified ${hpa_savings:.2f}/month potential savings through autoscaling optimization."
                 else:
                     insights['hpa_comparison'] = f"🔍 <strong>HPA Assessment:</strong> Cluster evaluated for horizontal pod autoscaling opportunities."
@@ -193,9 +218,8 @@ def generate_insights(analysis_results):
     except Exception as hpa_error:
         logger.error(f"❌ HPA insights generation failed: {hpa_error}")
         # Generate minimal insight without failing
-        # Use direct savings from consolidated system
-        hpa_savings = analysis_results.get('hpa_savings', 0)
-        if hpa_savings > 0:
+        # hpa_savings already initialized - no re-assignment needed
+        if hpa_savings is not None and hpa_savings > 0:
             insights['hpa_comparison'] = f"💰 <strong>Scaling Opportunity:</strong> ${hpa_savings:.2f}/month savings potential identified."
         else:
             insights['hpa_comparison'] = f"📋 <strong>Scaling Analysis:</strong> Cluster resource utilization assessed."
@@ -203,11 +227,12 @@ def generate_insights(analysis_results):
     try:
         # Resource gap insight - REAL DATA ONLY
         logger.info("🔍 RESOURCE GAP INSIGHT DEBUG: Starting resource gap insight generation")
+        
+        # Use standard fields - all calculated by data contract normalization
         cpu_gap = analysis_results.get('cpu_gap', 0)
         memory_gap = analysis_results.get('memory_gap', 0)
-        node_count = analysis_results.get('current_node_count', 8)  # Get node count here
-        # Use direct savings from consolidated system
-        right_sizing_savings = analysis_results.get('right_sizing_savings', 0)
+        node_count = analysis_results.get('node_count', 0)
+        right_sizing_savings = analysis_results.get('compute_savings', 0)
         
         logger.info(f"🔍 RESOURCE GAP INSIGHT DEBUG: cpu_gap={cpu_gap}, memory_gap={memory_gap}, right_sizing_savings={right_sizing_savings}")
         
@@ -233,7 +258,15 @@ def generate_insights(analysis_results):
         # If annual_savings is missing but we have total_savings, calculate it
         if annual_savings == 0 and total_savings > 0:
             annual_savings = total_savings * 12
+            
+        # Calculate savings percentage locally if not provided or if 0
         savings_percentage = analysis_results.get('savings_percentage', 0)
+        
+        # Recalculate percentage using standard fields
+        if savings_percentage == 0 and total_savings > 0:
+            if total_cost > 0:
+                savings_percentage = (total_savings / total_cost) * 100
+                logger.info(f"💡 Recalculated savings percentage: {total_savings}/{total_cost} = {savings_percentage:.1f}%")
         
         logger.info(f"🔍 SAVINGS SUMMARY INSIGHT DEBUG: total_savings={total_savings}, annual_savings={annual_savings}, savings_percentage={savings_percentage}")
         
@@ -509,7 +542,7 @@ def generate_dynamic_hpa_comparison(analysis_data):
         'max_cpu_utilization': cpu_workload_data['max_cpu_utilization'],
         'high_cpu_severity': cpu_workload_data['severity_level'],
         'high_cpu_count': cpu_workload_data['high_cpu_count'],
-        'average_cpu_utilization': cpu_workload_data['average_cpu_utilization'],
+        'avg_cpu_utilization': cpu_workload_data['avg_cpu_utilization'],
         
         # ML-GENERATED SCENARIOS
         'ml_scenario_reasoning': scenarios.get('ml_reasoning'),
@@ -544,64 +577,90 @@ def generate_dynamic_hpa_comparison(analysis_data):
     logger.info(f"✅ ML-INTEGRATED CHART GENERATED: {workload_type} workload, "
                f"${actual_hpa_savings:.2f} savings, {hpa_efficiency:.1f}% efficiency, "
                f"{cpu_workload_data['high_cpu_count']} high CPU workloads detected, "
-               f"avg CPU: {cpu_workload_data['average_cpu_utilization']:.1f}%, "
+               f"avg CPU: {cpu_workload_data['avg_cpu_utilization']:.1f}%, "
                f"action: {primary_action}")
     
     return chart_data
 
 def _extract_cpu_workload_data(analysis_data):
-    """Extract comprehensive CPU workload data from REAL sources ONLY"""
+    """Extract comprehensive CPU workload data using standard data contract"""
     if not analysis_data:
         raise ValueError("No analysis data provided for CPU workload extraction")
     
+    # NORMALIZE using data contract - NO MORE PATCHES
+    analysis_data = AnalysisDataContract.normalize_analysis_data(analysis_data)
+    
     cpu_workload_data = {
         'has_high_cpu_workloads': False,
-        'max_cpu_utilization': 0.0,
-        'average_cpu_utilization': 0.0,
         'high_cpu_count': 0,
         'severity_level': 'none',
         'workload_names': [],
-        'cpu_analysis_available': False,
-        'cpu_efficiency': 0.0  # Add CPU efficiency from backend
+        'cpu_analysis_available': False
     }
     
+    # NO DEFAULTS per .clauderc - these will be set only if real data is available
+    # 'max_cpu_utilization': NOT SET by default
+    # 'avg_cpu_utilization': NOT SET by default  
+    # 'cpu_efficiency': NOT SET by default
+    # 'optimization_score': NOT SET by default
     
-    # Check if high_cpu_summary exists in analysis_data
-    if 'high_cpu_summary' in analysis_data:
-        high_cpu_summary = analysis_data['high_cpu_summary']
-    else:
-        high_cpu_summary = None
     
-    # Process high_cpu_summary if found
-    if high_cpu_summary and isinstance(high_cpu_summary, dict):
-        high_cpu_workloads = high_cpu_summary.get('high_cpu_workloads', [])
-        
-        # Get max_cpu_utilization directly if available
-        if 'max_cpu_utilization' in high_cpu_summary:
-            max_cpu_val = high_cpu_summary['max_cpu_utilization']
-            if max_cpu_val > 0:
-                cpu_workload_data['max_cpu_utilization'] = float(max_cpu_val)
-    else:
-        high_cpu_workloads = []
+    # Use standardized fields from data contract - NO MORE SOURCE GUESSING
+    if 'top_cpu_summary' not in analysis_data:
+        error_msg = f"top_cpu_summary missing from analysis data. Available keys: {list(analysis_data.keys())[:15]}"
+        logger.error(f"❌ {error_msg}")
+        raise ValueError(error_msg)
     
-    if high_cpu_workloads:
-            cpu_workload_data['has_high_cpu_workloads'] = True
-            cpu_workload_data['high_cpu_count'] = len(high_cpu_workloads)
+    cpu_summary_data = analysis_data['top_cpu_summary']
+    
+    if not isinstance(cpu_summary_data, dict):
+        raise TypeError(f"CPU summary data must be dict, got {type(cpu_summary_data)}")
+    
+    logger.info(f"✅ Using top_cpu_summary with keys: {list(cpu_summary_data.keys())}")
+    
+    # Extract workload data using standard fields
+    if 'all_workloads' not in cpu_summary_data:
+        raise ValueError(f"all_workloads missing from top_cpu_summary. Keys: {list(cpu_summary_data.keys())}")
+    
+    all_workloads = cpu_summary_data['all_workloads']
+    if not isinstance(all_workloads, list):
+        raise TypeError(f"all_workloads must be a list, got {type(all_workloads)}")
+    
+    logger.info(f"Processing {len(all_workloads)} workloads from top_cpu_summary")
+    
+    # Extract CPU metrics using standard field names from data contract
+    max_cpu_val = cpu_summary_data.get('max_cpu_utilization')
+    avg_cpu_val = cpu_summary_data.get('avg_cpu_utilization')
+    
+    if max_cpu_val is not None and max_cpu_val >= 0:
+        cpu_workload_data['max_cpu_utilization'] = float(max_cpu_val)
+        logger.info(f"✅ Set max_cpu_utilization to: {max_cpu_val}%")
+    
+    if avg_cpu_val is not None and avg_cpu_val >= 0:
+        cpu_workload_data['avg_cpu_utilization'] = float(avg_cpu_val)
+        logger.info(f"✅ Set avg_cpu_utilization to: {avg_cpu_val}%")
+    
+    # Extract optional efficiency and optimization scores
+    if 'cpu_efficiency' in cpu_summary_data:
+        cpu_workload_data['cpu_efficiency'] = float(cpu_summary_data['cpu_efficiency'])
+    
+    if 'optimization_score' in cpu_summary_data:
+        cpu_workload_data['optimization_score'] = float(cpu_summary_data['optimization_score'])
+    
+    if all_workloads:
+            cpu_workload_data['has_workloads'] = True
+            cpu_workload_data['total_workloads'] = len(all_workloads)
             cpu_workload_data['cpu_analysis_available'] = True
             
             cpu_values = []
-            for workload in high_cpu_workloads:
+            for workload in all_workloads:
                 if isinstance(workload, dict):
                     if 'name' in workload:
                         cpu_workload_data['workload_names'].append(workload['name'])
-                    # Per .clauderc: Check fields explicitly
-                    cpu_val = 0
-                    if 'hpa_cpu_utilization' in workload:
-                        cpu_val = workload['hpa_cpu_utilization']
-                    elif 'cpu_utilization' in workload:
-                        cpu_val = workload['cpu_utilization']
-                    elif 'current_cpu_utilization' in workload:
-                        cpu_val = workload['current_cpu_utilization']
+                    # Per .clauderc: Fail fast if required field missing
+                    if 'cpu_usage_pct' not in workload:
+                        raise ValueError(f"Workload {workload.get('name', 'unknown')} missing required field 'cpu_usage_pct'")
+                    cpu_val = workload['cpu_usage_pct']
                     if cpu_val > 0:
                         cpu_val = ensure_float(cpu_val)
                         cpu_values.append(cpu_val)
@@ -610,12 +669,12 @@ def _extract_cpu_workload_data(analysis_data):
                         )
             
             if cpu_values:
-                cpu_workload_data['average_cpu_utilization'] = sum(cpu_values) / len(cpu_values)
+                cpu_workload_data['avg_cpu_utilization'] = sum(cpu_values) / len(cpu_values)
             
-            # Use max CPU from summary if available
+            # Use max CPU from cpu_summary_data if available
             # Per .clauderc: Explicit field checking
-            if high_cpu_summary and 'max_cpu_utilization' in high_cpu_summary:
-                max_cpu_from_summary = high_cpu_summary['max_cpu_utilization']
+            if cpu_summary_data and 'max_cpu_utilization' in cpu_summary_data:
+                max_cpu_from_summary = cpu_summary_data['max_cpu_utilization']
                 if max_cpu_from_summary > 0:
                     cpu_workload_data['max_cpu_utilization'] = max(
                         cpu_workload_data['max_cpu_utilization'], 
@@ -629,8 +688,8 @@ def _extract_cpu_workload_data(analysis_data):
         if isinstance(wc, dict):
             if 'max_cpu_utilization' in wc and wc['max_cpu_utilization'] > 0:
                 cpu_workload_data['max_cpu_utilization'] = float(wc['max_cpu_utilization'])
-            if 'average_cpu_utilization' in wc and wc['average_cpu_utilization'] > 0:
-                cpu_workload_data['average_cpu_utilization'] = float(wc['average_cpu_utilization'])
+            if 'avg_cpu_utilization' in wc and wc['avg_cpu_utilization'] > 0:
+                cpu_workload_data['avg_cpu_utilization'] = float(wc['avg_cpu_utilization'])
             if 'high_cpu_workloads' in wc:
                 high_cpu_workloads = wc['high_cpu_workloads']
                 if high_cpu_workloads:
@@ -671,7 +730,7 @@ def _extract_cpu_workload_data(analysis_data):
                         )
             
             if cpu_values:
-                cpu_workload_data['average_cpu_utilization'] = sum(cpu_values) / len(cpu_values)
+                cpu_workload_data['avg_cpu_utilization'] = sum(cpu_values) / len(cpu_values)
             
         else:
             # Extract average CPU from enhanced analysis if available
@@ -679,7 +738,7 @@ def _extract_cpu_workload_data(analysis_data):
             if 'cpu_utilization' in ml_workload_characteristics:
                 avg_cpu = ml_workload_characteristics['cpu_utilization']
                 if avg_cpu > 0:
-                    cpu_workload_data['average_cpu_utilization'] = float(avg_cpu)
+                    cpu_workload_data['avg_cpu_utilization'] = float(avg_cpu)
                     cpu_workload_data['cpu_analysis_available'] = True
     
     # Determine severity level based on max CPU
@@ -696,8 +755,8 @@ def _extract_cpu_workload_data(analysis_data):
         cpu_workload_data['severity_level'] = 'none'
     
     # Calculate CPU efficiency directly from available CPU data
-    if cpu_workload_data['average_cpu_utilization'] > 0:
-        avg_cpu = cpu_workload_data['average_cpu_utilization']
+    if cpu_workload_data['avg_cpu_utilization'] > 0:
+        avg_cpu = cpu_workload_data['avg_cpu_utilization']
         
         # Per .clauderc: Use scoring standards instead of hardcoded values
         from shared.standards.performance_standards import SystemPerformanceStandards
@@ -712,8 +771,13 @@ def _extract_cpu_workload_data(analysis_data):
                 cpu_workload_data['cpu_efficiency'] = base_efficiency * 100
         else:
             cpu_workload_data['cpu_efficiency'] = optimal_cpu / avg_cpu * 100
-    cpu_efficiency = cpu_workload_data['cpu_efficiency']
     
+    # Per .clauderc: Only access cpu_efficiency if it was set
+    if 'cpu_efficiency' not in cpu_workload_data:
+        logger.warning("⚠️ No valid CPU utilization data - cpu_efficiency not calculated")
+        # Don't set cpu_efficiency field - let chart handle missing data
+    
+    logger.info(f"✅ Returning CPU workload data with keys: {list(cpu_workload_data.keys())}")
     return cpu_workload_data
 
 def _extract_hpa_efficiency(analysis_data, hpa_recommendations):
@@ -930,7 +994,7 @@ def _enhance_recommendation_with_cpu_data(original_recommendation, cpu_workload_
     if cpu_workload_data.get('has_high_cpu_workloads', False):
         severity = cpu_workload_data.get('severity_level', 'none')
         high_cpu_count = cpu_workload_data.get('high_cpu_count', 0)
-        avg_cpu = cpu_workload_data.get('average_cpu_utilization', 0)
+        avg_cpu = cpu_workload_data.get('avg_cpu_utilization', 0)
         
         if severity == 'critical':
             cpu_insight = f" 🚨 CRITICAL: {high_cpu_count} workloads with CPU >1000%. Immediate optimization required."

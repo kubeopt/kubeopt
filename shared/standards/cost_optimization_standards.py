@@ -121,6 +121,10 @@ class RightSizingCostStandards:
     CPU_DOWNSIZE_SAVINGS_FACTOR = 0.6     # 60% savings when downsizing CPU
     MEMORY_DOWNSIZE_SAVINGS_FACTOR = 0.5  # 50% savings when downsizing memory
     UPSIZE_COST_PENALTY_FACTOR = 1.3      # 30% cost penalty when upsizing
+    
+    # Resource Usage Estimation Factors (for metrics-server fallback scenarios)
+    CPU_USAGE_ESTIMATION_FACTOR = 0.7     # 70% of CPU request as estimated usage
+    MEMORY_USAGE_ESTIMATION_FACTOR = 0.75 # 75% of memory request as estimated usage
 
 
 class StorageCostStandards:

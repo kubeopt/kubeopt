@@ -227,14 +227,15 @@ def run_subscription_aware_background_analysis(cluster_id: str, resource_group: 
                     'multi_subscription_enabled': True
                 }
             
-            # CRITICAL DEBUG: Check if high_cpu_summary is in analysis_results_data before DB save
-            if 'high_cpu_summary' in analysis_results_data:
-                logger.info(f"✅ BACKGROUND_PROCESSOR: high_cpu_summary IS present before DB save")
-                summary = analysis_results_data['high_cpu_summary']
-                logger.info(f"   - high_cpu_workloads: {len(summary.get('high_cpu_workloads', []))}")
-                logger.info(f"   - high_cpu_hpas: {len(summary.get('high_cpu_hpas', []))}")
+            # CRITICAL DEBUG: Check if top_cpu_summary is in analysis_results_data before DB save
+            if 'top_cpu_summary' in analysis_results_data:
+                logger.info(f"✅ BACKGROUND_PROCESSOR: top_cpu_summary IS present before DB save")
+                summary = analysis_results_data['top_cpu_summary']
+                logger.info(f"   - all_workloads: {len(summary.get('all_workloads', []))}")
+                logger.info(f"   - all_hpas: {len(summary.get('all_hpas', []))}")
+                logger.info(f"   - max_cpu_utilization: {summary.get('max_cpu_utilization', 'N/A')}")
             else:
-                logger.error(f"❌ BACKGROUND_PROCESSOR: high_cpu_summary MISSING before DB save")
+                logger.error(f"❌ BACKGROUND_PROCESSOR: top_cpu_summary MISSING before DB save")
                 logger.error(f"🔍 BACKGROUND_PROCESSOR: Available keys: {list(analysis_results_data.keys())[:20]}")
             
             # Store results in database with subscription context

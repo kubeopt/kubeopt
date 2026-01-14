@@ -257,11 +257,13 @@ def _generate_dynamic_action_items(analysis_data, optimization_history, performa
         
         # 9. Analysis data insights
         if analysis_data:
-            # Check for high_cpu_summary data
-            high_cpu_summary = analysis_data.get('high_cpu_summary', {})
-            if high_cpu_summary and high_cpu_summary.get('total_workloads', 0) > 0:
-                high_cpu_count = high_cpu_summary.get('total_workloads', 0)
-                action_items.append(f"🔴 MEDIUM: High CPU Utilization - {high_cpu_count} workloads showing high CPU usage. Review resource allocation and consider optimization.")
+            # Check for top_cpu_summary data
+            top_cpu_summary = analysis_data.get('top_cpu_summary')
+            if not top_cpu_summary:
+                raise ValueError("top_cpu_summary missing from analysis_data - required for project controls")
+            if top_cpu_summary.get('max_cpu_utilization', 0) > 80:
+                max_cpu = top_cpu_summary.get('max_cpu_utilization', 0)
+                action_items.append(f"🔴 MEDIUM: High CPU Utilization - Max CPU at {max_cpu:.1f}%. Review resource allocation and consider optimization.")
         
         # 10. Based on actual optimization opportunities found
         monthly_savings = analysis_data.get('monthly_savings', 0) if analysis_data else cost_savings

@@ -1167,7 +1167,7 @@ class EnhancedAKSCostProcessor:
             'enhancement_level': 'comprehensive_v2',
             'allocation_methods_applied': True,
             'system_costs_allocated': True,
-            'idle_costs_calculated': True,
+            'idle_cost_calculated': True,
             'networking_detailed_breakdown': True,
             'service_categorization_enhanced': True,
             'optimization_insights_included': True

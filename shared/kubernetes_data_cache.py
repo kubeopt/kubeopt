@@ -293,9 +293,8 @@ class KubernetesDataCache:
             # BATCH 4: Service essentials (85% size reduction)
             "services_essential": '''kubectl get services --all-namespaces -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name,TYPE:.spec.type,CLUSTER-IP:.spec.clusterIP,EXTERNAL-IP:.status.loadBalancer.ingress[*].ip,PORTS:.spec.ports[*].port' --no-headers''',
             
-            # BATCH 5: HPA - Optimized to avoid truncation (was 17K lines, now ~230 lines)
-            # We extract ONLY needed fields instead of full JSON to prevent truncation
-            "hpa_essential": '''kubectl get hpa --all-namespaces -o custom-columns="NAMESPACE:.metadata.namespace,NAME:.metadata.name,MIN:.spec.minReplicas,MAX:.spec.maxReplicas,CURRENT:.status.currentReplicas,DESIRED:.status.desiredReplicas,CPU_CURRENT:.status.currentMetrics[0].resource.current.averageUtilization,CPU_TARGET:.spec.metrics[0].resource.target.averageUtilization,SCALE_TARGET:.spec.scaleTargetRef.name,SCALE_KIND:.spec.scaleTargetRef.kind" --no-headers 2>/dev/null || echo ""''',
+            # BATCH 5: HPA - Compact JSON extraction with only essential fields to avoid truncation
+            "hpa_essential": '''kubectl get hpa --all-namespaces -o json 2>/dev/null | jq '[.items[] | {apiVersion: .apiVersion, kind: .kind, metadata: {name: .metadata.name, namespace: .metadata.namespace}, spec: {minReplicas: .spec.minReplicas, maxReplicas: .spec.maxReplicas, scaleTargetRef: .spec.scaleTargetRef, metrics: .spec.metrics}, status: {currentReplicas: .status.currentReplicas, desiredReplicas: .status.desiredReplicas, currentMetrics: .status.currentMetrics}}]' | jq '{items: .}' 2>/dev/null || echo '{"items":[]}'  ''',
             # Remove redundant hpa_cpu query since hpa_essential now includes CPU data
             "hpa_cpu": '''echo "DEPRECATED: CPU data now in hpa_essential"''',
             
@@ -518,10 +517,13 @@ class KubernetesDataCache:
                         lines = ["NAME\tCPU(cores)\tCPU%\tMEMORY(bytes)\tMEMORY%"]
                         for node in result['nodes']:
                             if node.get('cpu_percent') is not None:
+                                # Azure Monitor now returns computerName which matches K8s node name
+                                node_name = node['name']
+                                
                                 # Format similar to kubectl top nodes output
                                 cpu_val = f"{node.get('cpu_percent', 0):.0f}%" if node.get('cpu_percent') is not None else "0%"
                                 mem_val = f"{node.get('memory_percent', 0):.0f}%" if node.get('memory_percent') is not None else "0%"
-                                lines.append(f"{node['name']}\t100m\t{cpu_val}\t1Gi\t{mem_val}")
+                                lines.append(f"{node_name}\t100m\t{cpu_val}\t1Gi\t{mem_val}")
                         return '\n'.join(lines) if '--no-headers' not in cmd else '\n'.join(lines[1:])
                 
                 # NOTE: Disabled Azure SDK replacement for nodes - kubectl provides more complete data
@@ -960,6 +962,10 @@ class KubernetesDataCache:
                 if output:
                     results[key] = output
                     logger.info(f"✅ {self.cluster_name}: Batch '{key}' succeeded")
+                elif key == "events_critical":
+                    # Empty events_critical is success for healthy clusters with no warnings/errors
+                    results[key] = ""  # Empty string is valid output
+                    logger.info(f"✅ {self.cluster_name}: Batch '{key}' succeeded (no critical events - healthy cluster)")
                 else:
                     failed_commands[key] = cmd
                     logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' returned no data")
@@ -1000,14 +1006,15 @@ class KubernetesDataCache:
                 parsed[key] = self._parse_custom_columns(key, output)
             
             elif key == "hpa_essential":
-                # HPA now returns custom columns (optimized from 17K lines to ~230 lines)
-                # Format: NAMESPACE NAME MIN MAX CURRENT DESIRED CPU_CURRENT CPU_TARGET SCALE_TARGET SCALE_KIND
-                if not output or not output.strip():
-                    logger.warning(f"No HPA data for cluster {self.cluster_name}")
+                # HPA now returns full JSON with currentMetrics preserved
+                try:
+                    import json
+                    parsed[key] = json.loads(output)
+                    item_count = len(parsed[key].get('items', []))
+                    logger.info(f"✅ Parsed HPA JSON: {item_count} HPAs found")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse HPA JSON: {e}")
                     parsed[key] = {"items": [], "count": 0}
-                else:
-                    parsed[key] = self._parse_custom_columns(key, output)
-                    logger.info(f"✅ Parsed HPA data: {parsed[key]['count']} HPAs found")
             
             elif "_essential" in key or key == "namespaces":
                 parsed[key] = self._parse_custom_columns(key, output)
@@ -1079,6 +1086,11 @@ class KubernetesDataCache:
     def _parse_custom_columns(self, key: str, output: str) -> Dict[str, Any]:
         """Parse custom columns output with strict validation"""
         lines = output.strip().split('\n')
+        
+        # Empty events_critical is valid for healthy clusters with no warnings/errors
+        if not lines and key == "events_critical":
+            return {"items": [], "count": 0, "errors": 0}
+        
         if not lines:
             raise ValueError(f"No data in custom columns output for {key}")
         
@@ -1173,23 +1185,6 @@ class KubernetesDataCache:
                 'ports': ' '.join(parts[5:]) if len(parts) > 5 else ''
             }
         
-        elif key == "hpa_essential":
-            # Format: NAMESPACE NAME MIN MAX CURRENT DESIRED CPU_CURRENT CPU_TARGET SCALE_TARGET SCALE_KIND
-            if len(parts) < 10:
-                while len(parts) < 10:
-                    parts.append('<none>')
-            return {
-                'NAMESPACE': parts[0],
-                'NAME': parts[1],
-                'MIN': parts[2] if parts[2] != '<none>' else '1',
-                'MAX': parts[3] if parts[3] != '<none>' else '10',
-                'CURRENT': parts[4] if parts[4] != '<none>' else '0',
-                'DESIRED': parts[5] if parts[5] != '<none>' else '0',
-                'CPU_CURRENT': parts[6] if parts[6] != '<none>' else '<none>',
-                'CPU_TARGET': parts[7] if parts[7] != '<none>' else '80',
-                'SCALE_TARGET': parts[8] if parts[8] != '<none>' else '',
-                'SCALE_KIND': parts[9] if parts[9] != '<none>' else 'Deployment'
-            }
         
         elif key == "pvc_essential":
             if len(parts) < 5:
@@ -1350,64 +1345,16 @@ class KubernetesDataCache:
             if hpa_data and 'items' in hpa_data:
                 hpa_items = hpa_data.get('items', [])
                 
-                # Process HPA custom column data
-                # Format: NAMESPACE NAME MIN MAX CURRENT DESIRED CPU_CURRENT CPU_TARGET SCALE_TARGET SCALE_KIND
-                processed_hpa_items = []
-                hpa_cpu_lines = ["NAMESPACE NAME CPU_CURRENT CPU_TARGET"]
+                # HPA essential now returns full JSON with currentMetrics preserved
+                logger.info(f"📊 Processing {len(hpa_items)} HPAs with full JSON structure")
                 
-                for hpa in hpa_items:
-                    # Parse custom column data
-                    namespace = hpa.get('NAMESPACE', '')
-                    name = hpa.get('NAME', '')
-                    min_replicas = int(hpa.get('MIN', 1)) if hpa.get('MIN') and hpa.get('MIN') != '<none>' else 1
-                    max_replicas = int(hpa.get('MAX', 10)) if hpa.get('MAX') and hpa.get('MAX') != '<none>' else 10
-                    current_replicas = int(hpa.get('CURRENT', 0)) if hpa.get('CURRENT') and hpa.get('CURRENT') != '<none>' else 0
-                    desired_replicas = int(hpa.get('DESIRED', 0)) if hpa.get('DESIRED') and hpa.get('DESIRED') != '<none>' else 0
-                    
-                    # Parse CPU values
-                    cpu_current_str = hpa.get('CPU_CURRENT', '<none>')
-                    cpu_target_str = hpa.get('CPU_TARGET', '80')
-                    
-                    current_cpu_val = None
-                    if cpu_current_str and cpu_current_str != '<none>':
-                        try:
-                            current_cpu_val = int(cpu_current_str)
-                        except (ValueError, TypeError):
-                            current_cpu_val = None
-                    
-                    target_cpu_val = 80
-                    if cpu_target_str and cpu_target_str != '<none>':
-                        try:
-                            target_cpu_val = int(cpu_target_str)
-                        except (ValueError, TypeError):
-                            target_cpu_val = 80
-                    
-                    processed_item = {
-                        'namespace': namespace,
-                        'name': name,
-                        'min_replicas': min_replicas,
-                        'max_replicas': max_replicas,
-                        'current_replicas': current_replicas,
-                        'desired_replicas': desired_replicas,
-                        'target_cpu': target_cpu_val,
-                        'current_cpu': current_cpu_val,
-                        'scale_target': hpa.get('SCALE_TARGET', ''),
-                        'scale_kind': hpa.get('SCALE_KIND', 'Deployment')
-                    }
-                    processed_hpa_items.append(processed_item)
-                    
-                    # Add to CPU lines
-                    line = f"{namespace} {name} {cpu_current_str} {cpu_target_str}"
-                    hpa_cpu_lines.append(line)
-                
-                # Store processed HPA data
-                final_results['hpa'] = {"items": processed_hpa_items}  # Backward compatible
+                # Store the full HPA JSON data directly - no conversion needed
+                final_results['hpa'] = hpa_data
                 final_results['hpa_text'] = f"Found {len(hpa_items)} HPAs"
-                final_results['hpa_cpu'] = '\n'.join(hpa_cpu_lines)
                 
-                # Log statistics
-                hpa_with_cpu = sum(1 for h in processed_hpa_items if h['current_cpu'] is not None)
-                logger.info(f"📊 {self.cluster_name}: Parsed {len(hpa_items)} HPAs ({hpa_with_cpu} with CPU metrics)")
+                # Log statistics for CPU metrics
+                hpa_with_cpu = sum(1 for h in hpa_items if 'status' in h and 'currentMetrics' in h.get('status', {}))
+                logger.info(f"📊 {self.cluster_name}: {len(hpa_items)} HPAs ({hpa_with_cpu} with currentMetrics)")
         
         if 'pvc_essential' in results:
             pvc_data = results['pvc_essential']
@@ -1682,7 +1629,11 @@ class KubernetesDataCache:
         
         # If JSON is empty but we have text data, try custom columns first, then basic text
         if not hpa_json_data.get('items'):
-            if self.get('hpa_custom'):
+            # Try hpa_essential data first (modern format - now returns JSON directly)
+            if self.get('hpa_essential'):
+                logger.info("🔄 Using hpa_essential JSON data")
+                hpa_json_data = self.get('hpa_essential')
+            elif self.get('hpa_custom'):
                 logger.info("🔄 HPA JSON empty, parsing from custom columns format")
                 hpa_json_data = self._parse_hpa_custom_to_json()
             elif self.get('hpa_text'):
@@ -1929,6 +1880,7 @@ class KubernetesDataCache:
                 }
             ], []
     
+
     def _parse_hpa_custom_to_json(self) -> Dict[str, Any]:
         """Parse HPA custom columns output to extract detailed metrics"""
         try:
