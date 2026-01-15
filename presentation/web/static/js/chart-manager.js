@@ -252,10 +252,10 @@ window.ChartManager = (function() {
                                                 const hidden = meta.data[i] && meta.data[i].hidden;
                                                 return {
                                                     text: `${label}: $${value.toFixed(2)} (${percentage}%)`,
-                                                    fillStyle: hidden ? '#e0e0e0' : dataset.backgroundColor[i],
-                                                    strokeStyle: hidden ? '#999999' : dataset.backgroundColor[i],
+                                                    fillStyle: hidden ? colors.textLight : dataset.backgroundColor[i],
+                                                    strokeStyle: hidden ? colors.textLight : dataset.backgroundColor[i],
                                                     lineWidth: hidden ? 2 : 0,
-                                                    fontColor: hidden ? '#999999' : colors.textPrimary,
+                                                    fontColor: hidden ? colors.textLight : colors.textPrimary,
                                                     fontStyle: hidden ? 'italic' : 'normal',
                                                     hidden: hidden,
                                                     index: i
@@ -295,13 +295,36 @@ window.ChartManager = (function() {
             createConfig: function(data) {
                 const colors = getThemeColors();
                 
-                // Handle both single value and array formats
-                const cpuData = Array.isArray(data.cpu) ? data.cpu : [data.cpu || 0];
-                const memoryData = Array.isArray(data.memory) ? data.memory : [data.memory || 0];
-                
-                // Calculate averages
-                const avgCpu = cpuData.reduce((a, b) => a + b, 0) / cpuData.length;
-                const avgMemory = memoryData.reduce((a, b) => a + b, 0) / memoryData.length;
+                // Handle enhanced data with waste metrics or legacy format
+                if (data.actual && data.requested) {
+                    // Enhanced format with waste metrics
+                    const avgCpuActual = Array.isArray(data.actual) ? data.actual[0] : data.actual;
+                    const avgMemoryActual = Array.isArray(data.actual) ? data.actual[1] : data.memory || 0;
+                    const avgCpuRequest = Array.isArray(data.requested) ? data.requested[0] : data.cpu || 0;
+                    const avgMemoryRequest = Array.isArray(data.requested) ? data.requested[1] : data.memory || 0;
+                    
+                    // Use optimization info if available
+                    const optimizationInfo = data.optimization_info || {};
+                    const cpuWastePct = optimizationInfo.cpu_waste_pct || 0;
+                    const memoryWastePct = optimizationInfo.memory_waste_pct || 0;
+                    
+                    var avgCpu = avgCpuActual;
+                    var avgMemory = avgMemoryActual;
+                    var wasteInfo = {
+                        cpu_waste: cpuWastePct,
+                        memory_waste: memoryWastePct,
+                        optimization_potential: optimizationInfo.optimization_potential || 'LOW'
+                    };
+                } else {
+                    // Legacy format - handle both single value and array formats
+                    const cpuData = Array.isArray(data.cpu) ? data.cpu : [data.cpu || 0];
+                    const memoryData = Array.isArray(data.memory) ? data.memory : [data.memory || 0];
+                    
+                    // Calculate averages
+                    var avgCpu = cpuData.reduce((a, b) => a + b, 0) / cpuData.length;
+                    var avgMemory = memoryData.reduce((a, b) => a + b, 0) / memoryData.length;
+                    var wasteInfo = null;
+                }
                 
                 // Create a dual-ring doughnut chart
                 return {
@@ -309,38 +332,146 @@ window.ChartManager = (function() {
                     plugins: [{
                         afterDraw: function(chart) {
                             const ctx = chart.ctx;
+                            const currentColors = getThemeColors(); // Get fresh theme colors for theme switching
                             ctx.save();
                             
                             const centerX = (chart.chartArea.left + chart.chartArea.right) / 2;
                             const centerY = (chart.chartArea.top + chart.chartArea.bottom) / 2;
                             
+                            // Use the data parameter from closure (persists like working charts)
+                            let cpuValue, memoryValue, wasteData;
+                            
+                            if (data.actual && data.requested) {
+                                // Enhanced format - recalculate from original data
+                                const avgCpuActual = Array.isArray(data.actual) ? data.actual[0] : data.actual;
+                                const avgMemoryActual = Array.isArray(data.actual) ? data.actual[1] : data.memory || 0;
+                                cpuValue = avgCpuActual;
+                                memoryValue = avgMemoryActual;
+                                
+                                const optimizationInfo = data.optimization_info || {};
+                                wasteData = {
+                                    cpu_waste: optimizationInfo.cpu_waste_pct || 0,
+                                    memory_waste: optimizationInfo.memory_waste_pct || 0,
+                                    optimization_potential: optimizationInfo.optimization_potential || 'LOW'
+                                };
+                            } else {
+                                // Legacy format
+                                const cpuData = Array.isArray(data.cpu) ? data.cpu : [data.cpu || 0];
+                                const memoryData = Array.isArray(data.memory) ? data.memory : [data.memory || 0];
+                                cpuValue = cpuData.reduce((a, b) => a + b, 0) / cpuData.length;
+                                memoryValue = memoryData.reduce((a, b) => a + b, 0) / memoryData.length;
+                                wasteData = null;
+                            }
+                            
+                            // Clean center display - just the main utilization percentages
                             // Draw CPU percentage in center top
-                            ctx.font = 'bold 18px Arial';
-                            ctx.fillStyle = colors.primary;
+                            ctx.font = 'bold 20px Arial';
+                            ctx.fillStyle = currentColors.textPrimary;
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'middle';
-                            ctx.fillText(avgCpu.toFixed(1) + '%', centerX, centerY - 15);
+                            ctx.fillText(cpuValue.toFixed(1) + '%', centerX, centerY - 15);
                             
                             // Draw CPU label
                             ctx.font = '12px Arial';
-                            ctx.fillStyle = colors.textSecondary;
-                            ctx.fillText('CPU', centerX, centerY - 2);
+                            ctx.fillStyle = currentColors.textSecondary;
+                            ctx.fillText('CPU Usage', centerX, centerY - 2);
                             
-                            // Draw Memory percentage in center bottom
-                            ctx.font = 'bold 18px Arial';
-                            ctx.fillStyle = colors.primaryLight;
-                            ctx.fillText(avgMemory.toFixed(1) + '%', centerX, centerY + 12);
+                            // Draw Memory percentage in center bottom  
+                            ctx.font = 'bold 20px Arial';
+                            ctx.fillStyle = currentColors.textPrimary;
+                            ctx.fillText(memoryValue.toFixed(1) + '%', centerX, centerY + 15);
                             
                             // Draw Memory label
                             ctx.font = '12px Arial';
-                            ctx.fillStyle = colors.textSecondary;
-                            ctx.fillText('Memory', centerX, centerY + 25);
+                            ctx.fillStyle = currentColors.textSecondary;
+                            ctx.fillText('Memory Usage', centerX, centerY + 28);
+                            
+                            // Update the chart metrics section with waste information
+                            if (wasteData) {
+                                setTimeout(() => {
+                                    // Update CPU metric with theme-appropriate colors
+                                    const cpuMetricEl = document.getElementById('cpu-optimization-metric');
+                                    if (cpuMetricEl) {
+                                        if (wasteData.cpu_waste > 15) {
+                                            cpuMetricEl.innerHTML = `<span style="color: ${currentColors.textSecondary}; font-size: 0.9em;">⚠ ${wasteData.cpu_waste.toFixed(1)}% waste</span>`;
+                                            cpuMetricEl.title = `CPU requests are ${wasteData.cpu_waste.toFixed(1)}% higher than actual usage`;
+                                        } else {
+                                            cpuMetricEl.innerHTML = `<span style="color: ${currentColors.primary}; font-size: 0.9em;">✓ ${wasteData.cpu_waste.toFixed(1)}% waste</span>`;
+                                            cpuMetricEl.title = `CPU utilization is well optimized`;
+                                        }
+                                    }
+                                    
+                                    // Update memory optimization metric (find or create)
+                                    let memoryMetricEl = document.getElementById('memory-optimization-metric');
+                                    if (!memoryMetricEl) {
+                                        // Create memory metric if it doesn't exist
+                                        const metricsContainer = document.querySelector('#utilization-chart').closest('.chart-card').querySelector('.chart-metrics');
+                                        if (metricsContainer) {
+                                            const memoryMetricItem = document.createElement('div');
+                                            memoryMetricItem.className = 'metric-item';
+                                            memoryMetricItem.innerHTML = `
+                                                <span class="metric-label">Memory:</span>
+                                                <span class="metric-value" id="memory-optimization-metric">--</span>
+                                            `;
+                                            metricsContainer.appendChild(memoryMetricItem);
+                                            memoryMetricEl = document.getElementById('memory-optimization-metric');
+                                        }
+                                    }
+                                    
+                                    if (memoryMetricEl) {
+                                        if (wasteData.memory_waste > 15) {
+                                            memoryMetricEl.innerHTML = `<span style="color: ${currentColors.textSecondary}; font-size: 0.9em;">⚠ ${wasteData.memory_waste.toFixed(1)}% waste</span>`;
+                                            memoryMetricEl.title = `Memory requests are ${wasteData.memory_waste.toFixed(1)}% higher than actual usage`;
+                                        } else {
+                                            memoryMetricEl.innerHTML = `<span style="color: ${currentColors.primary}; font-size: 0.9em;">✓ ${wasteData.memory_waste.toFixed(1)}% waste</span>`;
+                                            memoryMetricEl.title = `Memory utilization is well optimized`;
+                                        }
+                                    }
+                                    
+                                    // Add or update savings potential metric
+                                    let savingsMetricEl = document.getElementById('savings-potential-metric');
+                                    if (!savingsMetricEl) {
+                                        const metricsContainer = document.querySelector('#utilization-chart').closest('.chart-card').querySelector('.chart-metrics');
+                                        if (metricsContainer) {
+                                            const savingsMetricItem = document.createElement('div');
+                                            savingsMetricItem.className = 'metric-item';
+                                            savingsMetricItem.innerHTML = `
+                                                <span class="metric-label">Optimization:</span>
+                                                <span class="metric-value" id="savings-potential-metric">--</span>
+                                            `;
+                                            metricsContainer.appendChild(savingsMetricItem);
+                                            savingsMetricEl = document.getElementById('savings-potential-metric');
+                                        }
+                                    }
+                                    
+                                    if (savingsMetricEl) {
+                                        const potentialLevel = wasteData.optimization_potential;
+                                        const estimatedSavings = wasteData.estimated_savings_pct || 0;
+                                        
+                                        if (potentialLevel === 'HIGH') {
+                                            const savingsText = estimatedSavings > 0 ? `(~${estimatedSavings.toFixed(1)}%)` : '';
+                                            savingsMetricEl.innerHTML = `<span style="color: ${currentColors.primaryDark}; font-size: 0.9em;">◆ HIGH ${savingsText}</span>`;
+                                        } else if (potentialLevel === 'MEDIUM') {
+                                            const savingsText = estimatedSavings > 0 ? `(~${estimatedSavings.toFixed(1)}%)` : '';
+                                            savingsMetricEl.innerHTML = `<span style="color: ${currentColors.primary}; font-size: 0.9em;">◇ MEDIUM ${savingsText}</span>`;
+                                        } else {
+                                            savingsMetricEl.innerHTML = `<span style="color: ${currentColors.textLight}; font-size: 0.9em;">○ LOW</span>`;
+                                        }
+                                        savingsMetricEl.title = `Potential monthly cost savings from resource optimization`;
+                                    }
+                                }, 100); // Small delay to ensure DOM is ready
+                            }
                             
                             ctx.restore();
                         }
                     }],
                     data: {
-                        labels: [
+                        labels: wasteInfo ? [
+                            `CPU Used: ${avgCpu.toFixed(1)}% (Waste: ${wasteInfo.cpu_waste.toFixed(1)}%)`,
+                            `CPU Available: ${(100 - avgCpu).toFixed(1)}%`,
+                            `Memory Used: ${avgMemory.toFixed(1)}% (Waste: ${wasteInfo.memory_waste.toFixed(1)}%)`,
+                            `Memory Available: ${(100 - avgMemory).toFixed(1)}%`
+                        ] : [
                             `CPU Used (${avgCpu.toFixed(1)}%)`,
                             `CPU Available (${(100 - avgCpu).toFixed(1)}%)`,
                             `Memory Used (${avgMemory.toFixed(1)}%)`,
@@ -403,15 +534,28 @@ window.ChartManager = (function() {
                                         return legendItem.text.includes('Used');
                                     },
                                     generateLabels: function(chart) {
+                                        // Use the data parameter from closure (same as afterDraw)
+                                        let cpuValue, memoryValue;
+                                        
+                                        if (data.actual && data.requested) {
+                                            cpuValue = Array.isArray(data.actual) ? data.actual[0] : data.actual;
+                                            memoryValue = Array.isArray(data.actual) ? data.actual[1] : data.memory || 0;
+                                        } else {
+                                            const cpuData = Array.isArray(data.cpu) ? data.cpu : [data.cpu || 0];
+                                            const memoryData = Array.isArray(data.memory) ? data.memory : [data.memory || 0];
+                                            cpuValue = cpuData.reduce((a, b) => a + b, 0) / cpuData.length;
+                                            memoryValue = memoryData.reduce((a, b) => a + b, 0) / memoryData.length;
+                                        }
+                                        
                                         return [
                                             {
-                                                text: `CPU: ${avgCpu.toFixed(1)}%`,
+                                                text: `CPU: ${cpuValue.toFixed(1)}%`,
                                                 fillStyle: colors.primary,
                                                 hidden: false,
                                                 index: 0
                                             },
                                             {
-                                                text: `Memory: ${avgMemory.toFixed(1)}%`,
+                                                text: `Memory: ${memoryValue.toFixed(1)}%`,
                                                 fillStyle: colors.primaryLight,
                                                 hidden: false,
                                                 index: 2
@@ -502,7 +646,7 @@ window.ChartManager = (function() {
                             label: 'Current',
                             data: data.current || [],
                             backgroundColor: 'rgba(106, 160, 85, 0.8)',
-                            borderColor: '#6AA055',
+                            borderColor: getThemeColors().primaryDark,
                             borderWidth: 2,
                             borderRadius: 4
                         },
@@ -510,7 +654,7 @@ window.ChartManager = (function() {
                             label: 'Recommended',
                             data: data.recommended || data.withHpa || [],
                             backgroundColor: 'rgba(170, 208, 148, 0.8)',
-                            borderColor: '#AAD094',
+                            borderColor: getThemeColors().primaryLight,
                             borderWidth: 2,
                             borderRadius: 4
                         }
@@ -551,6 +695,7 @@ window.ChartManager = (function() {
                             title: {
                                 display: true,
                                 text: 'HPA Optimization Impact',
+                                color: getThemeColors().textPrimary,
                                 font: {
                                     size: 14,
                                     weight: 'bold'
@@ -563,13 +708,18 @@ window.ChartManager = (function() {
                                     usePointStyle: false,
                                     boxWidth: 40,
                                     padding: 15,
+                                    color: getThemeColors().textPrimary,
                                     font: {
                                         size: 12
                                     }
                                 }
                             },
                             tooltip: {
-                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                backgroundColor: getThemeColors().tooltipBg,
+                                titleColor: getThemeColors().textPrimary,
+                                bodyColor: getThemeColors().textPrimary,
+                                borderColor: getThemeColors().primary,
+                                borderWidth: 1,
                                 callbacks: {
                                     label: function(context) {
                                         const label = context.dataset.label;
@@ -594,6 +744,7 @@ window.ChartManager = (function() {
                                     display: false
                                 },
                                 ticks: {
+                                    color: getThemeColors().textSecondary,
                                     maxRotation: 45,
                                     minRotation: 0,
                                     autoSkip: true
@@ -603,12 +754,14 @@ window.ChartManager = (function() {
                                 beginAtZero: true,
                                 title: {
                                     display: true,
-                                    text: 'Replica Count'
+                                    text: 'Replica Count',
+                                    color: getThemeColors().textSecondary
                                 },
                                 grid: {
-                                    color: 'rgba(0, 0, 0, 0.1)'
+                                    color: getThemeColors().gridColor
                                 },
                                 ticks: {
+                                    color: getThemeColors().textSecondary,
                                     stepSize: 20
                                 }
                             }
@@ -643,14 +796,14 @@ window.ChartManager = (function() {
                             
                             // Draw savings amount
                             ctx.font = 'bold 24px Arial';
-                            ctx.fillStyle = '#22c55e';
+                            ctx.fillStyle = getThemeColors().textPrimary;
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'middle';
                             ctx.fillText('$' + totalSavings.toFixed(0), centerX, centerY - 8);
                             
                             // Draw label
                             ctx.font = '14px Arial';
-                            ctx.fillStyle = '#718096';
+                            ctx.fillStyle = getThemeColors().textSecondary;
                             ctx.fillText('Potential Savings', centerX, centerY + 15);
                             
                             ctx.restore();
@@ -664,9 +817,9 @@ window.ChartManager = (function() {
                                 '#7FB069', '#94C37F', '#AAD094', '#C0DDAA'
                             ],
                             borderWidth: 3,
-                            borderColor: '#ffffff',
+                            borderColor: getThemeColors().bgPrimary,
                             hoverBorderWidth: 4,
-                            hoverBorderColor: '#ffffff'
+                            hoverBorderColor: getThemeColors().bgPrimary
                         }]
                     },
                     options: {
@@ -706,10 +859,10 @@ window.ChartManager = (function() {
                                                 const hidden = meta.data[i] && meta.data[i].hidden;
                                                 return {
                                                     text: `${label}: $${value} (${percentage}%)`,
-                                                    fillStyle: hidden ? '#e0e0e0' : dataset.backgroundColor[i],
-                                                    strokeStyle: hidden ? '#999999' : dataset.backgroundColor[i],
+                                                    fillStyle: hidden ? getThemeColors().textLight : dataset.backgroundColor[i],
+                                                    strokeStyle: hidden ? getThemeColors().textLight : dataset.backgroundColor[i],
                                                     lineWidth: hidden ? 2 : 0,
-                                                    fontColor: hidden ? '#999999' : '#2d3748',
+                                                    fontColor: hidden ? getThemeColors().textLight : getThemeColors().textPrimary,
                                                     fontStyle: hidden ? 'italic' : 'normal',
                                                     hidden: hidden,
                                                     index: i
@@ -724,7 +877,7 @@ window.ChartManager = (function() {
                                 backgroundColor: 'rgba(0, 0, 0, 0.8)',
                                 titleColor: 'white',
                                 bodyColor: 'white',
-                                borderColor: '#7FB069',
+                                borderColor: getThemeColors().primary,
                                 borderWidth: 1,
                                 cornerRadius: 8,
                                 padding: 12,
@@ -857,16 +1010,17 @@ window.ChartManager = (function() {
                                 labels: {
                                     padding: 15,
                                     usePointStyle: true,
+                                    color: getThemeColors().textPrimary,
                                     font: {
                                         size: 12
                                     }
                                 }
                             },
                             tooltip: {
-                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                titleColor: 'white',
-                                bodyColor: 'white',
-                                borderColor: '#7FB069',
+                                backgroundColor: getThemeColors().tooltipBg,
+                                titleColor: getThemeColors().textPrimary,
+                                bodyColor: getThemeColors().textPrimary,
+                                borderColor: getThemeColors().primary,
                                 borderWidth: 1,
                                 cornerRadius: 8,
                                 padding: 12,
@@ -891,6 +1045,7 @@ window.ChartManager = (function() {
                                     display: false
                                 },
                                 ticks: {
+                                    color: getThemeColors().textSecondary,
                                     autoSkip: true,
                                     maxRotation: 45,
                                     minRotation: 0,
@@ -903,9 +1058,10 @@ window.ChartManager = (function() {
                                 beginAtZero: true,
                                 max: 100,
                                 grid: {
-                                    color: 'rgba(0, 0, 0, 0.1)'
+                                    color: getThemeColors().gridColor
                                 },
                                 ticks: {
+                                    color: getThemeColors().textSecondary,
                                     font: {
                                         size: 11
                                     },
@@ -947,14 +1103,14 @@ window.ChartManager = (function() {
                             
                             // Draw total amount
                             ctx.font = 'bold 20px Arial';
-                            ctx.fillStyle = '#2d3748';
+                            ctx.fillStyle = getThemeColors().textPrimary;
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'middle';
                             ctx.fillText('$' + visibleTotal.toFixed(2), centerX, centerY - 8);
                             
                             // Draw label
                             ctx.font = '12px Arial';
-                            ctx.fillStyle = '#718096';
+                            ctx.fillStyle = getThemeColors().textSecondary;
                             ctx.fillText('Total Cost', centerX, centerY + 12);
                             
                             ctx.restore();
@@ -970,7 +1126,7 @@ window.ChartManager = (function() {
                                 '#AEB283', '#C5B893', '#7FB069', '#94C37F'
                             ],
                             borderWidth: 2,
-                            borderColor: '#ffffff'
+                            borderColor: getThemeColors().bgPrimary
                         }]
                     },
                     options: {
@@ -1010,10 +1166,10 @@ window.ChartManager = (function() {
                                                 const hidden = meta.data[i] && meta.data[i].hidden;
                                                 return {
                                                     text: `${shortLabel}: $${value.toFixed(2)} (${percentage}%)`,
-                                                    fillStyle: hidden ? '#e0e0e0' : dataset.backgroundColor[i],
-                                                    strokeStyle: hidden ? '#999999' : dataset.backgroundColor[i],
+                                                    fillStyle: hidden ? getThemeColors().textLight : dataset.backgroundColor[i],
+                                                    strokeStyle: hidden ? getThemeColors().textLight : dataset.backgroundColor[i],
                                                     lineWidth: hidden ? 2 : 0,
-                                                    fontColor: hidden ? '#999999' : '#2d3748',
+                                                    fontColor: hidden ? getThemeColors().textLight : getThemeColors().textPrimary,
                                                     fontStyle: hidden ? 'italic' : 'normal',
                                                     hidden: hidden,
                                                     index: i
@@ -1062,8 +1218,8 @@ window.ChartManager = (function() {
                         datasets: [{
                             label: 'Monthly Cost',
                             data: workloadData.map(w => w.value).slice(0, 10),
-                            backgroundColor: '#7FB069',
-                            borderColor: '#6BA055',
+                            backgroundColor: getThemeColors().primary,
+                            borderColor: getThemeColors().primaryDark,
                             borderWidth: 1,
                             borderRadius: 4
                         }]
@@ -1077,6 +1233,11 @@ window.ChartManager = (function() {
                                 display: false
                             },
                             tooltip: {
+                                backgroundColor: getThemeColors().tooltipBg,
+                                titleColor: getThemeColors().textPrimary,
+                                bodyColor: getThemeColors().textPrimary,
+                                borderColor: getThemeColors().primary,
+                                borderWidth: 1,
                                 callbacks: {
                                     label: function(context) {
                                         return 'Cost: $' + context.parsed.x.toFixed(2) + '/month';
@@ -1087,14 +1248,22 @@ window.ChartManager = (function() {
                         scales: {
                             x: {
                                 beginAtZero: true,
+                                grid: {
+                                    color: getThemeColors().gridColor
+                                },
                                 ticks: {
+                                    color: getThemeColors().textSecondary,
                                     callback: function(value) {
                                         return '$' + value;
                                     }
                                 }
                             },
                             y: {
+                                grid: {
+                                    color: getThemeColors().gridColor
+                                },
                                 ticks: {
+                                    color: getThemeColors().textSecondary,
                                     autoSkip: false,
                                     callback: function(value, index) {
                                         const label = this.getLabelForValue(value);
@@ -1149,13 +1318,18 @@ window.ChartManager = (function() {
         try {
             const ctx = canvas.getContext('2d');
             const config = chartConfigs[canvasId].createConfig(data);
-            charts[canvasId] = new Chart(ctx, config);
+            const chart = new Chart(ctx, config);
+            
+            // Store the original data on the chart instance for theme changes
+            chart._originalData = data;
+            
+            charts[canvasId] = chart;
             console.log(`Chart created: ${canvasId}`);
             
             // Clear pending data
             delete pendingChartData[canvasId];
             
-            return charts[canvasId];
+            return chart;
         } catch (error) {
             console.error(`Failed to create chart ${canvasId}:`, error);
             return null;
@@ -1272,18 +1446,39 @@ window.ChartManager = (function() {
             });
         }
         
-        // 6. Resource Utilization Chart (CPU/Memory bars)
-        // This needs to show overall cluster utilization, not workload metrics
+        // 6. Resource Utilization Chart (CPU/Memory bars with waste metrics)
+        // Enhanced to show utilization, requests, and waste
         if (chartData.nodeUtilization) {
-            // Transform node utilization to resource utilization format
+            // Calculate averages
+            const avgCpuActual = chartData.nodeUtilization.cpuActual ? 
+                (chartData.nodeUtilization.cpuActual.reduce((a,b) => a+b, 0) / chartData.nodeUtilization.cpuActual.length) : 0;
+            const avgMemoryActual = chartData.nodeUtilization.memoryActual ? 
+                (chartData.nodeUtilization.memoryActual.reduce((a,b) => a+b, 0) / chartData.nodeUtilization.memoryActual.length) : 0;
+            const avgCpuRequest = chartData.nodeUtilization.cpuRequest ? 
+                (chartData.nodeUtilization.cpuRequest.reduce((a,b) => a+b, 0) / chartData.nodeUtilization.cpuRequest.length) : 0;
+            const avgMemoryRequest = chartData.nodeUtilization.memoryRequest ? 
+                (chartData.nodeUtilization.memoryRequest.reduce((a,b) => a+b, 0) / chartData.nodeUtilization.memoryRequest.length) : 0;
+            
+            // Calculate waste metrics
+            const cpuWaste = Math.max(0, avgCpuRequest - avgCpuActual);
+            const memoryWaste = Math.max(0, avgMemoryRequest - avgMemoryActual);
+            const wasteMetrics = chartData.nodeUtilization.resource_waste_metrics || {};
+            
+            // Enhanced utilization data with waste information
             const utilizationData = {
-                labels: ['CPU Utilization', 'Memory Utilization'],
-                cpu: [chartData.nodeUtilization.cpuActual ? 
-                    (chartData.nodeUtilization.cpuActual.reduce((a,b) => a+b, 0) / chartData.nodeUtilization.cpuActual.length) : 0],
-                memory: [chartData.nodeUtilization.memoryActual ? 
-                    (chartData.nodeUtilization.memoryActual.reduce((a,b) => a+b, 0) / chartData.nodeUtilization.memoryActual.length) : 0]
+                labels: ['CPU', 'Memory'],
+                actual: [avgCpuActual, avgMemoryActual],
+                requested: [avgCpuRequest, avgMemoryRequest],
+                waste: [cpuWaste, memoryWaste],
+                waste_metrics: wasteMetrics,
+                optimization_info: {
+                    cpu_waste_pct: wasteMetrics.avg_cpu_waste_pct || (avgCpuRequest > 0 ? (cpuWaste/avgCpuRequest*100) : 0),
+                    memory_waste_pct: wasteMetrics.avg_memory_waste_pct || (avgMemoryRequest > 0 ? (memoryWaste/avgMemoryRequest*100) : 0),
+                    optimization_potential: wasteMetrics.optimization_potential || 'LOW',
+                    estimated_savings_pct: wasteMetrics.estimated_monthly_savings_pct || 0
+                }
             };
-            console.log('Updating utilization chart with data:', utilizationData);
+            console.log('Updating utilization chart with enhanced waste metrics:', utilizationData);
             updateChart('utilization-chart', utilizationData);
         } else if (chartData.cpuWorkloadMetrics) {
             // Use workload metrics with new structure
@@ -1385,12 +1580,17 @@ window.ChartManager = (function() {
         // Store current chart data before destroying charts
         const currentChartData = {};
         Object.keys(charts).forEach(canvasId => {
-            if (charts[canvasId] && charts[canvasId].data) {
-                // Store the data configuration used to create the chart
-                currentChartData[canvasId] = {
-                    labels: charts[canvasId].data.labels,
-                    values: charts[canvasId].data.datasets[0]?.data || []
-                };
+            if (charts[canvasId]) {
+                // Use the stored original data if available, otherwise fallback to basic chart data
+                if (charts[canvasId]._originalData) {
+                    currentChartData[canvasId] = charts[canvasId]._originalData;
+                } else if (charts[canvasId].data) {
+                    // Fallback to basic chart data structure
+                    currentChartData[canvasId] = {
+                        labels: charts[canvasId].data.labels,
+                        values: charts[canvasId].data.datasets[0]?.data || []
+                    };
+                }
             }
         });
         
@@ -1401,7 +1601,10 @@ window.ChartManager = (function() {
         setTimeout(() => {
             Object.keys(currentChartData).forEach(canvasId => {
                 if (canvasExists(canvasId)) {
-                    createChart(canvasId, currentChartData[canvasId]);
+                    const dataToUse = currentChartData[canvasId];
+                    if (dataToUse) {
+                        createChart(canvasId, dataToUse);
+                    }
                 }
             });
         }, 100);

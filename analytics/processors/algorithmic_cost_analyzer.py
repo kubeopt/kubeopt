@@ -1183,12 +1183,22 @@ class ConsistentCostAnalyzer:
                 sample_node = metrics_data['nodes'][0]
                 logger.info(f"🔍 BEFORE: sample_node = name: '{sample_node.get('name')}', cpu_usage_pct: {sample_node.get('cpu_usage_pct')}")
             
-            # TEMPORARY: Disable data contract enforcement to avoid data corruption
-            # cost_data = AnalysisDataContract.enforce_data(cost_data, "analyze() cost_data")
-            # metrics_data = AnalysisDataContract.enforce_data(metrics_data, "analyze() metrics_data") 
-            # if pod_data:
-            #     pod_data = AnalysisDataContract.enforce_data(pod_data, "analyze() pod_data")
-            logger.info("🔧 TEMPORARY: DataContract enforcement disabled to prevent node data corruption")
+            # NEW: Use validation-only DataContract approach
+            from shared.interfaces.data_contract import ValidationOnlyDataContract
+            
+            # Validate data integrity without modifying the data
+            cost_data = ValidationOnlyDataContract.validate_without_modification(cost_data, "analyze() cost_data")
+            metrics_data = ValidationOnlyDataContract.validate_without_modification(metrics_data, "analyze() metrics_data")
+            if pod_data:
+                pod_data = ValidationOnlyDataContract.validate_without_modification(pod_data, "analyze() pod_data")
+            
+            # Check critical fields for node data integrity
+            if metrics_data.get('nodes'):
+                node_critical_fields = ['name', 'cpu_usage_pct']
+                sample_node = metrics_data['nodes'][0] if isinstance(metrics_data['nodes'], list) else {}
+                ValidationOnlyDataContract.check_critical_fields(sample_node, node_critical_fields, "node_data_integrity")
+            
+            logger.info("✅ NEW: Validation-only DataContract approach - data integrity checked without corruption")
             
             # DEBUG: Check metrics_data AFTER data contract enforcement
             logger.info(f"🔍 DEBUG AFTER DATA CONTRACT: metrics_data['nodes'] sample:")
@@ -1533,12 +1543,13 @@ class ConsistentCostAnalyzer:
     
     def _combine_and_validate_results(self, actual_costs: Dict, current_usage: Dict,
                                      optimization: Dict, efficiency: Dict, confidence: Dict,
-                                     metrics_data: Dict) -> 'DataContractDict':
+                                     metrics_data: Dict) -> Dict:
         """Combine all analysis results with validation and enforcement"""
-        from shared.interfaces.data_contract import AnalysisDataContract
+        from shared.interfaces.data_contract import AnalysisDataContract, ValidationOnlyDataContract
         
-        # Create enforced results dictionary
-        results = AnalysisDataContract.create_enforced_data("_combine_and_validate_results output")
+        # NEW: Use regular dict but validate the combined results
+        results = {}
+        logger.info("✅ NEW: Using regular dict for results - will validate final output")
         
         # Add all fields with enforcement
         from shared.interfaces.data_contract import AnalysisDataContract
@@ -1882,6 +1893,17 @@ class ConsistentCostAnalyzer:
                     results['savings_by_category'] = {}
                 if 'current_health_score' not in results:
                     results['current_health_score'] = 50
+        
+        # NEW: Validate final results without modifying them
+        results = ValidationOnlyDataContract.validate_without_modification(results, "final_combined_results")
+        
+        # Check critical output fields
+        critical_output_fields = ['total_cost', 'avg_cpu_utilization', 'node_count']
+        if not ValidationOnlyDataContract.check_critical_fields(results, critical_output_fields, "final_results_critical_check"):
+            logger.warning("⚠️ Some critical fields missing from final results")
+        
+        # Suggest any field mappings
+        ValidationOnlyDataContract.suggest_field_mappings(results, "final_results_mapping")
         
         return results
 

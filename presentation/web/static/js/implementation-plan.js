@@ -122,6 +122,32 @@ window.ImplementationPlan = (function() {
     }
     
     /**
+     * Check if user can generate plans based on feature flags
+     */
+    function checkCanGeneratePlans() {
+        let canGeneratePlans = false;
+        
+        // Try to get from AppState first
+        if (window.AppState && window.AppState.featureFlags) {
+            canGeneratePlans = window.AppState.featureFlags.showAiPlans === true;
+        }
+        
+        // If not found, check if it's set on window directly (fallback)
+        if (!canGeneratePlans && window.featureFlags) {
+            canGeneratePlans = window.featureFlags.show_ai_plans === true;
+        }
+        
+        // For ENTERPRISE, always enable if the Implementation tab is visible
+        // (tab is only shown for ENTERPRISE users)
+        const implementationTabVisible = document.querySelector('[data-view="implementation"]');
+        if (implementationTabVisible && !canGeneratePlans) {
+            // If the implementation tab exists, user must be ENTERPRISE
+            canGeneratePlans = true;
+        }
+        return canGeneratePlans;
+    }
+    
+    /**
      * Show error state
      */
     function showErrorState(message) {
@@ -155,7 +181,7 @@ window.ImplementationPlan = (function() {
                                 <i class="fas fa-chart-line"></i> Run Analysis
                             </button>
                         ` : ''}
-                        ${(window.AppState && window.AppState.featureFlags && window.AppState.featureFlags.showAiPlans === true) ? `
+                        ${checkCanGeneratePlans() ? `
                             <button onclick="ImplementationPlan.generatePlan()" class="btn-secondary">
                                 <i class="fas fa-plus"></i> Generate Plan
                             </button>
@@ -205,26 +231,7 @@ window.ImplementationPlan = (function() {
         const htmlContent = convertMarkdownToHtml(markdownContent);
         
         // Check if user can generate plans (ENTERPRISE only)
-        // Check both possible locations where feature flags might be
-        let canGeneratePlans = false;
-        
-        // Try to get from AppState first
-        if (window.AppState && window.AppState.featureFlags) {
-            canGeneratePlans = window.AppState.featureFlags.showAiPlans === true;
-        }
-        
-        // If not found, check if it's set on window directly (fallback)
-        if (!canGeneratePlans && window.featureFlags) {
-            canGeneratePlans = window.featureFlags.show_ai_plans === true;
-        }
-        
-        // For ENTERPRISE, always enable if the Implementation tab is visible
-        // (tab is only shown for ENTERPRISE users)
-        const implementationTabVisible = document.querySelector('[data-view="implementation"]');
-        if (implementationTabVisible && !canGeneratePlans) {
-            // If the implementation tab exists, user must be ENTERPRISE
-            canGeneratePlans = true;
-        }
+        const canGeneratePlans = checkCanGeneratePlans();
         
         // Create the appropriate button HTML
         const generateButton = canGeneratePlans ? 

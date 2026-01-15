@@ -166,6 +166,182 @@ class DataContractDict(dict):
         return default
 
 
+class ValidationOnlyDataContract:
+    """
+    NEW: Validation-only data contract that checks data integrity without modifying data
+    Provides field validation, type checking, and consistency verification
+    WITHOUT corrupting or modifying the original data structures
+    """
+    
+    @staticmethod
+    def validate_without_modification(data: dict, context: str = "", enforce_strict: bool = False) -> dict:
+        """
+        Validate data integrity without modifying the original data
+        Returns the original data unchanged but logs validation issues
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        if not isinstance(data, dict):
+            logger.warning(f"⚠️ VALIDATION: {context} - Expected dict, got {type(data)}")
+            return data
+        
+        approved_fields = AnalysisDataContract.get_approved_fields()
+        violations = []
+        suggestions = []
+        
+        # Check each field in the data
+        for field_name, field_value in data.items():
+            # Check if field is approved
+            if field_name not in approved_fields:
+                # Check if it has a normalized equivalent
+                normalized_name = AnalysisDataContract.normalize_field_name(field_name)
+                if normalized_name != field_name and normalized_name in approved_fields:
+                    suggestions.append(f"Field '{field_name}' could be normalized to '{normalized_name}'")
+                else:
+                    violations.append(field_name)
+            
+            # Validate nested structures recursively
+            if isinstance(field_value, dict):
+                ValidationOnlyDataContract.validate_without_modification(
+                    field_value, 
+                    f"{context}.{field_name}",
+                    enforce_strict
+                )
+            elif isinstance(field_value, list):
+                for i, item in enumerate(field_value):
+                    if isinstance(item, dict):
+                        ValidationOnlyDataContract.validate_without_modification(
+                            item,
+                            f"{context}.{field_name}[{i}]",
+                            enforce_strict
+                        )
+        
+        # Log validation results
+        if violations:
+            violation_msg = f"Field violations in {context}: {violations}"
+            if enforce_strict:
+                raise ValueError(f"❌ STRICT VALIDATION FAILED: {violation_msg}")
+            else:
+                logger.warning(f"⚠️ VALIDATION WARNING: {violation_msg}")
+        
+        if suggestions:
+            logger.info(f"💡 VALIDATION SUGGESTIONS for {context}: {suggestions}")
+        
+        if not violations and not suggestions:
+            logger.debug(f"✅ VALIDATION PASSED: {context} - All fields approved")
+        
+        # Return original data unchanged
+        return data
+    
+    @staticmethod
+    def check_critical_fields(data: dict, required_fields: list, context: str = "") -> bool:
+        """
+        Check that critical fields are present and not None/empty
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        missing_fields = []
+        empty_fields = []
+        
+        for field in required_fields:
+            if field not in data:
+                missing_fields.append(field)
+            elif data[field] is None or data[field] == "MISSING":
+                empty_fields.append(field)
+        
+        if missing_fields:
+            logger.error(f"❌ CRITICAL FIELD CHECK FAILED in {context}: Missing fields {missing_fields}")
+            return False
+        
+        if empty_fields:
+            logger.error(f"❌ CRITICAL FIELD CHECK FAILED in {context}: Empty/corrupted fields {empty_fields}")
+            return False
+        
+        logger.debug(f"✅ CRITICAL FIELD CHECK PASSED: {context}")
+        return True
+    
+    @staticmethod
+    def suggest_field_mappings(data: dict, context: str = "") -> dict:
+        """
+        Analyze data and suggest field mappings without modifying the data
+        Returns a mapping dictionary of suggested changes
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        suggested_mappings = {}
+        approved_fields = AnalysisDataContract.get_approved_fields()
+        
+        for field_name in data.keys():
+            if field_name not in approved_fields:
+                normalized_name = AnalysisDataContract.normalize_field_name(field_name)
+                if normalized_name != field_name and normalized_name in approved_fields:
+                    suggested_mappings[field_name] = normalized_name
+        
+        if suggested_mappings:
+            logger.info(f"💡 FIELD MAPPING SUGGESTIONS for {context}: {suggested_mappings}")
+        
+        return suggested_mappings
+    
+    @staticmethod
+    def apply_safe_field_normalization(data: dict, context: str = "") -> dict:
+        """
+        Safely apply field normalization to a copy of the data
+        Does NOT modify the original data - creates a new normalized copy
+        """
+        import copy
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Create a deep copy to avoid modifying original
+        normalized_data = copy.deepcopy(data)
+        
+        # Apply field mappings from AnalysisDataContract.normalize_analysis_data
+        # But do it safely on the copy
+        try:
+            normalized_result = AnalysisDataContract.normalize_analysis_data(normalized_data)
+            logger.info(f"✅ SAFE NORMALIZATION: Successfully normalized {context}")
+            return normalized_result
+        except Exception as e:
+            logger.warning(f"⚠️ SAFE NORMALIZATION FAILED for {context}: {e} - returning original data")
+            return data
+
+
+class DataContractUtils:
+    """
+    Utility class for common DataContract operations
+    Provides easy-to-use methods for validation and normalization
+    """
+    
+    @staticmethod
+    def validate_and_normalize(data: dict, context: str = "", strict: bool = False) -> dict:
+        """
+        One-stop method: validate data integrity and optionally normalize field names
+        Returns either normalized data (if successful) or original data (if validation fails in non-strict mode)
+        """
+        # First validate without modification
+        validated_data = ValidationOnlyDataContract.validate_without_modification(data, context, strict)
+        
+        # If validation passed, optionally apply safe normalization
+        if not strict:  # Only normalize in non-strict mode to avoid data corruption
+            normalized_data = ValidationOnlyDataContract.apply_safe_field_normalization(validated_data, context)
+            return normalized_data
+        
+        return validated_data
+    
+    @staticmethod
+    def check_data_integrity(data: dict, critical_fields: list = None, context: str = ""):
+        """
+        Quick integrity check for critical data fields
+        """
+        if critical_fields is None:
+            critical_fields = ['name', 'cpu_usage_pct']  # Default node fields
+        
+        return ValidationOnlyDataContract.check_critical_fields(data, critical_fields, context)
+
+
 class AnalysisDataContract:
     """
     Standard data contract for analysis results flowing through the pipeline

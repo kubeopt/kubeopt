@@ -113,6 +113,56 @@ Settings - AKS Cost Optimizer
                             
                             <div class="setting-item">
                                 <div class="setting-info">
+                                    <h3 class="setting-title">Database Cleanup</h3>
+                                    <p class="setting-description">Automatically delete old data to keep database size manageable</p>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="database_cleanup_enabled" id="database-cleanup-enabled" 
+                                               {% if config.get('DATABASE_CLEANUP_ENABLED', 'true').lower() == 'true' %}checked{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Data Retention Period (Days)</h3>
+                                    <p class="setting-description">Delete data older than this many days (default: 90)</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="number" name="database_retention_days" id="database-retention-days" class="setting-input" 
+                                           value="{{ config.get('DATABASE_RETENTION_DAYS', '90') }}" 
+                                           placeholder="90" min="30" max="365">
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Cleanup Interval (Hours)</h3>
+                                    <p class="setting-description">How often to run cleanup process (default: 24)</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="number" name="database_cleanup_interval_hours" id="database-cleanup-interval" class="setting-input" 
+                                           value="{{ config.get('DATABASE_CLEANUP_INTERVAL_HOURS', '24') }}" 
+                                           placeholder="24" min="1" max="168">
+                                </div>
+                            </div>
+
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Cost Cache Duration (Hours)</h3>
+                                    <p class="setting-description">How long to cache Azure cost data (default: 6)</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="number" name="cost_cache_hours" id="cost-cache-hours" class="setting-input" 
+                                           value="{{ config.get('COST_CACHE_HOURS', '6') }}" 
+                                           placeholder="6" min="1" max="24">
+                                </div>
+                            </div>
+
+                            <div class="setting-item">
+                                <div class="setting-info">
                                     <h3 class="setting-title">License Key</h3>
                                     <p class="setting-description">
                                         Current License: <strong>{{ license_info.get('tier_display', 'Free') }}</strong>
@@ -403,6 +453,18 @@ Settings - AKS Cost Optimizer
                     <div class="section-header">
                         <h2 class="section-title">Advanced Settings</h2>
                         <p class="section-description">API configuration and advanced options</p>
+                    </div>
+                    
+                    <!-- Warning Box -->
+                    <div class="warning-box" style="margin: 1rem 0; padding: 1rem; background: #fef2f2; border-left: 4px solid #dc2626; border-radius: 0.375rem;">
+                        <div class="warning-box-title" style="font-weight: 600; margin-bottom: 0.5rem; color: #dc2626;">
+                            <i class="fas fa-exclamation-triangle" style="margin-right: 0.5rem;"></i>
+                            ⚠️ Critical Warning
+                        </div>
+                        <p style="margin: 0; color: #dc2626; font-weight: 500;">
+                            <strong>DO NOT CHANGE</strong> these settings unless you know exactly what you are doing. 
+                            Incorrect values will cause the application to fail. Only modify if instructed by support.
+                        </p>
                     </div>
                     
                     <!-- API Configuration -->

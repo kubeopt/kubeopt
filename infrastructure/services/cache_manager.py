@@ -520,9 +520,9 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'current_memory_utilization': complete_analysis_data.get('current_memory_utilization'),
         
         # Preserve node count data for cluster portfolio
-        'current_node_count': complete_analysis_data.get('current_node_count', 0),
+        'current_node_count': complete_analysis_data.get('current_node_count'),
         'node_count': complete_analysis_data.get('node_count', 0),
-        'total_nodes': complete_analysis_data.get('total_nodes', 0),
+        'total_nodes': complete_analysis_data.get('total_nodes'),
         
         # Cost breakdown
         'node_cost': float(complete_analysis_data.get('node_cost', 0)),
