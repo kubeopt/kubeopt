@@ -151,7 +151,7 @@ class MultiSubscriptionAnalysisEngine:
                 cluster_id = f"{resource_group}_{cluster_name}"
                 
                 # Check database for fresh cost data  
-                cached_cost_df = check_database_cost_freshness(cluster_name, max_age_hours=24)
+                cached_cost_df = check_database_cost_freshness(cluster_name)
                 if cached_cost_df is not None:
                     logger.info(f"✅ CACHE HIT: Found fresh database cost data for {cluster_name}")
                     cost_validation_result = {'available': True, 'subscription_id': subscription_id, 'cache_hit': True}

@@ -220,6 +220,10 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
             if cached_data and cached_data.get('total_cost', 0) > 0:
                 # Use same validation as other features - only require basic fields
                 if 'total_cost' in cached_data and cached_data.get('total_cost', 0) > 0:
+                    # Debug node count data from cache
+                    current_node_count = cached_data.get('current_node_count')
+                    total_nodes = cached_data.get('total_nodes')
+                    node_count = cached_data.get('node_count')
                     logger.info(f"✅ ENTERPRISE CACHE: Valid analysis data for {cluster_id} - ${cached_data.get('total_cost', 0):.2f}")
                     return cached_data, "enterprise_cache"
                 else:
@@ -258,6 +262,10 @@ def _get_analysis_data(cluster_id: Optional[str]) -> Tuple[Optional[Dict[str, An
                     db_data = deserialize_implementation_plan(serialized_data)
                     
                     if db_data and db_data.get('total_cost', 0) > 0:
+                        # Debug node count data from database
+                        current_node_count = db_data.get('current_node_count')
+                        total_nodes = db_data.get('total_nodes')
+                        node_count = db_data.get('node_count')
                         logger.info(f"✅ DATABASE: Found analysis results for {cluster_id} - ${db_data.get('total_cost', 0):.2f}")
                         # Cache with subscription context
                         from infrastructure.services.cache_manager import save_to_cache

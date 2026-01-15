@@ -57,7 +57,7 @@ class SettingsManager:
             
             # Override with actual environment variables
             for key, value in os.environ.items():
-                if key.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_', 'AUTO_')):
+                if key.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'LOG_', 'PRODUCTION_', 'COST_', 'ANALYSIS_', 'AUTO_', 'DATABASE_')):
                     config[key] = value
             
             self.config_cache = config
@@ -102,8 +102,10 @@ class SettingsManager:
             email_settings = {k: v for k, v in merged_settings.items() if k.startswith(('EMAIL_', 'SMTP_', 'FROM_'))}
             general_settings = {k: v for k, v in merged_settings.items() if k in [
                 'ANALYSIS_REFRESH_INTERVAL', 'COST_ALERT_THRESHOLD', 'LOG_LEVEL', 
-                'PRODUCTION_MODE', 'AUTO_ANALYSIS_ENABLED', 'AUTO_ANALYSIS_INTERVAL'
+                'PRODUCTION_MODE', 'AUTO_ANALYSIS_ENABLED', 'AUTO_ANALYSIS_INTERVAL',
+                'COST_CACHE_HOURS'
             ]}
+            database_settings = {k: v for k, v in merged_settings.items() if k.startswith('DATABASE_')}
             
             # Handle custom environment variables
             custom_env_vars = merged_settings.get('CUSTOM_ENV_VARS', '')
@@ -138,12 +140,18 @@ class SettingsManager:
                 for key, value in sorted(general_settings.items()):
                     config_lines.append(f"{key}={value}")
             
+            # Write Database settings
+            if database_settings is not None and database_settings:
+                config_lines.extend(["", "# Database Cleanup Settings"])
+                for key, value in sorted(database_settings.items()):
+                    config_lines.append(f"{key}={value}")
+            
             # Write any other settings not categorized above
             other_settings = {k: v for k, v in merged_settings.items() 
-                            if not k.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'FROM_')) 
+                            if not k.startswith(('AZURE_', 'SLACK_', 'EMAIL_', 'SMTP_', 'FROM_', 'DATABASE_')) 
                             and k not in ['APP_URL', 'ANALYSIS_REFRESH_INTERVAL', 'COST_ALERT_THRESHOLD', 
                                         'LOG_LEVEL', 'PRODUCTION_MODE', 'AUTO_ANALYSIS_ENABLED', 
-                                        'AUTO_ANALYSIS_INTERVAL', 'CUSTOM_ENV_VARS']}
+                                        'AUTO_ANALYSIS_INTERVAL', 'COST_CACHE_HOURS', 'CUSTOM_ENV_VARS']}
             
             if other_settings is not None and other_settings:
                 config_lines.extend(["", "# Other Settings"])
@@ -212,7 +220,11 @@ class SettingsManager:
             'log_level': 'LOG_LEVEL',
             'production_mode': 'PRODUCTION_MODE',
             'auto_analysis_enabled': 'AUTO_ANALYSIS_ENABLED',
-            'auto_analysis_interval': 'AUTO_ANALYSIS_INTERVAL'
+            'auto_analysis_interval': 'AUTO_ANALYSIS_INTERVAL',
+            'database_cleanup_enabled': 'DATABASE_CLEANUP_ENABLED',
+            'database_retention_days': 'DATABASE_RETENTION_DAYS',
+            'database_cleanup_interval_hours': 'DATABASE_CLEANUP_INTERVAL_HOURS',
+            'cost_cache_hours': 'COST_CACHE_HOURS'
         }
         
         return mapping.get(setting_key, setting_key.upper())

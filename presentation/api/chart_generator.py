@@ -505,10 +505,19 @@ def generate_dynamic_hpa_comparison(analysis_data):
     hpa_state_data = _extract_hpa_state_data(analysis_data)
     
     # Get ML-calculated utilization data - MUST BE REAL
-    ml_cpu_util = ml_workload_characteristics.get('cpu_utilization')
-    ml_memory_util = ml_workload_characteristics.get('memory_utilization')
+    # FIXED: ML model outputs cpu_usage_pct/memory_usage_pct, not cpu_utilization/memory_utilization
+    ml_cpu_util = ml_workload_characteristics.get('cpu_usage_pct')
+    ml_memory_util = ml_workload_characteristics.get('memory_usage_pct')
+    
+    # Fallback to alternative field names if primary ones are missing
+    if ml_cpu_util is None:
+        ml_cpu_util = ml_workload_characteristics.get('cpu_utilization')
+    if ml_memory_util is None:
+        ml_memory_util = ml_workload_characteristics.get('memory_utilization')
     
     if ml_cpu_util is None or ml_memory_util is None:
+        # Log what fields are actually available for debugging
+        logger.error(f"❌ Missing ML utilization data. Available fields: {list(ml_workload_characteristics.keys())}")
         raise ValueError("Missing ML utilization data")
     
     # Generate ML-driven scenarios using REAL model insights
@@ -735,11 +744,16 @@ def _extract_cpu_workload_data(analysis_data):
         else:
             # Extract average CPU from enhanced analysis if available
             # Per .clauderc: Explicit field checking
-            if 'cpu_utilization' in ml_workload_characteristics:
+            # FIXED: ML model outputs cpu_usage_pct, not cpu_utilization
+            avg_cpu = None
+            if 'cpu_usage_pct' in ml_workload_characteristics:
+                avg_cpu = ml_workload_characteristics['cpu_usage_pct']
+            elif 'cpu_utilization' in ml_workload_characteristics:
                 avg_cpu = ml_workload_characteristics['cpu_utilization']
-                if avg_cpu > 0:
-                    cpu_workload_data['avg_cpu_utilization'] = float(avg_cpu)
-                    cpu_workload_data['cpu_analysis_available'] = True
+            
+            if avg_cpu and avg_cpu > 0:
+                cpu_workload_data['avg_cpu_utilization'] = float(avg_cpu)
+                cpu_workload_data['cpu_analysis_available'] = True
     
     # Determine severity level based on max CPU
     max_cpu = cpu_workload_data['max_cpu_utilization']
@@ -1265,7 +1279,11 @@ def _extract_current_cpu_usage(analysis_data):
             ml_workload_characteristics = hpa_recommendations.get('workload_characteristics', {})
             
             # Extract average CPU from enhanced analysis (same as _extract_cpu_workload_data)
-            avg_cpu = ml_workload_characteristics.get('cpu_utilization', 0)
+            # FIXED: ML model outputs cpu_usage_pct, not cpu_utilization
+            avg_cpu = ml_workload_characteristics.get('cpu_usage_pct', 0)
+            if avg_cpu <= 0:
+                avg_cpu = ml_workload_characteristics.get('cpu_utilization', 0)
+            
             if avg_cpu > 0:
                 logger.info(f"✅ Found real CPU usage from ML workload characteristics: {avg_cpu}%")
                 return float(avg_cpu)
@@ -1956,12 +1974,18 @@ def generate_node_utilization_data(analysis_data):
         cpu_request.append(cpu_req)
         memory_request.append(memory_req)
     
-    # Calculate resource gaps
+    # Calculate resource gaps and waste metrics
     cpu_gaps = [max(0, req - actual) for req, actual in zip(cpu_request, cpu_actual)]
     memory_gaps = [max(0, req - actual) for req, actual in zip(memory_request, memory_actual)]
     
+    # Calculate waste percentages
+    cpu_waste_pct = [(gap / req * 100) if req > 0 else 0 for gap, req in zip(cpu_gaps, cpu_request)]
+    memory_waste_pct = [(gap / req * 100) if req > 0 else 0 for gap, req in zip(memory_gaps, memory_request)]
+    
     avg_cpu_gap = sum(cpu_gaps) / len(cpu_gaps) if cpu_gaps else 0
     avg_memory_gap = sum(memory_gaps) / len(memory_gaps) if memory_gaps else 0
+    avg_cpu_waste_pct = sum(cpu_waste_pct) / len(cpu_waste_pct) if cpu_waste_pct else 0
+    avg_memory_waste_pct = sum(memory_waste_pct) / len(memory_waste_pct) if memory_waste_pct else 0
     
     result = {
         'nodes': nodes,
@@ -1969,6 +1993,8 @@ def generate_node_utilization_data(analysis_data):
         'cpuActual': cpu_actual,
         'memoryRequest': memory_request,
         'memoryActual': memory_actual,
+        'cpuWaste': cpu_waste_pct,  # NEW: Resource waste percentages per node
+        'memoryWaste': memory_waste_pct,  # NEW: Memory waste percentages per node
         'data_source': data_source,
         'real_data': True,
         'resource_gaps': {
@@ -1976,6 +2002,14 @@ def generate_node_utilization_data(analysis_data):
             'avg_memory_gap': round(avg_memory_gap, 1),
             'max_cpu_gap': round(max(cpu_gaps, default=0), 1),
             'max_memory_gap': round(max(memory_gaps, default=0), 1)
+        },
+        'resource_waste_metrics': {  # NEW: Waste analysis section
+            'avg_cpu_waste_pct': round(avg_cpu_waste_pct, 1),
+            'avg_memory_waste_pct': round(avg_memory_waste_pct, 1),
+            'max_cpu_waste_pct': round(max(cpu_waste_pct, default=0), 1),
+            'max_memory_waste_pct': round(max(memory_waste_pct, default=0), 1),
+            'optimization_potential': 'HIGH' if avg_cpu_waste_pct > 30 or avg_memory_waste_pct > 30 else 'MEDIUM' if avg_cpu_waste_pct > 15 or avg_memory_waste_pct > 15 else 'LOW',
+            'estimated_monthly_savings_pct': round((avg_cpu_waste_pct + avg_memory_waste_pct) / 2 * 0.8, 1)  # Conservative estimate
         }
     }
     
