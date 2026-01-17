@@ -1856,6 +1856,11 @@ class EnhancedMultiSubscriptionClusterManager:
             self.logger.info(f"🔍 DATABASE SAVE: About to store CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
             self.logger.info(f"🔍 DATABASE SAVE: Serializable data keys: {list(serializable_data.keys())}")
             
+            # DEBUG: Check if monitoring_cost is being preserved
+            self.logger.info(f"🔍 DB SERIALIZE: monitoring_cost = ${serializable_data.get('monitoring_cost', 0):.2f}")
+            self.logger.info(f"🔍 DB SERIALIZE: compute_cost = ${serializable_data.get('compute_cost', 0):.2f}")
+            self.logger.info(f"🔍 DB SERIALIZE: total_cost = ${serializable_data.get('total_cost', 0):.2f}")
+            
             total_cost = float(serializable_data.get('total_cost', 0))
             total_savings = float(serializable_data.get('total_savings', 0))
             confidence = float(serializable_data.get('analysis_confidence', 0))
@@ -1880,16 +1885,22 @@ class EnhancedMultiSubscriptionClusterManager:
                 self.logger.warning(f"⚠️ No enhanced analysis data to save for {cluster_id}")
 
             with sqlite3.connect(self.db_path) as conn:
+                # Set cost_fetched_at timestamp only when cost data is actually present and updated
+                current_time = datetime.now().isoformat()
+                cost_fetched_time = current_time if total_cost > 0 else None
+                
                 conn.execute('''
                     UPDATE clusters 
                     SET last_cost = ?, last_savings = ?, last_confidence = ?, 
-                        last_analyzed = ?, analysis_data = ?, enhanced_analysis_data = ?
+                        last_analyzed = ?, analysis_data = ?, enhanced_analysis_data = ?,
+                        cost_fetched_at = ?
                     WHERE id = ?
                 ''', (
                     total_cost, total_savings, confidence,
-                    datetime.now().isoformat(),
+                    current_time,
                     json.dumps(serializable_data).encode('utf-8'),  # Store as BLOB
                     enhanced_analysis_blob,  # Store enhanced input as BLOB
+                    cost_fetched_time,  # Only set if cost data is present
                     cluster_id
                 ))
                 conn.execute('''

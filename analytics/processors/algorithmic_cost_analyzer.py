@@ -1489,11 +1489,18 @@ class ConsistentCostAnalyzer:
             raise ValueError("Total cost must be positive")
         
         # Extract component costs with validation
-        node_cost = cost_data.get('node_cost', 0)
+        node_cost = cost_data.get('node_cost', 0) or cost_data.get('compute_cost', 0)
         storage_cost = cost_data.get('storage_cost', 0)
         networking_cost = cost_data.get('networking_cost', 0)
         control_plane_cost = cost_data.get('control_plane_cost', 0)
         registry_cost = cost_data.get('registry_cost', 0)
+        
+        # CRITICAL FIX: Include monitoring cost which is often the largest component
+        monitoring_cost = cost_data.get('monitoring_cost', 0) or cost_data.get('log_analytics_cost', 0)
+        
+        # Include other cost categories
+        other_cost = cost_data.get('other_cost', 0)
+        idle_cost = cost_data.get('idle_cost', 0)
         
         # If components not provided, estimate from total
         if node_cost == 0:
@@ -1513,7 +1520,10 @@ class ConsistentCostAnalyzer:
             'monthly_actual_storage': storage_cost,
             'monthly_actual_networking': networking_cost,
             'monthly_actual_control_plane': control_plane_cost,
-            'monthly_actual_registry': registry_cost
+            'monthly_actual_registry': registry_cost,
+            'monthly_actual_monitoring': monitoring_cost,  # CRITICAL: Include monitoring cost
+            'monthly_actual_other': other_cost,
+            'monthly_actual_idle': idle_cost
         }
     
     def _validate_optimization_results(self, optimization: Dict, actual_costs: Dict,
@@ -1529,13 +1539,13 @@ class ConsistentCostAnalyzer:
                     logger.warning(f"{key} ({value}) exceeds total cost ({total_cost}), capping")
                     optimization[key] = total_cost * 0.3
         
-        # Recalculate total
-        total_savings = sum(v for k, v in optimization.items() if 'savings' in k and k != 'total_monthly_savings')
-        optimization['total_monthly_savings'] = total_savings
+        # DO NOT recalculate total - it's already calculated correctly with anti-double-counting logic
+        # The total_monthly_savings was calculated in the optimization method with proper overlap handling
         
-        # Calculate percentage
+        # Calculate percentage using the correctly calculated total
         if total_cost > 0:
-            optimization['optimization_percentage'] = (total_savings / total_cost) * 100
+            total_monthly_savings = optimization.get('total_monthly_savings', 0)
+            optimization['optimization_percentage'] = (total_monthly_savings / total_cost) * 100
         else:
             optimization['optimization_percentage'] = 0
         
@@ -1562,6 +1572,9 @@ class ConsistentCostAnalyzer:
             AnalysisDataContract.NETWORKING_COST: actual_costs['monthly_actual_networking'],
             AnalysisDataContract.CONTROL_PLANE_COST: actual_costs['monthly_actual_control_plane'],
             AnalysisDataContract.REGISTRY_COST: actual_costs['monthly_actual_registry'],
+            AnalysisDataContract.MONITORING_COST: actual_costs.get('monthly_actual_monitoring', 0),  # CRITICAL FIX
+            AnalysisDataContract.OTHER_COST: actual_costs.get('monthly_actual_other', 0),
+            AnalysisDataContract.IDLE_COST: actual_costs.get('monthly_actual_idle', 0),
             
             # Usage metrics with consistent naming
             'avg_cpu_utilization': current_usage.get('avg_cpu_utilization', 0),
@@ -1644,6 +1657,13 @@ class ConsistentCostAnalyzer:
                 registry_cost, metrics_data
             )
         
+        # CRITICAL FIX: Add monitoring/log analytics savings
+        monitoring_cost = cost_data.get('monitoring_cost', 0) or cost_data.get('log_analytics_cost', 0)
+        if monitoring_cost > 0:
+            savings['monitoring'] = self._analyze_monitoring_savings(
+                monitoring_cost, metrics_data, cost_data.get('total_cost', 0)
+            )
+        
         return savings
     
     def _analyze_node_pools_savings(self, node_cost: float, metrics_data: Dict,
@@ -1653,9 +1673,18 @@ class ConsistentCostAnalyzer:
             avg_cpu = current_usage.get('avg_cpu_utilization', 0)
             avg_memory = current_usage.get('avg_memory_utilization', 0)
             
-            # Calculate underutilization
-            cpu_target = 70  # Target from standards
-            memory_target = 75  # Target from standards
+            # Calculate underutilization using standards from config
+            # FOLLOWS .clauderc: NO HARDCODED VALUES
+            cpu_range = self._get_standard_range('resource_utilization', 'cpu_utilization_target')
+            memory_range = self._get_standard_range('resource_utilization', 'memory_utilization_target')
+            
+            # Use midpoint of target range as target
+            cpu_target = (cpu_range[0] + cpu_range[1]) / 2 if cpu_range else None
+            memory_target = (memory_range[0] + memory_range[1]) / 2 if memory_range else None
+            
+            # FAIL FAST if standards not available
+            if cpu_target is None or memory_target is None:
+                raise ValueError("CPU/Memory utilization targets not found in standards")
             
             cpu_waste = max(0, cpu_target - avg_cpu) / 100
             memory_waste = max(0, memory_target - avg_memory) / 100
@@ -1789,6 +1818,74 @@ class ConsistentCostAnalyzer:
         except Exception as e:
             logger.error(f"Registry savings calculation failed: {e}")
             return registry_cost * 0.15
+    
+    def _analyze_monitoring_savings(self, monitoring_cost: float, metrics_data: Dict, total_cost: float) -> float:
+        """
+        Analyze monitoring/log analytics optimization savings using AKS standards.
+        FOLLOWS .clauderc: FAIL FAST, NO DEFAULTS, NO FALLBACKS
+        """
+        # FAIL FAST: Validate inputs
+        if monitoring_cost < 0:
+            raise ValueError(f"Invalid monitoring_cost: {monitoring_cost}")
+        if total_cost <= 0:
+            raise ValueError(f"Invalid total_cost: {total_cost}")
+        if not isinstance(metrics_data, dict):
+            raise TypeError(f"metrics_data must be dict, got {type(metrics_data)}")
+        
+        # Get monitoring standards from AKS implementation standards
+        # NO HARDCODED VALUES - all from standards configuration
+        cost_proportion = monitoring_cost / total_cost
+        
+        # Load standards from config - FOLLOWS .clauderc: NO DEFAULTS
+        from shared.standards.implementation_cost_calculator import get_implementation_cost_calculator
+        calculator = get_implementation_cost_calculator()
+        standards = calculator.load_standards()
+        
+        if not standards or 'monitoring_optimization' not in standards:
+            raise ValueError("Monitoring optimization standards not found in configuration")
+        
+        monitoring_opt = standards['monitoring_optimization']
+        
+        # Get threshold values from standards
+        critical_threshold = monitoring_opt['monitoring_thresholds']['critical_proportion']
+        high_threshold = monitoring_opt['monitoring_thresholds']['high_proportion']
+        moderate_threshold = monitoring_opt['monitoring_thresholds']['moderate_proportion']
+        
+        # Get savings rates from standards
+        critical_rate = monitoring_opt['monitoring_savings']['critical_rate']
+        high_rate = monitoring_opt['monitoring_savings']['high_rate']
+        moderate_rate = monitoring_opt['monitoring_savings']['moderate_rate']
+        baseline_rate = monitoring_opt['monitoring_savings']['baseline_rate']
+        
+        # Determine savings rate based on cost proportion
+        if cost_proportion > critical_threshold:
+            savings_rate = critical_rate
+            severity = "CRITICAL"
+        elif cost_proportion > high_threshold:
+            savings_rate = high_rate
+            severity = "HIGH"
+        elif cost_proportion > moderate_threshold:
+            savings_rate = moderate_rate
+            severity = "MODERATE"
+        else:
+            savings_rate = baseline_rate
+            severity = "STANDARD"
+        
+        savings = monitoring_cost * savings_rate
+        
+        # FAIL FAST: Validate output
+        if savings < 0:
+            raise ValueError(f"Calculated negative savings: {savings}")
+        if savings > monitoring_cost:
+            raise ValueError(f"Savings {savings} exceeds cost {monitoring_cost}")
+        
+        # Log optimization opportunity
+        logger.info(
+            f"📊 {severity} monitoring cost: ${monitoring_cost:.2f} ({cost_proportion*100:.1f}% of total) "
+            f"- Potential savings: ${savings:.2f} ({savings_rate*100:.0f}% optimization)"
+        )
+        
+        return savings
     
     def _create_optimization_opportunities(self, results: dict, current_usage: dict) -> dict:
         """Create detailed optimization opportunities"""
@@ -2118,6 +2215,11 @@ class OptimizationCalculatorAlgorithm:
         try:
             logger.info("Calculating optimization potential...")
             
+            # DEBUG: Log actual cost data to identify the issue
+            logger.info(f"💰 DEBUG - Actual costs breakdown:")
+            for key, value in actual_costs.items():
+                logger.info(f"💰   {key}: ${value:.2f}")
+            
             # Extract costs
             compute_cost = actual_costs.get('monthly_actual_compute', 0)
             storage_cost = actual_costs.get('monthly_actual_storage', 0)
@@ -2148,14 +2250,104 @@ class OptimizationCalculatorAlgorithm:
             # Calculate infrastructure savings
             infrastructure_savings = self._calculate_infrastructure_savings(actual_costs, current_usage)
             
-            # Networking savings
-            networking_savings = actual_costs.get('monthly_actual_networking', 0) * 0.15
+            # Get cost category optimization standards - FOLLOWS .clauderc: NO HARDCODED VALUES
+            if not hasattr(self, 'standards') or not self.standards:
+                raise ValueError("Standards not loaded in algorithmic analyzer - initialization failed")
+                
+            cost_category_standards = self.standards.get('cost_category_optimization', {})
             
-            # Control plane savings
-            control_plane_savings = actual_costs.get('monthly_actual_control_plane', 0) * 0.1
+            # Networking savings using standards - FOLLOWS .clauderc: NO DEFAULTS, FAIL FAST
+            networking_cost = actual_costs.get('monthly_actual_networking', 0)
+            networking_opts = cost_category_standards.get('networking_optimization')
+            if not networking_opts:
+                raise ValueError("networking_optimization standards not found in configuration")
+            networking_rate = networking_opts.get('base_savings_rate')
+            if networking_rate is None:
+                raise ValueError("base_savings_rate for networking_optimization not found in standards")
+            networking_savings = networking_cost * networking_rate
+            logger.info(f"💰 Networking: ${networking_cost:.2f} * {networking_rate:.2f} = ${networking_savings:.2f}")
             
-            # Registry savings
-            registry_savings = actual_costs.get('monthly_actual_registry', 0) * 0.25
+            # Control plane savings using standards - FOLLOWS .clauderc: NO DEFAULTS, FAIL FAST
+            control_plane_cost = actual_costs.get('monthly_actual_control_plane', 0)
+            control_plane_opts = cost_category_standards.get('control_plane_optimization')
+            if not control_plane_opts:
+                raise ValueError("control_plane_optimization standards not found in configuration")
+            control_plane_rate = control_plane_opts.get('base_savings_rate')
+            if control_plane_rate is None:
+                raise ValueError("base_savings_rate for control_plane_optimization not found in standards")
+            control_plane_savings = control_plane_cost * control_plane_rate
+            logger.info(f"💰 Control plane: ${control_plane_cost:.2f} * {control_plane_rate:.2f} = ${control_plane_savings:.2f}")
+            
+            # Registry savings using standards - FOLLOWS .clauderc: NO DEFAULTS, FAIL FAST
+            registry_cost = actual_costs.get('monthly_actual_registry', 0)
+            registry_opts = cost_category_standards.get('registry_optimization')
+            if not registry_opts:
+                raise ValueError("registry_optimization standards not found in configuration")
+            registry_rate = registry_opts.get('base_savings_rate')
+            if registry_rate is None:
+                raise ValueError("base_savings_rate for registry_optimization not found in standards")
+            registry_savings = registry_cost * registry_rate
+            logger.info(f"💰 Registry: ${registry_cost:.2f} * {registry_rate:.2f} = ${registry_savings:.2f}")
+            
+            # CRITICAL FIX: Add monitoring/log analytics savings
+            # FOLLOWS .clauderc: NO HARDCODED VALUES - USE STANDARDS FROM CONFIG
+            monitoring_cost = actual_costs.get('monthly_actual_monitoring', 0)
+            monitoring_savings = 0
+            if monitoring_cost > 0:
+                total_cost = actual_costs.get('monthly_actual_total', 1)
+                monitoring_proportion = monitoring_cost / total_cost if total_cost > 0 else 0
+                
+                # Get standards from AKS implementation standards YAML configuration
+                # Use the standards loaded in __init__ from config/aks_implementation_standards.yaml
+                if not hasattr(self, 'standards') or not self.standards:
+                    raise ValueError("Standards not loaded in algorithmic analyzer - initialization failed")
+                
+                # Get thresholds from standards
+                monitoring_standards = self.standards.get('monitoring_optimization', {})
+                thresholds = monitoring_standards.get('monitoring_thresholds', {})
+                savings_rates = monitoring_standards.get('monitoring_savings', {})
+                
+                # FAIL FAST if standards not available
+                if not thresholds or not savings_rates:
+                    raise ValueError("Monitoring optimization standards not found in configuration")
+                
+                critical_threshold = thresholds.get('critical_proportion')
+                high_threshold = thresholds.get('high_proportion')
+                moderate_threshold = thresholds.get('moderate_proportion')
+                
+                critical_rate = savings_rates.get('critical_rate')
+                high_rate = savings_rates.get('high_rate')
+                moderate_rate = savings_rates.get('moderate_rate')
+                baseline_rate = savings_rates.get('baseline_rate')
+                
+                # FAIL FAST if any required value is missing
+                if None in [critical_threshold, high_threshold, moderate_threshold, 
+                           critical_rate, high_rate, moderate_rate, baseline_rate]:
+                    raise ValueError("Required monitoring optimization values missing from standards")
+                
+                # Determine savings rate based on proportion using standards
+                if monitoring_proportion > critical_threshold:
+                    savings_rate = critical_rate
+                    severity = "CRITICAL"
+                elif monitoring_proportion > high_threshold:
+                    savings_rate = high_rate
+                    severity = "HIGH"
+                elif monitoring_proportion > moderate_threshold:
+                    savings_rate = moderate_rate
+                    severity = "MODERATE"
+                else:
+                    savings_rate = baseline_rate
+                    severity = "STANDARD"
+                
+                monitoring_savings = monitoring_cost * savings_rate
+                
+                # FAIL FAST: Validate output
+                if monitoring_savings < 0:
+                    raise ValueError(f"Calculated negative monitoring savings: {monitoring_savings}")
+                if monitoring_savings > monitoring_cost:
+                    raise ValueError(f"Monitoring savings {monitoring_savings} exceeds cost {monitoring_cost}")
+                
+                logger.info(f"📊 {severity} monitoring cost: ${monitoring_cost:.2f} ({monitoring_proportion*100:.1f}% of total) -> ${monitoring_savings:.2f} savings ({savings_rate*100:.0f}% optimization)")
             
             result = {
                 'hpa_monthly_savings': hpa_savings,
@@ -2165,13 +2357,30 @@ class OptimizationCalculatorAlgorithm:
                 'networking_monthly_savings': networking_savings,
                 'control_plane_monthly_savings': control_plane_savings,
                 'registry_monthly_savings': registry_savings,
+                'monitoring_monthly_savings': monitoring_savings,  # CRITICAL: Include monitoring savings
                 'infrastructure_monthly_savings': infrastructure_savings,
                 'performance_monthly_savings': performance_savings,
                 'total_monthly_savings': (
                     compute_savings + storage_savings + networking_savings +
-                    control_plane_savings + registry_savings + infrastructure_savings
+                    control_plane_savings + registry_savings + infrastructure_savings +
+                    monitoring_savings  # compute_savings already includes performance_savings
                 )
             }
+            
+            # DEBUG: Log final savings calculation breakdown
+            total_calculated = (compute_savings + storage_savings + networking_savings +
+                              control_plane_savings + registry_savings + infrastructure_savings +
+                              monitoring_savings)
+            logger.info(f"💰 FINAL CALCULATION:")
+            logger.info(f"💰   Compute: ${compute_savings:.2f}")
+            logger.info(f"💰   Storage: ${storage_savings:.2f}")
+            logger.info(f"💰   Networking: ${networking_savings:.2f}")
+            logger.info(f"💰   Control Plane: ${control_plane_savings:.2f}")
+            logger.info(f"💰   Registry: ${registry_savings:.2f}")
+            logger.info(f"💰   Infrastructure: ${infrastructure_savings:.2f}")
+            logger.info(f"💰   Monitoring: ${monitoring_savings:.2f}")
+            logger.info(f"💰   TOTAL CALCULATED: ${total_calculated:.2f}")
+            logger.info(f"💰   RESULT TOTAL: ${result['total_monthly_savings']:.2f}")
             
             # Calculate optimization percentage
             total_cost = actual_costs.get('monthly_actual_total', 1)

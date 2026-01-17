@@ -1366,126 +1366,18 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
                 }
             }
             
-            # Query 2: Comprehensive additional services across subscription that support the cluster
-            additional_services_query = {
-                "type": "ActualCost",
-                "timeframe": "Custom",
-                "timePeriod": {
-                    "from": start_date_str,
-                    "to": end_date_str
-                },
-                "dataset": {
-                    "granularity": "Daily",
-                    "aggregation": {
-                        "totalCost": {
-                            "name": "PreTaxCost",
-                            "function": "Sum"
-                        }
-                    },
-                    "grouping": [
-                        {"type": "Dimension", "name": "ResourceType"},
-                        {"type": "Dimension", "name": "ResourceGroupName"},
-                        {"type": "Dimension", "name": "ServiceName"},
-                        {"type": "Dimension", "name": "ResourceId"},
-                        {"type": "Dimension", "name": "MeterCategory"},
-                        {"type": "Dimension", "name": "Meter"},
-                        {"type": "Dimension", "name": "MeterSubcategory"},
-                        {"type": "Dimension", "name": "ResourceLocation"}
-                    ],
-                    "filter": {
-                        "or": [
-                            # All networking costs (critical for actual cluster costs)
-                            {
-                                "dimensions": {
-                                    "name": "MeterCategory",
-                                    "operator": "In",
-                                    "values": ["Networking", "Virtual Network", "Load Balancer", "Application Gateway", 
-                                              "VPN Gateway", "ExpressRoute", "Bandwidth", "Data Transfer", "NAT Gateway",
-                                              "Azure Firewall", "Network Watcher", "Front Door", "Content Delivery Network"]
-                                }
-                            },
-                            # All storage costs not captured in main query
-                            {
-                                "dimensions": {
-                                    "name": "MeterCategory",
-                                    "operator": "In",
-                                    "values": ["Storage", "Azure Files", "Blob Storage", "Disk Storage", "Archive Storage",
-                                              "Premium Storage", "Standard Storage"]
-                                }
-                            },
-                            # Monitoring and observability services
-                            {
-                                "dimensions": {
-                                    "name": "ServiceName",
-                                    "operator": "In",
-                                    "values": ["Azure Monitor", "Log Analytics", "Application Insights", "Azure Metrics",
-                                              "Microsoft.Insights", "Microsoft.OperationalInsights"]
-                                }
-                            },
-                            # Security and compliance services
-                            {
-                                "dimensions": {
-                                    "name": "ServiceName",
-                                    "operator": "In",
-                                    "values": ["Key Vault", "Security Center", "Microsoft Defender for Cloud",
-                                              "Azure Security Center", "Microsoft.KeyVault", "Microsoft.Security"]
-                                }
-                            },
-                            # Container services across subscription
-                            {
-                                "dimensions": {
-                                    "name": "ServiceName",
-                                    "operator": "In",
-                                    "values": ["Container Registry", "Azure Container Registry", "Container Instances",
-                                              "Microsoft.ContainerRegistry", "Microsoft.ContainerInstance"]
-                                }
-                            },
-                            # Backup and disaster recovery
-                            {
-                                "dimensions": {
-                                    "name": "ServiceName",
-                                    "operator": "In",
-                                    "values": ["Azure Backup", "Site Recovery", "Recovery Services",
-                                              "Microsoft.RecoveryServices", "Microsoft.DataProtection"]
-                                }
-                            },
-                            # Database and data services that might support applications
-                            {
-                                "dimensions": {
-                                    "name": "ServiceName",
-                                    "operator": "In",
-                                    "values": ["Azure SQL Database", "Azure Database for PostgreSQL", "Azure Database for MySQL",
-                                              "Azure Cosmos DB", "Redis Cache", "Microsoft.Sql", "Microsoft.DBforPostgreSQL",
-                                              "Microsoft.DBforMySQL", "Microsoft.DocumentDB", "Microsoft.Cache"]
-                                }
-                            },
-                            # Additional Azure services commonly used with AKS
-                            {
-                                "dimensions": {
-                                    "name": "ServiceName",
-                                    "operator": "In",
-                                    "values": ["Azure DNS", "Azure Active Directory", "Azure Policy", "Azure Resource Manager",
-                                              "Microsoft.Network", "Microsoft.Authorization", "Microsoft.PolicyInsights"]
-                                }
-                            }
-                        ]
-                    }
-                }
-            }
+            # Single comprehensive query captures all AKS-related costs
+            # No additional query needed - avoids duplication issues
             
-            # Execute comprehensive cost collection with both queries
-            logger.info(f"🔄 Thread {thread_id}: Executing comprehensive cost collection with both AKS and additional services queries")
+            # Execute single comprehensive cost query for AKS resources
+            logger.info(f"🔄 Thread {thread_id}: Executing comprehensive AKS cost query")
             
             # Thread-safe temp file naming
             aks_query_file = f'aks_cost_query_{subscription_id[:8]}_{thread_id}_{int(time.time())}.json'
-            additional_query_file = f'additional_services_query_{subscription_id[:8]}_{thread_id}_{int(time.time())}.json'
             
-            # Write both query files
+            # Write query file
             with open(aks_query_file, 'w', encoding='utf-8') as f:
                 json.dump(aks_cost_query, f, indent=2)
-            
-            with open(additional_query_file, 'w', encoding='utf-8') as f:
-                json.dump(additional_services_query, f, indent=2)
             
             try:
                 # Use Azure SDK instead of CLI for cost queries
@@ -1496,7 +1388,7 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
                     raise Exception(f"Cannot get cost client for subscription {subscription_id}")
                 
                 # Execute AKS-specific query using SDK
-                logger.info(f"💰 COMPREHENSIVE: Thread {thread_id}: Executing direct AKS resources query via SDK (attempt {attempt + 1}/{max_retries})")
+                logger.info(f"💰 Thread {thread_id}: Executing AKS cost query via SDK (attempt {attempt + 1}/{max_retries})")
                 
                 # Load query definition from JSON file
                 with open(aks_query_file, 'r') as f:
@@ -1518,28 +1410,10 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
                     }
                 }
                 
-                # Execute additional services query using SDK
-                logger.info(f"🔧 COMPREHENSIVE: Thread {thread_id}: Executing subscription-wide supporting services query via SDK")
+                # Use the AKS cost data directly (no merging needed)
+                merged_cost_data = aks_cost_data
                 
-                # Load additional query definition
-                with open(additional_query_file, 'r') as f:
-                    additional_query_dict = json.load(f)
-                
-                additional_query_definition = QueryDefinition.from_dict(additional_query_dict)
-                additional_query_result = cost_client.query.usage(scope=scope, parameters=additional_query_definition)
-                
-                # Convert result to expected format
-                additional_cost_data = {
-                    'properties': {
-                        'rows': additional_query_result.rows,
-                        'columns': [{'name': col.name, 'type': col.type} for col in additional_query_result.columns] if additional_query_result.columns else []
-                    }
-                }
-                
-                # Merge cost data from both queries to get ACTUAL cluster costs
-                merged_cost_data = _merge_cost_data(aks_cost_data, additional_cost_data, thread_id)
-                
-                logger.info(f"✅ Thread {thread_id}: Successfully captured actual cluster costs using comprehensive dual-query method")
+                logger.info(f"✅ Thread {thread_id}: Successfully captured cluster costs with {len(aks_cost_data['properties']['rows'])} rows")
                 
                 # Process with enhanced processor
                 processor = EnhancedAKSCostProcessor()
@@ -1552,11 +1426,11 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
                     'subscription_id': subscription_id,
                     'cluster_name': cluster_name,
                     'thread_id': thread_id,
-                    'data_source': 'Comprehensive Azure Cost Management SDK - Dual Query',
-                    'collection_method': 'comprehensive_dual_query_sdk',
+                    'data_source': 'Azure Cost Management SDK - Single Query',
+                    'collection_method': 'single_comprehensive_query_sdk',
                     'backward_compatibility': False,
                     'captures_actual_costs': True,
-                    'queries_executed': ['aks_resources', 'additional_services'],
+                    'queries_executed': ['aks_resources'],
                     'cost_completeness': 'comprehensive',
                     'enhancement_version': '2.0',
                     'kubeopt_comprehensive': True,
@@ -1606,9 +1480,6 @@ def _execute_comprehensive_cost_query(resource_group, cluster_name, start_date, 
                     if os.path.exists(aks_query_file):
                         os.remove(aks_query_file)
                         logger.debug(f"🧹 Thread {thread_id}: Cleaned up {aks_query_file}")
-                    if os.path.exists(additional_query_file):
-                        os.remove(additional_query_file)
-                        logger.debug(f"🧹 Thread {thread_id}: Cleaned up {additional_query_file}")
                 except Exception as file_e:
                     logger.warning(f"⚠️ Thread {thread_id}: Failed to remove temp files: {file_e}")
         
