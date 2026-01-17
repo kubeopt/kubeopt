@@ -318,8 +318,9 @@ class KubernetesDataCache:
             
             # BATCH 12: Metrics - CRITICAL for real-time CPU data (prefer over HPA metrics)
             # kubectl top provides actual current usage vs HPA's potentially stale metrics
-            "metrics_nodes": "kubectl top nodes --no-headers 2>/dev/null || echo ''",
-            "metrics_pods": "kubectl top pods --all-namespaces --no-headers 2>/dev/null || echo ''",
+            # Added timeout and retry logic to handle metrics-server intermittent issues
+            "metrics_nodes": "timeout 30 kubectl top nodes --no-headers 2>/dev/null || timeout 30 kubectl top nodes --no-headers 2>/dev/null || echo ''",
+            "metrics_pods": "timeout 30 kubectl top pods --all-namespaces --no-headers 2>/dev/null || timeout 30 kubectl top pods --all-namespaces --no-headers 2>/dev/null || echo ''",
             
             # BATCH 13: Cluster info - just counts, version will come from Azure SDK
             "cluster_info": '''echo "NODES:$(kubectl get nodes --no-headers 2>/dev/null | wc -l)|NAMESPACES:$(kubectl get namespaces --no-headers 2>/dev/null | wc -l)"''',
@@ -915,9 +916,16 @@ class KubernetesDataCache:
                 batch_results.update(retry_results)
                 
                 if still_failed:
-                    logger.error(f"❌ {self.cluster_name}: {len(still_failed)} batches failed after retry")
-                    # Fail explicitly per .clauderc
-                    raise RuntimeError(f"Failed to fetch critical Kubernetes data: {list(still_failed.keys())}")
+                    # Filter out non-critical metrics batches that can fail without stopping analysis
+                    non_critical_batches = {"metrics_nodes", "metrics_pods"}
+                    critical_failures = {k: v for k, v in still_failed.items() if k not in non_critical_batches}
+                    
+                    if critical_failures:
+                        logger.error(f"❌ {self.cluster_name}: {len(critical_failures)} critical batches failed after retry: {list(critical_failures.keys())}")
+                        # Fail explicitly per .clauderc for critical data only
+                        raise RuntimeError(f"Failed to fetch critical Kubernetes data: {list(critical_failures.keys())}")
+                    else:
+                        logger.warning(f"⚠️ {self.cluster_name}: {len(still_failed)} non-critical batches failed (metrics-server issues) - analysis will continue")
             
             # Parse fresh batch results
             fresh_parsed = self._parse_batched_results(batch_results)
@@ -966,6 +974,10 @@ class KubernetesDataCache:
                     # Empty events_critical is success for healthy clusters with no warnings/errors
                     results[key] = ""  # Empty string is valid output
                     logger.info(f"✅ {self.cluster_name}: Batch '{key}' succeeded (no critical events - healthy cluster)")
+                elif key in ["metrics_nodes", "metrics_pods"]:
+                    # Metrics-server intermittent issues - treat as soft failure, not critical error
+                    results[key] = ""  # Empty string allows analysis to continue
+                    logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' returned no data (metrics-server issue - analysis will continue with reduced metrics)")
                 else:
                     failed_commands[key] = cmd
                     logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' returned no data")

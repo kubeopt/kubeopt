@@ -138,11 +138,11 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = None) 
             
         conn = sqlite3.connect(cluster_db)
         
-        # Try exact match first
+        # Try exact match first - use cost_fetched_at for cost cache validation
         cursor = conn.execute('''
-            SELECT last_cost, last_savings, last_analyzed, analysis_data 
+            SELECT last_cost, last_savings, cost_fetched_at, analysis_data 
             FROM clusters 
-            WHERE name = ? AND last_analyzed IS NOT NULL AND last_cost > 0
+            WHERE name = ? AND cost_fetched_at IS NOT NULL AND last_cost > 0
         ''', (cluster_name,))
         
         row = cursor.fetchone()
@@ -155,9 +155,9 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = None) 
             print(f"🔍 Cache lookup: No exact match for '{cluster_name}', trying cluster name only: '{cluster_name_only}'")
             
             cursor = conn.execute('''
-                SELECT last_cost, last_savings, last_analyzed, analysis_data 
+                SELECT last_cost, last_savings, cost_fetched_at, analysis_data 
                 FROM clusters 
-                WHERE name = ? AND last_analyzed IS NOT NULL AND last_cost > 0
+                WHERE name = ? AND cost_fetched_at IS NOT NULL AND last_cost > 0
             ''', (cluster_name_only,))
             
             row = cursor.fetchone()
@@ -165,10 +165,10 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = None) 
         # If still no match, try pattern matching for cluster names contained in the cluster_name
         if not row:
             cursor = conn.execute('''
-                SELECT last_cost, last_savings, last_analyzed, analysis_data 
+                SELECT last_cost, last_savings, cost_fetched_at, analysis_data 
                 FROM clusters 
-                WHERE ? LIKE '%' || name || '%' AND last_analyzed IS NOT NULL AND last_cost > 0
-                ORDER BY last_analyzed DESC
+                WHERE ? LIKE '%' || name || '%' AND cost_fetched_at IS NOT NULL AND last_cost > 0
+                ORDER BY cost_fetched_at DESC
                 LIMIT 1
             ''', (cluster_name,))
             
@@ -181,11 +181,15 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = None) 
         if not row:
             return None
             
-        last_cost, last_savings, last_analyzed, analysis_data = row
+        last_cost, last_savings, cost_fetched_at, analysis_data = row
         
-        # Check if data is fresh enough
-        analyzed_time = datetime.fromisoformat(last_analyzed)
-        age_hours = (datetime.now() - analyzed_time).total_seconds() / 3600
+        # Check if COST data is fresh enough based on cost_fetched_at timestamp
+        if not cost_fetched_at:
+            print(f"❌ No cost_fetched_at timestamp for '{cluster_name}' - treating as cache miss")
+            return None
+            
+        cost_fetch_time = datetime.fromisoformat(cost_fetched_at)
+        age_hours = (datetime.now() - cost_fetch_time).total_seconds() / 3600
         
         if age_hours <= max_age_hours:
             # Data is fresh, create a DataFrame in the expected format
@@ -217,13 +221,13 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = None) 
             cost_df._from_database = True  
             cost_df._database_cache_hit = True
             cost_df._age_hours = age_hours
-            cost_df._last_analyzed = last_analyzed
+            cost_df._cost_fetched_at = cost_fetched_at
             
             # Add comprehensive metadata
             cost_df.attrs.update({
                 'total_cost': last_cost,
                 'total_savings': last_savings,
-                'last_analyzed': last_analyzed,
+                'cost_fetched_at': cost_fetched_at,
                 'age_hours': age_hours,
                 'data_source': 'Database Cache',
                 'from_database': True,
@@ -242,12 +246,11 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = None) 
 def cached_cost_fetch(cluster_id: str, subscription_id: str, fetch_func: Callable, 
                      date_range: str = None, max_age_hours: int = None, **kwargs) -> Dict[str, Any]:
     """
-    Smart cached wrapper with database-first validation to avoid unnecessary Azure API calls
+    Direct Azure API wrapper - database cache disabled to ensure fresh data
     
     Strategy:
-    1. Check database for fresh cost data (< max_age_hours old)
-    2. Check file cache for recent API responses  
-    3. Make fresh Azure API call only if needed
+    1. Always make fresh Azure API call
+    2. Database cache disabled due to stale data issues
     
     Args:
         cluster_id: Cluster identifier
@@ -256,51 +259,15 @@ def cached_cost_fetch(cluster_id: str, subscription_id: str, fetch_func: Callabl
         date_range: Date range for caching key
         max_age_hours: Maximum age to consider database data fresh (from settings)
     """
-    if max_age_hours is None:
-        # Get cache duration from settings
-        try:
-            from infrastructure.services.settings_manager import settings_manager
-            max_age_hours = int(settings_manager.get_setting('COST_CACHE_HOURS', '6'))
-        except:
-            max_age_hours = 6  # Default fallback
+    # DISABLED: Database cache check - always fetch fresh data
+    # The database was returning stale $27.22 data instead of correct $15 data
     
-    # STEP 1: Check database first for fresh cost data
-    db_data = check_database_cost_freshness(cluster_id, max_age_hours)
-    if db_data is not None:
-        age_hours = getattr(db_data, '_age_hours', 'unknown')
-        print(f"🎯 DATABASE HIT: Using {age_hours:.1f}h old cost data for {cluster_id}")
-        return db_data
-    
-    # STEP 2: Try file cache for recent API responses
-    cached = cache.get(cluster_id, subscription_id, date_range)
-    if cached:
-        # Restore DataFrame from cache if needed
-        restored_data = _restore_data_from_cache(cached)
-        
-        # Add cache metadata (only if data is not None)
-        if restored_data is not None:
-            if hasattr(restored_data, '__dict__'):  # DataFrame
-                restored_data._from_cache = True
-            elif isinstance(restored_data, dict):  # Dict
-                restored_data['_from_cache'] = True
-            
-        return restored_data
-    
-    # STEP 3: Both database and file cache miss - fetch from Azure API (last resort)
-    print(f"❌ CACHE MISS: Database and file cache both stale/empty for {cluster_id}, calling Azure API")
-    # Cache miss - fetch from API
+    # Always fetch fresh from Azure API
+    print(f"🔄 Fetching fresh cost data from Azure API for {cluster_id}")
     try:
         data = fetch_func(cluster_id, subscription_id, date_range, **kwargs)
         
-        # Only cache if data is not None
-        if data is not None:
-            # Handle DataFrame serialization for caching
-            cacheable_data = _prepare_data_for_cache(data)
-            
-            # Cache the result
-            cache.set(cluster_id, subscription_id, cacheable_data, date_range)
-        
-        # Add cache metadata to original data (only if data is not None)
+        # Add cache metadata to indicate fresh fetch
         if data is not None:
             if hasattr(data, '__dict__'):  # DataFrame
                 data._from_cache = False
@@ -310,30 +277,5 @@ def cached_cost_fetch(cluster_id: str, subscription_id: str, fetch_func: Callabl
         return data
         
     except Exception as e:
-        # If API fails, try to use expired cache
-        if '429' in str(e):
-            # Get any cached data, even if expired
-            key = cache._make_key(cluster_id, subscription_id, date_range)
-            conn = sqlite3.connect(cache.cache_file)
-            cursor = conn.execute('SELECT data FROM cost_cache WHERE key = ?', (key,))
-            row = cursor.fetchone()
-            conn.close()
-            
-            if row is not None and row:
-                stale_data = json.loads(row[0])
-                
-                # Restore DataFrame from cache if needed
-                restored_stale_data = _restore_data_from_cache(stale_data)
-                
-                # Add cache metadata (only if data is not None)
-                if restored_stale_data is not None:
-                    if hasattr(restored_stale_data, '__dict__'):  # DataFrame
-                        restored_stale_data._from_cache = True
-                        restored_stale_data._stale = True
-                    elif isinstance(restored_stale_data, dict):  # Dict
-                        restored_stale_data['_from_cache'] = True
-                        restored_stale_data['_stale'] = True
-                    
-                return restored_stale_data
-        
+        print(f"❌ Azure API call failed for {cluster_id}: {e}")
         raise

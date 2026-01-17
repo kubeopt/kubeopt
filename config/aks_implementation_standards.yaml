@@ -589,3 +589,89 @@ governance_standards:
     audit_logging: 0.9               # 90% audit trail coverage
     resource_quotas: 0.8             # 80% of namespaces should have quotas
     admission_controllers: 0.9       # 90% admission controller coverage
+
+# =============================================
+# MONITORING & LOG ANALYTICS OPTIMIZATION STANDARDS
+# Based on AKS and Azure Monitor best practices
+# =============================================
+monitoring_optimization:
+  # Log retention optimization (AKS best practice)
+  min_log_retention_days: 7          # Minimum retention for non-critical logs
+  critical_log_retention_days: 30    # Critical logs retention
+  audit_log_retention_days: 90       # Audit logs per compliance requirements
+  
+  # Data ingestion optimization
+  log_sampling_rate: 0.1             # 10% sampling for verbose logs
+  metrics_collection_interval_sec: 30 # Default collection interval
+  critical_metrics_interval_sec: 15   # Critical metrics interval
+  
+  # Storage optimization
+  high_volume_threshold_gb: 50       # GB/month threshold for high volume
+  compression_target_ratio: 10       # Target 10:1 compression ratio
+  
+  # Cost optimization thresholds
+  monitoring_thresholds:
+    critical_proportion: 0.5        # >50% of total cost is critical
+    high_proportion: 0.3            # >30% of total cost is high
+    moderate_proportion: 0.2        # >20% of total cost is moderate
+    
+  # Savings potential based on AKS optimization patterns
+  monitoring_savings:
+    critical_rate: 0.35             # 35% savings when >50% of costs
+    high_rate: 0.30                 # 30% savings when 30-50% of costs
+    moderate_rate: 0.25             # 25% savings when 20-30% of costs
+    baseline_rate: 0.20             # 20% baseline savings potential
+    
+  # Optimization multipliers
+  retention_savings_multiplier: 0.3  # 30% of retention reduction translates to savings
+  compression_savings_multiplier: 0.15 # 15% savings from better compression
+  interval_optimization_rate: 0.1    # 10% from optimized collection intervals
+  query_optimization_rate: 0.05      # 5% from query optimization
+  max_volume_savings_rate: 0.2       # Max 20% from volume optimization
+  max_total_savings_rate: 0.40       # Cap total savings at 40%
+
+# Cost Category Optimization Standards
+# Based on AKS cost optimization best practices
+# =============================================
+cost_category_optimization:
+  # Networking optimization potential
+  networking_optimization:
+    base_savings_rate: 0.12           # 12% baseline networking optimization
+    load_balancer_optimization: 0.18  # 18% from load balancer optimization
+    ingress_consolidation: 0.15       # 15% from ingress consolidation
+    traffic_routing_optimization: 0.10 # 10% from traffic optimization
+    max_savings_rate: 0.20            # Maximum 20% networking savings
+    
+  # Control plane optimization potential  
+  control_plane_optimization:
+    base_savings_rate: 0.08           # 8% baseline control plane optimization
+    api_server_optimization: 0.12     # 12% from API server optimization
+    etcd_optimization: 0.10           # 10% from etcd optimization
+    max_savings_rate: 0.15            # Maximum 15% control plane savings
+    
+  # Container registry optimization potential
+  registry_optimization:
+    base_savings_rate: 0.20           # 20% baseline registry optimization
+    image_cleanup: 0.25               # 25% from automated cleanup
+    layer_optimization: 0.30          # 30% from layer optimization
+    geo_replication_optimization: 0.15 # 15% from geo-replication optimization
+    max_savings_rate: 0.35            # Maximum 35% registry savings
+  
+  # Log categories and optimization potential (AKS specific)
+  log_categories:
+    kube_audit:
+      retention_days: 90            # Compliance requirement
+      sampling_rate: 1.0            # No sampling for audit
+      optimization_potential: 0.05   # 5% optimization only
+    kube_controller_manager:
+      retention_days: 30
+      sampling_rate: 0.5            # 50% sampling acceptable
+      optimization_potential: 0.25   # 25% optimization potential
+    kube_scheduler:
+      retention_days: 7
+      sampling_rate: 0.1            # 10% sampling for scheduler logs
+      optimization_potential: 0.40   # 40% optimization potential
+    application_logs:
+      retention_days: 14
+      sampling_rate: 0.25           # 25% sampling for app logs
+      optimization_potential: 0.35   # 35% optimization potential

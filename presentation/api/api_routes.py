@@ -2518,6 +2518,13 @@ def generate_real_cost_breakdown_chart_data(analysis_data):
             logger.error(f"❌ Cost breakdown: Expected dict, got {type(analysis_data)}")
             return None
         
+        # DEBUG: Log what we receive
+        print(f"🔍 COST BREAKDOWN FUNCTION: monitoring_cost = {analysis_data.get('monitoring_cost', 'NOT FOUND')}")
+        print(f"🔍 COST BREAKDOWN FUNCTION: compute_cost = {analysis_data.get('compute_cost', 'NOT FOUND')}")
+        logger.info(f"🔍 COST BREAKDOWN FUNCTION: Got analysis_data with keys: {list(analysis_data.keys())[:20]}")
+        logger.info(f"🔍 COST BREAKDOWN FUNCTION: monitoring_cost = {analysis_data.get('monitoring_cost', 'NOT FOUND')}")
+        logger.info(f"🔍 COST BREAKDOWN FUNCTION: compute_cost = {analysis_data.get('compute_cost', 'NOT FOUND')}")
+        
         # Check if we have valid cost data
         total_cost = ensure_float(analysis_data.get('total_cost', 0))
         if total_cost <= 0:
@@ -2527,22 +2534,41 @@ def generate_real_cost_breakdown_chart_data(analysis_data):
         cost_categories = []
         cost_values = []
         
-        # Extract REAL cost components
+        # Extract REAL cost components - handle both field names
+        # The data contract uses compute_cost, older code used node_cost
+        node_cost_value = analysis_data.get('compute_cost', 0) or analysis_data.get('node_cost', 0)
+        
+        # Get monitoring/log analytics cost - this is often the largest component
+        # Check multiple possible field names to ensure we capture it
+        monitoring_cost = (analysis_data.get('monitoring_cost', 0) or 
+                          analysis_data.get('log_analytics_cost', 0) or
+                          analysis_data.get('monthly_actual_monitoring', 0))
+        
+        # DEBUG: Log what we're extracting
+        logger.info(f"🔍 COST BREAKDOWN: node_cost_value = {node_cost_value}")
+        logger.info(f"🔍 COST BREAKDOWN: monitoring_cost = {monitoring_cost}")
+        logger.info(f"🔍 COST BREAKDOWN: total_cost = {total_cost}")
+        
         cost_components = [
-            ('Node Pools', analysis_data.get('node_cost', 0)),
+            ('Node Pools/Compute', node_cost_value),
             ('Storage', analysis_data.get('storage_cost', 0)),
             ('Networking', analysis_data.get('networking_cost', 0)),
+            ('Monitoring/Log Analytics', monitoring_cost),
             ('Control Plane', analysis_data.get('control_plane_cost', 0)),
             ('Container Registry', analysis_data.get('registry_cost', 0)),
             ('Key Vault', analysis_data.get('key_vault_cost', 0)),
+            ('Idle Resources', analysis_data.get('idle_cost', 0)),
             ('Other', analysis_data.get('other_cost', 0))
         ]
         
-        # Filter out zero values
+        # Filter out zero values - DEBUG why some are missing
         for category, value in cost_components:
             if value and value > 0:
                 cost_categories.append(category)
                 cost_values.append(float(value))
+            else:
+                # LOG what's being filtered out
+                print(f"🔍 FILTERED OUT: {category} = {value} (zero or None)")
         
         if not cost_categories:
             logger.warning("⚠️ No cost categories found for breakdown chart")
@@ -2551,7 +2577,7 @@ def generate_real_cost_breakdown_chart_data(analysis_data):
         return {
             'labels': cost_categories,
             'values': cost_values,
-            'total_cost': sum(cost_values),
+            'total_cost': total_cost,  # Use the actual total_cost from analysis, not sum of components
             'data_source': 'real_analysis',
             'real_data_only': True
         }

@@ -333,7 +333,7 @@ class MultiSubscriptionAnalysisEngine:
             
             # Step 5: Compile comprehensive results with cluster config metadata
             final_results = self._compile_results_with_cluster_config_support(
-                consistent_results, cost_label, total_period_cost, days,
+                consistent_results, cost_components, cost_label, total_period_cost, days,
                 real_node_metrics, pod_data, resource_group, cluster_name,
                 session_id, config, self.session_metadata[config.analysis_type], cost_df
             )
@@ -389,7 +389,7 @@ class MultiSubscriptionAnalysisEngine:
             logger.error(f"❌ Core analysis failed for session {session_id}: {e}")
             raise
     
-    def _compile_results_with_cluster_config_support(self, consistent_results: Dict, cost_label: str, 
+    def _compile_results_with_cluster_config_support(self, consistent_results: Dict, cost_components: Dict, cost_label: str, 
                         total_period_cost: float, days: int, real_node_metrics: List,
                         pod_data: Optional[Dict], resource_group: str, cluster_name: str,
                         session_id: str, config: AnalysisConfig, metadata: Dict, cost_df) -> Dict:
@@ -399,6 +399,14 @@ class MultiSubscriptionAnalysisEngine:
         """
         
         final_results = consistent_results.copy()
+        
+        # CRITICAL FIX: Merge all cost components to ensure they're available in UI
+        # This includes monitoring_cost, node_cost, and all other detailed costs
+        if cost_components:
+            logger.info(f"🔍 MERGING COST COMPONENTS: {list(cost_components.keys())}")
+            logger.info(f"🔍 MERGING: monitoring_cost = ${cost_components.get('monitoring_cost', 0):.2f}")
+            final_results.update(cost_components)
+            logger.info(f"🔍 AFTER MERGE: final_results has monitoring_cost = ${final_results.get('monitoring_cost', 0):.2f}")
         
         final_results.update({
             'cost_label': cost_label,
@@ -607,6 +615,9 @@ class MultiSubscriptionAnalysisEngine:
             
             # Update database with analysis (without inline plan generation)
             logger.info(f"🔍 DEBUG Session {session_id}: About to call database with enhanced_input type: {type(enhanced_input)}")
+            logger.info(f"🔍 BEFORE DB SAVE: results has monitoring_cost = ${results.get('monitoring_cost', 0):.2f}")
+            logger.info(f"🔍 BEFORE DB SAVE: results has compute_cost = ${results.get('compute_cost', 0):.2f}")
+            logger.info(f"🔍 BEFORE DB SAVE: results has total_cost = ${results.get('total_cost', 0):.2f}")
             enhanced_cluster_manager.update_cluster_analysis_without_plan_generation(cluster_id, results, enhanced_input)
             logger.info(f"✅ Session {session_id}: Updated database with subscription context")
             
@@ -740,6 +751,12 @@ class MultiSubscriptionAnalysisEngine:
         
         cost_components = extract_cost_components(cost_df, days, monthly_equivalent_cost)
         cost_components = validate_cost_data(cost_components)
+        
+        # DEBUG: Log cost components to verify monitoring_cost is present
+        logger.info(f"🔍 COST COMPONENTS DEBUG: Keys = {list(cost_components.keys())}")
+        logger.info(f"🔍 COST COMPONENTS DEBUG: monitoring_cost = ${cost_components.get('monitoring_cost', 0):.2f}")
+        logger.info(f"🔍 COST COMPONENTS DEBUG: node_cost = ${cost_components.get('node_cost', 0):.2f}")
+        logger.info(f"🔍 COST COMPONENTS DEBUG: total_cost = ${cost_components.get('total_cost', 0):.2f}")
         
         return cost_components, cost_label, total_period_cost, cost_df
     
@@ -877,6 +894,10 @@ class MultiSubscriptionAnalysisEngine:
             # Initialize the analyzer
             analyzer = ConsistentCostAnalyzer()
             
+            # DEBUG: Verify cost_data contains monitoring_cost
+            logger.info(f"🔍 PASSING TO ANALYZER: cost_data keys = {list(cost_data.keys())}")
+            logger.info(f"🔍 PASSING TO ANALYZER: monitoring_cost = ${cost_data.get('monitoring_cost', 0):.2f}")
+            
             # Perform the analysis
             consistent_results = analyzer.analyze(
                 cost_data=cost_data,
@@ -885,6 +906,10 @@ class MultiSubscriptionAnalysisEngine:
             )
 
             logger.info(f"DEBUG: HPA efficiency Found: {consistent_results.get('hpa_efficiency', 0):.1f}%")
+            
+            # DEBUG: Check what the analyzer returns
+            logger.info(f"🔍 FROM ANALYZER: consistent_results keys = {list(consistent_results.keys())[:20]}")
+            logger.info(f"🔍 FROM ANALYZER: monitoring_cost = ${consistent_results.get('monitoring_cost', 0):.2f}")
             
             if 'hpa_recommendations' not in consistent_results:
                 raise ValueError("ML algorithmic analysis failed to generate HPA recommendations")

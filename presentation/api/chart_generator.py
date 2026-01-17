@@ -2030,8 +2030,8 @@ def generate_dynamic_trend_data(cluster_id, current_analysis):
     if len(history) < 2:
         raise ValueError(f"Insufficient historical data for trends (found {len(history)} analyses)")
     
-    # Sort by timestamp
-    history.sort(key=lambda x: x.get('analyzed_at', ''))
+    # Sort by timestamp - FIXED: Use correct field name from database
+    history.sort(key=lambda x: x.get('analysis_date', ''))
     
     # Extract REAL costs and dates
     dates = []
@@ -2041,7 +2041,7 @@ def generate_dynamic_trend_data(cluster_id, current_analysis):
     for analysis in history[-5:]:  # Last 5 analyses
         total_cost = analysis.get('total_cost')
         if total_cost and total_cost > 0:
-            dates.append(analysis.get('analyzed_at', '').split('T')[0])
+            dates.append(analysis.get('analysis_date', '').split('T')[0])
             costs.append(float(total_cost))
             savings.append(float(analysis.get('total_savings', 0)))
     
