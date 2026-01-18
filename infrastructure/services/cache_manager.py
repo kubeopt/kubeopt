@@ -530,6 +530,7 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'networking_cost': float(complete_analysis_data.get('networking_cost', 0)),
         'control_plane_cost': float(complete_analysis_data.get('control_plane_cost', 0)),
         'registry_cost': float(complete_analysis_data.get('registry_cost', 0)),
+        'monitoring_cost': float(complete_analysis_data.get('monitoring_cost', 0)),
         'other_cost': float(complete_analysis_data.get('other_cost', 0)),
         
         # Node data (clean copy)

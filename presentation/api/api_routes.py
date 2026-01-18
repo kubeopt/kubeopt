@@ -2613,10 +2613,24 @@ def generate_real_savings_breakdown_data(analysis_data):
         savings_components = list(enhanced_savings_by_category.items())
         logger.info(f"✅ Using savings categories: {list(enhanced_savings_by_category.keys())} ({len(enhanced_savings_by_category)} categories)")
         
-        # Filter out zero values
+        # Map backend categories to consistent UI labels (matching cost breakdown)
+        category_mapping = {
+            'node_pools': 'Node Pools/Compute',
+            'storage': 'Storage',
+            'networking': 'Networking',
+            'registry': 'Container Registry',
+            'monitoring': 'Monitoring/Log Analytics',
+            'control_plane': 'Control Plane',
+            'key_vault': 'Key Vault',
+            'idle': 'Idle Resources',
+            'other': 'Other'
+        }
+        
+        # Filter out zero values and apply consistent naming
         for category, value in savings_components:
             if value and value > 0:
-                categories.append(category)
+                ui_category = category_mapping.get(category, category.replace('_', ' ').title())
+                categories.append(ui_category)
                 values.append(float(value))
         
         if not categories:
@@ -2624,7 +2638,7 @@ def generate_real_savings_breakdown_data(analysis_data):
             return None
         
         return {
-            'categories': categories,
+            'labels': categories,
             'values': values,
             'total_savings': sum(values),
             'data_source': 'real_analysis',

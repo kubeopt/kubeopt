@@ -37,6 +37,31 @@ window.ChartManager = (function() {
         };
     }
     
+    // Generate dynamic colors based on number of categories needed
+    function generateDynamicColors(count) {
+        const baseColors = getThemeColors().chartColors;
+        
+        // If we have enough predefined colors, use them
+        if (count <= baseColors.length) {
+            return baseColors.slice(0, count);
+        }
+        
+        // Generate additional colors by varying the base colors
+        const colors = [...baseColors];
+        const baseHue = 90; // Green base hue
+        
+        for (let i = baseColors.length; i < count; i++) {
+            // Generate colors with varying hue and lightness
+            const hue = (baseHue + (i * 30)) % 360;
+            const lightness = 45 + (i % 3) * 15; // Vary lightness: 45%, 60%, 75%
+            const saturation = 45 + (i % 2) * 20; // Vary saturation: 45%, 65%
+            
+            colors.push(`hsl(${hue}, ${saturation}%, ${lightness}%)`);
+        }
+        
+        return colors.slice(0, count);
+    }
+    
     // Chart configurations matching original implementation
     const chartConfigs = {
         'cost-trend-chart': {
@@ -166,7 +191,7 @@ window.ChartManager = (function() {
             type: 'doughnut',
             createConfig: function(data) {
                 const colors = getThemeColors();
-                const total = (data.values || []).reduce((a, b) => a + b, 0);
+                const total = data.total_cost || (data.values || []).reduce((a, b) => a + b, 0);
                 
                 return {
                     type: 'doughnut',
@@ -813,9 +838,7 @@ window.ChartManager = (function() {
                         labels: data.labels || ['Rightsizing', 'HPA', 'Spot Instances', 'Other'],
                         datasets: [{
                             data: data.values || [150, 200, 180, 48],
-                            backgroundColor: [
-                                '#7FB069', '#94C37F', '#AAD094', '#C0DDAA'
-                            ],
+                            backgroundColor: generateDynamicColors(data.labels ? data.labels.length : 4),
                             borderWidth: 3,
                             borderColor: getThemeColors().bgPrimary,
                             hoverBorderWidth: 4,
