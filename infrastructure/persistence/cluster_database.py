@@ -1171,7 +1171,7 @@ class EnhancedMultiSubscriptionClusterManager:
                     conn.execute('''
                         UPDATE clusters 
                         SET subscription_id = ?, subscription_name = ?, subscription_context_verified = ?, 
-                            subscription_last_validated = ?, environment = ?, region = ?, resource_group = ?
+                            subscription_last_validated = ?, environment = ?, region = ?, resource_group = ?, status = ?
                         WHERE id = ?
                     ''', (
                         subscription_id,
@@ -1181,6 +1181,7 @@ class EnhancedMultiSubscriptionClusterManager:
                         cluster_config.get('environment', 'unknown'),
                         cluster_config.get('region', 'unknown'),
                         cluster_config['resource_group'],
+                        'active' if validation_result['valid'] else 'inactive',
                         cluster_id
                     ))
                 else:
