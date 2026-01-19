@@ -440,6 +440,14 @@ class AnalysisDataContract:
     NETWORKING_MONTHLY_SAVINGS = 'networking_monthly_savings'
     CONTROL_PLANE_MONTHLY_SAVINGS = 'control_plane_monthly_savings'
     REGISTRY_MONTHLY_SAVINGS = 'registry_monthly_savings'
+    MONITORING_MONTHLY_SAVINGS = 'monitoring_monthly_savings'  # ADDED
+    IDLE_MONTHLY_SAVINGS = 'idle_monthly_savings'  # ADDED
+    INFRASTRUCTURE_MONTHLY_SAVINGS = 'infrastructure_monthly_savings'  # ADDED
+    PERFORMANCE_MONTHLY_SAVINGS = 'performance_monthly_savings'  # ADDED
+    STORAGE_MONTHLY_SAVINGS = 'storage_monthly_savings'  # ADDED
+    HPA_MONTHLY_SAVINGS = 'hpa_monthly_savings'  # ADDED
+    COMPUTE_MONTHLY_SAVINGS = 'compute_monthly_savings'  # ADDED
+    RIGHTSIZING_MONTHLY_SAVINGS = 'rightsizing_monthly_savings'  # ADDED
     
     # EFFICIENCY FIELDS
     CURRENT_EFFICIENCY = 'current_efficiency'

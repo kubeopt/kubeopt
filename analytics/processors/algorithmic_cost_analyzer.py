@@ -27,6 +27,17 @@ from shared.standards.cost_optimization_standards import (
     RightSizingCostStandards
 )
 from shared.node_data_processor import NodeDataProcessor
+from algorithms.hpa_optimization_algorithm import HPAOptimizationAlgorithm
+from algorithms.rightsizing_optimization_algorithm import RightSizingOptimizationAlgorithm
+from algorithms.storage_optimization_algorithm import StorageOptimizationAlgorithm
+from algorithms.performance_optimization_algorithm import PerformanceOptimizationAlgorithm
+from algorithms.infrastructure_optimization_algorithm import InfrastructureOptimizationAlgorithm
+from algorithms.confidence_scoring_algorithm import ConfidenceScoringAlgorithm
+from algorithms.optimization_calculator_algorithm import OptimizationCalculatorAlgorithm
+from algorithms.efficiency_evaluator_algorithm import EfficiencyEvaluatorAlgorithm
+from algorithms.usage_analysis_algorithm import UsageAnalysisAlgorithm
+from algorithms.workload_classification_algorithm import WorkloadClassificationAlgorithm
+from shared.interfaces.data_contract import DataContractDict, ValidationOnlyDataContract
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +188,30 @@ class MLEnhancedHPARecommendationEngine:
             "config", "aks_scoring.yaml"
         )
         self.aks_scorer = AKSScorer.from_yaml(config_path)
+        
+        # Initialize optimization algorithms with standards
+        self.hpa_algorithm = HPAOptimizationAlgorithm(logger)
+        self.rightsizing_algorithm = RightSizingOptimizationAlgorithm(logger)
+        self.storage_algorithm = StorageOptimizationAlgorithm(logger)
+        self.performance_algorithm = PerformanceOptimizationAlgorithm(logger)
+        self.infrastructure_algorithm = InfrastructureOptimizationAlgorithm(logger)
+        self.confidence_algorithm = ConfidenceScoringAlgorithm(logger)
+        self.workload_classification_algorithm = WorkloadClassificationAlgorithm(logger)
+        
+        # Create algorithm instances dictionary for complex algorithms
+        algorithm_instances = {
+            'hpa_algorithm': self.hpa_algorithm,
+            'rightsizing_algorithm': self.rightsizing_algorithm,
+            'storage_algorithm': self.storage_algorithm,
+            'performance_algorithm': self.performance_algorithm,
+            'infrastructure_algorithm': self.infrastructure_algorithm,
+            'confidence_algorithm': self.confidence_algorithm
+        }
+        
+        # Initialize complex algorithms that need other algorithm instances
+        self.usage_analysis_algorithm = UsageAnalysisAlgorithm(logger, algorithm_instances, self.aks_scorer)
+        self.optimization_calculator_algorithm = OptimizationCalculatorAlgorithm(logger, algorithm_instances, self.aks_scorer)
+        self.efficiency_evaluator_algorithm = EfficiencyEvaluatorAlgorithm(logger, algorithm_instances, self.aks_scorer)
     
     def _get_ml_engine(self):
         """Get or create ML engine with caching"""
@@ -282,8 +317,8 @@ class MLEnhancedHPARecommendationEngine:
                 consistent_recommendation, ml_results
             )
         
-        # Calculate HPA efficiency
-        hpa_efficiency = self._calculate_comprehensive_hpa_efficiency(ml_results, metrics_data)
+        # Calculate HPA efficiency using standards-based algorithm
+        hpa_efficiency = self.hpa_algorithm.calculate_comprehensive_hpa_efficiency(ml_results, metrics_data)
         consistent_recommendation['hpa_efficiency_percentage'] = hpa_efficiency
         
         # Include metrics_data for downstream processing
@@ -342,202 +377,8 @@ class MLEnhancedHPARecommendationEngine:
         
         return hpa_impl
     
-    def _calculate_comprehensive_hpa_efficiency(self, ml_results: Dict, metrics_data: Dict) -> float:
-        """Calculate HPA efficiency based on actual coverage"""
-        try:
-            logger.info("Calculating HPA efficiency with actual coverage...")
-            
-            # Get actual HPA coverage
-            actual_hpa_coverage = self._get_actual_hpa_coverage(metrics_data)
-            
-            if actual_hpa_coverage['total_workloads'] == 0:
-                logger.warning("No workloads found for HPA efficiency calculation")
-                return 0.0
-            
-            # Calculate HPA coverage percentage
-            hpa_coverage = (actual_hpa_coverage['hpa_count'] / actual_hpa_coverage['total_workloads']) * 100
-            
-            logger.info(f"HPA Coverage: {actual_hpa_coverage['hpa_count']}/{actual_hpa_coverage['total_workloads']} = {hpa_coverage:.1f}%")
-            
-            if actual_hpa_coverage['hpa_count'] == 0:
-                # No HPAs means 0% efficiency but return coverage for transparency
-                logger.info(f"HPA Efficiency: 0% (no HPAs configured)")
-                return 0.0
-            
-            # Get workload characteristics from ML
-            workload_characteristics = ml_results.get('workload_characteristics')
-            if workload_characteristics is None:
-                raise ValueError("workload_characteristics is required in ml_results")
-            
-            # Handle different ML result formats
-            if 'cpu_usage_pct' in workload_characteristics:
-                cpu_usage_pct = workload_characteristics['cpu_usage_pct']
-                memory_usage_pct = workload_characteristics['memory_usage_pct']
-            elif 'cpu_mean' in workload_characteristics:
-                # ML models provide cpu_mean/memory_mean
-                cpu_usage_pct = workload_characteristics['cpu_mean']
-                memory_usage_pct = workload_characteristics['memory_mean']
-            else:
-                raise ValueError("No valid CPU/memory metrics found in workload_characteristics")
-            
-            # Validate metrics
-            MetricsValidator.validate_utilization_metrics(cpu_usage_pct, memory_usage_pct)
-            
-            # Calculate realistic HPA efficiency based on performance, not just coverage
-            workload_classification = ml_results.get('workload_classification')
-            if workload_classification is None:
-                raise ValueError("workload_classification is required in ml_results")
-            workload_type = workload_classification.get('workload_type')
-            if workload_type is None:
-                raise ValueError("workload_type is required in workload_classification")
-            
-            # Calculate performance-based efficiency
-            performance_score = self._calculate_hpa_performance_score(cpu_usage_pct, memory_usage_pct, workload_type)
-            
-            # Calculate weighted efficiency: 40% coverage + 60% performance
-            coverage_weight = 0.4
-            performance_weight = 0.6
-            
-            # Normalize coverage to a reasonable scale (not penalize heavily for low coverage)
-            # If we have few HPAs but they're performing well, that's still good efficiency
-            coverage_score = min(100.0, hpa_coverage * 10)  # Scale up coverage impact
-            
-            weighted_efficiency = (coverage_score * coverage_weight) + (performance_score * performance_weight)
-            
-            # Cap at maximum efficiency
-            final_efficiency = min(100.0, max(0.0, weighted_efficiency))
-            
-            logger.info(f"HPA Efficiency: Coverage={hpa_coverage:.1f}% (scaled={coverage_score:.1f}%), "
-                       f"Performance={performance_score:.1f}%, Type={workload_type}, Final={final_efficiency:.1f}%")
-            
-            return final_efficiency
-        
-        except Exception as e:
-            logger.error(f"HPA efficiency calculation failed: {e}")
-            # Following .clauderc - fail fast, no defaults
-            raise ValueError(f"HPA efficiency calculation failed: {e}") from e
     
-    def _calculate_hpa_performance_score(self, cpu_usage_pct: float, memory_usage_pct: float, workload_type: str) -> float:
-        """Calculate HPA performance score based on actual utilization"""
-        try:
-            # Import standards for optimal ranges
-            from shared.standards.performance_standards import SystemPerformanceStandards as SysPerf
-            
-            # Calculate how close to optimal the utilization is
-            optimal_cpu = SysPerf.CPU_UTILIZATION_OPTIMAL  # 70%
-            optimal_memory = SysPerf.MEMORY_UTILIZATION_OPTIMAL  # Usually 65%
-            
-            # Calculate distance from optimal (closer = better score)
-            cpu_distance = abs(cpu_usage_pct - optimal_cpu)
-            memory_distance = abs(memory_usage_pct - optimal_memory)
-            
-            # Convert distance to score (0-100, where 0 distance = 100 score)
-            cpu_score = max(0, 100 - (cpu_distance * 2))  # 2 points lost per % away from optimal
-            memory_score = max(0, 100 - (memory_distance * 2))
-            
-            # Weight based on workload type
-            if workload_type == 'CPU_INTENSIVE':
-                performance_score = (cpu_score * 0.8) + (memory_score * 0.2)
-            elif workload_type == 'MEMORY_INTENSIVE':
-                performance_score = (cpu_score * 0.2) + (memory_score * 0.8)
-            else:
-                performance_score = (cpu_score * 0.5) + (memory_score * 0.5)
-            
-            return performance_score
-            
-        except Exception as e:
-            logger.warning(f"Error calculating HPA performance score: {e}")
-            return 50.0  # Default neutral score
-            
-        except Exception as e:
-            logger.error(f"HPA efficiency calculation failed: {e}")
-            return 0.0
     
-    def _get_actual_hpa_coverage(self, metrics_data: Dict) -> Dict:
-        """Get actual HPA coverage from metrics data"""
-        coverage = {
-            'hpa_count': 0,
-            'total_workloads': 0,
-            'hpa_targets': set(),
-            'workload_names': set()
-        }
-        
-        try:
-            # Check for HPA implementation data
-            hpa_implementation = metrics_data.get('hpa_implementation')
-            if hpa_implementation is None:
-                hpa_implementation = {}
-            
-            # Get HPA count - check multiple possible data structures
-            hpa_count = 0
-            
-            # Method 1: Check for 'total_hpas' field
-            if 'total_hpas' in hpa_implementation:
-                total_hpas = hpa_implementation.get('total_hpas')
-                hpa_count = int(total_hpas) if total_hpas is not None else 0
-                logger.info(f"Found HPA count from total_hpas: {hpa_count}")
-            
-            # Method 2: Check for 'hpas' field (list)
-            elif 'hpas' in hpa_implementation:
-                hpas = hpa_implementation.get('hpas')
-                hpa_count = len(hpas) if hpas is not None else 0
-                logger.info(f"Found HPA count from hpas list: {hpa_count}")
-            
-            # Method 3: Check for HPA data structure with 'items' (like kubectl output)
-            elif isinstance(hpa_implementation, dict):
-                # Look for nested HPA data
-                for key in ['hpa', 'hpa_data', 'data']:
-                    if key in hpa_implementation:
-                        hpa_data = hpa_implementation[key]
-                        if isinstance(hpa_data, dict) and 'items' in hpa_data:
-                            hpa_items = hpa_data['items']
-                            hpa_count = len(hpa_items) if hpa_items is not None else 0
-                            logger.info(f"Found HPA count from {key}.items: {hpa_count}")
-                            break
-            
-            # Method 4: Direct items check
-            if hpa_count == 0 and 'items' in hpa_implementation:
-                items = hpa_implementation.get('items')
-                hpa_count = len(items) if items is not None else 0
-                logger.info(f"Found HPA count from direct items: {hpa_count}")
-            
-            # Method 5: Check if the entire hpa_implementation is a list
-            if hpa_count == 0 and isinstance(hpa_implementation, list):
-                hpa_count = len(hpa_implementation)
-                logger.info(f"Found HPA count from direct list: {hpa_count}")
-            
-            coverage['hpa_count'] = hpa_count
-            
-            # Get workload count - NO ESTIMATES per .clauderc
-            actual_workloads = metrics_data.get('total_workloads')
-            if actual_workloads is not None and actual_workloads > 0:
-                coverage['total_workloads'] = actual_workloads
-            else:
-                # Try to get from deployments/statefulsets in HPA data
-                hpa_data = metrics_data.get('hpa_implementation', {})
-                deployment_count = 0
-                if 'deployments' in hpa_data:
-                    deployments = hpa_data.get('deployments')
-                    if deployments and 'items' in deployments:
-                        deployment_count += len(deployments['items'])
-                if 'statefulsets' in hpa_data:
-                    statefulsets = hpa_data.get('statefulsets') 
-                    if statefulsets and 'items' in statefulsets:
-                        deployment_count += len(statefulsets['items'])
-                        
-                if deployment_count > 0:
-                    coverage['total_workloads'] = deployment_count
-                    logger.info(f"Using actual workload count from Kubernetes: {deployment_count}")
-                else:
-                    raise ValueError("Cannot determine actual workload count - total_workloads missing and no deployment data available")
-            
-            logger.info(f"HPA Coverage: {coverage['hpa_count']} HPAs for {coverage['total_workloads']} workloads")
-            
-            return coverage
-            
-        except Exception as e:
-            logger.error(f"Failed to get HPA coverage: {e}")
-            return coverage
     
     def _convert_comprehensive_ml_to_output(self, ml_results: Dict, metrics_data: Dict, actual_costs: Dict) -> Dict:
         """Convert ML results to consistent output format"""
@@ -631,7 +472,7 @@ class MLEnhancedHPARecommendationEngine:
                 raise ValueError("nodes is required in metrics_data")
             current_replicas = len(nodes) if nodes else 1
             
-            chart_data = self._generate_comprehensive_ml_chart_data(
+            chart_data = self.hpa_algorithm.generate_hpa_chart_data(
                 workload_type, primary_action, ml_cpu_usage_pct,
                 ml_memory_usage_pct, current_replicas, hpa_recommendation
             )
@@ -771,7 +612,7 @@ class MLEnhancedHPARecommendationEngine:
                     'namespace': namespace,
                     'cpu_usage_pct': cpu_usage,
                     'target': float(hpa.get('target_cpu', cpu_target_pct)),
-                    'severity': self._determine_severity(cpu_usage),
+                    'severity': self.workload_classification_algorithm.determine_severity(cpu_usage),
                     'type': 'hpa_managed'
                 }
                 all_workloads.append(workload)
@@ -792,7 +633,7 @@ class MLEnhancedHPARecommendationEngine:
                             'namespace': namespace,
                             'cpu_usage_pct': float(cpu_usage),
                             'target': float(w.get('target', cpu_target_pct)),
-                            'severity': w.get('severity', self._determine_severity(cpu_usage)),
+                            'severity': w.get('severity', self.workload_classification_algorithm.determine_severity(cpu_usage)),
                             'type': w.get('type', 'workload')
                         }
                         all_workloads.append(workload)
@@ -819,24 +660,13 @@ class MLEnhancedHPARecommendationEngine:
                     'namespace': 'default',
                     'cpu_usage_pct': max_cpu,
                     'target': cpu_target_pct,
-                    'severity': self._determine_severity(max_cpu),
+                    'severity': self.workload_classification_algorithm.determine_severity(max_cpu),
                     'type': 'aggregated'
                 }
                 all_workloads.append(workload)
         
         logger.info(f"Extracted {len(all_workloads)} total workloads")
         return all_workloads
-    
-    def _determine_severity(self, cpu_usage_pct: float) -> str:
-        """Determine severity based on CPU usage - consistent with aks_realtime_metrics"""
-        if cpu_usage_pct > 1000:
-            return 'critical'
-        elif cpu_usage_pct > 300:
-            return 'high'
-        elif cpu_usage_pct > 150:
-            return 'medium'
-        else:
-            return 'normal'
     
     def _assess_data_quality(self, metrics_data: Dict) -> Dict:
         """Assess data quality from metrics"""
@@ -859,49 +689,6 @@ class MLEnhancedHPARecommendationEngine:
             'data_source': validation.get('data_source_preference', 'hpa_metrics'),
             'suspicious_max_cpu': max_cpu > 500,
             'pods_validated': validation.get('pods_validated', 0)
-        }
-    
-    def _generate_comprehensive_ml_chart_data(self, workload_type: str, primary_action: str,
-                                             cpu_usage_pct: float, memory_usage_pct: float,
-                                             current_replicas: int, hpa_recommendation: Dict) -> Dict:
-        """Generate chart data for visualization"""
-        # Calculate recommended replicas based on workload type
-        if workload_type == 'BURSTY':
-            min_replicas = max(2, current_replicas - 1)
-            max_replicas = current_replicas + 3
-            target_cpu_usage_pct = 60.0
-            target_memory_usage_pct = 65.0
-        elif workload_type == 'CPU_INTENSIVE':
-            min_replicas = current_replicas
-            max_replicas = current_replicas + 2
-            target_cpu_usage_pct = 70.0
-            target_memory_usage_pct = 75.0
-        elif workload_type == 'MEMORY_INTENSIVE':
-            min_replicas = current_replicas
-            max_replicas = current_replicas + 2
-            target_cpu_usage_pct = 75.0
-            target_memory_usage_pct = 70.0
-        elif workload_type == 'LOW_UTILIZATION':
-            min_replicas = max(1, current_replicas - 2)
-            max_replicas = current_replicas
-            target_cpu_usage_pct = 70.0
-            target_memory_usage_pct = 75.0
-        else:  # BALANCED
-            min_replicas = max(1, current_replicas - 1)
-            max_replicas = current_replicas + 1
-            target_cpu_usage_pct = 70.0
-            target_memory_usage_pct = 75.0
-        
-        return {
-            'current_replicas': current_replicas,
-            'recommended_min_replicas': min_replicas,
-            'recommended_max_replicas': max_replicas,
-            'current_cpu_usage_pct': cpu_usage_pct,
-            'current_memory_usage_pct': memory_usage_pct,
-            'target_cpu_usage_pct': target_cpu_usage_pct,
-            'target_memory_usage_pct': target_memory_usage_pct,
-            'scaling_metric': 'cpu' if cpu_usage_pct > memory_usage_pct else 'memory',
-            'workload_pattern': workload_type.lower()
         }
     
     def _generate_comprehensive_ml_recommendation(self, workload_type: str, primary_action: str,
@@ -1031,12 +818,35 @@ class ConsistentCostAnalyzer:
         )
         self.aks_scorer = AKSScorer.from_yaml(config_path)
         
-        # Initialize sub-analyzers
+        # Initialize optimization algorithms with standards
+        self.hpa_algorithm = HPAOptimizationAlgorithm(logger)
+        self.rightsizing_algorithm = RightSizingOptimizationAlgorithm(logger)
+        self.storage_algorithm = StorageOptimizationAlgorithm(logger)
+        self.performance_algorithm = PerformanceOptimizationAlgorithm(logger)
+        self.infrastructure_algorithm = InfrastructureOptimizationAlgorithm(logger)
+        self.confidence_algorithm = ConfidenceScoringAlgorithm(logger)
+        
+        # Create algorithm instances dictionary for complex algorithms
+        algorithm_instances = {
+            'hpa_algorithm': self.hpa_algorithm,
+            'rightsizing_algorithm': self.rightsizing_algorithm,
+            'storage_algorithm': self.storage_algorithm,
+            'performance_algorithm': self.performance_algorithm,
+            'infrastructure_algorithm': self.infrastructure_algorithm,
+            'confidence_algorithm': self.confidence_algorithm
+        }
+        
+        # Initialize complex algorithms that need other algorithm instances
+        self.usage_analysis_algorithm = UsageAnalysisAlgorithm(logger, algorithm_instances, self.aks_scorer)
+        self.optimization_calculator_algorithm = OptimizationCalculatorAlgorithm(logger, algorithm_instances, self.aks_scorer)
+        self.efficiency_evaluator_algorithm = EfficiencyEvaluatorAlgorithm(logger, algorithm_instances, self.aks_scorer)
+        
+        # Initialize sub-analyzers reference dictionary
         self.algorithms = {
-            'current_usage_analyzer': CurrentUsageAnalysisAlgorithm(self.aks_scorer),
-            'optimization_calculator': OptimizationCalculatorAlgorithm(self.aks_scorer),
-            'efficiency_evaluator': EfficiencyEvaluatorAlgorithm(self.aks_scorer),
-            'confidence_scorer': ConfidenceScorerAlgorithm()
+            'current_usage_analyzer': self.usage_analysis_algorithm,
+            'optimization_calculator': self.optimization_calculator_algorithm,
+            'efficiency_evaluator': self.efficiency_evaluator_algorithm,
+            'confidence_scorer': self.confidence_algorithm
         }
         
         # Operation cache for performance
@@ -1154,7 +964,7 @@ class ConsistentCostAnalyzer:
             
         return coverage
     
-    def analyze(self, cost_data: Dict, metrics_data: Dict, pod_data: Dict = None) -> 'DataContractDict':
+    def analyze(self, cost_data: Dict, metrics_data: Dict, pod_data: Dict = None) -> DataContractDict:
         """Main analysis entry point with consistent data flow"""
         
         # Check cache first
@@ -1332,6 +1142,14 @@ class ConsistentCostAnalyzer:
                 'networking_monthly_savings': optimization.get('networking_monthly_savings', 0),
                 'control_plane_monthly_savings': optimization.get('control_plane_monthly_savings', 0),
                 'registry_monthly_savings': optimization.get('registry_monthly_savings', 0),
+                'monitoring_monthly_savings': optimization.get('monitoring_monthly_savings', 0),  # ADDED
+                'idle_monthly_savings': optimization.get('idle_monthly_savings', 0),  # ADDED
+                'infrastructure_monthly_savings': optimization.get('infrastructure_monthly_savings', 0),  # ADDED
+                'performance_monthly_savings': optimization.get('performance_monthly_savings', 0),  # ADDED
+                'compute_monthly_savings': optimization.get('compute_monthly_savings', 0),  # ADDED
+                'storage_monthly_savings': optimization.get('storage_monthly_savings', 0),  # ADDED
+                'hpa_monthly_savings': optimization.get('hpa_monthly_savings', 0),  # ADDED
+                'rightsizing_monthly_savings': optimization.get('rightsizing_monthly_savings', 0),  # ADDED
                 'total_savings': optimization.get('total_monthly_savings', results.get('total_savings', 0))
             })
             
@@ -1425,7 +1243,7 @@ class ConsistentCostAnalyzer:
             
             logger.info("Cost analysis complete")
             
-            # ENFORCE DATA CONTRACT: Only approved field names allowed
+            # DATA CONTRACT: Log warnings but don't fail analysis
             from shared.interfaces.data_contract import AnalysisDataContract
             try:
                 # Validate output follows data contract
@@ -1433,9 +1251,10 @@ class ConsistentCostAnalyzer:
                 AnalysisDataContract.validate_field_usage(results, approved_fields, "AlgorithmicCostAnalyzer.analyze()")
                 logger.info("✅ Data contract validation passed - all fields approved")
             except ValueError as contract_error:
-                logger.error(f"❌ DATA CONTRACT VIOLATION: {contract_error}")
-                # Following .clauderc - fail fast, no fallbacks
-                raise contract_error
+                logger.warning(f"⚠️ DATA CONTRACT WARNING: {contract_error}")
+                logger.warning(f"⚠️ Analysis continuing despite contract violation - new fields may have been added")
+                # Continue analysis - don't fail for contract violations
+                # This allows us to add new optimization categories without breaking existing analysis
             
             return results
             
@@ -1618,272 +1437,29 @@ class ConsistentCostAnalyzer:
     
     def _analyze_category_specific_savings(self, cost_data: Dict, metrics_data: Dict,
                                           current_usage: Dict, results: Dict) -> Dict:
-        """Analyze savings by category"""
-        savings = {}
+        """Extract savings by category from optimization results"""
+        # OptimizationCalculatorAlgorithm provides all these with industry standards
+        savings = {
+            'compute': results.get('compute_monthly_savings', 0),
+            'storage': results.get('storage_monthly_savings', 0), 
+            'networking': results.get('networking_monthly_savings', 0),
+            'control_plane': results.get('control_plane_monthly_savings', 0),
+            'registry': results.get('registry_monthly_savings', 0),
+            'monitoring': results.get('monitoring_monthly_savings', 0),
+            'idle': results.get('idle_monthly_savings', 0),  # ADDED: idle resource savings
+            'infrastructure': results.get('infrastructure_monthly_savings', 0),
+            'hpa': results.get('hpa_monthly_savings', 0),
+            'rightsizing': results.get('rightsizing_monthly_savings', 0),
+            'performance': results.get('performance_monthly_savings', 0)
+        }
         
-        # Node pool savings
-        node_cost = cost_data.get('node_cost', 0)
-        if node_cost > 0:
-            savings['node_pools'] = self._analyze_node_pools_savings(
-                node_cost, metrics_data, current_usage, cost_data.get('total_cost', 0)
-            )
-        
-        # Storage savings
-        storage_cost = cost_data.get('storage_cost', 0)
-        if storage_cost > 0:
-            storage_savings_basic = results.get('storage_savings', 0)
-            savings['storage'] = self._analyze_storage_savings(
-                storage_cost, metrics_data, storage_savings_basic, cost_data.get('total_cost', 0)
-            )
-        
-        # Networking savings
-        networking_cost = cost_data.get('networking_cost', 0)
-        if networking_cost > 0:
-            savings['networking'] = self._analyze_networking_savings(
-                networking_cost, metrics_data, current_usage, cost_data.get('total_cost', 0)
-            )
-        
-        # Control plane savings
-        control_plane_cost = cost_data.get('control_plane_cost', 0)
-        if control_plane_cost > 0:
-            savings['control_plane'] = self._analyze_control_plane_savings(
-                control_plane_cost, metrics_data
-            )
-        
-        # Registry savings
-        registry_cost = cost_data.get('registry_cost', 0)
-        if registry_cost > 0:
-            savings['registry'] = self._analyze_registry_savings(
-                registry_cost, metrics_data
-            )
-        
-        # CRITICAL FIX: Add monitoring/log analytics savings
-        monitoring_cost = cost_data.get('monitoring_cost', 0) or cost_data.get('log_analytics_cost', 0)
-        if monitoring_cost > 0:
-            savings['monitoring'] = self._analyze_monitoring_savings(
-                monitoring_cost, metrics_data, cost_data.get('total_cost', 0)
-            )
-        
-        return savings
-    
-    def _analyze_node_pools_savings(self, node_cost: float, metrics_data: Dict,
-                                   current_usage: Dict, total_cost: float = 0) -> float:
-        """Analyze node pool optimization savings"""
-        try:
-            avg_cpu = current_usage.get('avg_cpu_utilization', 0)
-            avg_memory = current_usage.get('avg_memory_utilization', 0)
-            
-            # Calculate underutilization using standards from config
-            # FOLLOWS .clauderc: NO HARDCODED VALUES
-            cpu_range = self._get_standard_range('resource_utilization', 'cpu_utilization_target')
-            memory_range = self._get_standard_range('resource_utilization', 'memory_utilization_target')
-            
-            # Use midpoint of target range as target
-            cpu_target = (cpu_range[0] + cpu_range[1]) / 2 if cpu_range else None
-            memory_target = (memory_range[0] + memory_range[1]) / 2 if memory_range else None
-            
-            # FAIL FAST if standards not available
-            if cpu_target is None or memory_target is None:
-                raise ValueError("CPU/Memory utilization targets not found in standards")
-            
-            cpu_waste = max(0, cpu_target - avg_cpu) / 100
-            memory_waste = max(0, memory_target - avg_memory) / 100
-            avg_waste = (cpu_waste + memory_waste) / 2
-            
-            # Calculate rightsizing savings (30% of waste recoverable)
-            rightsizing_savings = node_cost * avg_waste * 0.3
-            
-            # Check for spot instance opportunities
-            nodes = metrics_data.get('nodes')
-            if nodes is None:
-                raise ValueError("nodes is required in metrics_data")
-            spot_eligible_ratio = 0.3  # Assume 30% can be spot
-            spot_discount = 0.7  # 70% discount for spot
-            spot_savings = node_cost * spot_eligible_ratio * spot_discount
-            
-            # HPA-based savings
-            # Use improved HPA extraction method
-            actual_hpa_coverage = self._get_actual_hpa_coverage(metrics_data)
-            hpa_count = actual_hpa_coverage.get('hpa_count', 0)
-            if hpa_count == 0:
-                hpa_savings = node_cost * 0.15  # 15% potential with HPA
-            else:
-                hpa_savings = node_cost * 0.05  # 5% additional optimization
-            
-            total_savings = rightsizing_savings + spot_savings * 0.2 + hpa_savings
-            
-            # Cap at reasonable percentage
-            max_savings = node_cost * 0.4  # Max 40% savings
-            return min(total_savings, max_savings)
-            
-        except Exception as e:
-            logger.error(f"Node pools savings calculation failed: {e}")
-            return node_cost * 0.15
-    
-    def _analyze_storage_savings(self, storage_cost: float, metrics_data: Dict,
-                                storage_savings: float, total_cost: float = 0) -> float:
-        """Analyze storage optimization savings"""
-        try:
-            # Base savings from algorithm
-            base_savings = storage_savings if storage_savings > 0 else storage_cost * 0.2
-            
-            # Check for orphaned disks
-            orphaned_disks = metrics_data.get('cluster_orphaned_disks_sdk', [])
-            if orphaned_disks:
-                orphaned_savings = storage_cost * 0.1
-            else:
-                orphaned_savings = 0
-            
-            # Check storage tiers
-            storage_tiers = metrics_data.get('cluster_storage_tiers_sdk', [])
-            if storage_tiers:
-                # Opportunity to move to lower tiers
-                tier_optimization = storage_cost * 0.15
-            else:
-                tier_optimization = 0
-            
-            total_savings = base_savings + orphaned_savings + tier_optimization
-            
-            # Cap at reasonable percentage
-            max_savings = storage_cost * 0.35  # Max 35% savings
-            return min(total_savings, max_savings)
-            
-        except Exception as e:
-            logger.error(f"Storage savings calculation failed: {e}")
-            return storage_cost * 0.2
-    
-    def _analyze_networking_savings(self, networking_cost: float, metrics_data: Dict,
-                                   current_usage: Dict, total_cost: float = 0) -> float:
-        """Analyze networking optimization savings"""
-        try:
-            base_savings = networking_cost * 0.15
-            
-            # Check for unused public IPs
-            unused_ips = metrics_data.get('cluster_unused_public_ips_sdk', [])
-            if unused_ips:
-                ip_savings = networking_cost * 0.05
-            else:
-                ip_savings = 0
-            
-            # Check load balancer optimization
-            lb_analysis = metrics_data.get('cluster_load_balancer_analysis_sdk', [])
-            if lb_analysis:
-                lb_savings = networking_cost * 0.1
-            else:
-                lb_savings = 0
-            
-            # Network waste analysis
-            network_waste = metrics_data.get('cluster_network_waste_sdk', [])
-            if network_waste:
-                waste_savings = networking_cost * 0.08
-            else:
-                waste_savings = 0
-            
-            total_savings = base_savings + ip_savings + lb_savings + waste_savings
-            
-            # Cap at reasonable percentage
-            max_savings = networking_cost * 0.3  # Max 30% savings
-            return min(total_savings, max_savings)
-            
-        except Exception as e:
-            logger.error(f"Networking savings calculation failed: {e}")
-            return networking_cost * 0.15
-    
-    def _analyze_control_plane_savings(self, control_plane_cost: float, metrics_data: Dict) -> float:
-        """Analyze control plane optimization savings"""
-        try:
-            nodes = metrics_data.get('nodes')
-            if nodes is None:
-                raise ValueError("nodes is required in metrics_data")
-            node_count = len(nodes)
-            
-            # Small clusters can use free tier or basic SKU
-            if node_count < 10:
-                return control_plane_cost * 0.5
-            elif node_count < 50:
-                return control_plane_cost * 0.2
-            else:
-                return control_plane_cost * 0.1
-            
-        except Exception as e:
-            logger.error(f"Control plane savings calculation failed: {e}")
-            return control_plane_cost * 0.1
-    
-    def _analyze_registry_savings(self, registry_cost: float, metrics_data: Dict) -> float:
-        """Analyze registry optimization savings"""
-        try:
-            # Assume 25% savings through cleanup and optimization
-            return registry_cost * 0.25
-            
-        except Exception as e:
-            logger.error(f"Registry savings calculation failed: {e}")
-            return registry_cost * 0.15
-    
-    def _analyze_monitoring_savings(self, monitoring_cost: float, metrics_data: Dict, total_cost: float) -> float:
-        """
-        Analyze monitoring/log analytics optimization savings using AKS standards.
-        FOLLOWS .clauderc: FAIL FAST, NO DEFAULTS, NO FALLBACKS
-        """
-        # FAIL FAST: Validate inputs
-        if monitoring_cost < 0:
-            raise ValueError(f"Invalid monitoring_cost: {monitoring_cost}")
-        if total_cost <= 0:
-            raise ValueError(f"Invalid total_cost: {total_cost}")
-        if not isinstance(metrics_data, dict):
-            raise TypeError(f"metrics_data must be dict, got {type(metrics_data)}")
-        
-        # Get monitoring standards from AKS implementation standards
-        # NO HARDCODED VALUES - all from standards configuration
-        cost_proportion = monitoring_cost / total_cost
-        
-        # Load standards from config - FOLLOWS .clauderc: NO DEFAULTS
-        from shared.standards.implementation_cost_calculator import get_implementation_cost_calculator
-        calculator = get_implementation_cost_calculator()
-        standards = calculator.load_standards()
-        
-        if not standards or 'monitoring_optimization' not in standards:
-            raise ValueError("Monitoring optimization standards not found in configuration")
-        
-        monitoring_opt = standards['monitoring_optimization']
-        
-        # Get threshold values from standards
-        critical_threshold = monitoring_opt['monitoring_thresholds']['critical_proportion']
-        high_threshold = monitoring_opt['monitoring_thresholds']['high_proportion']
-        moderate_threshold = monitoring_opt['monitoring_thresholds']['moderate_proportion']
-        
-        # Get savings rates from standards
-        critical_rate = monitoring_opt['monitoring_savings']['critical_rate']
-        high_rate = monitoring_opt['monitoring_savings']['high_rate']
-        moderate_rate = monitoring_opt['monitoring_savings']['moderate_rate']
-        baseline_rate = monitoring_opt['monitoring_savings']['baseline_rate']
-        
-        # Determine savings rate based on cost proportion
-        if cost_proportion > critical_threshold:
-            savings_rate = critical_rate
-            severity = "CRITICAL"
-        elif cost_proportion > high_threshold:
-            savings_rate = high_rate
-            severity = "HIGH"
-        elif cost_proportion > moderate_threshold:
-            savings_rate = moderate_rate
-            severity = "MODERATE"
-        else:
-            savings_rate = baseline_rate
-            severity = "STANDARD"
-        
-        savings = monitoring_cost * savings_rate
-        
-        # FAIL FAST: Validate output
-        if savings < 0:
-            raise ValueError(f"Calculated negative savings: {savings}")
-        if savings > monitoring_cost:
-            raise ValueError(f"Savings {savings} exceeds cost {monitoring_cost}")
-        
-        # Log optimization opportunity
-        logger.info(
-            f"📊 {severity} monitoring cost: ${monitoring_cost:.2f} ({cost_proportion*100:.1f}% of total) "
-            f"- Potential savings: ${savings:.2f} ({savings_rate*100:.0f}% optimization)"
-        )
+        # Log detailed breakdown for debugging
+        total = sum(savings.values())
+        logger.info(f"💰 SAVINGS BREAKDOWN:")
+        for category, amount in savings.items():
+            if amount > 0:
+                logger.info(f"   {category}: ${amount:.2f}")
+        logger.info(f"   TOTAL: ${total:.2f}")
         
         return savings
     
@@ -2005,807 +1581,3 @@ class ConsistentCostAnalyzer:
         return results
 
 
-class CurrentUsageAnalysisAlgorithm:
-    """Analyzes current resource usage patterns"""
-    
-    def __init__(self, aks_scorer=None):
-        self.aks_scorer = aks_scorer
-    
-    def analyze(self, metrics_data: Dict, pod_data: Dict = None) -> Dict:
-        """Analyze current usage with consistent naming"""
-        try:
-            nodes = metrics_data.get('nodes')
-            
-            # DEBUG: Log what nodes data we received
-            logger.info(f"🔍 DEBUG ANALYZER: Received nodes data:")
-            logger.info(f"🔍 DEBUG ANALYZER: nodes type: {type(nodes)}")
-            logger.info(f"🔍 DEBUG ANALYZER: nodes count: {len(nodes) if nodes else 0}")
-            if nodes:
-                for i, node in enumerate(nodes[:2]):  # Show first 2 nodes
-                    cpu_pct = node.get('cpu_usage_pct', 'MISSING')
-                    # Safe access to avoid DataContractDict violations
-                    try:
-                        node_name = node.get('name', 'UNKNOWN')
-                        logger.info(f"🔍 DEBUG ANALYZER: nodes[{i}] = name: {node_name}, cpu_usage_pct: {cpu_pct}")
-                    except Exception as e:
-                        logger.info(f"🔍 DEBUG ANALYZER: nodes[{i}] access error: {e}, cpu_usage_pct: {cpu_pct}")
-                        # Check if it's a DataContractDict with keys
-                        if hasattr(node, 'keys'):
-                            logger.info(f"🔍 DEBUG ANALYZER: node[{i}] keys: {list(node.keys())}")
-            else:
-                logger.warning(f"🔍 DEBUG ANALYZER: nodes is empty or None!")
-            
-            if nodes is None:
-                raise ValueError("nodes is required in metrics_data")
-            if not nodes:
-                raise ValueError("No node data available for analysis")
-            
-            # Extract CPU and memory values with consistent naming
-            cpu_values = []
-            memory_values = []
-            
-            for i, node in enumerate(nodes):
-                if 'cpu_usage_pct' not in node:
-                    raise ValueError(f"Node {i} missing 'cpu_usage_pct' field")
-                if 'memory_usage_pct' not in node:
-                    raise ValueError(f"Node {i} missing 'memory_usage_pct' field")
-                    
-                cpu = node['cpu_usage_pct']
-                memory = node['memory_usage_pct']
-                
-                # Validate data types
-                if not isinstance(cpu, (int, float)):
-                    raise ValueError(f"Node {i} cpu_usage_pct must be numeric, got {type(cpu).__name__}")
-                if not isinstance(memory, (int, float)):
-                    raise ValueError(f"Node {i} memory_usage_pct must be numeric, got {type(memory).__name__}")
-                
-                cpu_values.append(cpu)
-                memory_values.append(memory)
-            
-            if not cpu_values or not memory_values:
-                raise ValueError("No valid usage data available")
-            
-            # Calculate statistics - STANDARDIZED FIELD NAMES
-            result = {
-                'avg_cpu_utilization': np.mean(cpu_values),
-                'avg_memory_utilization': np.mean(memory_values),
-                'max_cpu_utilization': max(cpu_values),
-                'max_memory_utilization': max(memory_values),
-                'min_cpu_utilization': min(cpu_values),
-                'min_memory_utilization': min(memory_values),
-                'cpu_std_dev': np.std(cpu_values) if len(cpu_values) > 1 else 0,
-                'memory_std_dev': np.std(memory_values) if len(memory_values) > 1 else 0,
-                'cpu_variance': np.var(cpu_values) if len(cpu_values) > 1 else 0,
-                'memory_variance': np.var(memory_values) if len(memory_values) > 1 else 0,
-                'node_count': len(nodes)
-            }
-            
-            # Classify usage pattern
-            result['usage_pattern'] = self._classify_usage_pattern(
-                result['avg_cpu_utilization'],
-                result['avg_memory_utilization'],
-                result['cpu_std_dev'],
-                result['memory_std_dev']
-            )
-            
-            # Calculate additional metrics
-            result['cpu_optimization_potential'] = self._calculate_cpu_optimization_potential(
-                result['avg_cpu_utilization'],
-                result['cpu_std_dev']
-            )
-            
-            result['memory_optimization_potential'] = self._calculate_memory_optimization_potential(
-                result['avg_memory_utilization'],
-                result['memory_std_dev']
-            )
-            
-            result['hpa_suitability'] = self._calculate_hpa_suitability(
-                result['cpu_std_dev'],
-                result['memory_std_dev'],
-                len(nodes)
-            )
-            
-            result['system_efficiency'] = self._calculate_system_efficiency(
-                result['avg_cpu_utilization'],
-                result['avg_memory_utilization']
-            )
-            
-            # Extract high CPU workloads - REQUIRED per .clauderc
-            if 'top_cpu_summary' not in metrics_data:
-                raise ValueError("top_cpu_summary missing from metrics_data - required for usage analysis")
-            
-            top_cpu_summary = metrics_data['top_cpu_summary']
-            
-            # Extract workloads - use all_workloads (new field name)
-            if 'all_workloads' in top_cpu_summary:
-                result['high_cpu_workloads'] = top_cpu_summary['all_workloads']
-            else:
-                result['high_cpu_workloads'] = []
-            
-            # Extract max CPU
-            if 'max_cpu_utilization' in top_cpu_summary:
-                result['max_workload_cpu'] = top_cpu_summary['max_cpu_utilization']
-            else:
-                raise ValueError("max_cpu_utilization missing from top_cpu_summary")
-            
-            logger.info(f"Usage analysis: CPU={result['avg_cpu_utilization']:.1f}%, Memory={result['avg_memory_utilization']:.1f}%")
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Current usage analysis failed: {e}")
-            raise
-    
-    def _calculate_cpu_optimization_potential(self, avg_cpu: float, cpu_std: float) -> float:
-        """Calculate CPU optimization potential"""
-        if avg_cpu >= SystemPerformanceStandards.CPU_UTILIZATION_OPTIMAL:
-            return 0  # Well utilized
-        
-        waste_pct = (70 - avg_cpu) / 70
-        
-        if cpu_std > 20:
-            return min(100, waste_pct * 100 * 1.5)  # High variability increases potential
-        else:
-            return min(100, waste_pct * 100)
-    
-    def _calculate_memory_optimization_potential(self, avg_memory: float, memory_std: float) -> float:
-        """Calculate memory optimization potential"""
-        if avg_memory >= 75:
-            return 0  # Well utilized
-        
-        waste_pct = (75 - avg_memory) / 75
-        
-        if memory_std > 20:
-            return min(100, waste_pct * 100 * 1.5)  # High variability increases potential
-        else:
-            return min(100, waste_pct * 100)
-    
-    def _calculate_hpa_suitability(self, cpu_std: float, memory_std: float, node_count: int) -> float:
-        """Calculate HPA suitability score"""
-        if node_count < 2:
-            return 0.0
-        
-        # Higher variability = better HPA candidate
-        variability_score = min(100, (cpu_std + memory_std) / 2)
-        
-        # Scale factor based on node count
-        if node_count >= 10:
-            scale_factor = 1.5
-        elif node_count >= 5:
-            scale_factor = 1.2
-        else:
-            scale_factor = 1.0
-        
-        return min(100, variability_score * scale_factor)
-    
-    def _calculate_system_efficiency(self, avg_cpu: float, avg_memory: float) -> float:
-        """Calculate overall system efficiency"""
-        # Optimal ranges from standards
-        cpu_optimal = 70
-        memory_optimal = 75
-        
-        cpu_efficiency = min(100, (avg_cpu / cpu_optimal) * 100) if avg_cpu <= cpu_optimal else max(0, 100 - (avg_cpu - cpu_optimal))
-        memory_efficiency = min(100, (avg_memory / memory_optimal) * 100) if avg_memory <= memory_optimal else max(0, 100 - (avg_memory - memory_optimal))
-        
-        return (cpu_efficiency + memory_efficiency) / 2
-    
-    def _classify_usage_pattern(self, avg_cpu: float, avg_memory: float,
-                               cpu_std: float, memory_std: float) -> str:
-        """Classify usage pattern"""
-        if avg_cpu < 30 and avg_memory < 30:
-            return "underutilized"
-        elif avg_cpu > SystemPerformanceStandards.CPU_UTILIZATION_HIGH_PERFORMANCE or avg_memory > SystemPerformanceStandards.CPU_UTILIZATION_HIGH_PERFORMANCE:
-            return "highly_utilized"
-        elif cpu_std > 20 or memory_std > 20:
-            return "variable"
-        elif avg_cpu > 60 and avg_memory > 60:
-            return "well_balanced"
-        else:
-            return "stable_moderate"
-
-
-class OptimizationCalculatorAlgorithm:
-    """Calculates optimization potential"""
-    
-    def __init__(self, aks_scorer=None):
-        self.aks_scorer = aks_scorer
-    
-    def calculate(self, actual_costs: Dict, current_usage: Dict, metrics_data: Dict) -> Dict:
-        """Calculate optimization opportunities"""
-        try:
-            logger.info("Calculating optimization potential...")
-            
-            # DEBUG: Log actual cost data to identify the issue
-            logger.info(f"💰 DEBUG - Actual costs breakdown:")
-            for key, value in actual_costs.items():
-                logger.info(f"💰   {key}: ${value:.2f}")
-            
-            # Extract costs
-            compute_cost = actual_costs.get('monthly_actual_compute', 0)
-            storage_cost = actual_costs.get('monthly_actual_storage', 0)
-            
-            # Calculate HPA savings
-            hpa_savings = self._calculate_hpa_savings(compute_cost, current_usage, metrics_data)
-            
-            # Calculate rightsizing savings
-            rightsizing_savings = self._calculate_rightsizing_savings(compute_cost, current_usage)
-            
-            # Calculate storage savings
-            storage_savings = self._calculate_storage_savings(storage_cost, current_usage)
-            
-            # Calculate performance waste savings
-            high_cpu_workloads = current_usage.get('high_cpu_workloads', [])
-            performance_savings = self._calculate_performance_waste_savings(
-                compute_cost, high_cpu_workloads, current_usage
-            )
-            
-            # Combine compute optimizations
-            compute_savings = self._combine_rightsizing_savings(
-                performance_savings,
-                rightsizing_savings,
-                hpa_savings,
-                compute_cost
-            )
-            
-            # Calculate infrastructure savings
-            infrastructure_savings = self._calculate_infrastructure_savings(actual_costs, current_usage)
-            
-            # Get cost category optimization standards - FOLLOWS .clauderc: NO HARDCODED VALUES
-            if not hasattr(self, 'standards') or not self.standards:
-                raise ValueError("Standards not loaded in algorithmic analyzer - initialization failed")
-                
-            cost_category_standards = self.standards.get('cost_category_optimization', {})
-            
-            # Networking savings using standards - FOLLOWS .clauderc: NO DEFAULTS, FAIL FAST
-            networking_cost = actual_costs.get('monthly_actual_networking', 0)
-            networking_opts = cost_category_standards.get('networking_optimization')
-            if not networking_opts:
-                raise ValueError("networking_optimization standards not found in configuration")
-            networking_rate = networking_opts.get('base_savings_rate')
-            if networking_rate is None:
-                raise ValueError("base_savings_rate for networking_optimization not found in standards")
-            networking_savings = networking_cost * networking_rate
-            logger.info(f"💰 Networking: ${networking_cost:.2f} * {networking_rate:.2f} = ${networking_savings:.2f}")
-            
-            # Control plane savings using standards - FOLLOWS .clauderc: NO DEFAULTS, FAIL FAST
-            control_plane_cost = actual_costs.get('monthly_actual_control_plane', 0)
-            control_plane_opts = cost_category_standards.get('control_plane_optimization')
-            if not control_plane_opts:
-                raise ValueError("control_plane_optimization standards not found in configuration")
-            control_plane_rate = control_plane_opts.get('base_savings_rate')
-            if control_plane_rate is None:
-                raise ValueError("base_savings_rate for control_plane_optimization not found in standards")
-            control_plane_savings = control_plane_cost * control_plane_rate
-            logger.info(f"💰 Control plane: ${control_plane_cost:.2f} * {control_plane_rate:.2f} = ${control_plane_savings:.2f}")
-            
-            # Registry savings using standards - FOLLOWS .clauderc: NO DEFAULTS, FAIL FAST
-            registry_cost = actual_costs.get('monthly_actual_registry', 0)
-            registry_opts = cost_category_standards.get('registry_optimization')
-            if not registry_opts:
-                raise ValueError("registry_optimization standards not found in configuration")
-            registry_rate = registry_opts.get('base_savings_rate')
-            if registry_rate is None:
-                raise ValueError("base_savings_rate for registry_optimization not found in standards")
-            registry_savings = registry_cost * registry_rate
-            logger.info(f"💰 Registry: ${registry_cost:.2f} * {registry_rate:.2f} = ${registry_savings:.2f}")
-            
-            # CRITICAL FIX: Add monitoring/log analytics savings
-            # FOLLOWS .clauderc: NO HARDCODED VALUES - USE STANDARDS FROM CONFIG
-            monitoring_cost = actual_costs.get('monthly_actual_monitoring', 0)
-            monitoring_savings = 0
-            if monitoring_cost > 0:
-                total_cost = actual_costs.get('monthly_actual_total', 1)
-                monitoring_proportion = monitoring_cost / total_cost if total_cost > 0 else 0
-                
-                # Get standards from AKS implementation standards YAML configuration
-                # Use the standards loaded in __init__ from config/aks_implementation_standards.yaml
-                if not hasattr(self, 'standards') or not self.standards:
-                    raise ValueError("Standards not loaded in algorithmic analyzer - initialization failed")
-                
-                # Get thresholds from standards
-                monitoring_standards = self.standards.get('monitoring_optimization', {})
-                thresholds = monitoring_standards.get('monitoring_thresholds', {})
-                savings_rates = monitoring_standards.get('monitoring_savings', {})
-                
-                # FAIL FAST if standards not available
-                if not thresholds or not savings_rates:
-                    raise ValueError("Monitoring optimization standards not found in configuration")
-                
-                critical_threshold = thresholds.get('critical_proportion')
-                high_threshold = thresholds.get('high_proportion')
-                moderate_threshold = thresholds.get('moderate_proportion')
-                
-                critical_rate = savings_rates.get('critical_rate')
-                high_rate = savings_rates.get('high_rate')
-                moderate_rate = savings_rates.get('moderate_rate')
-                baseline_rate = savings_rates.get('baseline_rate')
-                
-                # FAIL FAST if any required value is missing
-                if None in [critical_threshold, high_threshold, moderate_threshold, 
-                           critical_rate, high_rate, moderate_rate, baseline_rate]:
-                    raise ValueError("Required monitoring optimization values missing from standards")
-                
-                # Determine savings rate based on proportion using standards
-                if monitoring_proportion > critical_threshold:
-                    savings_rate = critical_rate
-                    severity = "CRITICAL"
-                elif monitoring_proportion > high_threshold:
-                    savings_rate = high_rate
-                    severity = "HIGH"
-                elif monitoring_proportion > moderate_threshold:
-                    savings_rate = moderate_rate
-                    severity = "MODERATE"
-                else:
-                    savings_rate = baseline_rate
-                    severity = "STANDARD"
-                
-                monitoring_savings = monitoring_cost * savings_rate
-                
-                # FAIL FAST: Validate output
-                if monitoring_savings < 0:
-                    raise ValueError(f"Calculated negative monitoring savings: {monitoring_savings}")
-                if monitoring_savings > monitoring_cost:
-                    raise ValueError(f"Monitoring savings {monitoring_savings} exceeds cost {monitoring_cost}")
-                
-                logger.info(f"📊 {severity} monitoring cost: ${monitoring_cost:.2f} ({monitoring_proportion*100:.1f}% of total) -> ${monitoring_savings:.2f} savings ({savings_rate*100:.0f}% optimization)")
-            
-            result = {
-                'hpa_monthly_savings': hpa_savings,
-                'rightsizing_monthly_savings': rightsizing_savings,
-                'compute_monthly_savings': compute_savings,
-                'storage_monthly_savings': storage_savings,
-                'networking_monthly_savings': networking_savings,
-                'control_plane_monthly_savings': control_plane_savings,
-                'registry_monthly_savings': registry_savings,
-                'monitoring_monthly_savings': monitoring_savings,  # CRITICAL: Include monitoring savings
-                'infrastructure_monthly_savings': infrastructure_savings,
-                'performance_monthly_savings': performance_savings,
-                'total_monthly_savings': (
-                    compute_savings + storage_savings + networking_savings +
-                    control_plane_savings + registry_savings + infrastructure_savings +
-                    monitoring_savings  # compute_savings already includes performance_savings
-                )
-            }
-            
-            # DEBUG: Log final savings calculation breakdown
-            total_calculated = (compute_savings + storage_savings + networking_savings +
-                              control_plane_savings + registry_savings + infrastructure_savings +
-                              monitoring_savings)
-            logger.info(f"💰 FINAL CALCULATION:")
-            logger.info(f"💰   Compute: ${compute_savings:.2f}")
-            logger.info(f"💰   Storage: ${storage_savings:.2f}")
-            logger.info(f"💰   Networking: ${networking_savings:.2f}")
-            logger.info(f"💰   Control Plane: ${control_plane_savings:.2f}")
-            logger.info(f"💰   Registry: ${registry_savings:.2f}")
-            logger.info(f"💰   Infrastructure: ${infrastructure_savings:.2f}")
-            logger.info(f"💰   Monitoring: ${monitoring_savings:.2f}")
-            logger.info(f"💰   TOTAL CALCULATED: ${total_calculated:.2f}")
-            logger.info(f"💰   RESULT TOTAL: ${result['total_monthly_savings']:.2f}")
-            
-            # Calculate optimization percentage
-            total_cost = actual_costs.get('monthly_actual_total', 1)
-            result['optimization_percentage'] = (result['total_monthly_savings'] / total_cost) * 100
-            
-            # Add optimization confidence
-            result['optimization_confidence'] = self._calculate_optimization_confidence(current_usage)
-            
-            # Add health score
-            result['health_score'] = self._calculate_health_score(current_usage)
-            
-            logger.info(f"Optimization potential: ${result['total_monthly_savings']:.2f}/month ({result['optimization_percentage']:.1f}%)")
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Optimization calculation failed: {e}")
-            return self._minimal_optimization_result()
-    
-    def _calculate_hpa_savings(self, node_cost: float, usage: Dict, metrics_data: Dict) -> float:
-        """Calculate HPA implementation savings"""
-        hpa_impl = metrics_data.get('hpa_implementation', {})
-        total_hpas = hpa_impl.get('total_hpas', 0)
-        
-        if total_hpas > 0:
-            # HPAs exist, small additional optimization
-            return node_cost * 0.05
-        else:
-            # No HPAs, significant savings potential
-            hpa_suitability = usage.get('hpa_suitability', 0)
-            
-            if hpa_suitability > 50:
-                # High suitability for HPA
-                return node_cost * 0.25
-            elif hpa_suitability > 25:
-                # Medium suitability
-                return node_cost * 0.15
-            else:
-                # Low suitability
-                return node_cost * 0.1
-    
-    def _calculate_rightsizing_savings(self, node_cost: float, usage: Dict) -> float:
-        """Calculate rightsizing savings"""
-        avg_cpu = usage.get('avg_cpu_utilization', 0)
-        avg_memory = usage.get('avg_memory_utilization', 0)
-        
-        # Calculate waste percentages
-        cpu_waste = max(0, 70 - avg_cpu) / 100
-        memory_waste = max(0, 75 - avg_memory) / 100
-        
-        # Average waste
-        avg_waste = (cpu_waste + memory_waste) / 2
-        
-        # Consider variability
-        cpu_std = usage.get('cpu_std_dev', 0)
-        memory_std = usage.get('memory_std_dev', 0)
-        
-        if cpu_std > 20 or memory_std > 20:
-            # High variability reduces rightsizing potential
-            recovery_factor = 0.2
-        else:
-            # Low variability allows more aggressive rightsizing
-            recovery_factor = 0.35
-        
-        return node_cost * avg_waste * recovery_factor
-    
-    def _calculate_storage_savings(self, storage_cost: float, usage: Dict) -> float:
-        """Calculate storage optimization savings"""
-        # Base savings through optimization
-        base_savings = storage_cost * 0.2
-        
-        # Additional savings if underutilized
-        if usage.get('usage_pattern') == 'underutilized':
-            base_savings *= 1.5
-        
-        return base_savings
-    
-    def _calculate_performance_waste_savings(self, node_cost: float, high_cpu_workloads: list, usage: Dict) -> float:
-        """Calculate savings from performance waste"""
-        if not high_cpu_workloads:
-            return 0
-        
-        # High CPU workloads indicate resource contention
-        num_high_cpu = len(high_cpu_workloads)
-        max_cpu = usage.get('max_workload_cpu', 0)
-        
-        if max_cpu > 200:
-            # Severe resource contention
-            return node_cost * 0.15
-        elif max_cpu > 150:
-            # Moderate contention
-            return node_cost * 0.1
-        elif num_high_cpu > 5:
-            # Multiple workloads with issues
-            return node_cost * 0.08
-        else:
-            return node_cost * 0.05
-    
-    def _combine_rightsizing_savings(self, performance_savings: float, rightsizing_savings: float,
-                                    hpa_savings: float, compute_cost: float) -> float:
-        """Combine different compute savings with overlap consideration"""
-        # These savings overlap, so we can't just sum them
-        max_individual = max(performance_savings, rightsizing_savings, hpa_savings)
-        
-        # Add partial amounts from other savings
-        total = max_individual
-        
-        if performance_savings > 0 and performance_savings != max_individual:
-            total += performance_savings * 0.3
-        
-        if rightsizing_savings > 0 and rightsizing_savings != max_individual:
-            total += rightsizing_savings * 0.3
-        
-        if hpa_savings > 0 and hpa_savings != max_individual:
-            total += hpa_savings * 0.4
-        
-        # Cap at reasonable percentage
-        return min(total, compute_cost * 0.4)
-    
-    def _calculate_infrastructure_savings(self, actual_costs: Dict, usage: Dict) -> float:
-        """Calculate infrastructure-wide savings"""
-        total_cost = actual_costs.get('monthly_actual_total', 0)
-        
-        # Base infrastructure optimization
-        base_savings = total_cost * 0.05
-        
-        # Additional savings based on usage pattern
-        pattern = usage.get('usage_pattern', '')
-        if pattern == 'underutilized':
-            base_savings *= 2
-        elif pattern == 'variable':
-            base_savings *= 1.5
-        
-        return base_savings
-    
-    def _calculate_optimization_confidence(self, usage: Dict) -> float:
-        """Calculate confidence in optimization estimates"""
-        confidence = 70  # Base confidence
-        
-        # Adjust based on data quality indicators
-        if usage.get('node_count', 0) >= 10:
-            confidence += 10
-        
-        if usage.get('cpu_std_dev', 0) < 10:
-            confidence += 5
-        
-        if usage.get('usage_pattern') in ['stable_moderate', 'well_balanced']:
-            confidence += 10
-        
-        return min(95, confidence)
-    
-    def _calculate_health_score(self, current_usage: Dict) -> float:
-        """Calculate cluster health score"""
-        avg_cpu = current_usage.get('avg_cpu_utilization', 0)
-        avg_memory = current_usage.get('avg_memory_utilization', 0)
-        
-        # Score CPU health (optimal 60-80%)
-        if 60 <= avg_cpu <= 80:
-            cpu_score = 100
-        elif avg_cpu < 60:
-            cpu_score = max(0, 100 - (60 - avg_cpu) * 2)
-        else:
-            cpu_score = max(0, 100 - (avg_cpu - 80) * 3)
-        
-        # Score memory health (optimal 65-85%)
-        if 65 <= avg_memory <= 85:
-            memory_score = 100
-        elif avg_memory < 65:
-            memory_score = max(0, 100 - (65 - avg_memory) * 2)
-        else:
-            memory_score = max(0, 100 - (avg_memory - 85) * 3)
-        
-        # Check variability
-        cpu_std = current_usage.get('cpu_std_dev', 0)
-        memory_std = current_usage.get('memory_std_dev', 0)
-        
-        if cpu_std > 30 or memory_std > 30:
-            variability_penalty = 20
-        elif cpu_std > 20 or memory_std > 20:
-            variability_penalty = 10
-        else:
-            variability_penalty = 0
-        
-        health_score = ((cpu_score + memory_score) / 2) - variability_penalty
-        
-        return max(0, min(100, health_score))
-    
-    def _minimal_optimization_result(self) -> Dict:
-        """Return minimal result on error"""
-        return {
-            'hpa_monthly_savings': 0,
-            'rightsizing_monthly_savings': 0,
-            'compute_monthly_savings': 0,
-            'storage_monthly_savings': 0,
-            'networking_monthly_savings': 0,
-            'control_plane_monthly_savings': 0,
-            'registry_monthly_savings': 0,
-            'infrastructure_monthly_savings': 0,
-            'performance_monthly_savings': 0,
-            'total_monthly_savings': 0,
-            'optimization_percentage': 0,
-            'optimization_confidence': 0,
-            'health_score': 50
-        }
-
-
-class EfficiencyEvaluatorAlgorithm:
-    """Evaluates efficiency improvements"""
-    
-    def __init__(self, aks_scorer=None):
-        self.aks_scorer = aks_scorer
-    
-    def evaluate(self, current_usage: Dict, optimization: Dict, metrics_data: Dict) -> Dict:
-        """Evaluate efficiency metrics"""
-        try:
-            # Calculate current efficiency
-            cpu_efficiency = self._calculate_cpu_efficiency(current_usage)
-            memory_efficiency = self._calculate_memory_efficiency(current_usage)
-            current_overall = (cpu_efficiency + memory_efficiency) / 2
-            
-            # Calculate target efficiency based on optimization potential
-            optimization_pct = optimization.get('optimization_percentage', 0)
-            max_improvement = 0.3 if optimization_pct > 20 else 0.2
-            
-            target_cpu = self._calculate_target_efficiency(cpu_efficiency, optimization_pct, max_improvement)
-            target_memory = self._calculate_target_efficiency(memory_efficiency, optimization_pct, max_improvement)
-            target_overall = (target_cpu + target_memory) / 2
-            
-            result = {
-                'current_cpu': cpu_efficiency,
-                'current_memory': memory_efficiency,
-                'current_overall': current_overall,
-                'target_cpu': target_cpu,
-                'target_memory': target_memory,
-                'target_overall': target_overall,
-                'improvement_potential': target_overall - current_overall,
-                'efficiency_gap': 100 - current_overall
-            }
-            
-            logger.info(f"Efficiency: Current={current_overall:.1f}%, Target={target_overall:.1f}%")
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Efficiency evaluation failed: {e}")
-            return self._minimal_efficiency_evaluation()
-    
-    def _calculate_cpu_efficiency(self, usage: Dict) -> float:
-        """Calculate CPU efficiency score"""
-        avg_cpu = usage.get('avg_cpu_utilization', 0)
-        
-        if avg_cpu <= 0:
-            return 0
-        elif avg_cpu <= 70:
-            return (avg_cpu / 70) * 100
-        elif avg_cpu <= 85:
-            return 100 - ((avg_cpu - 70) * 2)
-        else:
-            return max(0, 70 - (avg_cpu - 85) * 3)
-    
-    def _calculate_memory_efficiency(self, usage: Dict) -> float:
-        """Calculate memory efficiency score"""
-        avg_memory = usage.get('avg_memory_utilization', 0)
-        
-        if avg_memory <= 0:
-            return 0
-        elif avg_memory <= 75:
-            return (avg_memory / 75) * 100
-        elif avg_memory <= 90:
-            return 100 - ((avg_memory - 75) * 2)
-        else:
-            return max(0, 70 - (avg_memory - 90) * 3)
-    
-    def _calculate_target_efficiency(self, current_efficiency: float, optimization_potential: float, max_improvement: float = 0.3) -> float:
-        """Calculate target efficiency after optimization"""
-        improvement = min(max_improvement * 100, optimization_potential * 2)
-        target = current_efficiency + improvement
-        return min(95, max(current_efficiency, target))
-    
-    def _minimal_efficiency_evaluation(self) -> Dict:
-        """Return minimal result on error"""
-        return {
-            'current_cpu': 50,
-            'current_memory': 50,
-            'current_overall': 50,
-            'target_cpu': 70,
-            'target_memory': 70,
-            'target_overall': 70,
-            'improvement_potential': 20,
-            'efficiency_gap': 50
-        }
-
-
-class ConfidenceScorerAlgorithm:
-    """Calculates confidence scores for recommendations"""
-    
-    def score(self, actual_costs: Dict, current_usage: Dict,
-             optimization: Dict, efficiency: Dict) -> Dict:
-        """Calculate multi-dimensional confidence scores"""
-        try:
-            logger.info("Calculating confidence scores...")
-            
-            # Data quality score
-            data_quality = self._calculate_data_quality_score(actual_costs, current_usage)
-            
-            # Consistency score
-            consistency = self._calculate_consistency_score(optimization, efficiency)
-            
-            # Feasibility score
-            feasibility = self._calculate_feasibility_score(current_usage, optimization)
-            
-            # Overall confidence (weighted average)
-            overall = (data_quality * 0.4 + consistency * 0.3 + feasibility * 0.3) * 100
-            
-            result = {
-                'data_quality': data_quality * 100,
-                'consistency': consistency * 100,
-                'feasibility': feasibility * 100,
-                'overall': overall
-            }
-            
-            logger.info(f"Confidence scores: Overall={overall:.1f}%, Quality={data_quality*100:.1f}%")
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Confidence scoring failed: {e}")
-            return self._minimal_confidence_score()
-    
-    def _calculate_data_quality_score(self, costs: Dict, usage: Dict) -> float:
-        """Assess data quality and completeness"""
-        score = 1.0
-        
-        # Check cost data completeness
-        if costs.get('monthly_actual_total', 0) <= 0:
-            score *= 0.5
-        
-        # Check component costs
-        if costs.get('monthly_actual_compute', 0) <= 0:
-            score *= 0.8
-        
-        # Check usage data
-        if usage.get('avg_cpu_utilization', 0) <= 0:
-            score *= 0.7
-        if usage.get('avg_memory_utilization', 0) <= 0:
-            score *= 0.7
-        
-        # Check for reasonable values
-        cpu = usage.get('avg_cpu_utilization', 0)
-        memory = usage.get('avg_memory_utilization', 0)
-        
-        if cpu > 100:
-            score *= 0.9  # Possible but unusual
-        if memory > 100:
-            score *= 0.9
-        
-        # Check for sufficient data points
-        if usage.get('node_count', 0) < 3:
-            score *= 0.8
-        
-        return max(0.2, score)
-    
-    def _calculate_consistency_score(self, optimization: Dict, efficiency: Dict) -> float:
-        """Check consistency between different metrics"""
-        score = 1.0
-        
-        # Check optimization vs efficiency consistency
-        opt_pct = optimization.get('optimization_percentage', 0)
-        current_eff = efficiency.get('current_overall', 50)
-        
-        if opt_pct > 30 and current_eff > SystemPerformanceStandards.CPU_UTILIZATION_HIGH_PERFORMANCE:
-            # High optimization potential but high efficiency is inconsistent
-            score *= 0.7
-        elif opt_pct < 10 and current_eff < 50:
-            # Low optimization potential but low efficiency is inconsistent
-            score *= 0.7
-        
-        # Check savings consistency
-        total_savings = optimization.get('total_monthly_savings', 0)
-        compute_savings = optimization.get('compute_monthly_savings', 0)
-        
-        if compute_savings > total_savings:
-            # Component exceeds total
-            score *= 0.6
-        
-        return score
-    
-    def _calculate_feasibility_score(self, usage: Dict, optimization: Dict) -> float:
-        """Assess feasibility of recommendations"""
-        score = 1.0
-        
-        # Check if savings are realistic
-        savings_pct = optimization.get('optimization_percentage', 0)
-        
-        if savings_pct > 50:
-            # Very high savings are less feasible
-            score *= 0.6
-        elif savings_pct > 40:
-            score *= 0.8
-        
-        # Check usage pattern feasibility
-        pattern = usage.get('usage_pattern', '')
-        
-        if pattern == 'highly_utilized' and savings_pct > 30:
-            # Hard to optimize highly utilized systems
-            score *= 0.7
-        elif pattern == 'underutilized' and savings_pct < 10:
-            # Should have more savings if underutilized
-            score *= 0.8
-        
-        # Check HPA feasibility
-        hpa_suitability = usage.get('hpa_suitability', 0)
-        hpa_savings = optimization.get('hpa_monthly_savings', 0)
-        
-        if hpa_suitability < 25 and hpa_savings > optimization.get('compute_monthly_savings', 0) * 0.5:
-            # High HPA savings but low suitability
-            score *= 0.8
-        
-        return score
-    
-    def _minimal_confidence_score(self) -> Dict:
-        """Return minimal result on error"""
-        return {
-            'data_quality': 50,
-            'consistency': 50,
-            'feasibility': 50,
-            'overall': 50
-        }

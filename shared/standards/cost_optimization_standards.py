@@ -66,6 +66,21 @@ class CostCalculationStandards:
     CONSERVATIVE_SAVINGS_FACTOR = 0.7     # 70% of calculated savings (conservative)
     MODERATE_SAVINGS_FACTOR = 0.85        # 85% of calculated savings (moderate)
     AGGRESSIVE_SAVINGS_FACTOR = 1.0       # 100% of calculated savings (aggressive)
+    
+    # =============================================
+    # COST STRUCTURE PROPORTION STANDARDS 
+    # Based on Azure Well-Architected Framework and FinOps best practices
+    # =============================================
+    
+    # Monitoring & Observability Cost Proportions (percentage of total cost)
+    MONITORING_COST_OPTIMAL_PROPORTION = 0.05      # 5% optimal proportion
+    MONITORING_COST_MAXIMUM_PROPORTION = 0.10      # 10% maximum acceptable proportion
+    MONITORING_COST_CRITICAL_PROPORTION = 0.20     # 20% critical threshold (needs immediate action)
+    
+    # Compute Cost Proportions
+    COMPUTE_COST_MINIMUM_PROPORTION = 0.25         # 25% minimum (below this suggests inefficiency)
+    COMPUTE_COST_OPTIMAL_PROPORTION = 0.40         # 40% optimal proportion
+    COMPUTE_COST_MAXIMUM_PROPORTION = 0.60         # 60% maximum (above suggests under-optimization)
 
 
 class HorizontalPodAutoscalerCostStandards:
