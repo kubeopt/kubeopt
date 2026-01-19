@@ -318,9 +318,9 @@ class KubernetesDataCache:
             
             # BATCH 12: Metrics - CRITICAL for real-time CPU data (prefer over HPA metrics)
             # kubectl top provides actual current usage vs HPA's potentially stale metrics
-            # Added timeout and retry logic to handle metrics-server intermittent issues
-            "metrics_nodes": "timeout 30 kubectl top nodes --no-headers 2>/dev/null || timeout 30 kubectl top nodes --no-headers 2>/dev/null || echo ''",
-            "metrics_pods": "timeout 30 kubectl top pods --all-namespaces --no-headers 2>/dev/null || timeout 30 kubectl top pods --all-namespaces --no-headers 2>/dev/null || echo ''",
+            # Retry is handled in _execute_batched_commands for metrics failures
+            "metrics_nodes": "kubectl top nodes --no-headers",
+            "metrics_pods": "kubectl top pods --all-namespaces --no-headers",
             
             # BATCH 13: Cluster info - just counts, version will come from Azure SDK
             "cluster_info": '''echo "NODES:$(kubectl get nodes --no-headers 2>/dev/null | wc -l)|NAMESPACES:$(kubectl get namespaces --no-headers 2>/dev/null | wc -l)"''',
@@ -961,8 +961,21 @@ class KubernetesDataCache:
         
         for key, cmd in commands.items():
             try:
-                logger.info(f"🎯 {self.cluster_name}: Executing batch '{key}'...")
-                output = self._execute_kubectl_command(cmd, timeout=180)
+                # Special handling for metrics commands - add delay and retry
+                if key in ["metrics_nodes", "metrics_pods"] and attempt == 1:
+                    # Delay metrics collection to let metrics-server warm up
+                    logger.info(f"⏱️ {self.cluster_name}: Delaying metrics batch '{key}' by 2 seconds for metrics-server...")
+                    time.sleep(2)
+                
+                logger.info(f"🎯 {self.cluster_name}: Executing batch '{key}' (attempt {attempt})...")
+                
+                # Increase timeout for metrics commands on retry
+                timeout = 180
+                if key in ["metrics_nodes", "metrics_pods"] and attempt > 1:
+                    timeout = 240  # Give more time on retry
+                    logger.info(f"⏱️ {self.cluster_name}: Using extended timeout {timeout}s for metrics retry")
+                
+                output = self._execute_kubectl_command(cmd, timeout=timeout)
                 
                 # DEBUG: Log EVERY batch output
                 logger.info(f"🔍 DEBUG {self.cluster_name}: Batch '{key}' raw output: {output[:500] if output else 'EMPTY'}")
@@ -975,16 +988,26 @@ class KubernetesDataCache:
                     results[key] = ""  # Empty string is valid output
                     logger.info(f"✅ {self.cluster_name}: Batch '{key}' succeeded (no critical events - healthy cluster)")
                 elif key in ["metrics_nodes", "metrics_pods"]:
-                    # Metrics-server intermittent issues - treat as soft failure, not critical error
-                    results[key] = ""  # Empty string allows analysis to continue
-                    logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' returned no data (metrics-server issue - analysis will continue with reduced metrics)")
+                    # On first attempt, mark as failed to trigger retry
+                    if attempt == 1:
+                        failed_commands[key] = cmd
+                        logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' returned no data (will retry)")
+                    else:
+                        # On retry, accept empty as soft failure
+                        results[key] = ""  # Empty string allows analysis to continue
+                        logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' returned no data after retry (metrics-server issue - analysis will continue with reduced metrics)")
                 else:
                     failed_commands[key] = cmd
                     logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' returned no data")
                     
             except Exception as e:
-                failed_commands[key] = cmd
-                logger.error(f"❌ {self.cluster_name}: Batch '{key}' failed: {e}")
+                # Special handling for metrics on first attempt
+                if key in ["metrics_nodes", "metrics_pods"] and attempt == 1:
+                    failed_commands[key] = cmd
+                    logger.warning(f"⚠️ {self.cluster_name}: Batch '{key}' failed (will retry): {e}")
+                else:
+                    failed_commands[key] = cmd
+                    logger.error(f"❌ {self.cluster_name}: Batch '{key}' failed: {e}")
         
         return results, failed_commands
     
