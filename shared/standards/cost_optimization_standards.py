@@ -81,6 +81,31 @@ class CostCalculationStandards:
     COMPUTE_COST_MINIMUM_PROPORTION = 0.25         # 25% minimum (below this suggests inefficiency)
     COMPUTE_COST_OPTIMAL_PROPORTION = 0.40         # 40% optimal proportion
     COMPUTE_COST_MAXIMUM_PROPORTION = 0.60         # 60% maximum (above suggests under-optimization)
+    
+    # Storage Cost Proportions
+    STORAGE_COST_OPTIMAL_PROPORTION = 0.15         # 15% optimal proportion
+    STORAGE_COST_MAXIMUM_PROPORTION = 0.25         # 25% maximum acceptable proportion
+    
+    # Networking Cost Proportions
+    NETWORKING_COST_OPTIMAL_PROPORTION = 0.10      # 10% optimal proportion
+    NETWORKING_COST_MAXIMUM_PROPORTION = 0.15      # 15% maximum acceptable proportion
+    
+    # Control Plane Cost Proportions
+    CONTROL_PLANE_COST_OPTIMAL_PROPORTION = 0.05   # 5% optimal proportion
+    CONTROL_PLANE_COST_MAXIMUM_PROPORTION = 0.10   # 10% maximum acceptable proportion
+    
+    # Registry Cost Proportions
+    REGISTRY_COST_OPTIMAL_PROPORTION = 0.05        # 5% optimal proportion
+    REGISTRY_COST_MAXIMUM_PROPORTION = 0.10        # 10% maximum acceptable proportion
+    
+    # Idle Resources Cost Proportions (should ideally be zero)
+    IDLE_RESOURCES_OPTIMAL_PROPORTION = 0.00       # 0% optimal (no idle resources)
+    IDLE_RESOURCES_WARNING_PROPORTION = 0.05       # 5% warning threshold
+    IDLE_RESOURCES_CRITICAL_PROPORTION = 0.10      # 10% critical threshold
+    
+    # Other Services Cost Proportions
+    OTHER_SERVICES_OPTIMAL_PROPORTION = 0.20       # 20% for other services
+    OTHER_SERVICES_MAXIMUM_PROPORTION = 0.30       # 30% maximum for other services
 
 
 class HorizontalPodAutoscalerCostStandards:
@@ -377,6 +402,11 @@ class AdvancedOptimizationStandards:
     ZOMBIE_SERVICE_CLEANUP_SAVINGS = 8        # $8/month per zombie service
     LOAD_BALANCER_CONSOLIDATION_SAVINGS = 22  # $22/month per LB consolidated
     ORPHANED_PV_CLEANUP_SAVINGS = 15          # $15/month per orphaned PV
+    
+    # Idle resource elimination factors
+    IDLE_RESOURCE_ELIMINATION_FACTOR = 0.80   # Can eliminate 80% of idle resources
+    IDLE_POD_CLEANUP_FACTOR = 0.90            # Can cleanup 90% of succeeded/failed pods
+    IDLE_PVC_CLEANUP_FACTOR = 0.85            # Can cleanup 85% of unbound PVCs
 
 
 class CostSavingsTargetStandards:
