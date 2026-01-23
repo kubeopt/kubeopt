@@ -6,66 +6,100 @@
 
 {% block content %}
 <div class="dashboard-layout">
-    <!-- Sidebar -->
-    <aside class="sidebar" id="sidebar">
+    <!-- Fixed Icon Sidebar -->
+    <aside class="sidebar-icons" id="sidebar-icons">
         <!-- Toggle Button -->
         <button class="sidebar-toggle" onclick="toggleSidebar()">
-            <i class="fas fa-chevron-right"></i>
+            <i class="fas fa-bars"></i>
         </button>
         
-        <!-- Navigation -->
-        <nav class="sidebar-nav">
+        <!-- Icon Navigation -->
+        <nav class="icon-nav">
             <div class="nav-section">
-                <div class="nav-section-title">Dashboard</div>
                 <div class="nav-item">
                     <a href="#" class="nav-link active" data-view="overview" data-tooltip="Overview">
-                        <span class="nav-icon">
-                            <i class="fas fa-chart-line"></i>
-                        </span>
-                        <span class="nav-text">Overview</span>
+                        <i class="fas fa-chart-line"></i>
                     </a>
                 </div>
                 {% if feature_flags.show_ai_plans %}
                 <div class="nav-item">
                     <a href="#" class="nav-link" data-view="implementation" data-tooltip="Implementation">
-                        <span class="nav-icon">
-                            <i class="fas fa-tasks"></i>
-                        </span>
-                        <span class="nav-text">Implementation</span>
+                        <i class="fas fa-tasks"></i>
                     </a>
                 </div>
                 {% endif %}
                 <div class="nav-item">
                     <a href="#" class="nav-link" data-view="alerts" data-tooltip="Alerts">
-                        <span class="nav-icon">
-                            <i class="fas fa-bell"></i>
-                        </span>
-                        <span class="nav-text">Alerts</span>
+                        <i class="fas fa-bell"></i>
                     </a>
                 </div>
             </div>
             
             <div class="nav-section">
-                <div class="nav-section-title">System</div>
                 <div class="nav-item">
                     <a href="/settings" class="nav-link" data-tooltip="Settings">
-                        <span class="nav-icon">
-                            <i class="fas fa-cog"></i>
-                        </span>
-                        <span class="nav-text">Settings</span>
+                        <i class="fas fa-cog"></i>
                     </a>
                 </div>
                 <div class="nav-item">
                     <a href="/clusters" class="nav-link" data-tooltip="All Clusters">
-                        <span class="nav-icon">
-                            <i class="fas fa-arrow-left"></i>
-                        </span>
-                        <span class="nav-text">All Clusters</span>
+                        <i class="fas fa-arrow-left"></i>
                     </a>
                 </div>
             </div>
         </nav>
     </aside>
+    
+    <!-- Expandable Menu Panel -->
+    <aside class="sidebar-menu" id="sidebar-menu">
+        <!-- Invisible spacer to match toggle button in icon panel -->
+        <div class="menu-toggle-spacer"></div>
+        
+        <nav class="menu-nav">
+            <div class="nav-section">
+                <!-- <div class="nav-section-title">Dashboard</div> -->
+                <div class="nav-item">
+                    <a href="#" class="nav-link active" data-view="overview">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Overview</span>
+                    </a>
+                </div>
+                {% if feature_flags.show_ai_plans %}
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="implementation">
+                        <i class="fas fa-tasks"></i>
+                        <span>Implementation</span>
+                    </a>
+                </div>
+                {% endif %}
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="alerts">
+                        <i class="fas fa-bell"></i>
+                        <span>Alerts</span>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <!-- <div class="nav-section-title">System</div> -->
+                <div class="nav-item">
+                    <a href="/settings" class="nav-link">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="/clusters" class="nav-link">
+                        <i class="fas fa-arrow-left"></i>
+                        <span>All Clusters</span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+    </aside>
+    
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
     
     <!-- Main Content -->
     <main class="main-content">

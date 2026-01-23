@@ -36,6 +36,12 @@ from infrastructure.persistence.processing.metrics_processor import get_aks_metr
 from infrastructure.services.cache_manager import save_to_cache
 from shared.utils.utils import validate_cost_data
 
+# Import cost optimization standards for industry benchmarks
+from shared.standards.cost_optimization_standards import (
+    CostCalculationStandards,
+    AdvancedOptimizationStandards
+)
+
 # Plan generation moved to external API
 # from infrastructure.plan_generation import AIImplementationPlanGenerator
 import asyncio
@@ -1010,9 +1016,10 @@ class MultiSubscriptionAnalysisEngine:
         if not basic_analysis:
             raise ValueError("basic_analysis cannot be empty")
         
-        # Extract base cost data
+        # Extract base cost data - ENHANCED with actual costs and industry standards
+        total_cost = basic_analysis.get('total_cost', 0)
         cost_data = {
-            "total_cost": basic_analysis.get('total_cost', 0),
+            "total_cost": total_cost,
             "node_cost": basic_analysis.get('node_cost', 0),
             "storage_cost": basic_analysis.get('storage_cost', 0),
             "networking_cost": basic_analysis.get('networking_cost', 0),
@@ -1020,7 +1027,25 @@ class MultiSubscriptionAnalysisEngine:
             "registry_cost": basic_analysis.get('registry_cost', 0),
             "other_cost": basic_analysis.get('other_cost', 0),
             "cost_period_days": basic_analysis.get('analysis_period_days', 30),
-            "currency": "USD"
+            "currency": "USD",
+            
+            # ENHANCED: Add actual cost breakdown
+            "actual_costs": {
+                "compute": basic_analysis.get('monthly_actual_compute', 0),
+                "storage": basic_analysis.get('monthly_actual_storage', 0),
+                "networking": basic_analysis.get('monthly_actual_networking', 0),
+                "monitoring": basic_analysis.get('monthly_actual_monitoring', 0),
+                "idle_resources": basic_analysis.get('monthly_actual_idle', 0),
+                "control_plane": basic_analysis.get('monthly_actual_control_plane', 0),
+                "registry": basic_analysis.get('monthly_actual_registry', 0),
+                "total": basic_analysis.get('monthly_actual_total', total_cost)
+            },
+            
+            # ENHANCED: Add optimal cost targets using industry standards from standards file
+            "optimal_costs": self._get_optimal_cost_targets(total_cost),
+            
+            # ENHANCED: Add cost variance analysis
+            "cost_variance": self._calculate_cost_variance(basic_analysis)
         }
         
         # Extract cost savings data from analysis
@@ -1059,7 +1084,7 @@ class MultiSubscriptionAnalysisEngine:
         if not isinstance(node_analysis, dict):
             node_analysis = {}
         
-        # Build comprehensive savings structure
+        # Build comprehensive savings structure - ENHANCED with new categories
         savings_data = {
             "total_monthly_savings": total_savings,
             "annual_savings": annual_savings,
@@ -1070,6 +1095,9 @@ class MultiSubscriptionAnalysisEngine:
                 "storage_optimization_savings": basic_analysis.get('storage_savings', 0),
                 "networking_optimization_savings": opt_analysis.get('networking_monthly_savings', 0),
                 "node_optimization_savings": node_analysis.get('potential_savings', 0),
+                "monitoring_optimization_savings": basic_analysis.get('monitoring_monthly_savings', 0),
+                "idle_resource_savings": basic_analysis.get('idle_monthly_savings', 0),
+                "infrastructure_optimization_savings": basic_analysis.get('infrastructure_monthly_savings', 0),
                 "core_optimization_savings": opt_analysis.get('core_optimization_savings', 0),
                 "compute_optimization_savings": opt_analysis.get('compute_optimization_savings', 0),
                 "infrastructure_savings": opt_analysis.get('infrastructure_savings', 0),
@@ -1536,7 +1564,7 @@ class MultiSubscriptionAnalysisEngine:
             return []
     
     def _get_optimization_opportunities(self, cluster_id: str, basic_analysis: dict) -> List[dict]:
-        """Extract specific optimization opportunities with potential savings"""
+        """Extract specific optimization opportunities with potential savings - ENHANCED with new categories"""
         try:
             opportunities = []
             
@@ -1559,6 +1587,82 @@ class MultiSubscriptionAnalysisEngine:
                         "category": self._categorize_optimization_type(opp.get('type', 'unknown'))
                     }
                     opportunities.append(opportunity)
+            
+            # ENHANCED: Add monitoring cost optimization opportunities
+            monitoring_monthly_savings = basic_analysis.get('monitoring_monthly_savings', 0)
+            monitoring_cost = basic_analysis.get('monthly_actual_monitoring', 0)
+            total_cost = basic_analysis.get('monthly_actual_total', 0)
+            
+            if monitoring_monthly_savings > 0 and monitoring_cost > 0:
+                monitoring_percentage = (monitoring_cost / total_cost * 100) if total_cost > 0 else 0
+                optimal_percentage = CostCalculationStandards.MONITORING_COST_OPTIMAL_PROPORTION * 100
+                max_percentage = CostCalculationStandards.MONITORING_COST_MAXIMUM_PROPORTION * 100
+                
+                opportunities.append({
+                    "type": "monitoring_optimization",
+                    "workload": "cluster-monitoring",
+                    "namespace": "kube-system",
+                    "description": f"Monitoring costs are {monitoring_percentage:.1f}% of total cluster cost (industry standard: {optimal_percentage:.0f}-{max_percentage:.0f}%)",
+                    "current_state": f"Current monitoring cost: ${monitoring_cost:.2f}/month ({monitoring_percentage:.1f}% of total)",
+                    "recommended_action": "Review and optimize monitoring retention, reduce metric collection frequency, implement sampling",
+                    "potential_monthly_savings": monitoring_monthly_savings,
+                    "implementation_difficulty": "medium",
+                    "risk_level": "low",
+                    "estimated_implementation_time": "2-4 hours",
+                    "category": "monitoring_cost_optimization",
+                    "industry_standard": f"{optimal_percentage:.0f}-{max_percentage:.0f}% of total cluster cost",
+                    "detailed_steps": [
+                        "Reduce Prometheus retention from 30 days to 15 days",
+                        "Implement metric sampling for high-cardinality metrics",
+                        "Remove unused Grafana dashboards and queries",
+                        "Optimize log retention policies in Azure Monitor"
+                    ]
+                })
+            
+            # ENHANCED: Add idle resource optimization opportunities
+            idle_monthly_savings = basic_analysis.get('idle_monthly_savings', 0)
+            idle_cost = basic_analysis.get('monthly_actual_idle', 0)
+            
+            if idle_monthly_savings > 0 and idle_cost > 0:
+                opportunities.append({
+                    "type": "idle_resource_cleanup",
+                    "workload": "idle-resources",
+                    "namespace": "all",
+                    "description": f"Idle resources detected consuming ${idle_cost:.2f}/month with no active workload",
+                    "current_state": f"Idle resource cost: ${idle_cost:.2f}/month",
+                    "recommended_action": "Identify and remove idle pods, unused PVCs, and orphaned resources",
+                    "potential_monthly_savings": idle_monthly_savings,
+                    "implementation_difficulty": "low",
+                    "risk_level": "low",
+                    "estimated_implementation_time": "1-2 hours",
+                    "category": "idle_resource_optimization",
+                    "detailed_steps": [
+                        "kubectl get pods --all-namespaces --field-selector status.phase=Succeeded",
+                        "kubectl get pvc --all-namespaces -o json | jq '.items[] | select(.status.phase==\"Bound\" and .metadata.annotations.\"volume.kubernetes.io/selected-node\"==null)'",
+                        "Review and clean up completed jobs and their pods",
+                        "Remove unused ConfigMaps and Secrets"
+                    ]
+                })
+            
+            # ENHANCED: Add infrastructure-wide optimization opportunities
+            infrastructure_monthly_savings = basic_analysis.get('infrastructure_monthly_savings', 0)
+            usage_pattern = basic_analysis.get('usage_pattern', 'unknown')
+            
+            if infrastructure_monthly_savings > 0:
+                opportunities.append({
+                    "type": "infrastructure_optimization",
+                    "workload": "cluster-infrastructure",
+                    "namespace": "cluster-wide",
+                    "description": f"Infrastructure optimization opportunity based on {usage_pattern} usage pattern",
+                    "current_state": f"Usage pattern: {usage_pattern}",
+                    "recommended_action": "Implement cluster-wide optimizations based on usage patterns",
+                    "potential_monthly_savings": infrastructure_monthly_savings,
+                    "implementation_difficulty": "high",
+                    "risk_level": "medium",
+                    "estimated_implementation_time": "1-2 days",
+                    "category": "infrastructure_optimization",
+                    "detailed_steps": self._get_infrastructure_optimization_steps(usage_pattern)
+                })
             
             # Method 2: Generate from HPA recommendations
             hpa_recs = basic_analysis.get('hpa_recommendations', {})
@@ -1644,6 +1748,12 @@ class MultiSubscriptionAnalysisEngine:
         """Categorize optimization types for better Claude understanding"""
         if 'networking' in opt_type.lower():
             return "network_cost_optimization"
+        elif 'monitoring' in opt_type.lower():
+            return "monitoring_cost_optimization"
+        elif 'idle' in opt_type.lower():
+            return "idle_resource_optimization"
+        elif 'infrastructure' in opt_type.lower():
+            return "infrastructure_optimization"
         elif 'rightsizing' in opt_type.lower() or 'resource' in opt_type.lower():
             return "workload_rightsizing"
         elif 'hpa' in opt_type.lower() or 'scaling' in opt_type.lower():
@@ -1654,6 +1764,87 @@ class MultiSubscriptionAnalysisEngine:
             return "azure_pricing_optimization"
         else:
             return "azure_best_practices"
+    
+    def _get_optimal_cost_targets(self, total_cost: float) -> dict:
+        """Get optimal cost targets based on industry standards from standards file"""
+        return {
+            "compute": total_cost * CostCalculationStandards.COMPUTE_COST_OPTIMAL_PROPORTION,
+            "storage": total_cost * CostCalculationStandards.STORAGE_COST_OPTIMAL_PROPORTION, 
+            "networking": total_cost * CostCalculationStandards.NETWORKING_COST_OPTIMAL_PROPORTION,
+            "monitoring": total_cost * CostCalculationStandards.MONITORING_COST_OPTIMAL_PROPORTION,
+            "idle_resources": total_cost * CostCalculationStandards.IDLE_RESOURCES_OPTIMAL_PROPORTION,
+            "control_plane": total_cost * CostCalculationStandards.CONTROL_PLANE_COST_OPTIMAL_PROPORTION,
+            "registry": total_cost * CostCalculationStandards.REGISTRY_COST_OPTIMAL_PROPORTION,
+            "other": total_cost * CostCalculationStandards.OTHER_SERVICES_OPTIMAL_PROPORTION
+        }
+    
+    def _calculate_cost_variance(self, basic_analysis: dict) -> dict:
+        """Calculate variance between actual and optimal costs using industry standards"""
+        total_cost = basic_analysis.get('total_cost', 0)
+        if total_cost <= 0:
+            return {}
+        
+        monitoring_cost = basic_analysis.get('monthly_actual_monitoring', 0)
+        compute_cost = basic_analysis.get('monthly_actual_compute', 0)
+        storage_cost = basic_analysis.get('monthly_actual_storage', 0)
+        idle_cost = basic_analysis.get('monthly_actual_idle', 0)
+        
+        variance_data = {
+            "monitoring_variance": {
+                "actual_percentage": (monitoring_cost / total_cost * 100) if total_cost > 0 else 0,
+                "optimal_percentage": CostCalculationStandards.MONITORING_COST_OPTIMAL_PROPORTION * 100,
+                "variance_percentage": ((monitoring_cost / total_cost) - CostCalculationStandards.MONITORING_COST_OPTIMAL_PROPORTION) * 100 if total_cost > 0 else 0,
+                "status": "over-provisioned" if (monitoring_cost / total_cost) > CostCalculationStandards.MONITORING_COST_MAXIMUM_PROPORTION else "optimal"
+            },
+            "compute_variance": {
+                "actual_percentage": (compute_cost / total_cost * 100) if total_cost > 0 else 0,
+                "optimal_percentage": CostCalculationStandards.COMPUTE_COST_OPTIMAL_PROPORTION * 100,
+                "variance_percentage": ((compute_cost / total_cost) - CostCalculationStandards.COMPUTE_COST_OPTIMAL_PROPORTION) * 100 if total_cost > 0 else 0,
+                "status": "over-provisioned" if (compute_cost / total_cost) > CostCalculationStandards.COMPUTE_COST_MAXIMUM_PROPORTION else "optimal"
+            },
+            "idle_resource_variance": {
+                "actual_percentage": (idle_cost / total_cost * 100) if total_cost > 0 else 0,
+                "optimal_percentage": CostCalculationStandards.IDLE_RESOURCES_OPTIMAL_PROPORTION * 100,
+                "variance_percentage": (idle_cost / total_cost * 100) if total_cost > 0 else 0,
+                "status": "wastage" if (idle_cost / total_cost) > CostCalculationStandards.IDLE_RESOURCES_WARNING_PROPORTION else "optimal"
+            }
+        }
+        
+        return variance_data
+    
+    def _get_infrastructure_optimization_steps(self, usage_pattern: str) -> List[str]:
+        """Get specific optimization steps based on usage pattern"""
+        if usage_pattern == 'underutilized':
+            return [
+                "Enable cluster autoscaler with proper min/max node counts",
+                "Implement pod disruption budgets for safe node scaling",
+                "Use Azure Spot instances for non-critical workloads",
+                "Configure node pool taints and tolerations for workload segregation",
+                "Review and optimize node SKU sizes based on actual utilization"
+            ]
+        elif usage_pattern == 'variable':
+            return [
+                "Implement KEDA for event-driven autoscaling",
+                "Use multiple node pools with different SKUs for workload tiers",
+                "Enable burst to Azure Container Instances for peak loads",
+                "Configure time-based scaling for predictable patterns",
+                "Implement request/limit ratios aligned with workload behavior"
+            ]
+        elif usage_pattern == 'well_balanced':
+            return [
+                "Review Azure Reserved Instances for stable workloads",
+                "Optimize network policies to reduce cross-AZ traffic",
+                "Implement pod topology spread constraints",
+                "Fine-tune resource requests and limits",
+                "Consider Azure Savings Plans for predictable usage"
+            ]
+        else:
+            return [
+                "Perform comprehensive workload analysis",
+                "Implement monitoring to identify usage patterns",
+                "Review current resource allocation strategy",
+                "Consider workload consolidation opportunities"
+            ]
 
     def _get_optimized_storage_details(self, cluster_id: str, basic_analysis: dict) -> List[dict]:
         """

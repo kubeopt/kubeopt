@@ -38,23 +38,21 @@ class UnifiedDashboard {
         this.initializeDashboardModule();
     }
 
-    // Sidebar Management
+    // Sidebar Management - Two Panel System
     toggleSidebar() {
-        console.log('Toggle sidebar function called');
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar) {
-            sidebar.classList.toggle('collapsed');
+        console.log('Toggle sidebar function called - Two Panel System');
+        const sidebarMenu = document.getElementById('sidebar-menu');
+        if (sidebarMenu) {
+            sidebarMenu.classList.toggle('expanded');
             
             // Save state
-            const isCollapsed = sidebar.classList.contains('collapsed');
-            localStorage.setItem('sidebarCollapsed', isCollapsed);
+            const isExpanded = sidebarMenu.classList.contains('expanded');
+            localStorage.setItem('sidebarExpanded', isExpanded);
             
             // Update toggle button icon based on state
             const toggleBtn = document.querySelector('.sidebar-toggle i');
             if (toggleBtn) {
-                toggleBtn.className = isCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
-                // Add visual feedback
-                toggleBtn.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+                toggleBtn.className = isExpanded ? 'fas fa-times' : 'fas fa-bars';
             }
             
             // Trigger chart resize after sidebar animation completes
@@ -62,27 +60,26 @@ class UnifiedDashboard {
                 this.triggerChartResize();
             }, 350); // Wait for sidebar transition to complete
             
-            console.log('Sidebar collapsed state:', isCollapsed);
+            console.log('Sidebar menu expanded state:', isExpanded);
         } else {
-            console.error('Sidebar element not found');
+            console.error('Sidebar menu element not found');
         }
     }
 
     restoreSidebarState() {
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar) {
-            const savedState = localStorage.getItem('sidebarCollapsed');
-            const isCollapsed = savedState === 'true';
+        const sidebarMenu = document.getElementById('sidebar-menu');
+        if (sidebarMenu) {
+            const savedState = localStorage.getItem('sidebarExpanded');
+            const isExpanded = savedState === 'true';
             
-            if (isCollapsed) {
-                sidebar.classList.add('collapsed');
+            if (isExpanded) {
+                sidebarMenu.classList.add('expanded');
             }
             
             // Set correct icon based on state
             const toggleBtn = document.querySelector('.sidebar-toggle i');
             if (toggleBtn) {
-                toggleBtn.className = isCollapsed ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
-                toggleBtn.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+                toggleBtn.className = isExpanded ? 'fas fa-times' : 'fas fa-bars';
             }
         }
     }

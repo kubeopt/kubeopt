@@ -5,20 +5,53 @@ Settings - AKS Cost Optimizer
 {% endblock %}
 
 {% block content %}
-<div class="settings-layout">
-    <!-- Header -->
-    <header class="settings-header">
-        <div class="header-content">
-            <div class="breadcrumb">
-                <a href="#" class="breadcrumb-link" id="back-link">
-                    <i class="fas fa-arrow-left"></i>
-                    <span id="back-text">Back to Clusters</span>
-                </a>
-            </div>
-            <h1 class="settings-title">Settings</h1>
-            <p class="settings-subtitle">Configure your AKS Cost Optimizer preferences and integrations</p>
-        </div>
-    </header>
+<div class="dashboard-layout">
+    <!-- Fixed Icon Sidebar -->
+    <aside class="sidebar-icons" id="sidebar-icons">
+        <!-- Toggle Button -->
+        <button class="sidebar-toggle" onclick="toggleSidebar()">
+            <i class="fas fa-bars"></i>
+        </button>
+        
+        <!-- Icon Navigation -->
+        <nav class="icon-nav" id="settings-icon-nav">
+            <!-- Navigation will be populated by JavaScript based on referrer -->
+        </nav>
+    </aside>
+    
+    <!-- Expandable Menu Panel -->
+    <aside class="sidebar-menu" id="sidebar-menu">
+        <!-- Invisible spacer to match toggle button in icon panel -->
+        <div class="menu-toggle-spacer"></div>
+        
+        <nav class="menu-nav" id="settings-menu-nav">
+            <!-- Navigation will be populated by JavaScript based on referrer -->
+        </nav>
+    </aside>
+    
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="settings-layout">
+            <!-- Header -->
+            <header class="settings-header">
+                <div class="header-content">
+                    <div class="header-main">
+                        <div class="breadcrumb">
+                            <a href="#" class="breadcrumb-link" id="back-link">
+                                <i class="fas fa-arrow-left"></i>
+                                <span id="back-text">Back to Clusters</span>
+                            </a>
+                        </div>
+                        <div class="header-title-section">
+                            <h1 class="settings-title">Settings</h1>
+                            <p class="settings-subtitle">Configure your AKS Cost Optimizer preferences and integrations</p>
+                        </div>
+                    </div>
+                </div>
+            </header>
     
     <!-- Main Content -->
     <main class="settings-content">
@@ -65,12 +98,16 @@ Settings - AKS Cost Optimizer
                 <!-- General Settings -->
                 <section id="general-section" class="settings-section active">
                     <div class="section-header">
-                        <h2 class="section-title">General Settings</h2>
+                        <h2 class="section-title">
+                            <i class="fas fa-sliders-h"></i>
+                            General Settings
+                        </h2>
                         <p class="section-description">Core application settings - save automatically when changed</p>
                     </div>
                     
                     <div class="settings-card">
-                        <div class="setting-item">
+                        <div class="settings-grid">
+                            <div class="setting-item">
                                 <div class="setting-info">
                                     <h3 class="setting-title">Auto-Analysis</h3>
                                     <p class="setting-description">Automatically analyze clusters on schedule</p>
@@ -87,7 +124,7 @@ Settings - AKS Cost Optimizer
                             <div class="setting-item">
                                 <div class="setting-info">
                                     <h3 class="setting-title">Auto-Analysis Interval</h3>
-                                    <p class="setting-description">How often to run auto-analysis (e.g., 240m, 4h)</p>
+                                    <p class="setting-description">How often to run auto-analysis</p>
                                 </div>
                                 <div class="setting-control">
                                     <input type="text" name="auto_analysis_interval" class="setting-input" 
@@ -99,7 +136,7 @@ Settings - AKS Cost Optimizer
                             <div class="setting-item">
                                 <div class="setting-info">
                                     <h3 class="setting-title">Log Level</h3>
-                                    <p class="setting-description">Application logging detail level</p>
+                                    <p class="setting-description">Application logging level</p>
                                 </div>
                                 <div class="setting-control">
                                     <select name="log_level" id="log-level" class="setting-select">
@@ -114,7 +151,7 @@ Settings - AKS Cost Optimizer
                             <div class="setting-item">
                                 <div class="setting-info">
                                     <h3 class="setting-title">Database Cleanup</h3>
-                                    <p class="setting-description">Automatically delete old data to keep database size manageable</p>
+                                    <p class="setting-description">Auto-delete old data</p>
                                 </div>
                                 <div class="setting-control">
                                     <label class="toggle-switch">
@@ -124,11 +161,16 @@ Settings - AKS Cost Optimizer
                                     </label>
                                 </div>
                             </div>
-                            
+                        </div>
+                    </div>
+                    
+                    <!-- Data Management Settings -->
+                    <div class="settings-card">
+                        <div class="settings-grid">
                             <div class="setting-item">
                                 <div class="setting-info">
-                                    <h3 class="setting-title">Data Retention Period (Days)</h3>
-                                    <p class="setting-description">Delete data older than this many days (default: 90)</p>
+                                    <h3 class="setting-title">Data Retention (Days)</h3>
+                                    <p class="setting-description">Delete data older than days</p>
                                 </div>
                                 <div class="setting-control">
                                     <input type="number" name="database_retention_days" id="database-retention-days" class="setting-input" 
@@ -140,7 +182,7 @@ Settings - AKS Cost Optimizer
                             <div class="setting-item">
                                 <div class="setting-info">
                                     <h3 class="setting-title">Cleanup Interval (Hours)</h3>
-                                    <p class="setting-description">How often to run cleanup process (default: 24)</p>
+                                    <p class="setting-description">How often to run cleanup</p>
                                 </div>
                                 <div class="setting-control">
                                     <input type="number" name="database_cleanup_interval_hours" id="database-cleanup-interval" class="setting-input" 
@@ -151,8 +193,8 @@ Settings - AKS Cost Optimizer
 
                             <div class="setting-item">
                                 <div class="setting-info">
-                                    <h3 class="setting-title">Cost Cache Duration (Hours)</h3>
-                                    <p class="setting-description">How long to cache Azure cost data (default: 6)</p>
+                                    <h3 class="setting-title">Cache Duration (Hours)</h3>
+                                    <p class="setting-description">Cache Azure cost data</p>
                                 </div>
                                 <div class="setting-control">
                                     <input type="number" name="cost_cache_hours" id="cost-cache-hours" class="setting-input" 
@@ -165,17 +207,15 @@ Settings - AKS Cost Optimizer
                                 <div class="setting-info">
                                     <h3 class="setting-title">License Key</h3>
                                     <p class="setting-description">
-                                        Current License: <strong>{{ license_info.get('tier_display', 'Free') }}</strong>
-                                        {% if license_info.get('expires') %} - Expires: {{ license_info.get('expires') }}{% endif %}
-                                        {% if license_info.get('is_trial') %}<span style="color: #f59e0b;"> (Trial)</span>{% endif %}
+                                        License: <strong>{{ license_info.get('tier_display', 'Free') }}</strong>
+                                        {% if license_info.get('expires') %} - {{ license_info.get('expires') }}{% endif %}
                                     </p>
                                 </div>
                                 <div class="setting-control">
                                     <input type="text" name="license_key" id="license-key" value="{{ license_info.get('license_key', '') }}" 
-                                           class="setting-input" placeholder="Enter your license key (e.g., P6M-ABC123-250930-IMPL-AUTO)">
+                                           class="setting-input" placeholder="Enter license key">
                                 </div>
                             </div>
-                            
                         </div>
                     </div>
                 </section>
@@ -183,7 +223,10 @@ Settings - AKS Cost Optimizer
                 <!-- Notifications Settings -->
                 <section id="notifications-section" class="settings-section">
                     <div class="section-header">
-                        <h2 class="section-title">Notification Settings</h2>
+                        <h2 class="section-title">
+                            <i class="fas fa-bell"></i>
+                            Notification Settings
+                        </h2>
                         <p class="section-description">Configure how and when you receive notifications</p>
                     </div>
                     
@@ -195,7 +238,7 @@ Settings - AKS Cost Optimizer
                             <div class="setting-item">
                                 <div class="setting-info">
                                     <h3 class="setting-title">Email Notifications</h3>
-                                    <p class="setting-description">Configure email alerts for cost and performance monitoring</p>
+                                    <p class="setting-description">Configure email alerts for cost monitoring</p>
                                 </div>
                                 <div class="setting-control">
                                     <label class="toggle-switch">
@@ -204,65 +247,70 @@ Settings - AKS Cost Optimizer
                                     </label>
                                 </div>
                             </div>
+                        </div>
                             
-                            <div id="email-config" style="margin-top: 20px;">
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">SMTP Server</h3>
-                                    <p class="setting-description">Your email server address</p>
-                                </div>
-                                <div class="setting-control">
-                                    <input type="text" class="setting-input" id="smtp-server" name="smtp_server" placeholder="smtp.gmail.com">
-                                </div>
-                            </div>
-                            
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">SMTP Port</h3>
-                                    <p class="setting-description">Email server port (usually 587 for TLS)</p>
-                                </div>
-                                <div class="setting-control">
-                                    <input type="number" class="setting-input" id="smtp-port" name="smtp_port" placeholder="587" value="587">
-                                </div>
-                            </div>
-                            
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">SMTP Username</h3>
-                                    <p class="setting-description">Email account username</p>
-                                </div>
-                                <div class="setting-control">
-                                    <input type="text" class="setting-input" id="smtp-username" name="smtp_username" placeholder="your.email@gmail.com">
-                                </div>
-                            </div>
-                            
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">SMTP Password</h3>
-                                    <p class="setting-description">Email account password or app password</p>
-                                </div>
-                                <div class="setting-control">
-                                    <input type="password" class="setting-input" id="smtp-password" name="smtp_password" placeholder="••••••••">
-                                </div>
-                            </div>
-                            
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">From Email</h3>
-                                    <p class="setting-description">Sender email address</p>
-                                </div>
-                                <div class="setting-control">
-                                    <input type="email" class="setting-input" id="from-email" name="from_email" placeholder="alerts@yourdomain.com">
-                                </div>
-                            </div>
-                            
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">Email Recipients</h3>
-                                    <p class="setting-description">Comma-separated list of recipient emails</p>
-                                </div>
-                                <div class="setting-control">
-                                    <input type="text" class="setting-input" id="email-recipients" name="email_recipients" placeholder="admin@example.com, team@example.com">
+                        <div class="settings-card">
+                            <div id="email-config">
+                                <div class="settings-grid">
+                                    <div class="setting-item">
+                                        <div class="setting-info">
+                                            <h3 class="setting-title">SMTP Server</h3>
+                                            <p class="setting-description">Email server address</p>
+                                        </div>
+                                        <div class="setting-control">
+                                            <input type="text" class="setting-input" id="smtp-server" name="smtp_server" placeholder="smtp.gmail.com">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="setting-item">
+                                        <div class="setting-info">
+                                            <h3 class="setting-title">SMTP Port</h3>
+                                            <p class="setting-description">Server port (587 for TLS)</p>
+                                        </div>
+                                        <div class="setting-control">
+                                            <input type="number" class="setting-input" id="smtp-port" name="smtp_port" placeholder="587" value="587">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="setting-item">
+                                        <div class="setting-info">
+                                            <h3 class="setting-title">SMTP Username</h3>
+                                            <p class="setting-description">Email account username</p>
+                                        </div>
+                                        <div class="setting-control">
+                                            <input type="text" class="setting-input" id="smtp-username" name="smtp_username" placeholder="your.email@gmail.com">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="setting-item">
+                                        <div class="setting-info">
+                                            <h3 class="setting-title">SMTP Password</h3>
+                                            <p class="setting-description">Account password</p>
+                                        </div>
+                                        <div class="setting-control">
+                                            <input type="password" class="setting-input" id="smtp-password" name="smtp_password" placeholder="••••••••">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="setting-item">
+                                        <div class="setting-info">
+                                            <h3 class="setting-title">From Email</h3>
+                                            <p class="setting-description">Sender email address</p>
+                                        </div>
+                                        <div class="setting-control">
+                                            <input type="email" class="setting-input" id="from-email" name="from_email" placeholder="alerts@yourdomain.com">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="setting-item">
+                                        <div class="setting-info">
+                                            <h3 class="setting-title">Email Recipients</h3>
+                                            <p class="setting-description">Comma-separated recipient emails</p>
+                                        </div>
+                                        <div class="setting-control">
+                                            <input type="text" class="setting-input" id="email-recipients" name="email_recipients" placeholder="admin@example.com, team@example.com">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -280,57 +328,61 @@ Settings - AKS Cost Optimizer
                     </form>
                     
                     <!-- Slack Settings Card -->
-                    <form id="slack-form" method="POST" action="{{ url_for('save_settings') }}" style="margin-top: 20px;">
+                    <form id="slack-form" method="POST" action="{{ url_for('save_settings') }}">
                         <input type="hidden" name="section" value="slack">
                         
                         <div class="settings-card">
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Slack Integration</h3>
-                                <p class="setting-description">Send alerts to Slack channel</p>
-                            </div>
-                            <div class="setting-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="slack-enabled" name="slack_enabled">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Slack Integration</h3>
+                                    <p class="setting-description">Send alerts to Slack channel</p>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="slack-enabled" name="slack_enabled">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                         
-                        <div id="slack-config" style="margin-top: 20px;">
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">Slack Webhook URL</h3>
-                                    <p class="setting-description">Your Slack incoming webhook URL</p>
-                                </div>
-                                <div class="setting-control">
-                                    <input type="text" class="setting-input" id="slack-webhook-url" name="slack_webhook_url" placeholder="https://hooks.slack.com/services/...">
-                                </div>
-                            </div>
-                            
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">Slack Channel</h3>
-                                    <p class="setting-description">Channel to post alerts (with #)</p>
-                                </div>
-                                <div class="setting-control">
-                                    <input type="text" class="setting-input" id="slack-channel" name="slack_channel" placeholder="#alerts">
-                                </div>
-                            </div>
-                            
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">Slack Cost Threshold</h3>
-                                    <p class="setting-description">Alert when monthly cost exceeds this amount</p>
-                                </div>
-                                <div class="setting-control">
-                                    <div class="input-group">
-                                        <span class="input-prefix">$</span>
-                                        <input type="number" class="setting-input" id="slack-cost-threshold" name="slack_cost_threshold" placeholder="1000">
+                        <div class="settings-card">
+                            <div id="slack-config">
+                                <div class="settings-grid">
+                                    <div class="setting-item">
+                                        <div class="setting-info">
+                                            <h3 class="setting-title">Slack Webhook URL</h3>
+                                            <p class="setting-description">Slack incoming webhook URL</p>
+                                        </div>
+                                        <div class="setting-control">
+                                            <input type="text" class="setting-input" id="slack-webhook-url" name="slack_webhook_url" placeholder="https://hooks.slack.com/services/...">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="setting-item">
+                                        <div class="setting-info">
+                                            <h3 class="setting-title">Slack Channel</h3>
+                                            <p class="setting-description">Channel for alerts (#alerts)</p>
+                                        </div>
+                                        <div class="setting-control">
+                                            <input type="text" class="setting-input" id="slack-channel" name="slack_channel" placeholder="#alerts">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="setting-item">
+                                        <div class="setting-info">
+                                            <h3 class="setting-title">Cost Threshold</h3>
+                                            <p class="setting-description">Alert when cost exceeds amount</p>
+                                        </div>
+                                        <div class="setting-control">
+                                            <div class="input-group">
+                                                <span class="input-prefix">$</span>
+                                                <input type="number" class="setting-input" id="slack-cost-threshold" name="slack_cost_threshold" placeholder="1000">
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
                         
                         <div class="settings-actions">
                             <button type="button" onclick="testSlack()" class="btn-secondary">
@@ -349,7 +401,10 @@ Settings - AKS Cost Optimizer
                 <!-- Azure Integration -->
                 <section id="azure-section" class="settings-section">
                     <div class="section-header">
-                        <h2 class="section-title">Azure Configuration</h2>
+                        <h2 class="section-title">
+                            <i class="fab fa-microsoft"></i>
+                            Azure Configuration
+                        </h2>
                         <p class="section-description">Configure Azure service principal and subscription settings</p>
                     </div>
                     
@@ -357,47 +412,49 @@ Settings - AKS Cost Optimizer
                         <input type="hidden" name="section" value="azure">
                         
                         <div class="settings-card">
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">Azure Tenant ID</h3>
-                                    <p class="setting-description">Your Azure Active Directory tenant ID</p>
+                            <div class="settings-grid">
+                                <div class="setting-item">
+                                    <div class="setting-info">
+                                        <h3 class="setting-title">Azure Tenant ID</h3>
+                                        <p class="setting-description">Azure AD tenant ID</p>
+                                    </div>
+                                    <div class="setting-control">
+                                        <input type="text" name="azure_tenant_id" value="{{ config.get('AZURE_TENANT_ID', '') }}" 
+                                               class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+                                    </div>
                                 </div>
-                                <div class="setting-control">
-                                    <input type="text" name="azure_tenant_id" value="{{ config.get('AZURE_TENANT_ID', '') }}" 
-                                           class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+                                
+                                <div class="setting-item">
+                                    <div class="setting-info">
+                                        <h3 class="setting-title">Subscription ID</h3>
+                                        <p class="setting-description">Primary Azure subscription</p>
+                                    </div>
+                                    <div class="setting-control">
+                                        <input type="text" name="azure_subscription_id" value="{{ config.get('AZURE_SUBSCRIPTION_ID', '') }}" 
+                                               class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+                                    </div>
                                 </div>
-                            </div>
-                            
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">Azure Subscription ID</h3>
-                                    <p class="setting-description">Primary Azure subscription for analysis</p>
+                                
+                                <div class="setting-item">
+                                    <div class="setting-info">
+                                        <h3 class="setting-title">Client ID</h3>
+                                        <p class="setting-description">Service principal app ID</p>
+                                    </div>
+                                    <div class="setting-control">
+                                        <input type="text" name="azure_client_id" value="{{ config.get('AZURE_CLIENT_ID', '') }}" 
+                                               class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="username">
+                                    </div>
                                 </div>
-                                <div class="setting-control">
-                                    <input type="text" name="azure_subscription_id" value="{{ config.get('AZURE_SUBSCRIPTION_ID', '') }}" 
-                                           class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
-                                </div>
-                            </div>
-                            
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">Service Principal Client ID</h3>
-                                    <p class="setting-description">Service principal application ID</p>
-                                </div>
-                                <div class="setting-control">
-                                    <input type="text" name="azure_client_id" value="{{ config.get('AZURE_CLIENT_ID', '') }}" 
-                                           class="setting-input" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="username">
-                                </div>
-                            </div>
-                            
-                            <div class="setting-item">
-                                <div class="setting-info">
-                                    <h3 class="setting-title">Service Principal Client Secret</h3>
-                                    <p class="setting-description">Service principal secret key</p>
-                                </div>
-                                <div class="setting-control">
-                                    <input type="password" name="azure_client_secret" value="{{ config.get('AZURE_CLIENT_SECRET', '') }}" 
-                                           class="setting-input" placeholder="Enter client secret" autocomplete="new-password">
+                                
+                                <div class="setting-item">
+                                    <div class="setting-info">
+                                        <h3 class="setting-title">Client Secret</h3>
+                                        <p class="setting-description">Service principal secret</p>
+                                    </div>
+                                    <div class="setting-control">
+                                        <input type="password" name="azure_client_secret" value="{{ config.get('AZURE_CLIENT_SECRET', '') }}" 
+                                               class="setting-input" placeholder="Enter client secret" autocomplete="new-password">
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -426,7 +483,10 @@ Settings - AKS Cost Optimizer
                 <!-- Security Settings -->
                 <section id="security-section" class="settings-section">
                     <div class="section-header">
-                        <h2 class="section-title">Security Settings</h2>
+                        <h2 class="section-title">
+                            <i class="fas fa-shield-alt"></i>
+                            Security Settings
+                        </h2>
                         <p class="section-description">Security and privacy configuration</p>
                     </div>
                     
@@ -451,7 +511,10 @@ Settings - AKS Cost Optimizer
                 <!-- Advanced Settings -->
                 <section id="advanced-section" class="settings-section">
                     <div class="section-header">
-                        <h2 class="section-title">Advanced Settings</h2>
+                        <h2 class="section-title">
+                            <i class="fas fa-cogs"></i>
+                            Advanced Settings
+                        </h2>
                         <p class="section-description">API configuration and advanced options</p>
                     </div>
                     
@@ -469,40 +532,41 @@ Settings - AKS Cost Optimizer
                     
                     <!-- API Configuration -->
                     <div class="settings-card">
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Application URL</h3>
-                                <p class="setting-description">Base URL for the application</p>
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Application URL</h3>
+                                    <p class="setting-description">Base URL for application</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" name="app_url" id="app-url" class="setting-input" 
+                                           value="{{ config.get('APP_URL', 'http://localhost:5001') }}" 
+                                           placeholder="http://localhost:5001">
+                                </div>
                             </div>
-                            <div class="setting-control">
-                                <input type="text" name="app_url" id="app-url" class="setting-input" 
-                                       value="{{ config.get('APP_URL', 'http://localhost:5001') }}" 
-                                       placeholder="http://localhost:5001">
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">License API URL</h3>
+                                    <p class="setting-description">License validation endpoint</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" name="license_api_url" id="license-api-url" class="setting-input" 
+                                           value="{{ config.get('LICENSE_API_URL', 'http://localhost:5002') }}" 
+                                           placeholder="http://localhost:5002">
+                                </div>
                             </div>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">License API URL</h3>
-                                <p class="setting-description">License validation server endpoint</p>
-                            </div>
-                            <div class="setting-control">
-                                <input type="text" name="license_api_url" id="license-api-url" class="setting-input" 
-                                       value="{{ config.get('LICENSE_API_URL', 'http://localhost:5002') }}" 
-                                       placeholder="http://localhost:5002">
-                            </div>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <h3 class="setting-title">Plan API URL</h3>
-                                <p class="setting-description">Plan generation server endpoint</p>
-                            </div>
-                            <div class="setting-control">
-                                <input type="text" name="plan_api_url" id="plan-api-url" class="setting-input" 
-                                       value="{{ config.get('PLAN_API_URL', 'http://localhost:5003') }}" 
-                                       placeholder="http://localhost:5003">
+                            
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Plan API URL</h3>
+                                    <p class="setting-description">Plan generation endpoint</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" name="plan_api_url" id="plan-api-url" class="setting-input" 
+                                           value="{{ config.get('PLAN_API_URL', 'http://localhost:5003') }}" 
+                                           placeholder="http://localhost:5003">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -525,20 +589,177 @@ Settings - AKS Cost Optimizer
                 
             </div>
         </div>
-        
+        </div>
     </main>
 </div>
 
 {% endblock %}
 
 {% block extra_css %}
+<!-- Dashboard and sidebar styles -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 <!-- Settings-specific styles -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
 {% endblock %}
 
 {% block extra_js %}
+<!-- Sidebar functionality -->
+<script src="{{ url_for('static', filename='js/unified-dashboard.js') }}"></script>
 <!-- Settings-specific JavaScript -->
 <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+<script>
+// Context-aware navigation setup
+document.addEventListener('DOMContentLoaded', function() {
+    setupContextAwareSidebar();
+});
+
+function setupContextAwareSidebar() {
+    const referrer = document.referrer;
+    let clusterInfo = null;
+    
+    // Check if coming from a specific cluster page
+    if (referrer) {
+        try {
+            const url = new URL(referrer);
+            const pathname = url.pathname;
+            const clusterMatch = pathname.match(/^\/cluster\/(.+)$/);
+            
+            if (clusterMatch) {
+                // Extract cluster info from URL
+                clusterInfo = {
+                    id: clusterMatch[1],
+                    returnUrl: referrer
+                };
+            }
+        } catch (e) {
+            console.log('Could not parse referrer URL');
+        }
+    }
+    
+    populateSidebar(clusterInfo);
+}
+
+function populateSidebar(clusterInfo) {
+    const iconNav = document.getElementById('settings-icon-nav');
+    const menuNav = document.getElementById('settings-menu-nav');
+    
+    if (clusterInfo) {
+        // Coming from cluster page - show cluster navigation
+        iconNav.innerHTML = `
+            <div class="nav-section">
+                <div class="nav-item">
+                    <a href="${clusterInfo.returnUrl}" class="nav-link" data-tooltip="Overview">
+                        <i class="fas fa-chart-line"></i>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="${clusterInfo.returnUrl}#implementation" class="nav-link" data-tooltip="Implementation">
+                        <i class="fas fa-tasks"></i>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="${clusterInfo.returnUrl}#alerts" class="nav-link" data-tooltip="Alerts">
+                        <i class="fas fa-bell"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="nav-section">
+                <div class="nav-item">
+                    <a href="/settings" class="nav-link active" data-tooltip="Settings">
+                        <i class="fas fa-cog"></i>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="/clusters" class="nav-link" data-tooltip="All Clusters">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                </div>
+            </div>
+        `;
+        
+        menuNav.innerHTML = `
+            <div class="nav-section">
+                <div class="nav-item">
+                    <a href="${clusterInfo.returnUrl}" class="nav-link">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Overview</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="${clusterInfo.returnUrl}#implementation" class="nav-link">
+                        <i class="fas fa-tasks"></i>
+                        <span>Implementation</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="${clusterInfo.returnUrl}#alerts" class="nav-link">
+                        <i class="fas fa-bell"></i>
+                        <span>Alerts</span>
+                    </a>
+                </div>
+            </div>
+            <div class="nav-section">
+                <div class="nav-item">
+                    <a href="/settings" class="nav-link active">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="/clusters" class="nav-link">
+                        <i class="fas fa-arrow-left"></i>
+                        <span>All Clusters</span>
+                    </a>
+                </div>
+            </div>
+        `;
+    } else {
+        // Coming from clusters list or direct access - show general navigation
+        iconNav.innerHTML = `
+            <div class="nav-section">
+                <div class="nav-item">
+                    <a href="/clusters" class="nav-link" data-tooltip="All Clusters">
+                        <i class="fas fa-chart-line"></i>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="/settings" class="nav-link active" data-tooltip="Settings">
+                        <i class="fas fa-cog"></i>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="/clusters" class="nav-link" data-tooltip="Back">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                </div>
+            </div>
+        `;
+        
+        menuNav.innerHTML = `
+            <div class="nav-section">
+                <div class="nav-item">
+                    <a href="/clusters" class="nav-link">
+                        <i class="fas fa-chart-line"></i>
+                        <span>All Clusters</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="/settings" class="nav-link active">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="/clusters" class="nav-link">
+                        <i class="fas fa-arrow-left"></i>
+                        <span>Back</span>
+                    </a>
+                </div>
+            </div>
+        `;
+    }
+}
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const backLink = document.getElementById('back-link');
