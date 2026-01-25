@@ -17,12 +17,14 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import queue
 import uuid
+import os
 from shared.config.config import logger, enhanced_cluster_manager, analysis_status_tracker, analysis_results
-import psutil
 
+# Use os.cpu_count() instead of psutil for CPU detection
+cpu_count = os.cpu_count() or 4  # Default to 4 if unable to detect
 MAX_CONCURRENT_ANALYSES = min(
-    psutil.cpu_count() // 2,  # Half your CPU cores
-    12                        # Reasonable upper limit
+    cpu_count // 2,  # Half your CPU cores
+    12               # Reasonable upper limit
 )
 # Thread management globals
 # MAX_CONCURRENT_ANALYSES = 3

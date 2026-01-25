@@ -17,8 +17,20 @@ window.Dashboard = (function() {
         console.log('Initializing dashboard...');
         
         initNavigation();
-        // Set initial view to overview
-        switchView('overview');
+        
+        // Check URL hash first to determine initial view
+        const hash = window.location.hash.substring(1); // Remove the #
+        let initialView = 'overview'; // Default
+        
+        if (hash === 'implementation' || hash === 'alerts') {
+            initialView = hash;
+            console.log(`📍 URL hash detected: ${hash}, setting initial view to: ${initialView}`);
+        } else if (hash) {
+            console.log(`⚠️ Unknown hash: ${hash}, defaulting to overview`);
+        }
+        
+        // Set initial view based on URL hash or default
+        switchView(initialView);
         initAutoRefresh();
         // Load data after view is set
         setTimeout(() => {
@@ -35,6 +47,16 @@ window.Dashboard = (function() {
         const navLinks = document.querySelectorAll('.nav-link[data-view]');
         navLinks.forEach(link => {
             link.addEventListener('click', handleNavigation);
+        });
+        
+        // Listen for hash changes (e.g., when navigating from settings page)
+        window.addEventListener('hashchange', function() {
+            const hash = window.location.hash.substring(1);
+            console.log(`#️⃣ Hash changed to: ${hash}`);
+            
+            if (hash === 'implementation' || hash === 'alerts' || hash === 'overview') {
+                switchView(hash);
+            }
         });
         
         // Set initial active navigation

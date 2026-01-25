@@ -272,15 +272,31 @@ def register_auth_routes(app):
                 license_info['license_key'] = ''
                 license_info['has_license'] = False
             
+            # Get current user information for the template
+            current_user = auth_manager.get_current_user()
+            
             return render_template('settings.html', 
                                  config=current_config,
                                  custom_env_vars=custom_env_vars,
                                  feature_flags=feature_flags,
-                                 license_info=license_info)
+                                 license_info=license_info,
+                                 current_user=current_user)
         except Exception as e:
             logger.error(f"Error loading settings page: {e}")
             flash('Error loading settings', 'error')
             return redirect(url_for('cluster_portfolio'))
+    
+    @app.route('/profile')
+    @auth_manager.require_auth
+    def profile():
+        """Edit User Profile page - redirects to settings with user tab"""
+        return redirect(url_for('settings') + '#user')
+    
+    @app.route('/help')
+    @auth_manager.require_auth  
+    def help_support():
+        """Help & Support page - redirects to settings with support tab"""
+        return redirect(url_for('settings') + '#support')
     
     @app.route('/save_settings', methods=['POST'])
     @auth_manager.require_auth
@@ -296,7 +312,89 @@ def register_auth_routes(app):
             settings_data = {}
             success_message = 'Settings saved successfully!'
             
-            if section == 'azure':
+            if section == 'profile':
+                # Profile settings - handle username and password changes
+                current_user = auth_manager.get_current_user()
+                if not current_user:
+                    flash('Session error. Please log in again.', 'error')
+                    return redirect(url_for('login'))
+                
+                # Get form data
+                new_username = request.form.get('username', '').strip()
+                current_password = request.form.get('current_password', '').strip()
+                new_password = request.form.get('new_password', '').strip()
+                confirm_password = request.form.get('confirm_password', '').strip()
+                
+                # Validate username
+                if not new_username:
+                    flash('Username cannot be empty', 'error')
+                    return redirect(url_for('settings') + '#user')
+                
+                # Handle password change if provided
+                password_changed = False
+                if new_password or current_password or confirm_password:
+                    # Get current stored password hash for validation
+                    current_stored_username = settings_manager.get_setting('user_username', current_user.get('username'))
+                    current_stored_password_hash = settings_manager.get_setting('user_password_hash', '')
+                    
+                    # Validate current password first
+                    import hashlib
+                    salt = b'kubeopt_aks_optimizer_2024'  # Same salt as auth_manager
+                    provided_hash = hashlib.sha256(salt + current_password.encode()).hexdigest()
+                    
+                    if not current_stored_password_hash or provided_hash != current_stored_password_hash:
+                        flash('Current password is incorrect', 'error')
+                        return redirect(url_for('settings') + '#user')
+                    
+                    # Validate new password
+                    if not new_password:
+                        flash('New password cannot be empty', 'error')
+                        return redirect(url_for('settings') + '#user')
+                    
+                    if new_password != confirm_password:
+                        flash('New passwords do not match', 'error')
+                        return redirect(url_for('settings') + '#user')
+                    
+                    if len(new_password) < 6:
+                        flash('Password must be at least 6 characters long', 'error')
+                        return redirect(url_for('settings') + '#user')
+                    
+                    # Hash and store new password
+                    new_password_hash = hashlib.sha256(salt + new_password.encode()).hexdigest()
+                    settings_data['user_password_hash'] = new_password_hash
+                    password_changed = True
+                
+                # Update username if changed
+                username_changed = False
+                if new_username != current_user.get('username'):
+                    # Check if username already exists (if different from current)
+                    existing_username = settings_manager.get_setting('user_username', '')
+                    if existing_username and existing_username != current_user.get('username') and existing_username == new_username:
+                        flash('Username already exists', 'error')
+                        return redirect(url_for('settings') + '#user')
+                    
+                    # Store new username
+                    settings_data['user_username'] = new_username
+                    username_changed = True
+                
+                # Build success message
+                if username_changed and password_changed:
+                    success_message = 'Username and password updated successfully!'
+                elif username_changed:
+                    success_message = 'Username updated successfully!'
+                elif password_changed:
+                    success_message = 'Password updated successfully!'
+                else:
+                    success_message = 'No changes were made.'
+                
+                # Save settings to persistent storage
+                if settings_data:
+                    settings_manager.save_settings(settings_data)
+                
+                flash(success_message, 'success')
+                return redirect(url_for('settings') + '#user')
+            
+            elif section == 'azure':
                 # Azure settings - only update non-empty fields
                 azure_fields = ['azure_tenant_id', 'azure_subscription_id', 'azure_client_id', 'azure_client_secret']
                 for field in azure_fields:
@@ -397,6 +495,13 @@ def register_auth_routes(app):
                     success_message = 'General settings saved successfully!'
             
             elif section == 'advanced':
+                # API Configuration settings
+                advanced_fields = ['app_url', 'license_api_url', 'plan_api_url']
+                for field in advanced_fields:
+                    value = request.form.get(field, '').strip()
+                    if value:  # Only update if value is provided
+                        settings_data[field] = value
+                
                 # Custom environment variables
                 custom_env_vars = request.form.get('custom_env_vars', '').strip()
                 if custom_env_vars:
@@ -532,30 +637,102 @@ def register_auth_routes(app):
             return jsonify({'success': False, 'message': 'Admin access required'})
         
         try:
-            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            # Extract credentials from form data
+            tenant_id = request.form.get('azure_tenant_id', '').strip()
+            client_id = request.form.get('azure_client_id', '').strip()  
+            client_secret = request.form.get('azure_client_secret', '').strip()
+            subscription_id = request.form.get('azure_subscription_id', '').strip()
             
-            # Try to refresh credentials first with new settings
-            refresh_success = azure_sdk_manager.refresh_credentials()
-            
-            if refresh_success and azure_sdk_manager.is_authenticated():
-                subscription_id = azure_sdk_manager.get_subscription_id()
-                if subscription_id:
-                    return jsonify({
-                        'success': True, 
-                        'message': f'Azure authentication successful! Connected to subscription: {subscription_id[:8]}...'
-                    })
-                else:
-                    # Organization-wide access - show capability instead of specific subscription
-                    return jsonify({
-                        'success': True, 
-                        'message': 'Azure authentication successful! Organization-wide access enabled. Ready to discover subscriptions and clusters.'
-                    })
-            else:
+            # Validate required fields
+            if not all([tenant_id, client_id, client_secret]):
                 return jsonify({
                     'success': False, 
-                    'message': 'Azure authentication failed. Please check your tenant ID, client ID, and client secret.'
+                    'message': 'Please fill in Tenant ID, Client ID, and Client Secret to test authentication'
                 })
             
+            # Test credentials directly without saving to environment
+            from azure.identity import ClientSecretCredential
+            from azure.mgmt.resource import ResourceManagementClient
+            import azure.core.exceptions
+            
+            # Create credential with form data
+            credential = ClientSecretCredential(tenant_id, client_id, client_secret)
+            
+            # Test authentication by listing resource groups (minimal permission required)
+            if subscription_id:
+                resource_client = ResourceManagementClient(credential, subscription_id)
+                try:
+                    # Try to list resource groups to verify access
+                    rg_list = list(resource_client.resource_groups.list())
+                    return jsonify({
+                        'success': True, 
+                        'message': f'Azure authentication successful! Connected to subscription: {subscription_id[:8]}... Found {len(rg_list)} resource groups.'
+                    })
+                except azure.core.exceptions.ClientAuthenticationError:
+                    return jsonify({
+                        'success': False, 
+                        'message': 'Authentication failed. Please check your Tenant ID, Client ID, and Client Secret.'
+                    })
+                except azure.core.exceptions.HttpResponseError as e:
+                    if e.status_code == 403:
+                        return jsonify({
+                            'success': False, 
+                            'message': 'Authentication successful but access denied to subscription. Please check subscription ID and permissions.'
+                        })
+                    else:
+                        return jsonify({
+                            'success': False, 
+                            'message': f'Azure API error: {e.message}'
+                        })
+            else:
+                # No subscription ID provided - test basic authentication using management client
+                try:
+                    # Use Resource Management Client which is the recommended approach
+                    from azure.mgmt.resource import ResourceManagementClient
+                    
+                    # Try with a dummy subscription to test credentials - this will fail with auth error if credentials are bad
+                    dummy_subscription = "00000000-0000-0000-0000-000000000000"
+                    test_client = ResourceManagementClient(credential, dummy_subscription)
+                    
+                    # This will throw ClientAuthenticationError if credentials are invalid
+                    # We expect this to fail with 403/404 but not authentication error
+                    try:
+                        list(test_client.resource_groups.list())
+                    except azure.core.exceptions.ClientAuthenticationError:
+                        # This means credentials are invalid
+                        raise
+                    except azure.core.exceptions.HttpResponseError as e:
+                        # Expected - we used dummy subscription, but credentials worked
+                        if e.status_code in [403, 404]:
+                            return jsonify({
+                                'success': True, 
+                                'message': 'Azure authentication successful! Credentials are valid. Organization-wide access enabled.'
+                            })
+                        else:
+                            raise
+                    except Exception:
+                        # If we get here, credentials worked (no auth error)
+                        return jsonify({
+                            'success': True, 
+                            'message': 'Azure authentication successful! Credentials are valid. Organization-wide access enabled.'
+                        })
+                        
+                except azure.core.exceptions.ClientAuthenticationError:
+                    return jsonify({
+                        'success': False, 
+                        'message': 'Authentication failed. Please check your Tenant ID, Client ID, and Client Secret.'
+                    })
+                except azure.core.exceptions.HttpResponseError as e:
+                    return jsonify({
+                        'success': False, 
+                        'message': f'Azure API error: {e.message}'
+                    })
+            
+        except ImportError:
+            return jsonify({
+                'success': False, 
+                'message': 'Azure SDK not available. Please ensure all required packages are installed.'
+            })
         except Exception as e:
             logger.error(f"Error testing Azure authentication: {e}")
             return jsonify({'success': False, 'message': f'Azure test failed: {str(e)}'})

@@ -444,6 +444,48 @@
     color: var(--success-color);
 }
 
+/* Validation Status Display */
+.validation-status {
+    margin: 1rem 0;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid;
+    transition: all 0.3s ease;
+}
+
+.validation-status.validating {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: var(--info-color);
+}
+
+.validation-status.success {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: var(--success-color);
+}
+
+.validation-status.error {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: var(--error-color);
+}
+
+.validation-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.validation-icon {
+    font-size: 1rem;
+}
+
+.validation-message {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
 /* Cluster Actions */
 .cluster-actions {
     padding: 1rem 1.5rem;

@@ -28,7 +28,8 @@ window.ChartManager = (function() {
             bgTertiary: isDark ? '#334155' : '#f3f4f6',
             borderColor: isDark ? '#334155' : '#e5e7eb',
             gridColor: isDark ? 'rgba(203, 213, 225, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-            tooltipBg: isDark ? 'rgba(15, 23, 42, 0.9)' : 'rgba(0, 0, 0, 0.8)',
+            tooltipBg: isDark ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.95)',
+            tooltipBorder: isDark ? 'rgba(203, 213, 225, 0.2)' : 'rgba(0, 0, 0, 0.1)',
             chartColors: [
                 '#7FB069', '#94C37F', '#AAD094', '#C0DDAA',
                 '#D5EBC0', '#6BA055', '#81A664', '#98AC74',
@@ -144,7 +145,7 @@ window.ChartManager = (function() {
                                 backgroundColor: colors.tooltipBg,
                                 titleColor: colors.textPrimary,
                                 bodyColor: colors.textPrimary,
-                                borderColor: colors.primary,
+                                borderColor: colors.tooltipBorder,
                                 borderWidth: 1,
                                 cornerRadius: 8,
                                 padding: 12,
@@ -593,7 +594,7 @@ window.ChartManager = (function() {
                                 backgroundColor: colors.tooltipBg,
                                 titleColor: colors.textPrimary,
                                 bodyColor: colors.textPrimary,
-                                borderColor: colors.primary,
+                                borderColor: colors.tooltipBorder,
                                 borderWidth: 1,
                                 cornerRadius: 8,
                                 padding: 12,
@@ -743,7 +744,7 @@ window.ChartManager = (function() {
                                 backgroundColor: getThemeColors().tooltipBg,
                                 titleColor: getThemeColors().textPrimary,
                                 bodyColor: getThemeColors().textPrimary,
-                                borderColor: getThemeColors().primary,
+                                borderColor: getThemeColors().tooltipBorder,
                                 borderWidth: 1,
                                 callbacks: {
                                     label: function(context) {
@@ -897,10 +898,10 @@ window.ChartManager = (function() {
                                 }
                             },
                             tooltip: {
-                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                titleColor: 'white',
-                                bodyColor: 'white',
-                                borderColor: getThemeColors().primary,
+                                backgroundColor: getThemeColors().tooltipBg,
+                                titleColor: getThemeColors().textPrimary,
+                                bodyColor: getThemeColors().textPrimary,
+                                borderColor: getThemeColors().tooltipBorder,
                                 borderWidth: 1,
                                 cornerRadius: 8,
                                 padding: 12,
@@ -1043,7 +1044,7 @@ window.ChartManager = (function() {
                                 backgroundColor: getThemeColors().tooltipBg,
                                 titleColor: getThemeColors().textPrimary,
                                 bodyColor: getThemeColors().textPrimary,
-                                borderColor: getThemeColors().primary,
+                                borderColor: getThemeColors().tooltipBorder,
                                 borderWidth: 1,
                                 cornerRadius: 8,
                                 padding: 12,
@@ -1259,7 +1260,7 @@ window.ChartManager = (function() {
                                 backgroundColor: getThemeColors().tooltipBg,
                                 titleColor: getThemeColors().textPrimary,
                                 bodyColor: getThemeColors().textPrimary,
-                                borderColor: getThemeColors().primary,
+                                borderColor: getThemeColors().tooltipBorder,
                                 borderWidth: 1,
                                 callbacks: {
                                     label: function(context) {

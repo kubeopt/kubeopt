@@ -7,13 +7,14 @@ services:
     container_name: aks-cost-optimizer
     
     ports:
-      - "5020:5000"
+      - "5020:5010"
     
     volumes:
-      # Data persistence only (no source code mounts for security)
-      - sqlite_data:/app/infrastructure/persistence/database
-      - ml_models:/app/machine_learning/data
-      - app_logs:/app/logs
+      # Data persistence - FIXED PATH MAPPING
+      - aks_data:/app/data                    # Database and cache
+      - aks_logs:/app/logs                    # Application logs  
+      - aks_ml_models:/app/machine_learning/data  # ML models
+      - aks_settings:/app/config              # Settings persistence (.env files)
       
       # Mount Azure credentials to temp location for copying
       - ${HOME}/.azure:/tmp/host-azure:ro
@@ -28,7 +29,8 @@ services:
       # Flask settings - production mode for security
       - FLASK_ENV=${FLASK_ENV:-production}
       - FLASK_DEBUG=${FLASK_DEBUG:-0}
-      - DATABASE_PATH=/app/data/aks_optimizer.db
+      - DATABASE_PATH=/app/data/aks_optimizer.db  # MATCHES VOLUME NOW
+      - SETTINGS_PATH=/app/config                 # Settings persistence path
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PYTHONPATH=/app
       
@@ -40,6 +42,10 @@ services:
       - ENABLE_MULTI_SUBSCRIPTION=true
       - PARALLEL_PROCESSING=true
       
+      # API URLs - Local Development
+      - LICENSE_API_URL=http://host.docker.internal:5002
+      - PLAN_GENERATION_API_URL=http://host.docker.internal:5003
+      
       # Email/Slack settings (from .env.local or environment)
       - EMAIL_ENABLED=${EMAIL_ENABLED:-false}
       - SMTP_SERVER=${SMTP_SERVER:-}
@@ -50,7 +56,7 @@ services:
       - SLACK_ENABLED=${SLACK_ENABLED:-false}
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
       - SLACK_CHANNEL=${SLACK_CHANNEL:-}
-      - APP_URL=${APP_URL:-http://localhost:5000}
+      - APP_URL=${APP_URL:-http://localhost:5020}
       
     restart: unless-stopped
     
@@ -60,20 +66,21 @@ services:
     user: "1000:1000"
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5020/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5010/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
+# Named volumes for data persistence
 volumes:
-  sqlite_data:
+  aks_data:
     driver: local
-  ml_models:
+  aks_logs:
     driver: local
-  app_logs:
+  aks_ml_models:
     driver: local
-  app_cache:
+  aks_settings:
     driver: local
   azure_config:
     driver: local

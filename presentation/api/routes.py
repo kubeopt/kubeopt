@@ -42,6 +42,36 @@ def register_routes(app):
     app.template_filter('environment_badge_class')(environment_badge_class)
     app.template_filter('status_indicator_class')(status_indicator_class)
     
+    # Health check endpoint (public, no auth required)
+    @app.route('/health')
+    def health_check():
+        """Health check endpoint for Docker health checks and monitoring"""
+        try:
+            # Basic system health check
+            from infrastructure.services.settings_manager import settings_manager
+            
+            health_data = {
+                'status': 'healthy',
+                'service': 'aks-cost-optimizer',
+                'version': '2.0.0',
+                'timestamp': datetime.now().isoformat(),
+                'components': {
+                    'settings': 'healthy' if settings_manager else 'unavailable',
+                    'auth': 'healthy' if auth_manager else 'unavailable'
+                }
+            }
+            
+            return jsonify(health_data), 200
+            
+        except Exception as e:
+            logger.error(f"Health check failed: {e}")
+            return jsonify({
+                'status': 'unhealthy',
+                'service': 'aks-cost-optimizer',
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }), 503
+    
     
     @app.route('/')
     @app.route('/clusters')

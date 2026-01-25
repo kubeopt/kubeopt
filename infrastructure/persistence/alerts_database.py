@@ -22,7 +22,12 @@ logger = logging.getLogger(__name__)
 class AlertsDatabase:
     """Enhanced database manager for alerts system with proper frequency handling"""
     
-    def __init__(self, db_path='infrastructure/persistence/database/alerts.db'):
+    def __init__(self, db_path=None):
+        # Use persistent data path for alerts database
+        if db_path is None:
+            import os
+            data_dir = os.path.dirname(os.getenv('DATABASE_PATH', 'infrastructure/persistence/database/clusters.db'))
+            db_path = os.path.join(data_dir, 'alerts.db')
         self.db_path = db_path
         self.logger = logging.getLogger(__name__)
         

@@ -3,28 +3,42 @@
 External API Client
 ===================
 Handles communication with external License and Plan Generation APIs.
-Supports both local development and production environments.
+Supports both local development and production environments with enhanced security.
 """
 
 import os
+import json
+import time
+import hmac
+import base64
+import hashlib
+import secrets
 import logging
 import requests
 from typing import Dict, Any, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
 
 logger = logging.getLogger(__name__)
 
 class ExternalAPIClient:
-    """Client for external KubeOpt APIs"""
+    """Client for external KubeOpt APIs with enhanced security"""
     
     def __init__(self):
-        """Initialize API client with configurable endpoints"""
+        """Initialize API client with configurable endpoints and security"""
         # Get API URLs from environment with defaults for local development
         self.license_api_url = os.getenv('LICENSE_API_URL', 'http://localhost:5002')
         self.plan_api_url = os.getenv('PLAN_API_URL', 'http://localhost:5003')
         
         # Get license key from environment
         self.license_key = os.getenv('KUBEOPT_LICENSE_KEY', '')
+        
+        # API Security Keys
+        self.api_key = os.getenv('KUBEOPT_API_KEY', self._generate_api_key())
+        self.api_secret = os.getenv('KUBEOPT_API_SECRET', secrets.token_urlsafe(32))
         
         # Timeout settings
         self.timeout = int(os.getenv('API_TIMEOUT', '30'))
@@ -33,14 +47,182 @@ class ExternalAPIClient:
         # Check if we're in local development mode
         self.local_mode = os.getenv('LOCAL_DEV', 'false').lower() == 'true'
         
+        # Rate limiting
+        self.request_history = {}
+        self.rate_limit_max = int(os.getenv('API_RATE_LIMIT', '60'))
+        self.rate_limit_window = int(os.getenv('API_RATE_WINDOW', '60'))
+        
         logger.info(f"External API Client initialized:")
         logger.info(f"  License API: {self.license_api_url}")
         logger.info(f"  Plan API: {self.plan_api_url}")
         logger.info(f"  Local Mode: {self.local_mode}")
+        logger.info(f"  API Key: {self.api_key[:10]}...")
+        
+        # Initialize encryption for sensitive data
+        self.use_encryption = os.getenv('USE_LICENSE_ENCRYPTION', 'true').lower() == 'true'
+        if self.use_encryption:
+            self.encryption_key = self._derive_encryption_key()
+            self.cipher = Fernet(self.encryption_key)
+        else:
+            logger.info("License encryption disabled - sending in plain text")
+        
+        if not os.getenv('KUBEOPT_API_SECRET'):
+            logger.warning("Using auto-generated API secret - set KUBEOPT_API_SECRET in production!")
+    
+    def _generate_api_key(self) -> str:
+        """Generate a new API key"""
+        return f"ko_{secrets.token_urlsafe(24)}"
+    
+    def _derive_encryption_key(self) -> bytes:
+        """
+        Derive an encryption key from the API secret
+        
+        Returns:
+            Fernet-compatible encryption key
+        """
+        # Use API secret as the basis for encryption
+        password = self.api_secret.encode()
+        salt = b'kubeopt_encryption_salt_2024'
+        
+        # Derive key using PBKDF2HMAC
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+            backend=default_backend()
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(password))
+        return key
+    
+    def _encrypt_sensitive_data(self, data: str) -> str:
+        """
+        Encrypt sensitive data for transmission
+        
+        Args:
+            data: Plain text data to encrypt
+            
+        Returns:
+            Base64 encoded encrypted data
+        """
+        try:
+            encrypted = self.cipher.encrypt(data.encode())
+            return base64.urlsafe_b64encode(encrypted).decode()
+        except Exception as e:
+            logger.error(f"Encryption failed: {e}")
+            # Fallback to base64 encoding if encryption fails
+            return base64.b64encode(data.encode()).decode()
+    
+    def _decrypt_sensitive_data(self, encrypted_data: str) -> str:
+        """
+        Decrypt sensitive data received from API
+        
+        Args:
+            encrypted_data: Base64 encoded encrypted data
+            
+        Returns:
+            Decrypted plain text
+        """
+        try:
+            decoded = base64.urlsafe_b64decode(encrypted_data.encode())
+            decrypted = self.cipher.decrypt(decoded)
+            return decrypted.decode()
+        except Exception as e:
+            logger.error(f"Decryption failed: {e}")
+            # Try base64 decode as fallback
+            try:
+                return base64.b64decode(encrypted_data.encode()).decode()
+            except:
+                return encrypted_data  # Return as-is if all fails
+    
+    def _check_rate_limit(self, endpoint: str) -> bool:
+        """
+        Check if request is within rate limit
+        
+        Args:
+            endpoint: API endpoint being called
+            
+        Returns:
+            True if request is allowed, False if rate limited
+        """
+        current_time = time.time()
+        window_start = current_time - self.rate_limit_window
+        
+        # Initialize or clean request history for endpoint
+        if endpoint not in self.request_history:
+            self.request_history[endpoint] = []
+        
+        # Remove old requests outside window
+        self.request_history[endpoint] = [
+            req_time for req_time in self.request_history[endpoint]
+            if req_time > window_start
+        ]
+        
+        # Check if under limit
+        if len(self.request_history[endpoint]) >= self.rate_limit_max:
+            logger.warning(f"Rate limit exceeded for endpoint: {endpoint}")
+            return False
+        
+        # Record this request
+        self.request_history[endpoint].append(current_time)
+        return True
+    
+    def _generate_request_signature(self, method: str, path: str, 
+                                   body: Optional[Dict] = None) -> str:
+        """
+        Generate HMAC signature for request authentication
+        
+        Args:
+            method: HTTP method
+            path: API path
+            body: Request body dictionary
+            
+        Returns:
+            Base64 encoded signature
+        """
+        timestamp = str(int(time.time()))
+        body_str = json.dumps(body, sort_keys=True) if body else ''
+        
+        # Create message to sign
+        message = f"{method.upper()}:{path}:{timestamp}:{body_str}"
+        
+        # Generate HMAC
+        signature = hmac.new(
+            self.api_secret.encode(),
+            message.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        # Combine timestamp and signature
+        return base64.b64encode(f"{timestamp}:{signature}".encode()).decode()
+    
+    def _get_secure_headers(self, method: str = 'GET', path: str = '', 
+                           body: Optional[Dict] = None) -> Dict[str, str]:
+        """
+        Generate secure headers for API requests
+        
+        Args:
+            method: HTTP method
+            path: API path
+            body: Request body
+            
+        Returns:
+            Dictionary of secure headers
+        """
+        headers = {
+            'Content-Type': 'application/json',
+            'X-API-Key': self.api_key,
+            'X-License-Key': self.license_key,
+            'X-Request-ID': secrets.token_urlsafe(16),
+            'X-Timestamp': str(int(time.time())),
+            'X-Signature': self._generate_request_signature(method, path, body)
+        }
+        
+        return headers
     
     def validate_license(self) -> Tuple[bool, Dict[str, Any]]:
         """
-        Validate the current license key
+        Validate the current license key with enhanced security
         
         Returns:
             Tuple of (is_valid, license_info)
@@ -66,17 +248,42 @@ class ExternalAPIClient:
                 }
             return False, {'error': 'No license key configured'}
         
+        # Check rate limit
+        endpoint = '/api/v1/validate'
+        if not self._check_rate_limit(endpoint):
+            return False, {'error': 'Rate limit exceeded', 'retry_after': self.rate_limit_window}
+        
         try:
+            # Prepare request with optionally encrypted license key
+            url = f"{self.license_api_url}{endpoint}"
+            
+            if self.use_encryption:
+                encrypted_key = self._encrypt_sensitive_data(self.license_key)
+                body = {
+                    'license_key': encrypted_key,
+                    'encrypted': True  # Flag to indicate encrypted payload
+                }
+            else:
+                # Send plain text for backward compatibility
+                body = {'license_key': self.license_key}
+            headers = self._get_secure_headers('POST', endpoint, body)
+            
+            # Make secure API call
             response = requests.post(
-                f"{self.license_api_url}/api/v1/validate",
-                json={'license_key': self.license_key},
-                timeout=self.timeout
+                url,
+                json=body,
+                headers=headers,
+                timeout=self.timeout,
+                verify=not self.local_mode  # Skip SSL verification in local mode
             )
             
             if response.status_code == 200:
                 license_info = response.json()
                 logger.info(f"License validated: Tier={license_info.get('tier')}")
                 return True, license_info
+            elif response.status_code == 429:
+                logger.warning("License API rate limit exceeded")
+                return False, {'error': 'API rate limit exceeded', 'retry_after': 60}
             else:
                 error_data = response.json() if response.text else {}
                 logger.error(f"License validation failed: {error_data}")
@@ -123,18 +330,43 @@ class ExternalAPIClient:
                 'upgrade_required': True
             }
         
+        # Check rate limit for plan generation
+        endpoint = '/plan-generation/v1/generate'
+        if not self._check_rate_limit(endpoint):
+            return False, {'error': 'Rate limit exceeded', 'retry_after': self.rate_limit_window}
+        
         try:
             logger.info(f"Requesting plan generation for cluster {cluster_id}")
             
-            response = requests.post(
-                f"{self.plan_api_url}/plan-generation/v1/generate",
-                json={
+            # Prepare secure request with optionally encrypted license key
+            url = f"{self.plan_api_url}{endpoint}"
+            
+            if self.use_encryption:
+                encrypted_key = self._encrypt_sensitive_data(self.license_key)
+                body = {
+                    'license_key': encrypted_key,
+                    'encrypted': True,  # Flag to indicate encrypted license key
+                    'cluster_id': cluster_id,
+                    'cluster_name': cluster_name,
+                    'analysis_data': analysis_data
+                }
+            else:
+                # Send plain text for backward compatibility
+                body = {
                     'license_key': self.license_key,
                     'cluster_id': cluster_id,
                     'cluster_name': cluster_name,
                     'analysis_data': analysis_data
-                },
-                timeout=self.plan_timeout
+                }
+            headers = self._get_secure_headers('POST', endpoint, body)
+            
+            # Make secure API call
+            response = requests.post(
+                url,
+                json=body,
+                headers=headers,
+                timeout=self.plan_timeout,
+                verify=not self.local_mode  # Skip SSL verification in local mode
             )
             
             if response.status_code == 201:
@@ -166,7 +398,7 @@ class ExternalAPIClient:
     
     def get_license_status(self) -> Dict[str, Any]:
         """
-        Get detailed license status including usage
+        Get detailed license status including usage with enhanced security
         
         Returns:
             License status information
@@ -174,14 +406,28 @@ class ExternalAPIClient:
         if not self.license_key:
             return {'error': 'No license key configured'}
         
+        # Check rate limit
+        endpoint = f'/api/v1/status/{self.license_key}'
+        if not self._check_rate_limit(endpoint):
+            return {'error': 'Rate limit exceeded', 'retry_after': self.rate_limit_window}
+        
         try:
+            # Prepare secure request
+            url = f"{self.license_api_url}{endpoint}"
+            headers = self._get_secure_headers('GET', endpoint)
+            
+            # Make secure API call
             response = requests.get(
-                f"{self.license_api_url}/api/v1/status/{self.license_key}",
-                timeout=self.timeout
+                url,
+                headers=headers,
+                timeout=self.timeout,
+                verify=not self.local_mode  # Skip SSL verification in local mode
             )
             
             if response.status_code == 200:
                 return response.json()
+            elif response.status_code == 429:
+                return {'error': 'API rate limit exceeded', 'retry_after': 60}
             else:
                 return {'error': 'Failed to get license status'}
                 

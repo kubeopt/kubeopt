@@ -51,11 +51,15 @@ class SettingsPage {
         this.navLinks.forEach(l => l.classList.remove('active'));
         link.classList.add('active');
         
-        // Update sections
-        this.sections.forEach(s => s.classList.remove('active'));
+        // Update sections - use the same logic as showSection() function
+        this.sections.forEach(s => {
+            s.classList.remove('active');
+            s.style.display = 'none';  // Force hide like showSection does
+        });
         const targetElement = document.getElementById(targetSection + '-section');
         if (targetElement) {
             targetElement.classList.add('active');
+            targetElement.style.display = 'block';  // Force show like showSection does
         }
     }
 
@@ -326,11 +330,9 @@ class SettingsPage {
             if (data.success || data.status === 'success') {
                 console.log('Settings saved successfully');
                 
-                // If license key was updated, reload to apply changes
+                // If license key was updated, show success message instead of reload
                 if (backendSettings.KUBEOPT_LICENSE_KEY) {
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
+                    console.log('License key updated successfully - no reload needed');
                 }
             } else {
                 throw new Error(data.message || 'Failed to save settings');
@@ -714,8 +716,8 @@ class AutoSaveHandler {
                     }
                     // Show toast for license changes since it's important
                     this.showToast(data.message || 'License activated successfully', 'success');
-                    // Reload page after license change to update features
-                    setTimeout(() => window.location.reload(), 1500);
+                    // Update UI dynamically instead of reloading
+                    console.log('License updated dynamically - no page reload needed');
                 }
             } else {
                 this.showSavingFeedback(element, 'error');
@@ -997,6 +999,45 @@ function showSection(sectionName) {
     }
 }
 
+// Handle hash navigation on page load
+function handleHashNavigation() {
+    const hash = window.location.hash.substring(1); // Remove the #
+    if (hash && ['general', 'notifications', 'azure', 'security', 'advanced', 'user', 'support'].includes(hash)) {
+        showSection(hash);
+    } else {
+        // Default to general section if no valid hash
+        showSection('general');
+    }
+}
+
+// Listen for hash changes
+window.addEventListener('hashchange', handleHashNavigation);
+
+// Initialize hash navigation on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Small delay to ensure DOM is fully ready
+    setTimeout(handleHashNavigation, 100);
+});
+
+// Reset profile form function
+function resetProfileForm() {
+    const form = document.getElementById('profile-form');
+    if (form) {
+        // Reset all password fields
+        document.getElementById('current-password').value = '';
+        document.getElementById('new-password').value = '';
+        document.getElementById('confirm-password').value = '';
+        
+        // Reset username to original value (if it was changed)
+        const originalUsername = form.querySelector('#profile-username').defaultValue;
+        if (originalUsername) {
+            document.getElementById('profile-username').value = originalUsername;
+        }
+        
+        showToast('Form reset successfully', 'info');
+    }
+}
+
 // Notification Settings Functions
 async function saveNotificationSettings() {
     const formData = new FormData();
@@ -1136,9 +1177,107 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function showToast(message, type = 'info') {
-    if (window.toastManager) {
-        window.toastManager.show(message, type);
-    } else {
-        console.log(`[${type}] ${message}`);
+    // Create toast notification element
+    const toast = document.createElement('div');
+    toast.className = `flash-message flash-${type}`;
+    
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'flash-close';
+    closeBtn.innerHTML = '×';
+    closeBtn.onclick = () => toast.remove();
+    
+    toast.appendChild(messageSpan);
+    toast.appendChild(closeBtn);
+    
+    // Add to flash messages container or create one
+    let flashContainer = document.querySelector('.flash-messages');
+    if (!flashContainer) {
+        flashContainer = document.createElement('div');
+        flashContainer.className = 'flash-messages';
+        document.body.appendChild(flashContainer);
+    }
+    
+    flashContainer.appendChild(toast);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 5000);
+    
+    // Also log to console for debugging
+    console.log(`[${type}] ${message}`);
+}
+
+// AJAX form submission to prevent page reload and tab switching
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle Azure form submission
+    const azureForm = document.getElementById('azure-form');
+    if (azureForm) {
+        azureForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await handleAjaxFormSubmit(this, 'Azure settings saved successfully! Azure credentials refreshed.');
+        });
+    }
+    
+    // Handle Email form submission  
+    const emailForm = document.getElementById('email-form');
+    if (emailForm) {
+        emailForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await handleAjaxFormSubmit(this, 'Email settings saved successfully!');
+        });
+    }
+    
+    // Handle Slack form submission
+    const slackForm = document.getElementById('slack-form');
+    if (slackForm) {
+        slackForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await handleAjaxFormSubmit(this, 'Slack settings saved successfully!');
+        });
+    }
+    
+    // Handle Advanced form submission
+    const advancedForm = document.getElementById('advanced-form');
+    if (advancedForm) {
+        advancedForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await handleAjaxFormSubmit(this, 'Advanced settings saved successfully!');
+        });
+    }
+});
+
+async function handleAjaxFormSubmit(form, successMessage) {
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalText = submitButton.innerHTML;
+    
+    // Show loading state
+    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    submitButton.disabled = true;
+    
+    try {
+        const formData = new FormData(form);
+        const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            showToast(successMessage, 'success');
+        } else {
+            showToast('Error saving settings. Please try again.', 'error');
+        }
+    } catch (error) {
+        console.error('Error submitting form:', error);
+        showToast('Error saving settings. Please try again.', 'error');
+    } finally {
+        // Restore button state
+        submitButton.innerHTML = originalText;
+        submitButton.disabled = false;
     }
 }
