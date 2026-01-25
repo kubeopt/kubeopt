@@ -1,0 +1,8 @@
+{
+    "python.analysis.extraPaths": [
+        "./app/interface",
+        "./app/services",
+        "./app/data/processing",
+        "./app/main"
+    ]
+}

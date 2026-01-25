@@ -1,0 +1,90 @@
+services:
+  aks-optimizer:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: aks-optimizer:latest
+    container_name: aks-cost-optimizer
+    
+    ports:
+      - "5020:5010"
+    
+    volumes:
+      # Data persistence - FIXED PATH MAPPING
+      - aks_data:/app/data                    # Database and cache
+      - aks_logs:/app/logs                    # Application logs  
+      - aks_ml_models:/app/machine_learning/data  # ML models
+      - aks_settings:/app/config              # Settings persistence (.env files)
+      
+      # Mount Azure credentials to temp location for copying
+      - ${HOME}/.azure:/tmp/host-azure:ro
+      
+      # Writable Azure config directory
+      - azure_config:/home/appuser/.azure
+      
+    env_file:
+      - .env.local  # Load secrets from local file (not committed to git)
+    
+    environment:
+      # Flask settings - production mode for security
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - DATABASE_PATH=/app/data/aks_optimizer.db  # MATCHES VOLUME NOW
+      - SETTINGS_PATH=/app/config                 # Settings persistence path
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - PYTHONPATH=/app
+      
+      # Azure settings
+      - AZURE_CONFIG_DIR=/home/appuser/.azure
+      - AZURE_CORE_COLLECT_TELEMETRY=false
+      
+      # Enable multi-subscription support
+      - ENABLE_MULTI_SUBSCRIPTION=true
+      - PARALLEL_PROCESSING=true
+      
+      # API URLs - Local Development
+      - LICENSE_API_URL=http://host.docker.internal:5002
+      - PLAN_GENERATION_API_URL=http://host.docker.internal:5003
+      
+      # Email/Slack settings (from .env.local or environment)
+      - EMAIL_ENABLED=${EMAIL_ENABLED:-false}
+      - SMTP_SERVER=${SMTP_SERVER:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - EMAIL_USERNAME=${EMAIL_USERNAME:-}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
+      - EMAIL_RECIPIENTS=${EMAIL_RECIPIENTS:-}
+      - SLACK_ENABLED=${SLACK_ENABLED:-false}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - SLACK_CHANNEL=${SLACK_CHANNEL:-}
+      - APP_URL=${APP_URL:-http://localhost:5020}
+      
+    restart: unless-stopped
+    
+    networks:
+      - aks-network
+    
+    user: "1000:1000"
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# Named volumes for data persistence
+volumes:
+  aks_data:
+    driver: local
+  aks_logs:
+    driver: local
+  aks_ml_models:
+    driver: local
+  aks_settings:
+    driver: local
+  azure_config:
+    driver: local
+
+networks:
+  aks-network:
+    driver: bridge

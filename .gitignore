@@ -1,2 +1,34 @@
 *.log
 *.pyc
+
+static/.DS_Store
+aks_cost_query_1748726312.json
+static/.DS_Store
+.DS_Store
+app-bkp/*
+
+# Environment files with secrets
+.env
+.env.*
+!.env.example
+!.env.example.*
+!config/examples/.env.example
+!config/examples/.env.development.example
+!deploy/docker/.env.example.*
+
+# Node.js dependencies (in tailwind folder)
+tailwind/node_modules/
+tailwind/npm-debug.log*
+tailwind/yarn-debug.log*
+tailwind/yarn-error.log*
+
+# Keep generated CSS committed for production deployments
+# presentation/web/static/css/tailwind.css
+
+.aider*
+requirements/ml.txt
+requirements/development.txt
+requirements/dev.txt
+requirements/base.txt
+requirements/prod.txt
+requirements/requirements_base.txt
