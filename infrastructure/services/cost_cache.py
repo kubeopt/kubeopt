@@ -131,8 +131,8 @@ def check_database_cost_freshness(cluster_name: str, max_age_hours: int = None) 
             max_age_hours = 6  # Default fallback
             
     try:
-        # Connect to cluster database
-        cluster_db = 'infrastructure/persistence/database/clusters.db'
+        # Connect to cluster database using environment variable
+        cluster_db = os.getenv('DATABASE_PATH', 'infrastructure/persistence/database/clusters.db')
         if not os.path.exists(cluster_db):
             return None
             

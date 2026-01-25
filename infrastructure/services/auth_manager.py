@@ -30,23 +30,38 @@ class AuthManager:
     
     def __init__(self):
         self.session_timeout = timedelta(hours=8)  # 8-hour session timeout
-        self.default_users = {
-            'kubeopt': {
-                'password_hash': self._hash_password('kubeopt'),
-                'role': 'admin',
-                'created': datetime.now()
-            }
-        }
         self.active_sessions = {}
+        
+        # Initialize default credentials in settings if not exists
+        self._ensure_default_credentials()
     
     def _hash_password(self, password: str) -> str:
         """Hash password using SHA-256 with salt"""
         salt = b'kubeopt_aks_optimizer_2024'  # Static salt for simplicity
         return hashlib.sha256(salt + password.encode()).hexdigest()
     
+    def _ensure_default_credentials(self):
+        """Initialize default credentials in settings if they don't exist"""
+        try:
+            from infrastructure.services.settings_manager import settings_manager
+            
+            # Check if username exists in settings
+            stored_username = settings_manager.get_setting('user_username', '')
+            if not stored_username:
+                # Set default username and password
+                default_settings = {
+                    'user_username': 'kubeopt',
+                    'user_password_hash': self._hash_password('kubeopt'),
+                    'user_role': 'admin'
+                }
+                settings_manager.save_settings(default_settings)
+                logger.info("🔧 Initialized default credentials: kubeopt/kubeopt")
+        except Exception as e:
+            logger.error(f"Failed to initialize default credentials: {e}")
+    
     def authenticate_user(self, username: str, password: str) -> bool:
         """
-        Authenticate user credentials
+        Authenticate user credentials using persistent settings
         
         Args:
             username: Username to authenticate
@@ -56,14 +71,25 @@ class AuthManager:
             bool: True if authentication successful
         """
         try:
-            if username not in self.default_users:
+            from infrastructure.services.settings_manager import settings_manager
+            
+            # Get stored credentials
+            stored_username = settings_manager.get_setting('user_username', 'kubeopt')
+            stored_password_hash = settings_manager.get_setting('user_password_hash', '')
+            
+            # If no stored hash, create default
+            if not stored_password_hash:
+                stored_password_hash = self._hash_password('kubeopt')
+                settings_manager.save_settings({'user_password_hash': stored_password_hash})
+            
+            # Validate username
+            if username != stored_username:
                 logger.warning(f"Authentication attempt for non-existent user: {username}")
                 return False
             
-            user = self.default_users[username]
+            # Validate password
             password_hash = self._hash_password(password)
-            
-            if password_hash == user['password_hash']:
+            if password_hash == stored_password_hash:
                 logger.info(f"Successful authentication for user: {username}")
                 return True
             else:
@@ -85,10 +111,14 @@ class AuthManager:
             str: Session token
         """
         try:
+            from infrastructure.services.settings_manager import settings_manager
+            
             session_token = secrets.token_urlsafe(32)
+            user_role = settings_manager.get_setting('user_role', 'admin')
+            
             session_data = {
                 'username': username,
-                'role': self.default_users[username]['role'],
+                'role': user_role,
                 'created': datetime.now(),
                 'last_activity': datetime.now(),
                 'ip_address': request.remote_addr if request else 'unknown'

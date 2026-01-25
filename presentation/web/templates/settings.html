@@ -68,13 +68,27 @@ Settings - AKS Cost Optimizer
                     <div class="nav-item">
                         <a href="#notifications" class="settings-nav-link" data-section="notifications" onclick="showSection('notifications'); return false;">
                             <i class="fas fa-bell"></i>
-                            <span>Notifications</span>
+                            <span>Alerts & Notifications</span>
                         </a>
                     </div>
                     <div class="nav-item">
                         <a href="#azure" class="settings-nav-link" data-section="azure" onclick="showSection('azure'); return false;">
                             <i class="fab fa-microsoft"></i>
                             <span>Azure Integration</span>
+                        </a>
+                    </div>
+                    <div class="nav-item disabled">
+                        <a href="#aws" class="settings-nav-link disabled" data-section="aws" onclick="showSection('aws'); return false;">
+                            <i class="fab fa-aws"></i>
+                            <span>AWS Integration</span>
+                            <span class="coming-soon-badge">Coming Soon</span>
+                        </a>
+                    </div>
+                    <div class="nav-item disabled">
+                        <a href="#gcp" class="settings-nav-link disabled" data-section="gcp" onclick="showSection('gcp'); return false;">
+                            <i class="fab fa-google"></i>
+                            <span>GCP Integration</span>
+                            <span class="coming-soon-badge">Coming Soon</span>
                         </a>
                     </div>
                     <div class="nav-item">
@@ -87,6 +101,18 @@ Settings - AKS Cost Optimizer
                         <a href="#advanced" class="settings-nav-link" data-section="advanced" onclick="showSection('advanced'); return false;">
                             <i class="fas fa-cogs"></i>
                             <span>Advanced</span>
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#user" class="settings-nav-link" data-section="user" onclick="showSection('user'); return false;">
+                            <i class="fas fa-user-edit"></i>
+                            <span>Edit User</span>
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a href="#support" class="settings-nav-link" data-section="support" onclick="showSection('support'); return false;">
+                            <i class="fas fa-life-ring"></i>
+                            <span>Support</span>
                         </a>
                     </div>
                 </div>
@@ -225,9 +251,9 @@ Settings - AKS Cost Optimizer
                     <div class="section-header">
                         <h2 class="section-title">
                             <i class="fas fa-bell"></i>
-                            Notification Settings
+                            Alert & Notification Settings
                         </h2>
-                        <p class="section-description">Configure how and when you receive notifications</p>
+                        <p class="section-description">Configure email and Slack alerts for cost monitoring and threshold notifications</p>
                     </div>
                     
                     <!-- Email Settings Card -->
@@ -480,6 +506,182 @@ Settings - AKS Cost Optimizer
                     </form>
                 </section>
                 
+                <!-- AWS Integration -->
+                <section id="aws-section" class="settings-section">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <i class="fab fa-aws"></i>
+                            AWS Configuration
+                            <span class="coming-soon-badge">Coming Soon</span>
+                        </h2>
+                        <p class="section-description">Configure AWS credentials and account settings for multi-cloud cost optimization</p>
+                    </div>
+                    
+                    <div class="settings-card disabled">
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Access Key ID</h3>
+                                    <p class="setting-description">AWS IAM Access Key ID for API access</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" class="setting-input" placeholder="AKIAIOSFODNN7EXAMPLE" disabled>
+                                </div>
+                            </div>
+
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Secret Access Key</h3>
+                                    <p class="setting-description">AWS IAM Secret Access Key</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="password" class="setting-input" placeholder="••••••••••••••••••••••••••••••••••••••••" disabled>
+                                </div>
+                            </div>
+
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Default Region</h3>
+                                    <p class="setting-description">Default AWS region for cost data collection</p>
+                                </div>
+                                <div class="setting-control">
+                                    <select class="setting-select" disabled>
+                                        <option>us-east-1</option>
+                                        <option>us-west-2</option>
+                                        <option>eu-west-1</option>
+                                        <option>ap-southeast-1</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Cost Explorer Access</h3>
+                                    <p class="setting-description">Enable AWS Cost Explorer API integration</p>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" disabled>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-footer">
+                            <div class="footer-actions">
+                                <button type="button" class="btn-outline" disabled>
+                                    <i class="fas fa-sync"></i>
+                                    Test Connection
+                                </button>
+                                <button type="button" class="btn-primary" disabled>
+                                    <i class="fas fa-save"></i>
+                                    Save AWS Settings
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-box info-box-primary">
+                        <div class="info-box-header">
+                            <i class="fas fa-info-circle"></i>
+                            <h4>AWS Integration Coming Soon</h4>
+                        </div>
+                        <div class="info-box-text">
+                            AWS cost optimization is planned for a future release. This will include EKS cluster analysis, 
+                            EC2 instance optimization, and cross-cloud cost comparison.
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- GCP Integration -->
+                <section id="gcp-section" class="settings-section">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <i class="fab fa-google"></i>
+                            Google Cloud Configuration
+                            <span class="coming-soon-badge">Coming Soon</span>
+                        </h2>
+                        <p class="section-description">Configure Google Cloud service account and project settings for multi-cloud cost optimization</p>
+                    </div>
+                    
+                    <div class="settings-card disabled">
+                        <div class="settings-grid">
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Service Account Key</h3>
+                                    <p class="setting-description">JSON service account key file</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="file" class="setting-input" accept=".json" disabled>
+                                </div>
+                            </div>
+
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Project ID</h3>
+                                    <p class="setting-description">Google Cloud Project ID</p>
+                                </div>
+                                <div class="setting-control">
+                                    <input type="text" class="setting-input" placeholder="my-gcp-project-123456" disabled>
+                                </div>
+                            </div>
+
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Default Zone</h3>
+                                    <p class="setting-description">Default GCP zone for resource analysis</p>
+                                </div>
+                                <div class="setting-control">
+                                    <select class="setting-select" disabled>
+                                        <option>us-central1-a</option>
+                                        <option>us-west1-b</option>
+                                        <option>europe-west1-b</option>
+                                        <option>asia-east1-a</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="setting-item">
+                                <div class="setting-info">
+                                    <h3 class="setting-title">Billing API Access</h3>
+                                    <p class="setting-description">Enable Cloud Billing API integration</p>
+                                </div>
+                                <div class="setting-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" disabled>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="settings-footer">
+                            <div class="footer-actions">
+                                <button type="button" class="btn-outline" disabled>
+                                    <i class="fas fa-sync"></i>
+                                    Test Connection
+                                </button>
+                                <button type="button" class="btn-primary" disabled>
+                                    <i class="fas fa-save"></i>
+                                    Save GCP Settings
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-box info-box-primary">
+                        <div class="info-box-header">
+                            <i class="fas fa-info-circle"></i>
+                            <h4>GCP Integration Coming Soon</h4>
+                        </div>
+                        <div class="info-box-text">
+                            Google Cloud cost optimization is planned for a future release. This will include GKE cluster analysis, 
+                            Compute Engine optimization, and unified multi-cloud cost management.
+                        </div>
+                    </div>
+                </section>
+                
                 <!-- Security Settings -->
                 <section id="security-section" class="settings-section">
                     <div class="section-header">
@@ -531,7 +733,9 @@ Settings - AKS Cost Optimizer
                     </div>
                     
                     <!-- API Configuration -->
-                    <div class="settings-card">
+                    <form id="advanced-form" method="POST" action="{{ url_for('save_settings') }}">
+                        <input type="hidden" name="section" value="advanced">
+                        <div class="settings-card">
                         <div class="settings-grid">
                             <div class="setting-item">
                                 <div class="setting-info">
@@ -585,6 +789,285 @@ Settings - AKS Cost Optimizer
                             Export Settings
                         </button>
                     </div>
+                    </form>
+                </section>
+                
+                <!-- Edit User Section -->
+                <section id="user-section" class="settings-section">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <i class="fas fa-user-edit"></i>
+                            Edit User Profile
+                        </h2>
+                        <p class="section-description">Manage your user account and preferences</p>
+                    </div>
+                    
+                    <div class="settings-card">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Account Management</h3>
+                                <p class="setting-description">Update your profile, change password, and manage account settings</p>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <form id="profile-form" method="POST" action="{{ url_for('save_settings') }}">
+                                <input type="hidden" name="section" value="profile">
+                                
+                                <div class="profile-settings-layout">
+                                    <div class="setting-item username-setting">
+                                        <div class="setting-info">
+                                            <h3 class="setting-title">Username</h3>
+                                            <p class="setting-description">Your login username</p>
+                                        </div>
+                                        <div class="setting-control">
+                                            <input type="text" 
+                                                   name="username" 
+                                                   id="profile-username" 
+                                                   class="setting-input" 
+                                                   value="{{ current_user.get('username', '') }}"
+                                                   placeholder="Enter username"
+                                                   required>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="setting-item password-setting">
+                                        <div class="setting-info">
+                                            <h3 class="setting-title">Change Password</h3>
+                                            <p class="setting-description">Update your login password</p>
+                                        </div>
+                                        <div class="setting-control password-control">
+                                            <div class="password-fields">
+                                                <input type="password" 
+                                                       name="current_password" 
+                                                       id="current-password" 
+                                                       class="setting-input password-input" 
+                                                       placeholder="Current password">
+                                                <input type="password" 
+                                                       name="new_password" 
+                                                       id="new-password" 
+                                                       class="setting-input password-input" 
+                                                       placeholder="New password">
+                                                <input type="password" 
+                                                       name="confirm_password" 
+                                                       id="confirm-password" 
+                                                       class="setting-input password-input" 
+                                                       placeholder="Confirm new password">
+                                            </div>
+                                            <div class="setting-note">
+                                                Leave password fields empty to keep current password
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="settings-footer">
+                                    <div class="settings-actions">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-save"></i>
+                                            Save Profile Changes
+                                        </button>
+                                        <button type="button" class="btn btn-outline" onclick="resetProfileForm()">
+                                            <i class="fas fa-undo"></i>
+                                            Reset
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="info-box info-box-primary">
+                                <div class="info-box-header">
+                                    <i class="fas fa-info-circle"></i>
+                                    <h4>KubeOpt Account Portal</h4>
+                                </div>
+                                <p class="info-box-text">
+                                    For advanced account features, billing management, and subscription changes, 
+                                    visit the KubeOpt account portal.
+                                </p>
+                                <div class="info-box-actions">
+                                    <a href="https://kubeopt.com/account" target="_blank" class="btn btn-secondary btn-external">
+                                        <i class="fas fa-external-link-alt"></i>
+                                        Advanced Settings
+                                    </a>
+                                    <a href="https://kubeopt.com/account/billing" target="_blank" class="btn btn-secondary btn-external">
+                                        <i class="fas fa-credit-card"></i>
+                                        Billing & Plans
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Current User</h3>
+                                <p class="setting-description">Currently logged in as</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="user-info-card">
+                                    <div class="user-info-content">
+                                        <i class="fas fa-user-circle user-avatar"></i>
+                                        <div class="user-details">
+                                            <div class="user-name">{{ current_user.get('username', 'kubeopt') }}</div>
+                                            <div class="user-role">{{ current_user.get('role', 'admin') | title }} User</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Local Logout</h3>
+                                <p class="setting-description">Sign out of this application instance</p>
+                            </div>
+                            <div class="setting-control">
+                                <a href="{{ url_for('logout') }}" class="btn btn-outline">
+                                    <i class="fas fa-sign-out-alt"></i>
+                                    Logout
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Support Section -->
+                <section id="support-section" class="settings-section">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <i class="fas fa-life-ring"></i>
+                            Support & Help
+                        </h2>
+                        <p class="section-description">Get help and access support resources</p>
+                    </div>
+                    
+                    <div class="settings-card">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">KubeOpt Support Portal</h3>
+                                <p class="setting-description">Access comprehensive support, documentation, and community resources</p>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="support-grid">
+                                <!-- Documentation -->
+                                <div class="support-card support-card-docs">
+                                    <div class="support-card-header">
+                                        <div class="support-icon support-icon-blue">
+                                            <i class="fas fa-book"></i>
+                                        </div>
+                                        <h4 class="support-card-title">Documentation</h4>
+                                    </div>
+                                    <p class="support-card-description">
+                                        Comprehensive guides, API documentation, and best practices for AKS cost optimization.
+                                    </p>
+                                    <a href="https://kubeopt.com/docs" target="_blank" class="btn btn-primary btn-sm btn-external">
+                                        <i class="fas fa-external-link-alt"></i>
+                                        View Docs
+                                    </a>
+                                </div>
+                                
+                                <!-- Support Tickets -->
+                                <div class="support-card support-card-tickets">
+                                    <div class="support-card-header">
+                                        <div class="support-icon support-icon-green">
+                                            <i class="fas fa-ticket-alt"></i>
+                                        </div>
+                                        <h4 class="support-card-title">Support Tickets</h4>
+                                    </div>
+                                    <p class="support-card-description">
+                                        Get direct help from our support team. Track and manage your support requests.
+                                    </p>
+                                    <a href="https://kubeopt.com/support" target="_blank" class="btn btn-success btn-sm btn-external">
+                                        <i class="fas fa-external-link-alt"></i>
+                                        Open Ticket
+                                    </a>
+                                </div>
+                                
+                                <!-- Community -->
+                                <div class="support-card support-card-community">
+                                    <div class="support-card-header">
+                                        <div class="support-icon support-icon-purple">
+                                            <i class="fas fa-users"></i>
+                                        </div>
+                                        <h4 class="support-card-title">Community</h4>
+                                    </div>
+                                    <p class="support-card-description">
+                                        Connect with other KubeOpt users, share best practices, and get community support.
+                                    </p>
+                                    <a href="https://kubeopt.com/community" target="_blank" class="btn btn-outline btn-sm btn-external">
+                                        <i class="fas fa-external-link-alt"></i>
+                                        Join Community
+                                    </a>
+                                </div>
+                                
+                                <!-- Training -->
+                                <div class="support-card support-card-training">
+                                    <div class="support-card-header">
+                                        <div class="support-icon support-icon-orange">
+                                            <i class="fas fa-graduation-cap"></i>
+                                        </div>
+                                        <h4 class="support-card-title">Training</h4>
+                                    </div>
+                                    <p class="support-card-description">
+                                        Learn advanced optimization techniques with our training programs and workshops.
+                                    </p>
+                                    <a href="https://kubeopt.com/training" target="_blank" class="btn btn-warning btn-sm btn-external">
+                                        <i class="fas fa-external-link-alt"></i>
+                                        View Training
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <h3 class="setting-title">Quick Actions</h3>
+                                <p class="setting-description">Common support actions</p>
+                            </div>
+                            <div class="setting-control">
+                                <div class="quick-actions-grid">
+                                    <a href="https://kubeopt.com/status" target="_blank" class="btn btn-outline btn-sm btn-external">
+                                        <i class="fas fa-heartbeat"></i>
+                                        Service Status
+                                    </a>
+                                    <a href="https://kubeopt.com/downloads" target="_blank" class="btn btn-outline btn-sm btn-external">
+                                        <i class="fas fa-download"></i>
+                                        Downloads
+                                    </a>
+                                    <a href="https://kubeopt.com/roadmap" target="_blank" class="btn btn-outline btn-sm btn-external">
+                                        <i class="fas fa-road"></i>
+                                        Roadmap
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="contact-info-card">
+                                <h4 class="contact-info-title">
+                                    <i class="fas fa-envelope"></i>
+                                    Direct Contact
+                                </h4>
+                                <div class="contact-info-grid">
+                                    <div class="contact-item">
+                                        <div class="contact-label">Sales</div>
+                                        <a href="mailto:sales@kubeopt.com" class="contact-link">sales@kubeopt.com</a>
+                                    </div>
+                                    <div class="contact-item">
+                                        <div class="contact-label">Support</div>
+                                        <a href="mailto:support@kubeopt.com" class="contact-link">support@kubeopt.com</a>
+                                    </div>
+                                    <div class="contact-item">
+                                        <div class="contact-label">General</div>
+                                        <a href="mailto:info@kubeopt.com" class="contact-link">info@kubeopt.com</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </section>
                 
             </div>
@@ -625,11 +1108,13 @@ function setupContextAwareSidebar() {
             const clusterMatch = pathname.match(/^\/cluster\/(.+)$/);
             
             if (clusterMatch) {
-                // Extract cluster info from URL
+                // Extract cluster info from URL and clean any hash fragments
+                const cleanUrl = referrer.split('#')[0]; // Remove any existing hash
                 clusterInfo = {
                     id: clusterMatch[1],
-                    returnUrl: referrer
+                    returnUrl: cleanUrl
                 };
+                console.log('🔗 Cluster navigation setup:', { originalUrl: referrer, cleanUrl: cleanUrl, clusterId: clusterMatch[1] });
             }
         } catch (e) {
             console.log('Could not parse referrer URL');
@@ -645,6 +1130,7 @@ function populateSidebar(clusterInfo) {
     
     if (clusterInfo) {
         // Coming from cluster page - show cluster navigation
+        console.log('🔧 Creating cluster sidebar navigation...');
         iconNav.innerHTML = `
             <div class="nav-section">
                 <div class="nav-item">
@@ -676,6 +1162,8 @@ function populateSidebar(clusterInfo) {
                 </div>
             </div>
         `;
+        console.log('🔧 Icon sidebar HTML created, length:', iconNav.innerHTML.length);
+        console.log('🔧 Icon sidebar DOM element:', iconNav);
         
         menuNav.innerHTML = `
             <div class="nav-section">

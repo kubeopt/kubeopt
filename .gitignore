@@ -1,6 +1,6 @@
 *.log
 *.pyc
-*.txt
+
 static/.DS_Store
 aks_cost_query_1748726312.json
 static/.DS_Store
@@ -26,3 +26,9 @@ tailwind/yarn-error.log*
 # presentation/web/static/css/tailwind.css
 
 .aider*
+requirements/ml.txt
+requirements/development.txt
+requirements/dev.txt
+requirements/base.txt
+requirements/prod.txt
+requirements/requirements_base.txt

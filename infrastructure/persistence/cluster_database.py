@@ -141,7 +141,8 @@ def migrate_analysis_data_to_blob(db_path: str = '../data/database/clusters.db')
                             subscription_id TEXT DEFAULT NULL,
                             subscription_name TEXT DEFAULT NULL,
                             subscription_context_verified BOOLEAN DEFAULT 0,
-                            subscription_last_validated TIMESTAMP NULL
+                            subscription_last_validated TIMESTAMP NULL,
+                            cost_fetched_at TIMESTAMP NULL
                         )
                     """)
                     
@@ -208,7 +209,8 @@ def migrate_database_for_multi_subscription(db_path: str = '../data/database/clu
                 'analysis_started_at': 'TIMESTAMP NULL',
                 'auto_analyze_enabled': 'BOOLEAN DEFAULT 1',
                 'subscription_context_verified': 'BOOLEAN DEFAULT 0',
-                'subscription_last_validated': 'TIMESTAMP NULL'
+                'subscription_last_validated': 'TIMESTAMP NULL',
+                'cost_fetched_at': 'TIMESTAMP NULL'
             }
             
             # Add missing columns
@@ -371,7 +373,11 @@ def deserialize_implementation_plan(serialized_data):
 class EnhancedMultiSubscriptionClusterManager:
     """Complete enhanced cluster manager with comprehensive multi-subscription support"""
     
-    def __init__(self, db_path='infrastructure/persistence/database/clusters.db'):
+    def __init__(self, db_path=None):
+        # Use environment variable for database path, fallback to default
+        if db_path is None:
+            import os
+            db_path = os.getenv('DATABASE_PATH', 'infrastructure/persistence/database/clusters.db')
         self.db_path = db_path
         self.logger = logging.getLogger(__name__)
         
@@ -423,7 +429,8 @@ class EnhancedMultiSubscriptionClusterManager:
                         subscription_id TEXT DEFAULT NULL,
                         subscription_name TEXT DEFAULT NULL,
                         subscription_context_verified BOOLEAN DEFAULT 0,
-                        subscription_last_validated TIMESTAMP NULL
+                        subscription_last_validated TIMESTAMP NULL,
+                        cost_fetched_at TIMESTAMP NULL
                     )
                 ''')
                 
@@ -2948,6 +2955,9 @@ class EnhancedMultiSubscriptionClusterManager:
                     'implementation_difficulty': 'medium',
                     'risk_level': 'medium'
                 })
+        
+        # ENHANCED: Add expert-level optimization opportunities from enhanced analysis
+        #self._add_expert_optimization_opportunities(opportunities, analysis_results)
         
         # Sort by savings and take top 50
         opportunities = sorted(opportunities, key=lambda x: x.get('potential_monthly_savings', 0), reverse=True)[:50]

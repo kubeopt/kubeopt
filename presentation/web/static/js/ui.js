@@ -63,6 +63,8 @@ window.UI = (function() {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('theme', theme);
         updateThemeIcon(theme);
+        
+        // Recreate charts to update theme colors - this will be handled automatically by MutationObserver in chart-manager.js
     }
 
     /**

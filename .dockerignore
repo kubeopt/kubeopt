@@ -1,0 +1,77 @@
+# Large log files
+*.log
+logs/
+
+# Database files (will be created fresh in container)
+*.db
+*.sqlite
+*.sqlite3
+infrastructure/persistence/database/
+infrastructure/persistence/cache/
+machine_learning/data/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Git
+.git/
+
+# Docker files
+docker-compose*.yml
+Dockerfile*
+
+# Documentation
+docs/
+README.md
+*.md
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.env
+.env.local
+.env.backup
+
+# Cache directories
+.cache/
+.pytest_cache/
+.coverage
+.tox/
+
+# Virtual environments
+.venv/
+venv/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.whl
+
+# Large data files
+*.zip
+*.tar.gz
+*.tar.bz2
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# Test files
+tests/
+test_*.py
+*_test.py

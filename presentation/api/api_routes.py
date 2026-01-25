@@ -29,6 +29,43 @@ from shared.config.config import (
     _analysis_lock, _analysis_sessions, analysis_cache
 )
 from infrastructure.services.auth_manager import auth_manager
+from infrastructure.services.api_security import api_security
+from functools import wraps
+from flask import session
+
+def hybrid_auth(f):
+    """
+    Hybrid authentication decorator that supports both session and API key authentication.
+    Allows access via:
+    1. Traditional session authentication (for web UI)
+    2. API key authentication (for programmatic access)
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Check for API key authentication first
+        api_key = request.headers.get('X-API-Key')
+        if api_key:
+            # Verify API key
+            if api_security.verify_api_key(api_key):
+                logger.debug(f"API key authentication successful for {request.path}")
+                # Set a flag to indicate API access
+                request.is_api_access = True
+                return f(*args, **kwargs)
+            else:
+                logger.warning(f"Invalid API key for {request.path}")
+                return jsonify({'error': 'Invalid API key'}), 401
+        
+        # Fall back to session authentication
+        if auth_manager.validate_session():
+            logger.debug(f"Session authentication successful for {request.path}")
+            request.is_api_access = False
+            return f(*args, **kwargs)
+        
+        # No valid authentication found
+        logger.warning(f"No valid authentication for {request.path}")
+        return jsonify({'error': 'Authentication required'}), 401
+    
+    return decorated_function
 from infrastructure.services.background_processor import run_subscription_aware_background_analysis
 from shared.utils.shared import _get_analysis_data  # Import from shared module
 from infrastructure.services.subscription_manager import azure_subscription_manager
@@ -490,6 +527,61 @@ def trigger_alert_checking_after_analysis(cluster_id: str, analysis_results: dic
 def register_api_routes(app):
     """Register all API routes with multi-subscription support and complete alerts integration"""
     
+    # Enhanced Health Check with Azure Status
+    @app.route('/api/health')
+    def api_health_check():
+        """Comprehensive health check including Azure connectivity"""
+        try:
+            from infrastructure.services.azure_sdk_manager import azure_sdk_manager
+            from infrastructure.services.settings_manager import settings_manager
+            
+            # Check Azure connectivity
+            azure_status = 'unknown'
+            azure_details = {}
+            
+            try:
+                if azure_sdk_manager and azure_sdk_manager.is_authenticated():
+                    azure_status = 'connected'
+                    subscription_id = azure_sdk_manager.get_subscription_id()
+                    if subscription_id:
+                        azure_details = {'subscription_id': subscription_id[:8] + '...'}
+                    else:
+                        azure_details = {'access_type': 'organization-wide'}
+                else:
+                    azure_status = 'not_configured'
+            except Exception as e:
+                azure_status = 'error'
+                azure_details = {'error': str(e)}
+            
+            health_data = {
+                'status': 'healthy',
+                'service': 'aks-cost-optimizer',
+                'version': '2.0.0',
+                'timestamp': datetime.now().isoformat(),
+                'components': {
+                    'api': 'healthy',
+                    'auth': 'healthy' if auth_manager else 'unavailable',
+                    'settings': 'healthy' if settings_manager else 'unavailable',
+                    'azure': azure_status,
+                    'azure_details': azure_details,
+                    'cluster_manager': 'healthy' if enhanced_cluster_manager else 'unavailable'
+                }
+            }
+            
+            # Return 200 for healthy, 503 for unhealthy
+            status_code = 200 if azure_status in ['connected', 'not_configured'] else 503
+            
+            return jsonify(health_data), status_code
+            
+        except Exception as e:
+            logger.error(f"API Health check failed: {e}")
+            return jsonify({
+                'status': 'unhealthy',
+                'service': 'aks-cost-optimizer',
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }), 503
+    
     # Initialize and register alerts system
     global alerts_manager
     try:
@@ -499,6 +591,131 @@ def register_api_routes(app):
         logger.info("✅ Routes registered successfully")
     except Exception as e:
         logger.error(f"❌ Failed to register alerts routes: {e}")
+    
+    # ==================== API Key Management Endpoints ====================
+    
+    @app.route('/api/auth/generate-api-key', methods=['POST'])
+    @auth_manager.require_auth  # Only authenticated users can generate API keys
+    def generate_api_key():
+        """Generate a new API key for programmatic access"""
+        try:
+            # Get current user
+            current_user = auth_manager.get_current_user()
+            username = current_user.get('username', 'unknown')
+            
+            # Generate JWT token with extended expiry for API use
+            token = api_security.generate_jwt_token(
+                user_id=username,
+                role=current_user.get('role', 'user'),
+                additional_claims={
+                    'api_access': True,
+                    'generated_at': datetime.now().isoformat()
+                }
+            )
+            
+            logger.info(f"🔑 Generated API key for user: {username}")
+            
+            return jsonify({
+                'status': 'success',
+                'api_key': api_security.api_key,  # Static API key for the application
+                'jwt_token': token,  # User-specific JWT token
+                'usage': {
+                    'header': 'X-API-Key',
+                    'value': api_security.api_key,
+                    'jwt_header': 'Authorization',
+                    'jwt_value': f'Bearer {token}'
+                },
+                'example_curl': f'curl -H "X-API-Key: {api_security.api_key}" https://your-domain/api/portfolio/summary',
+                'expires_in_minutes': api_security.jwt_expiry_minutes
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to generate API key: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+    
+    @app.route('/api/auth/validate-api-key', methods=['POST'])
+    @api_security.rate_limit(max_requests=10, window_seconds=60)
+    def validate_api_key():
+        """Validate an API key"""
+        try:
+            api_key = request.json.get('api_key') or request.headers.get('X-API-Key')
+            
+            if not api_key:
+                return jsonify({
+                    'status': 'error',
+                    'valid': False,
+                    'message': 'No API key provided'
+                }), 400
+            
+            is_valid = api_security.verify_api_key(api_key)
+            
+            return jsonify({
+                'status': 'success',
+                'valid': is_valid,
+                'message': 'API key is valid' if is_valid else 'Invalid API key'
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to validate API key: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
+    
+    @app.route('/api/auth/refresh-token', methods=['POST'])
+    @api_security.rate_limit(max_requests=5, window_seconds=60)
+    def refresh_jwt_token():
+        """Refresh an expired JWT token"""
+        try:
+            # Get the current token from header
+            auth_header = request.headers.get('Authorization', '')
+            
+            if not auth_header.startswith('Bearer '):
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Bearer token required'
+                }), 401
+            
+            old_token = auth_header[7:]
+            
+            # Verify the old token (even if expired, we can decode it)
+            try:
+                # Decode without verification to get user info
+                import jwt as pyjwt
+                unverified = pyjwt.decode(old_token, options={"verify_signature": False})
+                
+                # Generate new token
+                new_token = api_security.generate_jwt_token(
+                    user_id=unverified.get('user_id'),
+                    role=unverified.get('role', 'user'),
+                    additional_claims={
+                        'api_access': unverified.get('api_access', False),
+                        'refreshed_at': datetime.now().isoformat()
+                    }
+                )
+                
+                return jsonify({
+                    'status': 'success',
+                    'jwt_token': new_token,
+                    'expires_in_minutes': api_security.jwt_expiry_minutes
+                })
+                
+            except Exception as decode_error:
+                logger.warning(f"Failed to decode token for refresh: {decode_error}")
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Invalid token format'
+                }), 401
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to refresh token: {e}")
+            return jsonify({
+                'status': 'error',
+                'message': str(e)
+            }), 500
 
     @app.route('/api/subscriptions', methods=['GET'])
     def api_get_subscriptions():
@@ -906,6 +1123,8 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/implementation-plan')
+    @hybrid_auth
+    @api_security.rate_limit(max_requests=30, window_seconds=60)  # Limit plan requests
     @require_feature(FeatureFlag.IMPLEMENTATION_PLAN, api_response=True)
     def get_implementation_plan():
         """ ENHANCED: Implementation plan API with format selection and better error handling"""
@@ -1263,6 +1482,8 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/clusters/<path:cluster_id>/analyze', methods=['POST'])
+    @hybrid_auth
+    @api_security.rate_limit(max_requests=10, window_seconds=60)  # Limit analysis requests
     def api_analyze_cluster(cluster_id: str):
         """Trigger subscription-aware analysis for specific cluster"""
         try:
@@ -1409,7 +1630,8 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/portfolio/summary', methods=['GET'])
-    @auth_manager.require_auth  
+    @hybrid_auth
+    @api_security.rate_limit(max_requests=120, window_seconds=60)  # Allow more for dashboard refresh
     def api_portfolio_summary():
         """API endpoint to get updated portfolio summary (for auto-refresh during analysis)"""
         try:
@@ -1457,7 +1679,8 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/dashboard/overview', methods=['GET'])
-    @auth_manager.require_auth  
+    @hybrid_auth
+    @api_security.rate_limit(max_requests=120, window_seconds=60)
     def api_dashboard_overview():
         """API endpoint for dashboard overview data (for auto-refresh)"""
         try:
@@ -1543,7 +1766,8 @@ def register_api_routes(app):
             }), 500
 
     @app.route('/api/dashboard/recent-analysis', methods=['GET'])
-    @auth_manager.require_auth  
+    @hybrid_auth
+    @api_security.rate_limit(max_requests=60, window_seconds=60)
     def api_dashboard_recent_analysis():
         """API endpoint for recent analysis data (for auto-refresh)"""
         try:
@@ -2267,6 +2491,8 @@ def register_api_routes(app):
             }), 500
     
     @app.route('/api/clusters/<path:cluster_id>/plan/generate', methods=['POST'])
+    @hybrid_auth
+    @api_security.rate_limit(max_requests=5, window_seconds=3600)  # 5 plans per hour limit
     def generate_new_plan(cluster_id):
         """Generate a new implementation plan for a cluster using external API (once per day limit)"""
         try:

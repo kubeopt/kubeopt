@@ -31,8 +31,15 @@ class SettingsManager:
     """
     
     def __init__(self):
-        self.settings_file = os.path.join(os.getcwd(), '.env')
-        self.backup_settings_file = os.path.join(os.getcwd(), '.env.backup')
+        # Use persistent settings path if configured, otherwise default to current directory
+        settings_dir = os.getenv('SETTINGS_PATH', os.getcwd())
+        
+        # Ensure the settings directory exists
+        if not os.path.exists(settings_dir):
+            os.makedirs(settings_dir, exist_ok=True)
+            
+        self.settings_file = os.path.join(settings_dir, '.env')
+        self.backup_settings_file = os.path.join(settings_dir, '.env.backup')
         self.config_cache = {}
         self.load_settings()
     

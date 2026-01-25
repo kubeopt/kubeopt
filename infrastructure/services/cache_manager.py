@@ -312,11 +312,30 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
     cpu_gap = complete_analysis_data.get('cpu_gap')
     memory_gap = complete_analysis_data.get('memory_gap')
     
-    # Calculate if missing
+    # Calculate if missing - using standards from performance_standards.py (NO HARDCODING)
     if not cpu_gap and 'avg_cpu_utilization' in complete_analysis_data:
-        cpu_gap = max(0, 70 - complete_analysis_data['avg_cpu_utilization'])
+        try:
+            from shared.standards.performance_standards import SystemPerformanceStandards
+            cpu_utilization = complete_analysis_data['avg_cpu_utilization']
+            cpu_optimal = SystemPerformanceStandards.CPU_UTILIZATION_OPTIMAL
+            cpu_gap = max(0, cpu_optimal - cpu_utilization) if cpu_utilization < cpu_optimal else max(0, cpu_utilization - cpu_optimal)
+            logger.info(f"🔍 CALCULATED CPU GAP: {cpu_utilization}% utilization -> {cpu_gap}% gap from {cpu_optimal}% optimal (standards-based)")
+        except ImportError as e:
+            logger.error(f"❌ Failed to import standards for CPU gap calculation: {e}")
+            # Following .clauderc: FAIL FAST - no defaults
+            raise ValueError(f"Cannot calculate CPU gap without performance standards: {e}")
+    
     if not memory_gap and 'avg_memory_utilization' in complete_analysis_data:
-        memory_gap = max(0, 75 - complete_analysis_data['avg_memory_utilization'])
+        try:
+            from shared.standards.performance_standards import SystemPerformanceStandards
+            memory_utilization = complete_analysis_data['avg_memory_utilization']
+            memory_optimal = SystemPerformanceStandards.MEMORY_UTILIZATION_OPTIMAL
+            memory_gap = max(0, memory_optimal - memory_utilization) if memory_utilization < memory_optimal else max(0, memory_utilization - memory_optimal)
+            logger.info(f"🔍 CALCULATED MEMORY GAP: {memory_utilization}% utilization -> {memory_gap}% gap from {memory_optimal}% optimal (standards-based)")
+        except ImportError as e:
+            logger.error(f"❌ Failed to import standards for memory gap calculation: {e}")
+            # Following .clauderc: FAIL FAST - no defaults
+            raise ValueError(f"Cannot calculate memory gap without performance standards: {e}")
     logger.info(f"🔍 CACHE SAVE: About to cache CPU gap: {cpu_gap}, Memory gap: {memory_gap}")
     # Validate breakdown data exists (per .clauderc: log but don't fail - data will be generated)
     if 'build_quality_breakdown' not in complete_analysis_data:
@@ -336,8 +355,8 @@ def save_to_cache_with_validation(cluster_id: str, complete_analysis_data: dict,
         if validation_errors is not None and validation_errors:
             raise ValueError(f"Cache validation failed: {validation_errors}")
         
-        # STEP 2: Clean and prepare data for caching
-        cache_data = _prepare_cache_data(complete_analysis_data, cluster_id)
+        # STEP 2: Clean and prepare data for caching (pass calculated gaps)
+        cache_data = _prepare_cache_data(complete_analysis_data, cluster_id, cpu_gap, memory_gap)
         
         # 🔍 CACHE PREP: Verify gap data preservation
         prep_cpu_gap = cache_data.get('cpu_gap', 'NOT_FOUND')
@@ -479,7 +498,7 @@ def _validate_loaded_cache_data(cached_data: dict, cluster_id: str) -> List[str]
     
     return []  # Accept most cached data to improve performance
 
-def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
+def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str, cpu_gap: float = None, memory_gap: float = None) -> dict:
     """Preserve ALL HPA efficiency data in cache"""
     
     # Create clean copy of essential data
@@ -511,9 +530,9 @@ def _prepare_cache_data(complete_analysis_data: dict, cluster_id: str) -> dict:
         'hpa_reduction': complete_analysis_data.get('hpa_reduction'),
         
         # Preserve gap data for rightsizing insights
-        # CRITICAL: Ensure gaps are always present
-        'cpu_gap': complete_analysis_data.get('cpu_gap', 0),
-        'memory_gap': complete_analysis_data.get('memory_gap', 0),
+        # CRITICAL: Ensure gaps are always present - try multiple field names
+        'cpu_gap': complete_analysis_data.get('cpu_gap') or complete_analysis_data.get('rightsizing_cpu_gap') or cpu_gap or 0,
+        'memory_gap': complete_analysis_data.get('memory_gap') or complete_analysis_data.get('rightsizing_memory_gap') or memory_gap or 0,
         
         # Preserve current utilization data for enterprise metrics API
         'current_cpu_utilization': complete_analysis_data.get('current_cpu_utilization'),

@@ -51,6 +51,34 @@ class ClusterPortfolio {
         if (sortBy) {
             sortBy.addEventListener('change', (e) => this.handleSort(e));
         }
+        
+        // Cluster form validation triggers
+        const clusterName = document.getElementById('clusterName');
+        const subscriptionSelect = document.getElementById('subscriptionSelect');
+        const resourceGroup = document.getElementById('resourceGroup');
+        
+        if (clusterName) {
+            clusterName.addEventListener('input', () => {
+                this.clearValidationStatus();
+                clearTimeout(this.validationTimeout);
+                this.validationTimeout = setTimeout(() => this.triggerValidation(), 1000);
+            });
+        }
+        
+        if (subscriptionSelect) {
+            subscriptionSelect.addEventListener('change', () => {
+                this.clearValidationStatus();
+                this.triggerValidation();
+            });
+        }
+        
+        if (resourceGroup) {
+            resourceGroup.addEventListener('input', () => {
+                this.clearValidationStatus();
+                clearTimeout(this.validationTimeout);
+                this.validationTimeout = setTimeout(() => this.triggerValidation(), 1000);
+            });
+        }
     }
 
     // Modal Management
@@ -138,10 +166,14 @@ class ClusterPortfolio {
         const subscriptionId = document.getElementById('subscriptionSelect')?.value;
         const clusterName = document.getElementById('clusterName')?.value?.trim();
         const resourceGroup = document.getElementById('resourceGroup')?.value?.trim();
+        const validationStatus = document.getElementById('validation-status');
         
         if (!subscriptionId || !clusterName) {
             return false;
         }
+        
+        // Show validation in progress
+        this.showValidationStatus('validating', 'fas fa-spinner fa-spin', 'Validating cluster access...');
         
         try {
             const response = await fetch(`/api/subscriptions/${subscriptionId}/validate`, {
@@ -156,16 +188,64 @@ class ClusterPortfolio {
             const result = await response.json();
             
             if (result.status === 'success' && result.validation_result?.valid) {
+                // Auto-fill discovered resource group
                 if (result.validation_result.auto_discovered && !resourceGroup) {
                     document.getElementById('resourceGroup').value = result.validation_result.discovered_resource_group;
+                    this.showValidationStatus('success', 'fas fa-check-circle', 
+                        `✓ Cluster validated! Auto-discovered in resource group: ${result.validation_result.discovered_resource_group}`);
+                } else {
+                    this.showValidationStatus('success', 'fas fa-check-circle', 
+                        `✓ Cluster access validated successfully`);
                 }
                 return true;
+            } else {
+                // Show validation error
+                const errorMsg = result.validation_result?.error || result.message || 'Cluster validation failed';
+                const suggestion = result.validation_result?.suggestion || '';
+                this.showValidationStatus('error', 'fas fa-exclamation-circle', 
+                    `✗ ${errorMsg}${suggestion ? ` ${suggestion}` : ''}`);
+                return false;
             }
-            return false;
             
         } catch (error) {
             console.error('Error validating cluster:', error);
+            this.showValidationStatus('error', 'fas fa-exclamation-triangle', 
+                '✗ Failed to connect to validation service');
             return false;
+        }
+    }
+
+    showValidationStatus(type, iconClass, message) {
+        const validationStatus = document.getElementById('validation-status');
+        const validationIcon = validationStatus.querySelector('.validation-icon');
+        const validationMessage = validationStatus.querySelector('.validation-message');
+        
+        // Remove existing classes
+        validationStatus.className = 'validation-status';
+        
+        // Add new status class
+        validationStatus.classList.add(type);
+        validationStatus.style.display = 'block';
+        
+        // Update icon and message
+        validationIcon.className = `validation-icon ${iconClass}`;
+        validationMessage.textContent = message;
+    }
+
+    clearValidationStatus() {
+        const validationStatus = document.getElementById('validation-status');
+        if (validationStatus) {
+            validationStatus.style.display = 'none';
+            validationStatus.className = 'validation-status';
+        }
+    }
+
+    async triggerValidation() {
+        const subscriptionId = document.getElementById('subscriptionSelect')?.value;
+        const clusterName = document.getElementById('clusterName')?.value?.trim();
+        
+        if (subscriptionId && clusterName && clusterName.length > 2) {
+            await this.validateClusterAccess();
         }
     }
 

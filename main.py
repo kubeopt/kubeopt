@@ -19,12 +19,14 @@ sys.path.insert(0, current_dir)
 
 # Load environment variables
 def load_env_files():
-    """Load environment variables from single .env file"""
+    """Load environment variables from persistent .env file"""
     
-    # Load only the main .env file
-    main_env_file = os.path.join(current_dir, '.env')
+    # Use persistent settings path if configured, otherwise default to current directory
+    settings_dir = os.getenv('SETTINGS_PATH', current_dir)
+    main_env_file = os.path.join(settings_dir, '.env')
+    
     if os.path.exists(main_env_file):
-        print("🔧 Loading environment variables from .env...")
+        print(f"🔧 Loading environment variables from {main_env_file}...")
         with open(main_env_file, 'r') as f:
             for line in f:
                 line = line.strip()
@@ -34,9 +36,9 @@ def load_env_files():
                     if '#' in value:
                         value = value.split('#')[0].strip()
                     os.environ[key] = value
-        print("✅ Environment variables loaded from single .env file")
+        print("✅ Environment variables loaded from persistent .env file")
     else:
-        print("⚠️ No .env file found")
+        print(f"⚠️ No .env file found at {main_env_file}")
 
 # Load environment variables
 load_env_files()
