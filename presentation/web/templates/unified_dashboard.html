@@ -1,0 +1,434 @@
+{% extends "base.html" %}
+
+{% block title %}
+{{ cluster.name }} - AKS Cost Optimizer
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+    <!-- Fixed Icon Sidebar -->
+    <aside class="sidebar-icons" id="sidebar-icons">
+        <!-- Toggle Button -->
+        <button class="sidebar-toggle" onclick="toggleSidebar()">
+            <i class="fas fa-bars"></i>
+        </button>
+        
+        <!-- Icon Navigation -->
+        <nav class="icon-nav">
+            <div class="nav-section">
+                <div class="nav-item">
+                    <a href="#" class="nav-link active" data-view="overview" data-tooltip="Overview">
+                        <i class="fas fa-chart-line"></i>
+                    </a>
+                </div>
+                {% if feature_flags.show_ai_plans %}
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="implementation" data-tooltip="Implementation">
+                        <i class="fas fa-tasks"></i>
+                    </a>
+                </div>
+                {% endif %}
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="alerts" data-tooltip="Alerts">
+                        <i class="fas fa-bell"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <div class="nav-item">
+                    <a href="/settings" class="nav-link" data-tooltip="Settings">
+                        <i class="fas fa-cog"></i>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="/clusters" class="nav-link" data-tooltip="All Clusters">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                </div>
+            </div>
+        </nav>
+    </aside>
+    
+    <!-- Expandable Menu Panel -->
+    <aside class="sidebar-menu" id="sidebar-menu">
+        <!-- Invisible spacer to match toggle button in icon panel -->
+        <div class="menu-toggle-spacer"></div>
+        
+        <nav class="menu-nav">
+            <div class="nav-section">
+                <!-- <div class="nav-section-title">Dashboard</div> -->
+                <div class="nav-item">
+                    <a href="#" class="nav-link active" data-view="overview">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Overview</span>
+                    </a>
+                </div>
+                {% if feature_flags.show_ai_plans %}
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="implementation">
+                        <i class="fas fa-tasks"></i>
+                        <span>Implementation</span>
+                    </a>
+                </div>
+                {% endif %}
+                <div class="nav-item">
+                    <a href="#" class="nav-link" data-view="alerts">
+                        <i class="fas fa-bell"></i>
+                        <span>Alerts</span>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="nav-section">
+                <!-- <div class="nav-section-title">System</div> -->
+                <div class="nav-item">
+                    <a href="/settings" class="nav-link">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </div>
+                <div class="nav-item">
+                    <a href="/clusters" class="nav-link">
+                        <i class="fas fa-arrow-left"></i>
+                        <span>All Clusters</span>
+                    </a>
+                </div>
+            </div>
+        </nav>
+    </aside>
+    
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Minimal Dashboard Header -->
+        <header class="dashboard-header">
+            <div class="dashboard-header-content">
+                <h1 class="dashboard-title">{{ cluster.name }}</h1>
+            </div>
+        </header>
+        
+        <!-- Dashboard Content -->
+        <div class="dashboard-content" id="dashboard-content">
+        
+        <!-- Cluster information for JavaScript -->
+        <script>
+            window.AppState = {
+                currentClusterId: "{{ cluster.id }}",
+                currentClusterName: "{{ cluster.name }}",
+                currentResourceGroup: "{{ cluster.resource_group }}",
+                featureFlags: {
+                    showAiPlans: {{ feature_flags.show_ai_plans|tojson }},
+                    tier: "{{ feature_flags.tier }}",
+                    hasLicense: {{ feature_flags.has_license|tojson }}
+                }
+            };
+            
+            {% if cluster %}
+            window.clusterInfo = {
+                id: '{{ cluster.id }}',
+                name: '{{ cluster.name }}',
+                cluster_name: '{{ cluster.name }}',
+                resource_group: '{{ cluster.resource_group }}',
+                environment: '{{ cluster.environment }}',
+                region: '{{ cluster.region }}',
+                subscription_id: '{{ cluster.subscription_id }}'
+            };
+            {% endif %}
+        </script>
+            
+            <!-- Overview Section (Default) -->
+            <div id="overview-section" class="dashboard-section active">
+                
+                <!-- Metrics Grid -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Current Monthly Cost</span>
+                            <span class="metric-trend positive">↗ 5.2%</span>
+                        </div>
+                        <div class="metric-value" id="current-cost">$0.00</div>
+                        <div class="metric-subtitle">This month</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Potential Savings</span>
+                            <span class="metric-trend positive">↗ 12%</span>
+                        </div>
+                        <div class="metric-value" id="potential-savings">$0.00</div>
+                        <div class="metric-subtitle">Monthly opportunity</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Optimization Score</span>
+                            <span class="metric-trend positive">↗ 3%</span>
+                        </div>
+                        <div class="metric-value" id="optimization-score">0%</div>
+                        <div class="metric-subtitle">Overall efficiency</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">HPA Efficiency</span>
+                            <span class="metric-trend negative">↘ 2%</span>
+                        </div>
+                        <div class="metric-value" id="hpa-efficiency">0%</div>
+                        <div class="metric-subtitle">Auto-scaling performance</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Active Nodes</span>
+                        </div>
+                        <div class="metric-value" id="node-count">0</div>
+                        <div class="metric-subtitle">Cluster nodes</div>
+                    </div>
+                </div>
+                
+                <!-- Charts Grid -->
+                <div class="charts-grid">
+                    <div class="chart-card chart-full-width">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-line chart-title-icon"></i>
+                                Cost Trend Analysis
+                            </h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="cost-trend-chart"></canvas>
+                            <div class="chart-loading hidden" id="cost-trend-chart-loading">
+                                <div class="loading-spinner"></div>
+                                <span>Preparing trend analysis...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-pie chart-title-icon"></i>
+                                Cost Breakdown
+                            </h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="cost-breakdown-chart"></canvas>
+                            <div class="chart-loading hidden" id="cost-breakdown-chart-loading">
+                                <div class="loading-spinner"></div>
+                                <span>Loading cost breakdown...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-tachometer-alt chart-title-icon"></i>
+                                Resource Utilization
+                            </h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="utilization-chart"></canvas>
+                            <div class="chart-loading hidden" id="utilization-chart-loading">
+                                <div class="loading-spinner"></div>
+                                <span>Analyzing resource usage...</span>
+                            </div>
+                        </div>
+                        <div class="chart-metrics">
+                            <div class="metric-item">
+                                <span class="metric-label">CPU:</span>
+                                <span class="metric-value" id="cpu-optimization-metric">--</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Max CPU:</span>
+                                <span class="metric-value" id="max-cpu-metric">--</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Avg CPU:</span>
+                                <span class="metric-value" id="avg-cpu-metric">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Savings Breakdown Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-bullseye chart-title-icon"></i>
+                                Potential Savings
+                            </h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="savings-breakdown-chart"></canvas>
+                            <div class="chart-loading hidden" id="savings-breakdown-chart-loading">
+                                <div class="loading-spinner"></div>
+                                <span>Calculating savings potential...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Node Utilization Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-server chart-title-icon"></i>
+                                Node Utilization
+                            </h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="node-utilization-chart"></canvas>
+                            <div class="chart-loading hidden" id="node-utilization-chart-loading">
+                                <div class="loading-spinner"></div>
+                                <span>Analyzing node performance...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- HPA Impact Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-bar chart-title-icon"></i>
+                                HPA Impact
+                            </h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="hpa-impact-chart"></canvas>
+                            <div class="chart-loading hidden" id="hpa-impact-chart-loading">
+                                <div class="loading-spinner"></div>
+                                <span>Analyzing HPA performance...</span>
+                            </div>
+                        </div>
+                        <div class="hpa-count-display">
+                            Active HPAs: <span id="active-hpa-count" class="hpa-count-badge">0</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Namespace Cost Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-layer-group chart-title-icon"></i>
+                                Namespace Costs
+                            </h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="namespace-cost-chart"></canvas>
+                            <div class="chart-loading hidden" id="namespace-cost-chart-loading">
+                                <div class="loading-spinner"></div>
+                                <span>Categorizing namespace costs...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Workload Cost Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-bar chart-title-icon"></i>
+                                Top Workloads
+                            </h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="workload-cost-chart"></canvas>
+                            <div class="chart-loading hidden" id="workload-cost-chart-loading">
+                                <div class="loading-spinner"></div>
+                                <span>Ranking workload costs...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Additional Metrics Row -->
+                <div class="metrics-grid metrics-grid-secondary">
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Top Namespace Cost</span>
+                        </div>
+                        <div class="metric-value" id="top-namespace-cost">$0</div>
+                        <div class="metric-subtitle">Highest spending namespace</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Namespaces Analyzed</span>
+                        </div>
+                        <div class="metric-value" id="total-namespaces">0</div>
+                        <div class="metric-subtitle">Total namespaces</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Workloads Found</span>
+                        </div>
+                        <div class="metric-value" id="total-workloads">--</div>
+                        <div class="metric-subtitle">Active workloads</div>
+                    </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Analysis Accuracy</span>
+                        </div>
+                        <div class="metric-value" id="analysis-accuracy">Loading...</div>
+                        <div class="metric-subtitle">Data reliability</div>
+                    </div>
+                </div>
+                
+                <!-- Enhanced Analysis Section -->
+                <div class="chart-card ai-insights-card">
+                    <div class="chart-header">
+                        <h3 class="chart-title">
+                            <i class="fas fa-brain chart-title-icon"></i>
+                            Analysis Insights
+                        </h3>
+                    </div>
+                    <div class="chart-container">
+                        <div id="insights-container" class="insights-container">
+                            <!-- Insights will be populated by JavaScript -->
+                            <div class="insights-loading">
+                                <i class="fas fa-robot insights-loading-icon"></i>
+                                <p>Analyzing your cluster for optimization opportunities...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Activity Section -->
+                
+                
+            </div>
+            
+            <!-- Implementation Section -->
+            <div id="implementation-section" class="dashboard-section">
+                <div id="implementation-content">
+                    <div id="implementation-plan-container" class="implementation-container">
+                        <!-- Content will be loaded by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Alerts Section -->
+            <div id="alerts-section" class="dashboard-section">
+                <div id="alerts-list">
+                    <!-- Alerts content will be loaded by JavaScript -->
+                </div>
+            </div>
+            
+        </div>
+    </main>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<!-- Dashboard-specific styles -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<!-- Dashboard-specific JavaScript -->
+<script src="{{ url_for('static', filename='js/unified-dashboard.js') }}"></script>
+{% endblock %}

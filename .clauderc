@@ -1,0 +1,50 @@
+# Claude Development Rules
+# Fail fast, no silent failures, no defaults, no fallbacks
+
+## Core Principles
+1. FAIL FAST - Raise exceptions immediately when errors occur
+2. NO SILENT FAILURES - Never catch exceptions without proper handling
+3. NO DEFAULTS - Always require explicit parameters
+4. NO FALLBACKS - Don't provide alternative values when primary fails
+
+## Error Handling
+- Use explicit error handling with meaningful messages
+- Never use bare except: clauses
+- Always log errors before raising
+- No try/except blocks that hide failures
+
+## Function Parameters
+- All parameters must be explicitly provided
+- No default values in function signatures
+- Validate all inputs before processing
+- Raise ValueError for invalid inputs
+
+## Data Processing
+- Validate data types explicitly
+- Check for None/empty values before processing
+- Never assume data structure exists
+- Fail immediately on missing required data
+
+## Use standards
+- We have set of standards defined in /standards folders 
+- Use those standsrds, no harcoding standards
+- If any standards are missing the add them to standards and use them
+## Examples
+❌ Bad:
+```python
+def process(data=None):
+    try:
+        return data.get('value', 0)  # Default fallback
+    except:
+        return 0  # Silent failure
+```
+
+✅ Good:
+```python
+def process(data):
+    if data is None:
+        raise ValueError("Data parameter is required")
+    if 'value' not in data:
+        raise KeyError("Required 'value' key missing from data")
+    return data['value']
+```
