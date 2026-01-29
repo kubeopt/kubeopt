@@ -921,6 +921,35 @@ def register_api_routes(app):
             
             logger.info(f"✅ Found REAL analysis data for cluster: {cluster_id}")
             
+            # Get enhanced analysis input for node optimization and anomaly detection
+            enhanced_analysis_input = None
+            logger.info(f"🔍 Starting enhanced analysis retrieval for cluster: {cluster_id}")
+            try:
+                enhanced_analysis_input = enhanced_cluster_manager.get_enhanced_analysis_data(cluster_id)
+                if enhanced_analysis_input:
+                    logger.info(f"✅ Found enhanced analysis input for cluster: {cluster_id} with keys: {list(enhanced_analysis_input.keys())}")
+                else:
+                    logger.warning(f"⚠️ No enhanced analysis input found for cluster: {cluster_id}")
+            except Exception as enhanced_error:
+                logger.warning(f"⚠️ Could not retrieve enhanced analysis input: {enhanced_error}")
+            
+            # If not found in enhanced_analysis_data, try extracting from analysis_data directly
+            if not enhanced_analysis_input and isinstance(analysis_data, dict):
+                logger.info(f"🔍 Checking for enhanced_analysis_input in analysis_data...")
+                if 'enhanced_analysis_input' in analysis_data:
+                    enhanced_analysis_input = analysis_data.get('enhanced_analysis_input')
+                    if enhanced_analysis_input:
+                        logger.info(f"✅ Found enhanced analysis input in analysis_data with keys: {list(enhanced_analysis_input.keys()) if isinstance(enhanced_analysis_input, dict) else type(enhanced_analysis_input)}")
+                        # Check specifically for node_optimization and anomaly_detection
+                        if isinstance(enhanced_analysis_input, dict):
+                            has_node_opt = 'node_optimization' in enhanced_analysis_input
+                            has_anomaly = 'anomaly_detection' in enhanced_analysis_input
+                            logger.info(f"🔍 Enhanced input contains: node_optimization={has_node_opt}, anomaly_detection={has_anomaly}")
+                    else:
+                        logger.warning(f"⚠️ enhanced_analysis_input exists in analysis_data but is empty/None")
+                else:
+                    logger.warning(f"⚠️ enhanced_analysis_input NOT found in analysis_data keys")
+            
             # Validate analysis_data is a dict before proceeding
             if not isinstance(analysis_data, dict):
                 logger.error(f"❌ Chart API: analysis_data is {type(analysis_data)}, expected dict")
@@ -959,11 +988,19 @@ def register_api_routes(app):
             
             # CPU monitoring alerts
             
+            # FINAL CHECK: Extract enhanced_analysis_input directly from analysis_data if not found
+            if not enhanced_analysis_input and 'enhanced_analysis_input' in analysis_data:
+                enhanced_analysis_input = analysis_data['enhanced_analysis_input']
+                logger.info(f"🔧 FINAL EXTRACTION: Enhanced analysis input retrieved from analysis_data")
+                if enhanced_analysis_input and isinstance(enhanced_analysis_input, dict):
+                    logger.info(f"🔧 FINAL EXTRACTION: Contains node_optimization={bool(enhanced_analysis_input.get('node_optimization'))}, anomaly_detection={bool(enhanced_analysis_input.get('anomaly_detection'))}")
+            
             # Generate chart data with REAL CPU awareness
             chart_data = {
                 'status': 'success',
                 'metrics': metrics,
                 'cpuWorkloadMetrics': cpu_workload_data,  # REAL CPU workload metrics
+                'enhanced_analysis_input': enhanced_analysis_input,  # For node optimization and anomaly detection
                 'metadata': {
                     'cluster_id': cluster_id,
                     'timestamp': datetime.utcnow().isoformat(),
@@ -972,7 +1009,8 @@ def register_api_routes(app):
                     'cpu_analysis_quality': 'real_ml_data' if cpu_workload_data.get('has_high_cpu_workloads') else 'basic_analysis',
                     'subscription_id': cluster.get('subscription_id') if cluster else None,
                     'subscription_name': cluster.get('subscription_name') if cluster else None,
-                    'real_data_only': True
+                    'real_data_only': True,
+                    'has_enhanced_analysis': enhanced_analysis_input is not None
                 }
             }
             
@@ -1110,6 +1148,13 @@ def register_api_routes(app):
             logger.info(f"📊 CPU Analysis: {cpu_workload_data.get('has_high_cpu_workloads', False)} high CPU workloads, "
                        f"avg: {cpu_workload_data.get('avg_cpu_utilization', 0):.1f}%, "
                        f"max: {cpu_workload_data.get('max_cpu_utilization', 0):.1f}%")
+            logger.info(f"🔧 Enhanced Analysis: {enhanced_analysis_input is not None} - "
+                       f"Keys: {list(enhanced_analysis_input.keys()) if enhanced_analysis_input else 'None'}")
+            if enhanced_analysis_input:
+                has_node_opt = 'node_optimization' in enhanced_analysis_input
+                has_anomaly = 'anomaly_detection' in enhanced_analysis_input
+                logger.info(f"🔧 Node Optimization Available: {has_node_opt}")
+                logger.info(f"🔧 Anomaly Detection Available: {has_anomaly}")
             
             return jsonify(chart_data)
             
@@ -1192,7 +1237,7 @@ def register_api_routes(app):
             )
             
             if needs_generation:
-                logger.info(f"🔄 API: Generating CLAUDE implementation plan for {cluster_id} in {format_type} format")
+                logger.info(f"🔄 API: Generating implementation plan for {cluster_id} in {format_type} format")
                 try:
                     # REMOVED: Local plan generation - now using external secure API
                     # from infrastructure.plan_generation.ai_plan_generator import AIImplementationPlanGenerator
@@ -1735,9 +1780,9 @@ def register_api_routes(app):
                 'message': str(e)
             }), 500
     
-    @app.route('/api/claude-costs/summary', methods=['GET'])
-    def get_claude_costs_summary():
-        """Get Claude API cost summary"""
+    @app.route('/api/plan-costs/summary', methods=['GET'])
+    def get_plan_costs_summary():
+        """Get Plan API cost summary"""
         try:
             # Cost tracking now handled by external API
             # from infrastructure.plan_generation.cost_tracker import get_cost_tracker
@@ -2401,20 +2446,20 @@ def register_api_routes(app):
                             cluster_id.split('_')[-1],  # Extract cluster name
                             enhanced_input
                         )
-                        claude_plan = result if success else None
+                        generated_plan = result if success else None
                         
-                        # Save Claude plan to database
-                        if claude_plan and isinstance(claude_plan, dict):
-                            enhanced_cluster_manager.save_implementation_plan(cluster_id, claude_plan)
-                            plan = claude_plan
-                            logger.info(f"✅ Generated and saved new Claude plan for cluster {cluster_id}")
+                        # Save generated plan to database
+                        if generated_plan and isinstance(generated_plan, dict):
+                            enhanced_cluster_manager.save_implementation_plan(cluster_id, generated_plan)
+                            plan = generated_plan
+                            logger.info(f"✅ Generated and saved new implementation plan for cluster {cluster_id}")
                         
                     except Exception as e:
-                        logger.error(f"❌ Failed to generate Claude plan: {e}")
+                        logger.error(f"❌ Failed to generate implementation plan: {e}")
                         plan = None
                 
             if plan:
-                logger.info(f"✅ Found Claude implementation plan for cluster {cluster_id}")
+                logger.info(f"✅ Found implementation plan for cluster {cluster_id}")
                 
                 # For new format, raw_markdown is the primary content
                 if isinstance(plan, dict) and 'raw_markdown' in plan:
