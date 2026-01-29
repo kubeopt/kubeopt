@@ -32,3 +32,100 @@ requirements/dev.txt
 requirements/base.txt
 requirements/prod.txt
 requirements/requirements_base.txt
+
+# Python cache and build
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+machine_learning/data/learning_data.db
+
+# CRITICAL SECURITY ADDITIONS
+# API Keys and tokens
+*api_key*
+*api-key*
+*auth_token*
+*access_token*
+*refresh_token*
+*.token
+*secret_key*
+*private_key*
+*jwt_secret*
+*anthropic_api_key*
+
+# Azure specific secrets
+*client_secret*
+*tenant_id*
+*subscription_id*
+azure_credentials*
+service_principal*
+*azure_password*
+
+# Email credentials
+*email_password*
+*smtp_password*
+*mail_password*
+
+# License keys
+*license_key*
+*license-key*
+*activation_key*
+*kubeopt_license*
+
+# Test and debug files with credentials
+test_email*.py
+debug_*.py
+troubleshoot_*.py
+*_test_creds*
+*_debug_config*
+
+# Security scan results
+bandit-report.json
+.secrets.baseline
+gitleaks-report.json
+security-scan-*
+.tflint.hcl
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+
+# Credential files
+credentials.txt
+credentials.json
+auth_config.json
+config_sensitive.yaml
+
+# IDE and OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
