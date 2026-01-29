@@ -963,6 +963,8 @@ class MultiSubscriptionAnalysisEngine:
                 "cost_analysis": self._extract_cost_analysis(basic_analysis),
                 "cluster_info": self._get_cluster_info(cluster_id, basic_analysis),
                 "node_pools": self._get_node_pool_details(cluster_id, basic_analysis),
+                "node_optimization": self._get_node_optimization_data(cluster_id, basic_analysis),
+                "anomaly_detection": self._get_anomaly_detection_data(cluster_id, basic_analysis),
                 "workloads": self._get_optimized_workload_details(cluster_id, basic_analysis, basic_analysis.get('pod_cost_analysis')),
                 "storage_volumes": self._get_optimized_storage_details(cluster_id, basic_analysis),
                 "existing_hpas": self._get_hpa_details(cluster_id, basic_analysis),
@@ -1268,6 +1270,292 @@ class MultiSubscriptionAnalysisEngine:
         except Exception as e:
             logger.error(f"❌ Failed to get node pool details: {e}")
             raise ValueError(f"Failed to extract node pool details: {e}") from e
+    
+    def _get_node_optimization_data(self, cluster_id: str, basic_analysis: dict) -> dict:
+        """
+        Get node optimization analysis data including VM sizing recommendations
+        
+        Args:
+            cluster_id: Cluster identifier (required)
+            basic_analysis: Analysis data containing node metrics (required)
+        
+        Returns:
+            dict: Node optimization data with recommendations
+        
+        Raises:
+            ValueError: If parameters are invalid
+        """
+        if cluster_id is None:
+            raise ValueError("Cluster ID parameter is required")
+        if basic_analysis is None:
+            raise ValueError("Basic analysis parameter is required")
+        
+        try:
+            # Import node optimization algorithm
+            from algorithms.node_optimization_algorithm import NodeOptimizationAlgorithm
+            node_optimizer = NodeOptimizationAlgorithm(logger)
+            
+            # Extract node metrics from analysis data
+            if 'node_metrics' not in basic_analysis:
+                raise KeyError("Required 'node_metrics' field missing from basic_analysis")
+            
+            node_metrics = basic_analysis['node_metrics']
+            if not isinstance(node_metrics, list):
+                raise ValueError("Node metrics must be a list")
+            if len(node_metrics) == 0:
+                raise ValueError("Node metrics list cannot be empty for optimization analysis")
+            
+            all_recommendations = []
+            total_monthly_savings = 0.0
+            efficiency_scores = []
+            utilization_categories = {"idle": 0, "low": 0, "moderate": 0, "high": 0, "critical": 0}
+            
+            # Process each node
+            for node_metric in node_metrics:
+                try:
+                    # Analyze node utilization
+                    utilization_analysis = node_optimizer.analyze_node_utilization(node_metric)
+                    
+                    # Calculate efficiency score
+                    efficiency_score = node_optimizer.calculate_node_efficiency_score(node_metric)
+                    efficiency_scores.append(efficiency_score)
+                    
+                    # Count utilization categories
+                    cpu_category = utilization_analysis.get('cpu_category', 'moderate')
+                    if cpu_category in utilization_categories:
+                        utilization_categories[cpu_category] += 1
+                    
+                    # Generate VM size recommendations (mock available VM sizes for now)
+                    available_vm_sizes = self._get_available_vm_sizes()
+                    recommendations = node_optimizer.generate_vm_size_recommendations(
+                        utilization_analysis, available_vm_sizes
+                    )
+                    
+                    # Add recommendations with node context
+                    for rec in recommendations:
+                        rec['cluster_id'] = cluster_id
+                        rec['node_name'] = node_metric.get('node_name', 'unknown')
+                        rec['efficiency_score'] = efficiency_score
+                        all_recommendations.append(rec)
+                        total_monthly_savings += rec.get('monthly_savings', 0.0)
+                        
+                except Exception as node_error:
+                    logger.warning(f"Failed to analyze node {node_metric.get('node_name', 'unknown')}: {node_error}")
+                    continue
+            
+            # Calculate summary statistics
+            if len(efficiency_scores) == 0:
+                raise ValueError("No valid efficiency scores calculated - cannot generate summary")
+            avg_efficiency = sum(efficiency_scores) / len(efficiency_scores)
+            
+            efficiency_summary = {
+                "average_efficiency_score": avg_efficiency,
+                "total_nodes_analyzed": len(node_metrics),
+                "efficiency_distribution": {
+                    "excellent": len([s for s in efficiency_scores if s >= 90]),
+                    "good": len([s for s in efficiency_scores if 70 <= s < 90]),
+                    "fair": len([s for s in efficiency_scores if 50 <= s < 70]),
+                    "poor": len([s for s in efficiency_scores if s < 50])
+                },
+                "utilization_distribution": utilization_categories
+            }
+            
+            # Sort recommendations by priority and savings
+            all_recommendations.sort(key=lambda x: (
+                x.get('priority') == 'critical',
+                x.get('priority') == 'high',
+                -x.get('monthly_savings', 0)
+            ), reverse=True)
+            
+            # Limit recommendations using standards-based approach
+            from shared.standards.node_optimization_standards import NodeOptimizationStandards
+            max_recommendations = 20  # Should come from standards
+            top_recommendations = all_recommendations[:max_recommendations]
+            
+            logger.info(f"✅ Node optimization analysis completed: {len(node_metrics)} nodes, "
+                       f"{len(top_recommendations)} recommendations, "
+                       f"${total_monthly_savings:.2f} potential monthly savings")
+            
+            return {
+                "nodes_analyzed": len(node_metrics),
+                "recommendations": top_recommendations,
+                "total_monthly_savings": total_monthly_savings,
+                "efficiency_summary": efficiency_summary,
+                "status": "completed"
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get node optimization data: {e}")
+            raise ValueError(f"Failed to generate node optimization data: {e}") from e
+    
+    def _get_available_vm_sizes(self) -> List[dict]:
+        """
+        Get available VM sizes with pricing data
+        NOTE: This is a simplified version. In production, this should query Azure API
+        """
+        # Mock data for common Azure VM sizes (should be replaced with real API call)
+        return [
+            {"vm_size": "Standard_B2s", "cost_per_hour": 0.041, "cpu_cores": 2, "memory_gb": 4},
+            {"vm_size": "Standard_B2ms", "cost_per_hour": 0.083, "cpu_cores": 2, "memory_gb": 8},
+            {"vm_size": "Standard_D2s_v3", "cost_per_hour": 0.096, "cpu_cores": 2, "memory_gb": 8},
+            {"vm_size": "Standard_D4s_v3", "cost_per_hour": 0.192, "cpu_cores": 4, "memory_gb": 16},
+            {"vm_size": "Standard_D8s_v3", "cost_per_hour": 0.384, "cpu_cores": 8, "memory_gb": 32},
+            {"vm_size": "Standard_E2s_v3", "cost_per_hour": 0.126, "cpu_cores": 2, "memory_gb": 16},
+            {"vm_size": "Standard_E4s_v3", "cost_per_hour": 0.252, "cpu_cores": 4, "memory_gb": 32},
+            {"vm_size": "Standard_F2s_v2", "cost_per_hour": 0.085, "cpu_cores": 2, "memory_gb": 4},
+            {"vm_size": "Standard_F4s_v2", "cost_per_hour": 0.169, "cpu_cores": 4, "memory_gb": 8}
+        ]
+    
+    def _get_anomaly_detection_data(self, cluster_id: str, basic_analysis: dict) -> dict:
+        """
+        Get anomaly detection analysis data for workloads and cost patterns
+        
+        Args:
+            cluster_id: Cluster identifier (required)
+            basic_analysis: Analysis data containing metrics (required)
+        
+        Returns:
+            dict: Anomaly detection results
+        
+        Raises:
+            ValueError: If parameters are invalid
+        """
+        if cluster_id is None:
+            raise ValueError("Cluster ID parameter is required")
+        if basic_analysis is None:
+            raise ValueError("Basic analysis parameter is required")
+        
+        try:
+            # Import anomaly detection algorithm
+            from algorithms.anomaly_detection_algorithm import AnomalyDetectionAlgorithm
+            anomaly_detector = AnomalyDetectionAlgorithm(logger)
+            
+            all_anomalies = []
+            workload_anomaly_count = 0
+            cost_anomaly_count = 0
+            total_severity_score = 0.0
+            
+            # Analyze workload anomalies
+            workload_data = basic_analysis.get('workload_analysis', {})
+            if isinstance(workload_data, dict) and workload_data:
+                for workload_name, workload_metrics in workload_data.items():
+                    try:
+                        # Prepare workload metrics for anomaly detection
+                        if self._has_sufficient_metrics_for_anomaly_detection(workload_metrics):
+                            workload_anomaly_input = self._prepare_workload_anomaly_input(workload_name, workload_metrics)
+                            anomaly_result = anomaly_detector.detect_workload_anomalies(workload_anomaly_input)
+                            
+                            if anomaly_result.get("has_anomalies", False):
+                                workload_anomaly_count += anomaly_result.get("anomaly_count", 0)
+                                for anomaly in anomaly_result.get("anomalies", []):
+                                    anomaly["workload_name"] = workload_name
+                                    total_severity_score += anomaly.get("severity", 0)
+                                    all_anomalies.append(anomaly)
+                    except Exception as workload_error:
+                        logger.warning(f"Failed to analyze anomalies for workload {workload_name}: {workload_error}")
+                        continue
+            
+            # Analyze cost anomalies
+            cost_history = self._extract_cost_history(basic_analysis)
+            if cost_history and len(cost_history) > 0:
+                try:
+                    cost_anomaly_result = anomaly_detector.detect_cost_anomalies(cost_history)
+                    if cost_anomaly_result.get("has_cost_anomalies", False):
+                        cost_anomaly_count = cost_anomaly_result.get("cost_anomaly_count", 0)
+                        for cost_anomaly in cost_anomaly_result.get("cost_anomalies", []):
+                            cost_anomaly["category"] = "cost"
+                            total_severity_score += cost_anomaly.get("severity", 0)
+                            all_anomalies.append(cost_anomaly)
+                except Exception as cost_error:
+                    logger.warning(f"Failed to analyze cost anomalies: {cost_error}")
+            
+            # Sort anomalies by severity (highest first)
+            all_anomalies.sort(key=lambda x: x.get("severity", 0), reverse=True)
+            
+            # Limit to top 15 anomalies to avoid payload bloat
+            max_anomalies = 15
+            top_anomalies = all_anomalies[:max_anomalies]
+            
+            # Calculate summary statistics
+            avg_severity = (total_severity_score / len(all_anomalies)) if len(all_anomalies) > 0 else 0.0
+            
+            # Categorize anomalies by type
+            anomaly_categories = {"memory_leak": 0, "cpu_spike": 0, "resource_drift": 0, "unusual_pattern": 0, "cost_spike": 0}
+            for anomaly in top_anomalies:
+                anomaly_type = anomaly.get("type", "unknown")
+                if anomaly_type in anomaly_categories:
+                    anomaly_categories[anomaly_type] += 1
+            
+            logger.info(f"✅ Anomaly detection completed: {len(all_anomalies)} total anomalies, "
+                       f"{workload_anomaly_count} workload anomalies, {cost_anomaly_count} cost anomalies")
+            
+            return {
+                "total_anomalies": len(all_anomalies),
+                "workload_anomaly_count": workload_anomaly_count,
+                "cost_anomaly_count": cost_anomaly_count,
+                "anomalies": top_anomalies,
+                "anomaly_categories": anomaly_categories,
+                "average_severity": avg_severity,
+                "highest_severity": max([a.get("severity", 0) for a in top_anomalies]) if top_anomalies else 0.0,
+                "analysis_timestamp": basic_analysis.get("analysis_timestamp"),
+                "status": "completed"
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to generate anomaly detection data: {e}")
+            raise ValueError(f"Failed to generate anomaly detection data: {e}") from e
+    
+    def _has_sufficient_metrics_for_anomaly_detection(self, workload_metrics: dict) -> bool:
+        """Check if workload has sufficient metrics for anomaly detection"""
+        if not isinstance(workload_metrics, dict):
+            return False
+        
+        # Check for required metric fields
+        required_fields = ["cpu_history", "memory_history"]
+        for field in required_fields:
+            if field not in workload_metrics:
+                return False
+            
+            history = workload_metrics[field]
+            if not isinstance(history, list) or len(history) < 5:
+                return False
+        
+        return True
+    
+    def _prepare_workload_anomaly_input(self, workload_name: str, workload_metrics: dict) -> dict:
+        """Prepare workload metrics for anomaly detection algorithm"""
+        return {
+            "workload_name": workload_name,
+            "cpu_utilization_history": workload_metrics.get("cpu_history", []),
+            "memory_utilization_history": workload_metrics.get("memory_history", []),
+            "namespace": workload_metrics.get("namespace", "unknown"),
+            "workload_type": workload_metrics.get("workload_type", "unknown")
+        }
+    
+    def _extract_cost_history(self, basic_analysis: dict) -> List[dict]:
+        """Extract cost history data for anomaly detection"""
+        # Try to extract cost history from various sources in the analysis
+        cost_history = []
+        
+        # Check for historical cost data
+        if "cost_history" in basic_analysis:
+            cost_data = basic_analysis["cost_history"]
+            if isinstance(cost_data, list):
+                for item in cost_data:
+                    if isinstance(item, dict) and "amount" in item and "timestamp" in item:
+                        cost_history.append(item)
+        
+        # If no direct cost history, create synthetic data from current analysis
+        if not cost_history:
+            current_cost = basic_analysis.get("total_cost", 0)
+            if current_cost > 0:
+                # Create a simple cost point for current analysis
+                cost_history.append({
+                    "amount": current_cost,
+                    "timestamp": basic_analysis.get("analysis_timestamp", datetime.now().isoformat())
+                })
+        
+        return cost_history
     
     def _get_optimized_workload_details(self, cluster_id: str, basic_analysis: dict, pod_data: dict = None) -> List[dict]:
         """

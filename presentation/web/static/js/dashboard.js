@@ -193,6 +193,12 @@ window.Dashboard = (function() {
                     workloadCount = chartData.workloadCosts.workloads.length;
                 }
                 
+                // Load node optimization recommendations
+                loadNodeOptimizationData(chartData);
+                
+                // Load anomaly detection alerts
+                loadAnomalyDetectionData(chartData);
+                
                 // Real node and pod counts
                 const realNodeCount = chartData.nodeUtilization?.nodes?.length || 0;
                 const realPodCount = workloadCount; // Use workload count as pod count
@@ -642,6 +648,444 @@ window.Dashboard = (function() {
         }
         
         return insights;
+    }
+
+    /**
+     * Load node optimization recommendations data
+     */
+    function loadNodeOptimizationData(chartData) {
+        if (!chartData || !chartData.enhanced_analysis_input) {
+            console.log('No enhanced analysis data available for node optimization');
+            return;
+        }
+        
+        const nodeOptimization = chartData.enhanced_analysis_input.node_optimization;
+        if (!nodeOptimization) {
+            console.log('No node optimization data available');
+            showNoNodeRecommendations();
+            return;
+        }
+        
+        console.log('Loading node optimization data:', nodeOptimization);
+        
+        // Update summary statistics
+        updateNodeOptimizationSummary(nodeOptimization);
+        
+        // Populate recommendations
+        populateNodeRecommendations(nodeOptimization.recommendations || []);
+    }
+    
+    /**
+     * Update node optimization summary statistics
+     */
+    function updateNodeOptimizationSummary(nodeOptimization) {
+        const totalRecommendations = nodeOptimization.recommendations?.length || 0;
+        const totalSavings = nodeOptimization.total_monthly_savings || 0;
+        
+        // Update UI elements
+        const totalRecommendationsEl = document.getElementById('total-node-recommendations');
+        const totalSavingsEl = document.getElementById('total-node-savings');
+        
+        if (totalRecommendationsEl) {
+            totalRecommendationsEl.textContent = totalRecommendations;
+        }
+        
+        if (totalSavingsEl) {
+            totalSavingsEl.textContent = `$${totalSavings.toFixed(0)}`;
+        }
+        
+        // Update node efficiency metric in main metrics
+        const nodeEfficiencyEl = document.getElementById('node-efficiency-score');
+        const nodeEfficiencyTrendEl = document.getElementById('node-efficiency-trend');
+        
+        if (nodeOptimization.efficiency_summary) {
+            const avgEfficiency = nodeOptimization.efficiency_summary.average_efficiency_score || 0;
+            
+            if (nodeEfficiencyEl) {
+                nodeEfficiencyEl.textContent = `${avgEfficiency.toFixed(0)}%`;
+            }
+            
+            if (nodeEfficiencyTrendEl) {
+                // Show trend based on efficiency score
+                if (avgEfficiency >= 80) {
+                    nodeEfficiencyTrendEl.textContent = '↗';
+                    nodeEfficiencyTrendEl.className = 'metric-trend positive';
+                } else if (avgEfficiency >= 60) {
+                    nodeEfficiencyTrendEl.textContent = '→';
+                    nodeEfficiencyTrendEl.className = 'metric-trend neutral';
+                } else {
+                    nodeEfficiencyTrendEl.textContent = '↘';
+                    nodeEfficiencyTrendEl.className = 'metric-trend negative';
+                }
+            }
+        }
+    }
+    
+    /**
+     * Populate node optimization recommendations
+     */
+    function populateNodeRecommendations(recommendations) {
+        const gridEl = document.getElementById('node-recommendations-grid');
+        const noRecommendationsEl = document.getElementById('no-node-recommendations');
+        
+        if (!gridEl) return;
+        
+        if (!recommendations || recommendations.length === 0) {
+            showNoNodeRecommendations();
+            return;
+        }
+        
+        // Hide no recommendations message
+        if (noRecommendationsEl) {
+            noRecommendationsEl.classList.add('hidden');
+        }
+        
+        // Clear existing content
+        gridEl.innerHTML = '';
+        
+        // Create recommendation cards
+        recommendations.forEach(rec => {
+            const card = createNodeRecommendationCard(rec);
+            gridEl.appendChild(card);
+        });
+    }
+    
+    /**
+     * Create a node recommendation card
+     */
+    function createNodeRecommendationCard(recommendation) {
+        const card = document.createElement('div');
+        card.className = 'recommendation-card';
+        
+        const monthlySavings = Math.abs(recommendation.monthly_savings || 0);
+        const savingsSign = (recommendation.monthly_savings || 0) < 0 ? 'Cost' : 'Savings';
+        
+        card.innerHTML = `
+            <div class="recommendation-header">
+                <div class="recommendation-title">${recommendation.node_name}</div>
+                <div class="recommendation-priority ${recommendation.priority || 'medium'}">${recommendation.priority || 'medium'}</div>
+            </div>
+            <div class="recommendation-content">
+                <div class="recommendation-description">${recommendation.reasoning || 'VM size optimization recommended'}</div>
+                <div class="recommendation-change">
+                    <div class="vm-change">
+                        <span class="current-vm">${recommendation.current_vm_size}</span>
+                        <span class="change-arrow">→</span>
+                        <span class="recommended-vm">${recommendation.recommended_vm_size}</span>
+                    </div>
+                </div>
+                <div class="recommendation-savings">
+                    <div>
+                        <div class="savings-amount">$${monthlySavings.toFixed(0)} ${savingsSign}</div>
+                        <div class="savings-period">per month</div>
+                    </div>
+                    <div class="confidence-score">${(recommendation.confidence_score || 0).toFixed(0)}% confidence</div>
+                </div>
+            </div>
+        `;
+        
+        return card;
+    }
+    
+    /**
+     * Show no node recommendations message
+     */
+    function showNoNodeRecommendations() {
+        const gridEl = document.getElementById('node-recommendations-grid');
+        const noRecommendationsEl = document.getElementById('no-node-recommendations');
+        
+        if (gridEl) {
+            gridEl.innerHTML = '';
+        }
+        
+        if (noRecommendationsEl) {
+            noRecommendationsEl.classList.remove('hidden');
+        }
+        
+        // Reset summary stats
+        const totalRecommendationsEl = document.getElementById('total-node-recommendations');
+        const totalSavingsEl = document.getElementById('total-node-savings');
+        
+        if (totalRecommendationsEl) totalRecommendationsEl.textContent = '0';
+        if (totalSavingsEl) totalSavingsEl.textContent = '$0';
+    }
+    
+    /**
+     * Load anomaly detection alerts data
+     */
+    function loadAnomalyDetectionData(chartData) {
+        if (!chartData || !chartData.enhanced_analysis_input) {
+            console.log('No enhanced analysis data available for anomaly detection');
+            return;
+        }
+        
+        const anomalyData = chartData.enhanced_analysis_input.anomaly_detection;
+        if (!anomalyData) {
+            console.log('No anomaly detection data available');
+            showNoAnomalyAlerts();
+            return;
+        }
+        
+        console.log('Loading anomaly detection data:', anomalyData);
+        
+        // Update summary statistics
+        updateAnomalyAlertsSummary(anomalyData);
+        
+        // Populate alerts
+        populateAnomalyAlerts(anomalyData.anomalies || []);
+    }
+    
+    /**
+     * Update anomaly alerts summary statistics
+     */
+    function updateAnomalyAlertsSummary(anomalyData) {
+        const totalAnomalies = anomalyData.total_anomalies || 0;
+        const criticalAnomalies = (anomalyData.anomalies || []).filter(a => 
+            a.severity >= 0.8 || (a.impact && a.impact === 'critical')
+        ).length;
+        
+        // Update UI elements
+        const totalAnomaliesEl = document.getElementById('total-anomalies');
+        const criticalAnomaliesEl = document.getElementById('critical-anomalies');
+        
+        if (totalAnomaliesEl) {
+            totalAnomaliesEl.textContent = totalAnomalies;
+        }
+        
+        if (criticalAnomaliesEl) {
+            criticalAnomaliesEl.textContent = criticalAnomalies;
+        }
+    }
+    
+    /**
+     * Populate anomaly alerts grid
+     */
+    function populateAnomalyAlerts(anomalies) {
+        const gridEl = document.getElementById('anomaly-alerts-grid');
+        const noAlertsEl = document.getElementById('no-anomaly-alerts');
+        
+        if (!gridEl) return;
+        
+        if (!anomalies || anomalies.length === 0) {
+            showNoAnomalyAlerts();
+            return;
+        }
+        
+        // Hide no alerts message
+        if (noAlertsEl) {
+            noAlertsEl.classList.add('hidden');
+        }
+        
+        // Clear existing content
+        gridEl.innerHTML = '';
+        
+        // Create alert cards
+        anomalies.forEach(anomaly => {
+            const card = createAnomalyAlertCard(anomaly);
+            gridEl.appendChild(card);
+        });
+    }
+    
+    /**
+     * Create an anomaly alert card
+     */
+    function createAnomalyAlertCard(anomaly) {
+        const card = document.createElement('div');
+        const severityLevel = getSeverityLevel(anomaly.severity || 0);
+        const typeIcon = getAnomalyTypeIcon(anomaly.type);
+        const workloadName = anomaly.workload_name || 'System';
+        
+        card.className = `alert-card severity-${severityLevel}`;
+        
+        // Create details based on anomaly type
+        const details = getAnomalyDetails(anomaly);
+        
+        card.innerHTML = `
+            <div class="alert-header">
+                <div class="alert-type">
+                    <i class="fas ${typeIcon} alert-type-icon ${anomaly.type}"></i>
+                    <span>${formatAnomalyType(anomaly.type)}</span>
+                </div>
+                <div class="alert-severity ${severityLevel}">${severityLevel}</div>
+            </div>
+            <div class="alert-content">
+                <div class="alert-title">${workloadName}</div>
+                <div class="alert-description">${anomaly.description || 'Anomaly detected'}</div>
+                <div class="alert-details">
+                    ${details}
+                </div>
+                <div class="alert-actions">
+                    <div class="alert-action">${anomaly.action_required || 'Review and investigate'}</div>
+                    <div class="alert-timestamp">${formatTimestamp(anomaly.timestamp)}</div>
+                </div>
+            </div>
+        `;
+        
+        return card;
+    }
+    
+    /**
+     * Get severity level from numeric severity score
+     */
+    function getSeverityLevel(severityScore) {
+        if (severityScore >= 0.8) return 'critical';
+        if (severityScore >= 0.6) return 'high';
+        if (severityScore >= 0.3) return 'medium';
+        return 'low';
+    }
+    
+    /**
+     * Get icon for anomaly type
+     */
+    function getAnomalyTypeIcon(type) {
+        const icons = {
+            'memory_leak': 'fa-memory',
+            'cpu_spike': 'fa-bolt',
+            'resource_drift': 'fa-chart-line',
+            'unusual_pattern': 'fa-question-circle',
+            'cost_spike': 'fa-dollar-sign'
+        };
+        return icons[type] || 'fa-exclamation-circle';
+    }
+    
+    /**
+     * Format anomaly type for display
+     */
+    function formatAnomalyType(type) {
+        const types = {
+            'memory_leak': 'Memory Leak',
+            'cpu_spike': 'CPU Spike',
+            'resource_drift': 'Resource Drift',
+            'unusual_pattern': 'Unusual Pattern',
+            'cost_spike': 'Cost Spike'
+        };
+        return types[type] || 'Unknown Anomaly';
+    }
+    
+    /**
+     * Get anomaly-specific details
+     */
+    function getAnomalyDetails(anomaly) {
+        const details = [];
+        
+        switch (anomaly.type) {
+            case 'memory_leak':
+                if (anomaly.current_usage) {
+                    details.push(`<div class="alert-detail-item">
+                        <span class="alert-detail-label">Current Usage:</span>
+                        <span class="alert-detail-value warning-value">${anomaly.current_usage.toFixed(1)}%</span>
+                    </div>`);
+                }
+                if (anomaly.trend_slope) {
+                    details.push(`<div class="alert-detail-item">
+                        <span class="alert-detail-label">Trend:</span>
+                        <span class="alert-detail-value critical-value">+${anomaly.trend_slope.toFixed(1)}%/period</span>
+                    </div>`);
+                }
+                if (anomaly.time_to_critical_hours && anomaly.time_to_critical_hours !== 'immediate') {
+                    details.push(`<div class="alert-detail-item">
+                        <span class="alert-detail-label">Critical in:</span>
+                        <span class="alert-detail-value warning-value">${anomaly.time_to_critical_hours} hours</span>
+                    </div>`);
+                }
+                break;
+                
+            case 'cpu_spike':
+                if (anomaly.max_spike_value) {
+                    details.push(`<div class="alert-detail-item">
+                        <span class="alert-detail-label">Peak CPU:</span>
+                        <span class="alert-detail-value critical-value">${anomaly.max_spike_value.toFixed(1)}%</span>
+                    </div>`);
+                }
+                if (anomaly.baseline_cpu) {
+                    details.push(`<div class="alert-detail-item">
+                        <span class="alert-detail-label">Baseline:</span>
+                        <span class="alert-detail-value">${anomaly.baseline_cpu.toFixed(1)}%</span>
+                    </div>`);
+                }
+                break;
+                
+            case 'resource_drift':
+                if (anomaly.cpu_drift_percentage) {
+                    details.push(`<div class="alert-detail-item">
+                        <span class="alert-detail-label">CPU Drift:</span>
+                        <span class="alert-detail-value ${Math.abs(anomaly.cpu_drift_percentage) > 30 ? 'critical-value' : 'warning-value'}">
+                            ${anomaly.cpu_drift_percentage > 0 ? '+' : ''}${anomaly.cpu_drift_percentage.toFixed(1)}%
+                        </span>
+                    </div>`);
+                }
+                if (anomaly.memory_drift_percentage) {
+                    details.push(`<div class="alert-detail-item">
+                        <span class="alert-detail-label">Memory Drift:</span>
+                        <span class="alert-detail-value ${Math.abs(anomaly.memory_drift_percentage) > 30 ? 'critical-value' : 'warning-value'}">
+                            ${anomaly.memory_drift_percentage > 0 ? '+' : ''}${anomaly.memory_drift_percentage.toFixed(1)}%
+                        </span>
+                    </div>`);
+                }
+                break;
+                
+            case 'cost_spike':
+                if (anomaly.amount) {
+                    details.push(`<div class="alert-detail-item">
+                        <span class="alert-detail-label">Spike Amount:</span>
+                        <span class="alert-detail-value critical-value">$${anomaly.amount.toFixed(2)}</span>
+                    </div>`);
+                }
+                if (anomaly.baseline_cost) {
+                    details.push(`<div class="alert-detail-item">
+                        <span class="alert-detail-label">Normal Cost:</span>
+                        <span class="alert-detail-value">$${anomaly.baseline_cost.toFixed(2)}</span>
+                    </div>`);
+                }
+                break;
+        }
+        
+        // Add confidence score if available
+        if (anomaly.confidence_score && anomaly.confidence_score < 100) {
+            details.push(`<div class="alert-detail-item">
+                <span class="alert-detail-label">Confidence:</span>
+                <span class="alert-detail-value">${anomaly.confidence_score.toFixed(0)}%</span>
+            </div>`);
+        }
+        
+        return details.join('');
+    }
+    
+    /**
+     * Format timestamp for display
+     */
+    function formatTimestamp(timestamp) {
+        if (!timestamp) return 'Unknown time';
+        
+        try {
+            const date = new Date(timestamp);
+            return date.toLocaleString();
+        } catch (e) {
+            return 'Invalid time';
+        }
+    }
+    
+    /**
+     * Show no anomaly alerts message
+     */
+    function showNoAnomalyAlerts() {
+        const gridEl = document.getElementById('anomaly-alerts-grid');
+        const noAlertsEl = document.getElementById('no-anomaly-alerts');
+        
+        if (gridEl) {
+            gridEl.innerHTML = '';
+        }
+        
+        if (noAlertsEl) {
+            noAlertsEl.classList.remove('hidden');
+        }
+        
+        // Reset summary stats
+        const totalAnomaliesEl = document.getElementById('total-anomalies');
+        const criticalAnomaliesEl = document.getElementById('critical-anomalies');
+        
+        if (totalAnomaliesEl) totalAnomaliesEl.textContent = '0';
+        if (criticalAnomaliesEl) criticalAnomaliesEl.textContent = '0';
     }
 
     /**
