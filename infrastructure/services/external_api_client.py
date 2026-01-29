@@ -58,11 +58,11 @@ class ExternalAPIClient:
         self.rate_limit_max = int(os.getenv('API_RATE_LIMIT', '60'))
         self.rate_limit_window = int(os.getenv('API_RATE_WINDOW', '60'))
         
-        logger.info(f"External API Client initialized:")
-        logger.info(f"  License API: {self.license_api_url}")
-        logger.info(f"  Plan API: {self.plan_api_url}")
-        logger.info(f"  Local Mode: {self.local_mode}")
-        logger.info(f"  JWT Authentication: Enabled")
+        logger.debug(f"External API Client initialized:")
+        logger.debug(f"  License API: {self.license_api_url}")
+        logger.debug(f"  Plan API: {self.plan_api_url}")
+        logger.debug(f"  Local Mode: {self.local_mode}")
+        logger.debug(f"  JWT Authentication: Enabled")
         
         if not os.getenv('JWT_SECRET_KEY'):
             logger.warning("Using auto-generated JWT secret - set JWT_SECRET_KEY in production!")
