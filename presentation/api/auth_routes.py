@@ -14,6 +14,7 @@ Handles login, logout, and settings management routes.
 
 import json
 import logging
+from datetime import timedelta
 from flask import render_template, request, redirect, url_for, flash, jsonify, session
 from infrastructure.services.auth_manager import auth_manager
 from infrastructure.services.settings_manager import settings_manager
@@ -176,19 +177,31 @@ def register_auth_routes(app):
         if request.method == 'POST':
             username = request.form.get('username', '').strip()
             password = request.form.get('password', '').strip()
+            remember = request.form.get('remember') == 'on'
             
             if not username or not password:
                 flash('Please enter both username and password', 'error')
                 return render_template('login.html')
             
             if auth_manager.authenticate_user(username, password):
-                session_token = auth_manager.create_session(username)
+                session_token = auth_manager.create_session(username, remember=remember)
                 if session_token:
+                    # Set session timeout based on remember me
+                    if remember:
+                        session.permanent = True
+                        # Remember me extends session to 30 days
+                        app.permanent_session_lifetime = timedelta(days=30)
+                    else:
+                        session.permanent = False
+                        # Regular session expires when browser closes
+                        app.permanent_session_lifetime = timedelta(hours=8)
+                    
+                    flash('Login successful!', 'success')
                     return redirect(url_for('cluster_portfolio'))
                 else:
                     flash('Login successful but session creation failed', 'error')
             else:
-                flash('Invalid username or password', 'error')
+                flash('Invalid username or password. Please check your credentials.', 'error')
         
         # If already authenticated, redirect to dashboard
         if auth_manager.validate_session():

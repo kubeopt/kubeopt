@@ -390,6 +390,7 @@ class AKSRealTimeMetricsFetcher:
                 
                 processed_node = {
                     'name': node_name,
+                    'node_name': node_name,  # Add for node optimization algorithm compatibility
                     'cpu_cores': cpu_cores,
                     'memory_gb': memory_gb,
                     'cpu_usage_pct': cpu_usage_pct,

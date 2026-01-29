@@ -28,7 +28,17 @@ class LoginPage {
 
         this.setupFormSubmission();
         this.setupKeyboardNavigation();
+        this.setupPasswordToggle();
         this.autoFocusUsername();
+    }
+
+    setupPasswordToggle() {
+        if (this.toggleButton) {
+            this.toggleButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.togglePassword();
+            });
+        }
     }
 
     // Password Visibility Toggle

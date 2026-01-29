@@ -1,0 +1,108 @@
+# Pre-commit hooks for credential and security scanning
+# Install with: pip install pre-commit && pre-commit install
+
+repos:
+  # Secrets Detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: |
+          (?x)^(
+              \.git/.*|
+              .*\.example.*|
+              .*\.template.*|
+              docs/.*|
+              machine_learning/data/.*|
+              README\.md
+          )$
+
+  # TruffleHog for advanced secret detection
+  - repo: https://github.com/trufflesecurity/truffleHog
+    rev: v3.63.2
+    hooks:
+      - id: truffleHog
+        args:
+          - --no-update
+          - filesystem
+          - --directory=.
+        exclude: |
+          (?x)^(
+              \.git/.*|
+              .*\.example.*|
+              .*\.template.*|
+              machine_learning/data/.*
+          )$
+
+  # General security checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+
+  # Python-specific security
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        args: ['-r', '.', '-f', 'json', '-o', 'bandit-report.json']
+        exclude: |
+          (?x)^(
+              tests/.*|
+              .*test.*\.py|
+              machine_learning/.*
+          )$
+
+  # Docker security scanning
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        args: ['--ignore', 'DL3008', '--ignore', 'DL3009']
+
+  # Environment file validation
+  - repo: local
+    hooks:
+      - id: env-file-check
+        name: Environment file validation
+        entry: bash -c 'if find . -name "*.env" -not -path "./.*" -not -name "*.example*" -exec grep -l "password.*=\|secret.*=\|key.*=" {} \; | head -1; then echo "ERROR: .env files contain secrets! Use .env.example instead."; exit 1; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: no-secrets-in-git
+        name: Block files with actual credentials
+        entry: bash -c 'if git ls-files | xargs grep -l "AZURE_CLIENT_SECRET=.*[a-zA-Z0-9]\{10,\}\|ANTHROPIC_API_KEY=sk-ant-[a-zA-Z0-9]\{90,\}\|password.*=[^y][^o][^u][^r]\|Meena@\|Shannu@\|xoxb-\|ghp_\|glpat-" 2>/dev/null; then echo "ERROR: Actual credentials detected in tracked files!"; exit 1; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: license-key-check
+        name: Block actual license keys
+        entry: bash -c 'if git ls-files | xargs grep -l "ENT-[A-Z0-9]\{10\}-[A-Z0-9]\{10\}-[A-Z0-9]\{10\}-[A-Z0-9]\{4\}" 2>/dev/null; then echo "ERROR: Actual license keys detected! Use placeholder instead."; exit 1; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: database-file-check
+        name: Block database files
+        entry: bash -c 'if git ls-files | grep "\.db$\|\.sqlite$\|\.sqlite3$"; then echo "ERROR: Database files should not be committed!"; exit 1; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+  # GitLeaks for additional secret scanning
+  - repo: https://github.com/zricethezav/gitleaks
+    rev: v8.18.0
+    hooks:
+      - id: gitleaks
+
+fail_fast: true

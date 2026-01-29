@@ -104,11 +104,13 @@ class NodeDataProcessor:
         elif 'name' in node:
             name = node['name']
         
-        # Extract nodepool from labels or name
+        # Extract nodepool and VM size from labels
         nodepool = 'default'
+        vm_size = 'unknown'
         if 'metadata' in node and 'labels' in node['metadata']:
             labels = node['metadata']['labels']
             nodepool = labels.get('agentpool', labels.get('kubernetes.azure.com/agentpool', 'default'))
+            vm_size = labels.get('node.kubernetes.io/instance-type', labels.get('beta.kubernetes.io/instance-type', 'unknown'))
         
         # Extract allocatable resources - NO DEFAULTS per .clauderc
         if 'status' not in node or 'allocatable' not in node['status']:
@@ -179,6 +181,7 @@ class NodeDataProcessor:
             'cpu_usage_pct': cpu_usage_pct,
             'memory_usage_pct': memory_usage_pct,
             'nodepool': nodepool,
+            'vm_size': vm_size,
             'status': status
         }
     

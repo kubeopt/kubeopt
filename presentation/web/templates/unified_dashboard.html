@@ -187,6 +187,15 @@
                         <div class="metric-value" id="node-count">0</div>
                         <div class="metric-subtitle">Cluster nodes</div>
                     </div>
+                    
+                    <div class="metric-card">
+                        <div class="metric-header">
+                            <span class="metric-title">Node Efficiency</span>
+                            <span class="metric-trend" id="node-efficiency-trend">--</span>
+                        </div>
+                        <div class="metric-value" id="node-efficiency-score">--%</div>
+                        <div class="metric-subtitle">VM optimization score</div>
+                    </div>
                 </div>
                 
                 <!-- Charts Grid -->
@@ -377,6 +386,38 @@
                     </div>
                 </div>
                 
+                <!-- Anomaly Detection Alerts - Moved from Alerts tab -->
+                <div class="alerts-section" id="anomaly-alerts-section">
+                    <div class="section-header">
+                        <h3 class="section-title">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Anomaly Alerts
+                        </h3>
+                        <div class="section-summary" id="anomaly-alerts-summary">
+                            <span class="summary-stat">
+                                <span class="stat-value" id="total-anomalies">0</span>
+                                <span class="stat-label">anomalies</span>
+                            </span>
+                            <span class="summary-stat">
+                                <span class="stat-value" id="critical-anomalies">0</span>
+                                <span class="stat-label">critical</span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="alerts-grid" id="anomaly-alerts-grid">
+                        <!-- Anomaly alerts will be populated by JavaScript -->
+                    </div>
+                    
+                    <div class="no-alerts hidden" id="no-anomaly-alerts">
+                        <div class="no-alerts-content">
+                            <i class="fas fa-shield-alt success-icon"></i>
+                            <h4>All systems running normally</h4>
+                            <p>No anomalies detected in resource usage or costs.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Enhanced Analysis Section -->
                 <div class="chart-card ai-insights-card">
                     <div class="chart-header">
@@ -396,8 +437,37 @@
                     </div>
                 </div>
                 
-                <!-- Activity Section -->
-                
+                <!-- Node Optimization Recommendations - Moved from Alerts tab -->
+                <div class="recommendations-section" id="node-recommendations-section">
+                    <div class="section-header">
+                        <h3 class="section-title">
+                            <i class="fas fa-server"></i>
+                            Node Optimization Recommendations
+                        </h3>
+                        <div class="section-summary" id="node-recommendations-summary">
+                            <span class="summary-stat">
+                                <span class="stat-value" id="total-node-recommendations">0</span>
+                                <span class="stat-label">recommendations</span>
+                            </span>
+                            <span class="summary-stat">
+                                <span class="stat-value" id="total-node-savings">$0</span>
+                                <span class="stat-label">monthly savings</span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="recommendations-grid" id="node-recommendations-grid">
+                        <!-- Node recommendations will be populated by JavaScript -->
+                    </div>
+                    
+                    <div class="no-recommendations hidden" id="no-node-recommendations">
+                        <div class="no-recommendations-content">
+                            <i class="fas fa-check-circle success-icon"></i>
+                            <h4>Nodes are optimally sized</h4>
+                            <p>No VM size optimization opportunities found.</p>
+                        </div>
+                    </div>
+                </div>
                 
             </div>
             
@@ -414,6 +484,7 @@
             <div id="alerts-section" class="dashboard-section">
                 <div id="alerts-list">
                     <!-- Alerts content will be loaded by JavaScript -->
+                    <!-- This section now contains only user-configured alerts (cost thresholds, CPU monitoring) -->
                 </div>
             </div>
             

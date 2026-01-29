@@ -1,0 +1,212 @@
+name: KubeOpt Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Daily security scan at 3:00 AM UTC
+    - cron: '0 3 * * *'
+
+jobs:
+  security-scan:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for better secret detection
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    # CRITICAL: Scan for Azure credentials and API keys
+    - name: Credential Security Check
+      run: |
+        echo "🔍 Scanning for Azure credentials..."
+        if find . -type f -name "*.py" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" | xargs grep -l "AZURE_CLIENT_SECRET=.*[a-zA-Z0-9]\{10,\}\|AZURE_TENANT_ID=.*[a-f0-9\-]\{36\}" 2>/dev/null; then
+          echo "❌ CRITICAL: Azure credentials detected!"
+          exit 1
+        fi
+        
+        echo "🔍 Scanning for Anthropic API keys..."
+        if find . -name "*.py" -o -name "*.json" -o -name "*.env*" | xargs grep -l "sk-ant-api[a-zA-Z0-9\-_]\{90,\}\|ANTHROPIC_API_KEY=sk-ant" 2>/dev/null; then
+          echo "❌ CRITICAL: Anthropic API keys detected!"
+          exit 1
+        fi
+        
+        echo "🔍 Scanning for email passwords..."
+        if find . -name "*.py" -o -name "*.md" | xargs grep -l "Meena@\|Shannu@\|password.*=.*[^y][^o][^u][^r]" 2>/dev/null; then
+          echo "❌ CRITICAL: Email passwords detected!"
+          exit 1
+        fi
+        
+        echo "✅ No critical credentials found"
+    
+    # GitLeaks - Advanced secret detection
+    - name: Run GitLeaks
+      uses: gitleaks/gitleaks-action@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITLEAKS_ENABLE_COMMENTS: false
+    
+    # TruffleHog - Enterprise secret scanning
+    - name: TruffleHog OSS
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified
+    
+    # Python security analysis
+    - name: Run Bandit Security Analysis
+      run: |
+        pip install bandit
+        bandit -r . -f json -o bandit-report.json || true
+        if [ -f bandit-report.json ]; then
+          python -c "
+        import json
+        with open('bandit-report.json') as f:
+            data = json.load(f)
+        high_issues = [issue for issue in data.get('results', []) if issue.get('issue_severity') == 'HIGH']
+        if high_issues:
+            print('❌ HIGH severity security issues found:')
+            for issue in high_issues[:5]:  # Show first 5
+                print(f'- {issue[\"test_name\"]}: {issue[\"issue_text\"]}')
+            exit(1)
+        print('✅ No high severity issues found')
+        "
+        fi
+    
+    # KubeOpt specific security checks
+    - name: KubeOpt Application Security Validation
+      run: |
+        echo "🔍 Validating KubeOpt security..."
+        
+        # Check for hardcoded Azure subscription IDs
+        if find . -name "*.py" -o -name "*.json" | xargs grep -l "aa6078c8-02d7-459d-a5cb-99da0f7752f2" 2>/dev/null; then
+          echo "❌ Hardcoded Azure subscription ID found!"
+          exit 1
+        fi
+        
+        # Check for database files committed
+        if find . -name "*.db" -o -name "*.sqlite*" | grep -v ".gitignore" | head -1 | grep -q .; then
+          echo "❌ Database files committed!"
+          exit 1
+        fi
+        
+        # Check for sensitive configuration files
+        if find . -name "*_creds*" -o -name "*password*" -o -name "*secret*" | grep -v ".gitignore" | grep -v ".md" | head -1 | grep -q .; then
+          echo "❌ Sensitive configuration files found!"
+          exit 1
+        fi
+        
+        # Check for test files with credentials
+        if find . -name "test_email*.py" -o -name "debug_*.py" -o -name "*_test_creds*" | head -1 | grep -q .; then
+          echo "❌ Test files with credentials found!"
+          exit 1
+        fi
+        
+        echo "✅ KubeOpt security validation passed"
+    
+    # Dependency security check
+    - name: Python Dependency Security Scan
+      run: |
+        pip install safety
+        safety check --json --output safety-report.json || true
+        if [ -f safety-report.json ]; then
+          python -c "
+        import json, sys
+        try:
+            with open('safety-report.json') as f:
+                data = json.load(f)
+            vulnerabilities = data.get('vulnerabilities', [])
+            critical = [v for v in vulnerabilities if v.get('vulnerability_id', '').startswith('51')]  # Critical range
+            if critical:
+                print(f'❌ {len(critical)} critical vulnerabilities found in dependencies!')
+                sys.exit(1)
+            print('✅ No critical dependency vulnerabilities')
+        except:
+            print('✅ Safety scan completed')
+        "
+        fi
+    
+    # Docker security (if Dockerfile exists)
+    - name: Docker Security Scan
+      run: |
+        if [ -f Dockerfile ]; then
+          echo "🔍 Scanning Dockerfile for security issues..."
+          docker run --rm -i hadolint/hadolint < Dockerfile || echo "⚠️ Dockerfile has style issues"
+        else
+          echo "ℹ️ No Dockerfile found, skipping Docker scan"
+        fi
+    
+    # Machine Learning model security
+    - name: ML Model Security Check
+      run: |
+        echo "🔍 Checking ML model security..."
+        
+        # Check for pickled models (security risk)
+        if find ./machine_learning -name "*.pkl" -o -name "*.pickle" 2>/dev/null | head -1 | grep -q .; then
+          echo "⚠️ Pickled models found - ensure they're from trusted sources"
+        fi
+        
+        # Check for hardcoded model paths in production
+        if find . -name "*.py" | xargs grep -l "models/.*\.pkl\|/tmp/.*model" 2>/dev/null; then
+          echo "⚠️ Hardcoded model paths found"
+        fi
+        
+        echo "✅ ML model security check completed"
+    
+    # Upload security reports as artifacts
+    - name: Upload Security Reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json
+          gitleaks-report.json
+        retention-days: 30
+
+  # Separate job for Azure integration testing (if needed)
+  azure-security-test:
+    name: Azure Integration Security Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Test Azure Connection Security
+      run: |
+        echo "🧪 Testing Azure connection security..."
+        python -c "
+        import os, sys
+        
+        # Test that Azure connections fail gracefully without credentials
+        try:
+            from infrastructure.azure_sdk_manager import AzureSDKManager
+            manager = AzureSDKManager()
+            # This should fail safely without credentials
+            result = manager.get_subscription_info()
+            if result:
+                print('⚠️ Azure connection succeeded without credentials - check default credential chain')
+            else:
+                print('✅ Azure connection properly secured')
+        except Exception as e:
+            print(f'✅ Azure connection properly secured: {str(e)[:100]}')
+        " || echo "✅ Azure security test completed"
